@@ -9,9 +9,11 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import threading
+import time
 import webbrowser
 from pathlib import Path
 
@@ -31,6 +33,24 @@ TOKEN = ROOT / "token_manage.json"
 OUT = ROOT / "output"
 CHANNEL_URL = "https://www.youtube.com/channel/UCqP5JQXlQR5ZDLtEiBt4kLA"
 STUDIO_URL = "https://studio.youtube.com/channel/UCqP5JQXlQR5ZDLtEiBt4kLA"
+
+# ── 雲端（DigitalOcean droplet）連線設定 ──
+# cloud.json（本機、不進版控）：{"ip": "...", "user": "root", "password": "...", "remote_root": "/root/yt"}
+CLOUD_CFG = ROOT / "cloud.json"
+CLOUD_SSH = ROOT / "scripts" / "cloud_ssh.py"
+
+
+def load_cloud_cfg():
+    if CLOUD_CFG.exists():
+        try:
+            c = json.loads(CLOUD_CFG.read_text(encoding="utf-8"))
+            if c.get("ip") and c.get("password"):
+                c.setdefault("user", "root")
+                c.setdefault("remote_root", "/root/yt")
+                return c
+        except Exception:
+            pass
+    return None
 
 FONT = ("Microsoft JhengHei", 11)
 FONT_B = ("Microsoft JhengHei", 13, "bold")
@@ -159,6 +179,10 @@ class App(tk.Tk):
         self.stats = {"subs": None, "views": None, "videos": None}
         self._tick = 0          # auto_tick 計數（用來決定多久抓一次 YouTube 數據）
         self._fetching = False   # 避免重複併發抓取
+        self._cloud = None       # 最近一次雲端狀態（dict）
+        self._cloud_state = "idle"  # idle / fetching / online / offline
+        self._cloud_fetching = False
+        self._cloud_last = None
 
         head = tk.Frame(self, bg=NAVY)
         head.pack(fill="x", padx=16, pady=(14, 4))
@@ -184,6 +208,7 @@ class App(tk.Tk):
         nb = ttk.Notebook(self)
         nb.pack(fill="both", expand=True, padx=16, pady=8)
         self.tab_dashboard(nb)
+        self.tab_cloud(nb)
         self.tab_departments(nb)
         self.tab_hr(nb)
         self.tab_reports(nb)
@@ -192,6 +217,7 @@ class App(tk.Tk):
 
         self.refresh_status()
         self.fetch_stats()           # 開啟時自動抓一次
+        self.fetch_cloud()           # 開啟時自動抓一次雲端狀態
         self.after(8000, self.auto_tick)  # 每 8 秒刷新本地狀態
 
     # ---------- Tab 0: 總覽（戰情室） ----------
@@ -242,6 +268,8 @@ class App(tk.Tk):
         self._section(f, "🏭 工廠狀態")
         self.fac_lbl = tk.Label(f, text="", font=FONT, bg=NAVY, fg=TEXTCOL, justify="left")
         self.fac_lbl.pack(anchor="w", padx=24)
+        self.cloud_oneline = tk.Label(f, text="☁ 雲端：連線中…", font=FONT, bg=NAVY, fg=SUB, justify="left")
+        self.cloud_oneline.pack(anchor="w", padx=24, pady=(2, 0))
         tk.Label(f, text="自動排程：05:30 競品 → 05:37 決策 → 06:07 補產 → 09:07 上架 → 09:37 回顧 → 09:42 人事 …",
                  font=("Microsoft JhengHei", 9), bg=NAVY, fg=SUB).pack(anchor="w", padx=24, pady=(1, 0))
 
@@ -356,8 +384,11 @@ class App(tk.Tk):
         self.fac_lbl.config(
             text=f"{len(DEPTS)} 部門　｜　片庫 {q} 支　｜　累計上架 {pub} 支　｜　"
                  + ("⏸ 已暫停" if paused else "▶ 全自動運轉中"))
-        # 戰略 + 待拍板
+        # 戰略 + 待拍板（線上時戰略以雲端為準）
+        cloud = self._cloud if (getattr(self, "_cloud_state", "") == "online" and self._cloud) else None
         one, _ = latest_decision()
+        if cloud and cloud.get("strategy"):
+            one = cloud["strategy"]
         pend = self._load_pending()
         self.brief.delete("1.0", "end")
         self.brief.insert("end", "【今日戰略】\n" + (one or "（決策部門明早 05:37 首次運轉後產生）") + "\n\n")
@@ -369,28 +400,419 @@ class App(tk.Tk):
             self.brief.insert("end", "【待你拍板】（目前沒有，工廠自己跑）\n")
         if self.stats.get("err"):
             self.brief.insert("end", f"\n（數據抓取提醒：{self.stats['err']}）")
-        # 工廠心跳
+        # 工廠心跳（線上時顯示雲端心跳）
         try:
             self.ops_box.delete("1.0", "end")
-            self.ops_box.insert("1.0", read_ops_tail(12))
+            if cloud and cloud.get("ops_tail"):
+                self.ops_box.insert("1.0", "\n".join(cloud["ops_tail"]))
+            else:
+                self.ops_box.insert("1.0", read_ops_tail(12))
             self.ops_box.see("end")
         except Exception:
             pass
 
     def run_full_cycle(self):
-        if not messagebox.askyesno("確認", "立即依序執行：決策 → 補產 → 上架 → 回顧檢討？\n（會花幾分鐘，可在控制台看輸出）"):
+        if not messagebox.askyesno("確認", "立即依序執行：決策 → 補產 → 上架 → 回顧 → 人事？\n（預設在雲端跑，背景進行，可在『☁ 雲端營運』看輸出）"):
             return
+        priv = load_directives().get("privacy", "public")
+        cfg = load_cloud_cfg()
+        if cfg:  # 在雲端跑整輪（背景）
+            self._nb.select(self._cloud_frame)
+            chain = ("./run.sh scripts/decision_dept.py; "
+                     "./run.sh scripts/produce_batch.py --shorts 4 --long 1 --target 60; "
+                     f"./run.sh scripts/daily_publish.py --max 6 --privacy {priv}; "
+                     "./run.sh scripts/retro_dept.py; ./run.sh scripts/hr_dept.py")
+            self._cloud_stream(
+                f"cd {cfg['remote_root']} && nohup bash -c '{chain}' > logs/full_cycle.log 2>&1 & echo '已在雲端背景啟動整輪（看 logs/full_cycle.log）'",
+                "雲端跑一輪")
+            return
+        # 無雲端 → 本機跑（備援）
         self._goto_control()
 
         def chain():
             for args, name in [(["scripts/decision_dept.py"], "決策"),
                                (["scripts/produce_batch.py", "--shorts", "4", "--long", "1"], "補產"),
-                               (["scripts/daily_publish.py", "--max", "6", "--privacy", load_directives().get("privacy", "public")], "上架"),
+                               (["scripts/daily_publish.py", "--max", "6", "--privacy", priv], "上架"),
                                (["scripts/retro_dept.py"], "回顧檢討"),
                                (["scripts/hr_dept.py"], "人事監察")]:
                 self._run_blocking(args, name)
             self.after(0, self.fetch_stats)
         threading.Thread(target=chain, daemon=True).start()
+
+    # ---------- Tab: ☁ 雲端營運中心 ----------
+    def tab_cloud(self, nb):
+        f = tk.Frame(nb, bg=NAVY)
+        nb.add(f, text="☁ 雲端營運")
+        self._cloud_frame = f
+
+        # 連線狀態橫幅
+        top = tk.Frame(f, bg=CARD); top.pack(fill="x", padx=16, pady=(14, 6))
+        self.cloud_banner = tk.Label(top, text="☁ 雲端連線中…", font=FONT_B, bg=CARD, fg=ACCENT,
+                                     anchor="w", justify="left")
+        self.cloud_banner.pack(side="left", padx=12, pady=10)
+        self.cloud_sub = tk.Label(top, text="", font=("Microsoft JhengHei", 9), bg=CARD, fg=SUB)
+        self.cloud_sub.pack(side="right", padx=12)
+
+        # 雲端 KPI 四卡（片庫 / 今日已產 / 累計上架 / 排程囤片剩餘）
+        self._cloud_kpi_labels = {"queue": "雲端片庫", "produced": "今日已產",
+                                  "published": "累計上架", "buffer": "排程囤片剩餘"}
+        self.cloud_kpi = {}
+        krow = tk.Frame(f, bg=NAVY); krow.pack(fill="x", padx=12, pady=(2, 2))
+        for key in ("queue", "produced", "published", "buffer"):
+            c = tk.Frame(krow, bg=CARD); c.pack(side="left", expand=True, fill="both", padx=5)
+            val = tk.Label(c, text="—", font=("Microsoft JhengHei", 24, "bold"), bg=CARD, fg=ACCENT)
+            val.pack(pady=(12, 0))
+            tk.Label(c, text=self._cloud_kpi_labels[key], font=("Microsoft JhengHei", 10),
+                     bg=CARD, fg=SUB).pack(pady=(0, 10))
+            self.cloud_kpi[key] = val
+
+        # 操作列
+        bar = tk.Frame(f, bg=NAVY); bar.pack(fill="x", padx=16, pady=(8, 2))
+        tk.Button(bar, text="🔄 立即刷新雲端", font=FONT, bg=ACCENT, fg=NAVY, bd=0, padx=12, pady=5,
+                  command=self.fetch_cloud).pack(side="left", padx=(0, 6))
+        tk.Button(bar, text="☁ 在雲端補產", font=FONT, bg="#1f6f43", fg="#eafff1", bd=0, padx=12, pady=5,
+                  activebackground=GREEN, command=self.cloud_produce).pack(side="left", padx=6)
+        tk.Button(bar, text="📦 雲端排程囤片", font=FONT, bg="#1f5f7a", fg="#eaf6ff", bd=0, padx=12, pady=5,
+                  command=self.cloud_schedule).pack(side="left", padx=6)
+        tk.Button(bar, text="🚀 雲端立即上架", font=FONT, bg="#7a5a1f", fg="#fff6e6", bd=0, padx=12, pady=5,
+                  command=self.cloud_publish).pack(side="left", padx=6)
+        tk.Button(bar, text="📜 看雲端日誌", font=FONT, bg=CARD, fg=TEXTCOL, bd=0, padx=12, pady=5,
+                  command=self.cloud_view_log).pack(side="left", padx=6)
+
+        # 排程囤片清單（出國保險）
+        self._section(f, "📅 排程囤片（YouTube 伺服器自動公開・不依賴家用網路）")
+        self.cloud_buffer_box = scrolledtext.ScrolledText(f, height=6, font=("Microsoft JhengHei", 10),
+                                                          wrap="word", bg="#0a1020", fg=TEXTCOL, bd=0,
+                                                          padx=12, pady=8)
+        self.cloud_buffer_box.pack(fill="x", padx=16, pady=(2, 4))
+
+        # 主機健康
+        self._section(f, "🖥 主機健康")
+        self.cloud_host_lbl = tk.Label(f, text="（連線後顯示磁碟／記憶體／負載／運行時間）",
+                                       font=FONT, bg=NAVY, fg=TEXTCOL, justify="left", wraplength=1000)
+        self.cloud_host_lbl.pack(anchor="w", padx=24)
+
+        # cron 日誌
+        self._section(f, "📜 雲端 cron 最近日誌")
+        self.cloud_cronbox = scrolledtext.ScrolledText(f, height=5, font=("Consolas", 9), wrap="none",
+                                                       bg="#06090f", fg=GREEN, bd=0, padx=10, pady=4)
+        self.cloud_cronbox.pack(fill="x", padx=16, pady=(2, 4))
+
+        # 操作輸出
+        self._section(f, "⌨ 雲端操作輸出")
+        self.cloud_log = scrolledtext.ScrolledText(f, height=7, font=("Consolas", 9), wrap="word",
+                                                   bg="#06090f", fg="#b9f7c0", bd=0, padx=10, pady=6)
+        self.cloud_log.pack(fill="both", expand=True, padx=16, pady=(2, 12))
+
+    def _cloud_env(self, cfg):
+        env = dict(os.environ)
+        env["DROPLET_IP"] = cfg["ip"]
+        env["DROPLET_PW"] = cfg["password"]
+        env["DROPLET_USER"] = cfg.get("user", "root")
+        env["PYTHONIOENCODING"] = "utf-8"
+        return env
+
+    def fetch_cloud(self):
+        """背景抓一次雲端狀態（跑 cloud_status.py via SSH，解析 JSON）。"""
+        if self._cloud_fetching:
+            return
+        cfg = load_cloud_cfg()
+        if not cfg:
+            self._cloud_state = "noconfig"
+            self.render_cloud()
+            return
+        self._cloud_fetching = True
+        self._cloud_state = "fetching"
+        try:
+            self.render_cloud()
+        except Exception:
+            pass
+
+        def worker():
+            t0 = time.time()
+            data, err = None, None
+            try:
+                remote = f"cd {cfg['remote_root']} && ./run.sh scripts/cloud_status.py"
+                p = subprocess.run([str(PY), str(CLOUD_SSH), "run", remote],
+                                   env=self._cloud_env(cfg), capture_output=True, text=True,
+                                   encoding="utf-8", errors="replace", timeout=40)
+                out = p.stdout or ""
+                for line in out.splitlines():
+                    if "@@CLOUDJSON64@@" in line:
+                        import base64
+                        b64 = line.split("@@CLOUDJSON64@@", 1)[1].strip()
+                        data = json.loads(base64.b64decode(b64).decode("utf-8"))
+                        break
+                if data is None:
+                    err = (out.strip().splitlines()[-1] if out.strip() else "") or (p.stderr or "無回應")
+            except subprocess.TimeoutExpired:
+                err = "連線逾時（伺服器忙或網路慢）"
+            except Exception as e:  # noqa: BLE001
+                err = str(e)[:120]
+            data and data.update({"_latency": round(time.time() - t0, 1)})
+            self._cloud = data
+            self._cloud_err = err
+            self._cloud_state = "online" if data else "offline"
+            self._cloud_fetching = False
+            from datetime import datetime
+            self._cloud_last = datetime.now().strftime("%H:%M:%S")
+            if data:
+                self._adopt_cloud(data)
+            self.after(0, self.render_cloud)
+            self.after(0, self._after_cloud_sync)
+        threading.Thread(target=worker, daemon=True).start()
+
+    def render_cloud(self):
+        st = self._cloud_state
+        # 一行式（總覽用）
+        oneline = getattr(self, "cloud_oneline", None)
+        if st == "noconfig":
+            banner = "🔧 尚未設定雲端連線（缺 cloud.json）"
+            if hasattr(self, "cloud_banner"):
+                self.cloud_banner.config(text=banner, fg=SUB)
+                self.cloud_sub.config(text="")
+            if oneline:
+                oneline.config(text="☁ 雲端：未設定（建立 cloud.json 即可監看）", fg=SUB)
+            return
+        if st == "fetching" and not self._cloud:
+            if hasattr(self, "cloud_banner"):
+                self.cloud_banner.config(text="☁ 連線雲端中…", fg=ACCENT)
+            if oneline:
+                oneline.config(text="☁ 雲端：連線中…", fg=SUB)
+            return
+
+        d = self._cloud
+        if not d:  # offline
+            msg = getattr(self, "_cloud_err", "") or "無法連線"
+            if hasattr(self, "cloud_banner"):
+                self.cloud_banner.config(text="🔴 雲端離線 / 連不上", fg=RED)
+                self.cloud_sub.config(text=f"最後嘗試 {self._cloud_last or '--'} ・ {msg[:50]}")
+            if oneline:
+                oneline.config(text=f"☁ 雲端：🔴 離線（{msg[:40]}）", fg=RED)
+            return
+
+        # online
+        render_txt = "🎬 渲染中" if d.get("render_running") else "💤 閒置"
+        cron_txt = "✅ cron 已裝" if d.get("cron_installed") else "⚠ cron 未裝"
+        errn = d.get("errors_recent", 0)
+        if hasattr(self, "cloud_banner"):
+            self.cloud_banner.config(
+                text=f"🟢 雲端線上 ・ {render_txt} ・ {cron_txt}", fg=GREEN)
+            self.cloud_sub.config(
+                text=f"伺服器時間 {d.get('ts','')} ・ 延遲 {d.get('_latency','?')}s ・ 本機更新 {self._cloud_last or '--'}")
+        # KPI
+        if hasattr(self, "cloud_kpi"):
+            self.cloud_kpi["queue"].config(text=str(d.get("queue", "—")))
+            self.cloud_kpi["produced"].config(text=str(d.get("produced_today", "—")))
+            self.cloud_kpi["published"].config(text=str(d.get("published_total", "—")))
+            bc = d.get("buffer_count", 0)
+            self.cloud_kpi["buffer"].config(text=str(bc), fg=(GREEN if bc else SUB))
+        # 排程囤片清單
+        if hasattr(self, "cloud_buffer_box"):
+            self.cloud_buffer_box.delete("1.0", "end")
+            buf = d.get("buffer", [])
+            if buf:
+                nextp = d.get("next_publish")
+                self.cloud_buffer_box.insert("end", f"共 {d.get('buffer_count',0)} 支待自動公開"
+                                             + (f"，下一支 {nextp}（台灣）\n" if nextp else "\n"))
+                for b in buf:
+                    title = b.get("slug", "")[:42]
+                    self.cloud_buffer_box.insert("end", f"  • {b.get('at_tw','')}　{title}\n")
+                self.cloud_buffer_box.insert("end", "\n這些影片由 YouTube 伺服器定時翻牌公開，你人在國外/家裡斷網也照發。")
+            else:
+                self.cloud_buffer_box.insert("end", "（目前沒有排程囤片。按「📦 雲端排程囤片」把渲好的片排進出國這幾天。）")
+        # 主機健康
+        if hasattr(self, "cloud_host_lbl"):
+            parts = []
+            if "disk_pct" in d:
+                parts.append(f"💾 磁碟 {d['disk_pct']}%（剩 {d.get('disk_free_gb','?')}GB）")
+            if "mem_pct" in d:
+                parts.append(f"🧠 記憶體 {d['mem_pct']}%／{d.get('mem_total_gb','?')}GB")
+            if "load1" in d:
+                parts.append(f"📈 負載 {d['load1']}")
+            if "uptime" in d:
+                parts.append(f"⏱ 運行 {d['uptime']}")
+            parts.append(f"🛠 近期異常 {errn} 條" if errn else "✅ 近期無異常")
+            disk_warn = d.get("disk_pct", 0) >= 88
+            self.cloud_host_lbl.config(text="　｜　".join(parts), fg=(RED if disk_warn else TEXTCOL))
+        # cron 日誌
+        if hasattr(self, "cloud_cronbox"):
+            self.cloud_cronbox.delete("1.0", "end")
+            lines = d.get("cron_recent", [])
+            mt = d.get("cron_log_mtime")
+            self.cloud_cronbox.insert("1.0", (f"# 最後寫入 {mt}\n" if mt else "")
+                                      + ("\n".join(lines) if lines else "（cron 尚未首次執行；明早 06:07 起會有紀錄）"))
+            self.cloud_cronbox.see("end")
+        # 總覽一行
+        if oneline:
+            bc = d.get("buffer_count", 0)
+            oneline.config(
+                text=f"☁ 雲端：🟢 線上　｜　片庫 {d.get('queue',0)} 支　｜　今日已產 {d.get('produced_today',0)}　"
+                     f"｜　累計上架 {d.get('published_total',0)}　｜　排程囤片 {bc} 支　｜　{render_txt}",
+                fg=(GREEN if not errn else ACCENT))
+
+    def _cloud_stream(self, remote_cmd, name):
+        """在雲端跑一條指令，輸出串到『雲端操作輸出』框（背景執行緒）。"""
+        cfg = load_cloud_cfg()
+        if not cfg:
+            messagebox.showwarning("未設定雲端", "找不到 cloud.json，無法連雲端。")
+            return
+        self.cloud_log.insert("end", f"\n=== {name} 開始（雲端）… ===\n"); self.cloud_log.see("end")
+
+        def worker():
+            try:
+                p = subprocess.Popen([str(PY), str(CLOUD_SSH), "run", remote_cmd],
+                                     env=self._cloud_env(cfg), stdout=subprocess.PIPE,
+                                     stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace")
+                for line in p.stdout:
+                    self.cloud_log.insert("end", line); self.cloud_log.see("end")
+                p.wait()
+                self.cloud_log.insert("end", f"=== {name} 完成 (exit {p.returncode}) ===\n")
+            except Exception as e:  # noqa: BLE001
+                self.cloud_log.insert("end", f"[錯誤] {e}\n")
+            self.after(0, self.fetch_cloud)
+        threading.Thread(target=worker, daemon=True).start()
+
+    def cloud_produce(self):
+        if not messagebox.askyesno("☁ 在雲端補產", "在雲端伺服器立即補產 Shorts？\n（不佔用你的電腦，渲染在雲端跑）"):
+            return
+        n = simpledialog.askinteger("補產數量", "要補產幾支 Shorts？", parent=self,
+                                    minvalue=1, maxvalue=20, initialvalue=4)
+        if not n:
+            return
+        cfg = load_cloud_cfg()
+        self._cloud_stream(
+            f"cd {cfg['remote_root']} && nohup ./run.sh scripts/produce_batch.py --shorts {n} --long 0 --target 60 "
+            f"> logs/manual_produce.log 2>&1 & echo '已在雲端背景啟動補產 {n} 支（看 logs/manual_produce.log）'",
+            f"雲端補產 {n} 支")
+
+    def cloud_schedule(self):
+        if not messagebox.askyesno("📦 雲端排程囤片",
+                                   "把雲端渲好的 Shorts 上傳為『排程公開』，分散未來幾天自動發布？\n"
+                                   "（YouTube 伺服器定時翻牌，出國斷網照發）"):
+            return
+        days = simpledialog.askinteger("排幾天份", "排程涵蓋未來幾天（每天 1 支）？", parent=self,
+                                       minvalue=1, maxvalue=14, initialvalue=9)
+        if not days:
+            return
+        cfg = load_cloud_cfg()
+        self._cloud_stream(
+            f"cd {cfg['remote_root']} && ./run.sh scripts/schedule_publish.py --days {days} --per-day 1 --start 1 --hour 19 --max 6",
+            f"雲端排程囤片 {days} 天")
+
+    def cloud_publish(self):
+        if not messagebox.askyesno("🚀 雲端立即上架", "在雲端立即把片庫的影片上架（公開）？"):
+            return
+        cfg = load_cloud_cfg()
+        priv = load_directives().get("privacy", "public")
+        self._cloud_stream(
+            f"cd {cfg['remote_root']} && ./run.sh scripts/daily_publish.py --max 6 --privacy {priv}",
+            "雲端立即上架")
+
+    def cloud_view_log(self):
+        cfg = load_cloud_cfg()
+        if not cfg:
+            messagebox.showwarning("未設定雲端", "找不到 cloud.json，無法連雲端。")
+            return
+        self._cloud_stream(
+            f"cd {cfg['remote_root']} && tail -40 logs/cron.log 2>/dev/null; echo '--- 補產 ---'; tail -20 logs/buffer_render.log 2>/dev/null",
+            "讀雲端日誌")
+
+    # ── 整合核心：把本機控制『推送到雲端 + 馬上照做』──
+    def _remote(self, tail):
+        """組遠端指令（cd 到雲端根目錄）；無 cloud.json 時回 None。"""
+        cfg = load_cloud_cfg()
+        return f"cd {cfg['remote_root']} && {tail}" if cfg else None
+
+    def _trig_decision(self):
+        return self._remote("nohup ./run.sh scripts/decision_dept.py > logs/manual_decision.log 2>&1 & echo triggered")
+
+    def _trig_produce(self, shorts, longn):
+        # 已在渲染就不重複啟動，避免堆疊
+        return self._remote(
+            f"(pgrep -f produce_batch >/dev/null && echo 'already-rendering') || "
+            f"(nohup ./run.sh scripts/produce_batch.py --shorts {shorts} --long {longn} --target 60 "
+            f"> logs/manual_produce.log 2>&1 & echo triggered)")
+
+    def _cloud_apply(self, files=(), trigger_remote=None, label=""):
+        """把指定的 STUDIO 設定檔推到雲端，並（可選）立刻觸發對應腳本。非阻塞。"""
+        cfg = load_cloud_cfg()
+        if not cfg:
+            return False
+
+        def worker():
+            okmsg = []
+            try:
+                for fn in files:
+                    lp = STUDIO / fn
+                    if lp.exists():
+                        subprocess.run([str(PY), str(CLOUD_SSH), "put", str(lp),
+                                        f"{cfg['remote_root']}/STUDIO/{fn}"],
+                                       env=self._cloud_env(cfg), capture_output=True, text=True,
+                                       encoding="utf-8", errors="replace", timeout=45)
+                        okmsg.append(fn)
+                if trigger_remote:
+                    subprocess.run([str(PY), str(CLOUD_SSH), "run", trigger_remote],
+                                   env=self._cloud_env(cfg), capture_output=True, text=True,
+                                   encoding="utf-8", errors="replace", timeout=45)
+                line = f"[雲端] {label}：已推送 {'、'.join(okmsg) or '設定'}" + ("，並立即觸發執行 ✓\n" if trigger_remote else " ✓\n")
+            except Exception as e:  # noqa: BLE001
+                line = f"[雲端] {label} 失敗：{str(e)[:80]}\n"
+            try:
+                self.after(0, lambda: (self.cloud_log.insert("end", line), self.cloud_log.see("end")))
+            except Exception:
+                pass
+            self.after(1800, self.fetch_cloud)  # 稍後刷新雲端狀態，反映結果
+        threading.Thread(target=worker, daemon=True).start()
+        return True
+
+    def _activate_on_cloud(self, script, args, label):
+        """⚡激活：在雲端跑某部門腳本（背景或前景串流）。"""
+        cfg = load_cloud_cfg()
+        if not cfg:
+            return False
+        argstr = " ".join(args)
+        self._nb.select(self._cloud_frame)
+        self._cloud_stream(f"cd {cfg['remote_root']} && ./run.sh {script} {argstr}", label + "（雲端）")
+        return True
+
+    def _adopt_cloud(self, data):
+        """把雲端的控制面資料寫回本機，讓既有分頁直接顯示雲端真相（單一真相＝雲端）。"""
+        try:
+            # 待拍板決策：永遠以雲端為準（過濾本次已答、避免重新冒出來閃爍）
+            answered = getattr(self, "_answered", set())
+            pend = [p for p in data.get("pending", []) if p.get("id") not in answered]
+            PENDING.write_text(json.dumps(pend, ensure_ascii=False, indent=2), encoding="utf-8")
+            # 雲端已不含的已答 id → 從 answered 移除（雲端已追上）
+            cloud_ids = {p.get("id") for p in data.get("pending", [])}
+            self._answered = {a for a in answered if a in cloud_ids}
+        except Exception:
+            pass
+        # 首次連線：採用雲端的員額/指令/決策為基準（之後本機改動以推送為準）
+        if not getattr(self, "_cloud_baseline", False):
+            try:
+                doc = data.get("directives_doc")
+                if isinstance(doc, dict):
+                    save_directives(doc)
+                hc = data.get("headcount")
+                if isinstance(hc, dict) and hc:
+                    save_headcount(hc)
+                bd = data.get("boss_decisions")
+                if isinstance(bd, dict):
+                    BOSS_DEC.write_text(json.dumps(bd, ensure_ascii=False, indent=2), encoding="utf-8")
+                self._cloud_baseline = True
+            except Exception:
+                pass
+
+    def _after_cloud_sync(self):
+        """雲端資料寫回本機後，重繪受影響分頁。"""
+        self._sig_pending = None  # 逼 render_pending 重畫
+        for fn in (self.render_pending, self.render_dashboard, self.render_departments,
+                   self._refresh_hr, self.refresh_directives):
+            try:
+                fn()
+            except Exception:
+                pass
 
     # ---------- Tab: 部門總覽 ----------
     def tab_departments(self, nb):
@@ -453,10 +875,18 @@ class App(tk.Tk):
         today = datetime.now().strftime("%Y-%m-%d")
         paused = load_directives().get("paused", False)
 
+        # 線上時：部門出勤以『雲端』真實報告為準（出國後本機沒跑，不該誤顯示未產出）
+        cloud = self._cloud if (getattr(self, "_cloud_state", "") == "online" and self._cloud) else None
+        cloud_today = set(cloud.get("dept_reports_today", [])) if cloud else None
+
         def rep(suffix):
+            if cloud_today is not None:
+                return suffix in cloud_today
             return (REPORTS / f"{today}_{suffix}.md").exists()
 
         def out_today(prefix):
+            if cloud is not None:
+                return cloud.get("produced_today", 0) > 0
             try:
                 return any(datetime.fromtimestamp(p.stat().st_mtime).strftime("%Y-%m-%d") == today
                            for p in OUT.glob(f"{prefix}*.mp4"))
@@ -560,37 +990,32 @@ class App(tk.Tk):
             pass
 
     def activate_dept(self, d):
-        """⚡激活：立刻叫該部門跑一次（真的執行對應腳本，輸出串到控制台）。"""
+        """⚡激活：立刻叫該部門跑一次。預設在『雲端』執行（單一真相＝雲端）；無 cloud.json 才退回本機。"""
         name = f"{d['tag']} {d['name']}"
         act = d.get("act")
         priv = load_directives().get("privacy", "public")
-        if act == "produce_long":
-            self._goto_control(); self.run_script(["scripts/produce_batch.py", "--long", "1", "--shorts", "0"], name + "・激活")
-        elif act == "produce_short":
-            self._goto_control(); self.run_script(["scripts/produce_batch.py", "--shorts", "4", "--long", "0"], name + "・激活")
-        elif act == "decision":
-            self._goto_control(); self.run_script(["scripts/decision_dept.py"], name + "・激活")
-        elif act == "publish":
-            self._goto_control(); self.run_script(["scripts/daily_publish.py", "--max", "6", "--privacy", priv], name + "・激活")
-        elif act == "retro":
-            self._goto_control(); self.run_script(["scripts/retro_dept.py"], name + "・激活")
-        elif act == "hr":
-            self._goto_control(); self.run_script(["scripts/hr_dept.py"], name + "・激活")
-        elif act == "finance":
-            self._goto_control(); self.run_script(["scripts/finance_dept.py"], name + "・激活")
-        elif act == "organize":
-            self._goto_control(); self.run_script(["scripts/organize_dept.py"], name + "・激活")
-        elif act == "promo":
-            self._goto_control(); self.run_script(["scripts/promo_dept.py"], name + "・激活")
-        elif act == "comment":
-            self._goto_control(); self.run_script(["scripts/comment_dept.py"], name + "・激活")
-        elif act == "thumb":
-            self._goto_control(); self.run_script(["scripts/thumbnail_dept.py"], name + "・激活")
-        elif act == "intel":
-            self._goto_control(); self.run_script(["scripts/intel_dept.py"], name + "・激活")
+        cloud_acts = {
+            "produce_long": ("scripts/produce_batch.py", ["--long", "1", "--shorts", "0", "--target", "60"]),
+            "produce_short": ("scripts/produce_batch.py", ["--shorts", "4", "--long", "0", "--target", "60"]),
+            "decision": ("scripts/decision_dept.py", []),
+            "publish": ("scripts/daily_publish.py", ["--max", "6", "--privacy", priv]),
+            "retro": ("scripts/retro_dept.py", []),
+            "hr": ("scripts/hr_dept.py", []),
+            "finance": ("scripts/finance_dept.py", []),
+            "organize": ("scripts/organize_dept.py", []),
+            "promo": ("scripts/promo_dept.py", []),
+            "comment": ("scripts/comment_dept.py", []),
+            "thumb": ("scripts/thumbnail_dept.py", []),
+            "intel": ("scripts/intel_dept.py", []),
+        }
+        if act in cloud_acts:
+            script, args = cloud_acts[act]
+            if self._activate_on_cloud(script, args, name + "・激活"):
+                return
+            self._goto_control(); self.run_script([script] + args, name + "・激活(本機備援)")
         elif act == "data":
-            self.fetch_stats()
-            messagebox.showinfo("已激活", f"{name} 已重新抓取最新頻道數據（KPI 即將更新）。")
+            self.fetch_stats(); self.fetch_cloud()
+            messagebox.showinfo("已激活", f"{name} 已重新抓取最新頻道數據與雲端狀態。")
         elif act == "reports":
             try:
                 subprocess.Popen(["explorer", str(REPORTS)])
@@ -640,7 +1065,8 @@ class App(tk.Tk):
         cur = load_directives().get("boost", {}).get(name, 0)
         res = self._apply_boost(d, cur + 1)
         if res:
-            messagebox.showinfo("🔥 已壓榨", f"{res[0]} 壓榨強度 Lv{res[1]}（上限 {MAX_BOOST_LV}）。\n決策部門明早起會更積極。")
+            self._cloud_apply(["boss_directives.json"], self._trig_decision(), f"壓榨 {res[0]}")
+            messagebox.showinfo("🔥 已壓榨", f"{res[0]} 壓榨強度 Lv{res[1]}（上限 {MAX_BOOST_LV}）。\n已推送雲端、決策部門立即加碼。")
 
     def max_squeeze_dept(self, d):
         """🔥🔥 最大化壓榨：該部門直接拉到最大強度。"""
@@ -650,7 +1076,8 @@ class App(tk.Tk):
             return
         res = self._apply_boost(d, MAX_BOOST_LV)
         if res:
-            messagebox.showinfo("🔥🔥 最大化壓榨", f"{res[0]} 已拉到最大 Lv{res[1]}！這個部門火力全開。")
+            self._cloud_apply(["boss_directives.json"], self._trig_decision(), f"最大化壓榨 {res[0]}")
+            messagebox.showinfo("🔥🔥 最大化壓榨", f"{res[0]} 已拉到最大 Lv{res[1]}！已推送雲端、立即火力全開。")
 
     def squeeze_all(self):
         """🔥 一鍵壓榨：所有可壓榨部門強度 +1。"""
@@ -666,7 +1093,8 @@ class App(tk.Tk):
             self.refresh_directives()
         except Exception:
             pass
-        messagebox.showinfo("🔥 一鍵壓榨完成", f"已對 {n} 個部門 +1 壓榨。全公司加碼運轉。")
+        self._cloud_apply(["boss_directives.json"], self._trig_decision(), "一鍵壓榨全公司")
+        messagebox.showinfo("🔥 一鍵壓榨完成", f"已對 {n} 個部門 +1 壓榨，並推送雲端立即加碼。")
 
     def max_squeeze_all(self):
         """🔥🔥 一鍵最大化壓榨：所有可壓榨部門拉到最大。"""
@@ -682,7 +1110,8 @@ class App(tk.Tk):
             self.refresh_directives()
         except Exception:
             pass
-        messagebox.showinfo("🔥🔥 火力全開", f"已把 {n} 個部門全部拉到最大 Lv{MAX_BOOST_LV}！\n全公司進入最大化衝刺。")
+        self._cloud_apply(["boss_directives.json"], self._trig_decision(), "一鍵最大化壓榨")
+        messagebox.showinfo("🔥🔥 火力全開", f"已把 {n} 個部門全部拉到最大 Lv{MAX_BOOST_LV}！\n已推送雲端、全公司立即最大化衝刺。")
 
     # ---------- Tab: 人事部（監察 + 編制） ----------
     # 員額有真實作用：①②的員額 = 每日產出量（produce_batch 讀 headcount.json）。
@@ -741,9 +1170,15 @@ class App(tk.Tk):
             self.render_departments()
         except Exception:
             pass
+        # 推送員額到雲端；①影片/②Shorts 變動 = 真產能，立刻在雲端依新員額補產
+        trig = None
+        if tag in ("①", "②"):
+            trig = self._trig_produce(hc.get("②", 0), hc.get("①", 0))
+        self._cloud_apply(["headcount.json"], trig, f"員額調整 {tag}")
         if delta > 0 and tag in self.HEAD_REAL:
             messagebox.showinfo("➕ 招募完成",
-                                f"{tag} 員額 +1（現 {hc[tag]} 人）。\n此部門員額＝{self.HEAD_REAL[tag]}，下一輪補產會依此擴大產能。")
+                                f"{tag} 員額 +1（現 {hc[tag]} 人）。\n已推送雲端，"
+                                + ("並立即依新員額在雲端補產。" if tag in ("①", "②") else "下一輪生效。"))
 
     def auto_expand(self):
         """🚀 自動擴編：老闆輸入這次要新增的總員額 → 自動分配（重押 ①②產能）。"""
@@ -771,6 +1206,7 @@ class App(tk.Tk):
             self.render_departments()
         except Exception:
             pass
+        self._cloud_apply(["headcount.json"], self._trig_produce(hc.get("②", 0), hc.get("①", 0)), "自動擴編")
         detail = "　".join(f"{t}+{alloc[t]}" for t in tags if alloc[t] > 0)
         messagebox.showinfo("🚀 擴編完成",
                             f"本次新增 {n} 員額，已自動分配（重押 ①②產能）：\n{detail}\n\n"
@@ -968,12 +1404,15 @@ class App(tk.Tk):
         save_directives(self.d)
         self.cmd_entry.delete("1.0", "end")
         self.refresh_directives()
-        messagebox.showinfo("已送出", "指令已記錄，明早決策部門會納入考量。")
+        pushed = self._cloud_apply(["boss_directives.json"], self._trig_decision(), "送指令")
+        messagebox.showinfo("已送出", "指令已送到雲端，決策部門正在立即重新評估。" if pushed
+                            else "指令已記錄（本機）。設定 cloud.json 後可即時同步雲端。")
 
     def save_fmt(self):
         self.d = load_directives()
         self.d["format_override"] = self.fmt_var.get()
         save_directives(self.d)
+        self._cloud_apply(["boss_directives.json"], self._trig_decision(), "主攻格式")
 
     def clear_directives(self):
         if messagebox.askyesno("確認", "清空所有給工廠的指令？"):
@@ -981,6 +1420,7 @@ class App(tk.Tk):
             self.d["directives"] = []
             save_directives(self.d)
             self.refresh_directives()
+            self._cloud_apply(["boss_directives.json"], self._trig_decision(), "清空指令")
 
     def refresh_decisions_tab(self):
         """重新整理「我的決策」整頁：待拍板清單＋生效指令＋格式選項，都重讀檔案。"""
@@ -1046,7 +1486,14 @@ class App(tk.Tk):
         BOSS_DEC.write_text(json.dumps(bd, ensure_ascii=False, indent=2), encoding="utf-8")
         pend = [x for x in self._load_pending() if x.get("id") != p["id"]]
         PENDING.write_text(json.dumps(pend, ensure_ascii=False, indent=2), encoding="utf-8")
-        messagebox.showinfo("已記錄你的決定", f"你選了「{opt}」。\n決策部門明天起會遵守這個決定。")
+        # 記入本次已答，避免雲端尚未重算前又被拉回顯示
+        if not hasattr(self, "_answered"):
+            self._answered = set()
+        self._answered.add(p["id"])
+        pushed = self._cloud_apply(["boss_decisions.json"], self._trig_decision(), "拍板決策")
+        messagebox.showinfo("已記錄你的決定", f"你選了「{opt}」。\n"
+                            + ("已推送雲端，決策部門正在立即依此重新規劃。" if pushed
+                               else "決策部門明天起會遵守這個決定。"))
         self.render_pending()
         try:
             self.render_dashboard()
@@ -1060,10 +1507,10 @@ class App(tk.Tk):
         self._ctrl_frame = f
         tk.Label(f, text="立即手動執行（平常不用，排程會自動跑）", font=FONT_B, bg=NAVY, fg=ACCENT).pack(anchor="w", padx=16, pady=(14, 4))
         row = tk.Frame(f, bg=NAVY); row.pack(anchor="w", padx=16, pady=4)
-        self._btn(row, "🧠 立即決策", lambda: self.run_script(["scripts/decision_dept.py"], "決策部門"))
-        self._btn(row, "🎬 立即補產", lambda: self.run_script(["scripts/produce_batch.py", "--shorts", "4", "--long", "1"], "補產部門"))
-        self._btn(row, "🚀 立即上架", lambda: self.run_script(["scripts/daily_publish.py", "--max", "6", "--privacy", load_directives().get("privacy", "public")], "上架部門"))
-        self._btn(row, "🔁 回顧檢討", lambda: self.run_script(["scripts/retro_dept.py"], "回顧檢討部門"))
+        self._btn(row, "🧠 立即決策", lambda: self._run_dept_cloud_first("scripts/decision_dept.py", [], "決策部門"))
+        self._btn(row, "🎬 立即補產", lambda: self._run_dept_cloud_first("scripts/produce_batch.py", ["--shorts", "4", "--long", "1", "--target", "60"], "補產部門"))
+        self._btn(row, "🚀 立即上架", lambda: self._run_dept_cloud_first("scripts/daily_publish.py", ["--max", "6", "--privacy", load_directives().get("privacy", "public")], "上架部門"))
+        self._btn(row, "🔁 回顧檢討", lambda: self._run_dept_cloud_first("scripts/retro_dept.py", [], "回顧檢討部門"))
         self._btn(row, "💰 記一筆帳", self.record_finance)
         tk.Label(f, text="全自動開關", font=FONT_B, bg=NAVY, fg=ACCENT).pack(anchor="w", padx=16, pady=(14, 4))
         row2 = tk.Frame(f, bg=NAVY); row2.pack(anchor="w", padx=16, pady=4)
@@ -1095,9 +1542,13 @@ class App(tk.Tk):
         amt = simpledialog.askfloat("金額", f"{kind} 金額（NT$）：", parent=self, minvalue=0)
         if amt is None:
             return
-        note = simpledialog.askstring("備註", "備註（可空）：", parent=self) or ""
-        self.run_script(["scripts/finance_dept.py", "--add", etype, "--amount", str(amt), "--note", note], "財務記帳")
-        messagebox.showinfo("已記帳", f"已記一筆「{kind}」NT$ {amt:.0f}。\n財務報告已更新（⑭ 財務部狀態會刷新）。")
+        note = (simpledialog.askstring("備註", "備註（可空）：", parent=self) or "").replace('"', "'")
+        if load_cloud_cfg():
+            self._activate_on_cloud("scripts/finance_dept.py",
+                                    ["--add", etype, "--amount", str(amt), "--note", f'"{note}"'], "財務記帳")
+        else:
+            self.run_script(["scripts/finance_dept.py", "--add", etype, "--amount", str(amt), "--note", note], "財務記帳")
+        messagebox.showinfo("已記帳", f"已記一筆「{kind}」NT$ {amt:.0f}。\n已記在雲端帳上，財務報告更新中。")
 
     def _btn(self, parent, text, cmd):
         tk.Button(parent, text=text, font=FONT, bg=CARD, fg=TEXTCOL, bd=0, padx=12, pady=6,
@@ -1115,6 +1566,14 @@ class App(tk.Tk):
         save_directives(self.d)
         self.refresh_status()
         self.render_dashboard()
+        self._cloud_apply(["boss_directives.json"], None,
+                          "暫停全自動" if self.d["paused"] else "恢復全自動")
+
+    def _run_dept_cloud_first(self, script, args, name):
+        """雲端優先跑某部門腳本；無 cloud.json 才退回本機。"""
+        if self._activate_on_cloud(script, args, name):
+            return
+        self._goto_control(); self.run_script([script] + args, name + "(本機)")
 
     def run_script(self, args, name):
         threading.Thread(target=lambda: self._run_blocking(args, name), daemon=True).start()
@@ -1133,12 +1592,33 @@ class App(tk.Tk):
             self.log.insert("end", f"[錯誤] {e}\n")
         self.after(0, self.refresh_status)
 
+    def _lib_counts(self):
+        """統一的片庫/已上架計數：線上時片庫以雲端為準；已上架以 YouTube 真實頻道影片數為準。"""
+        cloud = self._cloud if (getattr(self, "_cloud_state", "") == "online" and self._cloud) else None
+        if cloud:
+            q = cloud.get("queue", 0)
+        else:
+            q = len(set(p.stem for p in OUT.glob("S_*.mp4")) | set(p.stem for p in OUT.glob("L_*.mp4")))
+        vids = self.stats.get("videos")
+        if isinstance(vids, int):
+            pub = vids                       # 頻道真實影片數（最準）
+        elif cloud:
+            pub = cloud.get("published_total", 0)
+        elif LEDGER.exists():
+            try:
+                pub = len(json.loads(LEDGER.read_text(encoding="utf-8")))
+            except Exception:
+                pub = 0
+        else:
+            pub = 0
+        return q, pub, bool(cloud)
+
     def refresh_status(self):
-        q = len(list(OUT.glob("S_*.mp4")) + list(OUT.glob("L_*.mp4")))
-        pub = len(json.loads(LEDGER.read_text(encoding="utf-8"))) if LEDGER.exists() else 0
+        q, pub, is_cloud = self._lib_counts()
         paused = load_directives().get("paused", False)
         state = "⏸ 已暫停" if paused else "▶ 自動運轉中"
-        self.status_lbl.config(text=f"片庫 {q} 支 ｜ 已上架 {pub} 支 ｜ {state}")
+        src = "☁ " if is_cloud else ""
+        self.status_lbl.config(text=f"{src}片庫 {q} 支 ｜ 已上架 {pub} 支 ｜ {state}")
 
     def _stamp_updated(self):
         from datetime import datetime
@@ -1150,7 +1630,7 @@ class App(tk.Tk):
     def auto_tick(self):
         # 每 8 秒：刷新所有「本地」資料（讀檔，便宜），讓畫面永遠是最新的
         self.refresh_status()
-        for fn in (self.render_dashboard, self.render_departments, self._refresh_hr):
+        for fn in (self.render_dashboard, self.render_departments, self._refresh_hr, self.render_cloud):
             try:
                 fn()
             except Exception:
@@ -1171,6 +1651,9 @@ class App(tk.Tk):
         self._tick += 1
         if self._tick % 22 == 0:
             self.fetch_stats()
+        # 每約 90 秒抓一次雲端狀態（錯開 YouTube 抓取；輕量、不打 API）
+        if self._tick % 11 == 5:
+            self.fetch_cloud()
         self._stamp_updated()
         self.after(8000, self.auto_tick)
 

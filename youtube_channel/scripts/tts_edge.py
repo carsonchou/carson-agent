@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
+import time
 from pathlib import Path
 
 try:
@@ -29,6 +30,10 @@ import edge_tts
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_VOICE = "zh-TW-YunJheNeural"
+# 機房 IP 常被微軟間歇節流（「No audio received」）；多次重試 + 退避 + 語音輪替＝接近 100% 成片。
+FALLBACK_VOICES = ["zh-TW-HsiaoChenNeural", "zh-TW-HsiaoYuNeural",
+                   "zh-CN-YunyangNeural", "zh-CN-YunxiNeural"]
+MAX_ATTEMPTS = 12
 
 
 async def _synth(text: str, voice: str, rate: str, out_path: Path) -> None:
@@ -63,19 +68,23 @@ def main() -> int:
         out = PROJECT_ROOT / "output" / f"{name}.mp3"
     out.parent.mkdir(parents=True, exist_ok=True)
 
+    # 語音輪替清單：主聲音先試，連續失敗就換備援聲音（避開單一聲音被節流）。
+    voices = [args.voice] + [v for v in FALLBACK_VOICES if v != args.voice]
     last_err = None
-    for attempt in range(4):
+    for attempt in range(MAX_ATTEMPTS):
+        voice = voices[(attempt // 3) % len(voices)]  # 每 3 次換一個聲音
         try:
-            asyncio.run(_synth(text, args.voice, args.rate, out))
+            asyncio.run(_synth(text, voice, args.rate, out))
             if out.exists() and out.stat().st_size > 0:
-                print(f"[ok] 配音完成：{out}（{out.stat().st_size/1024:.0f} KB）voice={args.voice} chars={len(text)}")
+                print(f"[ok] 配音完成：{out}（{out.stat().st_size/1024:.0f} KB）voice={voice} chars={len(text)} 第{attempt+1}次")
                 return 0
             raise RuntimeError("輸出檔為空")
         except Exception as exc:  # noqa: BLE001
             last_err = exc
-            print(f"[warn] 第 {attempt+1}/4 次失敗：{exc}", file=sys.stderr)
+            print(f"[warn] 第 {attempt+1}/{MAX_ATTEMPTS} 次失敗（voice={voice}）：{exc}", file=sys.stderr)
+            time.sleep(min(1.5 * (attempt + 1), 8.0))  # 退避等待，避免持續撞節流
 
-    print(f"[FATAL] 配音失敗（網路？）：{last_err}", file=sys.stderr)
+    print(f"[FATAL] 配音失敗（網路/節流？）：{last_err}", file=sys.stderr)
     return 3
 
 

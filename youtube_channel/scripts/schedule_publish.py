@@ -22,6 +22,7 @@ YouTube 會在指定時間自動把影片轉公開 —— 這個動作在 YouTub
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -41,6 +42,20 @@ except Exception:  # noqa: BLE001
         return True, []
 
 TW = timezone(timedelta(hours=8))
+BUFFER_FILE = PROJECT_ROOT / "STUDIO" / "scheduled_buffer.json"
+
+
+def _record_buffer(slug: str, vid: str, publish_at_utc: datetime) -> None:
+    """把排程結果寫進 scheduled_buffer.json，供決策中心『☁ 雲端』分頁顯示囤片清單。"""
+    try:
+        items = json.loads(BUFFER_FILE.read_text(encoding="utf-8")) if BUFFER_FILE.exists() else []
+    except Exception:
+        items = []
+    items = [b for b in items if b.get("slug") != slug]  # 去重
+    items.append({"slug": slug, "vid": vid,
+                  "publishAt": publish_at_utc.strftime("%Y-%m-%dT%H:%M:%SZ")})
+    BUFFER_FILE.parent.mkdir(parents=True, exist_ok=True)
+    BUFFER_FILE.write_text(json.dumps(items, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def upload_scheduled(yt, slug: str, publish_at_utc: datetime) -> str:
@@ -115,6 +130,7 @@ def main() -> int:
             vid = upload_scheduled(yt, slug, at)
             ledger[slug] = vid
             dp.save_ledger(ledger)
+            _record_buffer(slug, vid, at)
             at_tw = at.astimezone(TW).strftime("%m-%d %H:%M")
             print(f"[ok] 已排程 {slug} → 公開於 {at_tw}（台灣）　https://youtu.be/{vid}")
             done += 1
