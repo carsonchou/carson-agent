@@ -14,6 +14,10 @@
 *credentials*.json
 *credential*.json
 
+# 雲端伺服器 SSH 憑證（ip/user/明文 password）
+cloud.json
+**/cloud.json
+
 # Google / YouTube OAuth 憑證與 token
 **/client_secrets.json
 **/google_token.json
