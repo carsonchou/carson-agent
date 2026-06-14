@@ -1,0 +1,16 @@
+# Carson Quant 全自動雲端排程（伺服器時區 Asia/Taipei，台灣時間 UTC+8）
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+# 05:30 情報 → 05:37 決策 → 06:07 製作(渲染) → 09:07 發布 → 09:3x~09:5x 後處理各部門
+30 5 * * * /root/yt/run.sh scripts/intel_dept.py >> /root/yt/logs/cron.log 2>&1
+37 5 * * * /root/yt/run.sh scripts/decision_dept.py >> /root/yt/logs/cron.log 2>&1
+7 6 * * * /root/yt/run.sh scripts/produce_batch.py --shorts 5 --long 0 --target 40 >> /root/yt/logs/cron.log 2>&1
+7 9 * * * /root/yt/run.sh scripts/daily_publish.py >> /root/yt/logs/cron.log 2>&1
+37 9 * * * /root/yt/run.sh scripts/retro_dept.py >> /root/yt/logs/cron.log 2>&1
+42 9 * * * /root/yt/run.sh scripts/hr_dept.py >> /root/yt/logs/cron.log 2>&1
+45 9 * * * /root/yt/run.sh scripts/organize_dept.py >> /root/yt/logs/cron.log 2>&1
+48 9 * * * /root/yt/run.sh scripts/promo_dept.py >> /root/yt/logs/cron.log 2>&1
+51 9 * * * /root/yt/run.sh scripts/thumbnail_dept.py >> /root/yt/logs/cron.log 2>&1
+54 9 * * * /root/yt/run.sh scripts/comment_dept.py >> /root/yt/logs/cron.log 2>&1
+57 9 * * * /root/yt/run.sh scripts/finance_dept.py >> /root/yt/logs/cron.log 2>&1
+0 5 * * 0 /root/yt/run.sh scripts/topic_bank.py >> /root/yt/logs/cron.log 2>&1

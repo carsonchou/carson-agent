@@ -74,6 +74,14 @@ def _mkdirs(sf, path):
             sf.mkdir(cur)
 
 
+def get(remote: str, local: str):
+    c = _client(); sf = c.open_sftp()
+    Path(os.path.dirname(local) or ".").mkdir(parents=True, exist_ok=True)
+    sf.get(remote, local)
+    print(f"[get] {remote} -> {local}")
+    sf.close(); c.close()
+
+
 def putdir(local_dir: str, remote_dir: str):
     c = _client(); sf = c.open_sftp()
     _mkdirs(sf, remote_dir)
@@ -106,6 +114,8 @@ if __name__ == "__main__":
         print(__doc__); sys.exit(1)
     if a[0] == "run":
         sys.exit(run(a[1]))
+    elif a[0] == "get":
+        get(a[1], a[2])
     elif a[0] == "put":
         put(a[1], a[2])
     elif a[0] == "putdir":
