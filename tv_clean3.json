@@ -1,0 +1,18 @@
+{
+  "expectTitle": "Triple SuperTrend v15-Evo-A-TRANSCEND-X",
+  "log": [
+    "studiesBefore=4",
+    "remClicked=false"
+  ],
+  "menuItems": [],
+  "legendAfter": 4,
+  "metrics": {
+    "netProfit": "194.37%",
+    "maxDrawdown": "21.93%",
+    "sharpe": "0.212",
+    "profitFactor": "1.511",
+    "returnOverMaxDD": "3.90",
+    "totalTrades": "302"
+  },
+  "titleMatch": false
+}

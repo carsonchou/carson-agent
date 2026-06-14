@@ -1,0 +1,38 @@
+[
+  {
+    "date": "2026-06-13",
+    "total_views": 99,
+    "n_videos": 18,
+    "uploaded": 12,
+    "shorts_today": 21,
+    "longs_today": 5,
+    "audit_fail": 1
+  },
+  {
+    "date": "2026-06-14",
+    "total_views": 284,
+    "n_videos": 24,
+    "uploaded": 18,
+    "shorts_today": 36,
+    "longs_today": 2,
+    "audit_fail": 1
+  },
+  {
+    "date": "2026-06-14",
+    "total_views": 587,
+    "n_videos": 29,
+    "uploaded": 23,
+    "shorts_today": 36,
+    "longs_today": 2,
+    "audit_fail": 1
+  },
+  {
+    "date": "2026-06-14",
+    "total_views": 608,
+    "n_videos": 29,
+    "uploaded": 23,
+    "shorts_today": 36,
+    "longs_today": 2,
+    "audit_fail": 1
+  }
+]

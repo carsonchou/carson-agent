@@ -1,0 +1,62 @@
+{
+  "symbol": "BTC_USDT",
+  "params": {
+    "atr_length": 10,
+    "multiplier": 3.0,
+    "stop_loss_pct": 2.0
+  },
+  "results": {
+    "15M": {
+      "bars": 1000,
+      "data_start": "2026-05-30 16:15:00+00:00",
+      "data_end": "2026-06-10 02:00:00+00:00",
+      "total_return": 0.026942,
+      "sharpe": 2.129,
+      "calmar": 18.3119,
+      "max_drawdown": 0.084144,
+      "win_rate": 0.4,
+      "profit_factor": 1.274,
+      "num_trades": 15,
+      "final_equity": 10269.42
+    },
+    "1H": {
+      "bars": 1000,
+      "data_start": "2026-04-29 11:00:00+00:00",
+      "data_end": "2026-06-10 02:00:00+00:00",
+      "total_return": 0.139011,
+      "sharpe": 4.1058,
+      "calmar": 34.6244,
+      "max_drawdown": 0.061546,
+      "win_rate": 0.4545,
+      "profit_factor": 2.7723,
+      "num_trades": 11,
+      "final_equity": 11390.11
+    },
+    "4H": {
+      "bars": 1000,
+      "data_start": "2025-12-25 12:00:00+00:00",
+      "data_end": "2026-06-10 00:00:00+00:00",
+      "total_return": 0.079055,
+      "sharpe": 0.69,
+      "calmar": 0.6679,
+      "max_drawdown": 0.271744,
+      "win_rate": 0.3333,
+      "profit_factor": 1.2613,
+      "num_trades": 21,
+      "final_equity": 10790.55
+    },
+    "1D": {
+      "bars": 1000,
+      "data_start": "2023-09-15 00:00:00+00:00",
+      "data_end": "2026-06-10 00:00:00+00:00",
+      "total_return": 0.181932,
+      "sharpe": 0.3781,
+      "calmar": 0.1658,
+      "max_drawdown": 0.379714,
+      "win_rate": 0.1304,
+      "profit_factor": 1.3752,
+      "num_trades": 23,
+      "final_equity": 11819.32
+    }
+  }
+}

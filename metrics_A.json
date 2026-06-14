@@ -1,0 +1,25 @@
+{
+  "pineFile": "triple_supertrend_v4_teamA.pine",
+  "symbol": "BINANCE:BTCUSDT",
+  "tf": "240",
+  "ok": false,
+  "loggedIn": true,
+  "metrics": {
+    "netProfit": "194.37%",
+    "maxDrawdown": "21.93%",
+    "percentProfitable": "34.44%",
+    "profitFactor": "1.511",
+    "sharpe": "0.212",
+    "sortino": null,
+    "returnOverMaxDD": "3.90",
+    "winningTrades": "104",
+    "totalTrades": "302"
+  },
+  "notes": [
+    "警告：編輯器可能沒吃進新程式碼(仍為預設/空白)",
+    "點不到 Add to chart",
+    "未取得有效數值(編輯器沒吃進程式或沒抓到數字)——已存 _panel.txt 與 _tester.png 供調整。"
+  ],
+  "reusedWindow": true,
+  "editorHasCode": false
+}

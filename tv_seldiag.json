@@ -1,0 +1,137 @@
+{
+  "legend": [
+    "actions",
+    "sell-order-button",
+    "qtyEl",
+    "buy-order-button"
+  ],
+  "testerHeader": [
+    {
+      "t": "",
+      "dn": "open-indicators-dialog"
+    },
+    {
+      "t": "Publish",
+      "dn": ""
+    },
+    {
+      "t": "",
+      "dn": "open-indicators-dialog"
+    },
+    {
+      "t": "Publish",
+      "dn": ""
+    },
+    {
+      "t": "BTCUSDT",
+      "dn": ""
+    },
+    {
+      "t": "4h",
+      "dn": ""
+    },
+    {
+      "t": "Indicators",
+      "dn": "open-indicators-dialog"
+    },
+    {
+      "t": "Alert",
+      "dn": ""
+    },
+    {
+      "t": "Replay",
+      "dn": ""
+    },
+    {
+      "t": "未命名 Save",
+      "dn": ""
+    },
+    {
+      "t": "",
+      "dn": "save-load-menu"
+    },
+    {
+      "t": "",
+      "dn": "header-toolbar-quick-search"
+    },
+    {
+      "t": "",
+      "dn": "header-toolbar-properties"
+    },
+    {
+      "t": "",
+      "dn": "header-toolbar-fullscreen"
+    },
+    {
+      "t": "Publish",
+      "dn": ""
+    },
+    {
+      "t": "Trade",
+      "dn": ""
+    },
+    {
+      "t": "Publish",
+      "dn": ""
+    },
+    {
+      "t": "",
+      "dn": "linetool-group-cursors"
+    },
+    {
+      "t": "",
+      "dn": "linetool-group-trend-line"
+    },
+    {
+      "t": "",
+      "dn": "linetool-group-gann-and-fibonacci"
+    },
+    {
+      "t": "",
+      "dn": "linetool-group-patterns"
+    },
+    {
+      "t": "",
+      "dn": "linetool-group-prediction-and-measurement"
+    },
+    {
+      "t": "",
+      "dn": "linetool-group-geometric-shapes"
+    },
+    {
+      "t": "",
+      "dn": "linetool-group-annotation"
+    },
+    {
+      "t": "",
+      "dn": "linetool-group-font-icons"
+    },
+    {
+      "t": "",
+      "dn": "measure"
+    },
+    {
+      "t": "",
+      "dn": "zoom"
+    },
+    {
+      "t": "",
+      "dn": "magnet-button"
+    },
+    {
+      "t": "",
+      "dn": "drawginmode"
+    },
+    {
+      "t": "",
+      "dn": "lockAllDrawings"
+    }
+  ],
+  "strategyNames": [
+    "3ST-v1",
+    "3ST-v3",
+    "Triple SuperTrend v8-Evo-A-OMEGA",
+    "// Triple SuperTrend v15-Evo-A-TRANSCEND-X  ?? 3ST",
+    "//   ?祆???v11-Evo-A-ASCEND"
+  ]
+}

@@ -1,0 +1,11 @@
+anthropic>=0.40.0              # generate_script.py 用，呼叫 Claude API 產腳本（claude-opus-4-8）
+requests>=2.31.0               # tts_pipeline.py 用，呼叫 ElevenLabs REST API
+pydub>=0.25.1                  # tts_pipeline.py 選用，合併多段 mp3（需系統另裝 ffmpeg）；無 ffmpeg 會自動回退 binary 串接，可不裝
+moviepy==1.0.3                 # make_video.py 用，把配音 mp3 + 空鏡/字卡合成 mp4 成片。★必須 1.0.3：程式用舊版 API（moviepy.editor / set_duration / .fx(vfx.loop) / resize），2.x 會全爆
+numpy<2                        # ★必須 <2：moviepy 1.0.3 與 numpy 2.x 不相容（實測鎖 1.26.4）
+Pillow==9.5.0                  # ★必須 <10：moviepy 1.0.3 的 resize 用到 Image.ANTIALIAS，Pillow 10+ 已移除會爆
+imageio-ffmpeg>=0.4.9          # 提供內建 ffmpeg 執行檔，免另外用 winget 裝系統 ffmpeg（moviepy/pydub 共用）
+google-api-python-client>=2.0.0  # upload_youtube.py 用，呼叫 YouTube Data API v3 上傳影片、設標題/描述/隱私
+google-auth-oauthlib>=1.0.0    # upload_youtube.py 用，一次性 OAuth 授權流程（client_secrets.json → token）
+google-auth-httplib2>=0.1.0    # upload_youtube.py 用，google-api-python-client 的 httplib2 認證傳輸層
+python-dotenv>=1.0.0           # 選用，從 .env 讀 API 金鑰（搭配 README 方法 C）

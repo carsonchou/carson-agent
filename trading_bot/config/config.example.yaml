@@ -1,0 +1,49 @@
+# ════════════════════════════════════════════════════════════
+# 交易機器人設定範本
+# 使用方式：複製成 config.yaml 後填入你的金鑰（config.yaml 已被 .gitignore）
+# ════════════════════════════════════════════════════════════
+
+# ── 安全開關（最重要！）──
+# dry_run = true 時，所有下單只會模擬、不會真的送到交易所。
+# 確認策略無誤前，請務必保持 true。
+dry_run: true
+
+# ── 派網 Pionex API ──
+# 從 Pionex 後台 → API 管理 建立，建議只開「交易」權限、不要開「提現」。
+pionex:
+  api_key: "YOUR_PIONEX_API_KEY"
+  api_secret: "YOUR_PIONEX_API_SECRET"
+  base_url: "https://api.pionex.com"
+
+# ── 交易標的 ──
+trading:
+  symbol: "BTC_USDT"        # Pionex 格式
+  interval: "15M"           # K 棒週期
+  base_asset: "BTC"
+  quote_asset: "USDT"
+
+# ── 策略參數 ──
+strategy:
+  name: "supertrend"
+  params:
+    atr_length: 10
+    multiplier: 3.0
+
+# ── 風控 ──
+risk:
+  position_pct: 100.0       # 每筆倉位佔權益百分比
+  stop_loss_pct: 2.0        # 硬性停損 %
+  max_daily_loss_pct: 10.0  # 單日最大虧損上限，超過停止交易
+  max_position_pct: 100.0   # 最大總曝險
+
+# ── 資料交叉比對 ──
+data:
+  primary: "pionex"         # 主要資料源
+  cross_check: "tradingview"  # 交叉比對源
+  divergence_tolerance_pct: 0.5  # 兩源價差超過此值視為背離、暫停交易
+
+# ── 通知 ──
+notify:
+  enabled: false
+  # 之後可接 Telegram / Discord webhook
+  webhook_url: ""

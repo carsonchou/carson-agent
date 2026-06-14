@@ -1,0 +1,20 @@
+{
+  "pineFile": "triple_supertrend_v4_teamB.pine",
+  "symbol": "BINANCE:BTCUSDT",
+  "tf": "240",
+  "ok": true,
+  "loggedIn": true,
+  "metrics": {
+    "netProfit": "194.37%",
+    "maxDrawdown": "21.93%",
+    "percentProfitable": "34.44%",
+    "profitFactor": "1.511",
+    "sharpe": "0.212",
+    "sortino": null,
+    "returnOverMaxDD": "3.90",
+    "winningTrades": "104",
+    "totalTrades": "302"
+  },
+  "notes": [],
+  "reusedWindow": true
+}

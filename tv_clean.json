@@ -1,0 +1,31 @@
+{
+  "expectTitle": "Triple SuperTrend v15-Evo-A-TRANSCEND-X",
+  "log": [
+    "pass0 n=4 del=false",
+    "pass1 n=4 del=false",
+    "pass2 n=4 del=false",
+    "pass3 n=4 del=false",
+    "pass4 n=4 del=false",
+    "pass5 n=4 del=false",
+    "pass6 n=4 del=false",
+    "pass7 n=4 del=false",
+    "pass8 n=4 del=false",
+    "pass9 n=4 del=false",
+    "pass10 n=4 del=false",
+    "pass11 n=4 del=false",
+    "pass12 n=4 del=false",
+    "pass13 n=4 del=false",
+    "pass14 n=4 del=false"
+  ],
+  "legendBefore": 4,
+  "legendAfter": 4,
+  "metrics": {
+    "netProfit": "194.37%",
+    "maxDrawdown": "21.93%",
+    "sharpe": "0.212",
+    "profitFactor": "1.511",
+    "returnOverMaxDD": "3.90",
+    "totalTrades": "302"
+  },
+  "titleMatch": false
+}

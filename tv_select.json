@@ -1,0 +1,24 @@
+{
+  "expectTitle": "Triple SuperTrend v4 Champion v5",
+  "log": [
+    "add fail",
+    "我們的策略不在圖例→可能編譯失敗"
+  ],
+  "legendNames": [
+    "3ST-Champion-v5 10 2.5 6 1.5 2.5 3.5 20 ",
+    "Vol 11.88 M",
+    "M-v1 10 3 200 14",
+    "3ST-v1 1 10 2 11 3 12 200 1.5 2 5 2 22",
+    "3ST-v3 1 10 2 11 3 12 200 1.5 2 5 2 22"
+  ],
+  "clickedOurs": false,
+  "metrics": {
+    "netProfit": "−405.55%",
+    "maxDrawdown": "525.21%",
+    "sharpe": "0.048",
+    "profitFactor": "0.02",
+    "returnOverMaxDD": "−0.77",
+    "totalTrades": "148"
+  },
+  "titleMatch": false
+}

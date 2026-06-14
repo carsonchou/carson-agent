@@ -1,0 +1,37 @@
+{
+  "symbol": "BTC_USDT",
+  "strategy": "smc",
+  "params": {
+    "atr_length": 10,
+    "multiplier": 3.0,
+    "stop_loss_pct": 2.0
+  },
+  "results": {
+    "4H": {
+      "bars": 1000,
+      "data_start": "2025-12-28 04:00:00+00:00",
+      "data_end": "2026-06-12 16:00:00+00:00",
+      "total_return": 0.074921,
+      "sharpe": 0.6114,
+      "calmar": 0.6123,
+      "max_drawdown": 0.280279,
+      "win_rate": 0.3429,
+      "profit_factor": 1.1559,
+      "num_trades": 35,
+      "final_equity": 10749.21
+    },
+    "1D": {
+      "bars": 1000,
+      "data_start": "2023-09-17 00:00:00+00:00",
+      "data_end": "2026-06-12 00:00:00+00:00",
+      "total_return": 0.947494,
+      "sharpe": 0.8247,
+      "calmar": 0.8289,
+      "max_drawdown": 0.332659,
+      "win_rate": 0.2034,
+      "profit_factor": 1.6235,
+      "num_trades": 59,
+      "final_equity": 19474.94
+    }
+  }
+}

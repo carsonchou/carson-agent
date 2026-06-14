@@ -1,0 +1,524 @@
+//@version=5
+// ════════════════════════════════════════════════════════════════════════════
+// Triple SuperTrend v4  —  optimizer-voltarget 取向（VT-Core）
+//   核心：以「年化波動率目標化倉位」為單一組織原則，讓每筆風險敞口一致。
+//   qty = (targetVol / instVolAnnual) * equity * weight / close，並設總槓桿上限。
+//   三支正交槓桿：
+//     (A) Regime Gate：Kaufman 效率比(ER) 為主、ADX 為輔，只在方向性 regime 放行首單。
+//     (B) Vol-Target Sizing：年化 realized-vol 正規化曝險 + 高波動加倉煞車(vol-brake)。
+//     (C) 對稱出場：high/low ratchet Chandelier（只進不退）+ 部分止盈 + 雙ST反轉底線。
+//   抗過擬合：6 個 ST 參數 → 1 基礎週期 + 派生倍率(1 : 2.5 : 6)；全距離以 ATR% 正規化；
+//            多空嚴格鏡像，方向是唯一差異；移除 belowAvgCost 切右尾出場。
+//   注意：本檔無回測引擎，所有效益均為「機制推導 / 預期 / 需 walk-forward 與多商品驗證」，
+//        嚴禁當作既成績效。預設值為穩健起點，禁止 per-symbol 調參。
+// ════════════════════════════════════════════════════════════════════════════
+strategy("Triple SuperTrend v4", shorttitle="3ST-v4", overlay=true,
+     initial_capital=10000, default_qty_type=strategy.fixed, pyramiding=3,
+     commission_type=strategy.commission.percent, commission_value=0.05,
+     slippage=2, calc_on_order_fills=false, process_orders_on_close=true)
+
+// ════════════════════════════════════════════════════════════════════════════
+// §1  輸入參數（分組 / 中文 tooltip / min-max-step / 全範圍限制）
+// ════════════════════════════════════════════════════════════════════════════
+
+// ── 趨勢（SuperTrend）：1 基礎週期 + 派生倍率，杜絕 10/11/12 曲線擬合 ──────────
+gTrend      = "趨勢 SuperTrend"
+baseLen     = input.int(10, "基礎 ATR 週期", minval=7, maxval=20, group=gTrend,
+     tooltip="三條 ST 共用的基礎 ATR 週期。ST2/ST3 由倍率派生，避免相鄰魔術數(10/11/12)各自微調。鄰域±20%(8~12)應為穩健高原。")
+midMult     = input.float(2.5, "中尺度週期倍率", minval=2.0, maxval=3.0, step=0.1, group=gTrend,
+     tooltip="ST2 週期 = 基礎×此倍率。建議 ST1:ST2:ST3 ≈ 1:2.5:6 以分離 intraday noise / swing / regime，使三條 ST 方向相關 <0.7 才算獨立加碼依據。")
+slowMult    = input.float(6.0, "慢尺度週期倍率", minval=5.0, maxval=7.0, step=0.5, group=gTrend,
+     tooltip="ST3 週期 = 基礎×此倍率。ST3 作為慢速 regime 方向閘，定方向；ST1 定時點。")
+f1          = input.float(1.5, "ST1 因子(快)", minval=1.3, maxval=2.0, step=0.1, group=gTrend,
+     tooltip="快速 ST 的 ATR 因子。下限 1.3 抑制盤整 whipsaw（避免 1.0 那種頻繁翻轉）。")
+f2          = input.float(2.5, "ST2 因子(中)", minval=2.0, maxval=3.5, step=0.1, group=gTrend,
+     tooltip="中速 ST 因子，隨週期遞增以同步拉開時間尺度。")
+f3          = input.float(3.5, "ST3 因子(慢)", minval=3.0, maxval=5.0, step=0.5, group=gTrend,
+     tooltip="慢速 ST 因子。慢過濾定方向，配合 ST1 定時點、波動定 size 的趨勢三段結構。")
+
+// ── Regime 閘門：效率比(ER) 為主、ADX 為輔，取代固定 MA200 ────────────────────
+gReg        = "Regime 閘門"
+useRegime   = input.bool(true, "啟用 Regime Gate（只順勢開首單）", group=gReg,
+     tooltip="趨勢策略的真實 edge 只存在於方向性持續的 regime；盤整(低ER/低ADX)會被反覆掃損。此閘只作用於首單 L1/S1。")
+useER       = input.bool(true, "用 Kaufman 效率比(ER) 投票", group=gReg,
+     tooltip="ER = |close-close[n]| / Σ|close-close[1]|。研究指出 ER 門檻是趨勢策略最穩健的單一過濾器，砍掉最傷 Calmar 的盤整連續小虧。")
+erLen       = input.int(20, "ER 週期", minval=10, maxval=40, group=gReg,
+     tooltip="效率比回看長度。以 baseLen 量級設定，週期無關。")
+erThr       = input.float(0.30, "ER 門檻", minval=0.20, maxval=0.50, step=0.05, group=gReg,
+     tooltip="ER > 門檻 視為方向性 regime。0.30 為中性高原；過高交易數不足、過低濾不掉盤整。")
+useADX      = input.bool(true, "用 ADX 投票（遲滯雙閾值）", group=gReg,
+     tooltip="ADX 為輔助投票。adxOn/adxOff 形成遲滯，避免臨界震盪反覆開關 regime。")
+adxLen      = input.int(14, "ADX / DI 週期", minval=10, maxval=20, group=gReg,
+     tooltip="ADX 與 DI 方向指標週期。")
+adxOn       = input.float(23.0, "ADX 開啟閾值", minval=20.0, maxval=30.0, step=1.0, group=gReg,
+     tooltip="ADX 升破此值 regime 轉 On。")
+adxOff      = input.float(18.0, "ADX 關閉閾值", minval=14.0, maxval=22.0, step=1.0, group=gReg,
+     tooltip="ADX 跌破此值 regime 轉 Off。需 < 開啟閾值以形成遲滯帶。")
+useSlowST   = input.bool(true, "用 ST3 斜率投票（慢方向閘）", group=gReg,
+     tooltip="以慢速 ST3 的上下穿向作為 regime 方向票，取代硬編碼 MA200。週期無關、自適應商品波動。")
+minVotes    = input.int(2, "最少通過票數", minval=1, maxval=3, group=gReg,
+     tooltip="ER / ADX / ST3 三票中需達此票數才放行首單。2 票為穩健起點；過濾器疊太多會殺交易數與泛化。")
+
+// ── 倉位：波動率目標化（VT-Core 核心）+ 加倉煞車 + 槓桿上限 ─────────────────────
+gPos        = "倉位 Vol-Target"
+useVolTarget= input.bool(true, "啟用波動率目標化倉位", group=gPos,
+     tooltip="關閉則退回固定權重對照組。開啟時 qty=(targetVol/instVolAnn)*equity*weight/close，跨商品風險貢獻一致，是泛化核心。")
+targetVol   = input.float(15.0, "年化目標波動率 %", minval=8.0, maxval=30.0, step=1.0, group=gPos,
+     tooltip="每單位曝險的目標年化波動(如 15%)。CTA 實證此正規化普遍提升 Sharpe 0.2~0.4 並改善 Calmar。") / 100.0
+volEstMode  = input.string("ATR%", "波動估計法", options=["ATR%","Stdev"], group=gPos,
+     tooltip="ATR%：ta.atr/close 年化；Stdev：近 N 日對數報酬標準差年化。兩者皆為相對化估計，消除 close 價格量級污染。")
+volLen      = input.int(20, "波動估計回看", minval=10, maxval=40, group=gPos,
+     tooltip="instVol 估計視窗。約 20 日為波動聚集與反應速度的平衡。")
+barsPerYear = input.float(365.0, "年化棒數(年化因子)", minval=24.0, maxval=8760.0, step=1.0, group=gPos,
+     tooltip="年化用每年 K 棒數。日線加密=365、日線股票≈252、4H≈2190。換週期務必同步調整，否則年化失真。")
+wL1         = input.float(0.40, "L1 權重(首段)", minval=0.20, maxval=0.60, step=0.05, group=gPos,
+     tooltip="首段曝險權重。各段權重僅縮放目標曝險，最終仍受總槓桿上限約束。")
+wL2         = input.float(0.30, "L2 權重(加碼)", minval=0.15, maxval=0.50, step=0.05, group=gPos,
+     tooltip="第二段加碼權重。加碼僅在前段浮盈且趨勢同向時觸發(winners-add-only)。")
+wL3         = input.float(0.30, "L3 權重(加碼)", minval=0.15, maxval=0.50, step=0.05, group=gPos,
+     tooltip="第三段加碼權重。")
+maxGross    = input.float(1.5, "總槓桿上限(× equity)", minval=1.0, maxval=3.0, step=0.1, group=gPos,
+     tooltip="所有層合計名目曝險 / equity 的硬上限。低波動期 vol-target 會放大曝險，此上限防過度槓桿。")
+useVolBrake = input.bool(true, "啟用高波動加倉煞車", group=gPos,
+     tooltip="當 instVol > 長期中位數×k 倍時暫停 L2/L3 加碼。趨勢末端高波動加碼是 Calmar 殺手；以連續煞車取代二元 noSpike。")
+brakeLen    = input.int(100, "波動中位數回看", minval=50, maxval=300, group=gPos,
+     tooltip="計算 instVol 長期中位數的視窗，作為加倉煞車基準。")
+brakeK      = input.float(1.8, "煞車倍數 k", minval=1.2, maxval=3.0, step=0.1, group=gPos,
+     tooltip="instVol 高於中位數此倍數時暫停加碼。越小越保守。")
+
+// ── 出場：ratchet Chandelier(high/low) + 部分止盈 + 雙ST底線 + 時間停損 ─────────
+gExit       = "出場 Exit"
+useChandelier= input.bool(true, "啟用 Chandelier 移動停損", group=gExit,
+     tooltip="以 ta.highest(high)-mult*ATR（空單鏡像）並 ratchet 只進不退，降低被單根長影線假突破掃出的機率。")
+chandLen    = input.int(22, "Chandelier ATR 週期", minval=14, maxval=30, group=gExit,
+     tooltip="移動停損所用 ATR 週期。")
+chandMult   = input.float(3.0, "Chandelier ATR 倍數", minval=2.0, maxval=4.0, step=0.5, group=gExit,
+     tooltip="移動停損距離 = mult×ATR。配合 R 階梯動態收緊。")
+useRStep    = input.bool(true, "啟用 R 階梯收緊", group=gExit,
+     tooltip="依浮盈 R 倍數動態收緊倍數：R<1 寬、1~2 中、>2 緊；放大右尾、截斷左尾。")
+trailMidR   = input.float(2.0, "中檔倍數(1~2R)", minval=1.5, maxval=3.0, step=0.5, group=gExit,
+     tooltip="浮盈 1~2R 時的 Chandelier 倍數。")
+trailTightR = input.float(1.5, "緊檔倍數(>2R)", minval=1.0, maxval=2.5, step=0.5, group=gExit,
+     tooltip="浮盈 >2R 時收緊的 Chandelier 倍數。")
+useBE       = input.bool(true, "啟用保本(break-even)", group=gExit,
+     tooltip="浮盈達 kBE×R 後把停損上移至成本上方 multBE×R，覆蓋手續費+滑點。")
+kBE         = input.float(1.0, "保本觸發 R", minval=0.5, maxval=2.0, step=0.1, group=gExit,
+     tooltip="浮盈達此 R 倍數啟動保本。")
+multBE      = input.float(0.3, "保本緩衝 R", minval=0.1, maxval=0.6, step=0.1, group=gExit,
+     tooltip="保本停損置於成本價 +/- 此 R 倍數，需 ≥0.1 以覆蓋成本。")
+usePartialTP= input.bool(true, "啟用部分止盈(分批減倉)", group=gExit,
+     tooltip="ST1/ST2 反向時鏡像分段落袋，保留核心倉跑右尾，取代一次全平。")
+useTimeStop = input.bool(true, "啟用時間停損(死單退場)", group=gExit,
+     tooltip="持有超過 N 棒仍 R<1 且未滿三段，視為死單退場，砍盤整期沉沒成本。")
+timeStopBars= input.int(30, "時間停損棒數", minval=15, maxval=60, group=gExit,
+     tooltip="死單退場的最大持有棒數。由波動/結構難以驅動的純時間防呆，刻意拉寬範圍降過擬合。")
+useHardStop = input.bool(true, "啟用交易所級停損掛單(防跳空)", group=gExit,
+     tooltip="對 Chandelier 同時下真實 stop 單盤中觸發，防跳空/快市吃遠超 ATR 滑點。")
+cooldownBars= input.int(3, "出場後冷卻棒數", minval=0, maxval=10, group=gExit,
+     tooltip="全平後等待 N 棒才允許新首單，避免出場棒立即反向追單。")
+
+// ── 視覺化 ──────────────────────────────────────────────────────────────────
+gViz        = "視覺化"
+showST      = input.bool(true, "顯示三條 SuperTrend", group=gViz)
+showAvg     = input.bool(true, "顯示均價線", group=gViz)
+showStop    = input.bool(true, "顯示移動停損線", group=gViz)
+showSignals = input.bool(true, "顯示進出場標記", group=gViz)
+showBg      = input.bool(true, "顯示 Regime / 階段背景色", group=gViz)
+showTable   = input.bool(true, "顯示右上角狀態儀表板", group=gViz)
+showDebug   = input.bool(false, "顯示除錯欄(votes/floor/cap 對帳)", group=gViz)
+
+// ════════════════════════════════════════════════════════════════════════════
+// §2  三層 SuperTrend（單一基礎週期派生；ta.supertrend 回傳 [value,direction]）
+//     direction < 0 為多頭
+// ════════════════════════════════════════════════════════════════════════════
+len1 = baseLen
+len2 = math.max(math.round(baseLen * midMult), 2)
+len3 = math.max(math.round(baseLen * slowMult), 3)
+[st1, dir1] = ta.supertrend(f1, len1)
+[st2, dir2] = ta.supertrend(f2, len2)
+[st3, dir3] = ta.supertrend(f3, len3)
+
+st1Bull = dir1 < 0
+st2Bull = dir2 < 0
+st3Bull = dir3 < 0
+st1Bear = not st1Bull
+st2Bear = not st2Bull
+st3Bear = not st3Bull
+// 翻轉事件（首單時點訊號）
+st1FlipUp   = st1Bull and not st1Bull[1]
+st2FlipUp   = st2Bull and not st2Bull[1]
+st3FlipUp   = st3Bull and not st3Bull[1]
+st1FlipDn   = st1Bear and not st1Bear[1]
+st2FlipDn   = st2Bear and not st2Bear[1]
+st3FlipDn   = st3Bear and not st3Bear[1]
+
+// ════════════════════════════════════════════════════════════════════════════
+// §3  ATR% 正規化基準（所有距離/門檻一律相對化，抗跨商品量級污染）
+// ════════════════════════════════════════════════════════════════════════════
+atrAdx   = ta.atr(adxLen)
+atrChand = ta.atr(chandLen)
+atrPct   = atrAdx / close              // ATR%（相對化基準）
+
+// ════════════════════════════════════════════════════════════════════════════
+// §4  波動率估計（年化、相對化）→ VT-Core 分母
+//     instVolAnn：年化瞬時波動，用於倉位正規化；relVol：相對中位數，用於加倉煞車
+// ════════════════════════════════════════════════════════════════════════════
+logRet      = math.log(close / close[1])
+stdevDaily  = ta.stdev(logRet, volLen)
+volAnnATR   = atrPct       * math.sqrt(barsPerYear)   // ATR% 年化
+volAnnStd   = stdevDaily   * math.sqrt(barsPerYear)   // 報酬 std 年化
+instVolAnn  = volEstMode == "Stdev" ? volAnnStd : volAnnATR
+// 相對化下限：取自身近 brakeLen 棒年化波動的低百分位，跨商品自適應，避免絕對 floor 失真
+volFloor    = ta.percentile_linear_interpolation(instVolAnn, brakeLen, 5)
+volFloor   := na(volFloor) ? 0.02 : math.max(volFloor, 0.001)
+instVolAnn := math.max(nz(instVolAnn, volFloor), volFloor)
+// 加倉煞車基準：instVolAnn 相對其長期中位數
+volMedian   = ta.median(instVolAnn, brakeLen)
+volMedian  := na(volMedian) ? instVolAnn : math.max(volMedian, volFloor)
+relVol      = instVolAnn / volMedian
+volBrakeOn  = useVolBrake and relVol > brakeK     // true=高波動，暫停加碼
+var int floorHits = 0
+if instVolAnn <= volFloor + 1e-12
+    floorHits += 1
+
+// ════════════════════════════════════════════════════════════════════════════
+// §5  Regime 指標（ER / ADX 遲滯 / ST3 慢方向閘）
+// ════════════════════════════════════════════════════════════════════════════
+// Kaufman 效率比（去除除零）
+erChange = math.abs(close - close[erLen])
+erVolSum = math.sum(math.abs(close - close[1]), erLen)
+er       = erVolSum > 0 ? erChange / erVolSum : 0.0
+er      := nz(er, 0.0)
+
+// ADX / DI（遲滯雙閾值）
+[diPlus, diMinus, adx] = ta.dmi(adxLen, adxLen)
+var bool adxOn_state = false
+if adx > adxOn
+    adxOn_state := true
+else if adx < adxOff
+    adxOn_state := false
+
+// ST3 慢方向閘
+slowBull = st3Bull
+slowBear = st3Bear
+
+// 投票（每票皆可獨立開關；關閉的票不計入分母與分子）
+voteER_long   = useER     and er > erThr
+voteADX_long  = useADX    and adxOn_state
+voteSlow_long = useSlowST and slowBull
+voteER_short  = useER     and er > erThr
+voteADX_short = useADX    and adxOn_state
+voteSlow_short= useSlowST and slowBear
+votesLong  = (voteER_long?1:0)  + (voteADX_long?1:0)  + (voteSlow_long?1:0)
+votesShort = (voteER_short?1:0) + (voteADX_short?1:0) + (voteSlow_short?1:0)
+// 方向票（多空嚴格鏡像，方向是唯一差異）
+dirLong  = diPlus  > diMinus
+dirShort = diMinus > diPlus
+
+regimeLongOK  = not useRegime or (votesLong  >= minVotes and dirLong)
+regimeShortOK = not useRegime or (votesShort >= minVotes and dirShort)
+// regime 強弱（供背景/儀表板）：任一方向達門檻視為 trend-on
+regimeOn = (votesLong >= minVotes and dirLong) or (votesShort >= minVotes and dirShort)
+
+// ════════════════════════════════════════════════════════════════════════════
+// §6  狀態機（單一真相：以各層在場 bool 重建 stage，杜絕手動加減/跳層）
+// ════════════════════════════════════════════════════════════════════════════
+var bool  l1On = false
+var bool  l2On = false
+var bool  l3On = false
+var bool  s1On = false
+var bool  s2On = false
+var bool  s3On = false
+var int   entryBar  = 0
+var float entryPx   = na    // 首單參考價（R 基準錨定，不隨加碼漂移）
+var float entryATR  = na    // 凍結 entry ATR（R 分母）
+var float trailExt  = na    // 極值累積（high/low）
+var float trailStop = na
+var float cooldownUntil = 0.0
+
+inLong  = strategy.position_size > 0
+inShort = strategy.position_size < 0
+inPos   = strategy.position_size != 0
+avgPx   = strategy.position_avg_price
+
+// 出場結算後立即歸零（消孤兒，不依賴下一棒延遲）
+if not inPos
+    l1On := false
+    l2On := false
+    l3On := false
+    s1On := false
+    s2On := false
+    s3On := false
+    entryATR  := na
+    entryPx   := na
+    trailExt  := na
+    trailStop := na
+
+longStage  = (l1On?1:0) + (l2On?1:0) + (l3On?1:0)
+shortStage = (s1On?1:0) + (s2On?1:0) + (s3On?1:0)
+stage = inLong ? longStage : inShort ? shortStage : 0
+
+// ════════════════════════════════════════════════════════════════════════════
+// §7  倉位計算（VT-Core：年化波動目標化 → 名目 → 總槓桿 clamp → qty）
+//     qty = (targetVol / instVolAnn) * equity * weight / close
+// ════════════════════════════════════════════════════════════════════════════
+// 路徑依賴隔離：用初始資本與平滑 equity 混合作為 sizing 基準，降複利路徑放大
+var float avgEq = na
+avgEq := na(avgEq) ? strategy.equity : avgEq * 0.99 + strategy.equity * 0.01
+sizeBase = 0.5 * strategy.initial_capital + 0.5 * avgEq
+
+// vol-target 比例（關閉時退回固定權重對照：比例=1）
+vtScale = useVolTarget ? targetVol / instVolAnn : 1.0
+totW    = wL1 + wL2 + wL3
+var int capHits = 0
+
+// 單一出口：給定層權重 → 目標名目 → 受該層分配的槓桿上限 clamp → qty(非負/非NaN)
+qtyFor(w) =>
+    float notion = vtScale * sizeBase * w
+    // 該層分配到的名目上限（總槓桿按層權重比例分配）
+    float nCap = totW > 0 ? sizeBase * maxGross * (w / totW) : sizeBase * maxGross
+    bool  capped = notion > nCap
+    notion := math.min(notion, nCap)
+    float q = close > 0 ? notion / close : 0.0
+    q := math.max(nz(q, 0.0), 0.0)
+    [q, capped]
+
+[qty1, cap1] = qtyFor(wL1)
+[qty2, cap2] = qtyFor(wL2)
+[qty3, cap3] = qtyFor(wL3)
+
+// ════════════════════════════════════════════════════════════════════════════
+// §8  R-multiple 與 Chandelier ratchet 停損（多空鏡像，only-up / only-down）
+// ════════════════════════════════════════════════════════════════════════════
+rDenom  = na(entryATR) ? atrChand : entryATR
+rBasePx = na(entryPx)  ? avgPx    : entryPx
+R = inPos and rDenom > 0 ? (inLong ? (close - rBasePx) / rDenom : (rBasePx - close) / rDenom) : 0.0
+// R 階梯倍數（寬→中→緊，單調收緊；放大右尾、截斷左尾）
+multStep = not useRStep ? chandMult : (R < 1 ? chandMult : R < 2 ? trailMidR : trailTightR)
+
+if useChandelier and inLong
+    trailExt  := na(trailExt) ? high : math.max(trailExt, high)
+    rawStop    = trailExt - multStep * atrChand
+    trailStop := na(trailStop) ? rawStop : math.max(trailStop, rawStop)   // ratchet 只進不退
+    if useBE and R >= kBE
+        trailStop := math.max(trailStop, rBasePx + multBE * rDenom)
+else if useChandelier and inShort
+    trailExt  := na(trailExt) ? low : math.min(trailExt, low)
+    rawStop    = trailExt + multStep * atrChand
+    trailStop := na(trailStop) ? rawStop : math.min(trailStop, rawStop)   // ratchet 只進不退
+    if useBE and R >= kBE
+        trailStop := math.min(trailStop, rBasePx - multBE * rDenom)
+
+// ════════════════════════════════════════════════════════════════════════════
+// §9  出場觸發（鏡像對稱；保留趨勢反轉為主出場，移除 belowAvgCost 切右尾）
+// ════════════════════════════════════════════════════════════════════════════
+trailHitLong  = useChandelier and inLong  and not na(trailStop) and close < trailStop
+trailHitShort = useChandelier and inShort and not na(trailStop) and close > trailStop
+// 災難底線：快+中 ST 同向反轉（雙 ST 翻向）
+twoSTRevLong  = inLong  and st1Bear and st2Bear
+twoSTRevShort = inShort and st1Bull and st2Bull
+// 時間停損（死單）
+timeStopLong  = useTimeStop and inLong  and (bar_index - entryBar) >= timeStopBars and R < 1 and stage < 3
+timeStopShort = useTimeStop and inShort and (bar_index - entryBar) >= timeStopBars and R < 1 and stage < 3
+
+// ════════════════════════════════════════════════════════════════════════════
+// §10  下單執行：先出場後進場（同棒狀態立即同步）
+// ════════════════════════════════════════════════════════════════════════════
+var bool exitedThisBar = false
+exitedThisBar := false
+
+clearAll() =>
+    l1On := false
+    l2On := false
+    l3On := false
+    s1On := false
+    s2On := false
+    s3On := false
+    entryATR  := na
+    entryPx   := na
+    trailExt  := na
+    trailStop := na
+
+// 交易所級停損掛單（防跳空，盤中觸發；收盤確認的趨勢出場仍另行處理）
+if useHardStop and inLong and not na(trailStop)
+    strategy.exit("hX-L", stop=trailStop, comment="HardStopL")
+else if useHardStop and inShort and not na(trailStop)
+    strategy.exit("hX-S", stop=trailStop, comment="HardStopS")
+
+// — 主出場 A：Chandelier trailStop（收盤確認） —
+if trailHitLong
+    strategy.close_all(comment="TrailL")
+    clearAll()
+    exitedThisBar := true
+    cooldownUntil := bar_index + cooldownBars
+else if trailHitShort
+    strategy.close_all(comment="TrailS")
+    clearAll()
+    exitedThisBar := true
+    cooldownUntil := bar_index + cooldownBars
+
+// — 出場 B：雙 ST 反轉底線 —
+if not exitedThisBar and twoSTRevLong
+    strategy.close_all(comment="2STrevL")
+    clearAll()
+    exitedThisBar := true
+    cooldownUntil := bar_index + cooldownBars
+else if not exitedThisBar and twoSTRevShort
+    strategy.close_all(comment="2STrevS")
+    clearAll()
+    exitedThisBar := true
+    cooldownUntil := bar_index + cooldownBars
+
+// — 出場 C：時間停損 —
+if not exitedThisBar and (timeStopLong or timeStopShort)
+    strategy.close_all(comment="TimeStop")
+    clearAll()
+    exitedThisBar := true
+    cooldownUntil := bar_index + cooldownBars
+
+// — 出場 D：部分止盈（鏡像減倉，未全平時執行；close 後同步翻 bool） —
+cutL1 = usePartialTP and not exitedThisBar and inLong  and st1FlipDn and l1On
+cutL2 = usePartialTP and not exitedThisBar and inLong  and st2FlipDn and l2On
+cutS1 = usePartialTP and not exitedThisBar and inShort and st1FlipUp and s1On
+cutS2 = usePartialTP and not exitedThisBar and inShort and st2FlipUp and s2On
+if cutL1
+    strategy.close("L1", comment="cutL1")
+    l1On := false
+if cutL2
+    strategy.close("L2", comment="cutL2")
+    l2On := false
+if cutS1
+    strategy.close("S1", comment="cutS1")
+    s1On := false
+if cutS2
+    strategy.close("S2", comment="cutS2")
+    s2On := false
+
+// ════════════════════════════════════════════════════════════════════════════
+// §11  進場（多空嚴格鏡像；首單套 regime gate，加碼套 winners-add-only + vol-brake）
+// ════════════════════════════════════════════════════════════════════════════
+canEnter = bar_index >= cooldownUntil and not exitedThisBar
+// 首單：ST1 翻向 + regime gate
+l1Cond = stage == 0 and st1FlipUp and regimeLongOK  and canEnter
+s1Cond = stage == 0 and st1FlipDn and regimeShortOK and canEnter
+// 加碼：前段已浮盈(R>0)、趨勢同向、ST 接力翻向、且未觸發 vol-brake（高波動煞車）
+addOK  = not volBrakeOn and R > 0
+l2Cond = stage == 1 and l1On and inLong  and st2FlipUp and st1Bull and addOK
+l3Cond = stage == 2 and l1On and l2On and inLong  and st3FlipUp and st1Bull and st2Bull and addOK
+s2Cond = stage == 1 and s1On and inShort and st2FlipDn and st1Bear and addOK
+s3Cond = stage == 2 and s1On and s2On and inShort and st3FlipDn and st1Bear and st2Bear and addOK
+
+if l1Cond
+    strategy.entry("L1", strategy.long, qty=qty1, comment="L1")
+    entryATR := atrChand
+    entryPx  := close
+    trailExt := high
+    trailStop := na
+    entryBar := bar_index
+    l1On := true
+if l2Cond
+    strategy.entry("L2", strategy.long, qty=qty2, comment="L2")
+    l2On := true
+if l3Cond
+    strategy.entry("L3", strategy.long, qty=qty3, comment="L3")
+    l3On := true
+if s1Cond
+    strategy.entry("S1", strategy.short, qty=qty1, comment="S1")
+    entryATR := atrChand
+    entryPx  := close
+    trailExt := low
+    trailStop := na
+    entryBar := bar_index
+    s1On := true
+if s2Cond
+    strategy.entry("S2", strategy.short, qty=qty2, comment="S2")
+    s2On := true
+if s3Cond
+    strategy.entry("S3", strategy.short, qty=qty3, comment="S3")
+    s3On := true
+
+// nCap 撞頂計數（監控 vol-target 是否被槓桿上限旁路）
+if cap1 or cap2 or cap3
+    capHits += 1
+
+// ════════════════════════════════════════════════════════════════════════════
+// §12  視覺化（全在 global scope）
+// ════════════════════════════════════════════════════════════════════════════
+c1 = st1Bull ? color.new(color.green, 0)  : color.new(color.red, 0)
+c2 = st2Bull ? color.new(color.green, 30) : color.new(color.red, 30)
+c3 = st3Bull ? color.new(color.green, 55) : color.new(color.red, 55)
+plot(showST ? st1 : na, "ST1", color=c1, linewidth=1)
+plot(showST ? st2 : na, "ST2", color=c2, linewidth=1)
+plot(showST ? st3 : na, "ST3", color=c3, linewidth=2)
+plot(showAvg and stage >= 1 ? avgPx : na, "AvgCost", color=color.new(color.yellow, 0), linewidth=1, style=plot.style_linebr)
+plot(showStop and inPos ? trailStop : na, "TrailStop", color=color.new(color.orange, 0), linewidth=1, style=plot.style_linebr)
+
+// 背景：regime 方向(淡) + 持倉階段(較深)
+bgReg = showBg and regimeOn ? (dirLong ? color.new(color.green, 93) : color.new(color.red, 93)) : na
+bgStg = showBg and inPos ? (inLong ? color.new(color.teal, 90 - stage * 6) : color.new(color.maroon, 90 - stage * 6)) : na
+bgcolor(na(bgStg) ? bgReg : bgStg)
+
+plotshape(showSignals and l1Cond, "L1", shape.triangleup,   location.belowbar, color.new(color.lime, 0),   size=size.tiny,   text="L1")
+plotshape(showSignals and l2Cond, "L2", shape.triangleup,   location.belowbar, color.new(color.green, 0),  size=size.small,  text="L2")
+plotshape(showSignals and l3Cond, "L3", shape.triangleup,   location.belowbar, color.new(color.teal, 0),   size=size.normal, text="L3")
+plotshape(showSignals and s1Cond, "S1", shape.triangledown, location.abovebar, color.new(color.orange, 0), size=size.tiny,   text="S1")
+plotshape(showSignals and s2Cond, "S2", shape.triangledown, location.abovebar, color.new(color.red, 0),    size=size.small,  text="S2")
+plotshape(showSignals and s3Cond, "S3", shape.triangledown, location.abovebar, color.new(color.maroon, 0), size=size.normal, text="S3")
+cutAny = cutL1 or cutL2 or cutS1 or cutS2
+plotshape(showSignals and cutAny, "Cut", shape.diamond, location.abovebar, color.new(color.purple, 0), size=size.tiny, text="cut")
+fullExit = trailHitLong or trailHitShort or twoSTRevLong or twoSTRevShort or timeStopLong or timeStopShort
+plotshape(showSignals and fullExit, "OUT", shape.xcross, location.abovebar, color.new(color.red, 0), size=size.tiny, text="X")
+
+// ════════════════════════════════════════════════════════════════════════════
+// §13  狀態儀表板（右上角 table）
+// ════════════════════════════════════════════════════════════════════════════
+// regime 文字：trend-on(方向) / range
+regimeTxt = regimeOn ? (dirLong ? "趨勢▲多" : dirShort ? "趨勢▼空" : "趨勢") : "盤整/Range"
+posTxt    = inLong ? "多 L" + str.tostring(stage) : inShort ? "空 S" + str.tostring(stage) : "無倉"
+stopTxt   = inPos and not na(trailStop) ? str.tostring(trailStop, format.mintick) : "—"
+distR     = inPos and not na(trailStop) and atrChand > 0 ? math.abs(close - trailStop) / atrChand : na
+distTxt   = na(distR) ? "—" : str.tostring(distR, "#.0") + " ATR"
+// vol-target 倉位：當前目標曝險佔 equity 比（vtScale×totW，受上限）
+exposureRaw = useVolTarget ? vtScale * totW : totW
+exposureEff = math.min(exposureRaw, maxGross)
+vtTxt     = useVolTarget ? str.tostring(exposureEff, "#.00") + "x (目標" + str.tostring(targetVol * 100, "#") + "%)" : "固定權重"
+ivTxt     = str.tostring(instVolAnn * 100, "#.0") + "%"
+
+var table dash = table.new(position.top_right, 2, 7, border_width=1, frame_color=color.new(color.gray, 40), frame_width=1)
+if showTable and barstate.islast
+    bgH = color.new(color.blue, 20)
+    bgV = color.new(color.black, 25)
+    txc = color.white
+    table.cell(dash, 0, 0, "市場狀態", text_color=txc, bgcolor=bgH, text_size=size.small)
+    table.cell(dash, 1, 0, regimeTxt, text_color=txc, bgcolor=regimeOn ? color.new(color.green, 40) : color.new(color.orange, 40), text_size=size.small)
+    table.cell(dash, 0, 1, "持倉方向/階段", text_color=txc, bgcolor=bgH, text_size=size.small)
+    table.cell(dash, 1, 1, posTxt, text_color=txc, bgcolor=inLong ? color.new(color.green, 45) : inShort ? color.new(color.red, 45) : bgV, text_size=size.small)
+    table.cell(dash, 0, 2, "停損價", text_color=txc, bgcolor=bgH, text_size=size.small)
+    table.cell(dash, 1, 2, stopTxt, text_color=txc, bgcolor=bgV, text_size=size.small)
+    table.cell(dash, 0, 3, "距停損", text_color=txc, bgcolor=bgH, text_size=size.small)
+    table.cell(dash, 1, 3, distTxt, text_color=txc, bgcolor=bgV, text_size=size.small)
+    table.cell(dash, 0, 4, "波動倉位", text_color=txc, bgcolor=bgH, text_size=size.small)
+    table.cell(dash, 1, 4, vtTxt, text_color=txc, bgcolor=bgV, text_size=size.small)
+    table.cell(dash, 0, 5, "年化波動", text_color=txc, bgcolor=bgH, text_size=size.small)
+    table.cell(dash, 1, 5, ivTxt + (volBrakeOn ? " ⛔煞車" : ""), text_color=txc, bgcolor=volBrakeOn ? color.new(color.red, 40) : bgV, text_size=size.small)
+    table.cell(dash, 0, 6, "目前 R", text_color=txc, bgcolor=bgH, text_size=size.small)
+    table.cell(dash, 1, 6, inPos ? str.tostring(R, "#.0") + "R" : "—", text_color=txc, bgcolor=bgV, text_size=size.small)
+
+// ════════════════════════════════════════════════════════════════════════════
+// §14  除錯欄（votes / stage 與 opentrades 對帳 / floorHits / capHits）
+// ════════════════════════════════════════════════════════════════════════════
+var table dbg = table.new(position.bottom_right, 2, 6, border_width=1)
+if showDebug and barstate.islast
+    db = color.new(color.gray, 0)
+    table.cell(dbg, 0, 0, "ER", text_color=color.white, bgcolor=db)
+    table.cell(dbg, 1, 0, str.tostring(er, "#.00"), text_color=color.white, bgcolor=db)
+    table.cell(dbg, 0, 1, "ADX", text_color=color.white, bgcolor=db)
+    table.cell(dbg, 1, 1, str.tostring(adx, "#.0"), text_color=color.white, bgcolor=db)
+    table.cell(dbg, 0, 2, "votesL/S", text_color=color.white, bgcolor=db)
+    table.cell(dbg, 1, 2, str.tostring(votesLong) + "/" + str.tostring(votesShort), text_color=color.white, bgcolor=db)
+    table.cell(dbg, 0, 3, "stage=opentr", text_color=color.white, bgcolor=db)
+    table.cell(dbg, 1, 3, str.tostring(stage) + "=" + str.tostring(strategy.opentrades), text_color=color.white, bgcolor=db)
+    table.cell(dbg, 0, 4, "floorHits", text_color=color.white, bgcolor=db)
+    table.cell(dbg, 1, 4, str.tostring(floorHits), text_color=color.white, bgcolor=db)
+    table.cell(dbg, 0, 5, "capHits", text_color=color.white, bgcolor=db)
+    table.cell(dbg, 1, 5, str.tostring(capHits), text_color=color.white, bgcolor=db)

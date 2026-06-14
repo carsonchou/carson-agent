@@ -1,0 +1,16 @@
+{
+  "codeLines": 1834,
+  "log": [
+    "editorVisible=true",
+    "clicked@1464,519",
+    "lineInd=[Line 1834, Col 1] (expect ~1834)"
+  ],
+  "addCandidates": [
+    {
+      "t": "",
+      "al": "",
+      "ti": "Add to chart",
+      "dn": ""
+    }
+  ]
+}

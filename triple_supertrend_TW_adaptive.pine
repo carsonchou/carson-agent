@@ -1,0 +1,253 @@
+//@version=5
+// ============================================================================
+// 3ST-TW 自適應 — Regime 自適應策略（趨勢順勢續抱 + 盤整均值回歸）
+//
+//   核心：單一部位、純多。每根 K 依 regime 切換子策略：
+//     ① regime 判定：趨勢段 = ADX ≥ adxTrend(18) 且 ER ≥ erTrend(0.26)；否則盤整段。
+//     ② 趨勢段 → 順勢續抱：三重 SuperTrend / ST3 多頭進場、重倉（目標曝險 0.95）、
+//        寬移動停損（Chandelier ATR×11）；只在 ST3 翻空 / regime off（ADX 大幅滑落）/
+//        破寬停損才出。無 R 階梯、部分止盈、peak-R 回吐、time-stop。
+//     ③ 盤整段 → 均值回歸：跌破布林下軌(len30,2.5SD) 或 RSI(14)<30 買進（且 ST3 非空才接刀）；
+//        回中軌 或 RSI≥rsiSell(50) 或 超時(mrMaxBars 30根) 賣出；破下軌再 ATR×1.5 停損。
+//     ④ 兩子策略不可同時持倉；regime 切換時平掉不符當前 regime 的倉。
+//   成本：commission 0.05%、slippage 2；barsPerYear=252（顯示參考）。
+//   忠實移植自 tw_adaptive.py。v2 OOS 驗證最佳參數（screener 池、train/test 不過擬合）：
+//   adxTrend=18、erTrend=0.26、bbLen=30、bbK=2.5、rsiBuy=30、rsiSell=50、mrMaxBars=30、mrStopK=1.5、wideMult=11。
+//   分割/還原由 TradingView 價格處理，策略不需理會。
+// ============================================================================
+strategy("3ST-TW 自適應", shorttitle="3ST-Adapt", overlay=true,
+     initial_capital=10000, default_qty_type=strategy.fixed, default_qty_value=1,
+     pyramiding=0, commission_type=strategy.commission.percent, commission_value=0.05,
+     slippage=2, calc_on_order_fills=false, process_orders_on_close=true)
+
+// ============================================================================
+// 區 1  輸入參數
+// ============================================================================
+// ── regime 判定 ──
+gReg     = "Regime 判定"
+adxLen   = input.int(14, "ADX / DI 週期", minval=10, maxval=20, group=gReg)
+erLen    = input.int(20, "ER 週期", minval=10, maxval=40, group=gReg)
+adxTrend = input.float(18.0, "趨勢段 ADX 門檻", minval=12.0, maxval=35.0, step=1.0, group=gReg,
+     tooltip="ADX ≥ 此值 且 ER ≥ ER 門檻 → 趨勢段（走順勢續抱）；否則盤整段（走均值回歸）。")
+erTrend  = input.float(0.26, "趨勢段 ER 門檻", minval=0.15, maxval=0.50, step=0.02, group=gReg,
+     tooltip="Kaufman 效率比 ≥ 此值才算趨勢乾淨。與 ADX 同時達標才判趨勢段。")
+regimeOffK = input.float(0.7, "趨勢倉 regime-off 比例（×ADX 門檻）", minval=0.4, maxval=0.95, step=0.05, group=gReg,
+     tooltip="持趨勢倉時，ADX 跌破 adxTrend×本比例即視為 regime off 出場（ADX 大幅滑落）。")
+
+// ── 趨勢 SuperTrend ──
+gTrend  = "趨勢 SuperTrend"
+baseLen = input.int(10, "基準 ATR 週期", minval=7, maxval=20, group=gTrend,
+     tooltip="ST1/ST3 由此乘比例展開（1:6）。")
+slowMult = input.float(6.0, "慢速倍數（×基準）", minval=5.0, maxval=7.0, step=0.5, group=gTrend,
+     tooltip="ST3 週期 = 基準 × 本倍數；ST3 為主趨勢方向依據。")
+f1 = input.float(1.5, "ST1 ATR 因子（快）", minval=1.3, maxval=2.0, step=0.1, group=gTrend)
+f3 = input.float(3.5, "ST3 ATR 因子（慢）", minval=3.0, maxval=5.0, step=0.5, group=gTrend)
+
+// ── 趨勢子策略（重倉續抱）──
+gT = "趨勢段（順勢續抱）"
+trendExposure = input.float(95.0, "趨勢段 目標曝險 %", minval=10.0, maxval=100.0, step=5.0, group=gT,
+     tooltip="趨勢段進場用 equity 的多少百分比。重倉：預設 95。") / 100.0
+chandLen = input.int(22, "Chandelier ATR 週期", minval=14, maxval=30, group=gT)
+wideMult = input.float(11.0, "寬停損 ATR 倍數", minval=5.0, maxval=15.0, step=0.5, group=gT,
+     tooltip="趨勢倉移動停損 = highest(high) − 本倍數×ATR（ratchet 只進不退）。預設 11：很寬，只防大崩盤。")
+
+// ── 盤整子策略（均值回歸）──
+gM = "盤整段（均值回歸）"
+bbLen = input.int(30, "布林週期", minval=10, maxval=60, group=gM)
+bbK   = input.float(2.5, "布林標準差倍數", minval=1.0, maxval=3.0, step=0.5, group=gM)
+rsiLen = input.int(14, "RSI 週期", minval=7, maxval=30, group=gM)
+rsiBuy = input.float(30.0, "RSI 買進門檻（超賣）", minval=10.0, maxval=40.0, step=1.0, group=gM)
+rsiSell = input.float(50.0, "RSI 賣出門檻", minval=45.0, maxval=70.0, step=1.0, group=gM,
+     tooltip="RSI ≥ 此值即均值回歸出場。")
+mrExposure = input.float(60.0, "盤整段 目標曝險 %", minval=10.0, maxval=100.0, step=5.0, group=gM,
+     tooltip="均值回歸進場曝險（較保守，盤整賺小波段）。預設 60。") / 100.0
+mrStopK = input.float(1.5, "破底停損 ATR 倍數", minval=0.5, maxval=3.0, step=0.5, group=gM,
+     tooltip="跌破布林下軌再 本倍數×ATR 即停損。")
+mrMaxBars = input.int(30, "均值回歸最長持有根數", minval=5, maxval=60, group=gM,
+     tooltip="盤整單持有超過此根數即出場（盤整不續抱）。")
+
+barsPerYear = input.float(252.0, "每年根數（年化用）", minval=24.0, maxval=8760.0, step=1.0, group=gReg,
+     tooltip="台股日線一年約 252 交易日（僅顯示參考）。")
+
+// ── 視覺化（極簡）──
+gViz = "視覺化"
+showTrendBar = input.bool(true,  "顯示 K 棒上色", group=gViz,
+     tooltip="順勢倉=綠、回歸倉=藍、空手=灰。")
+showSignals  = input.bool(true,  "顯示 BUY / EXIT 標籤", group=gViz)
+showTable    = input.bool(true,  "顯示儀表板（3 列）", group=gViz,
+     tooltip="右上角：當前 regime（趨勢/盤整）、持倉、未實現%。")
+showStop     = input.bool(false, "顯示停損線", group=gViz, tooltip="預設關。趨勢倉寬停損 / 盤整倉破底停損。")
+showST       = input.bool(false, "顯示 ST1/ST3 線", group=gViz, tooltip="預設關。")
+showBB       = input.bool(false, "顯示布林通道", group=gViz, tooltip="預設關。")
+showBg       = input.bool(false, "顯示 regime 背景（淡）", group=gViz, tooltip="預設關。趨勢段淡綠、盤整段淡橙。")
+
+// ============================================================================
+// 區 2  指標
+// ============================================================================
+len1 = baseLen
+len3 = math.max(int(math.round(baseLen * slowMult)), 3)
+[st1, dir1] = ta.supertrend(f1, len1)
+[st3, dir3] = ta.supertrend(f3, len3)
+st1Bull = dir1 < 0
+st3Bull = dir3 < 0
+st3Bear = not st3Bull
+
+atrChand = ta.atr(chandLen)
+
+// Kaufman 效率比（滾動求和用 math.sum，非 ta.sum）
+erChange = math.abs(close - close[erLen])
+erVolSum = math.sum(math.abs(close - close[1]), erLen)
+er       = erVolSum > 0 ? erChange / erVolSum : 0.0
+er      := nz(er, 0.0)
+
+[diPlus, diMinus, adx] = ta.dmi(adxLen, adxLen)
+
+// 布林（ta.bb）與 RSI（ta.rsi）
+[bbMid, bbUpper, bbLower] = ta.bb(close, bbLen, bbK)
+rsiv = ta.rsi(close, rsiLen)
+
+// ============================================================================
+// 區 3  Regime 判定
+// ============================================================================
+indReady = not (na(atrChand) or na(bbMid) or na(adx) or na(rsiv))
+isTrend  = indReady and adx >= adxTrend and er >= erTrend
+isRange  = indReady and not isTrend
+
+// ============================================================================
+// 區 4  部位狀態（單一部位；mode：趨勢倉 / 盤整倉）
+// ============================================================================
+inPos = strategy.position_size > 0
+var string mode = na          // "trend" / "mr"；空手為 na
+var int   entryBar = na
+var float trailExt  = na      // 趨勢倉寬停損錨
+var float trailStop = na
+
+// 平倉後清空狀態
+if not inPos
+    mode     := na
+    entryBar := na
+    trailExt  := na
+    trailStop := na
+
+// 趨勢倉寬移動停損（ratchet 只進不退）——僅在持趨勢倉時更新
+if inPos and mode == "trend"
+    trailExt  := na(trailExt) ? high : math.max(trailExt, high)
+    rawStop    = trailExt - wideMult * atrChand
+    trailStop := na(trailStop) ? rawStop : math.max(trailStop, rawStop)
+
+// 盤整倉破底停損價（下軌再 mrStopK×ATR）
+mrStopPx = bbLower - mrStopK * atrChand
+mrAge    = (inPos and mode == "mr" and not na(entryBar)) ? (bar_index - entryBar) : 0
+
+// ============================================================================
+// 區 5  出場條件（依當前 mode；含 regime 切換平倉）
+// ============================================================================
+// 趨勢倉出場：ST3 翻空 / regime off（ADX 大幅滑落）/ 破寬停損 / regime 已轉盤整
+regimeOffTrend = adx < adxTrend * regimeOffK
+trailHitTrend  = not na(trailStop) and close < trailStop
+exitTrend = inPos and mode == "trend" and (st3Bear or regimeOffTrend or trailHitTrend or isRange)
+
+// 盤整倉出場：回中軌 / RSI≥賣出 / 超時 / 破底停損 / regime 已轉趨勢
+mrStopHit = not na(mrStopPx) and close < mrStopPx
+exitMR = inPos and mode == "mr" and (close >= bbMid or rsiv >= rsiSell or mrAge >= mrMaxBars or mrStopHit or isTrend)
+
+exitNow = exitTrend or exitMR
+
+// ============================================================================
+// 區 6  進場條件（空手 + 依 regime 選子策略；本根未出場）
+// ============================================================================
+canAct = indReady and not inPos and not exitNow
+// 趨勢段順勢進場：ST3 多頭 + 趨勢 regime
+enterTrend = canAct and isTrend and st3Bull
+// 盤整段均值回歸進場：超賣（破下軌 或 RSI<買進）且 ST3 非空頭（不接刀）
+oversold   = close <= bbLower or rsiv <= rsiBuy
+enterMR    = canAct and isRange and oversold and not st3Bear and not enterTrend
+
+// ============================================================================
+// 區 7  下單（單一部位、純多；qty = 目標曝險% × 權益 / 收盤，非負非 NaN）
+// ============================================================================
+// 趨勢倉寬硬停損下到 broker 端（盤中觸發）
+if inPos and mode == "trend" and not na(trailStop)
+    strategy.exit("X寬停損", from_entry="多T", stop=trailStop, comment="WideStop")
+// 盤整倉破底硬停損下到 broker 端
+if inPos and mode == "mr" and not na(mrStopPx)
+    strategy.exit("X破底", from_entry="多R", stop=mrStopPx, comment="MRStop")
+
+if exitNow
+    strategy.close_all(comment="EXIT")
+
+if enterTrend
+    notion = math.max(nz(trendExposure, 0.0), 0.0) * strategy.equity
+    qty = close > 0 ? notion / close : 0.0
+    qty := math.max(nz(qty, 0.0), 0.0)
+    if qty > 0
+        strategy.entry("多T", strategy.long, qty=qty, comment="BUY")
+        mode      := "trend"
+        entryBar  := bar_index
+        trailExt  := high
+        trailStop := na
+else if enterMR
+    notion = math.max(nz(mrExposure, 0.0), 0.0) * strategy.equity
+    qty = close > 0 ? notion / close : 0.0
+    qty := math.max(nz(qty, 0.0), 0.0)
+    if qty > 0
+        strategy.entry("多R", strategy.long, qty=qty, comment="BUY")
+        mode      := "mr"
+        entryBar  := bar_index
+        trailExt  := na
+        trailStop := na
+
+// ============================================================================
+// 區 8  視覺化（極簡；plot / plotshape / barcolor / bgcolor 全 global scope）
+// ============================================================================
+sigBuy  = enterTrend or enterMR
+sigExit = exitNow
+
+// K 棒上色：順勢倉=綠、回歸倉=藍、空手=灰
+inTrendPos = inPos and mode == "trend"
+inMRPos    = inPos and mode == "mr"
+barCol = inTrendPos ? color.new(#26a69a, 0) : inMRPos ? color.new(#2962ff, 0) : color.new(color.gray, 35)
+barcolor(showTrendBar ? barCol : na, title="K 棒上色")
+
+// regime 背景（預設關，很淡）
+bgCol = isTrend ? color.new(color.green, 92) : isRange ? color.new(color.orange, 94) : na
+bgcolor(showBg ? bgCol : na, title="regime 背景")
+
+// 停損線（預設關）：趨勢倉寬停損 / 盤整倉破底停損
+stopLine = inTrendPos ? trailStop : inMRPos ? mrStopPx : na
+plot(showStop and inPos ? stopLine : na, "停損線", color=color.new(color.orange, 0), linewidth=2, style=plot.style_linebr)
+
+// BUY / EXIT 大標籤
+plotshape(showSignals and sigBuy,  "BUY",  shape.labelup,   location.belowbar, color.new(color.green, 0), size=size.large, text="BUY",  textcolor=color.white)
+plotshape(showSignals and sigExit, "EXIT", shape.labeldown, location.abovebar, color.new(color.red, 0),   size=size.large, text="EXIT", textcolor=color.white)
+
+// ST1/ST3 線（預設關）
+plot(showST ? st1 : na, "ST1", color=st1Bull ? color.new(color.green, 20) : color.new(color.red, 20), linewidth=1)
+plot(showST ? st3 : na, "ST3", color=st3Bull ? color.new(color.green, 50) : color.new(color.red, 50), linewidth=2)
+
+// 布林通道（預設關）
+plot(showBB ? bbUpper : na, "BB上", color=color.new(color.gray, 40))
+plot(showBB ? bbMid   : na, "BB中", color=color.new(color.gray, 20))
+plot(showBB ? bbLower : na, "BB下", color=color.new(color.gray, 40))
+
+// ============================================================================
+// 區 9  精簡儀表板（3 列：當前 regime / 持倉 / 未實現%）
+// ============================================================================
+regimeTxt = isTrend ? "趨勢段" : isRange ? "盤整段" : "—"
+regimeBg  = isTrend ? color.new(color.green, 30) : isRange ? color.new(color.orange, 35) : color.new(color.gray, 50)
+posTxt    = inTrendPos ? "順勢倉" : inMRPos ? "回歸倉" : "空手"
+posBg     = inTrendPos ? color.new(color.green, 35) : inMRPos ? color.new(color.blue, 35) : color.new(color.gray, 55)
+unrealPct = inPos and strategy.position_avg_price > 0 ? (close - strategy.position_avg_price) / strategy.position_avg_price * 100.0 : na
+upTxt     = na(unrealPct) ? "—" : str.tostring(unrealPct, "#.0") + "%"
+upBg      = na(unrealPct) ? color.new(color.gray, 55) : unrealPct >= 0 ? color.new(color.green, 35) : color.new(color.red, 35)
+
+var table dash = table.new(position.top_right, 2, 3, border_width=1, frame_color=color.new(color.gray, 30), frame_width=2)
+if showTable and barstate.islast
+    bgH = color.new(color.black, 15)
+    txc = color.white
+    table.cell(dash, 0, 0, "Regime", text_color=txc, bgcolor=bgH, text_size=size.large)
+    table.cell(dash, 1, 0, regimeTxt, text_color=color.white, bgcolor=regimeBg, text_size=size.large)
+    table.cell(dash, 0, 1, "持倉", text_color=txc, bgcolor=bgH, text_size=size.normal)
+    table.cell(dash, 1, 1, posTxt, text_color=color.white, bgcolor=posBg, text_size=size.normal)
+    table.cell(dash, 0, 2, "未實現", text_color=txc, bgcolor=bgH, text_size=size.normal)
+    table.cell(dash, 1, 2, upTxt, text_color=color.white, bgcolor=upBg, text_size=size.normal)

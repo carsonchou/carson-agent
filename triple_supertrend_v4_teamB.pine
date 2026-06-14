@@ -1,0 +1,1357 @@
+//@version=5
+// ????????????????????????????????????????????????????????????????????????????
+// Triple SuperTrend v14-Evo-B-OVERTAKE  ?? 3ST-RGVS-MTF (Regime-Gated Vol-Targeted)
+//   ?砌?隞?脣?憓???嚗撣喃耨敺?P1~P3+P6a + 撠??豢 A繚H1/H2 + ?? I1/I2/J2嚗? strategy() 銝??//   摰瑼?隞?v14-Evo-B-OVERTAKE / 3ST-v14EBo ?嚗?????敺??嗆撠?閮剛??牧/? walk-forward 撽???//   瘜冽?嚗瑼?葫撘?嚗???皜祆摮??詨?摮啣?瑁????游蝺刻陌撖虫?閬??嫘?// ????????????????????????????????????????????????????????????????????????????
+// ?? ?砌?隞?v14-Evo-B-OVERTAKE ?脣?憓???嚗撣喳頝臬?撠迂靽桀儔 + ?芰摨行?飛??+ 璈銝撘瑕漲嚗??
+//   [P0繚?游董繚????芣晾繚?祆活?嗆?靽桀儔繚?擃? broker 蝖砍??楝敺?brokerStopHit)??芾身
+//     exitedThisBar/blockPartials ?喟????芷?蝵桐遙雿?砍惜 stage ??漲銝神?瑕???游???鈭日?寞?
+//     broker ?其????trategy.opentrades=0 雿?l1On..s3On 隞?????stageLive>=1嚗憯?禮14 ??撘?//     chk=stageLive==strategy.opentrades嚗?甇斗????箏(頝喟征蝛蹂漱????)??0 ?瑕嚗???cooldown
+//     閮剛??◎?耨瘜?brokerStopHit ?箇???fullExitNow:=true嚗蔥?交??fullExitNow???湧?蝵?l1On..s3On/
+//     notL*/notS*/tp*Done/peakR/peakBar/bankedQty/openInitQty/entryRisk/entryPx/entryBar/trailExt/
+//     trailStop + ?券 armed/閮???+ 撖?cooldownUntil:=bar_index+effCooldown????閰脣??臭??潔遙雿?//     close_all嚗roker 撌脫?鈭文撟喉????單撅文董??蝔梧??園?銴???嚗xitedThisBar 隞頝?trail/2ST/time
+//     ?踹??? close_all?lockPartials ?璉???甇支?璇??渲楝敺?trail/2ST/time/brokerStop/
+//     cut-to-flat)撠????蔭 + ?瑕???典?蝔勗?蝑??孵?摰?冽????箏?????瑕蝻箏??//   [P1繚?游董] 禮10??1 cut-to-flat 撠迂???憛?隞?禮6 璉? posSize 敹怎?菜葫??璉?? drain 敺?暑
+//     stage ??0??隞塚?瘥 fullExitNow 摰?蔭 + 撖?cooldownUntil + exitedThisBar ?剛楝?祆?敺??脣??//   [P2繚?游董繚??] 擐 l1Cond/s1Cond ?怎垢 AND not inPos嚗 broker ?祕?其???璉?stop-and-reverse 撟賡??其???//   [P3繚銝?撘??湔吞 ?典像/fullExit(??brokerStop)/?圈???cut-to-flat ?鈭?頝臬??＊撘?蝵桀?刻????//   [P6a繚?孵??嗥?] cutL1/cutS1 鋆?fresh 瘣?stage>=2 霅瑟?嚗????桀惜?詨?????0??//   ?? ?芰摨行???詨?蝝???菜銝??芰摨艾撖佗???
+//     ?砌?隞???脤?璈(A1~A3/C1~C2/E2~E3/F1~F2/G1~G2/H1~H2/I1~I2/J2/????瘜Ｗ???/撟湧翩?唳/?０靽/
+//     撌脣祕?暸/瘜Ｗ?trail/銝?游漲trail/?餌??閬??芷?????芷???MTF/Regime-fade)??啣?????航矽
+//     input???????19 ???/?Ｘ隤踹? input(mtfCapBars/stallShrinkMin/pctlGaugeLo/pctlGaugeHi/
+//     cohRelaxK/fadeK/fadeCoolBars/dvThrK/erHystFrac/lowVolPctile/extraVoteLowVol/spaceVolLo/spaceVolHi/
+//     adxSlopeHystFrac/diSlopeHystFrac/volShockJumpFrac/bankCapFrac) ?券???箝?典摰虜??identity/
+//     ??梢?閮????雿喳??函瘜???walk-forward ??蝛粹?銝撘萸?璈隞?identity ?身???澆?銵嚗?//     璈撘瑕漲?園??????use*/usePureA 蝑???/??ablation ?????????蝬剖漲)??//     ?佗?eqBlendInit/eqBlendSmooth ??sizing ???銝?隞颱?瘥??????偶銋?+2 ?芰摨艾?usePureA 鈭?//     ?⊥?甇賊)嚗甈∩?雿菟???折撣豢 0.5/0.99嚗蝙蝝蝺?迤???菟?嗾瘛典蝺琿?航矽蝬剖漲??//   ?? 畾??梁?/甇?漱?批?霅?蝬剜?蝝?皜?D ?隢橘?銝 go/no-go嚗??
+//     J2 ??peakR ??TP ?０?唳?梁撌脣祕?曄??蝬剖漲(銝剖漲?梁?)嚗1?2?2?2/G2?1?2/DI 瘞湔????誑
+//     閮??h1BlockedEntries/i1BlockedEntries/i2Cuts/voteFadeCuts/dvCuts/j2BlockedAdds???圾鋡急?/鋡怠?
+//     ????摨佗??亙蝺???蝝?皜研???go/no-go??冽??璈?典?/閮剛??牧嚗??抒?葫?詨?嚗降?芾?
+//     蝛拙?折? walk-forward+憭???憭望???摰???strategy("Triple SuperTrend v14-Evo-B-OVERTAKE", shorttitle="3ST-v14EBo", overlay=true,
+     initial_capital=10000, default_qty_type=strategy.fixed, pyramiding=3,
+     commission_type=strategy.commission.percent, commission_value=0.05,
+     slippage=2, calc_on_order_fills=false, process_orders_on_close=true)
+
+// ????????????????????????????????????????????????????????????????????????????
+// 禮1  頛詨?嚗?蝯?/ 銝剜? tooltip / min-max-step嚗?// ????????????????????????????????????????????????????????????????????????????
+gTrend      = "頞典 SuperTrend"
+baseLen     = input.int(10, "?箇? ATR ?望?", minval=7, maxval=20, group=gTrend, tooltip="銝? ST ?梁?箇? ATR ?望?嚗T2/ST3 ?勗?瘣曄?嚗??圈?銵?敺株矽?遣霅圈???8~12??)
+midMult     = input.float(2.5, "銝剖偕摨阡望???", minval=2.0, maxval=3.0, step=0.1, group=gTrend, tooltip="ST2 ?望?=?箇??甇文??遣霅?1:2.5:6 ? noise/swing/regime嚗?撠?midMult/slowMult ??摨行???)
+slowMult    = input.float(6.0, "?Ｗ偕摨阡望???", minval=5.0, maxval=7.0, step=0.5, group=gTrend, tooltip="ST3 ?望?=?箇??甇文??T3 摰?T1 摰?暺en3 ????ST3 ?望???MTF ?瑼颱?皞??桅??摹????)
+f1          = input.float(1.5, "ST1 ??(敹?", minval=1.3, maxval=2.0, step=0.1, group=gTrend, tooltip="敹恍?ST ??????1.3 ??斗 whipsaw??)
+f2          = input.float(2.5, "ST2 ??(銝?", minval=2.0, maxval=3.5, step=0.1, group=gTrend, tooltip="銝剝?ST ??嚗?望???隞亙?甇交????偕摨艾?)
+f3          = input.float(3.5, "ST3 ??(??", minval=3.0, maxval=5.0, step=0.5, group=gTrend, tooltip="?ａ?ST ????蕪摰??)
+
+gMaster     = "瘥???Master"
+usePureA    = input.bool(false, "蝝蝺芋撘?銝?菟????脤?璈嚗?, group=gMaster, tooltip="??敺撥?園?????脤?璈嚗???/瘜Ｗ???/Regime-fade/?芷?S/MTF/?０靽/瘜Ｗ?trail/銝?游漲trail/?餌??閬?撟湧翩?唳/?芷???撌脣祕?暸/A1~A3/C1/C2/E2/E3/F1/F2/G1/G2/H1/H2/I1/I2/J2嚗?嗾瘛函??箇?靘?walk-forward ??鞎Ｙ撠?酉嚗1 cut-to-flat 撠迂????P2 擐 not inPos ?箇撣喃?霈?靽桀儔(??脤?璈)嚗??箇?銝漲???誑蝬剛風????芣晾???脤?璈??not usePureA??)
+
+gReg        = "Regime ??"
+useRegime   = input.bool(true, "? Regime Gate嚗????殷?", group=gReg, tooltip="頞典 edge ?芸??冽?孵??扳?蝥?regime嚗迨?雿擐????蝝?ST 撠蝯?)
+useER       = input.bool(true, "??Kaufman ??瘥?ER) ?巨", group=gReg, tooltip="ER=|close-close[n]|/峉|close-close[1]|???斗???撠??)
+erLen       = input.int(20, "ER ?望?", minval=10, maxval=40, group=gReg, tooltip="??瘥??摨佗?蝝??楊???芷??)
+erThr       = input.float(0.30, "ER ?瑼?, minval=0.20, maxval=0.50, step=0.05, group=gReg, tooltip="ER>?瑼餉??箸??regime???靽∪艙??/????regime-fade/?芷?S ?梁?箸?撠箏漲(?桅??摹??嚗?撠???摨行葫閰艾1 ?餅??寧 er 銝?榆??蝣?erThr??)
+useADX      = input.bool(true, "??ADX ?巨嚗皛舫??曉潘?", group=gReg, tooltip="ADX 頛?巨嚗dxOn/adxOff 敶Ｘ??脫趙?踹??函????)
+adxLen      = input.int(14, "ADX / DI ?望?", minval=10, maxval=20, group=gReg, tooltip="ADX ??DI ?孵????望???)
+adxOn       = input.float(23.0, "ADX ???曉?, minval=20.0, maxval=30.0, step=1.0, group=gReg, tooltip="ADX ?甇文?regime 頧?On??)
+adxOff      = input.float(18.0, "ADX ???曉?, minval=14.0, maxval=22.0, step=1.0, group=gReg, tooltip="ADX 頝甇文潸? Off??<???曉澆耦?皛臬葆??)
+useSlowST   = input.bool(true, "??ST3 ???巨嚗?孵???", group=gReg, tooltip="隞交??ST3 銝?蝛踹?雿?regime ?孵?蟡剁??誨蝖祉楊蝣?MA200??)
+minVotes    = input.int(2, "?撠?蟡冽", minval=1, maxval=3, group=gReg, tooltip="ER/ADX/ST3 銝巨??迨蟡冽?曇?擐?祕??瑼餃???clamp ?喳歇?蟡冽?踹??香??)
+useDIgate   = input.bool(true, "? DI ?孵???diPlus>diMinus嚗?, group=gReg, tooltip="擐?斗?蟡典?閬? DI ?孵?銝?氬??撠??鞎Ｙ??)
+useMTFgate  = input.bool(false, "? MTF ?Ｙ?瑽??漲???身?? ablation嚗?, group=gReg, tooltip="擐??瘙?ST3 蝧餃?敺?蝛抽persistBars 璉?=clamp(len3,3,60))?sePureA 撘瑕??)
+// [???砍?繚?嗆?] mtfCapBars 銝????input嚗摰?折撣豢 60(??input 銝?)嚗ersistBars=clamp(len3,3,60)??//   ???????閮凋???len3 ?虜????60???嗾銋???)嚗?蝘駁銝??walk-forward ?航矽??蝬剖漲??int mtfCapBars = 60
+
+gPos        = "?? Vol-Target"
+useVolTarget= input.bool(true, "?瘜Ｗ??璅???", group=gPos, tooltip="????摰???瘥?=1)?ty=(targetVol/instVolAnn)*equity*weight/close 頝典??◢?芾甜?颱??氬?)
+targetVol   = input.float(15.0, "撟游??格?瘜Ｗ???%", minval=8.0, maxval=30.0, step=1.0, group=gPos, tooltip="瘥雿??芰璅僑?郭??瘜Ｗ????曉之??瘜Ｗ?蝮桀?嚗蝙憸券鞎Ｙ蝑???) / 100.0
+volEstMode  = input.string("ATR%", "瘜Ｗ?隡啗?瘜?, options=["ATR%","Stdev"], group=gPos, tooltip="ATR%(撠?gap 蝛拙)/Stdev(???詨?蝢?嚗???詨????文?潮?蝝情??)
+volLen      = input.int(20, "瘜Ｗ?隡啗???", minval=10, maxval=40, group=gPos, tooltip="instVol 隡啗?閬?嚗? 20 璉瘜Ｗ?????撟唾﹛??)
+barsPerYear = input.float(365.0, "撟游?璉(撟游???)", minval=24.0, maxval=8760.0, step=1.0, group=gPos, tooltip="撟游?瘥僑 K 璉?蝺?撖?365?蟡兩?252??H??190??H??760???望????郊隤踵??)
+wL1         = input.float(0.40, "L1 甈?(擐挾)", minval=0.20, maxval=0.60, step=0.05, group=gPos, tooltip="擐挾?甈?嚗?蝮賣?獢蹂?????)
+wL2         = input.float(0.30, "L2 甈?(?Ⅳ)", minval=0.15, maxval=0.50, step=0.05, group=gPos, tooltip="蝚砌?畾萄?蝣潭?????畾菜筑??頞典??閫貊??)
+wL3         = input.float(0.30, "L3 甈?(?Ⅳ)", minval=0.15, maxval=0.50, step=0.05, group=gPos, tooltip="蝚砌?畾萄?蝣潭???)
+useConvAdd  = input.bool(true, "? ER 靽∪艙???Ⅳ", group=gPos, tooltip="L2/L3 甈??clamp(er/erThr,0.5,1.0)嚗隅?Ｘ?蝥扯?擃??遛蝣潦???er/erThr ?嗆憓?勗漲??)
+maxGross    = input.float(1.5, "蝮賣?獢蹂???? equity)", minval=1.0, maxval=3.0, step=0.1, group=gPos, tooltip="??惜????/equity 蝖砌????活?貉? debug capHits??)
+useVolBrake = input.bool(true, "?擃郭????頠?, group=gPos, tooltip="instVol>銝凋??蜆 ???怠? L2/L3 ?Ⅳ??)
+brakeLen    = input.int(100, "瘜Ｗ?銝凋??詨???, minval=50, maxval=300, group=gPos, tooltip="instVol ?瑟?銝凋??貉?蝒?鈭西??其? atrPct ?曉?雿妝???瑕漲??)
+brakeK      = input.float(1.8, "??? k", minval=1.2, maxval=3.0, step=0.1, group=gPos, tooltip="instVol 擃銝凋??豢迨????蝣潦暺?撘望扼撽???頠?瘜Ｗ???/瘜Ｗ?trail/瘜Ｗ??瑕嚗??餌??閬?瘜Ｗ?trail 閫?阡???璈??撠???摨行???)
+
+gExit       = "?箏 Exit"
+useChandelier= input.bool(true, "? Chandelier 蝘餃???", group=gExit, tooltip="ta.highest(high)-mult*ATR(蝛粹?? ratchet ?芷脖???????芷???ST 摨???)
+chandLen    = input.int(22, "Chandelier ATR ?望?", minval=14, maxval=30, group=gExit, tooltip="蝘餃??? ATR ?望?嚗? R ?０撠箏漲銝?氬?)
+chandMult   = input.float(3.0, "Chandelier ATR ?(??/R ??)", minval=2.0, maxval=4.0, step=0.5, group=gExit, tooltip="蝘餃???頝=mult?ATR嚗????粹脣????甇Ｘ?頝?箸?嚗=1=1 ??撖血?憪◢?芥?)
+useRStep    = input.bool(true, "? R ?０?嗥?", group=gExit, tooltip="靘筑??R ???嗥?嚗<1 撖研?~2 銝准?2 蝺????箏? chandMult??)
+trailMidR   = input.float(2.0, "銝剜??(1~2R)", minval=1.5, maxval=3.0, step=0.5, group=gExit, tooltip="瘚桃? 1~2R ?嚗??勺handMult??)
+trailTightR = input.float(1.5, "蝺??(>2R)", minval=1.0, maxval=2.5, step=0.5, group=gExit, tooltip="瘚桃?>2R ?嗥??嚗??支葉瑼漲?箔??游漲銵啁垠/H2 瘜Ｗ?銵??嗥???蝺?踴?)
+useBE       = input.bool(true, "?靽(break-even)", group=gExit, tooltip="瘚桃???kBE?R 敺???蝘餅??砌???multBE?R??)
+kBE         = input.float(1.0, "靽閫貊 R", minval=0.5, maxval=2.0, step=0.1, group=gExit, tooltip="瘚桃??迨 R ???靽??)
+multBE      = input.float(0.3, "靽蝺抵? R", minval=0.1, maxval=0.6, step=0.1, group=gExit, tooltip="靽??蝵格?簣甇?R ?嚗???.1 閬??+皛??暺?撘望扼???BE 蝺抵?/peakR ????TP ?０?唳/G2 dvThr 撠箏漲??)
+usePartialTP= input.bool(true, "??挾?典?甇Ｙ?(R ?０?質?)", group=gExit, tooltip="R?另p1R 撟?tp1Pct??另p2R ?像 tp2Pct嚗誑 posLive 蝎曄Ⅱ?質?嚗偶銝??像?詨? L1??)
+tp1R        = input.float(1.0, "TP1 閫貊 R", minval=0.5, maxval=2.0, step=0.1, group=gExit, tooltip="瘚桃??迨 R 撟?tp1Pct?孛?澆??郊???砌??砍?踴?)
+tp1Pct      = input.float(25.0, "TP1 撟喳?靘?%嚗蜇??", minval=10.0, maxval=50.0, step=5.0, group=gExit, tooltip="TP1 撟單??嗅??拚??其? posLive 甇斤????)
+tp2R        = input.float(2.0, "TP2 閫貊 R", minval=1.5, maxval=4.0, step=0.5, group=gExit, tooltip="瘚桃??迨 R ?像 tp2Pct嚗?>tp1R??)
+tp2Pct      = input.float(25.0, "TP2 撟喳?靘?%嚗蜇??", minval=10.0, maxval=50.0, step=5.0, group=gExit, tooltip="TP2 撟?TP1 ?質?敺葬撠??拚??其?甇斤???p1+tp2 撱箄降??0%??)
+useBEonTP1  = input.bool(true, "TP1 ?質??喲?靽", group=gExit, tooltip="?質? 1R 敺敹??撥?嗯?????BE 璈?嗆憓?input??)
+useTPstairBE= input.bool(true, "TP ?０撘??砍??, group=gExit, tooltip="靽?唳?刻鋡挾?賊?璇臭??研???multBE/tp ???嗆憓?input?ffTPstair ??usePureA??)
+usePeakRatchet= input.bool(false, "? Peak-R ?????身?? ablation嚗?, group=gExit, tooltip="蝬剛風 peakR 撠敹???????唳 trailStop?叵BasePx+(peakR?ffGiveback)?rDenom?sePureA 撘瑕??)
+useBreathGiveback= input.bool(true, "瘜Ｗ??芷????", group=gExit, tooltip="effGiveback=multBE?clamp(relVol,1.0,brakeK)?? usePeakRatchet=true ??嚗ffBreathGB ??usePureA??)
+useStallRatchet= input.bool(false, "頞典撟湧翩????唳嚗?閮剝?嚗?, group=gExit, tooltip="effGiveback ?? stallShrink=clamp(1?arsSincePeak/timeStopBars, stallShrinkMin, 1.0)?? usePeakRatchet=true ????)
+// [???砍?繚?嗆?] stallShrinkMin ???箏?典虜??0.5(??勗虜??嚗????脩?航矽 input?宏?支???蝬剖漲??float stallShrinkMin = 0.5
+useBreathTrail= input.bool(false, "瘜Ｗ??芷?蜓 trail嚗?閮剝?嚗?, group=gExit, tooltip="銝?蝺?隞交郭??拇?敺株矽 multStep嚗lamp[trailTightR,chandMult]嚗? R>=1 ???ffBreathTrail ??usePureA??)
+useDecorrVolGauge= input.bool(false, "?餌?郭??閬?ATR% ?曉?雿?嚗?閮剝?嚗?, group=gExit, tooltip="atrPct ?曉?雿妝?? [pctlGaugeLo,pctlGaugeHi] ?澆靽 breathPctl嚗??血? brakeK?ffDecorrGauge ??usePureA??)
+// [???砍?繚?嗆?] pctlGaugeLo/Hi ???箏?典虜??1.0/2.0(??勗虜??嚗????脩?航矽 input?宏?文??蝬剖漲??float pctlGaugeLo = 1.0
+float pctlGaugeHi = 2.0
+useCoherenceTrail= input.bool(false, "憭偕摨行???游漲 ratchet嚗?閮剝?嚗?, group=gExit, tooltip="coherence==3 ?曉祝 cohRelaxK?oherence<=1 ?嗅 trailTightR?ffCoherenceTrail ??usePureA??)
+// [???砍?繚?嗆?] cohRelaxK ???箏?典虜??1.15(??勗虜??嚗????脩?航矽 input?宏?支???蝬剖漲??float cohRelaxK = 1.15
+useBankedFloor= input.bool(false, "撌脣祕?曄?拚靽?唳嚗?閮剝?嚗?, group=gExit, tooltip="bankFrac=bankedQty/openInitQty嚗??rBasePx簣bankFrac?rDenom嚗?蝣?multBE?ffBankedFloor ??usePureA??)
+usePartialST= input.bool(true, "? ST ???挾皜?cut)", group=gExit, tooltip="ST1/ST2 ???∪??挾?質??ut 銝敺?top-first ???怠惜???游惜??)
+useRegimeFade= input.bool(false, "? Regime-fade ?詨??駁◢?迎??身?? ablation嚗?, group=gExit, tooltip="er<erThr?fadeK ?? cutTop ???怠?蝣澆惜(瘣?stage>=2 靽?銝? L1)???啣? fadeK/fadeCoolBars?sePureA 撘瑕??)
+// [???砍?繚?嗆?] fadeK / fadeCoolBars ???箏?典虜????閮?0.6 / 5)嚗????脩?航矽 input?宏?文??蝬剖漲??//   fadeCoolBars 隞 F2/G2/H2/I2 銴雿?撅日?????蝒??嗆憓?input)嚗????箏摰??瑚??航◤?雿喳??冽???float fadeK = 0.6
+int fadeCoolBars = 5
+useVoteFade = input.bool(false, "??NEW-F2 ?梯?蟡冽銵圈?駁◢?芷?嚗?閮剝?嚗?, group=gExit, tooltip="?葉?嗅??孵? votesDir 頝 effMinVotes 銝暑 stage>=2 ?? cutTop ???怠?蝣澆惜?? regime-fade(ER 瘞湔?)甇?漱????votesLong/Short/effMinVotes/cutTop/fadeCoolBars ?嗆憓?? input?ffVoteFade ??usePureA?? voteFadeCuts??)
+useDrawVel  = input.bool(false, "???EW-G2 撜啣澆????箏???身?瑕?頞?堆?", group=gExit, tooltip="dvRate=(peakR?)??peakR?)[fadeCoolBars] ?菜葫?仿???頞?dvThr=dvThrK?multBE 蝬?cutTop ?撅扎? F2/regime-fade/peakR ?迤鈭扎???peakR/R/multBE/fadeCoolBars?ffDrawVel ??usePureA?? dvCuts??)
+// [???砍?繚?嗆?] dvThrK ???箏?典虜??1.0(identity)嚗????脩?航矽 input?vThr=multBE 摰銴?Ｘ?
+//   multBE 撠箏漲嚗宏?支???蝬剖漲?2 ?箏?撥摨虫?霈???閮剖 identity)??float dvThrK = 1.0
+useBelowAvg = input.bool(false, "? belowAvg ?怠惜皜Ⅳ嚗?閮剝?嚗?挾嚗?, group=gExit, tooltip="?寧????思?撅方? close_all嚗?閮剝?靘??扼?)
+kBuf        = input.float(0.5, "belowAvg 蝺抵? / ?脣?孵榆??ATR)", minval=0.3, maxval=1.0, step=0.1, group=gExit, tooltip="belowAvg 閫貊蝺抵?(chandLen ATR)?EW-A2 鈭西??其?擐 |close?t1|?女Buf?atrChand ?憭批捆閮梯??Ｕ?)
+useTimeStop = input.bool(true, "?????(甇餃???", group=gExit, tooltip="??>N 璉? R<1 銝皛蹂?畾菔??箸香?桅?氬?)
+timeStopBars= input.int(30, "????璉", minval=15, maxval=60, group=gExit, tooltip="甇餃??湔?憭扳????詻僑朣∪???蹂漲銴雿?barsSincePeak/timeStopBars 甇???偕摨艾?)
+useAdaptiveTS= input.bool(false, "ER ?芷??time-stop嚗?閮剝?靘?ablation嚗?, group=gExit, tooltip="timeStopBars?clamp(er/erThr,0.5,1.0)嚗R 頞?甇餃??渲?敹怒sePureA 撘瑕??)
+useHardStop = input.bool(true, "?鈭斗??蝝??????脰歲蝛?", group=gExit, tooltip="撠?Chandelier ??銝?撖?stop ?桅頝喟征??0 ?支葉?漱?菜葫撠? trailStop[1]嚗孛?閬?詨??典像?頝舀璉??????鈭)????砍惜?嗉??蔭??)
+cooldownBars= input.int(3, "?箏敺?餅???, minval=0, maxval=10, group=gExit, tooltip="?典像敺?敺?N 璉??迂?圈??殷??踹??箏璉??喳??蕭?柴?)
+useAdaptiveCooldown= input.bool(false, "撠迂?澆撘脣?瑕嚗?閮剝?嚗?, group=gExit, tooltip="effCooldown=round(cooldownBars?clamp(relVol,1.0,brakeK))?ffAdaptiveCooldown ??usePureA??)
+
+gNew        = "?豢韐振 Absorb-A"
+useMultiScaleStop= input.bool(false, "NEW-A1 頝典偕摨?ATR ?折?甇Ｘ?嚗?閮剝?嚗?, group=gNew, tooltip="beActive 敺敹? trail ATR 撠箏漲?寧 max(atrChand,|close?t3|)????st3/atrChand ?嗆憓?input?ffMultiScaleStop ??usePureA??)
+useEntryDistGate= input.bool(false, "NEW-A2 ?脣???孵榆蝣箄????身??", group=gNew, tooltip="擐閬? |close?t1|?女Buf?atrChand嚗?典?蝧餉?撠?渲??脣????kBuf/atrChand/st1 ?嗆憓?input?ffEntryDistGate ??usePureA??)
+useCoherenceAdd= input.bool(false, "NEW-A3 銝?游漲?Ⅳ靽∪艙???身??", group=gNew, tooltip="?Ⅳ??AND coherence>=2(憭?coherenceLong/蝛?coherenceShort)????coherence ?嗆憓?input?ffCoherenceAdd ??usePureA??)
+
+gAbsorbC    = "??嗉?摰?Absorb-C"
+useErAccelAdd= input.bool(false, "?EW-C1 ER ??漲?Ⅳ???身??", group=gAbsorbC, tooltip="?Ⅳ??AND er>=nz(er[1],er)?rHystFrac?erThr(??芣??????er[1] 銝１ erThr?ffErAccelAdd ??usePureA??)
+useMidConfirm= input.bool(false, "?EW-C2 銝剖偕摨阡脣蝣箄????身??", group=gAbsorbC, tooltip="擐??瘙葉撠箏漲 ST2 ??嚗? regime gate 銝剖偕摨行?暺???st2Bull/st2Bear ?嗆憓?input?ffMidConfirm ??usePureA??)
+// [???砍?繚?嗆?] erHystFrac ???箏?典虜??0.0(identity繚?湔>=)嚗????脩?航矽 input?宏?支???蝬剖漲??//   C1 ?Ⅳ????er>=nz(er[1],er)嚗? A 蝑嚗?脫趙撣嗆????雿喳??刻矽?氬?float erHystFrac = 0.0
+
+gSurpass    = "?????菜 Surpass-New"
+useAdaptiveMinVotes= input.bool(false, "??NEW-E2 瘜Ｗ??芷??minVotes嚗?閮剝?嚗?, group=gSurpass, tooltip="atrPctRank<lowVolPctile 閬?憭?extraVoteLowVol 蟡典霅?瘜Ｗ???? minVotes嚗lamp ?喳歇?蟡冽????atrPctRank?ffAdaptiveMinVotes ??usePureA??)
+// [???砍?繚?嗆?] lowVolPctile / extraVoteLowVol ???箏?典虜????閮?33.0 ?? / +1 蟡?嚗????脩
+//   ?航矽 input?宏?文??蝬剖漲?2 ?芷??蟡券?瑼駁?頛臭?霈?雿郭??雿?minVotes ??1 蟡剁?clamp ?喳歇?蟡冽)??float lowVolPctile = 33.0
+int extraVoteLowVol = 1
+useAddSpacing= input.bool(false, "??NEW-E3 ?Ⅳ???餃????身??", group=gSurpass, tooltip="閬? bar_index?astAddBar?仟ddSpace(=clamp(len1,2,persistBars))嚗??芾?銵??????柴???len1/persistBars ?嗆憓隤輸???CFix-3 ??頝冽??亙??Ⅳ嚗???e3BlockedAdds?ffAddSpacing ??usePureA??)
+
+gTrans      = "??撠??豢 A Parity-F"
+useAddSpaceVol= input.bool(false, "??NEW-F1 瘜Ｗ??芷??蝣潮?頝??身??? E3 ??", group=gTrans, tooltip="addSpace 銋?spaceVolK=clamp(1+(50?trPctRank)/100, spcVolLo, spcVolHi)嚗?瘜Ｗ????瘜Ｗ?蝮桃嚗? clamp ??[2,persistBars]????atrPctRank嚗?? spaceVolLo/Hi 蝒葆?ffAddSpaceVol=useAddSpaceVol and effAddSpacing and not usePureA??)
+// [???砍?繚?嗆?] spaceVolLo/Hi ???箏?典虜?貊?撣?0.75/1.25(??閮?嚗????脩?航矽 input?宏?文??蝬剖漲??//   F1 瘜Ｗ??芷??蝣潮?頝?撠??詨摰??撣塚??摩銝?????銝鋡急?雿喳??冽???float spaceVolLo = 0.75
+float spaceVolHi = 1.25
+
+gOver       = "????頞??Overtake-New"
+useAdxSlopeAdd= input.bool(false, "???EW-G1 ADX ???蝣箄??Ⅳ???身?瑕?頞?", group=gOver, tooltip="?Ⅳ??AND ta.change(adx)>=?dxSlopeHystBand(頞典撘瑕漲??芣???? C1(ER 銝?榆??甇?漱????adx ?嗆憓?? input?ffAdxSlopeAdd ??usePureA?? g1BlockedAdds??)
+// [???砍?繚?嗆?] adxSlopeHystFrac ???箏?典虜??0.0(identity繚?湔>=0)嚗????脩?航矽 input?宏?支???蝬剖漲??//   G1 ?Ⅳ????ta.change(adx)>=0嚗?脫趙撣嗆????雿喳??刻矽?氬?float adxSlopeHystFrac = 0.0
+
+// ?? ????蝑??A繚H1/H2嚗 ?瑼?蝻綽???啣?????航矽?nput ????皛臬葆??閮剝?? not usePureA??蝛粹????
+gTransX     = "????蝑??A Parity-H"
+useDiSlopeGate= input.bool(false, "???EW-H1 DI ?孵榆?蝣箄??脣???身?瑕?蝑?A嚗?, group=gTransX, tooltip="擐??AND??撌?diSpread=diPlus?iMinus(蝛粹??diMinus?iPlus)???榆???券＊???diSlope>=?皛臬葆)?? DI 瘞湔???A2(頝)/C2(銝剖偕摨行?偌皞?/E2(?梯??賊?)甇?漱嚗1 ????賣????diPlus/diMinus 銋?[1] ?嗆憓?? input嚗皛臬葆??(adxOn?dxOff) 瘣曄?(??G1 ??)??閮?0 ????=0??蝛箏?潮?雿擐?ffDiSlopeGate ??usePureA?? h1BlockedEntries?鋡急????2/DI 瘞湔?????蝝?皜?D ??)
+// [???砍?繚?嗆?] diSlopeHystFrac ???箏?典虜??0.0(identity繚?湔>=0)嚗????脩?航矽 input?宏?支???蝬剖漲??//   H1 ?脣????diSlope>=0嚗?脫趙撣嗆????雿喳??刻矽?氬?float diSlopeHystFrac = 0.0
+useVolShockTrail= input.bool(false, "???EW-H2 瘜Ｗ??游撐銵??嗥??詨? trail嚗?閮剝?繚撠? A嚗? R ?０??", group=gTransX, tooltip="?菜葫 atrPctRank ??fadeCoolBars 璉??仿???volShockNow?史olShockJumpFrac?100)=蝯??游???嚗?銝?trail ?嗅 trailTightR(??郭??銝?游漲 trail ??math.min)?? G2(R ????繚蝯?蝡?甇?漱嚗2 ?郭?撘菟?繚??蝡胯???atrPctRank/fadeCoolBars ?嗆憓?? input?? R>=1 trail ?嗥???drain????stageLive????close??蝑予?嗆?蝡olShockJumpFrac ?身 1.0 餈?ffVolShockTrail=useVolShockTrail and useRStep and not usePureA?? volShockHits??)
+// [???砍?繚?嗆?] volShockJumpFrac ???箏?典虜??1.0(?靽?繚閬? atrPctRank 頝單遛 100 暺?嚗????脩
+//   ?航矽 input?宏?支???蝬剖漲?2 閫貊?瑼餃摰??閮哨??摩銝?????銝鋡急?雿喳??冽???float volShockJumpFrac = 1.0
+
+// ?? ???????菜 I/J嚗 ??B ?嚗??嗆憓???航矽?nput??閮剝?? not usePureA??蝛粹??閮???梁????輯姥嚗??
+gIJ         = "???????菜 IJ-Overtake-X"
+useFlipFresh= input.bool(false, "????NEW-I1 ST 蝧餉??圈悅摨行??※皜脣???身?瑕?頞?", group=gIJ, tooltip="擐??瘙? ST1 ?餈蕃頧???N 璉(??蝬倦意=clamp(len1,2,persistBars) ??len1/persistBars 瘣曄??嗆憓?? input)?? A2(蝛粹?頝)甇?漱?2 ?頧?憭??1 ?蕃頧???憭?嚗?蝧餉?敺?湔璉?餈賢?※蝡剛?銵???st1FlipBar+bar_index??摨?孵???ffFlipFresh ??usePureA?? i1BlockedEntries?鋡急????2 ??蝝?閫皜?D ??)
+useCohDeRisk= input.bool(false, "????NEW-I2 頝典偕摨行???Ｗ??憸券???箏?朝琿?閮剝?繚??嚗?, group=gIJ, tooltip="隞交??coherence 銝?榆?皜祆??瑽援閫???祆? coherence<coherence[fadeCoolBars] 銝暑 stage>=2 ?? cutTop ?撅?銝? L1)?? F2(蟡冽?賊?繚瘞湔?)/G2(R ??繚撟漲??)/H2(瘜Ｗ???)甇?漱嚗2 ??撠箏漲?孵??矽?援閫??繚蝯?蝡荔??拇 votes 頝?瑼颯??皛荔?re-arm ??coherence ??銝??潛????? fadeCoolBars 璉???coherenceLong/Short/cutTop/fadeCoolBars ?嗆憓?? input??蝛箏??刻??coherence?粥 cutTop 蝬剜? stageLive ???ffCohDeRisk ??usePureA?? i2Cuts?鋡怠????2/G2 ??蝝?閫皜?D ??)
+useJBankThrottle= input.bool(false, "????NEW-J2 撌脰鋡?靘?蝣潮?皜?嚗?蝣澆繚?身?瑕?頞?", group=gIJ, tooltip="?Ⅳ??AND bankFrac<=bankCapFrac(撌脣祕?曄??雿?蝬剖漲)?ankFrac ?Ｘ??芾◤ bankedFloor ?砍?踹??芰?澆?蝣潛?瘚??渡?瑽?撌脰鋡?憭??祆挾頞典 edge 撌脣??曉之????蝣澆?撅砍偏畾菔蕭擃?撱箸???RR ???ankCapFrac=1.0=identity 瘞訾??? C1/A3/G1/E3/F1 ?冽迤鈭扎?蝛箏?典?銝 bankFrac??ffJBankThrottle ??usePureA?? j2BlockedAdds?鋡急????eakR ??TP ?０?唳??蝝?閫皜?D ??)
+// [???砍?繚?嗆?] bankCapFrac ???箏?典虜??1.0(identity繚瘞訾???嚗????脩?航矽 input?宏?支???蝬剖漲??//   J2 ?Ⅳ蝭瘚????bankFrac<=1.0 ??(瘞訾???嚗銝???靘?雿喳??刻矽?氬?float bankCapFrac = 1.0
+
+// [???砍?繚?嗆?繚?詨?蝝?] eqBlendInit / eqBlendSmooth ???箏?典虜??0.5 / 0.99(??勗虜??嚗?????//   ??input?????sizing input 銝?隞颱? use* 瘥??? usePureA 蝝?(????嚗惇瘞訾???+2 ?芰摨佗?
+//   ?喃蝙 usePureA=true 蝝蝺漲?⊥??嗆??嚗????菟?嗾瘛典蝺隢整??撣豢敺?蝝蝺??冽???//   ??典?銝?箏? sizing ?箸?頝臬?嚗?航矽蝬剖漲??雿喳??冽?撠??float eqBlendInit = 0.5
+float eqBlendSmooth = 0.99
+
+gViz        = "閬死??
+showST      = input.bool(true, "憿舐內銝? SuperTrend", group=gViz)
+showAvg     = input.bool(true, "憿舐內?蝺?, group=gViz)
+showStop    = input.bool(true, "憿舐內蝘餃???蝺?, group=gViz)
+showSignals = input.bool(true, "憿舐內?脣?湔?閮?, group=gViz)
+showBg      = input.bool(true, "憿舐內 Regime / ?挾???, group=gViz)
+showTable   = input.bool(true, "憿舐內?喃?閫???銵冽", group=gViz)
+showDebug   = input.bool(false, "憿舐內?日甈?votes/floor/cap/TP 撠董/peakR/?質?%/coherence/?瑕/?趙/?脣??F1繚F2/G1繚G2/H1繚H2/I1繚I2繚J2/cut-to-flat 甇詨?)", group=gViz)
+
+// ?? 瘥?????蝝蝺?撘瑕?????脤?璈 ????????????????????????????????
+effPeakRatchet     = usePeakRatchet     and not usePureA
+effRegimeFade      = useRegimeFade      and not usePureA
+effAdaptiveTS      = useAdaptiveTS      and not usePureA
+effMTFgate         = useMTFgate         and not usePureA
+effBreathGB        = useBreathGiveback  and not usePureA
+effTPstair         = useTPstairBE       and not usePureA
+effBreathTrail     = useBreathTrail     and not usePureA
+effCoherenceTrail  = useCoherenceTrail  and not usePureA
+effBankedFloor     = useBankedFloor     and not usePureA
+effAdaptiveCooldown= useAdaptiveCooldown and not usePureA
+effDecorrGauge     = useDecorrVolGauge  and not usePureA
+effStallRatchet    = useStallRatchet    and not usePureA
+effMultiScaleStop  = useMultiScaleStop  and not usePureA
+effEntryDistGate   = useEntryDistGate   and not usePureA
+effCoherenceAdd    = useCoherenceAdd    and not usePureA
+effErAccelAdd      = useErAccelAdd      and not usePureA
+effMidConfirm      = useMidConfirm      and not usePureA
+effAdaptiveMinVotes= useAdaptiveMinVotes and not usePureA
+effAddSpacing      = useAddSpacing      and not usePureA
+effAddSpaceVol     = useAddSpaceVol     and effAddSpacing and not usePureA
+effVoteFade        = useVoteFade        and not usePureA
+effAdxSlopeAdd     = useAdxSlopeAdd     and not usePureA
+effDrawVel         = useDrawVel         and not usePureA
+effDiSlopeGate     = useDiSlopeGate     and not usePureA            // ???EW-H1 DI ?孵榆?蝣箄??脣??effVolShockTrail   = useVolShockTrail   and useRStep and not usePureA  // ???EW-H2 瘜Ｗ??游撐銵??嗥??詨? trail(? R ?０??
+effFlipFresh       = useFlipFresh       and not usePureA            // ????NEW-I1 ST 蝧餉??圈悅摨行??※皜脣??effCohDeRisk       = useCohDeRisk       and not usePureA            // ????NEW-I2 頝典偕摨行???Ｗ??憸券??effJBankThrottle   = useJBankThrottle   and not usePureA            // ????NEW-J2 撌脰鋡?靘?蝣潮?皜?
+
+// ?曉?雿?閬?撠????pctlLo = math.min(pctlGaugeLo, pctlGaugeHi)
+pctlHi = math.max(pctlGaugeLo, pctlGaugeHi)
+// F1 ??靽??????spcVolLo = math.min(spaceVolLo, spaceVolHi)
+spcVolHi = math.max(spaceVolLo, spaceVolHi)
+
+// ????????????????????????????????????????????????????????????????????????????
+// 禮2  銝惜 SuperTrend嚗irection < 0 ?箏??哨?
+// ????????????????????????????????????????????????????????????????????????????
+len1 = baseLen
+len2 = math.max(math.round(baseLen * midMult), 2)
+len3 = math.max(math.round(baseLen * slowMult), 3)
+[st1, dir1] = ta.supertrend(f1, len1)
+[st2, dir2] = ta.supertrend(f2, len2)
+[st3, dir3] = ta.supertrend(f3, len3)
+
+st1Bull = dir1 < 0
+st2Bull = dir2 < 0
+st3Bull = dir3 < 0
+st1Bear = not st1Bull
+st2Bear = not st2Bull
+st3Bear = not st3Bull
+st1FlipUp   = st1Bull and not st1Bull[1]
+st2FlipUp   = st2Bull and not st2Bull[1]
+st3FlipUp   = st3Bull and not st3Bull[1]
+st1FlipDn   = st1Bear and not st1Bear[1]
+st2FlipDn   = st2Bear and not st2Bear[1]
+st3FlipDn   = st3Bear and not st3Bear[1]
+// [????NEW-I1 閮??沘 閮? ST1 ?餈?甈∠蕃頧?(隞颱??孵?)嚗?擐?蕃頧擙桀漲??銵唳???皜祉蕃頧???撟暹???//   銴 st1FlipUp/Dn + bar_index ?嗆憓?input????-100000 雿踵?璈?銝炊??var int st1FlipBar = -100000
+if st1FlipUp or st1FlipDn
+    st1FlipBar := bar_index
+
+var int st3BullBars = 0
+var int st3BearBars = 0
+st3BullBars := st3Bull ? nz(st3BullBars[1]) + 1 : 0
+st3BearBars := st3Bear ? nz(st3BearBars[1]) + 1 : 0
+persistBars  = math.min(math.max(len3, 3), mtfCapBars)
+mtfBullOK    = not effMTFgate or (st3Bull and st3BullBars >= persistBars)
+mtfBearOK    = not effMTFgate or (st3Bear and st3BearBars >= persistBars)
+
+coherenceLong  = (st1Bull?1:0) + (st2Bull?1:0) + (st3Bull?1:0)
+coherenceShort = (st1Bear?1:0) + (st2Bear?1:0) + (st3Bear?1:0)
+
+// ????????????????????????????????????????????????????????????????????????????
+// 禮3  ATR% 甇???皞?// ????????????????????????????????????????????????????????????????????????????
+atrAdx   = ta.atr(adxLen)
+atrChand = ta.atr(chandLen)
+atrPct   = atrAdx / close
+
+// ????????????????????????????????????????????????????????????????????????????
+// 禮4  瘜Ｗ??摯閮???VT-Core ??
+// ????????????????????????????????????????????????????????????????????????????
+logRet      = math.log(close / close[1])
+stdevDaily  = ta.stdev(logRet, volLen)
+volAnnATR   = atrPct       * math.sqrt(barsPerYear)
+volAnnStd   = stdevDaily   * math.sqrt(barsPerYear)
+instVolAnn  = volEstMode == "Stdev" ? volAnnStd : volAnnATR
+volFloor    = ta.percentile_linear_interpolation(instVolAnn, brakeLen, 5)
+volFloor   := na(volFloor) ? 0.02 : math.max(volFloor, 0.001)
+instVolAnn := math.max(nz(instVolAnn, volFloor), volFloor)
+volMedian   = ta.median(instVolAnn, brakeLen)
+volMedian  := na(volMedian) ? instVolAnn : math.max(volMedian, volFloor)
+relVol      = instVolAnn / volMedian
+volBrakeOn  = useVolBrake and relVol > brakeK
+breathClamp = math.min(math.max(relVol, 1.0), brakeK)
+atrPctRank  = ta.percentrank(atrPct, brakeLen)        // 0~100
+breathPctl  = pctlLo + nz(atrPctRank, 50.0) / 100.0 * (pctlHi - pctlLo)
+var int floorHits = 0
+if instVolAnn <= volFloor + 1e-12
+    floorHits += 1
+
+// ????????????????????????????????????????????????????????????????????????????
+// 禮5  Regime ??嚗R / ADX ?脫趙 / ST3 ?Ｘ??嚗? ?巨?券??脤?甇?// ????????????????????????????????????????????????????????????????????????????
+erChange = math.abs(close - close[erLen])
+erVolSum = math.sum(math.abs(close - close[1]), erLen)
+er       = erVolSum > 0 ? erChange / erVolSum : 0.0
+er      := nz(er, 0.0)
+erSlope  = er - nz(er[1], er)
+erAccel2 = erSlope - nz(erSlope[1], erSlope)
+
+[diPlus, diMinus, adx] = ta.dmi(adxLen, adxLen)
+var bool adxOn_state = false
+if adx > adxOn
+    adxOn_state := true
+else if adx < adxOff
+    adxOn_state := false
+
+slowBull = st3Bull
+slowBear = st3Bear
+
+voteER_long   = useER     and er > erThr
+voteADX_long  = useADX    and adxOn_state
+voteSlow_long = useSlowST and slowBull
+voteER_short  = useER     and er > erThr
+voteADX_short = useADX    and adxOn_state
+voteSlow_short= useSlowST and slowBear
+votesLong  = (voteER_long?1:0)  + (voteADX_long?1:0)  + (voteSlow_long?1:0)
+votesShort = (voteER_short?1:0) + (voteADX_short?1:0) + (voteSlow_short?1:0)
+enabledVotes = (useER?1:0) + (useADX?1:0) + (useSlowST?1:0)
+lowVolRegime = effAdaptiveMinVotes and not na(atrPctRank) and atrPctRank < lowVolPctile
+minVotesEff  = minVotes + (lowVolRegime ? extraVoteLowVol : 0)
+effMinVotes  = math.min(minVotesEff, enabledVotes)
+votesUnreachable = minVotesEff > enabledVotes
+dirLong  = diPlus  > diMinus
+dirShort = diMinus > diPlus
+diLongOK  = not useDIgate or dirLong
+diShortOK = not useDIgate or dirShort
+
+voteLongPass  = enabledVotes == 0 ? true : votesLong  >= effMinVotes
+voteShortPass = enabledVotes == 0 ? true : votesShort >= effMinVotes
+regimeLongOK  = not useRegime or (voteLongPass  and diLongOK  and mtfBullOK)
+regimeShortOK = not useRegime or (voteShortPass and diShortOK and mtfBearOK)
+regimeOn = (voteLongPass and dirLong) or (voteShortPass and dirShort)
+
+// ????????????????????????????????????????????????????????????????????????????
+// 禮6  ???嚗?擐?stage嚗?0 敺??fresh 瘣?stage嚗?// ????????????????????????????????????????????????????????????????????????????
+var bool  l1On = false
+var bool  l2On = false
+var bool  l3On = false
+var bool  s1On = false
+var bool  s2On = false
+var bool  s3On = false
+var int   entryBar  = na
+var float entryPx   = na
+var float entryRisk = na
+var float trailExt  = na
+var float trailStop = na
+var float cooldownUntil = 0.0
+var bool  tp1Done = false
+var bool  tp2Done = false
+var float peakR = 0.0
+var int   peakBar = 0
+var float bankedQty = 0.0
+var float openInitQty = 0.0
+var bool  fadeArmed     = true
+var int   lastFadeBar   = -100000
+var int   lastAddBar    = -100000
+var bool  voteFadeArmed   = true
+var int   lastVoteFadeBar = -100000
+var bool  dvArmed         = true
+var int   lastDvBar       = -100000
+// [????NEW-I2] 頝典偕摨行???Ｗ??憸券銝甈⊥扯風甈?+ ?撠??????脫趙嚗??regime-fade嚗?var bool  cohDeRiskArmed  = true
+var int   lastCohDeRiskBar= -100000
+var float notL1 = 0.0
+var float notL2 = 0.0
+var float notL3 = 0.0
+var float notS1 = 0.0
+var float notS2 = 0.0
+var float notS3 = 0.0
+
+inLong  = strategy.position_size > 0
+inShort = strategy.position_size < 0
+inPos   = strategy.position_size != 0
+posSize = math.abs(strategy.position_size)
+avgPx   = strategy.position_avg_price
+
+if not inPos
+    l1On := false
+    l2On := false
+    l3On := false
+    s1On := false
+    s2On := false
+    s3On := false
+    entryRisk := na
+    entryPx   := na
+    entryBar  := na
+    trailExt  := na
+    trailStop := na
+    tp1Done   := false
+    tp2Done   := false
+    peakR     := 0.0
+    peakBar   := bar_index
+    bankedQty := 0.0
+    openInitQty := 0.0
+    fadeArmed := true
+    voteFadeArmed := true
+    lastVoteFadeBar := -100000
+    dvArmed := true
+    lastDvBar := -100000
+    cohDeRiskArmed := true     // [I2] 頝典偕摨行???Ｚ風甈?蝵?    lastCohDeRiskBar := -100000  // [I2] ??閮??其?雿菟?蝵殷?雿踹?璇?蝵株楝敺? I2 閮??券＊撘?蝡?    lastAddBar := -100000
+    notL1 := 0.0
+    notL2 := 0.0
+    notL3 := 0.0
+    notS1 := 0.0
+    notS2 := 0.0
+    notS3 := 0.0
+
+longStage  = (l1On?1:0) + (l2On?1:0) + (l3On?1:0)
+shortStage = (s1On?1:0) + (s2On?1:0) + (s3On?1:0)
+stage = inLong ? longStage : inShort ? shortStage : 0
+
+// ????????????????????????????????????????????????????????????????????????????
+// 禮7  ??閮?嚗T-Core嚗?// ????????????????????????????????????????????????????????????????????????????
+var float avgEq = na
+avgEq := na(avgEq) ? strategy.equity : avgEq * eqBlendSmooth + strategy.equity * (1.0 - eqBlendSmooth)
+sizeBase = eqBlendInit * strategy.initial_capital + (1.0 - eqBlendInit) * avgEq
+
+vtScale = useVolTarget ? targetVol / instVolAnn : 1.0
+convMult = useConvAdd and erThr > 0 ? math.min(math.max(er / erThr, 0.5), 1.0) : 1.0
+wL2eff = wL2 * convMult
+wL3eff = wL3 * convMult
+totW    = wL1 + wL2 + wL3
+var int capHits = 0
+
+qtyFor(w) =>
+    float notion = vtScale * sizeBase * w
+    float nCap = totW > 0 ? sizeBase * maxGross * (w / totW) : sizeBase * maxGross
+    bool  capped = notion > nCap
+    notion := math.min(notion, nCap)
+    float q = close > 0 ? notion / close : 0.0
+    q := math.max(nz(q, 0.0), 0.0)
+    [q, capped]
+
+[qty1, cap1] = qtyFor(wL1)
+[qty2, cap2] = qtyFor(wL2eff)
+[qty3, cap3] = qtyFor(wL3eff)
+
+// ????????????????????????????????????????????????????????????????????????????
+// 禮8  R-multiple ??Chandelier ratchet ??
+// ????????????????????????????????????????????????????????????????????????????
+rDenom  = na(entryRisk) ? (chandMult * atrChand) : entryRisk
+rBasePx = na(entryPx)   ? avgPx : entryPx
+R = inPos and rDenom > 0 ? (inLong ? (close - rBasePx) / rDenom : (rBasePx - close) / rDenom) : 0.0
+if inPos
+    if R > peakR
+        peakR   := R
+        peakBar := bar_index
+barsSincePeak = inPos ? math.max(bar_index - peakBar, 0) : 0
+
+multStepBase = not useRStep ? chandMult : (R < 1 ? chandMult : R < 2 ? trailMidR : trailTightR)
+multStep = multStepBase
+trailBreath = effDecorrGauge ? breathPctl : breathClamp
+if effBreathTrail and useRStep and inPos and R >= 1
+    float bt = multStepBase * trailBreath
+    multStep := math.min(math.max(bt, trailTightR), chandMult)
+if effCoherenceTrail and useRStep and inPos and R >= 1
+    int coh = inLong ? coherenceLong : coherenceShort
+    if coh >= 3
+        multStep := math.min(multStep * cohRelaxK, chandMult)
+    else if coh <= 1
+        multStep := math.min(multStep, trailTightR)
+// [???EW-H2] 瘜Ｗ??游撐銵??嗥??詨? trail嚗trPctRank ??fadeCoolBars 璉??仿?????蝯??游???嚗?//   ?蜓 trail ?嗅 trailTightR(??math.min ?蝺???? trail ?嗥???drain????stageLive????close??//   ??摰?嚗trPctRank[fadeCoolBars] na 蝬?nz ????撌?0 銝炊閫???volShockNow = nz(atrPctRank, 50.0) - nz(atrPctRank[fadeCoolBars], nz(atrPctRank, 50.0))
+volShockOn  = effVolShockTrail and useRStep and inPos and R >= 1 and volShockNow >= volShockJumpFrac * 100.0
+var int volShockHits = 0
+if volShockOn
+    multStep := math.min(multStep, trailTightR)
+    volShockHits += 1
+
+beActive = (useBE and R >= kBE) or (useBEonTP1 and tp1Done)
+
+breathMult = effBreathGB ? breathClamp : 1.0
+stallFrac   = barsSincePeak * 1.0 / math.max(timeStopBars, 1)
+stallShrink = effStallRatchet and timeStopBars > 0 ? math.min(math.max(1.0 - stallFrac, stallShrinkMin), 1.0) : 1.0
+effGiveback= multBE * breathMult * stallShrink
+peakFloorOn= effPeakRatchet and inPos and peakR > effGiveback
+
+stairRungs   = (tp1Done ? 1 : 0) + (tp2Done ? 1 : 0)
+tpStairOn    = effTPstair and inPos and stairRungs > 0
+tpStairFloorL= rBasePx + stairRungs * multBE * rDenom
+tpStairFloorS= rBasePx - stairRungs * multBE * rDenom
+
+bankFrac      = openInitQty > 1e-9 ? math.min(bankedQty / openInitQty, 1.0) : 0.0
+bankedFloorOn = effBankedFloor and inPos and bankFrac > 1e-9
+bankedFloorL  = rBasePx + bankFrac * rDenom
+bankedFloorS  = rBasePx - bankFrac * rDenom
+
+st3Band   = na(st3) ? 0.0 : math.abs(close - st3)
+atrScaleX = effMultiScaleStop and beActive ? math.max(atrChand, st3Band) : atrChand
+
+if useChandelier and inLong
+    trailExt  := na(trailExt) ? high : math.max(trailExt, high)
+    rawStop    = trailExt - multStep * atrScaleX
+    trailStop := na(trailStop) ? rawStop : math.max(trailStop, rawStop)
+    if beActive
+        trailStop := math.max(trailStop, rBasePx + multBE * rDenom)
+    if tpStairOn
+        trailStop := math.max(trailStop, tpStairFloorL)
+    if bankedFloorOn
+        trailStop := math.max(trailStop, bankedFloorL)
+    if peakFloorOn
+        trailStop := math.max(trailStop, rBasePx + (peakR - effGiveback) * rDenom)
+else if useChandelier and inShort
+    trailExt  := na(trailExt) ? low : math.min(trailExt, low)
+    rawStop    = trailExt + multStep * atrScaleX
+    trailStop := na(trailStop) ? rawStop : math.min(trailStop, rawStop)
+    if beActive
+        trailStop := math.min(trailStop, rBasePx - multBE * rDenom)
+    if tpStairOn
+        trailStop := math.min(trailStop, tpStairFloorS)
+    if bankedFloorOn
+        trailStop := math.min(trailStop, bankedFloorS)
+    if peakFloorOn
+        trailStop := math.min(trailStop, rBasePx - (peakR - effGiveback) * rDenom)
+
+// ????????????????????????????????????????????????????????????????????????????
+// 禮9  ?箏閫貊
+// ????????????????????????????????????????????????????????????????????????????
+trailHitLong  = useChandelier and inLong  and not na(trailStop) and close < trailStop
+trailHitShort = useChandelier and inShort and not na(trailStop) and close > trailStop
+twoSTRevLong  = inLong  and st1Bear and st2Bear
+twoSTRevShort = inShort and st1Bull and st2Bull
+tsScale     = effAdaptiveTS and erThr > 0 ? math.min(math.max(er / erThr, 0.5), 1.0) : 1.0
+effTimeStop = math.max(math.round(timeStopBars * tsScale), 1)
+tsAge         = na(entryBar) ? 0 : (bar_index - entryBar)
+timeStopLong  = useTimeStop and inLong  and not na(entryBar) and tsAge >= effTimeStop and R < 1 and stage < 3
+timeStopShort = useTimeStop and inShort and not na(entryBar) and tsAge >= effTimeStop and R < 1 and stage < 3
+
+// ????????????????????????????????????????????????????????????????????????????
+// 禮10  銝?瑁?嚗??箏敺脣
+// ????????????????????????????????????????????????????????????????????????????
+var bool exitedThisBar = false
+exitedThisBar := false
+
+var float posLive = 0.0
+posLive := posSize
+
+bool fullExitNow = false
+
+liveStopLong  = useHardStop and inLong  and not na(trailStop[1])
+liveStopShort = useHardStop and inShort and not na(trailStop[1])
+if useHardStop and inLong and not na(trailStop)
+    strategy.exit("hX-L", stop=trailStop, comment="HardStopL")
+if useHardStop and inShort and not na(trailStop)
+    strategy.exit("hX-S", stop=trailStop, comment="HardStopS")
+bool brokerStopHit = (liveStopLong and low <= trailStop[1]) or (liveStopShort and high >= trailStop[1])
+bool blockPartials = brokerStopHit
+// [?游董繚????芣晾靽桀儔] broker intrabar ?典?鈭文?嚗?砍惜敹???trail/2ST/time ?典像頝臬???蝔晞
+//   摰?蔭 stage ???+ 撖怠?颯???brokerStopHit ?芾身 exitedThisBar/blockPartials 撠梁???
+//   撠閰脫? broker ?其????trategy.opentrades=0 雿?l1On..s3On 隞?????stageLive>=1嚗憯?//   禮14 chk=stageLive==strategy.opentrades ??撘?銝迨????箏(頝喟征蝛踹?????0 ?瑕嚗???//   cooldown 閮剛??◎?耨瘜?隞?brokerStopHit 雿萄 fullExitNow 頝臬??身 fullExitNow:=true 韏唬???//   ??fullExitNow 摰?詨????湧?蝵?+ 撖?cooldownUntil????閰脣??臭??潔遙雿?close_all嚗roker 撌?//   ?漱?典像嚗?鋆?砍惜撣喳?撠迂嚗??銝)嚗?????exitedThisBar:=true 雿?trail/2ST/time ?憛?//   鋡?not exitedThisBar ?剛楝(銝?銴?close_all)?lockPartials ?璉???甇支?璇??渲楝敺?//   (trail/2ST/time/brokerStop/cut-to-flat)撠????蔭 + ?瑕???典?蝔晞?if brokerStopHit
+    exitedThisBar := true
+    fullExitNow := true
+
+if not exitedThisBar and trailHitLong
+    strategy.close_all(comment="TrailL")
+    fullExitNow := true
+else if not exitedThisBar and trailHitShort
+    strategy.close_all(comment="TrailS")
+    fullExitNow := true
+
+if not exitedThisBar and not fullExitNow and twoSTRevLong
+    strategy.close_all(comment="2STrevL")
+    fullExitNow := true
+else if not exitedThisBar and not fullExitNow and twoSTRevShort
+    strategy.close_all(comment="2STrevS")
+    fullExitNow := true
+
+if not exitedThisBar and not fullExitNow and (timeStopLong or timeStopShort)
+    strategy.close_all(comment="TimeStop")
+    fullExitNow := true
+
+if fullExitNow
+    l1On := false
+    l2On := false
+    l3On := false
+    s1On := false
+    s2On := false
+    s3On := false
+    entryRisk := na
+    entryPx   := na
+    entryBar  := na
+    trailExt  := na
+    trailStop := na
+    tp1Done   := false
+    tp2Done   := false
+    peakR     := 0.0
+    peakBar   := bar_index
+    bankedQty := 0.0
+    openInitQty := 0.0
+    fadeArmed := true
+    lastAddBar := -100000      // [?梯?靽格迤繚P3 撠迂? 憿臬??蔭 E3 閮??剁?雿?fullExit ??cut-to-flat 撠迂
+    voteFadeArmed := true
+    lastVoteFadeBar := -100000
+    dvArmed := true
+    lastDvBar := -100000
+    cohDeRiskArmed := true     // [I2] 頝典偕摨行???Ｚ風甈?蝵?    lastCohDeRiskBar := -100000  // [I2] ??閮??其?雿菟?蝵?    notL1 := 0.0
+    notL2 := 0.0
+    notL3 := 0.0
+    notS1 := 0.0
+    notS2 := 0.0
+    notS3 := 0.0
+    exitedThisBar := true
+    float effCooldown = effAdaptiveCooldown ? math.max(math.round(cooldownBars * breathClamp), 0) : cooldownBars
+    cooldownUntil := bar_index + effCooldown
+    posLive := 0.0
+
+// ?? contiguous-stack ?臭?皜?隤?蝝撘?top-first drain + global-scope 閫???神嚗??
+drainLong(reqQty, posAbs, n3, n2, n1) =>
+    float want = math.min(math.max(nz(reqQty, 0.0), 0.0), posAbs)
+    float done = 0.0
+    float r3 = n3
+    float r2 = n2
+    float r1 = n1
+    if r3 > 1e-9 and want - done > 1e-9
+        float take = math.min(want - done, r3)
+        if take > 1e-9
+            strategy.close("L3", qty=take, comment="cut-L3")
+            r3   := r3 - take
+            done := done + take
+    if r2 > 1e-9 and want - done > 1e-9
+        float take = math.min(want - done, r2)
+        if take > 1e-9
+            strategy.close("L2", qty=take, comment="cut-L2")
+            r2   := r2 - take
+            done := done + take
+    if r1 > 1e-9 and want - done > 1e-9
+        float take = math.min(want - done, r1)
+        if take > 1e-9
+            strategy.close("L1", qty=take, comment="cut-L1")
+            r1   := r1 - take
+            done := done + take
+    [done, r3, r2, r1, r3 > 1e-9, r2 > 1e-9, r1 > 1e-9]
+drainShort(reqQty, posAbs, n3, n2, n1) =>
+    float want = math.min(math.max(nz(reqQty, 0.0), 0.0), posAbs)
+    float done = 0.0
+    float r3 = n3
+    float r2 = n2
+    float r1 = n1
+    if r3 > 1e-9 and want - done > 1e-9
+        float take = math.min(want - done, r3)
+        if take > 1e-9
+            strategy.close("S3", qty=take, comment="cut-S3")
+            r3   := r3 - take
+            done := done + take
+    if r2 > 1e-9 and want - done > 1e-9
+        float take = math.min(want - done, r2)
+        if take > 1e-9
+            strategy.close("S2", qty=take, comment="cut-S2")
+            r2   := r2 - take
+            done := done + take
+    if r1 > 1e-9 and want - done > 1e-9
+        float take = math.min(want - done, r1)
+        if take > 1e-9
+            strategy.close("S1", qty=take, comment="cut-S1")
+            r1   := r1 - take
+            done := done + take
+    [done, r3, r2, r1, r3 > 1e-9, r2 > 1e-9, r1 > 1e-9]
+
+trancheTopLong(on3, on2, on1, n3, n2, n1) =>
+    on3 ? n3 : on2 ? n2 : on1 ? n1 : 0.0
+trancheTopShort(on3, on2, on1, n3, n2, n1) =>
+    on3 ? n3 : on2 ? n2 : on1 ? n1 : 0.0
+
+// ?? ?挾 R-multiple Partial TP ??
+tpHitL1 = usePartialTP and not exitedThisBar and not blockPartials and inLong  and R >= tp1R and not tp1Done
+tpHitL2 = usePartialTP and not exitedThisBar and not blockPartials and inLong  and R >= tp2R and not tp2Done
+tpHitS1 = usePartialTP and not exitedThisBar and not blockPartials and inShort and R >= tp1R and not tp1Done
+tpHitS2 = usePartialTP and not exitedThisBar and not blockPartials and inShort and R >= tp2R and not tp2Done
+if tpHitL1
+    [d, n3, n2, n1, o3, o2, o1] = drainLong(posLive * tp1Pct / 100.0, posLive, notL3, notL2, notL1)
+    notL3 := n3
+    notL2 := n2
+    notL1 := n1
+    l3On  := o3
+    l2On  := o2
+    l1On  := o1
+    bankedQty := bankedQty + d
+    posLive   := math.max(posLive - d, 0.0)
+    tp1Done := true
+if tpHitL2
+    [d, n3, n2, n1, o3, o2, o1] = drainLong(posLive * tp2Pct / 100.0, posLive, notL3, notL2, notL1)
+    notL3 := n3
+    notL2 := n2
+    notL1 := n1
+    l3On  := o3
+    l2On  := o2
+    l1On  := o1
+    bankedQty := bankedQty + d
+    posLive   := math.max(posLive - d, 0.0)
+    tp2Done := true
+if tpHitS1
+    [d, n3, n2, n1, o3, o2, o1] = drainShort(posLive * tp1Pct / 100.0, posLive, notS3, notS2, notS1)
+    notS3 := n3
+    notS2 := n2
+    notS1 := n1
+    s3On  := o3
+    s2On  := o2
+    s1On  := o1
+    bankedQty := bankedQty + d
+    posLive   := math.max(posLive - d, 0.0)
+    tp1Done := true
+if tpHitS2
+    [d, n3, n2, n1, o3, o2, o1] = drainShort(posLive * tp2Pct / 100.0, posLive, notS3, notS2, notS1)
+    notS3 := n3
+    notS2 := n2
+    notS1 := n1
+    s3On  := o3
+    s2On  := o2
+    s1On  := o1
+    bankedQty := bankedQty + d
+    posLive   := math.max(posLive - d, 0.0)
+    tp2Done := true
+
+// ???箏 D嚗T ???挾皜?cut嚗??top-first嚗?// [P6a繚?孵??嗥?] cutL1/cutS1 鋆?fresh 瘣?stage>=2 霅瑟?(瘥 cutL2/cutS2)嚗? (l1On or l2On or l3On)
+//   ??撅斗敹?stage==1)???銝?詨?撅斗撅文???0嚗 cut-to-flat ?游董頝臬?閫貊皞閬??喳?
+//   銝?Ⅳ撅文??瘣?stage>=2)嚗蝙 ST1 ???典撅文?銝??詨? L1(?寧 禮9 trail/2STrev ?典像??)??撌脰?
+//   銝 cut-to-flat ?? + 擐 not inPos ???脰風嚗??撘瑕漲??璈銝撘瑕漲(??A 頝舐?)??cutFreshStageLong  = (l1On?1:0) + (l2On?1:0) + (l3On?1:0)
+cutFreshStageShort = (s1On?1:0) + (s2On?1:0) + (s3On?1:0)
+cutL1 = usePartialST and not exitedThisBar and not blockPartials and inLong  and st1FlipDn and cutFreshStageLong  >= 2
+cutL2 = usePartialST and not exitedThisBar and not blockPartials and inLong  and st2FlipDn and (l2On or l3On)
+cutS1 = usePartialST and not exitedThisBar and not blockPartials and inShort and st1FlipUp and cutFreshStageShort >= 2
+cutS2 = usePartialST and not exitedThisBar and not blockPartials and inShort and st2FlipUp and (s2On or s3On)
+if cutL1
+    float tr = trancheTopLong(l3On, l2On, l1On, notL3, notL2, notL1)
+    if tr > 1e-9
+        [d, n3, n2, n1, o3, o2, o1] = drainLong(tr, posLive, notL3, notL2, notL1)
+        notL3 := n3
+        notL2 := n2
+        notL1 := n1
+        l3On  := o3
+        l2On  := o2
+        l1On  := o1
+        posLive := math.max(posLive - d, 0.0)
+if cutL2
+    float tr = trancheTopLong(l3On, l2On, l1On, notL3, notL2, notL1)
+    if tr > 1e-9
+        [d, n3, n2, n1, o3, o2, o1] = drainLong(tr, posLive, notL3, notL2, notL1)
+        notL3 := n3
+        notL2 := n2
+        notL1 := n1
+        l3On  := o3
+        l2On  := o2
+        l1On  := o1
+        posLive := math.max(posLive - d, 0.0)
+if cutS1
+    float tr = trancheTopShort(s3On, s2On, s1On, notS3, notS2, notS1)
+    if tr > 1e-9
+        [d, n3, n2, n1, o3, o2, o1] = drainShort(tr, posLive, notS3, notS2, notS1)
+        notS3 := n3
+        notS2 := n2
+        notS1 := n1
+        s3On  := o3
+        s2On  := o2
+        s1On  := o1
+        posLive := math.max(posLive - d, 0.0)
+if cutS2
+    float tr = trancheTopShort(s3On, s2On, s1On, notS3, notS2, notS1)
+    if tr > 1e-9
+        [d, n3, n2, n1, o3, o2, o1] = drainShort(tr, posLive, notS3, notS2, notS1)
+        notS3 := n3
+        notS2 := n2
+        notS1 := n1
+        s3On  := o3
+        s2On  := o2
+        s1On  := o1
+        posLive := math.max(posLive - d, 0.0)
+
+// ???箏 E嚗egime-fade ?詨??駁◢????if not inPos or er >= erThr
+    fadeArmed := true
+fadeTrig    = effRegimeFade and not exitedThisBar and not blockPartials and erThr > 0 and er < erThr * fadeK
+fadeReady   = fadeArmed and (bar_index - lastFadeBar) >= fadeCoolBars
+fadeStageLong  = (l1On?1:0) + (l2On?1:0) + (l3On?1:0)
+fadeStageShort = (s1On?1:0) + (s2On?1:0) + (s3On?1:0)
+regimeFadeLong  = fadeTrig and inLong  and fadeStageLong  >= 2 and fadeReady
+regimeFadeShort = fadeTrig and inShort and fadeStageShort >= 2 and fadeReady
+if regimeFadeLong
+    float tr = trancheTopLong(l3On, l2On, l1On, notL3, notL2, notL1)
+    if tr > 1e-9
+        [d, n3, n2, n1, o3, o2, o1] = drainLong(tr, posLive, notL3, notL2, notL1)
+        notL3 := n3
+        notL2 := n2
+        notL1 := n1
+        l3On  := o3
+        l2On  := o2
+        l1On  := o1
+        posLive := math.max(posLive - d, 0.0)
+    fadeArmed   := false
+    lastFadeBar := bar_index
+if regimeFadeShort
+    float tr = trancheTopShort(s3On, s2On, s1On, notS3, notS2, notS1)
+    if tr > 1e-9
+        [d, n3, n2, n1, o3, o2, o1] = drainShort(tr, posLive, notS3, notS2, notS1)
+        notS3 := n3
+        notS2 := n2
+        notS1 := n1
+        s3On  := o3
+        s2On  := o2
+        s1On  := o1
+        posLive := math.max(posLive - d, 0.0)
+    fadeArmed   := false
+    lastFadeBar := bar_index
+
+// ???箏 E2嚗??EW-F2 ?梯?蟡冽銵圈?駁◢????votesDirLong  = votesLong
+votesDirShort = votesShort
+if not inPos or enabledVotes == 0 or (inLong and votesDirLong >= effMinVotes) or (inShort and votesDirShort >= effMinVotes)
+    voteFadeArmed := true
+voteFadeReady   = voteFadeArmed and (bar_index - lastVoteFadeBar) >= fadeCoolBars
+vfStageLong  = (l1On?1:0) + (l2On?1:0) + (l3On?1:0)
+vfStageShort = (s1On?1:0) + (s2On?1:0) + (s3On?1:0)
+voteFadeTrigLong  = effVoteFade and not exitedThisBar and not blockPartials and enabledVotes > 0 and inLong  and votesDirLong  < effMinVotes and vfStageLong  >= 2 and voteFadeReady
+voteFadeTrigShort = effVoteFade and not exitedThisBar and not blockPartials and enabledVotes > 0 and inShort and votesDirShort < effMinVotes and vfStageShort >= 2 and voteFadeReady
+var int voteFadeCuts = 0
+if voteFadeTrigLong
+    float tr = trancheTopLong(l3On, l2On, l1On, notL3, notL2, notL1)
+    if tr > 1e-9
+        [d, n3, n2, n1, o3, o2, o1] = drainLong(tr, posLive, notL3, notL2, notL1)
+        notL3 := n3
+        notL2 := n2
+        notL1 := n1
+        l3On  := o3
+        l2On  := o2
+        l1On  := o1
+        posLive := math.max(posLive - d, 0.0)
+        voteFadeCuts += 1
+    voteFadeArmed   := false
+    lastVoteFadeBar := bar_index
+if voteFadeTrigShort
+    float tr = trancheTopShort(s3On, s2On, s1On, notS3, notS2, notS1)
+    if tr > 1e-9
+        [d, n3, n2, n1, o3, o2, o1] = drainShort(tr, posLive, notS3, notS2, notS1)
+        notS3 := n3
+        notS2 := n2
+        notS1 := n1
+        s3On  := o3
+        s2On  := o2
+        s1On  := o1
+        posLive := math.max(posLive - d, 0.0)
+        voteFadeCuts += 1
+    voteFadeArmed   := false
+    lastVoteFadeBar := bar_index
+
+// ???箏 E3嚗???NEW-G2 撜啣澆????箏??drawdown-velocity嚗?dvGap     = inPos ? math.max(peakR - R, 0.0) : 0.0
+dvGapPast = nz(dvGap[fadeCoolBars], dvGap)
+dvRate    = dvGap - dvGapPast
+dvThr     = dvThrK * multBE
+if not inPos or dvRate <= dvThr
+    dvArmed := true
+dvReady   = dvArmed and (bar_index - lastDvBar) >= fadeCoolBars
+dvStageLong  = (l1On?1:0) + (l2On?1:0) + (l3On?1:0)
+dvStageShort = (s1On?1:0) + (s2On?1:0) + (s3On?1:0)
+drawVelTrigLong  = effDrawVel and not exitedThisBar and not blockPartials and inLong  and dvRate > dvThr and dvStageLong  >= 2 and dvReady
+drawVelTrigShort = effDrawVel and not exitedThisBar and not blockPartials and inShort and dvRate > dvThr and dvStageShort >= 2 and dvReady
+var int dvCuts = 0
+if drawVelTrigLong
+    float tr = trancheTopLong(l3On, l2On, l1On, notL3, notL2, notL1)
+    if tr > 1e-9
+        [d, n3, n2, n1, o3, o2, o1] = drainLong(tr, posLive, notL3, notL2, notL1)
+        notL3 := n3
+        notL2 := n2
+        notL1 := n1
+        l3On  := o3
+        l2On  := o2
+        l1On  := o1
+        posLive := math.max(posLive - d, 0.0)
+        dvCuts += 1
+    dvArmed   := false
+    lastDvBar := bar_index
+if drawVelTrigShort
+    float tr = trancheTopShort(s3On, s2On, s1On, notS3, notS2, notS1)
+    if tr > 1e-9
+        [d, n3, n2, n1, o3, o2, o1] = drainShort(tr, posLive, notS3, notS2, notS1)
+        notS3 := n3
+        notS2 := n2
+        notS1 := n1
+        s3On  := o3
+        s2On  := o2
+        s1On  := o1
+        posLive := math.max(posLive - d, 0.0)
+        dvCuts += 1
+    dvArmed   := false
+    lastDvBar := bar_index
+
+// ???箏 E4嚗????EW-I2 頝典偕摨行???Ｗ??憸券嚗oherence 銝?榆?瑞?瑽垢繚???菜嚗?//   ?祆? coherenceDir < coherenceDir[fadeCoolBars](撏抵圾??繚蝯?蝡?銝暑 stage>=2 ?? cutTop ?撅扎?//   ??F2(蟡冽?賊?繚瘞湔?)/G2(R ??繚撟漲??)/H2(瘜Ｗ??游撐??)甇?漱嚗2 ??撠箏漲?孵??矽?援閫??繚蝯?蝡胯?//   ???脫趙嚗e-arm ??coherenceDir ??銝??潛????? fadeCoolBars 璉???coherence/cutTop/fadeCoolBars
+//   ?嗆憓?? input?粥 cutTop 銝粥 close_all 蝬剜? stageLive ????璈?銵?[fadeCoolBars] na ???潦?cohDirNow  = inLong ? coherenceLong : inShort ? coherenceShort : 0
+cohDirPast = nz(cohDirNow[fadeCoolBars], cohDirNow)
+cohDecaying = cohDirNow < cohDirPast
+if not inPos or cohDirNow >= cohDirPast
+    cohDeRiskArmed := true
+cohDeRiskReady = cohDeRiskArmed and (bar_index - lastCohDeRiskBar) >= fadeCoolBars
+i2StageLong  = (l1On?1:0) + (l2On?1:0) + (l3On?1:0)
+i2StageShort = (s1On?1:0) + (s2On?1:0) + (s3On?1:0)
+cohDeRiskTrigLong  = effCohDeRisk and not exitedThisBar and not blockPartials and inLong  and cohDecaying and i2StageLong  >= 2 and cohDeRiskReady
+cohDeRiskTrigShort = effCohDeRisk and not exitedThisBar and not blockPartials and inShort and cohDecaying and i2StageShort >= 2 and cohDeRiskReady
+var int i2Cuts = 0
+if cohDeRiskTrigLong
+    float tr = trancheTopLong(l3On, l2On, l1On, notL3, notL2, notL1)
+    if tr > 1e-9
+        [d, n3, n2, n1, o3, o2, o1] = drainLong(tr, posLive, notL3, notL2, notL1)
+        notL3 := n3
+        notL2 := n2
+        notL1 := n1
+        l3On  := o3
+        l2On  := o2
+        l1On  := o1
+        posLive := math.max(posLive - d, 0.0)
+        i2Cuts += 1
+    cohDeRiskArmed   := false
+    lastCohDeRiskBar := bar_index
+if cohDeRiskTrigShort
+    float tr = trancheTopShort(s3On, s2On, s1On, notS3, notS2, notS1)
+    if tr > 1e-9
+        [d, n3, n2, n1, o3, o2, o1] = drainShort(tr, posLive, notS3, notS2, notS1)
+        notS3 := n3
+        notS2 := n2
+        notS1 := n1
+        s3On  := o3
+        s2On  := o2
+        s1On  := o1
+        posLive := math.max(posLive - d, 0.0)
+        i2Cuts += 1
+    cohDeRiskArmed   := false
+    lastCohDeRiskBar := bar_index
+
+// ???箏 F嚗elowAvg/aboveAvg ?怠惜皜Ⅳ嚗?挾??閮剝?嚗?belowStageLong  = (l1On?1:0) + (l2On?1:0) + (l3On?1:0)
+aboveStageShort = (s1On?1:0) + (s2On?1:0) + (s3On?1:0)
+belowAvgLong  = useBelowAvg and not exitedThisBar and not blockPartials and inLong  and belowStageLong  >= 2 and close < avgPx - kBuf * atrChand
+aboveAvgShort = useBelowAvg and not exitedThisBar and not blockPartials and inShort and aboveStageShort >= 2 and close > avgPx + kBuf * atrChand
+if belowAvgLong
+    float tr = trancheTopLong(l3On, l2On, l1On, notL3, notL2, notL1)
+    if tr > 1e-9
+        [d, n3, n2, n1, o3, o2, o1] = drainLong(tr, posLive, notL3, notL2, notL1)
+        notL3 := n3
+        notL2 := n2
+        notL1 := n1
+        l3On  := o3
+        l2On  := o2
+        l1On  := o1
+        posLive := math.max(posLive - d, 0.0)
+if aboveAvgShort
+    float tr = trancheTopShort(s3On, s2On, s1On, notS3, notS2, notS1)
+    if tr > 1e-9
+        [d, n3, n2, n1, o3, o2, o1] = drainShort(tr, posLive, notS3, notS2, notS1)
+        notS3 := n3
+        notS2 := n2
+        notS1 := n1
+        s3On  := o3
+        s2On  := o2
+        s1On  := o1
+        posLive := math.max(posLive - d, 0.0)
+
+// ????????????????????????????????????????????????????????????????????????????
+// [P1繚禮10??1 cut-to-flat 撠迂??嚚?游?? ? ?脣銝?湔折?] ????????????????????
+//   禮10 隞颱? drain ?典撅文?stage==1)??賣??臭??詨?撅文???0嚗?銝粥 fullExitNow??閮?exitedThisBar??//   銝神 cooldownUntil??臬??寞?(cutS1 閫貊=st1FlipUp嚗1Cond 鈭血 st1FlipUp)鋡怠???0 ?????禮11
+//   擐隞?curStage==0 ?斤征? position_size 隞??嗥?????? entry????颯ntrabar
+//   stop-and-reverse 撟賡??其?嚗憯?禮14 chk=stageLive==opentrades ??撘耨敺抬??菜葫??璉??蝬?drain
+//   敺?暑 stage ??0?? cut-to-flat 鈭辣嚗???fullExitNow 摰?蔭+撖怠??閮?exitedThisBar ?剛楝?祆?
+//   ?脣?迨????銝?close(drain 撌脩葬? 0)嚗?鋆???脣撣喳?撠迂?項????drain 頝臬???啣? input??//   [P3] 銝雿菟?蝵?G2/F2/E3/I2 閮??剁?雿踴撟喳摰?蔭????頝臬?(?典像/fullExit/?圈???cut-to-flat)憿臬?????// ????????????????????????????????????????????????????????????????????????????
+liveStageLongNow  = (l1On?1:0) + (l2On?1:0) + (l3On?1:0)
+liveStageShortNow = (s1On?1:0) + (s2On?1:0) + (s3On?1:0)
+openBarInPos      = posSize > 1e-9        // 禮6 璉?撖阡??其?(???禮10 drain 銋??翰??
+cutToFlatNow      = not exitedThisBar and openBarInPos and liveStageLongNow == 0 and liveStageShortNow == 0
+if cutToFlatNow
+    l1On := false
+    l2On := false
+    l3On := false
+    s1On := false
+    s2On := false
+    s3On := false
+    entryRisk := na
+    entryPx   := na
+    entryBar  := na
+    trailExt  := na
+    trailStop := na
+    tp1Done   := false
+    tp2Done   := false
+    peakR     := 0.0
+    peakBar   := bar_index
+    bankedQty := 0.0
+    openInitQty := 0.0
+    fadeArmed := true
+    lastAddBar := -100000
+    voteFadeArmed := true
+    lastVoteFadeBar := -100000
+    dvArmed := true
+    lastDvBar := -100000
+    cohDeRiskArmed := true             // [I2] cut-to-flat 蝚砍?璇?蝵株楝敺＊撘???    lastCohDeRiskBar := -100000
+    notL1 := 0.0
+    notL2 := 0.0
+    notL3 := 0.0
+    notS1 := 0.0
+    notS2 := 0.0
+    notS3 := 0.0
+    posLive := 0.0
+    exitedThisBar := true
+    float effCooldownCut = effAdaptiveCooldown ? math.max(math.round(cooldownBars * breathClamp), 0) : cooldownBars
+    cooldownUntil := bar_index + effCooldownCut
+
+// ????????????????????????????????????????????????????????????????????????????
+// 禮11  ?脣嚗?蝛箏?潮??
+// ????????????????????????????????????????????????????????????????????????????
+canEnter = bar_index >= cooldownUntil and not exitedThisBar
+curLongStage  = (l1On?1:0) + (l2On?1:0) + (l3On?1:0)
+curShortStage = (s1On?1:0) + (s2On?1:0) + (s3On?1:0)
+// [NEW-A2] ?脣???孵榆蝣箄???entryDistOK = not effEntryDistGate or na(st1) or na(atrChand) or atrChand <= 0 or math.abs(close - st1) <= kBuf * atrChand
+// [?EW-C2] 銝剖偕摨阡脣蝣箄???midConfirmLongOK  = not effMidConfirm or st2Bull
+midConfirmShortOK = not effMidConfirm or st2Bear
+// [???EW-H1] DI ?孵榆?蝣箄??脣???孵??孵榆 diSpread 銝?榆???券＊?????diPlus/diMinus 銋?[1]嚗?//   ?脫趙撣嗥 (adxOn?dxOff) 瘣曄?(??G1 ??)??璈?銵?diSlope=?嗅??z(??璉??嗅?)嚗?璉??0??diSlopeHystBand   = diSlopeHystFrac * math.max(adxOn - adxOff, 0.0)
+diSpreadLong      = diPlus  - diMinus
+diSpreadShort     = diMinus - diPlus
+diSlopeLong       = diSpreadLong  - nz(diSpreadLong[1],  diSpreadLong)
+diSlopeShort      = diSpreadShort - nz(diSpreadShort[1], diSpreadShort)
+diSlopeLongOK     = not effDiSlopeGate or diSlopeLong  >= -diSlopeHystBand
+diSlopeShortOK    = not effDiSlopeGate or diSlopeShort >= -diSlopeHystBand
+// [????NEW-I1] ST 蝧餉??圈悅摨行??※皜脣??頝?ST1 ?餈蕃頧???N 璉(N=clamp(len1,2,persistBars))??//   ??A2(蝛粹?頝)甇?漱????st1FlipBar+bar_index??閮剝????餅?嚗???擐??flip 閫貊??璉?=0??flipFreshWin   = math.min(math.max(len1, 2), persistBars)
+flipFreshOK    = not effFlipFresh or (bar_index - st1FlipBar) <= flipFreshWin
+// 擐嚗T1 蝧餃? + regime gate + A2 + C2 + H1 + I1
+//   [P2繚cut-to-flat ??瘙⊥??脰風] AND not inPos嚗雿踵璉?禮10 drain ?暑 stage ? 0嚗閬?broker
+//     position_size 隞?????鈭支?銝璉???)擐?喃??曇?嚗?蝯?璉?intrabar ??嚗雁霅?禮14 ??撘?l1Cond = curLongStage == 0 and curShortStage == 0 and not inPos and st1FlipUp and regimeLongOK  and canEnter and entryDistOK and midConfirmLongOK  and diSlopeLongOK  and flipFreshOK
+s1Cond = curLongStage == 0 and curShortStage == 0 and not inPos and st1FlipDn and regimeShortOK and canEnter and entryDistOK and midConfirmShortOK and diSlopeShortOK and flipFreshOK
+// [H1 甇詨?閫皜柵
+var int h1BlockedEntries = 0
+h1BaseLong  = curLongStage == 0 and curShortStage == 0 and not inPos and st1FlipUp and regimeLongOK  and canEnter and entryDistOK and midConfirmLongOK  and flipFreshOK
+h1BaseShort = curLongStage == 0 and curShortStage == 0 and not inPos and st1FlipDn and regimeShortOK and canEnter and entryDistOK and midConfirmShortOK and flipFreshOK
+if effDiSlopeGate and ((h1BaseLong and diSlopeLong < -diSlopeHystBand) or (h1BaseShort and diSlopeShort < -diSlopeHystBand))
+    h1BlockedEntries += 1
+// [I1 甇詨?閫皜柵
+var int i1BlockedEntries = 0
+i1BaseLong  = curLongStage == 0 and curShortStage == 0 and not inPos and st1FlipUp and regimeLongOK  and canEnter and entryDistOK and midConfirmLongOK  and diSlopeLongOK
+i1BaseShort = curLongStage == 0 and curShortStage == 0 and not inPos and st1FlipDn and regimeShortOK and canEnter and entryDistOK and midConfirmShortOK and diSlopeShortOK
+if effFlipFresh and (bar_index - st1FlipBar) > flipFreshWin and (i1BaseLong or i1BaseShort)
+    i1BlockedEntries += 1
+// ?Ⅳ??addCohLongOK  = not effCoherenceAdd or coherenceLong  >= 2
+addCohShortOK = not effCoherenceAdd or coherenceShort >= 2
+erHystBand    = erHystFrac * erThr
+addErAccelOK  = not effErAccelAdd or er >= nz(er[1], er) - erHystBand
+addSpaceBase  = math.min(math.max(len1, 2), persistBars)
+spaceVolK     = effAddSpaceVol ? math.min(math.max(1.0 + (50.0 - nz(atrPctRank, 50.0)) / 100.0, spcVolLo), spcVolHi) : 1.0
+addSpace      = math.min(math.max(math.round(addSpaceBase * spaceVolK), 2), persistBars)
+addSpacingOK  = not effAddSpacing or (bar_index - lastAddBar) >= addSpace
+adxSlopeHystBand = adxSlopeHystFrac * math.max(adxOn - adxOff, 0.0)
+adxSlope         = adx - nz(adx[1], adx)
+addAdxSlopeOK    = not effAdxSlopeAdd or adxSlope >= -adxSlopeHystBand
+// [????NEW-J2] 撌脰鋡?靘?蝣潮?皜?嚗?蝣澆? AND bankFrac<=bankCapFrac(撌脣祕?曄??雿?蝬剖漲)??//   bankFrac ?Ｘ??芾◤ bankedFloor ?砍?踹??芰?澆?蝣潛?瘚ankCapFrac=1.0=identity 瘞訾???//   ??C1/A3/G1/E3/F1 ?冽迤鈭扎?蝛箏?典?銝 bankFrac???addBankOK        = not effJBankThrottle or bankFrac <= bankCapFrac
+addOKLong  = not volBrakeOn and R > 0 and addCohLongOK  and addErAccelOK and addSpacingOK and addAdxSlopeOK and addBankOK
+addOKShort = not volBrakeOn and R > 0 and addCohShortOK and addErAccelOK and addSpacingOK and addAdxSlopeOK and addBankOK
+// [E3/F1 甇詨?閫皜柵
+var int e3BlockedAdds = 0
+spacingBlocked = effAddSpacing and (bar_index - lastAddBar) < addSpace
+addBaseLong2  = curLongStage == 1 and l1On and inLong  and st2FlipUp and st1Bull and not volBrakeOn and R > 0 and addCohLongOK  and addErAccelOK and addAdxSlopeOK
+addBaseLong3  = curLongStage == 2 and l1On and l2On and inLong  and st3FlipUp and st1Bull and st2Bull and not volBrakeOn and R > 0 and addCohLongOK  and addErAccelOK and addAdxSlopeOK
+addBaseShort2 = curShortStage == 1 and s1On and inShort and st2FlipDn and st1Bear and not volBrakeOn and R > 0 and addCohShortOK and addErAccelOK and addAdxSlopeOK
+addBaseShort3 = curShortStage == 2 and s1On and s2On and inShort and st3FlipDn and st1Bear and st2Bear and not volBrakeOn and R > 0 and addCohShortOK and addErAccelOK and addAdxSlopeOK
+if spacingBlocked and (addBaseLong2 or addBaseLong3 or addBaseShort2 or addBaseShort3)
+    e3BlockedAdds += 1
+// [G1 甇詨?閫皜柵
+var int g1BlockedAdds = 0
+adxBlocked = effAdxSlopeAdd and adxSlope < -adxSlopeHystBand
+g1BaseLong2  = curLongStage == 1 and l1On and inLong  and st2FlipUp and st1Bull and not volBrakeOn and R > 0 and addCohLongOK  and addErAccelOK and addSpacingOK
+g1BaseLong3  = curLongStage == 2 and l1On and l2On and inLong  and st3FlipUp and st1Bull and st2Bull and not volBrakeOn and R > 0 and addCohLongOK  and addErAccelOK and addSpacingOK
+g1BaseShort2 = curShortStage == 1 and s1On and inShort and st2FlipDn and st1Bear and not volBrakeOn and R > 0 and addCohShortOK and addErAccelOK and addSpacingOK
+g1BaseShort3 = curShortStage == 2 and s1On and s2On and inShort and st3FlipDn and st1Bear and st2Bear and not volBrakeOn and R > 0 and addCohShortOK and addErAccelOK and addSpacingOK
+if adxBlocked and (g1BaseLong2 or g1BaseLong3 or g1BaseShort2 or g1BaseShort3)
+    g1BlockedAdds += 1
+// [J2 甇詨?閫皜柵
+var int j2BlockedAdds = 0
+bankBlocked = effJBankThrottle and bankFrac > bankCapFrac
+j2BaseLong2  = curLongStage == 1 and l1On and inLong  and st2FlipUp and st1Bull and not volBrakeOn and R > 0 and addCohLongOK  and addErAccelOK and addSpacingOK and addAdxSlopeOK
+j2BaseLong3  = curLongStage == 2 and l1On and l2On and inLong  and st3FlipUp and st1Bull and st2Bull and not volBrakeOn and R > 0 and addCohLongOK  and addErAccelOK and addSpacingOK and addAdxSlopeOK
+j2BaseShort2 = curShortStage == 1 and s1On and inShort and st2FlipDn and st1Bear and not volBrakeOn and R > 0 and addCohShortOK and addErAccelOK and addSpacingOK and addAdxSlopeOK
+j2BaseShort3 = curShortStage == 2 and s1On and s2On and inShort and st3FlipDn and st1Bear and st2Bear and not volBrakeOn and R > 0 and addCohShortOK and addErAccelOK and addSpacingOK and addAdxSlopeOK
+if bankBlocked and (j2BaseLong2 or j2BaseLong3 or j2BaseShort2 or j2BaseShort3)
+    j2BlockedAdds += 1
+l2Cond = curLongStage == 1 and l1On and inLong  and st2FlipUp and st1Bull and addOKLong
+l3Cond = curLongStage == 2 and l1On and l2On and inLong  and st3FlipUp and st1Bull and st2Bull and addOKLong
+s2Cond = curShortStage == 1 and s1On and inShort and st2FlipDn and st1Bear and addOKShort
+s3Cond = curShortStage == 2 and s1On and s2On and inShort and st3FlipDn and st1Bear and st2Bear and addOKShort
+
+if l1Cond
+    strategy.entry("L1", strategy.long, qty=qty1, comment="L1")
+    entryRisk := chandMult * atrChand
+    entryPx   := close
+    trailExt  := high
+    trailStop := na
+    entryBar  := bar_index
+    peakR     := 0.0
+    peakBar   := bar_index
+    bankedQty := 0.0
+    openInitQty := qty1
+    fadeArmed := true
+    voteFadeArmed := true
+    lastVoteFadeBar := -100000
+    dvArmed := true
+    lastDvBar := -100000
+    cohDeRiskArmed := true     // [I2] 頝典偕摨行???Ｚ風甈?蝵??啣甇西?)
+    lastCohDeRiskBar := -100000
+    lastAddBar := bar_index
+    l1On := true
+    notL1 := qty1
+if l2Cond
+    strategy.entry("L2", strategy.long, qty=qty2, comment="L2")
+    l2On := true
+    notL2 := qty2
+    openInitQty := openInitQty + qty2
+    lastAddBar := bar_index
+if l3Cond
+    strategy.entry("L3", strategy.long, qty=qty3, comment="L3")
+    l3On := true
+    notL3 := qty3
+    openInitQty := openInitQty + qty3
+    lastAddBar := bar_index
+if s1Cond
+    strategy.entry("S1", strategy.short, qty=qty1, comment="S1")
+    entryRisk := chandMult * atrChand
+    entryPx   := close
+    trailExt  := low
+    trailStop := na
+    entryBar  := bar_index
+    peakR     := 0.0
+    peakBar   := bar_index
+    bankedQty := 0.0
+    openInitQty := qty1
+    fadeArmed := true
+    voteFadeArmed := true
+    lastVoteFadeBar := -100000
+    dvArmed := true
+    lastDvBar := -100000
+    cohDeRiskArmed := true     // [I2] 頝典偕摨行???Ｚ風甈?蝵??啣甇西?)
+    lastCohDeRiskBar := -100000
+    lastAddBar := bar_index
+    s1On := true
+    notS1 := qty1
+if s2Cond
+    strategy.entry("S2", strategy.short, qty=qty2, comment="S2")
+    s2On := true
+    notS2 := qty2
+    openInitQty := openInitQty + qty2
+    lastAddBar := bar_index
+if s3Cond
+    strategy.entry("S3", strategy.short, qty=qty3, comment="S3")
+    s3On := true
+    notS3 := qty3
+    openInitQty := openInitQty + qty3
+    lastAddBar := bar_index
+
+if cap1 or cap2 or cap3
+    capHits += 1
+
+stageLive = inLong ? ((l1On?1:0) + (l2On?1:0) + (l3On?1:0)) : inShort ? ((s1On?1:0) + (s2On?1:0) + (s3On?1:0)) : 0
+
+// [NEW-A4] ?詨????拙?蹂?皞飛??蝝閫皜祆改?
+floorBE_L    = beActive ? rBasePx + multBE * rDenom : na
+floorBE_S    = beActive ? rBasePx - multBE * rDenom : na
+floorPeak_L  = peakFloorOn ? rBasePx + (peakR - effGiveback) * rDenom : na
+floorPeak_S  = peakFloorOn ? rBasePx - (peakR - effGiveback) * rDenom : na
+floorStair_L = tpStairOn ? tpStairFloorL : na
+floorStair_S = tpStairOn ? tpStairFloorS : na
+floorBank_L  = bankedFloorOn ? bankedFloorL : na
+floorBank_S  = bankedFloorOn ? bankedFloorS : na
+var string activeFloorTxt = "??
+activeFloorTxt := "??
+if inPos
+    float best = na
+    string src = "蝝rail"
+    if inLong
+        if not na(floorBE_L) and (na(best) or floorBE_L > best)
+            best := floorBE_L
+            src  := "BE靽"
+        if not na(floorStair_L) and (na(best) or floorStair_L > best)
+            best := floorStair_L
+            src  := "?０?唳"
+        if not na(floorBank_L) and (na(best) or floorBank_L > best)
+            best := floorBank_L
+            src  := "撌脣祕?暸"
+        if not na(floorPeak_L) and (na(best) or floorPeak_L > best)
+            best := floorPeak_L
+            src  := "撜啣?撟湧翩??"
+    else
+        if not na(floorBE_S) and (na(best) or floorBE_S < best)
+            best := floorBE_S
+            src  := "BE靽"
+        if not na(floorStair_S) and (na(best) or floorStair_S < best)
+            best := floorStair_S
+            src  := "?０?唳"
+        if not na(floorBank_S) and (na(best) or floorBank_S < best)
+            best := floorBank_S
+            src  := "撌脣祕?暸"
+        if not na(floorPeak_S) and (na(best) or floorPeak_S < best)
+            best := floorPeak_S
+            src  := "撜啣?撟湧翩??"
+    activeFloorTxt := src
+
+// ????????????????????????????????????????????????????????????????????????????
+// 禮12  閬死???典 global scope嚗?// ????????????????????????????????????????????????????????????????????????????
+c1 = st1Bull ? color.new(color.green, 0)  : color.new(color.red, 0)
+c2 = st2Bull ? color.new(color.green, 30) : color.new(color.red, 30)
+c3 = st3Bull ? color.new(color.green, 55) : color.new(color.red, 55)
+plot(showST ? st1 : na, "ST1", color=c1, linewidth=1)
+plot(showST ? st2 : na, "ST2", color=c2, linewidth=1)
+plot(showST ? st3 : na, "ST3", color=c3, linewidth=2)
+plot(showAvg and stageLive >= 1 ? avgPx : na, "AvgCost", color=color.new(color.yellow, 0), linewidth=1, style=plot.style_linebr)
+plot(showStop and inPos ? trailStop : na, "TrailStop", color=color.new(color.orange, 0), linewidth=1, style=plot.style_linebr)
+
+bgReg = showBg and regimeOn ? (dirLong ? color.new(color.green, 93) : color.new(color.red, 93)) : na
+bgStg = showBg and inPos ? (inLong ? color.new(color.teal, 90 - stageLive * 6) : color.new(color.maroon, 90 - stageLive * 6)) : na
+bgcolor(na(bgStg) ? bgReg : bgStg)
+
+plotshape(showSignals and l1Cond, "L1", shape.triangleup,   location.belowbar, color.new(color.lime, 0),   size=size.tiny,   text="L1")
+plotshape(showSignals and l2Cond, "L2", shape.triangleup,   location.belowbar, color.new(color.green, 0),  size=size.small,  text="L2")
+plotshape(showSignals and l3Cond, "L3", shape.triangleup,   location.belowbar, color.new(color.teal, 0),   size=size.normal, text="L3")
+plotshape(showSignals and s1Cond, "S1", shape.triangledown, location.abovebar, color.new(color.orange, 0), size=size.tiny,   text="S1")
+plotshape(showSignals and s2Cond, "S2", shape.triangledown, location.abovebar, color.new(color.red, 0),    size=size.small,  text="S2")
+plotshape(showSignals and s3Cond, "S3", shape.triangledown, location.abovebar, color.new(color.maroon, 0), size=size.normal, text="S3")
+tpAny  = tpHitL1 or tpHitL2 or tpHitS1 or tpHitS2
+cutAny = cutL1 or cutL2 or cutS1 or cutS2
+// fade 璅?瘨菔????箏?游憸券??regime-fade + F2 + G2 + I2
+fadeAny= regimeFadeLong or regimeFadeShort or voteFadeTrigLong or voteFadeTrigShort or drawVelTrigLong or drawVelTrigShort or cohDeRiskTrigLong or cohDeRiskTrigShort
+plotshape(showSignals and tpAny,  "TP",   shape.circle,   location.abovebar, color.new(color.aqua, 0),   size=size.tiny, text="TP")
+plotshape(showSignals and cutAny, "Cut",  shape.diamond,  location.abovebar, color.new(color.purple, 0), size=size.tiny, text="cut")
+plotshape(showSignals and fadeAny,"Fade", shape.xcross,   location.belowbar, color.new(color.fuchsia, 0),size=size.tiny, text="fade")
+fullExitMark = trailHitLong or trailHitShort or twoSTRevLong or twoSTRevShort or timeStopLong or timeStopShort or brokerStopHit
+plotshape(showSignals and fullExitMark, "OUT", shape.xcross, location.abovebar, color.new(color.red, 0), size=size.tiny, text="X")
+
+// ????????????????????????????????????????????????????????????????????????????
+// 禮13  ???銵冽嚗銝? table嚗?// ????????????????????????????????????????????????????????????????????????????
+regimeTxt = regimeOn ? (dirLong ? "頞典繚憭? : dirShort ? "頞典繚蝛? : "頞典") : "?斗/Range"
+posTxt    = inLong ? "憭 蝚? + str.tostring(stageLive) + "畾? : inShort ? "蝛箏 蝚? + str.tostring(stageLive) + "畾? : "?∪?
+stopTxt   = inPos and not na(trailStop) ? str.tostring(trailStop, format.mintick) : "??
+distR     = inPos and not na(trailStop) and atrChand > 0 ? math.abs(close - trailStop) / atrChand : na
+distTxt   = na(distR) ? "?? : str.tostring(distR, "#.0") + " ATR"
+exposureRaw = useVolTarget ? vtScale * totW : totW
+exposureEff = math.min(exposureRaw, maxGross)
+vtTxt     = useVolTarget ? str.tostring(exposureEff, "#.00") + "x (?格?" + str.tostring(targetVol * 100, "#") + "%)" : "?箏?甈?"
+ivTxt     = str.tostring(instVolAnn * 100, "#.0") + "%"
+tpStateTxt = (tp1Done ? "TP1撌脰鋡? : "TP1?芸") + " / " + (tp2Done ? "TP2撌脰鋡? : "TP2?芸")
+tpLockTxt  = (tp1Done and useBEonTP1 ? " 繚撌脤?靽" : "") + (tpStairOn ? " 繚?０?唳蝚? + str.tostring(stairRungs) + "蝝? : "") + (bankedFloorOn ? " 繚撌脣祕?暸" + str.tostring(bankFrac * 100, "#") + "%" : "")
+tpTxt     = tpStateTxt + tpLockTxt
+voteTxt   = "憭? + str.tostring(votesLong) + " 蝛? + str.tostring(votesShort) + " (??? + str.tostring(effMinVotes) + ")" + (votesUnreachable ? " 繚?瑼餃歇蝮? : "")
+peakLockTxt = peakFloorOn ? "?????? + (effBreathGB ? " 瘜Ｗ??" + str.tostring(breathMult, "#.0") : "") + (effStallRatchet and stallShrink < 0.999 ? " 撟湧翩?嗥??" + str.tostring(stallShrink, "#.0") : "") : "??????
+peakTxt   = inPos ? "撜啣? + str.tostring(peakR, "#.0") + "R 繚 " + peakLockTxt : "??
+cohNow    = inLong ? coherenceLong : inShort ? coherenceShort : 0
+trailSrcVal = effDecorrGauge ? breathPctl : breathClamp
+trailBreathTxt = effBreathTrail ? (effDecorrGauge ? " 繚?曉?雿?蜆? : " 繚瘜Ｗ??澆?") + str.tostring(trailSrcVal, "#.0") : ""
+trailCohTxt = effCoherenceTrail ? (cohNow >= 3 ? " 繚銝?游漲撘??曉祝)" : cohNow <= 1 ? " 繚銝?游漲撘??嗥?)" : " 繚銝?游漲銝?) : ""
+msActive   = effMultiScaleStop and beActive and st3Band > atrChand
+trailMSTxt = effMultiScaleStop ? (msActive ? " 繚頝典偕摨血??ST3撖?" : " 繚頝典偕摨?敹隹TR銝餃?)") : ""
+trailVSTxt = effVolShockTrail and volShockOn ? " 繚瘜Ｗ?銵??嗥?" : ""
+trailTxt  = inPos ? str.tostring(multStep, "#.0") + "?ATR" + trailBreathTxt + trailCohTxt + trailMSTxt + trailVSTxt : "??
+cdRemain  = math.max(cooldownUntil - bar_index, 0)
+cdTxt     = (cdRemain > 0 ? "?瑕銝??? + str.tostring(cdRemain, "#") + "璉? : "撠梁?") + (effAdaptiveCooldown ? " (?芷?? + str.tostring(breathClamp, "#.0") + ")" : "")
+stallTxt  = inPos ? "?趙" + str.tostring(barsSincePeak) + "璉? + (effStallRatchet ? (stallShrink < 0.999 ? " 繚?銵啁垠(?唳?嗥?)" : " 繚?隞") : "") : "??
+erDeltaTxt = str.tostring(er, "#.00") + " (?" + str.tostring(erSlope, "#.00") + (erSlope >= 0 ? " ?? : " ??) + " 繚鈭?" + str.tostring(erAccel2, "#.00") + ")"
+entryGateTxt = (effEntryDistGate ? "?孵榆?????? + str.tostring(kBuf, "#.0") + "ATR)" : "?孵榆????) + " ??" + (effMidConfirm ? "銝剖偕摨衣Ⅱ隤???ST2??)" : "銝剖偕摨衣Ⅱ隤???) + " ??" + (effDiSlopeGate ? "DI?:???? + str.tostring(h1BlockedEntries) + ")" : "DI?:??) + " ??" + (effFlipFresh ? "蝧餉??圈悅:???? + str.tostring(flipFreshWin) + "璉瑟?" + str.tostring(i1BlockedEntries) + ")" : "蝧餉??圈悅:??)
+addSpaceTxt = effAddSpacing ? ("???????? + str.tostring(addSpace) + "璉? + (effAddSpaceVol ? "繚F1?" + str.tostring(spaceVolK, "#.00") : "") + "繚?? + str.tostring(e3BlockedAdds) + ")") : "??????
+g1GateTxt   = effAdxSlopeAdd ? ("ADX??:???ADX?? + (adxSlopeHystFrac > 0 ? "?? + str.tostring(adxSlopeHystBand, "#.0") : "0") + "繚?? + str.tostring(g1BlockedAdds) + ")") : "ADX??:??
+j2GateTxt   = effJBankThrottle ? ("?質???:???? + str.tostring(bankCapFrac * 100, "#") + "%繚?? + str.tostring(j2BlockedAdds) + ")") : "?質???:??
+addGateTxt = (effCoherenceAdd ? "銝?游?蝣???????)" : "銝?游?蝣???) + " ??" + (effErAccelAdd ? "ER?漲:???ER?? + (erHystFrac > 0 ? "?? + str.tostring(erHystBand, "#.00") : "0") + ")" : "ER?漲:??) + " ??" + addSpaceTxt + " ??" + g1GateTxt + " ??" + j2GateTxt
+modLine1  = usePureA ? "蝝蝺??券?脤?璈??)" : ("????" + (effPeakRatchet?"??:"??) + " 瘜Ｗ???:" + (effBreathGB?"??:"??) + " 撟湧翩?唳:" + (effStallRatchet?"??:"??))
+modLine2  = usePureA ? "?? : ("?０靽:" + (effTPstair?"??:"??) + " 撌脣祕?暸:" + (effBankedFloor?"??:"??) + " 瘜Ｗ?trail:" + (effBreathTrail?"??:"??))
+modLine3  = usePureA ? "?? : ("銝?游漲trail:" + (effCoherenceTrail?"??:"??) + " ?餌??閬?" + (effDecorrGauge?"??:"??) + " ?芷???" + (effAdaptiveCooldown?"??:"??))
+modLine4  = usePureA ? "?? : ("Regime-fade:" + (effRegimeFade?"??:"??) + " ?芷????" + (effAdaptiveTS?"??:"??) + " MTF??" + (effMTFgate?"??:"??))
+modLine5  = usePureA ? "?? : ("頝典偕摨行迫??A1):" + (effMultiScaleStop?"??:"??) + " ?孵榆??A2):" + (effEntryDistGate?"??:"??) + " 銝?游?蝣?A3):" + (effCoherenceAdd?"??:"??))
+modLine6  = usePureA ? "?? : ("?R?漲(C1):" + (effErAccelAdd?"??:"??) + " ?葉撠箏漲蝣箄?(C2):" + (effMidConfirm?"??:"??) + " ???芷?巨??E2):" + (effAdaptiveMinVotes?"??:"??) + " ???Ⅳ??(E3):" + (effAddSpacing?"??:"??))
+modLine7  = usePureA ? "?? : ("??F1?芷??頝?" + (effAddSpaceVol ? "???" + str.tostring(spaceVolK, "#.00") + ")" : "??) + " ??F2蟡冽銵圈:" + (effVoteFade ? "???? + str.tostring(voteFadeCuts) + (voteFadeArmed ? "繚甇西?" : "繚敺???) + ")" : "??) + " ???1繚ADX??:" + (effAdxSlopeAdd ? "???? + str.tostring(g1BlockedAdds) + ")" : "??) + " ???2繚????:" + (effDrawVel ? "???? + str.tostring(dvCuts) + (dvArmed ? "繚甇西?" : "繚敺???) + ")" : "??))
+modLine8  = usePureA ? "?? : ("???1繚DI?:" + (effDiSlopeGate ? "???? + str.tostring(h1BlockedEntries) + ")" : "??) + " ???2繚瘜Ｗ?銵?:" + (effVolShockTrail ? "??蝺? + str.tostring(volShockHits) + ")" : "??) + " ????I1繚蝧餉??圈悅:" + (effFlipFresh ? "???? + str.tostring(i1BlockedEntries) + ")" : "??) + " ????I2繚?孵??:" + (effCohDeRisk ? "???? + str.tostring(i2Cuts) + (cohDeRiskArmed ? "繚甇西?" : "繚敺???) + ")" : "??) + " ????J2繚?質???:" + (effJBankThrottle ? "???? + str.tostring(j2BlockedAdds) + ")" : "??))
+cutToFlatTxt = cutToFlatNow ? "?祆?韏?cut-to-flat ??(?撟麻瑕歇撖怠???蔭)" : (inPos ? "?葉(?芾粥??)" : "?∪?)
+bankedPctH = openInitQty > 1e-9 ? bankedQty / openInitQty * 100.0 : 0.0
+claimedPctH= (tp1Done ? tp1Pct : 0.0) + (tp2Done ? tp2Pct : 0.0)
+
+var table dash = table.new(position.top_right, 2, 27, border_width=1, frame_color=color.new(color.gray, 40), frame_width=1)
+if showTable and barstate.islast
+    bgH = color.new(color.blue, 20)
+    bgV = color.new(color.black, 25)
+    txc = color.white
+    table.cell(dash, 0, 0, "撣???, text_color=txc, bgcolor=bgH, text_size=size.small)
+    table.cell(dash, 1, 0, regimeTxt + (effMTFgate ? " (MTF????" : ""), text_color=txc, bgcolor=regimeOn ? color.new(color.green, 40) : color.new(color.orange, 40), text_size=size.small)
+    table.cell(dash, 0, 1, "????挾", text_color=txc, bgcolor=bgH, text_size=size.small)
+    table.cell(dash, 1, 1, posTxt, text_color=txc, bgcolor=inLong ? color.new(color.green, 45) : inShort ? color.new(color.red, 45) : bgV, text_size=size.small)
+    table.cell(dash, 0, 2, "????, text_color=txc, bgcolor=bgH, text_size=size.small)
+    table.cell(dash, 1, 2, stopTxt, text_color=txc, bgcolor=bgV, text_size=size.small)
+    table.cell(dash, 0, 3, "頝???/ trail瑼?, text_color=txc, bgcolor=bgH, text_size=size.small)
+    table.cell(dash, 1, 3, distTxt + " ??" + trailTxt, text_color=txc, bgcolor=bgV, text_size=size.small)
+    table.cell(dash, 0, 4, "瘜Ｗ???", text_color=txc, bgcolor=bgH, text_size=size.small)
+    table.cell(dash, 1, 4, vtTxt, text_color=txc, bgcolor=bgV, text_size=size.small)
+    table.cell(dash, 0, 5, "撟游?瘜Ｗ? / ?瑕", text_color=txc, bgcolor=bgH, text_size=size.small)
+    table.cell(dash, 1, 5, ivTxt + (volBrakeOn ? " (??頠葉)" : "") + " ??" + cdTxt, text_color=txc, bgcolor=volBrakeOn ? color.new(color.red, 40) : bgV, text_size=size.small)
+    table.cell(dash, 0, 6, "?桀? R", text_color=txc, bgcolor=bgH, text_size=size.small)
+    table.cell(dash, 1, 6, inPos ? str.tostring(R, "#.0") + "R" : "??, text_color=txc, bgcolor=inPos and R >= 0 ? color.new(color.green, 50) : inPos ? color.new(color.red, 50) : bgV, text_size=size.small)
+    table.cell(dash, 0, 7, "撜啣嘶 / ????, text_color=txc, bgcolor=bgH, text_size=size.small)
+    table.cell(dash, 1, 7, peakTxt, text_color=txc, bgcolor=peakFloorOn ? color.new(color.green, 35) : bgV, text_size=size.small)
+    table.cell(dash, 0, 8, "甇Ｙ??脣漲", text_color=txc, bgcolor=bgH, text_size=size.small)
+    table.cell(dash, 1, 8, inPos ? tpTxt : "??, text_color=txc, bgcolor=bgV, text_size=size.small)
+    table.cell(dash, 0, 9, "靽?唳靘?", text_color=txc, bgcolor=bgH, text_size=size.small)
+    table.cell(dash, 1, 9, inPos ? activeFloorTxt : "??, text_color=txc, bgcolor=inPos and activeFloorTxt != "蝝rail" and activeFloorTxt != "?? ? color.new(color.green, 45) : bgV, text_size=size.small)
+    table.cell(dash, 0, 10, "?巨(憭?蝛?", text_color=txc, bgcolor=bgH, text_size=size.small)
+    table.cell(dash, 1, 10, voteTxt, text_color=txc, bgcolor=votesUnreachable ? color.new(color.orange, 30) : bgV, text_size=size.small)
+    table.cell(dash, 0, 11, "?質?% / 摰?迂%", text_color=txc, bgcolor=bgH, text_size=size.small)
+    table.cell(dash, 1, 11, inPos ? str.tostring(bankedPctH, "#.0") + "% / " + str.tostring(claimedPctH, "#.0") + "%" : "??, text_color=txc, bgcolor=bgV, text_size=size.small)
+    table.cell(dash, 0, 12, "?孵?銝?游漲", text_color=txc, bgcolor=bgH, text_size=size.small)
+    table.cell(dash, 1, 12, inPos ? str.tostring(cohNow) + "/3 " + (cohNow >= 3 ? "(銝偕摨血??)" : cohNow <= 1 ? "(敹怠偕摨血歇?)" : "(銝剜?") : "??, text_color=txc, bgcolor=inPos and cohNow >= 3 ? color.new(color.green, 35) : inPos and cohNow <= 1 ? color.new(color.orange, 35) : bgV, text_size=size.small)
+    table.cell(dash, 0, 13, "撜啣澆?皛?撟湧翩", text_color=txc, bgcolor=bgH, text_size=size.small)
+    table.cell(dash, 1, 13, stallTxt, text_color=txc, bgcolor=inPos and effStallRatchet and stallShrink < 0.999 ? color.new(color.orange, 35) : bgV, text_size=size.small)
+    table.cell(dash, 0, 14, "ER?(?ER)", text_color=txc, bgcolor=bgH, text_size=size.small)
+    table.cell(dash, 1, 14, erDeltaTxt, text_color=txc, bgcolor=inPos and effErAccelAdd and erSlope < 0 ? color.new(color.orange, 35) : bgV, text_size=size.small)
+    table.cell(dash, 0, 15, "?脣??A2/C2/H1/I1)", text_color=txc, bgcolor=bgH, text_size=size.small)
+    table.cell(dash, 1, 15, entryGateTxt, text_color=txc, bgcolor=bgV, text_size=size.small)
+    table.cell(dash, 0, 16, "?Ⅳ??A3/C1/E3/G1/J2)", text_color=txc, bgcolor=bgH, text_size=size.small)
+    table.cell(dash, 1, 16, addGateTxt, text_color=txc, bgcolor=bgV, text_size=size.small)
+    table.cell(dash, 0, 17, "?脤?璈(1/8)", text_color=txc, bgcolor=bgH, text_size=size.small)
+    table.cell(dash, 1, 17, modLine1, text_color=txc, bgcolor=usePureA ? color.new(color.gray, 20) : color.new(color.purple, 45), text_size=size.small)
+    table.cell(dash, 0, 18, "?脤?璈(2/8)", text_color=txc, bgcolor=bgH, text_size=size.small)
+    table.cell(dash, 1, 18, modLine2, text_color=txc, bgcolor=usePureA ? color.new(color.gray, 20) : color.new(color.purple, 45), text_size=size.small)
+    table.cell(dash, 0, 19, "?脤?璈(3/8)", text_color=txc, bgcolor=bgH, text_size=size.small)
+    table.cell(dash, 1, 19, modLine3, text_color=txc, bgcolor=usePureA ? color.new(color.gray, 20) : color.new(color.purple, 45), text_size=size.small)
+    table.cell(dash, 0, 20, "?脤?璈(4/8)", text_color=txc, bgcolor=bgH, text_size=size.small)
+    table.cell(dash, 1, 20, modLine4, text_color=txc, bgcolor=usePureA ? color.new(color.gray, 20) : color.new(color.purple, 45), text_size=size.small)
+    table.cell(dash, 0, 21, "?豢璈(5/8繚A)", text_color=txc, bgcolor=bgH, text_size=size.small)
+    table.cell(dash, 1, 21, modLine5, text_color=txc, bgcolor=usePureA ? color.new(color.gray, 20) : color.new(color.navy, 30), text_size=size.small)
+    table.cell(dash, 0, 22, "??璈(6/8繚C/E)", text_color=txc, bgcolor=bgH, text_size=size.small)
+    table.cell(dash, 1, 22, modLine6, text_color=txc, bgcolor=usePureA ? color.new(color.gray, 20) : color.new(color.navy, 30), text_size=size.small)
+    table.cell(dash, 0, 23, "撠?/??(7/8繚F/G)", text_color=txc, bgcolor=bgH, text_size=size.small)
+    table.cell(dash, 1, 23, modLine7, text_color=txc, bgcolor=usePureA ? color.new(color.gray, 20) : color.new(color.fuchsia, 35), text_size=size.small)
+    table.cell(dash, 0, 24, "撠?/??(8/8繚H/I/J)", text_color=txc, bgcolor=bgH, text_size=size.small)
+    table.cell(dash, 1, 24, modLine8, text_color=txc, bgcolor=usePureA ? color.new(color.gray, 20) : color.new(color.fuchsia, 35), text_size=size.small)
+    // cut-to-flat ??頝臬???(P1繚?游董?脰風?航?皜祆岑瑚? walk-forward ?單?撽?閰脰楝敺◤甇?Ⅱ閫貊繚?踹??飛)
+    table.cell(dash, 0, 25, "cut-to-flat ??", text_color=txc, bgcolor=bgH, text_size=size.small)
+    table.cell(dash, 1, 25, cutToFlatTxt, text_color=txc, bgcolor=cutToFlatNow ? color.new(color.red, 30) : bgV, text_size=size.small)
+    table.cell(dash, 0, 26, "??", text_color=txc, bgcolor=bgH, text_size=size.small)
+    table.cell(dash, 1, 26, "?脣??桅脣 ?潛征?桅脣 ??TP?質? ??cut皜????典像/?? (fade?亭2蟡冽/G2??/I2?)", text_color=txc, bgcolor=bgV, text_size=size.small)
+
+// ????????????????????????????????????????????????????????????????????????????
+// 禮14  ?日甈?撌亦??剁?stage=opentrades 撠董??stageLive 璉 fresh嚗?// ????????????????????????????????????????????????????????????????????????????
+bankedPct  = openInitQty > 1e-9 ? bankedQty / openInitQty * 100.0 : 0.0
+claimedPct = (tp1Done ? tp1Pct : 0.0) + (tp2Done ? tp2Pct : 0.0)
+effCooldownDbg = effAdaptiveCooldown ? math.max(math.round(cooldownBars * breathClamp), 0) : cooldownBars
+var table dbg = table.new(position.bottom_right, 2, 22, border_width=1)
+if showDebug and barstate.islast
+    db = color.new(color.gray, 0)
+    table.cell(dbg, 0, 0, "ER", text_color=color.white, bgcolor=db)
+    table.cell(dbg, 1, 0, str.tostring(er, "#.00"), text_color=color.white, bgcolor=db)
+    table.cell(dbg, 0, 1, "ADX", text_color=color.white, bgcolor=db)
+    table.cell(dbg, 1, 1, str.tostring(adx, "#.0"), text_color=color.white, bgcolor=db)
+    table.cell(dbg, 0, 2, "votesL/S(eff)", text_color=color.white, bgcolor=db)
+    table.cell(dbg, 1, 2, str.tostring(votesLong) + "/" + str.tostring(votesShort) + " (?? + str.tostring(effMinVotes) + ")", text_color=color.white, bgcolor=db)
+    table.cell(dbg, 0, 3, "stage=opentr", text_color=color.white, bgcolor=db)
+    chk = stageLive == strategy.opentrades
+    table.cell(dbg, 1, 3, str.tostring(stageLive) + "=" + str.tostring(strategy.opentrades), text_color=color.white, bgcolor=chk ? db : color.new(color.red, 0))
+    table.cell(dbg, 0, 4, "?質?%/摰?迂%", text_color=color.white, bgcolor=db)
+    table.cell(dbg, 1, 4, str.tostring(bankedPct, "#.0") + "/" + str.tostring(claimedPct, "#.0"), text_color=color.white, bgcolor=db)
+    table.cell(dbg, 0, 5, "capHits/floor", text_color=color.white, bgcolor=db)
+    table.cell(dbg, 1, 5, str.tostring(capHits) + "/" + str.tostring(floorHits), text_color=color.white, bgcolor=db)
+    table.cell(dbg, 0, 6, "TP1/2 done", text_color=color.white, bgcolor=db)
+    table.cell(dbg, 1, 6, (tp1Done?"T":"F") + "/" + (tp2Done?"T":"F"), text_color=color.white, bgcolor=db)
+    table.cell(dbg, 0, 7, "convMult", text_color=color.white, bgcolor=db)
+    table.cell(dbg, 1, 7, str.tostring(convMult, "#.00"), text_color=color.white, bgcolor=db)
+    table.cell(dbg, 0, 8, "peakR/effGB", text_color=color.white, bgcolor=db)
+    table.cell(dbg, 1, 8, str.tostring(peakR, "#.0") + "/" + str.tostring(effGiveback, "#.00"), text_color=color.white, bgcolor=db)
+    table.cell(dbg, 0, 9, "breath/stair", text_color=color.white, bgcolor=db)
+    table.cell(dbg, 1, 9, str.tostring(breathMult, "#.00") + "/" + str.tostring(stairRungs), text_color=color.white, bgcolor=db)
+    table.cell(dbg, 0, 10, "coh/multStep", text_color=color.white, bgcolor=db)
+    table.cell(dbg, 1, 10, str.tostring(cohNow) + "/" + str.tostring(multStep, "#.00"), text_color=color.white, bgcolor=db)
+    table.cell(dbg, 0, 11, "bankFr/floorON", text_color=color.white, bgcolor=db)
+    table.cell(dbg, 1, 11, str.tostring(bankFrac, "#.00") + "/" + (bankedFloorOn?"T":"F"), text_color=color.white, bgcolor=db)
+    table.cell(dbg, 0, 12, "atrRank/stall", text_color=color.white, bgcolor=db)
+    table.cell(dbg, 1, 12, str.tostring(nz(atrPctRank, 0.0), "#") + "/" + str.tostring(barsSincePeak) + "繚" + str.tostring(stallShrink, "#.0"), text_color=color.white, bgcolor=db)
+    table.cell(dbg, 0, 13, "effTS/pers/effCD", text_color=color.white, bgcolor=db)
+    table.cell(dbg, 1, 13, str.tostring(effTimeStop) + "/" + str.tostring(persistBars) + "/" + str.tostring(effCooldownDbg), text_color=color.white, bgcolor=db)
+    table.cell(dbg, 0, 14, "msStop/floorSrc", text_color=color.white, bgcolor=db)
+    table.cell(dbg, 1, 14, (msActive?"ST3撖?:"敹隹TR") + "/" + activeFloorTxt, text_color=color.white, bgcolor=db)
+    table.cell(dbg, 0, 15, "entGate/cohAdd", text_color=color.white, bgcolor=db)
+    table.cell(dbg, 1, 15, (effEntryDistGate?"ON":"off") + "/" + (effCoherenceAdd?"ON":"off"), text_color=color.white, bgcolor=db)
+    table.cell(dbg, 0, 16, "?rAcc/midCfm", text_color=color.white, bgcolor=db)
+    table.cell(dbg, 1, 16, (effErAccelAdd?"ON":"off") + "(?" + str.tostring(erSlope, "#.00") + " 鈭?" + str.tostring(erAccel2, "#.00") + ")/" + (effMidConfirm?"ON":"off"), text_color=color.white, bgcolor=db)
+    table.cell(dbg, 0, 17, "??E2vote/E3sp繚??, text_color=color.white, bgcolor=db)
+    table.cell(dbg, 1, 17, (effAdaptiveMinVotes?"ON":"off") + (lowVolRegime?"(雿郭<"+str.tostring(lowVolPctile,"#")+"繚+"+str.tostring(extraVoteLowVol)+")":"") + "/" + (effAddSpacing?"ON":"off") + "(?? + str.tostring(addSpace) + "璉瑁?" + str.tostring(math.min(bar_index - lastAddBar, 9999)) + "繚?? + str.tostring(e3BlockedAdds) + ")", text_color=color.white, bgcolor=db)
+    table.cell(dbg, 0, 18, "??F1spK/F2?瑟郎", text_color=color.white, bgcolor=db)
+    table.cell(dbg, 1, 18, (effAddSpaceVol?"ON?"+str.tostring(spaceVolK,"#.00"):"off") + "/" + (effVoteFade?"ON":"off") + "(?? + str.tostring(voteFadeCuts) + (voteFadeArmed?"繚甇西?":"繚敺???) + ")", text_color=color.white, bgcolor=db)
+    table.cell(dbg, 0, 19, "???1??G2?琿?, text_color=color.white, bgcolor=db)
+    table.cell(dbg, 1, 19, (effAdxSlopeAdd?"ON":"off") + "(?ADX" + str.tostring(adxSlope, "#.0") + "繚?? + str.tostring(g1BlockedAdds) + ")/" + (effDrawVel?"ON":"off") + "(?? + str.tostring(dvCuts) + "繚?? + str.tostring(dvRate, "#.00") + "?? + str.tostring(dvThr, "#.00") + (dvArmed?"繚甇西?":"繚敺???) + ")", text_color=color.white, bgcolor=db)
+    table.cell(dbg, 0, 20, "???1diSl/H2volSh", text_color=color.white, bgcolor=db)
+    table.cell(dbg, 1, 20, (effDiSlopeGate?"ON":"off") + "(?diSp" + str.tostring(inLong?diSlopeLong:diSlopeShort, "#.0") + "繚?? + str.tostring(h1BlockedEntries) + ")/" + (effVolShockTrail?"ON":"off") + "(頝? + str.tostring(volShockNow, "#") + "繚蝺? + str.tostring(volShockHits) + ")", text_color=color.white, bgcolor=db)
+    table.cell(dbg, 0, 21, "????I1繚I2繚J2/c2f", text_color=color.white, bgcolor=db)
+    table.cell(dbg, 1, 21, (effFlipFresh?"ON":"off") + "(頝? + str.tostring(math.min(bar_index - st1FlipBar, 9999)) + "?? + str.tostring(flipFreshWin) + "繚?? + str.tostring(i1BlockedEntries) + ")/I2?? + str.tostring(i2Cuts) + "/J2?? + str.tostring(j2BlockedAdds) + "/" + (cutToFlatNow?"c2f!":"??), text_color=color.white, bgcolor=cutToFlatNow ? color.new(color.red, 0) : db)

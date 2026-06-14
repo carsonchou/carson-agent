@@ -1,0 +1,30 @@
+{
+  "pineFile": "triple_supertrend_v4_champion_r5.pine",
+  "symbol": "BINANCE:BTCUSDT",
+  "tf": "240",
+  "expectTitle": "Triple SuperTrend v15-Evo-A-TRANSCEND-X",
+  "codeLines": 1507,
+  "ok": true,
+  "loggedIn": true,
+  "editorOpened": true,
+  "editorHasCode": true,
+  "injectedLine": 1507,
+  "titleMatch": false,
+  "metrics": {
+    "netProfit": "194.37%",
+    "maxDrawdown": "21.93%",
+    "percentProfitable": "34.44%",
+    "profitFactor": "1.511",
+    "sharpe": "0.212",
+    "sortino": null,
+    "returnOverMaxDD": "3.90",
+    "winningTrades": "104",
+    "totalTrades": "302"
+  },
+  "notes": [
+    "mouseClick @1464,519",
+    "lineInd=[Line 1507, Col 1]"
+  ],
+  "step": "tester",
+  "addClicked": true
+}

@@ -1,0 +1,27 @@
+# ── 交易所串接 ──
+requests>=2.31.0          # Pionex REST API 呼叫
+websocket-client>=1.7.0   # Pionex WebSocket 即時行情
+ccxt>=4.2.0               # 交易所統一介面（備援/比對用）
+
+# ── 資料來源 ──
+playwright>=1.40.0        # 真實瀏覽器：TradingView 取價 + Pionex 備援下單（主路徑）
+tvdatafeed>=2.1.0         # （選用）TradingView 非官方套件抓取，Playwright 為主、此為備援
+
+# ── 資料處理與指標 ──
+pandas>=2.1.0
+numpy>=1.26.0
+# pandas-ta 為選用：本專案 strategy/indicators.py 已用 pandas/numpy 原生實作
+# SuperTrend/ATR/EMA（非重繪），不需 pandas-ta 即可回測與實盤。
+# pandas-ta>=0.3.14b      # （選用）若要額外指標可再裝
+
+# ── 設定與工具 ──
+pyyaml>=6.0
+python-dotenv>=1.0.0
+pydantic>=2.5.0           # 設定驗證
+
+# ── 監控與通知 ──
+rich>=13.7.0              # 終端機監控面板
+loguru>=0.7.2             # 結構化日誌
+
+# ── 測試 ──
+pytest>=7.4.0

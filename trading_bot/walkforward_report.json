@@ -1,0 +1,182 @@
+{
+  "BTC_USDT 1H": {
+    "is_best_params": {
+      "atr": 10,
+      "mult": 3.5,
+      "stop": 2.0
+    },
+    "is_perf": {
+      "total_return": 0.048339,
+      "sharpe": 2.8886,
+      "max_drawdown": 0.039319,
+      "win_rate": 0.6667,
+      "num_trades": 6
+    },
+    "oos_perf_tuned": {
+      "total_return": 0.12257,
+      "sharpe": 8.4979,
+      "max_drawdown": 0.060067,
+      "win_rate": 0.3333,
+      "num_trades": 3
+    },
+    "oos_perf_robust_fixed": {
+      "total_return": 0.121858,
+      "sharpe": 8.3118,
+      "max_drawdown": 0.061815,
+      "win_rate": 0.5,
+      "num_trades": 2
+    },
+    "is_bars": 700,
+    "oos_bars": 300
+  },
+  "BTC_USDT 4H": {
+    "is_best_params": {
+      "atr": 10,
+      "mult": 2.0,
+      "stop": 3.0
+    },
+    "is_perf": {
+      "total_return": 0.202636,
+      "sharpe": 2.0234,
+      "max_drawdown": 0.16945,
+      "win_rate": 0.5294,
+      "num_trades": 17
+    },
+    "oos_perf_tuned": {
+      "total_return": 0.138666,
+      "sharpe": 3.569,
+      "max_drawdown": 0.062015,
+      "win_rate": 0.3333,
+      "num_trades": 6
+    },
+    "oos_perf_robust_fixed": {
+      "total_return": -0.040694,
+      "sharpe": -1.4999,
+      "max_drawdown": 0.06117,
+      "win_rate": 0.3333,
+      "num_trades": 3
+    },
+    "is_bars": 700,
+    "oos_bars": 300
+  },
+  "ETH_USDT 1H": {
+    "is_best_params": {
+      "atr": 7,
+      "mult": 3.5,
+      "stop": 3.0
+    },
+    "is_perf": {
+      "total_return": 0.082136,
+      "sharpe": 3.4037,
+      "max_drawdown": 0.055536,
+      "win_rate": 0.5,
+      "num_trades": 6
+    },
+    "oos_perf_tuned": {
+      "total_return": 0.187512,
+      "sharpe": 9.758,
+      "max_drawdown": 0.058583,
+      "win_rate": 0.5,
+      "num_trades": 2
+    },
+    "oos_perf_robust_fixed": {
+      "total_return": 0.178441,
+      "sharpe": 9.2716,
+      "max_drawdown": 0.065774,
+      "win_rate": 0.5,
+      "num_trades": 2
+    },
+    "is_bars": 700,
+    "oos_bars": 300
+  },
+  "ETH_USDT 4H": {
+    "is_best_params": {
+      "atr": 14,
+      "mult": 3.5,
+      "stop": 1.5
+    },
+    "is_perf": {
+      "total_return": 0.230265,
+      "sharpe": 2.0842,
+      "max_drawdown": 0.129653,
+      "win_rate": 0.25,
+      "num_trades": 12
+    },
+    "oos_perf_tuned": {
+      "total_return": -0.04722,
+      "sharpe": -4.6819,
+      "max_drawdown": 0.052207,
+      "win_rate": 0.0,
+      "num_trades": 3
+    },
+    "oos_perf_robust_fixed": {
+      "total_return": -0.090117,
+      "sharpe": -3.8207,
+      "max_drawdown": 0.110899,
+      "win_rate": 0.0,
+      "num_trades": 3
+    },
+    "is_bars": 700,
+    "oos_bars": 300
+  },
+  "SOL_USDT 1H": {
+    "is_best_params": {
+      "atr": 10,
+      "mult": 2.5,
+      "stop": 1.5
+    },
+    "is_perf": {
+      "total_return": 0.082584,
+      "sharpe": 2.8816,
+      "max_drawdown": 0.068713,
+      "win_rate": 0.4286,
+      "num_trades": 14
+    },
+    "oos_perf_tuned": {
+      "total_return": 0.16141,
+      "sharpe": 7.9022,
+      "max_drawdown": 0.079577,
+      "win_rate": 0.3333,
+      "num_trades": 6
+    },
+    "oos_perf_robust_fixed": {
+      "total_return": 0.169901,
+      "sharpe": 7.8362,
+      "max_drawdown": 0.07025,
+      "win_rate": 0.6667,
+      "num_trades": 3
+    },
+    "is_bars": 700,
+    "oos_bars": 300
+  },
+  "SOL_USDT 4H": {
+    "is_best_params": {
+      "atr": 14,
+      "mult": 3.5,
+      "stop": 3.0
+    },
+    "is_perf": {
+      "total_return": 0.115337,
+      "sharpe": 1.0223,
+      "max_drawdown": 0.218611,
+      "win_rate": 0.3636,
+      "num_trades": 11
+    },
+    "oos_perf_tuned": {
+      "total_return": 0.020014,
+      "sharpe": 0.672,
+      "max_drawdown": 0.07903,
+      "win_rate": 0.5,
+      "num_trades": 2
+    },
+    "oos_perf_robust_fixed": {
+      "total_return": 0.020014,
+      "sharpe": 0.672,
+      "max_drawdown": 0.07903,
+      "win_rate": 0.5,
+      "num_trades": 2
+    },
+    "is_bars": 700,
+    "oos_bars": 300
+  }
+}
