@@ -470,14 +470,10 @@ class App(tk.Tk):
         bar = tk.Frame(f, bg=NAVY); bar.pack(fill="x", padx=16, pady=(8, 2))
         tk.Button(bar, text="🔄 立即刷新雲端", font=FONT, bg=ACCENT, fg=NAVY, bd=0, padx=12, pady=5,
                   command=self.fetch_cloud).pack(side="left", padx=(0, 6))
-        tk.Button(bar, text="☁ 在雲端補產", font=FONT, bg="#1f6f43", fg="#eafff1", bd=0, padx=12, pady=5,
-                  activebackground=GREEN, command=self.cloud_produce).pack(side="left", padx=6)
-        tk.Button(bar, text="📦 雲端排程囤片", font=FONT, bg="#1f5f7a", fg="#eaf6ff", bd=0, padx=12, pady=5,
-                  command=self.cloud_schedule).pack(side="left", padx=6)
-        tk.Button(bar, text="🚀 雲端立即上架", font=FONT, bg="#7a5a1f", fg="#fff6e6", bd=0, padx=12, pady=5,
-                  command=self.cloud_publish).pack(side="left", padx=6)
         tk.Button(bar, text="📜 看雲端日誌", font=FONT, bg=CARD, fg=TEXTCOL, bd=0, padx=12, pady=5,
                   command=self.cloud_view_log).pack(side="left", padx=6)
+        tk.Label(bar, text="（補產／上架／排程囤片都在「🎛 控制台」操作）", font=("Microsoft JhengHei", 9),
+                 bg=NAVY, fg=SUB).pack(side="left", padx=10)
 
         # 排程囤片清單（出國保險）
         self._section(f, "📅 排程囤片（YouTube 伺服器自動公開・不依賴家用網路）")
@@ -651,13 +647,14 @@ class App(tk.Tk):
                      f"｜　累計上架 {d.get('published_total',0)}　｜　排程囤片 {bc} 支　｜　{render_txt}",
                 fg=(GREEN if not errn else ACCENT))
 
-    def _cloud_stream(self, remote_cmd, name):
-        """在雲端跑一條指令，輸出串到『雲端操作輸出』框（背景執行緒）。"""
+    def _cloud_stream(self, remote_cmd, name, logbox=None):
+        """在雲端跑一條指令，輸出串到指定 log 框（預設雲端操作輸出框）。"""
         cfg = load_cloud_cfg()
         if not cfg:
             messagebox.showwarning("未設定雲端", "找不到 cloud.json，無法連雲端。")
             return
-        self.cloud_log.insert("end", f"\n=== {name} 開始（雲端）… ===\n"); self.cloud_log.see("end")
+        box = logbox if logbox is not None else self.cloud_log
+        box.insert("end", f"\n=== {name} 開始（雲端）… ===\n"); box.see("end")
 
         def worker():
             try:
@@ -665,11 +662,11 @@ class App(tk.Tk):
                                      env=self._cloud_env(cfg), stdout=subprocess.PIPE,
                                      stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace")
                 for line in p.stdout:
-                    self.cloud_log.insert("end", line); self.cloud_log.see("end")
+                    box.insert("end", line); box.see("end")
                 p.wait()
-                self.cloud_log.insert("end", f"=== {name} 完成 (exit {p.returncode}) ===\n")
+                box.insert("end", f"=== {name} 完成 (exit {p.returncode}) ===\n")
             except Exception as e:  # noqa: BLE001
-                self.cloud_log.insert("end", f"[錯誤] {e}\n")
+                box.insert("end", f"[錯誤] {e}\n")
             self.after(0, self.fetch_cloud)
         threading.Thread(target=worker, daemon=True).start()
 
@@ -696,9 +693,12 @@ class App(tk.Tk):
         if not days:
             return
         cfg = load_cloud_cfg()
+        if not cfg:
+            messagebox.showwarning("未設定雲端", "找不到 cloud.json，無法連雲端。")
+            return
         self._cloud_stream(
             f"cd {cfg['remote_root']} && ./run.sh scripts/schedule_publish.py --days {days} --per-day 1 --start 1 --hour 19 --max 6",
-            f"雲端排程囤片 {days} 天")
+            f"雲端排程囤片 {days} 天", logbox=getattr(self, "log", None))
 
     def cloud_publish(self):
         if not messagebox.askyesno("🚀 雲端立即上架", "在雲端立即把片庫的影片上架（公開）？"):
@@ -824,8 +824,10 @@ class App(tk.Tk):
         self.dept_summary.pack(side="left")
         tk.Button(toprow, text="🔄 重新整理", font=FONT, bg=CARD, fg=TEXTCOL, bd=0, padx=12, pady=4,
                   command=self.render_departments).pack(side="right")
-        # 一鍵壓榨 / 一鍵最大化壓榨（全公司）
+        # 一鍵激活 / 一鍵壓榨 / 一鍵最大化壓榨（全公司）
         allrow = tk.Frame(f, bg=NAVY); allrow.pack(fill="x", padx=16, pady=(0, 2))
+        tk.Button(allrow, text="⚡ 一鍵激活全部（雲端跑一輪）", font=FONT_B, bg="#1f6f43", fg="#eafff1", bd=0,
+                  padx=12, pady=4, activebackground=GREEN, command=self.activate_all).pack(side="left", padx=(0, 6))
         tk.Button(allrow, text="🔥 一鍵壓榨（全部 +1）", font=FONT, bg="#7a2f2f", fg="#ffeaea", bd=0,
                   padx=12, pady=4, activebackground=RED, command=self.squeeze_all).pack(side="left", padx=(0, 6))
         tk.Button(allrow, text="🔥🔥 一鍵最大化壓榨（火力全開）", font=FONT_B, bg="#a01f1f", fg="#fff0f0", bd=0,
@@ -1112,6 +1114,36 @@ class App(tk.Tk):
             pass
         self._cloud_apply(["boss_directives.json"], self._trig_decision(), "一鍵最大化壓榨")
         messagebox.showinfo("🔥🔥 火力全開", f"已把 {n} 個部門全部拉到最大 Lv{MAX_BOOST_LV}！\n已推送雲端、全公司立即最大化衝刺。")
+
+    def activate_all(self):
+        """⚡ 一鍵激活全部：叫全公司每個部門在雲端各跑一次（背景）。"""
+        if not messagebox.askyesno("⚡ 一鍵激活全部",
+                                   "立刻叫全公司所有部門在雲端各跑一次？\n"
+                                   "（情報→決策→補產→上架→整理→宣傳→留言→縮圖→財務→回顧→人事）\n"
+                                   "背景進行，可在『☁ 雲端營運』看輸出。"):
+            return
+        cfg = load_cloud_cfg()
+        priv = load_directives().get("privacy", "public")
+        if not cfg:
+            self._goto_control()
+            for script, args, nm in [("scripts/intel_dept.py", [], "競品"),
+                                     ("scripts/decision_dept.py", [], "決策"),
+                                     ("scripts/produce_batch.py", ["--target", "60"], "補產"),
+                                     ("scripts/daily_publish.py", ["--max", "6", "--privacy", priv], "上架"),
+                                     ("scripts/retro_dept.py", [], "回顧"), ("scripts/hr_dept.py", [], "人事")]:
+                self.run_script([script] + args, nm + "(本機)")
+            return
+        self._nb.select(self._cloud_frame)
+        chain = ("./run.sh scripts/intel_dept.py; ./run.sh scripts/decision_dept.py; "
+                 "./run.sh scripts/produce_batch.py --target 60; "
+                 f"./run.sh scripts/daily_publish.py --max 6 --privacy {priv}; "
+                 "./run.sh scripts/organize_dept.py; ./run.sh scripts/promo_dept.py; "
+                 "./run.sh scripts/comment_dept.py; ./run.sh scripts/thumbnail_dept.py; "
+                 "./run.sh scripts/finance_dept.py; ./run.sh scripts/retro_dept.py; ./run.sh scripts/hr_dept.py")
+        self._cloud_stream(
+            f"cd {cfg['remote_root']} && nohup bash -c '{chain}' > logs/activate_all.log 2>&1 & "
+            "echo '已在雲端背景啟動：全部門各跑一次（看 logs/activate_all.log）'",
+            "一鍵激活全部")
 
     # ---------- Tab: 人事部（監察 + 編制） ----------
     # 員額有真實作用：①②的員額 = 每日產出量（produce_batch 讀 headcount.json）。
@@ -1505,12 +1537,15 @@ class App(tk.Tk):
         f = tk.Frame(nb, bg=NAVY)
         nb.add(f, text="🎛 控制台")
         self._ctrl_frame = f
-        tk.Label(f, text="立即手動執行（平常不用，排程會自動跑）", font=FONT_B, bg=NAVY, fg=ACCENT).pack(anchor="w", padx=16, pady=(14, 4))
+        tk.Label(f, text="日常操作（按下＝在 24/7 雲端執行，不佔你電腦）", font=FONT_B, bg=NAVY, fg=ACCENT).pack(anchor="w", padx=16, pady=(14, 2))
+        tk.Label(f, text="背景在雲端跑，下方「執行輸出」會回報；進度/狀態看「☁ 雲端營運」。各部門單獨激活在「🏢 部門」。",
+                 font=("Microsoft JhengHei", 9), bg=NAVY, fg=SUB).pack(anchor="w", padx=16, pady=(0, 4))
         row = tk.Frame(f, bg=NAVY); row.pack(anchor="w", padx=16, pady=4)
-        self._btn(row, "🧠 立即決策", lambda: self._run_dept_cloud_first("scripts/decision_dept.py", [], "決策部門"))
-        self._btn(row, "🎬 立即補產", lambda: self._run_dept_cloud_first("scripts/produce_batch.py", ["--shorts", "4", "--long", "1", "--target", "60"], "補產部門"))
-        self._btn(row, "🚀 立即上架", lambda: self._run_dept_cloud_first("scripts/daily_publish.py", ["--max", "6", "--privacy", load_directives().get("privacy", "public")], "上架部門"))
-        self._btn(row, "🔁 回顧檢討", lambda: self._run_dept_cloud_first("scripts/retro_dept.py", [], "回顧檢討部門"))
+        self._btn(row, "🧠 立即決策", lambda: self._cloud_op("scripts/decision_dept.py", [], "決策"))
+        self._btn(row, "🎬 立即補產", lambda: self._cloud_op("scripts/produce_batch.py", ["--target", "60"], "補產"))
+        self._btn(row, "🚀 立即上架", lambda: self._cloud_op("scripts/daily_publish.py", ["--max", "6", "--privacy", load_directives().get("privacy", "public")], "上架"))
+        self._btn(row, "📦 排程囤片", self.cloud_schedule)
+        self._btn(row, "🔁 回顧檢討", lambda: self._cloud_op("scripts/retro_dept.py", [], "回顧"))
         self._btn(row, "💰 記一筆帳", self.record_finance)
         tk.Label(f, text="全自動開關", font=FONT_B, bg=NAVY, fg=ACCENT).pack(anchor="w", padx=16, pady=(14, 4))
         row2 = tk.Frame(f, bg=NAVY); row2.pack(anchor="w", padx=16, pady=4)
@@ -1574,6 +1609,29 @@ class App(tk.Tk):
         if self._activate_on_cloud(script, args, name):
             return
         self._goto_control(); self.run_script([script] + args, name + "(本機)")
+
+    def _cloud_op(self, script, args, name):
+        """控制台日常操作：在雲端『背景』執行，輸出回控制台自己的視窗、不跳頁；無雲端則本機跑。"""
+        cfg = load_cloud_cfg()
+        if not cfg:
+            self.run_script([script] + args, name + "(本機)")
+            return
+        argstr = " ".join(args)
+        remote = (f"cd {cfg['remote_root']} && nohup ./run.sh {script} {argstr} "
+                  f"> logs/manual_op.log 2>&1 & echo '已在雲端背景啟動：{name}（進度看雲端營運頁的 cron/日誌或下方）'")
+        self.log.insert("end", f"\n=== {name}：送往雲端執行… ===\n"); self.log.see("end")
+
+        def worker():
+            try:
+                p = subprocess.run([str(PY), str(CLOUD_SSH), "run", remote], env=self._cloud_env(cfg),
+                                   capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=45)
+                out = (p.stdout or "").strip().splitlines()
+                msg = out[-1] if out else "已送出"
+            except Exception as e:  # noqa: BLE001
+                msg = f"失敗：{str(e)[:80]}"
+            self.after(0, lambda: (self.log.insert("end", msg + "\n"), self.log.see("end")))
+            self.after(1800, self.fetch_cloud)
+        threading.Thread(target=worker, daemon=True).start()
 
     def run_script(self, args, name):
         threading.Thread(target=lambda: self._run_blocking(args, name), daemon=True).start()
