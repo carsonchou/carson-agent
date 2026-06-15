@@ -14,7 +14,7 @@
 用法：python scripts/intel_dept.py [--max-learn 3] [--no-learn]
 """
 from __future__ import annotations
-import argparse, glob, json, os, re, shutil, subprocess, sys, tempfile
+import argparse, glob, json, os, re, shutil, subprocess, sys, tempfile, time
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 try:
@@ -35,13 +35,17 @@ try:
 except Exception:
     def log_ops(d, m): pass
 
-DEFAULT_KW = ["網格交易", "Pionex 教學", "定投策略", "量化交易", "加密貨幣 被動收入", "網格機器人",
-              "資金費率 套利", "交易機器人 實測", "幣安 合約 教學", "ChatGPT 交易"]
+# 大量供給用：核心競品題材 + 鄰近題材（理財/ETF/被動收入/AI），確保每天能撈到足量未看過的新片。
+DEFAULT_KW = ["網格交易", "Pionex 教學", "派網 機器人", "定投策略", "DCA 定期定額", "量化交易",
+              "加密貨幣 被動收入", "網格機器人", "資金費率 套利", "交易機器人 實測", "幣安 合約 教學",
+              "ChatGPT 交易", "AI 量化 交易", "Python 量化", "回測 策略", "TradingView 策略",
+              "加密貨幣 投資", "ETF 定投", "被動收入 投資", "技術分析 教學", "波段 當沖 教學",
+              "穩定幣 理財", "套利 教學", "交易策略 回測"]
 GROQ_ENV = Path.home() / ".config" / "watch" / ".env"
 ANTH_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
 ANTH_MODEL = "claude-haiku-4-5-20251001"
 AUTO_MARK = "## 自動增補（competitor intel，新到舊）"
-MAX_AUTO = 24          # playbook 自動增補區最多保留幾條（FIFO，控制 prompt 長度）
+MAX_AUTO = 60          # playbook 自動增補區最多保留幾條（FIFO，控制 prompt 長度；衝量時拉高）
 TRANSCRIPT_CAP = 6000  # 送給 Claude 的逐字稿最長字數
 
 
@@ -264,27 +268,35 @@ def append_analysis(date, entries):
         print(f"[warn] append analysis: {e}", file=sys.stderr)
 
 
-def deep_learn(top, max_learn):
-    """B 段：對沒看過的競品逐支轉錄+拆解，更新 analysis 與 playbook。"""
+def deep_learn(pool, max_learn, pace=2.0):
+    """B 段：對沒看過的競品逐支轉錄+拆解，更新 analysis 與 playbook。
+    pace=每支之間的間隔秒數（避 YouTube 429 限流，衝量必備）。"""
     if not ANTH_KEY:
         print("[info] 無 ANTHROPIC_API_KEY，跳過深度學習。"); return
     seen = _load_seen()
-    todo = [v for v in top if v["id"] not in seen][:max_learn]
+    todo = [v for v in pool if v["id"] not in seen][:max_learn]
     if not todo:
         log_ops("競品情報", "深度學習：無新影片(都看過了)"); print("[info] 無新競品可學。"); return
-    log_ops("競品情報", f"深度學習 {len(todo)} 支新競品…")
-    entries, tactics = [], []
-    for v in todo:
+    log_ops("競品情報", f"深度學習 {len(todo)} 支新競品（pace {pace}s）…")
+    entries, tactics, learned, skipped = [], [], 0, 0
+    for idx, v in enumerate(todo):
+        if idx and pace:
+            time.sleep(pace)  # 節流避 429；下載本身也有自然間隔
         t, src = transcribe(v["id"])
         seen.add(v["id"])  # 不論成敗都標記，避免下次重撞壞片
         if len(t) < 200:
-            print(f"[skip] {v['id']} 無逐字稿({src})"); continue
+            skipped += 1; print(f"[skip] {v['id']} 無逐字稿({src})"); continue
         res = analyze(v, t)
         if not res:
-            continue
+            skipped += 1; continue
+        if not res.get("is_competitor", True):  # 非同類題材不汙染 playbook，但已記 seen 不重撞
+            print(f"[skip] {v['id']} 非競品題材"); continue
+        learned += 1
         entries.append((v, res.get("breakdown", "").strip()))
         tactics += res.get("new_tactics", []) or []
         print(f"[learn] {v['channel']}｜{v['title'][:30]}（{src}，新招 {len(res.get('new_tactics',[]) or [])}）")
+        if learned % 10 == 0:
+            _save_seen(seen); log_ops("競品情報", f"深度學習進度：已拆 {learned} 支…")
     _save_seen(seen)
     date = tw_today()
     append_analysis(date, entries)
@@ -296,6 +308,7 @@ def deep_learn(top, max_learn):
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--max-learn", type=int, default=3, help="本輪最多深度學習幾支新競品")
+    ap.add_argument("--pace", type=float, default=2.0, help="每支之間間隔秒數（避 429 限流）")
     ap.add_argument("--no-learn", action="store_true", help="只搜尋情報、不做深度學習")
     args = ap.parse_args()
 
@@ -308,24 +321,30 @@ def main() -> int:
     try:
         if ORDERS.exists():
             pk = json.loads(ORDERS.read_text(encoding="utf-8")).get("preferred_keywords") or []
-            kws = (pk + kws)[:10]
+            kws = list(dict.fromkeys(pk + kws))  # 偏好關鍵字優先、去重保留全部
     except Exception:
         pass
-    log_ops("競品情報", f"搜尋 {len(kws)} 組關鍵字…")
-    seen, vids = set(), []
-    for kw in kws[:6]:
+    # 搜尋廣度隨 max_learn 放大：衝量(>=20)時搜全部關鍵字、每組抓 50 筆且 order=date(每天最新、供給不重複)，
+    # 餵飽大量深度學習；少量學習時只抓最熱前段省 quota。
+    big = args.max_learn >= 20
+    kw_cap = len(kws) if big else min(len(kws), max(6, (args.max_learn + 4) // 5))
+    per = 50 if big else 8
+    order = "date" if big else "viewCount"
+    log_ops("競品情報", f"搜尋 {kw_cap} 組關鍵字（order={order}, per={per}）…")
+    found, vids = set(), []
+    for kw in kws[:kw_cap]:
         try:
-            r = yt.search().list(q=kw, part="snippet", type="video", order="viewCount",
-                                 maxResults=8, relevanceLanguage="zh-Hant", regionCode="TW").execute()
+            r = yt.search().list(q=kw, part="snippet", type="video", order=order,
+                                 maxResults=per, relevanceLanguage="zh-Hant", regionCode="TW").execute()
             for it in r.get("items", []):
                 vid = it["id"].get("videoId")
-                if vid and vid not in seen:
-                    seen.add(vid)
+                if vid and vid not in found:
+                    found.add(vid)
                     vids.append({"id": vid, "title": it["snippet"]["title"][:70],
                                  "channel": it["snippet"]["channelTitle"][:30], "kw": kw})
         except Exception as e:
             print(f"[warn] 搜尋「{kw}」失敗：{e}", file=sys.stderr)
-    ids = [v["id"] for v in vids][:50]
+    ids = [v["id"] for v in vids]
     stats = {}
     for i in range(0, len(ids), 50):
         try:
@@ -337,7 +356,8 @@ def main() -> int:
     for v in vids:
         v["views"] = stats.get(v["id"], 0)
     vids.sort(key=lambda x: x["views"], reverse=True)
-    top = vids[:15]
+    top = vids[:15]      # 報告只列最熱前 15
+    pool = vids          # 學習候選池＝全部去重結果（deep_learn 內部再濾掉已看過、取 max_learn 支）
     date = tw_today()
     REPORTS.mkdir(parents=True, exist_ok=True)
     L = [f"# ⑯ 競品情報報告｜{date}", "",
@@ -355,13 +375,15 @@ def main() -> int:
     (REPORTS / f"{date}_競品情報.md").write_text("\n".join(L), encoding="utf-8")
     (STUDIO / "intel.json").write_text(json.dumps({"date": date, "top": top}, ensure_ascii=False, indent=2),
                                        encoding="utf-8")
-    log_ops("競品情報", f"完成 競品 {len(top)} 支 → {date}_競品情報.md")
-    print(f"[ok] 競品情報完成：收集 {len(top)} 支競品影片。")
+    seen_now = _load_seen()
+    fresh_n = sum(1 for v in pool if v["id"] not in seen_now)
+    log_ops("競品情報", f"完成 競品 {len(top)} 支 → {date}_競品情報.md（候選池 {len(pool)}、未看過 {fresh_n}）")
+    print(f"[ok] 競品情報完成：報告 top {len(top)}、候選池 {len(pool)} 支、其中未看過 {fresh_n} 支。")
 
     # ── B 段：自動深度學習循環（看片→拆解→更新 playbook，工廠自動吸收）──
     if not args.no_learn:
         try:
-            deep_learn(top, args.max_learn)
+            deep_learn(pool, args.max_learn, args.pace)
         except Exception as e:
             print(f"[warn] 深度學習例外（不影響情報報告）：{e}", file=sys.stderr)
     return 0
