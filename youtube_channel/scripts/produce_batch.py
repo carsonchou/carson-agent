@@ -13,6 +13,7 @@ import argparse
 import json
 import os
 import re
+import signal
 import subprocess
 import sys
 import time
@@ -94,16 +95,36 @@ def _seed_playbook() -> str:
 PLAYBOOK_FILE = ROOT / "STUDIO" / "competitor_playbook.md"
 
 
+_PB_STAMPED = False  # 每個 process 只蓋一次指紋章，避免洗版 log
+
+
+def _stamp_playbook(txt: str, source: str) -> None:
+    """在 cron.log 蓋指紋章：讓你從雲端 log 就看得出這輪製作讀到哪一版 playbook。"""
+    global _PB_STAMPED
+    if _PB_STAMPED:
+        return
+    _PB_STAMPED = True
+    dates = re.findall(r"20\d{2}-\d{2}-\d{2}", txt)
+    latest = max(dates) if dates else "無日期"
+    try:
+        log_ops("讀心法", f"來源={source}｜{len(txt)}字｜最新招式={latest}")
+    except Exception:
+        pass
+
+
 def load_playbook() -> str:
     """每次製作即時讀競品 playbook：有外部檔且非空就用它（吃最新更新），否則退回完整 A–L 種子。"""
     try:
         if PLAYBOOK_FILE.exists():
             txt = PLAYBOOK_FILE.read_text(encoding="utf-8").strip()
             if txt:
+                _stamp_playbook(txt, "競品外部檔")
                 return txt
     except Exception:
         pass
-    return _seed_playbook()
+    seed = _seed_playbook()
+    _stamp_playbook(seed, "種子退回")
+    return seed
 
 
 # 進修部門每週產的洞察（資料驅動），製作時即時讀來補強。
@@ -252,6 +273,50 @@ def build_md(d):
     return "\n".join(lines)
 
 
+def _tts_engine():
+    try:
+        d = json.loads((ROOT / "STUDIO" / "design_system.json").read_text(encoding="utf-8"))
+        return (d.get("tts_engine") or "edge").lower()
+    except Exception:
+        return "edge"
+
+
+def _run_tts(slug):
+    """配音：依 design_system 選引擎；MiniMax(付費自然音)失敗自動退回免費 edge，不中斷生產。"""
+    vp = f"output/{slug}.voice.txt"
+    mp3 = OUT / f"{slug}.mp3"
+    if _tts_engine() == "minimax":
+        subprocess.run([str(PY), "scripts/tts_minimax.py", vp], cwd=str(ROOT))
+        if mp3.exists() and mp3.stat().st_size > 0:
+            return
+        log_ops("配音", f"⚠️ MiniMax 配音失敗，退回 edge：{slug}")
+    subprocess.run([str(PY), "scripts/tts_edge.py", vp], cwd=str(ROOT))
+
+
+def _run_render(args, env, timeout=720):
+    """跑 make_video，逾時就連同子程序(ffmpeg)整組殺掉 —— 防殭屍 ffmpeg 卡死整批製作。"""
+    kw = {"cwd": str(ROOT), "env": env}
+    if os.name == "posix":
+        kw["start_new_session"] = True  # 自成 process group，逾時可整組 kill
+    p = subprocess.Popen([str(PY)] + args, **kw)
+    try:
+        p.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        log_ops("補產·渲染", f"⚠️ 渲染逾時 {timeout}s 強制中止：{args[2] if len(args) > 2 else ''}")
+        print(f"[TIMEOUT] 渲染逾時，強制中止 {timeout}s", file=sys.stderr)
+        try:
+            if os.name == "posix":
+                os.killpg(os.getpgid(p.pid), signal.SIGKILL)  # 連 ffmpeg 子程序一起殺
+            else:
+                p.kill()
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            p.wait(timeout=10)
+        except Exception:  # noqa: BLE001
+            pass
+
+
 def make_one(kind, no_render=False, topic_override=None):
     d = call_claude(kind, existing_titles(), topic_override)
     prefix = "S" if kind == "short" else "L"
@@ -261,7 +326,7 @@ def make_one(kind, no_render=False, topic_override=None):
     (OUT / f"{slug}.voice.txt").write_text(d["voice_text"], encoding="utf-8")
     (OUT / f"{slug}.md").write_text(build_md(d), encoding="utf-8")
 
-    subprocess.run([str(PY), "scripts/tts_edge.py", f"output/{slug}.voice.txt"], cwd=str(ROOT))
+    _run_tts(slug)
 
     # 雲端模式：只產腳本＋配音，渲染交給 PC 端 render_watcher（混合架構）。
     if no_render:
@@ -273,10 +338,9 @@ def make_one(kind, no_render=False, topic_override=None):
     env = os.environ.copy()
     if kind == "short":
         env.pop("PEXELS_API_KEY", None)  # Shorts 走乾淨字卡
-        subprocess.run([str(PY), "scripts/make_video.py", "--slug", slug, "--width", "1080", "--height", "1920"],
-                       cwd=str(ROOT), env=env)
+        _run_render(["scripts/make_video.py", "--slug", slug, "--width", "1080", "--height", "1920"], env, timeout=720)
     else:
-        subprocess.run([str(PY), "scripts/make_video.py", "--slug", slug], cwd=str(ROOT), env=env)
+        _run_render(["scripts/make_video.py", "--slug", slug], env, timeout=2400)  # 長片渲染久，給 40 分鐘
     ok = (OUT / f"{slug}.mp4").exists() and (OUT / f"{slug}.mp4").stat().st_size > 100 * 1024
     if ok:  # 產製即審核：壞片/違規早發現
         passed, reasons = audit_video.audit(slug)
