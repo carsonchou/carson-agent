@@ -27,6 +27,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 STUDIO = ROOT / "STUDIO"; REPORTS = STUDIO / "REPORTS"; ORDERS = STUDIO / "production_orders.json"
 PLAYBOOK = STUDIO / "competitor_playbook.md"
+SEED_FILE = ROOT / "scripts" / "competitor_playbook_seed.md"  # tracked 完整 A–L 種子，雲端建檔用
 ANALYSIS = ROOT / "competitor_analysis.md"
 SEEN_FILE = STUDIO / "intel_seen.json"
 try:
@@ -207,8 +208,15 @@ def analyze(video, transcript):
 def merge_playbook(candidate_tactics):
     """把候選新招中『真正新穎』的，append 進 playbook 自動增補區(FIFO 上限 MAX_AUTO)。回傳實際新增條數。"""
     candidate_tactics = [t.strip() for t in candidate_tactics if t and len(t.strip()) > 8]
-    if not candidate_tactics or not PLAYBOOK.exists():
+    if not candidate_tactics:
         return 0
+    # 雲端 STUDIO/ 是 gitignore 空的：playbook 不存在就先用 tracked 種子建檔，否則每天靜默 no-op、永遠不累積。
+    if not PLAYBOOK.exists():
+        seed = SEED_FILE.read_text(encoding="utf-8").strip() if SEED_FILE.exists() else ""
+        if not seed:
+            return 0
+        PLAYBOOK.parent.mkdir(parents=True, exist_ok=True)
+        PLAYBOOK.write_text(seed + "\n", encoding="utf-8")
     pb = PLAYBOOK.read_text(encoding="utf-8")
     # 用 Claude 過濾出真正未涵蓋的(對照整份 playbook)
     novel = candidate_tactics

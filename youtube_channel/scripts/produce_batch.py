@@ -54,6 +54,73 @@ QUANT_STANDARD = (
     "・風控觀念：單筆停損約2%、單一策略不超過總資金20%、Kelly 公式 f*=(p×b-q)/b 實務用 Half-Kelly。\n"
     "・誠實：歷史績效不代表未來；舉例用『假設/示意』，不暗示真實獲利。")
 
+# 爆款腳本心法（蒸餾自 31 支繁中/英文對標競品實證，見 STUDIO/script_playbook.md）。
+# 把市場領袖驗證過的鉤子/比喻/誠實護城河/置入手法寫進每一支腳本，這是頻道的差異化武器。
+# 注意：這只是「預設/種子」。實際每次製作會即時讀 STUDIO/competitor_playbook.md（競品情報部會更新它），
+# 讀不到才退回這份預設 —— 確保競品 playbook 一更新，下一支腳本就吃到最新版。
+_DEFAULT_PLAYBOOK = (
+    "【爆款腳本心法｜蒸餾自 31 支繁中/英文對標競品實證，務必融入】\n"
+    "・開場鉤子（前 2 秒就要，禁制式問候，擇一套用）：①反差去推銷「這不是喊單頻道，我只做能回測驗證的東西」"
+    "（Terry 661K 最毒招，先否定自己→可信度爆表）②反共識先破後立「大家都說網格穩賺？我用回測打臉這句」"
+    "（懶錢包 102萬）③精確數字+括號懸念「這組網格參數回測勝率 87%（但有個代價你必須知道）」（Rayner 1.79M）"
+    "④挑釁反問「你的網格機器人，是設計來盤整賺錢、還是趁你睡覺把本金歸零？」⑤暴利數字+懷疑「這支 bot 標 900% ROI…"
+    "是真的還是僥倖？我幫你拆」。\n"
+    "・生活化比喻（faceless 無真人魅力，比喻＝記憶命脈；固定同一套世界觀貫穿全頻道）：網格交易＝菜市場大媽／開雜貨店"
+    "（便宜囤貨、貴了出貨，賺價差不賭漲跌）；定投 DCA＝每月往存錢罐丟零錢／搭手扶梯慢慢上樓；過擬合＝背考古題背到滾瓜爛熟、"
+    "上考場一換題就掛；複利＝滾雪球；最大回撤＝雲霄飛車半路的那段下坡。能用比喻就別丟術語。\n"
+    "・差異化硬度：講參數／結論一律用『回測數據』背書（呼應量化定位）；對手全靠個人經驗截圖、無系統化回測，這是你的護城河。\n"
+    "・誠實護城河（賽道最稀缺、最圈粉）：主動揭露回撤／勝率／『這策略我也會虧的情況是…』『全市場回測只約 35% 標的會賺，所以要選』；"
+    "對手通病＝只曬贏單、報喜不報憂、標題說被動收入內容卻是高槓桿合約——你反著做就贏信任。\n"
+    "・Pionex 置入：把『用派網機器人執行這套』寫進『如何實際操作』的必經步驟裡（不是硬插廣告）；片尾單一明確 CTA，全片只收割一次。\n"
+    "・結構節奏：先秀成品（回測曲線／結果畫面）再回頭教；同一組乾淨數字（如本金 1 萬＋某參數）從頭走到尾降認知負擔；零廢話、高資訊密度。")
+
+# 完整 A–L 競品心法種子（tracked，會隨 repo 上雲端；STUDIO/ 被 gitignore 拿不到，故種子必須在此）。
+SEED_FILE = ROOT / "scripts" / "competitor_playbook_seed.md"
+
+
+def _seed_playbook() -> str:
+    """讀 tracked 的完整 A–L 種子；讀不到才退回上面的精簡內嵌版。"""
+    try:
+        if SEED_FILE.exists():
+            txt = SEED_FILE.read_text(encoding="utf-8").strip()
+            if txt:
+                return txt
+    except Exception:
+        pass
+    return _DEFAULT_PLAYBOOK
+
+
+# 每次製作即時讀的競品 playbook 外部檔（競品情報部更新它 → 下次製作自動吃最新版）。
+PLAYBOOK_FILE = ROOT / "STUDIO" / "competitor_playbook.md"
+
+
+def load_playbook() -> str:
+    """每次製作即時讀競品 playbook：有外部檔且非空就用它（吃最新更新），否則退回完整 A–L 種子。"""
+    try:
+        if PLAYBOOK_FILE.exists():
+            txt = PLAYBOOK_FILE.read_text(encoding="utf-8").strip()
+            if txt:
+                return txt
+    except Exception:
+        pass
+    return _seed_playbook()
+
+
+# 進修部門每週產的洞察（資料驅動），製作時即時讀來補強。
+TRAINING_FILE = ROOT / "STUDIO" / "training_insights.md"
+
+
+def load_training() -> str:
+    """讀本週進修洞察（製作/選題相關），有就回傳一段提示、沒有回空字串。"""
+    try:
+        if TRAINING_FILE.exists():
+            txt = TRAINING_FILE.read_text(encoding="utf-8").strip()
+            if txt:
+                return "\n\n【本週進修重點｜資料驅動，務必融入】\n" + txt
+    except Exception:
+        pass
+    return ""
+
 
 def existing_titles():
     out = []
@@ -117,12 +184,16 @@ def pull_topic(kind):
     return None
 
 
-def call_claude(kind, avoid):
+def call_claude(kind, avoid, topic_override=None):
     orders = load_orders()
-    # 先從題庫抽指定題目（擴題庫後放量也不重複）；題庫空了才自由發揮
-    topic = pull_topic(kind)
+    # 時事優先：有指定題目（金融時事）就用它，否則從題庫抽；題庫空了才自由發揮
+    topic = topic_override or pull_topic(kind)
     assign = ""
-    if topic:
+    if topic and topic_override:
+        assign = (f"\n【🔥金融時事·優先製作，務必照此主題】：{topic.get('title','')}　切入點：{topic.get('angle','')}"
+                  "（這是即時財經時事：緊扣新聞點，再連到頻道的量化/網格/派網/風控觀點；"
+                  "只講已知事實、不誇大、不預測價格漲跌、不喊單、不保證收益）")
+    elif topic:
         assign = (f"\n【本支指定題目（題庫派發，務必照此主題寫，標題可潤飾更有點擊慾）】："
                   f"{topic.get('title','')}　切入點：{topic.get('angle','')}")
     bias = ""
@@ -138,8 +209,11 @@ def call_claude(kind, avoid):
     else:
         spec = ("一支 8–10 分鐘長片。voice_text 1300–1700 字（HOOK→正文 4–5 段→軟性 CTA 訂閱+派網→下集預告）。"
                 "segments 給 4–5 段。")
+    playbook = load_playbook()  # 每支腳本都即時讀最新競品 playbook
+    training = load_training()  # 每週進修部門的資料驅動洞察
     prompt = f"""你是量化阿森頻道的專業腳本寫手。{GUARD}
 {QUANT_STANDARD}
+{playbook}{training}
 請產生{spec}{assign}{bias}
 【高點擊標題框架，擇一套用且自然】：①「如何…」具體承諾（含時間/數字，如「3 分鐘看懂…」）②「你一直做錯」揭錯（如「網格參數你設錯了…」）③「祕密/真相揭露」（如「高手不講的…」）④反直覺結論。標題要有好奇缺口但不誇大、不保證收益。
 請避免重複這些既有題目：{avoid[:50]}
@@ -178,8 +252,8 @@ def build_md(d):
     return "\n".join(lines)
 
 
-def make_one(kind, no_render=False):
-    d = call_claude(kind, existing_titles())
+def make_one(kind, no_render=False, topic_override=None):
+    d = call_claude(kind, existing_titles(), topic_override)
     prefix = "S" if kind == "short" else "L"
     slug = slugify(d["title"], prefix)
     if (OUT / f"{slug}.voice.txt").exists() or (OUT / f"{slug}.mp4").exists():
@@ -194,7 +268,7 @@ def make_one(kind, no_render=False):
         mp3_ok = (OUT / f"{slug}.mp3").exists()
         log_ops("補產·雲端", f"{'已備妥待渲染' if mp3_ok else '配音失敗'}：{slug}")
         print(f"[{'queued' if mp3_ok else 'FAIL'}] {kind} {slug}（待 PC 渲染）")
-        return mp3_ok
+        return slug if mp3_ok else None
 
     env = os.environ.copy()
     if kind == "short":
@@ -209,7 +283,39 @@ def make_one(kind, no_render=False):
         if not passed:
             log_ops("補產·審核", f"⚠️ {slug} 審核未過：{'；'.join(reasons)[:60]}")
     print(f"[{'ok' if ok else 'FAIL'}] {kind} {slug}")
-    return ok
+    return slug if ok else None
+
+
+def _publish_now(slug: str):
+    """消息面即時發布（過審才發）。重用 daily_publish 的上傳/ledger，繞過每日排程。"""
+    try:
+        import daily_publish as dp
+    except Exception as exc:  # noqa: BLE001
+        log_ops("時事發布", f"⚠️ 無法載入發布模組：{str(exc)[:60]}")
+        return
+    try:
+        passed, reasons = audit_video.audit(slug)
+        if not passed:
+            log_ops("時事發布", f"審核未過未發：{slug}｜{'；'.join(reasons)[:50]}")
+            print(f"[時事發布] 審核未過，未發布：{slug}")
+            return
+        priv = "public"  # 時事要即時公開；若老闆設了全域隱私則遵循
+        try:
+            bp = ROOT / "STUDIO" / "boss_directives.json"
+            if bp.exists():
+                v = json.loads(bp.read_text(encoding="utf-8")).get("privacy")
+                if v in ("public", "unlisted", "private"):
+                    priv = v
+        except Exception:
+            pass
+        yt = dp.get_service()
+        vid = dp.upload_one(yt, slug, priv)
+        led = dp.load_ledger(); led[slug] = vid; dp.save_ledger(led)
+        log_ops("時事發布", f"時事片即時發布 https://youtu.be/{vid}")
+        print(f"[時事發布] 已即時發布：https://youtu.be/{vid}")
+    except Exception as exc:  # noqa: BLE001
+        log_ops("時事發布", f"⚠️ 即時發布失敗：{str(exc)[:70]}")
+        print(f"[時事發布] 失敗：{exc}", file=sys.stderr)
 
 
 def main() -> int:
@@ -219,7 +325,31 @@ def main() -> int:
     ap.add_argument("--target", type=int, default=15)
     ap.add_argument("--no-render", action="store_true",
                     help="雲端模式：只產腳本+配音，渲染交給 PC 端 render_watcher")
+    ap.add_argument("--topic", default=None, help="指定題目（金融時事優先製作，繞過排程/題庫，立刻產 1 支）")
+    ap.add_argument("--angle", default=None, help="切入點（搭配 --topic）")
+    ap.add_argument("--publish", action="store_true", help="產完立刻發布（時事片用：消息面要即時上架，不等排程）")
     args = ap.parse_args()
+
+    # 🔥 金融時事優先：給了 --topic 就立刻產 1 支相關 Short，不管排程/片庫上限。
+    if args.topic:
+        if not API_KEY:
+            print("[FATAL] 找不到 ANTHROPIC_API_KEY 環境變數。", file=sys.stderr)
+            return 2
+        slug_made = None
+        for t in range(2):
+            try:
+                slug_made = make_one("short", no_render=args.no_render,
+                                     topic_override={"title": args.topic, "angle": args.angle or ""})
+                if slug_made:
+                    break
+            except Exception as exc:  # noqa: BLE001
+                print(f"[err 時事第{t+1}次] {exc}", file=sys.stderr)
+        log_ops("時事製作", f"{'已產出時事片' if slug_made else '⚠️ 時事片失敗'}：{args.topic[:40]}")
+        print(f"[{'ok' if slug_made else 'FAIL'}] 金融時事 Short：{args.topic[:40]}")
+        # 消息面要即時：產完立刻發布（仍過審核閘門；只在有真的渲染出檔時）
+        if slug_made and args.publish and not args.no_render:
+            _publish_now(slug_made)
+        return 0 if slug_made else 3
 
     # 員額即產能：人事部在 headcount.json 設的 ②Shorts／①影片 員額 = 每日產出量（加員額＝加產能）。
     hc_path = ROOT / "STUDIO" / "headcount.json"
