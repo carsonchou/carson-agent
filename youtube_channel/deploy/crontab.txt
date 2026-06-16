@@ -19,8 +19,9 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 40 6 * * * /root/yt/run.sh scripts/quality_score.py >> /root/yt/logs/cron.log 2>&1
 # 自動記帳·固定成本（每天跑、同月只記一筆，冪等）
 10 3 * * * /root/yt/run.sh scripts/auto_cost.py >> /root/yt/logs/cron.log 2>&1
-7 9 * * * /root/yt/run.sh scripts/daily_publish.py --max 6 >> /root/yt/logs/cron.log 2>&1
-7 21 * * * /root/yt/run.sh scripts/daily_publish.py --max 6 >> /root/yt/logs/cron.log 2>&1
+# 黃金時段發布：台灣 Shorts 互動高峰＝午餐 12:30 + 晚間 20:30（取代原 09:07/21:07）
+30 12 * * * /root/yt/run.sh scripts/daily_publish.py --max 6 >> /root/yt/logs/cron.log 2>&1
+30 20 * * * /root/yt/run.sh scripts/daily_publish.py --max 6 >> /root/yt/logs/cron.log 2>&1
 37 9 * * * /root/yt/run.sh scripts/retro_dept.py >> /root/yt/logs/cron.log 2>&1
 42 9 * * * /root/yt/run.sh scripts/hr_dept.py >> /root/yt/logs/cron.log 2>&1
 45 9 * * * /root/yt/run.sh scripts/organize_dept.py >> /root/yt/logs/cron.log 2>&1
@@ -33,6 +34,8 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 30 10 * * * /root/yt/run.sh scripts/daily_check.py >> /root/yt/logs/cron.log 2>&1
 30 4 * * 0 /root/yt/run.sh scripts/train_depts.py >> /root/yt/logs/cron.log 2>&1
 0 5 * * 0 /root/yt/run.sh scripts/topic_bank.py >> /root/yt/logs/cron.log 2>&1
+# 實驗格式招牌系列：每週一/四補一批已驗證會爆的骨架題目（我給機器人$X跑Y天 / A vs B）
+15 5 * * 1,4 /root/yt/run.sh scripts/experiment_series.py --count 6 >> /root/yt/logs/cron.log 2>&1
 # 爆款獵手：每天輕量盯爆款(出現破門檻就即時全押)，每週日完整拆解贏點回寫心法(贏點要週數據才準)
 45 10 * * * /root/yt/run.sh scripts/breakout_hunter.py --watch >> /root/yt/logs/cron.log 2>&1
 0 11 * * 0 /root/yt/run.sh scripts/breakout_hunter.py >> /root/yt/logs/cron.log 2>&1
