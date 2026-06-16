@@ -2,7 +2,7 @@
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # 金融時事優先：每 2 小時掃即時財經/加密新聞，有大事立刻產片（繞過排程，每日上限 3 支）
-0 */2 * * * /root/yt/run.sh scripts/news_dept.py >> /root/yt/logs/cron.log 2>&1
+0 */3 * * * /root/yt/run.sh scripts/news_dept.py >> /root/yt/logs/cron.log 2>&1
 # 05:30 情報 → 05:37 決策 → 06:07 製作(渲染) → 09:07 發布 → 09:3x~09:5x 後處理各部門
 # 競品深度學習(看100支/天)改在本機跑(雲端IP會被YouTube 429限流)，本機 QuantArsen_IntelLearn 學完SFTP推playbook回來；雲端這支只做輕量情報報告。
 30 5 * * * /root/yt/run.sh scripts/intel_dept.py --no-learn >> /root/yt/logs/cron.log 2>&1
