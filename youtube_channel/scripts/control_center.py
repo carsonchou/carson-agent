@@ -339,15 +339,40 @@ class App(tk.Tk):
     def tab_dashboard(self, nb):
         f = self._scroll_tab(nb, "🏠 總覽")
 
-        # ── 擬真特助：像真人秘書用人話跟老闆報告 ──
+        # ── 擬真特助：會報告，也會做事 ──
         _abg = "#15213d"
         aborder = tk.Frame(f, bg=BORDER); aborder.pack(fill="x", padx=12, pady=(14, 2))
         abar = tk.Frame(aborder, bg=_abg); abar.pack(fill="x", padx=1, pady=1)
         tk.Frame(abar, bg=ACCENT2, width=4).pack(side="left", fill="y")   # 左側強調條
-        tk.Label(abar, text="🤝", font=("Microsoft JhengHei", 22), bg=_abg).pack(side="left", padx=(12, 6), pady=10)
-        self.assistant_lbl = tk.Label(abar, text="特助小祕正在看今天的狀況…", font=("Microsoft JhengHei", 11),
-                                      bg=_abg, fg=TEXTCOL, justify="left", wraplength=900, anchor="w")
-        self.assistant_lbl.pack(side="left", fill="x", expand=True, pady=8)
+        tk.Label(abar, text="🤝", font=("Microsoft JhengHei", 22), bg=_abg).pack(side="left", padx=(12, 6), pady=(10, 0), anchor="n")
+        col = tk.Frame(abar, bg=_abg); col.pack(side="left", fill="x", expand=True, pady=8, padx=(0, 10))
+        self.assistant_lbl = tk.Label(col, text="特助小祕正在看今天的狀況…", font=("Microsoft JhengHei", 11),
+                                      bg=_abg, fg=TEXTCOL, justify="left", wraplength=980, anchor="w")
+        self.assistant_lbl.pack(fill="x", anchor="w")
+        # 行動按鈕列（特助直接做事）
+        actrow = tk.Frame(col, bg=_abg); actrow.pack(fill="x", pady=(8, 4))
+
+        def _ab(txt, cmd):
+            tk.Button(actrow, text=txt, font=("Microsoft JhengHei", 9), bg=CARD, fg=TEXTCOL, bd=0,
+                      padx=9, pady=4, activebackground=ACCENT2, command=cmd).pack(side="left", padx=3)
+        _ab("🎬 補產", lambda: self._assistant_act("produce"))
+        _ab("🚀 上架", lambda: self._assistant_act("publish"))
+        _ab("🏃 跑一輪", lambda: self._assistant_act("cycle"))
+        _ab("🎯 重新評分", lambda: self._assistant_act("rescore"))
+        _ab("🧹 整理倉庫", lambda: self._assistant_act("tidy"))
+        _ab("🩺 大檢查", lambda: self._assistant_act("check"))
+        _ab("🔄 刷新", lambda: self._assistant_act("refresh"))
+        # 指令框（打字叫特助做事，懂模糊講法）
+        cmdrow = tk.Frame(col, bg=_abg); cmdrow.pack(fill="x", pady=(2, 2))
+        tk.Label(cmdrow, text="跟小祕說：", font=("Microsoft JhengHei", 9), bg=_abg, fg=SUB).pack(side="left")
+        self.assistant_cmd = tk.Entry(cmdrow, font=("Microsoft JhengHei", 10), bg=PANEL, fg=TEXTCOL,
+                                      insertbackground=TEXTCOL, relief="flat", bd=0)
+        self.assistant_cmd.pack(side="left", fill="x", expand=True, padx=6, ipady=4)
+        self.assistant_cmd.bind("<Return>", lambda e: self.assistant_do())
+        tk.Button(cmdrow, text="執行", font=("Microsoft JhengHei", 9, "bold"), bg=ACCENT, fg=NAVY, bd=0,
+                  padx=12, pady=4, command=self.assistant_do).pack(side="left")
+        tk.Label(col, text="例：補產5支、上架、跑一輪、整理倉庫、門檻設75、重新評分、大檢查",
+                 font=("Microsoft JhengHei", 8), bg=_abg, fg=SUB).pack(anchor="w")
 
         # ── KPI 卡片列（4 張：訂閱 / 總觀看 / 留存 / 淨利）──
         self._kpi_labels = {"subs": "訂閱數", "views": "總觀看", "retention": "平均觀看率", "net": "淨利 NT$"}
@@ -613,6 +638,104 @@ class App(tk.Tk):
         if top and top.get("retention") is not None and top["retention"] >= 60:
             return f"最紅那支留存很高，叫產線多複製它的主題/結構衝量。"
         return "一切順、沒有要你決定的事，放心去忙 ✌"
+
+    # ── 特助會做事：按鈕 + 打字指令 ──
+    def _assistant_act(self, key, num=None):
+        """特助實際執行動作（接今天修好的前景執行路徑）。"""
+        if key == "produce":
+            if num:
+                self._cloud_op("scripts/produce_batch.py",
+                               ["--shorts", str(num), "--long", "0", "--target", "999", "--manual"], f"補產 {num} 支")
+            else:
+                self.cloud_produce()
+        elif key == "publish":
+            priv = load_directives().get("privacy", "public")
+            self._cloud_op("scripts/daily_publish.py", ["--max", "6", "--privacy", priv], "上架")
+        elif key == "cycle":
+            self.run_full_cycle()
+        elif key == "rescore":
+            self._cloud_op("scripts/quality_score.py", [], "重新評分")
+        elif key == "tidy":
+            self._cloud_op("scripts/quality_score.py", ["--tidy"], "整理倉庫")
+        elif key == "check":
+            self._cloud_op("scripts/daily_check.py", [], "每日大檢查")
+        elif key == "setmin" and num:
+            self._cloud_op("scripts/quality_score.py", ["--set-min", str(num)], f"設門檻 {num}")
+        elif key == "refresh":
+            self.fetch_stats(); self.fetch_cloud()
+        else:
+            return False
+        if key not in ("refresh",):
+            try:
+                self.assistant_lbl.config(text=f"🤝 收到，正在執行：{key}…（進度看「🎛 控制台」執行輸出或「☁ 雲端營運」）")
+            except Exception:
+                pass
+        return True
+
+    def assistant_do(self):
+        """打字叫特助做事：先規則比對(免費)，認不出來才用 haiku 解析意圖。"""
+        txt = (self.assistant_cmd.get() or "").strip()
+        if not txt:
+            return
+        self.assistant_cmd.delete(0, "end")
+        import re as _re
+        m = _re.search(r"(\d+)", txt)
+        num = int(m.group(1)) if m else None
+        rules = [
+            (("補產", "產片", "做片", "囤片", "生產"), "produce"),
+            (("上架", "發布", "發片", "上片", "公開"), "publish"),
+            (("跑一輪", "整輪", "一條龍", "全部跑", "整套"), "cycle"),
+            (("整理", "去重", "tidy"), "tidy"),
+            (("門檻", "threshold", "標準"), "setmin"),
+            (("評分", "重評", "打分", "重新評"), "rescore"),
+            (("大檢查", "體檢", "檢查", "健檢"), "check"),
+            (("刷新", "更新", "重新整理", "抓資料"), "refresh"),
+        ]
+        for kws, key in rules:
+            if any(k in txt for k in kws):
+                if key == "setmin" and not num:
+                    messagebox.showinfo("特助", "要設門檻幾分？例：門檻設 75")
+                    return
+                self._assistant_act(key, num)
+                return
+        # 規則認不出 → haiku 解析（便宜，只在模糊時用）
+        self._assistant_ai_route(txt, num)
+
+    def _assistant_ai_route(self, txt, num):
+        """用 haiku 把模糊指令對應到一個動作（省錢，只在規則 miss 時用）。"""
+        try:
+            self.assistant_lbl.config(text=f"🤝 讓我想想你說的「{txt[:20]}」…")
+        except Exception:
+            pass
+
+        def worker():
+            action = None
+            try:
+                import os as _os
+                key = _os.environ.get("ANTHROPIC_API_KEY", "").strip()
+                if key:
+                    import requests
+                    prompt = ("把老闆這句指令對應到一個動作代號，只回代號(不要其他字)："
+                              "produce(補產影片)/publish(上架)/cycle(跑完整一輪)/tidy(整理倉庫去重)/"
+                              "rescore(重新評分)/check(系統大檢查)/refresh(刷新數據)/none(都不是)。\n"
+                              f"指令：{txt}")
+                    r = requests.post("https://api.anthropic.com/v1/messages",
+                                      headers={"x-api-key": key, "anthropic-version": "2023-06-01",
+                                               "content-type": "application/json"},
+                                      json={"model": "claude-haiku-4-5-20251001", "max_tokens": 12,
+                                            "temperature": 0, "messages": [{"role": "user", "content": prompt}]},
+                                      timeout=30)
+                    action = "".join(ch for ch in r.json()["content"][0]["text"].lower() if ch.isalpha())
+            except Exception:
+                action = None
+            valid = {"produce", "publish", "cycle", "tidy", "rescore", "check", "refresh"}
+            if action in valid:
+                self.after(0, lambda: self._assistant_act(action, num))
+            else:
+                self.after(0, lambda: (self.assistant_lbl.config(
+                    text="🤝 抱歉這句我不確定要做什麼，可直接按上面的按鈕，或說：補產/上架/跑一輪/整理倉庫/重新評分/大檢查。"),
+                    messagebox.showinfo("特助", "我聽不太懂這個指令，請用按鈕或更明確的說法。")))
+        threading.Thread(target=worker, daemon=True).start()
 
     def render_dashboard(self):
         # 讀快取（由 fetch_stats 每 3 分鐘更新；避免每 8 秒打 Analytics API）

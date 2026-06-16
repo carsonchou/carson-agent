@@ -392,6 +392,7 @@ def main() -> int:
     ap.add_argument("--topic", default=None, help="指定題目（金融時事優先製作，繞過排程/題庫，立刻產 1 支）")
     ap.add_argument("--angle", default=None, help="切入點（搭配 --topic）")
     ap.add_argument("--publish", action="store_true", help="產完立刻發布（時事片用：消息面要即時上架，不等排程）")
+    ap.add_argument("--manual", action="store_true", help="手動補產：照 --shorts/--long 數量，不被人事部員額覆蓋")
     args = ap.parse_args()
 
     # 🔥 金融時事優先：給了 --topic 就立刻產 1 支相關 Short，不管排程/片庫上限。
@@ -416,8 +417,9 @@ def main() -> int:
         return 0 if slug_made else 3
 
     # 員額即產能：人事部在 headcount.json 設的 ②Shorts／①影片 員額 = 每日產出量（加員額＝加產能）。
+    # --manual（特助手動補產 N 支）時跳過員額覆蓋，照指定數量產。
     hc_path = ROOT / "STUDIO" / "headcount.json"
-    if hc_path.exists():
+    if hc_path.exists() and not args.manual:
         try:
             hc = json.loads(hc_path.read_text(encoding="utf-8"))
             if isinstance(hc.get("②"), int):
