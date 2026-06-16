@@ -549,9 +549,14 @@ class App(tk.Tk):
         # 卡片副標（綠色佐證）
         sg = analytics.get("subs_gained") if analytics else None
         self.kpi_sub["subs"].config(text=(f"近28天 +{sg}" if isinstance(sg, int) else ""))
-        self.kpi_sub["retention"].config(text=("留得住人" if analytics and analytics["avg_pct"] >= 50 else ""))
+        # 觀看卡：頭是終身累計(YPP用)，副標補近28天(＝Studio 預設窗、同 Analytics 源，方便對帳)
+        v28 = analytics.get("views") if analytics else None
+        self.kpi_sub["views"].config(text=(f"近28天 {v28:,}（同 Studio）" if isinstance(v28, int) else ""))
+        # 留存卡：補近28天觀看時數(分)，與 Studio 對齊
+        mins = analytics.get("minutes") if analytics else None
+        rt_sub = "近28天 " + (f"{mins:,} 分鐘觀看" if isinstance(mins, int) else "")
+        self.kpi_sub["retention"].config(text=(rt_sub if analytics else ""))
         self.kpi_sub["net"].config(text="（手動記帳）" if isinstance(net, (int, float)) else "")
-        self.kpi_sub["views"].config(text="")
 
         # ── YPP 進度 + 還差 ──
         for pb, key in [(self.pb_sub, "subs"), (self.pb_view, "views")]:
