@@ -34,6 +34,8 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 15 10 * * * /root/yt/run.sh scripts/multipost_upload.py --max 8 >> /root/yt/logs/cron.log 2>&1
 # 每日大檢查：整套系統體檢(腳本/排程/發布/倉庫/主機/錯誤/金鑰)，報告進「每日匯報」分頁
 30 10 * * * /root/yt/run.sh scripts/daily_check.py >> /root/yt/logs/cron.log 2>&1
+# 手機遠端指令台(Telegram，只聽授權對話)：每5分鐘讀指令，老闆出國用手機指揮全工作室
+*/5 * * * * /root/yt/run.sh scripts/telegram_command.py >> /root/yt/logs/cron.log 2>&1
 30 4 * * 0 /root/yt/run.sh scripts/train_depts.py >> /root/yt/logs/cron.log 2>&1
 0 5 * * 0 /root/yt/run.sh scripts/topic_bank.py >> /root/yt/logs/cron.log 2>&1
 # 實驗格式招牌系列：每週一/四補一批已驗證會爆的骨架題目（我給機器人$X跑Y天 / A vs B）
