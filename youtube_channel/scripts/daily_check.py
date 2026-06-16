@@ -188,6 +188,13 @@ def main() -> int:
     print(f"[{'ok' if worst != '❌' else 'FAIL'}] 每日大檢查：{verdict}，待處理 {len(all_issues)} 項 → {today()}_大檢查.md")
     for x in all_issues:
         print("  - " + x)
+    # 推播到老闆手機/信箱（出國也能瞄一眼健康狀況）
+    try:
+        from notify import push
+        body = verdict + (("\n" + "\n".join("• " + x for x in all_issues)) if all_issues else "\n一切順，放心玩。")
+        push(f"量化阿森 體檢 {today()} {worst}", body, tag=("warning" if worst != "✅" else "white_check_mark"))
+    except Exception:
+        pass
     return 0
 
 
