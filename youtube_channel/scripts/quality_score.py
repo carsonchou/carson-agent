@@ -250,7 +250,8 @@ def scan(rescore_ai=False):
         if st:
             p["views"] = st.get("views")
             p["retention"] = round(st.get("retention"), 1) if st.get("retention") is not None else None
-            p["ctr"] = round(st.get("ctr"), 1) if st.get("ctr") is not None else None
+            p["avg_dur"] = round(st.get("avg_dur")) if st.get("avg_dur") is not None else None
+            p["subs"] = st.get("subs")
     if stats:  # 有成效資料就按觀看高→低排（一眼看哪支最紅）；無資料維持頻道時間序
         published.sort(key=lambda x: (x.get("views") is None, -(x.get("views") or 0)))
     payload = {"updated": tw_now(), "min_score": min_score, "has_analytics": bool(stats),

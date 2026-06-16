@@ -1728,7 +1728,7 @@ class App(tk.Tk):
         self._btn(bar, "⟳ 重新整理", self.refresh_library_scores)
         self.lib_tree_pub = self._make_lib_zone(f, 14, [
             ("views", "觀看", 70, "center"), ("retention", "留存%", 70, "center"),
-            ("ctr", "CTR%", 62, "center"), ("score", "品質", 58, "center"), ("title", "標題", 460, "w")])
+            ("subs", "訂閱+", 60, "center"), ("score", "品質", 58, "center"), ("title", "標題", 460, "w")])
         self.lib_tree_pub.bind("<Double-1>", self._pub_open)
         ddwrap = tk.Frame(f, bg=BORDER); ddwrap.pack(fill="x", padx=18, pady=(6, 14))
         self.pub_detail = scrolledtext.ScrolledText(ddwrap, height=5, font=("Microsoft JhengHei", 10), wrap="word",
@@ -1816,8 +1816,10 @@ class App(tk.Tk):
                 return "—"
             if key == "views":
                 return f"{int(v):,}"
-            if key in ("retention", "ctr"):
+            if key == "retention":
                 return f"{v:g}%"
+            if key == "subs":
+                return f"+{int(v)}" if v else "0"
             return v
 
         def fill(tree, rows):
@@ -1852,12 +1854,13 @@ class App(tk.Tk):
                  f"總分：{'—（無本機腳本可評，如手動發布的長片）' if sc is None else sc}　"
                  f"{'已發布' if it.get('published') else '未發布（倉庫囤貨）'}"]
         if it.get("published"):
-            v = it.get("views"); rt = it.get("retention"); ct = it.get("ctr")
+            v = it.get("views"); rt = it.get("retention"); sb = it.get("subs"); dur = it.get("avg_dur")
             perf = []
             perf.append(f"👁 觀看 {int(v):,}" if v is not None else "👁 觀看 —")
             perf.append(f"⏱ 留存 {rt:g}%" if rt is not None else "⏱ 留存 —")
-            perf.append(f"🖱 CTR {ct:g}%" if ct is not None else "🖱 CTR —")
-            lines.append("近 180 天成效：" + "　".join(perf) + "（YouTube Analytics）")
+            perf.append(f"⏳ 均看 {int(dur)}秒" if dur is not None else "⏳ 均看 —")
+            perf.append(f"🔔 訂閱 +{int(sb)}" if sb is not None else "🔔 訂閱 —")
+            lines.append("近 180 天成效：" + "　".join(perf) + "（YouTube Analytics；CTR 為 Studio 限定、API 不提供）")
         ai = it.get("ai") or {}
         if ai:
             lines.append(f"AI 內容評分（各 25）：🪝 鉤子 {ai.get('hook','?')}　🎯 標題 {ai.get('title','?')}　"

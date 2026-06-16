@@ -75,31 +75,31 @@ def top_by_ctr(days=28, limit=20):
 
 
 def video_stats(days=180, limit=200):
-    """近 N 天每支影片的 觀看／留存%／CTR。回 {videoId: {views, retention, ctr}} 或 None。
-    先試含 CTR（impressionClickThroughRate，部分帳號/維度不支援），失敗退回只取觀看+留存。"""
+    """近 N 天每支影片的 觀看／留存%／平均觀看秒數／帶來訂閱數。回 {videoId: {...}} 或 None。
+    註：YouTube Analytics API 不提供 impressions/CTR（那是 Studio 網頁限定，API 會回 Unknown identifier），
+    故改用 subscribersGained（每支帶來幾個訂閱）——對成長更有意義且 API 真的支援。"""
     ya = _service()
     if ya is None:
         return None
     end = date.today(); start = end - timedelta(days=days)
-    for metrics in ("views,averageViewPercentage,impressionClickThroughRate",
-                    "views,averageViewPercentage"):
-        try:
-            r = ya.reports().query(
-                ids="channel==MINE", startDate=start.isoformat(), endDate=end.isoformat(),
-                dimensions="video", metrics=metrics, sort="-views", maxResults=limit,
-            ).execute()
-            mlist = metrics.split(",")
-            out = {}
-            for row in r.get("rows", []):
-                vid = row[0]
-                vals = {mlist[i]: row[i + 1] for i in range(len(mlist))}
-                out[vid] = {"views": vals.get("views"),
-                            "retention": vals.get("averageViewPercentage"),
-                            "ctr": vals.get("impressionClickThroughRate")}
-            return out
-        except Exception:
-            continue
-    return None
+    metrics = "views,averageViewPercentage,averageViewDuration,subscribersGained"
+    try:
+        r = ya.reports().query(
+            ids="channel==MINE", startDate=start.isoformat(), endDate=end.isoformat(),
+            dimensions="video", metrics=metrics, sort="-views", maxResults=limit,
+        ).execute()
+        mlist = metrics.split(",")
+        out = {}
+        for row in r.get("rows", []):
+            vid = row[0]
+            vals = {mlist[i]: row[i + 1] for i in range(len(mlist))}
+            out[vid] = {"views": vals.get("views"),
+                        "retention": vals.get("averageViewPercentage"),
+                        "avg_dur": vals.get("averageViewDuration"),
+                        "subs": vals.get("subscribersGained")}
+        return out
+    except Exception:
+        return None
 
 
 def impressions_ctr(days=28):
