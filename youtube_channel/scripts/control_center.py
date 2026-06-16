@@ -622,15 +622,15 @@ class App(tk.Tk):
             return
         priv = load_directives().get("privacy", "public")
         cfg = load_cloud_cfg()
-        if cfg:  # 在雲端跑整輪（背景）
+        if cfg:  # 在雲端『前景』跑整輪，輸出即時串流到雲端營運 log（背景 nohup 會被 channel 關閉殺掉、不會跑）
             self._nb.select(self._cloud_frame)
             chain = ("./run.sh scripts/decision_dept.py; "
-                     "./run.sh scripts/produce_batch.py --shorts 4 --long 1 --target 60; "
+                     "./run.sh scripts/produce_batch.py --shorts 4 --long 0 --target 60; "
                      f"./run.sh scripts/daily_publish.py --max 6 --privacy {priv}; "
                      "./run.sh scripts/retro_dept.py; ./run.sh scripts/hr_dept.py")
             self._cloud_stream(
-                f"cd {cfg['remote_root']} && nohup bash -c '{chain}' > logs/full_cycle.log 2>&1 & echo '已在雲端背景啟動整輪（看 logs/full_cycle.log）'",
-                "雲端跑一輪")
+                f"cd {cfg['remote_root']} && {chain}",
+                "雲端跑一輪（完成前請別關視窗）")
             return
         # 無雲端 → 本機跑（備援）
         self._goto_control()
@@ -884,9 +884,8 @@ class App(tk.Tk):
             return
         cfg = load_cloud_cfg()
         self._cloud_stream(
-            f"cd {cfg['remote_root']} && nohup ./run.sh scripts/produce_batch.py --shorts {n} --long 0 --target 60 "
-            f"> logs/manual_produce.log 2>&1 & echo '已在雲端背景啟動補產 {n} 支（看 logs/manual_produce.log）'",
-            f"雲端補產 {n} 支")
+            f"cd {cfg['remote_root']} && ./run.sh scripts/produce_batch.py --shorts {n} --long 0 --target 60",
+            f"雲端補產 {n} 支（完成前請別關視窗）")
 
     def cloud_schedule(self):
         if not messagebox.askyesno("📦 雲端排程囤片",
@@ -1482,9 +1481,8 @@ class App(tk.Tk):
                  "./run.sh scripts/comment_dept.py; ./run.sh scripts/thumbnail_dept.py; "
                  "./run.sh scripts/finance_dept.py; ./run.sh scripts/retro_dept.py; ./run.sh scripts/hr_dept.py")
         self._cloud_stream(
-            f"cd {cfg['remote_root']} && nohup bash -c '{chain}' > logs/activate_all.log 2>&1 & "
-            "echo '已在雲端背景啟動：全部門各跑一次（看 logs/activate_all.log）'",
-            "一鍵激活全部")
+            f"cd {cfg['remote_root']} && {chain}",
+            "一鍵激活全部（完成前請別關視窗）")
 
     # ---------- Tab: 人事部（監察 + 編制） ----------
     # 員額有真實作用：①②的員額 = 每日產出量（produce_batch 讀 headcount.json）。
@@ -2253,26 +2251,28 @@ class App(tk.Tk):
         self._goto_control(); self.run_script([script] + args, name + "(本機)")
 
     def _cloud_op(self, script, args, name):
-        """控制台日常操作：在雲端『背景』執行，輸出回控制台自己的視窗、不跳頁；無雲端則本機跑。"""
+        """控制台日常操作：在雲端『前景』執行並把輸出即時串流到控制台 log（不跳頁）；無雲端則本機跑。
+        前景＝實際會跑完（paramiko 背景 nohup 會被 channel 關閉時 SIGHUP 殺掉、根本沒跑）。"""
         cfg = load_cloud_cfg()
         if not cfg:
             self.run_script([script] + args, name + "(本機)")
             return
         argstr = " ".join(args)
-        remote = (f"cd {cfg['remote_root']} && nohup ./run.sh {script} {argstr} "
-                  f"> logs/manual_op.log 2>&1 & echo '已在雲端背景啟動：{name}（進度看雲端營運頁的 cron/日誌或下方）'")
-        self.log.insert("end", f"\n=== {name}：送往雲端執行… ===\n"); self.log.see("end")
+        remote = f"cd {cfg['remote_root']} && ./run.sh {script} {argstr}"
+        self.log.insert("end", f"\n=== {name}：雲端執行中（請稍候，完成前別關視窗）… ===\n"); self.log.see("end")
 
         def worker():
             try:
-                p = _run([str(PY), str(CLOUD_SSH), "run", remote], env=self._cloud_env(cfg),
-                                   capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=45)
-                out = (p.stdout or "").strip().splitlines()
-                msg = out[-1] if out else "已送出"
+                p = _popen([str(PY), str(CLOUD_SSH), "run", remote], env=self._cloud_env(cfg),
+                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                           encoding="utf-8", errors="replace")
+                for line in p.stdout:
+                    self.after(0, lambda ln=line: (self.log.insert("end", ln), self.log.see("end")))
+                p.wait()
+                self.after(0, lambda: (self.log.insert("end", f"=== {name} 完成 (exit {p.returncode}) ===\n"), self.log.see("end")))
             except Exception as e:  # noqa: BLE001
-                msg = f"失敗：{str(e)[:80]}"
-            self.after(0, lambda: (self.log.insert("end", msg + "\n"), self.log.see("end")))
-            self.after(1800, self.fetch_cloud)
+                self.after(0, lambda: self.log.insert("end", f"[錯誤] {str(e)[:80]}\n"))
+            self.after(0, self.fetch_cloud)
         threading.Thread(target=worker, daemon=True).start()
 
     def run_script(self, args, name):
