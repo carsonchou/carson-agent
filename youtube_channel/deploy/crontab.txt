@@ -8,6 +8,11 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 30 5 * * * /root/yt/run.sh scripts/intel_dept.py --no-learn >> /root/yt/logs/cron.log 2>&1
 35 5 * * * /root/yt/run.sh scripts/traffic_dept.py >> /root/yt/logs/cron.log 2>&1
 37 5 * * * /root/yt/run.sh scripts/decision_dept.py >> /root/yt/logs/cron.log 2>&1
+# 白帽流量三招（都在製作 06:07 前跑完，產的題目當天就做成片；錯開 5 分避免同時寫 topic_bank.json）：
+# ①搶首發熱點(插隊題庫最前) ②寄生競品爆款 ③長片切片漏斗
+45 5 * * * /root/yt/run.sh scripts/hotspot_dept.py --max 5 >> /root/yt/logs/cron.log 2>&1
+50 5 * * * /root/yt/run.sh scripts/parasite_titles.py --count 6 >> /root/yt/logs/cron.log 2>&1
+55 5 * * * /root/yt/run.sh scripts/shorts_funnel.py --max 1 --per 4 >> /root/yt/logs/cron.log 2>&1
 7 6 * * * /root/yt/run.sh scripts/produce_batch.py --shorts 13 --long 0 --target 300 >> /root/yt/logs/cron.log 2>&1
 7 9 * * * /root/yt/run.sh scripts/daily_publish.py --max 6 >> /root/yt/logs/cron.log 2>&1
 7 21 * * * /root/yt/run.sh scripts/daily_publish.py --max 6 >> /root/yt/logs/cron.log 2>&1
@@ -18,5 +23,6 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 51 9 * * * /root/yt/run.sh scripts/thumbnail_dept.py >> /root/yt/logs/cron.log 2>&1
 54 9 * * * /root/yt/run.sh scripts/comment_dept.py >> /root/yt/logs/cron.log 2>&1
 57 9 * * * /root/yt/run.sh scripts/finance_dept.py >> /root/yt/logs/cron.log 2>&1
+5 10 * * * /root/yt/run.sh scripts/multipost_dept.py --max 50 >> /root/yt/logs/cron.log 2>&1
 30 4 * * 0 /root/yt/run.sh scripts/train_depts.py >> /root/yt/logs/cron.log 2>&1
 0 5 * * 0 /root/yt/run.sh scripts/topic_bank.py >> /root/yt/logs/cron.log 2>&1

@@ -89,6 +89,43 @@ def _norm(t):
     return re.sub(r"[\s，。！？、：；…·\-—()（）]+", "", (t or "")).lower()
 
 
+def add_topics(items, source="", front=False):
+    """把外部模組（熱點/寄生/切片漏斗）產的題目併入題庫，與既有題庫＋既有影片去重。
+    items: list of dict，每筆至少 {title}；可帶 angle/category/format/parent/news/priority。
+    source: 標記來源（hotspot/parasite/funnel…），方便日後分析哪條漏斗有效。
+    front: True＝插隊到題庫最前面（produce_batch 下批優先抽到，給『搶首發』用）。
+    回傳實際新增題數。"""
+    bank = load_bank()
+    have = {_norm(t.get("title", "")) for t in bank} | {_norm(t) for t in existing_titles()}
+    new_recs = []
+    for t in items:
+        title = (t.get("title") or "").strip()
+        if not title:
+            continue
+        n = _norm(title)
+        if n in have:
+            continue
+        have.add(n)
+        rec = {
+            "id": "t" + hashlib.md5(n.encode("utf-8")).hexdigest()[:8],
+            "title": title,
+            "angle": (t.get("angle") or "").strip(),
+            "category": (t.get("category") or "").strip(),
+            "format": "long" if str(t.get("format", "")).lower().startswith("l") else "short",
+            "used": False,
+        }
+        if source:
+            rec["source"] = source
+        for k in ("parent", "news", "priority"):
+            if t.get(k):
+                rec[k] = t[k]
+        new_recs.append(rec)
+    if new_recs:
+        bank = (new_recs + bank) if front else (bank + new_recs)
+        save_bank(bank)
+    return len(new_recs)
+
+
 def gen_topics(need, avoid_titles):
     if not API_KEY:
         raise RuntimeError("無 ANTHROPIC_API_KEY")

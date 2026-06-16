@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""multipost_dept.py — 【多平台發布包｜半自動】把短片整理成 TikTok / IG Reels 可直接貼的發布包。
+"""multipost_dept.py — 【跨平台分發部門｜半自動】把短片整理成 5 平台可直接貼的發布包。
 
-為什麼半自動：TikTok/IG 全自動發布需開發者 App 審核＋(IG)商業帳號＋公開影片網址，設定多、
-對自動化敏感。本工具不碰那些 —— 你的產線本來就出直式 mp4，這裡把「新短片 + 各平台現成文案」
-整理成一份清單，你 5 分鐘抓檔貼文發出去，觸及 ×3、零帳號設定、零封號風險。
+平台：TikTok / Instagram Reels / Threads / 小紅書 / Facebook，各平台文案文化分開調。
+
+為什麼半自動：各平台全自動發布需開發者 App 審核＋(IG)商業帳號＋公開影片網址，設定多、
+對自動化敏感；小紅書更無開放發布 API。本工具不碰那些 —— 你的產線本來就出直式 mp4，這裡把
+「新短片 + 各平台現成文案」整理成清單＋機器可讀佇列(STUDIO/dist_queue.json)，你抓檔貼文即可，
+觸及 ×N、零帳號設定、零封號風險。日後若設好各平台 token，可在此基礎上接 API 改全自動。
 
 流程：找已成片但還沒打包的 Shorts → 依其 .md 產 TikTok / Reels 文案(含鉤子+Pionex+風險聲明+平台標籤)
      → 寫 STUDIO/REPORTS/{date}_多平台發布包.md（含 mp4 完整路徑可直接抓檔）→ 記入 ledger 避免重複列。
@@ -39,9 +42,24 @@ try:
 except Exception:  # noqa: BLE001
     def log_ops(d, m): pass
 
-# 平台標籤組（廣泛+利基混用；TikTok 偏好 fyp 類，IG 偏好主題標籤）
-TIKTOK_TAGS = "#量化交易 #網格交易 #定投 #被動收入 #加密貨幣 #理財 #投資理財 #Pionex #派網 #fyp #foryou"
-REELS_TAGS = "#量化交易 #網格交易 #定投 #被動收入 #加密貨幣 #理財 #投資理財 #Pionex #派網 #reels #投資"
+# 各平台「文案文化」不同：標籤組、語氣、長度都分開調，貼上去才像在地內容、不像機器轉貼。
+PLATFORMS = [
+    {"key": "tiktok",  "name": "TikTok",          "emoji": "🎵",
+     "tags": "#量化交易 #網格交易 #定投 #加密貨幣 #理財 #投資理財 #Pionex #派網 #fyp #foryou #幣圈",
+     "style": "punchy"},   # 鉤子優先、短、衝 fyp
+    {"key": "reels",   "name": "Instagram Reels", "emoji": "📸",
+     "tags": "#量化交易 #網格交易 #定投 #被動收入 #加密貨幣 #理財 #投資理財 #Pionex #派網 #reels #投資理財筆記",
+     "style": "clean"},    # 主題標籤、乾淨
+    {"key": "threads", "name": "Threads",         "emoji": "🧵",
+     "tags": "#網格交易 #幣圈",
+     "style": "talk"},     # 對話感、少標籤、結尾拋問題逼互動
+    {"key": "xhs",     "name": "小紅書",           "emoji": "📕",
+     "tags": "#網格交易 #量化交易 #理財筆記 #定投 #幣圈 #投資理財 #被動收入",
+     "style": "notes"},    # emoji 多、筆記/標題黨語氣、話題標籤
+    {"key": "fb",      "name": "Facebook",         "emoji": "👍",
+     "tags": "#量化交易 #網格交易 #Pionex #派網 #理財",
+     "style": "long"},     # 較長描述、連結可點、少標籤
+]
 
 
 def tw_today():
@@ -72,13 +90,39 @@ def parse_md(slug):
     return title, hook
 
 
-def make_caption(title, hook, tags, link):
-    lines = [f"{title}"]
-    if hook:
-        lines.append(hook + ("…" if len(hook) >= 60 else ""))
-    lines.append(f"📈 想用工具實作？Pionex 派網 👉 {link}（邀請碼 08NAcfvcWna）")
-    lines.append("⚠️ 投資有風險，內容為教學分享，非投資建議。")
-    lines.append(tags)
+def make_caption(plat, title, hook, link):
+    """依平台文化客製文案：同一支片、五種口吻，貼哪個平台都像在地內容。"""
+    style, tags = plat["style"], plat["tags"]
+    hk = (hook + ("…" if len(hook) >= 60 else "")) if hook else ""
+    risk = "⚠️ 投資有風險，內容為教學分享，非投資建議。"
+    pio = f"工具：Pionex 派網 👉 {link}（邀請碼 08NAcfvcWna）"
+
+    if style == "punchy":          # TikTok：鉤子先行、短、衝 fyp
+        lines = [title]
+        if hk:
+            lines.append(hk)
+        lines += ["你也踩過這雷嗎👇", f"📈 {pio}", risk, tags]
+    elif style == "clean":         # IG Reels：乾淨、主題標籤
+        lines = [title]
+        if hk:
+            lines.append(hk)
+        lines += [f"📈 {pio}", risk, "", tags]
+    elif style == "talk":          # Threads：對話感、結尾拋問題逼互動、少標籤
+        lines = [title]
+        if hk:
+            lines.append(hk)
+        lines += ["你會停手還是加碼？留言聊聊👇", f"（{pio}）", risk, tags]
+    elif style == "notes":         # 小紅書：emoji 多、筆記/標題黨語氣
+        lines = [f"💡{title}", ""]
+        if hk:
+            lines.append("📌 " + hk)
+        lines += ["✅ 重點我幫你整理在影片裡，3 分鐘看懂",
+                  f"🔧 {pio}", risk, "", tags]
+    else:                          # Facebook：較長描述、連結可點
+        lines = [title, ""]
+        if hk:
+            lines.append(hk)
+        lines += ["", f"📈 想自己動手實作？{pio}", risk, "", tags]
     return "\n".join(lines)
 
 
@@ -110,9 +154,12 @@ def main() -> int:
     date = tw_today()
     REPORTS.mkdir(parents=True, exist_ok=True)
     link = aff_link()
+    plats_line = "／".join(p["name"] for p in PLATFORMS)
     L = [f"# 📲 多平台發布包｜{date}", "",
-         f"> 共 {len(shorts)} 支待發布短片。**做法**：抓下方 mp4 路徑的檔案 → 到 TikTok／IG Reels App 上傳 → "
-         "貼上對應文案發布。直式 <60 秒、零額外製作，觸及 ×3。", ""]
+         f"> 共 {len(shorts)} 支待發布短片 × {len(PLATFORMS)} 平台（{plats_line}）。",
+         "> **做法**：抓下方 mp4 → 到各 App 上傳 → 貼上對應平台文案。直式 <60 秒、零額外製作，觸及 ×N。",
+         "> 💡 小紅書無開放發布 API、只能手貼；其餘平台若日後設定好 token 可改全自動（見 README）。", ""]
+    queue = []   # 機器可讀佇列：未來接 API 自動發、或給決策中心顯示用
     if not shorts:
         L.append("（目前沒有新的待發布短片——都打包過了，或還沒產新片）")
     for i, p in enumerate(shorts, 1):
@@ -120,17 +167,24 @@ def main() -> int:
         title, hook = parse_md(slug)
         size_mb = round(p.stat().st_size / 1e6, 1)
         L += [f"## {i}. {title}",
-              f"- 🎬 影片檔（直接抓）：`{p}`（{size_mb} MB）",
-              "",
-              "**▼ TikTok 文案（複製貼上）**", "```", make_caption(title, hook, TIKTOK_TAGS, link), "```",
-              "**▼ Instagram Reels 文案（複製貼上）**", "```", make_caption(title, hook, REELS_TAGS, link), "```",
-              ""]
+              f"- 🎬 影片檔（直接抓）：`{p}`（{size_mb} MB）", ""]
+        caps = {}
+        for plat in PLATFORMS:
+            cap = make_caption(plat, title, hook, link)
+            caps[plat["key"]] = cap
+            L += [f"**▼ {plat['emoji']} {plat['name']} 文案（複製貼上）**", "```", cap, "```"]
+        L.append("")
+        queue.append({"slug": slug, "title": title, "file": str(p), "captions": caps})
         packaged.add(slug)
 
     (REPORTS / f"{date}_多平台發布包.md").write_text("\n".join(L), encoding="utf-8")
+    # 機器可讀佇列（給未來的自動發布器 / 決策中心讀）
+    (STUDIO / "dist_queue.json").write_text(
+        json.dumps({"date": date, "platforms": [p["key"] for p in PLATFORMS], "items": queue},
+                   ensure_ascii=False, indent=2), encoding="utf-8")
     save_ledger(packaged)
-    log_ops("多平台發布", f"打包 {len(shorts)} 支待發布短片 → {date}_多平台發布包.md")
-    print(f"[ok] 多平台發布包完成：{len(shorts)} 支短片待你貼到 TikTok/Reels。")
+    log_ops("多平台分發", f"打包 {len(shorts)} 支 × {len(PLATFORMS)} 平台 → {date}_多平台發布包.md")
+    print(f"[ok] 多平台發布包完成：{len(shorts)} 支短片 × {len(PLATFORMS)} 平台文案已備妥。")
     return 0
 
 
