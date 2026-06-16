@@ -1780,10 +1780,19 @@ class App(tk.Tk):
         if not it:
             return
         self.lib_detail.delete("1.0", "end")
-        lines = [f"標題：{it.get('title','')}", f"slug：{it['slug']}　分數：{it.get('score',0)}　"
-                 f"狀態：{it.get('status','')}　{'已發布' if it.get('published') else '未發布（囤貨）'}"]
+        lines = [f"標題：{it.get('title','')}", f"slug：{it['slug']}　總分：{it.get('score',0)}　"
+                 f"狀態：{it.get('status','')}　{'已發布' if it.get('published') else '未發布（倉庫囤貨）'}"]
+        ai = it.get("ai") or {}
+        if ai:
+            lines.append(f"AI 內容評分（各 25）：🪝 鉤子 {ai.get('hook','?')}　🎯 標題 {ai.get('title','?')}　"
+                         f"📚 內容 {ai.get('content','?')}　🛡 誠信 {ai.get('honesty','?')}")
+            if ai.get("note"):
+                lines.append(f"💡 最該改：{ai['note']}")
+        else:
+            lines.append("AI 內容評分：尚未評（無腳本或未跑），按「🔄 重新評分」")
         rs = it.get("reasons", [])
-        lines.append("品管細項：" + ("、".join(rs) if rs else "全部通過，無扣分項 ✅"))
+        if rs:
+            lines.append("⚠ 品管硬傷扣分：" + "、".join(rs))
         if it.get("videoId"):
             lines.append(f"YouTube：https://youtu.be/{it['videoId']}")
         self.lib_detail.insert("1.0", "\n".join(lines))

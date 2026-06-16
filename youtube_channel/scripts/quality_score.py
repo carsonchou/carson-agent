@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""quality_score.py — 【片庫評分官】給每支片 0–100 分＋依門檻判 pass/退件，供決策中心檢視。
+"""quality_score.py — 【倉庫評分官】給每支片 0–100 分＋依門檻判 pass/退件，供決策中心檢視。
 
 評分＝規則式（不耗 AI、可無人值守）：以 audit_video 的檢查項目逐條扣分。
 狀態：score < min_score → reject（建議退件重做）；否則 pass。min_score 存 boss_directives.json。
-輸出 STUDIO/quality_scores.json 給 control_center『🎬 片庫評分』分頁讀。
+輸出 STUDIO/quality_scores.json 給 control_center『🎬 倉庫評分』分頁讀。
 
 用法：
-  python scripts/quality_score.py                 # 掃全片庫、評分、寫 quality_scores.json
+  python scripts/quality_score.py                 # 掃全倉庫、評分、寫 quality_scores.json
   python scripts/quality_score.py --set-min 75    # 設退件門檻為 75 分
   python scripts/quality_score.py --reject S_xxx  # 退件重做：隔離該片+釋放題目，下輪自動補產
   python scripts/quality_score.py --auto-reject    # 把低於門檻且『未發布』的自動退件（給排程用）
@@ -45,13 +45,60 @@ except Exception:  # noqa: BLE001
     def log_ops(stage, msg): pass
 
 import audit_video
+import os
+import re
 
-# audit reason 關鍵字 → 扣分權重
+API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+AI_MODEL = "claude-haiku-4-5-20251001"  # 便宜，評分夠用
+
+# audit reason 關鍵字 → 硬扣分（技術/誠信硬傷，AI 分數之上再扣）
 DEDUCT = [
     ("mp4 不存在", 100), ("無視訊軌", 45), ("無音軌", 45), ("片長過短", 35),
-    ("檔案過小", 30), (".md 腳本不存在", 25), ("禁語", 40), ("Shorts 超過", 18),
+    ("檔案過小", 30), (".md 腳本不存在", 25), ("禁語", 50), ("Shorts 超過", 18),
     ("缺影片標題", 15), ("缺風險聲明", 12),
 ]
+
+
+def _read_script(slug):
+    """讀該片的標題＋旁白逐字稿，給 AI 評分。"""
+    voice = OUT / f"{slug}.voice.txt"
+    txt = voice.read_text(encoding="utf-8") if voice.exists() else ""
+    return title_of(slug), txt[:1400]
+
+
+def ai_score(slug):
+    """Claude 真讀腳本，依四面向各 0–25 評分（鉤子/標題CTR/內容/誠信），回 dict 或 None。"""
+    if not API_KEY:
+        return None
+    import requests
+    title, voice = _read_script(slug)
+    if len(voice) < 40:
+        return None
+    prompt = (
+        "你是量化阿森（量化/網格/派網/回測/風控，繁中 faceless 短影音）的品管評審。"
+        "依下列四面向為這支 Shorts 腳本評分，每項 0–25，嚴格、有鑑別度（別都給高分）：\n"
+        "①hook 前2秒鉤子抓不抓得住 ②title 標題點擊慾/公式 ③content 內容紮實正確清晰 "
+        "④honesty 誠信合規（不誇大不喊單、有風險意識、不空泛）。\n"
+        f"標題：{title}\n旁白逐字稿：{voice}\n\n"
+        '只輸出 JSON（不要其他字）：{"hook":N,"title":N,"content":N,"honesty":N,"note":"一句最該改的具體建議"}'
+    )
+    try:
+        r = requests.post("https://api.anthropic.com/v1/messages",
+                          headers={"x-api-key": API_KEY, "anthropic-version": "2023-06-01",
+                                   "content-type": "application/json"},
+                          json={"model": AI_MODEL, "max_tokens": 400,
+                                "messages": [{"role": "user", "content": prompt}]}, timeout=60)
+        r.raise_for_status()
+        m = re.search(r"\{.*\}", r.json()["content"][0]["text"], re.S)
+        if not m:
+            return None
+        d = json.loads(m.group(0))
+        for k in ("hook", "title", "content", "honesty"):
+            d[k] = max(0, min(25, int(d.get(k, 0))))
+        d["total"] = d["hook"] + d["title"] + d["content"] + d["honesty"]
+        return d
+    except Exception:
+        return None
 
 
 def tw_now():
@@ -77,8 +124,9 @@ def set_min(n):
     d = _load(DIRECTIVES, {})
     d["min_score"] = int(n)
     DIRECTIVES.write_text(json.dumps(d, ensure_ascii=False, indent=2), encoding="utf-8")
-    log_ops("片庫評分", f"退件門檻設為 {n} 分")
-    print(f"[ok] 退件門檻 → {n} 分")
+    log_ops("倉庫評分", f"退件門檻設為 {n} 分")
+    print(f"[ok] 退件門檻 → {n} 分，重新評定 pass/退件…")
+    scan(rescore_ai=False)  # 用快取分數依新門檻重判 pass/退件（快、不重跑 AI）
 
 
 def title_of(slug):
@@ -92,13 +140,15 @@ def title_of(slug):
     return slug
 
 
-def score_one(slug):
+def score_one(slug, ai):
+    """合成分數＝AI 內容分(0-100) 再扣 audit 硬傷；無 AI 可評時退回合規分(100-硬扣)。"""
     ok, reasons = audit_video.audit(slug)
-    total = 0
-    for kw, w in DEDUCT:
-        if any(kw in r for r in reasons):
-            total += w
-    return max(0, 100 - total), reasons
+    ded = sum(w for kw, w in DEDUCT if any(kw in r for r in reasons))
+    if ai:
+        score = max(0, min(100, ai["total"] - ded))
+    else:
+        score = max(0, 100 - ded)
+    return score, reasons
 
 
 def all_slugs():
@@ -110,23 +160,31 @@ def all_slugs():
     return sorted(slugs)
 
 
-def scan():
+def scan(rescore_ai=False):
     ledger = _load(LEDGER, {})
     min_score = get_min()
     prev = {i["slug"]: i for i in _load(SCORES, {}).get("items", [])}
     items = []
+    new_ai = 0
     for slug in all_slugs():
-        sc, reasons = score_one(slug)
-        published = slug in ledger
-        # 已被人工退件的保留 reject 狀態；否則依門檻
         was = prev.get(slug, {})
+        # AI 分數快取：沒評過(或強制)才呼叫 Claude，省錢省時；門檻變更時直接用快取重判
+        if rescore_ai or "ai" not in was:
+            ai = ai_score(slug)
+            if ai:
+                new_ai += 1
+        else:
+            ai = was.get("ai")
+        sc, reasons = score_one(slug, ai)
+        published = slug in ledger
         if was.get("status") == "rejected_manual":
             status = "rejected_manual"
         else:
             status = "reject" if sc < min_score else "pass"
         items.append({
             "slug": slug, "title": title_of(slug), "score": sc,
-            "status": status, "reasons": reasons,
+            "status": status, "reasons": reasons, "ai": ai,
+            "ai_note": (ai or {}).get("note", ""),
             "published": published, "videoId": ledger.get(slug, ""),
         })
     items.sort(key=lambda x: (x["published"], x["score"]))  # 未發布+低分排前面（最需要處理）
@@ -139,8 +197,8 @@ def scan():
     STUDIO.mkdir(parents=True, exist_ok=True)
     SCORES.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     s = payload["summary"]
-    log_ops("片庫評分", f"評分 {s['total']} 支：pass {s['pass']}／退件建議 {s['reject']}（門檻{min_score}）")
-    print(f"[ok] 片庫評分完成：{s['total']} 支，pass {s['pass']}／退件 {s['reject']}，門檻 {min_score} → quality_scores.json")
+    log_ops("倉庫評分", f"評分 {s['total']} 支：pass {s['pass']}／退件建議 {s['reject']}（門檻{min_score}、新評AI {new_ai}）")
+    print(f"[ok] 倉庫評分完成：{s['total']} 支，pass {s['pass']}／退件 {s['reject']}，門檻 {min_score}，本次新評 AI {new_ai} 支 → quality_scores.json")
     return payload
 
 
@@ -181,7 +239,7 @@ def reject(slug, manual=True):
         if i["slug"] == slug:
             i["status"] = "rejected_manual"
     SCORES.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-    log_ops("片庫評分", f"退件重做：{title[:24]}（隔離 {moved} 檔、釋放題目待補產）")
+    log_ops("倉庫評分", f"退件重做：{title[:24]}（隔離 {moved} 檔、釋放題目待補產）")
     print(f"[ok] 已退件：{slug}（隔離 {moved} 檔，釋放題目，下輪自動補產新片）")
     return 0
 
@@ -193,7 +251,7 @@ def auto_reject():
     for i in data["items"]:
         if (not i["published"]) and i["status"] == "reject":
             reject(i["slug"], manual=False); n += 1
-    log_ops("片庫評分", f"自動退件 {n} 支未發布低分片")
+    log_ops("倉庫評分", f"自動退件 {n} 支未發布低分片")
     print(f"[ok] 自動退件 {n} 支（未發布、低於門檻 {data['min_score']}）。")
     return 0
 
@@ -203,6 +261,7 @@ def main() -> int:
     ap.add_argument("--set-min", type=int, default=None)
     ap.add_argument("--reject", default=None)
     ap.add_argument("--auto-reject", action="store_true")
+    ap.add_argument("--rescore-ai", action="store_true", help="強制全部重跑 AI 內容評分（平常用快取）")
     args = ap.parse_args()
     if args.set_min is not None:
         set_min(args.set_min); return 0
@@ -210,7 +269,7 @@ def main() -> int:
         return reject(args.reject)
     if args.auto_reject:
         return auto_reject()
-    scan()
+    scan(rescore_ai=args.rescore_ai)
     return 0
 
 
