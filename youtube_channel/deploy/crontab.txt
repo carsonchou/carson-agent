@@ -30,6 +30,8 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 54 9 * * * /root/yt/run.sh scripts/comment_dept.py >> /root/yt/logs/cron.log 2>&1
 57 9 * * * /root/yt/run.sh scripts/finance_dept.py >> /root/yt/logs/cron.log 2>&1
 5 10 * * * /root/yt/run.sh scripts/multipost_dept.py --max 50 >> /root/yt/logs/cron.log 2>&1
+# 跨平台真上傳(TikTok/IG via upload-post)：無 UPLOAD_POST_API_KEY 會優雅跳過，金鑰一到即生效
+15 10 * * * /root/yt/run.sh scripts/multipost_upload.py --max 8 >> /root/yt/logs/cron.log 2>&1
 # 每日大檢查：整套系統體檢(腳本/排程/發布/倉庫/主機/錯誤/金鑰)，報告進「每日匯報」分頁
 30 10 * * * /root/yt/run.sh scripts/daily_check.py >> /root/yt/logs/cron.log 2>&1
 30 4 * * 0 /root/yt/run.sh scripts/train_depts.py >> /root/yt/logs/cron.log 2>&1
