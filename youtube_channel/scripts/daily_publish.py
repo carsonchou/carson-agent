@@ -40,6 +40,20 @@ OUTPUT = PROJECT_ROOT / "output"
 THUMBS = PROJECT_ROOT / "assets" / "thumbnails"
 LEDGER = PROJECT_ROOT / "STUDIO" / "uploaded_ledger.json"
 REPORTS = PROJECT_ROOT / "STUDIO" / "REPORTS"
+QSCORES = PROJECT_ROOT / "STUDIO" / "quality_scores.json"
+
+
+def load_quality():
+    """讀品質評分：回 ({slug:score}, min_score)。沒檔就回 ({}, 0)＝不擋(fail-open)。"""
+    try:
+        d = json.loads(QSCORES.read_text(encoding="utf-8"))
+        m = {}
+        for it in d.get("pending", []) + d.get("published", []):
+            if it.get("score") is not None:
+                m[it["slug"]] = it["score"]
+        return m, int(d.get("min_score", 0))
+    except Exception:
+        return {}, 0
 
 
 def tw_today() -> str:
@@ -183,17 +197,23 @@ def main() -> int:
     ledger = load_ledger()
     cands = find_candidates(ledger)
 
-    # 【審核部門】逐支品管+誠信把關，收集 PASS 直到達每日上限；FAIL 隔離不發
+    # 【審核部門】逐支品管+誠信把關 + 品質門檻；收集 PASS 直到達每日上限
+    qmap, qmin = load_quality()
     todo, quarantined = [], []
     for slug in cands:
         ok, reasons = audit_video.audit(slug)
-        if ok:
-            todo.append(slug)
-            if len(todo) >= args.max:
-                break
-        else:
+        if not ok:
             quarantined.append((slug, reasons))
             print(f"[審核未過] {slug}：{'; '.join(reasons)}")
+            continue
+        sc = qmap.get(slug)
+        if sc is not None and qmin and sc < qmin:   # 品質低於門檻：不發布(只擋已評分的)
+            quarantined.append((slug, [f"品質 {sc} 分 < 門檻 {qmin}"]))
+            print(f"[品質未達門檻] {slug}：{sc} 分 < {qmin}，暫不發布")
+            continue
+        todo.append(slug)
+        if len(todo) >= args.max:
+            break
 
     if not todo:
         print("[info] 沒有通過審核且待上傳的新成片。")

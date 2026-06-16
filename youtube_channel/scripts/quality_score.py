@@ -86,7 +86,7 @@ def ai_score(slug):
         r = requests.post("https://api.anthropic.com/v1/messages",
                           headers={"x-api-key": API_KEY, "anthropic-version": "2023-06-01",
                                    "content-type": "application/json"},
-                          json={"model": AI_MODEL, "max_tokens": 400,
+                          json={"model": AI_MODEL, "max_tokens": 400, "temperature": 0,
                                 "messages": [{"role": "user", "content": prompt}]}, timeout=60)
         r.raise_for_status()
         m = re.search(r"\{.*\}", r.json()["content"][0]["text"], re.S)
