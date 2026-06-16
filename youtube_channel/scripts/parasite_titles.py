@@ -29,6 +29,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 STUDIO = ROOT / "STUDIO"
 INTEL = STUDIO / "intel.json"
+OUTLIERS = STUDIO / "outliers.json"
 ANALYSIS = ROOT / "competitor_analysis.md"
 API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
 MODEL = "claude-sonnet-4-6"   # 要創意＋懂寄生分寸，用較強模型
@@ -45,13 +46,30 @@ except Exception:  # noqa: BLE001
 
 
 def _top_competitors(n=15):
-    """讀競品情報部最近撈到的高觀看競品標題（最新鮮的寄生標的）。"""
+    """寄生標的＝優先用 outlier_scan 抓的『異常爆款』（觀看÷訂閱衝出訂閱牆＝被驗證會爆的格式），
+    再補 intel.json 的高觀看競品。去重，最多回 n 支。"""
+    picks, seen = [], set()
+    # 1) 異常爆款優先（1of10 訊號）
+    try:
+        d = json.loads(OUTLIERS.read_text(encoding="utf-8"))
+        for o in d.get("outliers", []):
+            t = o.get("title", "")
+            if t and t not in seen:
+                seen.add(t)
+                picks.append((f"[爆款×{o.get('ratio','?')}] {t}", o.get("channel", ""), o.get("views", 0)))
+    except Exception:
+        pass
+    # 2) 補 intel.json 高觀看競品
     try:
         d = json.loads(INTEL.read_text(encoding="utf-8"))
-        return [(t.get("title", ""), t.get("channel", ""), t.get("views", 0))
-                for t in d.get("top", [])][:n]
+        for t in d.get("top", []):
+            ti = t.get("title", "")
+            if ti and ti not in seen:
+                seen.add(ti)
+                picks.append((ti, t.get("channel", ""), t.get("views", 0)))
     except Exception:
-        return []
+        pass
+    return picks[:n]
 
 
 def _analysis_tail(chars=2500):
