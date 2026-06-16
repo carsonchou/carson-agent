@@ -255,6 +255,13 @@ class App(tk.Tk):
         style.configure("Vertical.TScrollbar", background=BORDER, troughcolor=NAVY,
                         bordercolor=NAVY, arrowcolor=SUB, borderwidth=0)
         style.map("Vertical.TScrollbar", background=[("active", ACCENT2)])
+        # Treeview（倉庫評分清單）：融入深色主題，不要預設白底醜表格
+        style.configure("Lib.Treeview", background=CARD, fieldbackground=CARD, foreground=TEXTCOL,
+                        borderwidth=0, rowheight=30, font=("Microsoft JhengHei", 10))
+        style.configure("Lib.Treeview.Heading", background=PANEL, foreground=SUB, borderwidth=0,
+                        relief="flat", font=("Microsoft JhengHei", 10, "bold"), padding=(8, 6))
+        style.map("Lib.Treeview.Heading", background=[("active", "#1d2c4d")])
+        style.map("Lib.Treeview", background=[("selected", ACCENT2)], foreground=[("selected", "#0b1224")])
 
         nb = ttk.Notebook(self)
         nb.pack(fill="both", expand=True, padx=16, pady=8)
@@ -493,7 +500,7 @@ class App(tk.Tk):
         parts = [f"{greet}，我是你的特助小祕。"]
         if cloud:
             run = "正在趕工 🎬" if cloud.get("render_running") else "暫時休息"
-            parts.append(f"雲端今天做了 {cloud.get('produced_today', 0)} 支、片庫 {cloud.get('queue', 0)} 支（{run}）。")
+            parts.append(f"雲端今天做了 {cloud.get('produced_today', 0)} 支、倉庫 {cloud.get('queue', 0)} 支（{run}）。")
             if cloud.get("errors_recent"):
                 parts.append(f"⚠ 有 {cloud['errors_recent']} 條異常我盯著。")
         elif getattr(self, "_cloud_state", "") == "offline":
@@ -556,7 +563,7 @@ class App(tk.Tk):
         pub = len(json.loads(LEDGER.read_text(encoding="utf-8"))) if LEDGER.exists() else 0
         paused = load_directives().get("paused", False)
         self.fac_lbl.config(
-            text=f"{len(DEPTS)} 部門　｜　片庫 {q} 支　｜　累計上架 {pub} 支　｜　"
+            text=f"{len(DEPTS)} 部門　｜　倉庫 {q} 支　｜　累計上架 {pub} 支　｜　"
                  + ("⏸ 已暫停" if paused else "▶ 全自動運轉中"))
         # 戰略 + 待拍板（線上時戰略以雲端為準）
         cloud = self._cloud if (getattr(self, "_cloud_state", "") == "online" and self._cloud) else None
@@ -630,8 +637,8 @@ class App(tk.Tk):
         self.cloud_sub = tk.Label(top, text="", font=("Microsoft JhengHei", 9), bg=CARD, fg=SUB)
         self.cloud_sub.pack(side="right", padx=12)
 
-        # 雲端 KPI 四卡（片庫 / 今日已產 / 累計上架 / 排程囤片剩餘）
-        self._cloud_kpi_labels = {"queue": "雲端片庫", "produced": "今日已產",
+        # 雲端 KPI 四卡（倉庫 / 今日已產 / 累計上架 / 排程囤片剩餘）
+        self._cloud_kpi_labels = {"queue": "雲端倉庫", "produced": "今日已產",
                                   "published": "累計上架", "buffer": "排程囤片剩餘"}
         self.cloud_kpi = {}
         krow = tk.Frame(f, bg=NAVY); krow.pack(fill="x", padx=12, pady=(2, 2))
@@ -820,7 +827,7 @@ class App(tk.Tk):
         if oneline:
             bc = d.get("buffer_count", 0)
             oneline.config(
-                text=f"☁ 雲端：🟢 線上　｜　片庫 {d.get('queue',0)} 支　｜　今日已產 {d.get('produced_today',0)}　"
+                text=f"☁ 雲端：🟢 線上　｜　倉庫 {d.get('queue',0)} 支　｜　今日已產 {d.get('produced_today',0)}　"
                      f"｜　累計上架 {d.get('published_total',0)}　｜　排程囤片 {bc} 支　｜　{render_txt}",
                 fg=(GREEN if not errn else ACCENT))
 
@@ -878,7 +885,7 @@ class App(tk.Tk):
             f"雲端排程囤片 {days} 天", logbox=getattr(self, "log", None))
 
     def cloud_publish(self):
-        if not messagebox.askyesno("🚀 雲端立即上架", "在雲端立即把片庫的影片上架（公開）？"):
+        if not messagebox.askyesno("🚀 雲端立即上架", "在雲端立即把倉庫的影片上架（公開）？"):
             return
         cfg = load_cloud_cfg()
         priv = load_directives().get("privacy", "public")
@@ -1654,42 +1661,63 @@ class App(tk.Tk):
         return "\n".join(L)
 
     # ---------- Tab 1: 匯報 ----------
-    # ---------- Tab: 片庫評分（每部片品質分數＋退件重做） ----------
+    # ---------- Tab: 倉庫評分（每部片品質分數＋退件重做） ----------
     def tab_library(self, nb):
-        f = tk.Frame(nb, bg=NAVY); nb.add(f, text="🎬 片庫評分")
-        top = tk.Frame(f, bg=NAVY); top.pack(fill="x", padx=16, pady=(12, 2))
-        self.lib_summary = tk.Label(top, text="載入中…", font=FONT_B, bg=NAVY, fg=ACCENT)
-        self.lib_summary.pack(side="left")
-        tk.Label(f, text="每支片自動品管評分（0–100）；低於門檻＝建議退件重做。製作細項點下方清單看「品管細項」。",
-                 font=("Microsoft JhengHei", 9), bg=NAVY, fg=SUB).pack(anchor="w", padx=16)
-        thr = tk.Frame(f, bg=NAVY); thr.pack(fill="x", padx=16, pady=(6, 6))
-        tk.Label(thr, text="退件門檻分數：", font=FONT, bg=NAVY, fg=TEXTCOL).pack(side="left")
+        f = tk.Frame(nb, bg=NAVY); nb.add(f, text="🎬 倉庫評分")
+        self._section(f, "🎬 倉庫品質評分")
+        # 摘要列（卡片）
+        sumwrap = tk.Frame(f, bg=BORDER); sumwrap.pack(fill="x", padx=18, pady=(2, 6))
+        sumcard = tk.Frame(sumwrap, bg=CARD); sumcard.pack(fill="x", padx=1, pady=1)
+        tk.Frame(sumcard, bg=ACCENT, height=3).pack(fill="x")
+        self.lib_summary = tk.Label(sumcard, text="載入中…", font=("Microsoft JhengHei", 11, "bold"),
+                                    bg=CARD, fg=TEXTCOL, anchor="w", justify="left", padx=14, pady=10)
+        self.lib_summary.pack(fill="x")
+        tk.Label(f, text="每支片自動品管評分 0–100；低於門檻＝建議退件重做。點清單任一列可看製作品管細項。",
+                 font=("Microsoft JhengHei", 9), bg=NAVY, fg=SUB).pack(anchor="w", padx=20, pady=(0, 2))
+        # 工具列（門檻 + 動作）
+        thr = tk.Frame(f, bg=NAVY); thr.pack(fill="x", padx=18, pady=(4, 8))
+        tk.Label(thr, text="退件門檻", font=FONT, bg=NAVY, fg=SUB).pack(side="left")
         self.lib_thresh = tk.IntVar(value=70)
-        tk.Spinbox(thr, from_=0, to=100, width=5, textvariable=self.lib_thresh, font=FONT,
-                   bg=CARD, fg=TEXTCOL, buttonbackground=CARD, bd=0).pack(side="left", padx=6)
+        tk.Spinbox(thr, from_=0, to=100, width=4, textvariable=self.lib_thresh,
+                   font=("Microsoft JhengHei", 11, "bold"), justify="center",
+                   bg=PANEL, fg=ACCENT, buttonbackground=CARD, bd=0, relief="flat",
+                   highlightthickness=1, highlightbackground=BORDER).pack(side="left", padx=(6, 2))
+        tk.Label(thr, text="分", font=FONT, bg=NAVY, fg=SUB).pack(side="left", padx=(0, 8))
         self._btn(thr, "✔ 設定門檻", self.lib_set_threshold)
-        self._btn(thr, "🔄 重新評分(雲端)", self.lib_rescore)
+        self._btn(thr, "🔄 重新評分", self.lib_rescore)
         self._btn(thr, "⟳ 重新整理", self.refresh_library_scores)
-        self._btn(thr, "🧹 自動退件低分未發布片", self.lib_auto_reject)
-        mid = tk.Frame(f, bg=NAVY); mid.pack(fill="both", expand=True, padx=16, pady=4)
+        self._btn(thr, "🧹 自動退件低分片", self.lib_auto_reject)
+        # 清單（深色 Treeview + 卡框）
+        midwrap = tk.Frame(f, bg=BORDER); midwrap.pack(fill="both", expand=True, padx=18, pady=4)
+        mid = tk.Frame(midwrap, bg=CARD); mid.pack(fill="both", expand=True, padx=1, pady=1)
         cols = ("score", "status", "pub", "title")
-        self.lib_tree = ttk.Treeview(mid, columns=cols, show="headings", height=15)
-        for c, t, w in [("score", "分數", 60), ("status", "狀態", 100), ("pub", "發布", 56), ("title", "標題", 560)]:
+        self.lib_tree = ttk.Treeview(mid, columns=cols, show="headings", height=14, style="Lib.Treeview")
+        for c, t, w, anc in [("score", "分數", 70, "center"), ("status", "狀態", 110, "center"),
+                             ("pub", "發布", 60, "center"), ("title", "標題", 540, "w")]:
             self.lib_tree.heading(c, text=t)
-            self.lib_tree.column(c, width=w, anchor="w")
-        self.lib_tree.pack(side="left", fill="both", expand=True)
+            self.lib_tree.column(c, width=w, anchor=anc)
+        self.lib_tree.pack(side="left", fill="both", expand=True, padx=2, pady=2)
         sb = ttk.Scrollbar(mid, orient="vertical", command=self.lib_tree.yview)
         self.lib_tree.configure(yscrollcommand=sb.set); sb.pack(side="right", fill="y")
         self.lib_tree.bind("<<TreeviewSelect>>", self._lib_show_detail)
+        # 狀態色＋斑馬紋
         self.lib_tree.tag_configure("reject", foreground=RED)
         self.lib_tree.tag_configure("pass", foreground=GREEN)
-        act = tk.Frame(f, bg=NAVY); act.pack(fill="x", padx=16, pady=4)
-        self._btn(act, "❌ 退件重做（選中項）", self.lib_reject_selected)
-        tk.Label(act, text="　退件＝隔離該片＋釋放題目，下輪雲端自動補產新的（已發布片只隔離本機檔，不動線上）",
+        self.lib_tree.tag_configure("odd", background="#142039")
+        self.lib_tree.tag_configure("even", background=CARD)
+        # 動作列
+        act = tk.Frame(f, bg=NAVY); act.pack(fill="x", padx=18, pady=(8, 2))
+        tk.Button(act, text="❌ 退件重做（選中項）", font=FONT_B, bg="#3a1620", fg=RED, bd=0,
+                  padx=14, pady=7, activebackground=RED, activeforeground="#fff",
+                  command=self.lib_reject_selected).pack(side="left")
+        tk.Label(act, text="  退件＝隔離該片＋釋放題目，下輪雲端自動補產新的（已發布片只隔離本機檔、不動線上）",
                  font=("Microsoft JhengHei", 9), bg=NAVY, fg=SUB).pack(side="left")
-        self.lib_detail = scrolledtext.ScrolledText(f, height=6, font=("Microsoft JhengHei", 10), wrap="word",
-                                                    bg="#0a1020", fg=TEXTCOL, bd=0, padx=10, pady=8)
-        self.lib_detail.pack(fill="x", padx=16, pady=(4, 12))
+        self._section(f, "🔍 品管細項（製作過程）")
+        dwrap = tk.Frame(f, bg=BORDER); dwrap.pack(fill="x", padx=18, pady=(2, 14))
+        self.lib_detail = scrolledtext.ScrolledText(dwrap, height=6, font=("Microsoft JhengHei", 10), wrap="word",
+                                                    bg="#0a1020", fg=TEXTCOL, bd=0, padx=12, pady=10,
+                                                    insertbackground=TEXTCOL)
+        self.lib_detail.pack(fill="x", padx=1, pady=1)
         self._lib_items = []
         self.refresh_library_scores()
 
@@ -1727,21 +1755,22 @@ class App(tk.Tk):
         except Exception:
             pass
         self.lib_summary.config(
-            text=f"🎬 片庫 {s.get('total',0)} 支　・　✅ pass {s.get('pass',0)}　・　❌ 退件建議 {s.get('reject',0)}"
-                 f"　・　已發布 {s.get('published',0)}　・　門檻 {mn} 分　（更新：{data.get('updated','—')}）")
+            text=f"🎬 倉庫 {s.get('total',0)} 支　｜　✅ 通過 {s.get('pass',0)}　｜　⚠️ 建議退件 {s.get('reject',0)}"
+                 f"　｜　🟢 已發布 {s.get('published',0)}　｜　門檻 {mn} 分　（更新 {data.get('updated','—')}）")
         for r in self.lib_tree.get_children():
             self.lib_tree.delete(r)
         STAT = {"pass": "✅ 通過", "reject": "⚠️ 建議退件", "rejected_manual": "❌ 已退件"}
-        for it in self._lib_items:
+        for idx, it in enumerate(self._lib_items):
             st = it.get("status", "pass")
+            stripe = "odd" if idx % 2 else "even"
             tag = "pass" if st == "pass" else "reject"
             self.lib_tree.insert("", "end", iid=it["slug"],
                                  values=(it.get("score", 0), STAT.get(st, st),
                                          "🟢" if it.get("published") else "⚪", it.get("title", "")[:60]),
-                                 tags=(tag,))
+                                 tags=(stripe, tag))
         if not self._lib_items:
             self.lib_detail.delete("1.0", "end")
-            self.lib_detail.insert("1.0", "尚無評分資料。按「🔄 重新評分(雲端)」在雲端跑一次品管評分，或確認雲端片庫有已渲染的影片。")
+            self.lib_detail.insert("1.0", "尚無評分資料。按「🔄 重新評分(雲端)」在雲端跑一次品管評分，或確認雲端倉庫有已渲染的影片。")
 
     def _lib_show_detail(self, _=None):
         sel = self.lib_tree.selection()
@@ -2148,7 +2177,7 @@ class App(tk.Tk):
         self.after(0, self.refresh_status)
 
     def _lib_counts(self):
-        """統一的片庫/已上架計數：線上時片庫以雲端為準；已上架以 YouTube 真實頻道影片數為準。"""
+        """統一的倉庫/已上架計數：線上時倉庫以雲端為準；已上架以 YouTube 真實頻道影片數為準。"""
         cloud = self._cloud if (getattr(self, "_cloud_state", "") == "online" and self._cloud) else None
         if cloud:
             q = cloud.get("queue", 0)
@@ -2173,7 +2202,7 @@ class App(tk.Tk):
         paused = load_directives().get("paused", False)
         state = "⏸ 已暫停" if paused else "▶ 自動運轉中"
         src = "☁ " if is_cloud else ""
-        self.status_lbl.config(text=f"{src}片庫 {q} 支 ｜ 已上架 {pub} 支 ｜ {state}")
+        self.status_lbl.config(text=f"{src}倉庫 {q} 支 ｜ 已上架 {pub} 支 ｜ {state}")
 
     def _stamp_updated(self):
         from datetime import datetime
