@@ -274,6 +274,7 @@ class App(tk.Tk):
         self.tab_reports(nb)
         self.tab_decisions(nb)
         self.tab_control(nb)
+        nb.bind("<<NotebookTabChanged>>", self._on_tab_changed)  # 切到倉庫評分/已發布就自動抓最新
 
         self.refresh_status()
         self.fetch_stats()           # 開啟時自動抓一次
@@ -335,6 +336,18 @@ class App(tk.Tk):
         canvas.bind("<Leave>", lambda e: canvas.unbind_all("<MouseWheel>"))
         inner._outer = outer  # 需要 nb.select 的分頁(雲端/控制台)取外層用
         return inner
+
+    def _on_tab_changed(self, e):
+        """切到『倉庫評分／已發布』分頁就自動從雲端抓最新評分，避免看到舊快照。"""
+        try:
+            txt = e.widget.tab(e.widget.select(), "text")
+        except Exception:
+            return
+        if "倉庫評分" in txt or "已發布" in txt:
+            try:
+                self.refresh_library_scores()
+            except Exception:
+                pass
 
     def tab_dashboard(self, nb):
         f = self._scroll_tab(nb, "🏠 總覽")
