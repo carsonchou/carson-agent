@@ -78,13 +78,17 @@ def draw_text_stroke(d, xy, text, fnt, fill, stroke=(0, 0, 0), sw=6, anchor=None
 
 
 def draw_backtest_card(d, card: dict):
-    """右側畫一張『派網 AI 策略·示意回測卡』——抄競品最有效的可信度元素（綠色獲利%＋紅框），
+    """右側畫一張『派網 AI 策略·示意回測卡』——抄競品最有效的可信度元素（大數字%＋紅框），
     但守誠實鐵則：數字是含回撤的示意值、明標『示意非保證』。
-    card 欄位：strat（策略名）、pct（年化%）、mdd（最大回撤字串）、note（誠實註）。"""
+    card 欄位：strat（策略名）、pct（主數字%，可正可負）、pct_color（green/red，預設依正負判）、
+              mdd / range（兩列副資料，任一可放『實盤 -X%』做對比）、note（誠實註）。"""
     GREEN = (22, 170, 90)
     RED = (230, 60, 60)
     INK = (30, 36, 52)
     GREY = (120, 130, 150)
+    pct = card.get("pct", "+82.4%")
+    pc = (card.get("pct_color") or ("red" if str(pct).strip().startswith("-") else "green")).lower()
+    PCT_COL = RED if pc == "red" else GREEN
     x0, y0, x1, y1 = W - 588, 168, W - 48, 588
     # 白卡 + 陰影
     d.rounded_rectangle([x0 + 8, y0 + 10, x1 + 8, y1 + 10], radius=24, fill=(0, 0, 0, 70))
@@ -101,11 +105,10 @@ def draw_backtest_card(d, card: dict):
     d.rounded_rectangle([x1 - 150, y0 + 92, x1 - 36, y0 + 92 + (lb[3] - lb[1]) + 16], radius=10,
                         fill=(235, 238, 245))
     d.text((x1 - 150 + 18, y0 + 100), lbl, font=lf, fill=GREY)
-    # 大字綠色年化% + 紅框（競品最強記憶點）
-    d.text((px, y0 + 150), "回測年化(示意)", font=font(26, bold=True), fill=GREY)
+    # 大字主數字% + 紅框（競品最強記憶點；正綠負紅，切合該片角度）
+    d.text((px, y0 + 150), card.get("metric", "回測年化(示意)"), font=font(26, bold=True), fill=GREY)
     pf = font(92, bold=True)
-    pct = card.get("pct", "+82.4%")
-    d.text((px, y0 + 184), pct, font=pf, fill=GREEN)
+    d.text((px, y0 + 184), pct, font=pf, fill=PCT_COL)
     pb = d.textbbox((px, y0 + 184), pct, font=pf)
     d.rounded_rectangle([px - 12, y0 + 178, pb[2] + 16, pb[3] + 14], radius=10, outline=RED, width=5)
     # 下方資料列
