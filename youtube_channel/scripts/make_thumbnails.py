@@ -50,6 +50,12 @@ THUMBS = [
     {"slug": "什麼是回測_沒回測別拿真錢碰",
      "l1": "沒回測過", "l2": "別拿真錢碰", "tag": "什麼是回測？量化思維核心",
      "accent": (255, 96, 96), "mark": "!"},
+    # ★示範：實驗格式 + 派網回測卡（抄競品可信度元素，數字誠實含回撤）
+    {"slug": "我給機器人1萬跑30天_結果公開",
+     "l1": "丟 1萬", "l2": "跑 30 天", "tag": "自動交易機器人實測 ｜ 結果全公開",
+     "accent": (88, 224, 140), "mark": "$",
+     "card": {"strat": "網格·看漲區間", "pct": "+82.4%", "mdd": "最大回撤  -15.3%",
+              "range": "區間  1774 – 2028", "note": "※示意回測，非真實獲利保證"}},
 ]
 
 CHANNEL = "量化阿森｜Carson Quant"
@@ -71,15 +77,58 @@ def draw_text_stroke(d, xy, text, fnt, fill, stroke=(0, 0, 0), sw=6, anchor=None
     d.text(xy, text, font=fnt, fill=fill, stroke_width=sw, stroke_fill=stroke, anchor=anchor)
 
 
+def draw_backtest_card(d, card: dict):
+    """右側畫一張『派網 AI 策略·示意回測卡』——抄競品最有效的可信度元素（綠色獲利%＋紅框），
+    但守誠實鐵則：數字是含回撤的示意值、明標『示意非保證』。
+    card 欄位：strat（策略名）、pct（年化%）、mdd（最大回撤字串）、note（誠實註）。"""
+    GREEN = (22, 170, 90)
+    RED = (230, 60, 60)
+    INK = (30, 36, 52)
+    GREY = (120, 130, 150)
+    x0, y0, x1, y1 = W - 588, 168, W - 48, 588
+    # 白卡 + 陰影
+    d.rounded_rectangle([x0 + 8, y0 + 10, x1 + 8, y1 + 10], radius=24, fill=(0, 0, 0, 70))
+    d.rounded_rectangle([x0, y0, x1, y1], radius=24, fill=(255, 255, 255))
+    px = x0 + 36
+    # header：派網橘點 + 標題
+    d.ellipse([px, y0 + 34, px + 30, y0 + 64], fill=(255, 140, 40))
+    d.text((px + 44, y0 + 36), "派網 AI策略", font=font(34, bold=True), fill=INK)
+    # 策略名 + 示意標籤
+    d.text((px, y0 + 92), card.get("strat", "網格·看漲區間"), font=font(32, bold=True), fill=INK)
+    lbl = "示意回測"
+    lf = font(24, bold=True)
+    lb = d.textbbox((0, 0), lbl, font=lf)
+    d.rounded_rectangle([x1 - 150, y0 + 92, x1 - 36, y0 + 92 + (lb[3] - lb[1]) + 16], radius=10,
+                        fill=(235, 238, 245))
+    d.text((x1 - 150 + 18, y0 + 100), lbl, font=lf, fill=GREY)
+    # 大字綠色年化% + 紅框（競品最強記憶點）
+    d.text((px, y0 + 150), "回測年化(示意)", font=font(26, bold=True), fill=GREY)
+    pf = font(92, bold=True)
+    pct = card.get("pct", "+82.4%")
+    d.text((px, y0 + 184), pct, font=pf, fill=GREEN)
+    pb = d.textbbox((px, y0 + 184), pct, font=pf)
+    d.rounded_rectangle([px - 12, y0 + 178, pb[2] + 16, pb[3] + 14], radius=10, outline=RED, width=5)
+    # 下方資料列
+    ry = y0 + 292
+    for label in (card.get("mdd", "最大回撤  -15.3%"), card.get("range", "區間  1774 – 2028")):
+        d.text((px, ry), label, font=font(28, bold=True), fill=INK)
+        ry += 42
+    # 誠實註
+    d.text((px, y1 - 38), card.get("note", "※示意數據，非真實獲利保證"), font=font(22, bold=False), fill=GREY)
+
+
 def make_one(cfg: dict):
     img = gradient_bg((14, 22, 46), (28, 44, 86))
     d = ImageDraw.Draw(img, "RGBA")
     accent = cfg["accent"]
 
-    # 右側大型半透明符號（裝飾）
-    mark_font = font(460, bold=True)
-    d.text((W - 360, H // 2), cfg["mark"], font=mark_font, fill=(*accent, 46),
-           anchor="mm", stroke_width=0)
+    # 右側：有回測卡就畫卡（抄競品可信度元素），否則畫大型半透明裝飾符號
+    if cfg.get("card"):
+        draw_backtest_card(d, cfg["card"])
+    else:
+        mark_font = font(460, bold=True)
+        d.text((W - 360, H // 2), cfg["mark"], font=mark_font, fill=(*accent, 46),
+               anchor="mm", stroke_width=0)
 
     # 左側強調色直條
     d.rectangle([0, 0, 18, H], fill=accent)
