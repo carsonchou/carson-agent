@@ -31,6 +31,26 @@ DESIGN = ROOT / "STUDIO" / "design_system.json"
 DEFAULT_VOICE = "Chinese (Mandarin)_Reliable_Executive"
 DEFAULT_MODEL = "speech-2.8-hd"
 
+# 發音字典：鎖定金融/量化術語的正確讀音（MiniMax 偶會念錯，如「測」念成 chā）。
+# 格式＝詞/(拼音含聲調)。指定正確讀音無副作用，可隨時增補；額外詞可放 design_system 的 "pron_fix"。
+PRON_DICT = [
+    "測/(ce4)", "回測/(hui2)(ce4)", "測試/(ce4)(shi4)",         # ★你回報：測被念成插
+    "勝率/(sheng4)(lv4)", "報酬率/(bao4)(chou2)(lv4)", "年化/(nian2)(hua4)",
+    "回撤/(hui2)(che4)", "最大回撤/(zui4)(da4)(hui2)(che4)",
+    "價差/(jia4)(cha1)", "誤差/(wu4)(cha1)", "行情/(hang2)(qing2)",
+    "重設/(chong2)(she4)", "倉位/(cang1)(wei4)", "槓桿/(gang4)(gan3)",
+    "套利/(tao4)(li4)", "夏普/(xia4)(pu3)", "卡瑪/(ka3)(ma3)", "差距/(cha1)(ju4)",
+]
+
+
+def _pron_dict():
+    extra = []
+    try:
+        extra = json.loads(DESIGN.read_text(encoding="utf-8")).get("pron_fix", []) or []
+    except Exception:
+        pass
+    return PRON_DICT + [x for x in extra if x not in PRON_DICT]
+
 
 def _cfg():
     """從 design_system.json 讀聲音設定（換聲音只要改那檔）。"""
@@ -89,6 +109,7 @@ def main() -> int:
         "model": model, "text": text,
         "voice_setting": {"voice_id": vid, "speed": speed, "vol": 1, "pitch": 0},
         "audio_setting": {"format": "mp3", "sample_rate": 32000, "bitrate": 128000},
+        "pronunciation_dict": {"tone": _pron_dict()},  # 鎖術語正確讀音(測→cè 等)
     }
     last = None
     for i in range(5):
