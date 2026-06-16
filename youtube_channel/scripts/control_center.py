@@ -1726,7 +1726,9 @@ class App(tk.Tk):
         self.pub_summary = tk.Label(bar, text="—", font=FONT_B, bg=NAVY, fg=ACCENT)
         self.pub_summary.pack(side="left")
         self._btn(bar, "⟳ 重新整理", self.refresh_library_scores)
-        self.lib_tree_pub = self._make_lib_zone(f, 14)
+        self.lib_tree_pub = self._make_lib_zone(f, 14, [
+            ("views", "觀看", 70, "center"), ("retention", "留存%", 70, "center"),
+            ("ctr", "CTR%", 62, "center"), ("score", "品質", 58, "center"), ("title", "標題", 460, "w")])
         self.lib_tree_pub.bind("<Double-1>", self._pub_open)
         ddwrap = tk.Frame(f, bg=BORDER); ddwrap.pack(fill="x", padx=18, pady=(6, 14))
         self.pub_detail = scrolledtext.ScrolledText(ddwrap, height=5, font=("Microsoft JhengHei", 10), wrap="word",
@@ -1740,14 +1742,15 @@ class App(tk.Tk):
         if it and it.get("videoId"):
             webbrowser.open(f"https://youtu.be/{it['videoId']}")
 
-    def _make_lib_zone(self, parent, height):
-        """建一個深色清單 Treeview（無內建標題），回傳 tree。"""
+    def _make_lib_zone(self, parent, height, cols=None):
+        """建一個深色清單 Treeview（無內建標題），回傳 tree。cols=[(key,heading,width,anchor)]。"""
+        cols = cols or [("score", "分數", 70, "center"), ("status", "狀態", 110, "center"),
+                        ("title", "標題", 620, "w")]
         wrap = tk.Frame(parent, bg=BORDER); wrap.pack(fill="both", expand=True, padx=18, pady=2)
         box = tk.Frame(wrap, bg=CARD); box.pack(fill="both", expand=True, padx=1, pady=1)
-        cols = ("score", "status", "title")
-        tree = ttk.Treeview(box, columns=cols, show="headings", height=height, style="Lib.Treeview")
-        for c, t, w, anc in [("score", "分數", 70, "center"), ("status", "狀態", 110, "center"),
-                             ("title", "標題", 620, "w")]:
+        tree = ttk.Treeview(box, columns=[c[0] for c in cols], show="headings", height=height, style="Lib.Treeview")
+        tree._libcols = [c[0] for c in cols]
+        for c, t, w, anc in cols:
             tree.heading(c, text=t)
             tree.column(c, width=w, anchor=anc)
         tree.pack(side="left", fill="both", expand=True, padx=2, pady=2)
@@ -1799,18 +1802,33 @@ class App(tk.Tk):
             text=f"📦 未發布囤貨 {len(pend)} 支　｜　✅ 通過 {s.get('pass',0)}　｜　⚠️ 建議退件 {s.get('reject',0)}"
                  f"　｜　門檻 {mn} 分　（更新 {data.get('updated','—')}）")
         if hasattr(self, "pub_summary"):
-            self.pub_summary.config(text=f"🟢 已發布 {len(pub)} 支（含長片；唯讀，雙擊開 YouTube）")
+            extra = "" if data.get("has_analytics") else "（成效待 analytics token）"
+            self.pub_summary.config(text=f"🟢 已發布 {len(pub)} 支（含長片；唯讀，雙擊開 YouTube）{extra}")
         STAT = {"pass": "✅ 通過", "reject": "⚠️ 建議退件", "rejected_manual": "❌ 已退件", "published": "🟢 已發布"}
 
+        def cell(it, key):
+            v = it.get(key)
+            if key == "status":
+                return STAT.get(v or "pass", v)
+            if key == "title":
+                return (v or "")[:64]
+            if v is None:
+                return "—"
+            if key == "views":
+                return f"{int(v):,}"
+            if key in ("retention", "ctr"):
+                return f"{v:g}%"
+            return v
+
         def fill(tree, rows):
+            keys = getattr(tree, "_libcols", ["score", "status", "title"])
             for r in tree.get_children():
                 tree.delete(r)
             for idx, it in enumerate(rows):
                 st = it.get("status", "pass")
                 tag = "pass" if st in ("pass", "published") else "reject"
-                sc = it.get("score")
                 tree.insert("", "end", iid=it["slug"],
-                            values=("—" if sc is None else sc, STAT.get(st, st), it.get("title", "")[:64]),
+                            values=tuple(cell(it, k) for k in keys),
                             tags=("odd" if idx % 2 else "even", tag))
         fill(self.lib_tree_pending, pend)
         if hasattr(self, "lib_tree_pub"):
@@ -1833,6 +1851,13 @@ class App(tk.Tk):
         lines = [f"標題：{it.get('title','')}",
                  f"總分：{'—（無本機腳本可評，如手動發布的長片）' if sc is None else sc}　"
                  f"{'已發布' if it.get('published') else '未發布（倉庫囤貨）'}"]
+        if it.get("published"):
+            v = it.get("views"); rt = it.get("retention"); ct = it.get("ctr")
+            perf = []
+            perf.append(f"👁 觀看 {int(v):,}" if v is not None else "👁 觀看 —")
+            perf.append(f"⏱ 留存 {rt:g}%" if rt is not None else "⏱ 留存 —")
+            perf.append(f"🖱 CTR {ct:g}%" if ct is not None else "🖱 CTR —")
+            lines.append("近 180 天成效：" + "　".join(perf) + "（YouTube Analytics）")
         ai = it.get("ai") or {}
         if ai:
             lines.append(f"AI 內容評分（各 25）：🪝 鉤子 {ai.get('hook','?')}　🎯 標題 {ai.get('title','?')}　"

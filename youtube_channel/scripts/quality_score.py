@@ -239,7 +239,21 @@ def scan(rescore_ai=False):
                               "score": (base or {}).get("score"), "ai": (base or {}).get("ai"),
                               "ai_note": (base or {}).get("ai_note", ""), "reasons": (base or {}).get("reasons", []),
                               "status": "published", "published": True})
-    payload = {"updated": tw_now(), "min_score": min_score,
+    # 4) 已發布附上真實成效（觀看／留存／CTR，YouTube Analytics；無 token 則略過）
+    try:
+        import yt_analytics as ya
+        stats = ya.video_stats(days=180) or {}
+    except Exception:
+        stats = {}
+    for p in published:
+        st = stats.get(p["videoId"])
+        if st:
+            p["views"] = st.get("views")
+            p["retention"] = round(st.get("retention"), 1) if st.get("retention") is not None else None
+            p["ctr"] = round(st.get("ctr"), 1) if st.get("ctr") is not None else None
+    if stats:  # 有成效資料就按觀看高→低排（一眼看哪支最紅）；無資料維持頻道時間序
+        published.sort(key=lambda x: (x.get("views") is None, -(x.get("views") or 0)))
+    payload = {"updated": tw_now(), "min_score": min_score, "has_analytics": bool(stats),
                "summary": {"pending": len(pending), "published": len(published),
                            "pass": sum(1 for i in pending if i["status"] == "pass"),
                            "reject": sum(1 for i in pending if i["status"].startswith("reject"))},
