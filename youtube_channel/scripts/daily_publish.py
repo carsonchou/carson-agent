@@ -43,6 +43,28 @@ REPORTS = PROJECT_ROOT / "STUDIO" / "REPORTS"
 QSCORES = PROJECT_ROOT / "STUDIO" / "quality_scores.json"
 
 
+_ENGAGE_QS = [
+    "你的網格參數都怎麼設？留言區聊聊你的設定 👇",
+    "這題你站哪邊？同意的 +1，有不同看法的留言戰起來 👇",
+    "你踩過這個坑嗎？分享一下慘痛經驗，我看能不能幫你拆 👇",
+    "想看完整實測數據的留言『+1』，夠多我就出深度版 👇",
+    "你會怎麼做？留言告訴我，下支可能就拍你的問題 👇",
+    "猜猜最後是賺還是賠？留言你的答案，揭曉在置頂 👇",
+]
+
+
+def _post_engage_comment(yt, vid, slug):
+    """發布後自動在自己影片留一則引戰提問，衝前一小時互動信號。失敗 soft、不影響上架。
+    註：API 不開放『置頂』(Studio 限定)，留言會發、置頂請你在 Studio 點一下。"""
+    try:
+        q = _ENGAGE_QS[sum(ord(c) for c in vid) % len(_ENGAGE_QS)]
+        yt.commentThreads().insert(part="snippet", body={"snippet": {
+            "videoId": vid, "topLevelComment": {"snippet": {"textOriginal": q}}}}).execute()
+        print(f"[engage] 已留首小時提問：{q[:18]}…")
+    except Exception as exc:  # noqa: BLE001
+        print(f"[engage] 留言略過（{str(exc)[:50]}）", file=sys.stderr)
+
+
 def load_quality():
     """讀品質評分：回 ({slug:score}, min_score)。沒檔就回 ({}, 0)＝不擋(fail-open)。"""
     try:
@@ -229,6 +251,7 @@ def main() -> int:
             ledger[slug] = vid
             save_ledger(ledger)
             print(f"[ok] {slug} -> https://youtu.be/{vid}")
+            _post_engage_comment(yt, vid, slug)  # 首小時互動：自動發一則引戰提問(置頂需你在Studio點)
             results.append((slug, vid, "ok"))
         except HttpError as exc:
             msg = str(exc)
