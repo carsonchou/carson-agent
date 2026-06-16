@@ -505,30 +505,114 @@ class App(tk.Tk):
         cv.create_text(pad + 2, pad + 16, anchor="nw",
                        text=f"訂閱 {s_now}（+{s_d}）", fill=GREEN, font=("Microsoft JhengHei", 9, "bold"))
 
+    def _latest_check(self) -> str:
+        """讀最新一篇『大檢查』報告的總評＋待處理（決策中心同步回本機的）。"""
+        try:
+            files = sorted(REPORTS.glob("*_大檢查.md"), reverse=True)
+            if not files:
+                return ""
+            txt = files[0].read_text(encoding="utf-8")
+            verdict = ""
+            issues = []
+            for ln in txt.splitlines():
+                if ln.startswith("## 總評"):
+                    verdict = ln.split("：", 1)[-1].strip()
+                if ln.startswith("- ") and "待處理" not in ln:
+                    issues.append(ln[2:].strip())
+            v = verdict or ""
+            if issues:
+                v += "（" + "；".join(issues[:2]) + ("…" if len(issues) > 2 else "") + "）"
+            return v
+        except Exception:
+            return ""
+
+    def _quality_brief(self):
+        """讀 quality_scores.json：回 (pending, pass, reject, min, 最紅已發布片dict|None)。"""
+        try:
+            q = json.loads((STUDIO / "quality_scores.json").read_text(encoding="utf-8"))
+            s = q.get("summary", {})
+            top = None
+            scored = [p for p in q.get("published", []) if p.get("views") is not None]
+            if scored:
+                top = max(scored, key=lambda x: x.get("views") or 0)
+            return s.get("pending", 0), s.get("pass", 0), s.get("reject", 0), q.get("min_score", "?"), top
+        except Exception:
+            return None, None, None, None, None
+
     def _assistant_brief(self) -> str:
-        """擬真特助：用人話把今天狀況講給老闆聽（純由數據組裝，不打 API）。"""
+        """全能特助：一次把系統體檢/產線/成長/倉庫/最紅片/財務/待辦＋今日焦點講給老闆聽（純數據組裝，不打 API）。"""
         from datetime import datetime
         cloud = self._cloud if (getattr(self, "_cloud_state", "") == "online" and self._cloud) else None
         subs = self.stats.get("subs")
+        analytics = getattr(self, "_analytics", None)
+        net = getattr(self, "_net", None)
         pend = len(self._load_pending())
+        qpend, qpass, qrej, qmin, top = self._quality_brief()
+        health = self._latest_check()
         h = datetime.now().hour
         greet = "早安老闆 ☀" if h < 11 else ("午安老闆 🌤" if h < 18 else "晚安老闆 🌙")
-        parts = [f"{greet}，我是你的特助小祕。"]
+        L = [f"{greet}，今天的狀況一次跟你報："]
+
+        # 系統體檢（最先講，異常優先）
+        if health:
+            L.append(f"🩺 系統體檢：{health}")
+        # 產線
         if cloud:
-            run = "正在趕工 🎬" if cloud.get("render_running") else "暫時休息"
-            parts.append(f"雲端今天做了 {cloud.get('produced_today', 0)} 支、倉庫 {cloud.get('queue', 0)} 支（{run}）。")
+            run = "趕工中 🎬" if cloud.get("render_running") else "已收工"
+            line = f"🏭 雲端今天做了 {cloud.get('produced_today', 0)} 支、倉庫 {cloud.get('queue', 0)} 支（{run}）"
             if cloud.get("errors_recent"):
-                parts.append(f"⚠ 有 {cloud['errors_recent']} 條異常我盯著。")
+                line += f"，⚠ 有 {cloud['errors_recent']} 條異常我盯著"
+            L.append(line + "。")
+            running = cloud.get("running_now") or []
+            if running:
+                L.append("⏳ 正在跑：" + "、".join(running))
+            else:
+                L.append("⏳ 目前沒有腳本在跑（待下個排程）。")
         elif getattr(self, "_cloud_state", "") == "offline":
-            parts.append("（連不上雲端，我看的是本機資料）")
+            L.append("🏭 （連不上雲端，看的是本機資料）")
+        # 成長
         if isinstance(subs, int):
-            gap = max(0, SUB_GOAL - subs)
-            parts.append(f"訂閱 {subs}，離 YPP 還差 {gap}。")
+            g = [f"訂閱 {subs}（離 YPP 還差 {max(0, SUB_GOAL - subs)}）"]
+            if analytics:
+                g.append(f"近28天 {analytics.get('views', 0):,} 次觀看、平均看完 {analytics.get('avg_pct', 0):.0f}%")
+                if isinstance(analytics.get("subs_gained"), int):
+                    g.append(f"+{analytics['subs_gained']} 訂閱")
+            L.append("📈 " + "，".join(g) + "。")
+        # 倉庫品質
+        if qpend is not None:
+            qline = f"🎬 倉庫 {qpend} 支待發（{qpass} 達標／{qrej} 待補強，門檻 {qmin}）"
+            L.append(qline + "。")
+        # 最紅的片（給內容方向）
+        if top:
+            rt = f"、留存 {top['retention']:g}%" if top.get("retention") is not None else ""
+            L.append(f"🔥 最紅：「{top.get('title', '')[:22]}」{int(top.get('views') or 0):,} 次觀看{rt} — 這類可多做。")
+        # 財務
+        if isinstance(net, (int, float)):
+            L.append(f"💰 累計淨利 NT$ {net:,.0f}。")
+        # 待辦 + 今日焦點
         if pend:
-            parts.append(f"📌 有 {pend} 件等你拍板 → 去「🧠 我的決策」。")
-        else:
-            parts.append("沒有要你決定的事，其餘我幫你顧著，放心去忙 ✌")
-        return "　".join(parts)
+            L.append(f"📌 有 {pend} 件等你拍板 → 去「🧠 我的決策」。")
+        # 智慧焦點建議
+        focus = self._assistant_focus(health, pend, qrej, cloud, top)
+        if focus:
+            L.append("👉 今日焦點：" + focus)
+        return "\n".join(L)
+
+    def _assistant_focus(self, health, pend, qrej, cloud, top) -> str:
+        """依當前數據給一句最該關注的事。"""
+        if health and ("❌" in health):
+            return "系統體檢有嚴重問題，先看「📋 每日匯報」的大檢查處理。"
+        if health and ("⚠" in health):
+            return "體檢有幾項要注意，抽空看「📋 每日匯報」。"
+        if pend:
+            return "先去把待拍板的決策處理掉，其餘我顧著。"
+        if isinstance(qrej, int) and qrej >= 3:
+            return f"倉庫有 {qrej} 支沒到門檻，可去「🎬 倉庫評分」按自動退件補強。"
+        if cloud and not cloud.get("render_running") and (cloud.get("queue", 99) < 10):
+            return "倉庫存量偏低，建議到「🎛 控制台」按立即補產囤一點。"
+        if top and top.get("retention") is not None and top["retention"] >= 60:
+            return f"最紅那支留存很高，叫產線多複製它的主題/結構衝量。"
+        return "一切順、沒有要你決定的事，放心去忙 ✌"
 
     def render_dashboard(self):
         # 讀快取（由 fetch_stats 每 3 分鐘更新；避免每 8 秒打 Analytics API）

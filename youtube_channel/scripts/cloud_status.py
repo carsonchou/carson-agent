@@ -138,6 +138,33 @@ def _render_running() -> bool:
         return False
 
 
+# 偵測「現在正在跑哪支腳本」→ 給特助報告即時動態
+_RUNNING_MAP = [
+    ("produce_batch", "🎬 補產/渲染影片"), ("daily_publish", "🚀 上架影片"),
+    ("remake_rejected", "♻ 重做退件片"), ("quality_score", "🎯 倉庫評分"),
+    ("daily_check", "🩺 每日大檢查"), ("intel_dept", "🔍 競品情報"),
+    ("outlier_scan", "🚀 爆款偵測"), ("parasite_titles", "🪝 寄生選題"),
+    ("hotspot_dept", "⚡ 熱點搶首發"), ("shorts_funnel", "✂ 切片漏斗"),
+    ("news_dept", "📰 時事蹭流量"), ("decision_dept", "🧠 決策"),
+    ("retro_dept", "🔁 回顧檢討"), ("topic_bank", "💡 擴題庫"),
+    ("multipost_dept", "📣 跨平台分發"), ("schedule_publish", "📅 排程囤片"),
+    ("train_depts", "📚 部門進修"),
+]
+
+
+def _running_now() -> list:
+    """回傳目前正在跑的腳本人話清單（可能多支）。"""
+    out = []
+    for key, label in _RUNNING_MAP:
+        try:
+            r = subprocess.run(["pgrep", "-f", key], capture_output=True, text=True)
+            if r.returncode == 0 and r.stdout.strip():
+                out.append(label)
+        except Exception:
+            pass
+    return out
+
+
 def _cron_installed() -> bool:
     try:
         r = subprocess.run(["crontab", "-l"], capture_output=True, text=True)
@@ -221,6 +248,7 @@ def main() -> int:
         "buffer": buf[:12],
         "next_publish": buf[0]["at_tw"] if buf else None,
         "render_running": _render_running(),
+        "running_now": _running_now(),
         "cron_installed": _cron_installed(),
         "errors_recent": _errors_recent(),
     }
@@ -235,6 +263,7 @@ def main() -> int:
                                          "privacy": "public", "paused": False})
     data["headcount"] = _read_json(STUDIO / "headcount.json", {})
     data["boss_decisions"] = _read_json(STUDIO / "boss_decisions.json", {})
+    data["finance"] = _read_json(STUDIO / "finance.json", {})
     data["strategy"] = _strategy_oneline()
     data["dept_reports_today"] = _dept_reports_today()
     data["ops_tail"] = _ops_tail()
