@@ -84,6 +84,17 @@ def _mp4_slugs():
     return set(p.stem for p in OUT.glob("S_*.mp4")) | set(p.stem for p in OUT.glob("L_*.mp4"))
 
 
+def _unpublished_slugs():
+    """『雲端倉庫』＝待發布囤貨＝有 mp4 但還沒上架(不在 ledger)，與『倉庫評分·未發布』同義。"""
+    led = set()
+    if LEDGER.exists():
+        try:
+            led = set(json.loads(LEDGER.read_text(encoding="utf-8")).keys())
+        except Exception:
+            pass
+    return _mp4_slugs() - led
+
+
 def _produced_today() -> int:
     today = _today_tw()
     n = 0
@@ -241,7 +252,7 @@ def main() -> int:
         "ok": True,
         "ts": datetime.now(TW).strftime("%Y-%m-%d %H:%M:%S"),
         "tz": "Asia/Taipei",
-        "queue": len(_mp4_slugs()),
+        "queue": len(_unpublished_slugs()),  # 待發布囤貨(扣掉已上架)，與倉庫評分·未發布一致
         "produced_today": _produced_today(),
         "published_total": _ledger_count(),
         "buffer_count": len(buf),
