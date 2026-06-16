@@ -289,8 +289,26 @@ def _free_topic(title):
         BANK.write_text(json.dumps(bank, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def reject(slug, manual=True):
-    """退件重做：把該片所有檔案隔離到 output/_rejected/，釋放題目，下輪 produce_batch 自動補產新的。"""
+def _remake_now(title):
+    """立刻在本機(雲端)重產一支同主題新片（走 produce_batch --topic，剛好只產 1 支、不發布）。"""
+    import subprocess
+    py = sys.executable
+    angle = "重做版：同主題換更強的開場鉤子與 But/Therefore 結構，內容更紮實，守誠實鐵則"
+    try:
+        r = subprocess.run([py, str(ROOT / "scripts" / "produce_batch.py"),
+                            "--topic", title, "--angle", angle],
+                           cwd=str(ROOT), timeout=600)
+        ok = (r.returncode == 0)
+    except Exception as e:  # noqa: BLE001
+        print(f"[warn] 立即重做失敗：{str(e)[:80]}", file=sys.stderr)
+        ok = False
+    print(f"[{'ok' if ok else 'warn'}] 立即重做：{title[:24]}")
+    return ok
+
+
+def reject(slug, manual=True, remake=False):
+    """退件：把該片所有檔案隔離到 output/_rejected/。
+    remake=True → 立刻重產一支同主題新片；否則釋放題目、下輪 produce_batch 自動補產。"""
     if slug in _load(LEDGER, {}):
         print(f"[warn] {slug} 已發布，退件只隔離本機檔案、不會動線上影片（要下架請用 set_public.py）。")
     REJECT_DIR.mkdir(parents=True, exist_ok=True)
@@ -302,11 +320,16 @@ def reject(slug, manual=True):
             moved += 1
         except Exception as e:  # noqa: BLE001
             print(f"[warn] 移動 {f.name} 失敗：{e}")
-    _free_topic(title)
-    log_ops("倉庫評分", f"退件重做：{title[:24]}（隔離 {moved} 檔、釋放題目待補產）")
-    print(f"[ok] 已退件：{slug}（隔離 {moved} 檔，釋放題目，下輪自動補產新片）")
+    if remake:
+        log_ops("倉庫評分", f"退件＋立即重做：{title[:24]}（隔離 {moved} 檔，重產中…）")
+        print(f"[ok] 已退件：{slug}（隔離 {moved} 檔），立即重產同主題新片…")
+        _remake_now(title)
+    else:
+        _free_topic(title)
+        log_ops("倉庫評分", f"退件重做：{title[:24]}（隔離 {moved} 檔、釋放題目待補產）")
+        print(f"[ok] 已退件：{slug}（隔離 {moved} 檔，釋放題目，下輪自動補產新片）")
     if manual:
-        scan(rescore_ai=False)  # 重掃刷新清單（該片已移走→自動從未發布消失）
+        scan(rescore_ai=False)  # 重掃刷新清單（該片已移走/新片已產 → 反映最新）
     return 0
 
 
@@ -328,13 +351,14 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--set-min", type=int, default=None)
     ap.add_argument("--reject", default=None)
+    ap.add_argument("--remake", action="store_true", help="配合 --reject：退件後立刻重產同主題新片")
     ap.add_argument("--auto-reject", action="store_true")
     ap.add_argument("--rescore-ai", action="store_true", help="強制全部重跑 AI 內容評分（平常用快取）")
     args = ap.parse_args()
     if args.set_min is not None:
         set_min(args.set_min); return 0
     if args.reject:
-        return reject(args.reject)
+        return reject(args.reject, remake=args.remake)
     if args.auto_reject:
         return auto_reject()
     scan(rescore_ai=args.rescore_ai)

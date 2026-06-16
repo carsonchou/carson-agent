@@ -1892,8 +1892,8 @@ class App(tk.Tk):
             lines.append(f"YouTube：https://youtu.be/{it['videoId']}")
         widget.insert("1.0", "\n".join(lines))
 
-    def _lib_cloud_then_refresh(self, args, name):
-        """雲端跑 quality_score.py（阻塞等完成）後刷新清單；無雲端則本機跑。"""
+    def _lib_cloud_then_refresh(self, args, name, timeout=180):
+        """雲端跑 quality_score.py（阻塞等完成）後刷新清單；無雲端則本機跑。重做要渲染→可拉長 timeout。"""
         cfg = load_cloud_cfg()
 
         def worker():
@@ -1902,10 +1902,10 @@ class App(tk.Tk):
                     _run([str(PY), str(CLOUD_SSH), "run",
                           f"cd {cfg['remote_root']} && ./run.sh scripts/quality_score.py {' '.join(args)}"],
                          env=self._cloud_env(cfg), capture_output=True, text=True,
-                         encoding="utf-8", errors="replace", timeout=180)
+                         encoding="utf-8", errors="replace", timeout=timeout)
                 else:
                     _run([str(PY), "scripts/quality_score.py"] + args, cwd=str(ROOT),
-                         capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=180)
+                         capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout)
             except Exception:
                 pass
             self.after(0, self.refresh_library_scores)
@@ -1935,10 +1935,17 @@ class App(tk.Tk):
         slug = sel[0]
         it = next((x for x in self._lib_items if x["slug"] == slug), None)
         title = (it or {}).get("title", slug)
-        if not messagebox.askyesno("退件重做", f"確定退件重做這支未發布片？\n\n{title}\n\n"
-                                   "（隔離該片＋釋放題目，下輪雲端自動補產新的）"):
+        ans = messagebox.askyesnocancel(
+            "退件重做", f"退件這支未發布片？\n\n{title}\n\n"
+            "【是】退件＋立即在雲端重產一支同主題新片（約 1–2 分鐘）\n"
+            "【否】只退件，交給下一輪自動補產\n"
+            "【取消】不動作")
+        if ans is None:
             return
-        self._lib_cloud_then_refresh(["--reject", slug], f"退件重做 {title[:18]}")
+        if ans:  # 是 → 立即重做（要渲染，拉長等待）
+            self._lib_cloud_then_refresh(["--reject", slug, "--remake"], f"退件＋立即重做 {title[:14]}", timeout=600)
+        else:    # 否 → 只退件
+            self._lib_cloud_then_refresh(["--reject", slug], f"退件 {title[:18]}")
 
     def tab_reports(self, nb):
         f = tk.Frame(nb, bg=NAVY)
