@@ -367,6 +367,37 @@ def reject(slug, manual=True, remake=False):
     return 0
 
 
+def _norm(t):
+    return re.sub(r"[\s，。！？、：；…·\-—()（）%？?]+", "", (t or "")).lower()
+
+
+def tidy():
+    """整理未發布佇列：同主題(標題正規化前14字)只留最高分那支、其餘隔離；
+    留下的若仍 < 門檻，隔離後用 produce_until_pass 重產到過門檻。最後重掃。"""
+    data = scan()
+    mn = data["min_score"]
+    groups = {}
+    for it in data["pending"]:
+        groups.setdefault(_norm(it["title"])[:14], []).append(it)
+    dup_removed = remade = 0
+    for key, items in groups.items():
+        items.sort(key=lambda x: -(x["score"] or 0))
+        best = items[0]
+        for it in items[1:]:           # 同主題其餘版本一律隔離（去重）
+            _quarantine(it["slug"]); dup_removed += 1
+        if (best["score"] or 0) < mn:   # 留下的還沒過門檻 → 隔離後重產到過
+            _quarantine(best["slug"])
+            slug, sc = produce_until_pass(best["title"], tries=3)
+            if slug:
+                remade += 1
+            print(f"[tidy] 重產到門檻：{best['title'][:24]}（{sc}）")
+    qs = scan(rescore_ai=False)
+    log_ops("倉庫整理", f"去重 {dup_removed} 支、重產 {remade} 支至門檻 {mn}")
+    print(f"[ok] 倉庫整理完成：去重 {dup_removed} 支、重產 {remade} 個主題至門檻 {mn}；"
+          f"現未發布 {qs['summary']['pending']} 支(pass {qs['summary']['pass']})。")
+    return 0
+
+
 def auto_reject():
     """排程用：把『未發布且低於門檻』的自動退件重做。"""
     data = scan()
@@ -387,12 +418,15 @@ def main() -> int:
     ap.add_argument("--reject", default=None)
     ap.add_argument("--remake", action="store_true", help="配合 --reject：退件後立刻重產同主題新片")
     ap.add_argument("--auto-reject", action="store_true")
+    ap.add_argument("--tidy", action="store_true", help="整理佇列：同主題去重留最高分、不足門檻者重產到過")
     ap.add_argument("--rescore-ai", action="store_true", help="強制全部重跑 AI 內容評分（平常用快取）")
     args = ap.parse_args()
     if args.set_min is not None:
         set_min(args.set_min); return 0
     if args.reject:
         return reject(args.reject, remake=args.remake)
+    if args.tidy:
+        return tidy()
     if args.auto_reject:
         return auto_reject()
     scan(rescore_ai=args.rescore_ai)
