@@ -845,7 +845,7 @@ class App(tk.Tk):
         if cfg:  # 在雲端『前景』跑整輪，輸出即時串流到雲端營運 log（背景 nohup 會被 channel 關閉殺掉、不會跑）
             self._nb.select(self._cloud_frame)
             chain = ("./run.sh scripts/decision_dept.py; "
-                     "./run.sh scripts/produce_batch.py --shorts 4 --long 0 --target 60; "
+                     "./run.sh scripts/produce_batch.py --shorts 4 --long 0 --target 999 --manual; "
                      f"./run.sh scripts/daily_publish.py --max 6 --privacy {priv}; "
                      "./run.sh scripts/retro_dept.py; ./run.sh scripts/hr_dept.py")
             self._cloud_stream(
