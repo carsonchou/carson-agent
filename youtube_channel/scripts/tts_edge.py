@@ -59,6 +59,12 @@ def main() -> int:
     if not text:
         print("[FATAL] 配音稿為空。", file=sys.stderr)
         return 2
+    try:
+        sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
+        from tts_text import normalize
+        text = normalize(text)  # 數字/%/小數→口語念法、長句斷句
+    except Exception:
+        pass
 
     if args.out:
         out = Path(args.out)
