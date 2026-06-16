@@ -1829,7 +1829,10 @@ class App(tk.Tk):
             for idx, it in enumerate(rows):
                 st = it.get("status", "pass")
                 tag = "pass" if st in ("pass", "published") else "reject"
-                tree.insert("", "end", iid=it["slug"],
+                iid = it.get("slug") or f"row{idx}"
+                if tree.exists(iid):       # 防重複 ID 撞號（撞了就加序號），避免插入中斷只顯示前幾筆
+                    iid = f"{iid}#{idx}"
+                tree.insert("", "end", iid=iid,
                             values=tuple(cell(it, k) for k in keys),
                             tags=("odd" if idx % 2 else "even", tag))
         fill(self.lib_tree_pending, pend)

@@ -165,12 +165,16 @@ def channel_published(yt):
     try:
         ch = yt.channels().list(part="contentDetails", mine=True).execute()
         plid = ch["items"][0]["contentDetails"]["relatedPlaylists"]["uploads"]
-        out, tok = [], None
+        out, seen, tok = [], set(), None
         while True:
             r = yt.playlistItems().list(part="snippet,contentDetails", playlistId=plid,
                                         maxResults=50, pageToken=tok).execute()
             for it in r.get("items", []):
-                out.append((it["contentDetails"]["videoId"], it["snippet"].get("title", "")))
+                vid = it["contentDetails"]["videoId"]
+                if vid in seen:  # uploads 清單偶有重複，去重避免下游 ID 撞號
+                    continue
+                seen.add(vid)
+                out.append((vid, it["snippet"].get("title", "")))
             tok = r.get("nextPageToken")
             if not tok:
                 break
