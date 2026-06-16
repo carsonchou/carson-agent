@@ -289,20 +289,54 @@ def _free_topic(title):
         BANK.write_text(json.dumps(bank, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+REMAKE_ANGLE = "重做版：同主題換更強的開場鉤子與 But/Therefore 結構，內容更紮實，守誠實鐵則"
+
+
+def _quarantine(slug):
+    """把某 slug 的檔案移到 _rejected（不釋放題目，純隔離較差的重做嘗試）。"""
+    REJECT_DIR.mkdir(parents=True, exist_ok=True)
+    for f in OUT.glob(f"{slug}.*"):
+        try:
+            shutil.move(str(f), str(REJECT_DIR / f.name))
+        except Exception:  # noqa: BLE001
+            pass
+
+
+def produce_until_pass(title, angle=REMAKE_ANGLE, tries=3):
+    """產同主題新片直到分數 ≥ 門檻（最多 tries 次）；保留最高分那支、其餘隔離。
+    回 (slug, score)。確保『重做出來的一定不低於門檻』(tries 用盡仍未過則保留最佳並警告)。"""
+    from produce_batch import make_one
+    mn = get_min()
+    best, best_sc = None, -1
+    for t in range(1, tries + 1):
+        try:
+            slug = make_one("short", topic_override={"title": title, "angle": angle})
+        except Exception as e:  # noqa: BLE001
+            print(f"[warn] 第{t}次產片失敗：{str(e)[:70]}", file=sys.stderr); slug = None
+        if not slug:
+            continue
+        sc, _ = score_one(slug, ai_score(slug))
+        print(f"  第{t}次：{slug[:18]}… 得分 {sc}（門檻 {mn}）")
+        if sc >= mn:
+            if best and best != slug:
+                _quarantine(best)
+            return slug, sc
+        if sc > best_sc:
+            if best:
+                _quarantine(best)
+            best, best_sc = slug, sc
+        else:
+            _quarantine(slug)
+    if best:
+        print(f"[warn] {title[:20]}：{tries} 次都沒過門檻 {mn}，保留最高分 {best_sc} 那支。")
+    return best, best_sc
+
+
 def _remake_now(title):
-    """立刻在本機(雲端)重產一支同主題新片（走 produce_batch --topic，剛好只產 1 支、不發布）。"""
-    import subprocess
-    py = sys.executable
-    angle = "重做版：同主題換更強的開場鉤子與 But/Therefore 結構，內容更紮實，守誠實鐵則"
-    try:
-        r = subprocess.run([py, str(ROOT / "scripts" / "produce_batch.py"),
-                            "--topic", title, "--angle", angle],
-                           cwd=str(ROOT), timeout=600)
-        ok = (r.returncode == 0)
-    except Exception as e:  # noqa: BLE001
-        print(f"[warn] 立即重做失敗：{str(e)[:80]}", file=sys.stderr)
-        ok = False
-    print(f"[{'ok' if ok else 'warn'}] 立即重做：{title[:24]}")
+    """立刻重產同主題新片，且確保分數 ≥ 門檻（最多重試 3 次，保留最佳）。"""
+    slug, sc = produce_until_pass(title, tries=3)
+    ok = slug is not None
+    print(f"[{'ok' if ok else 'warn'}] 立即重做：{title[:24]}（得分 {sc}{'，已達門檻' if ok and sc >= get_min() else ''}）")
     return ok
 
 

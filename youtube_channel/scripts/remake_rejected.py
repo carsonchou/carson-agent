@@ -73,20 +73,19 @@ def main() -> int:
     if args.dry:
         return 0
 
-    py = sys.executable
-    angle = "重做版：同主題換更強開場鉤子＋But/Therefore 結構，內容更紮實，守誠實鐵則"
-    ok = 0
+    import quality_score as qs
+    mn = qs.get_min()
+    ok = passed = 0
     for i, t in enumerate(titles, 1):
-        print(f"\n[{i}/{len(titles)}] 重產：{t[:30]} …")
-        try:
-            r = subprocess.run([py, str(ROOT / "scripts" / "produce_batch.py"),
-                                "--topic", t, "--angle", angle], cwd=str(ROOT), timeout=600)
-            if r.returncode == 0:
-                ok += 1
-        except Exception as e:  # noqa: BLE001
-            print(f"[warn] {t[:20]} 重產失敗：{str(e)[:80]}", file=sys.stderr)
-    log_ops("退件重做", f"批次重做退件 {ok}/{len(titles)} 支")
-    print(f"\n[ok] 批次重做完成：{ok}/{len(titles)} 支新片已產（未發布，進倉庫待評分）。")
+        print(f"\n[{i}/{len(titles)}] 重產（產到 ≥門檻 {mn}）：{t[:30]} …")
+        slug, sc = qs.produce_until_pass(t, tries=3)
+        if slug:
+            ok += 1
+            if sc >= mn:
+                passed += 1
+    qs.scan(rescore_ai=False)  # 重掃→新片分數顯示在倉庫評分分頁
+    log_ops("退件重做", f"批次重做 {ok}/{len(titles)} 支（{passed} 支達門檻 {mn}）")
+    print(f"\n[ok] 批次重做完成：{ok}/{len(titles)} 支，其中 {passed} 支達門檻 {mn}（已評分、進倉庫）。")
     return 0
 
 
