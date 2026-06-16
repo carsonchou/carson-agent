@@ -160,15 +160,41 @@ def all_slugs():
     return sorted(slugs)
 
 
+def channel_published(yt):
+    """從 YouTube 頻道 uploads 播放清單抓『真實已發布』影片(videoId,title)——含 ledger 沒記到的(如手動發的長片)。"""
+    try:
+        ch = yt.channels().list(part="contentDetails", mine=True).execute()
+        plid = ch["items"][0]["contentDetails"]["relatedPlaylists"]["uploads"]
+        out, tok = [], None
+        while True:
+            r = yt.playlistItems().list(part="snippet,contentDetails", playlistId=plid,
+                                        maxResults=50, pageToken=tok).execute()
+            for it in r.get("items", []):
+                out.append((it["contentDetails"]["videoId"], it["snippet"].get("title", "")))
+            tok = r.get("nextPageToken")
+            if not tok:
+                break
+        return out
+    except Exception as e:  # noqa: BLE001
+        print(f"[warn] 抓頻道影片失敗（改用 ledger）：{str(e)[:80]}", file=sys.stderr)
+        return []
+
+
 def scan(rescore_ai=False):
     ledger = _load(LEDGER, {})
+    rev = {v: k for k, v in ledger.items()}  # videoId → slug
     min_score = get_min()
-    prev = {i["slug"]: i for i in _load(SCORES, {}).get("items", [])}
-    items = []
+    p0 = _load(SCORES, {})
+    prev = {}
+    for key in ("pending", "published", "items"):
+        for i in (p0.get(key) or []):
+            if i.get("slug"):
+                prev[i["slug"]] = i
+    # 1) 評分本機所有 mp4（含未發布 queue ＋ 已發布但本機還留檔的）
+    scored = {}
     new_ai = 0
     for slug in all_slugs():
         was = prev.get(slug, {})
-        # AI 分數快取：沒評過(或強制)才呼叫 Claude，省錢省時；門檻變更時直接用快取重判
         if rescore_ai or "ai" not in was:
             ai = ai_score(slug)
             if ai:
@@ -176,29 +202,54 @@ def scan(rescore_ai=False):
         else:
             ai = was.get("ai")
         sc, reasons = score_one(slug, ai)
-        published = slug in ledger
-        if was.get("status") == "rejected_manual":
-            status = "rejected_manual"
-        else:
-            status = "reject" if sc < min_score else "pass"
-        items.append({
-            "slug": slug, "title": title_of(slug), "score": sc,
-            "status": status, "reasons": reasons, "ai": ai,
-            "ai_note": (ai or {}).get("note", ""),
-            "published": published, "videoId": ledger.get(slug, ""),
-        })
-    items.sort(key=lambda x: (x["published"], x["score"]))  # 未發布+低分排前面（最需要處理）
+        scored[slug] = {"slug": slug, "title": title_of(slug), "score": sc,
+                        "reasons": reasons, "ai": ai, "ai_note": (ai or {}).get("note", "")}
+    # 2) 未發布 queue ＝ 有 mp4 但不在 ledger（退件對象）
+    pending = []
+    for slug, it in scored.items():
+        if slug in ledger:
+            continue
+        was = prev.get(slug, {})
+        st = "rejected_manual" if was.get("status") == "rejected_manual" else \
+             ("reject" if it["score"] < min_score else "pass")
+        pending.append(dict(it, status=st, published=False, videoId=""))
+    pending.sort(key=lambda x: x["score"])
+    # 3) 已發布 ＝ 真實頻道 uploads（完整含長片）；抓不到才退回 ledger
+    yt = None
+    try:
+        from decision_dept import yt_service
+        yt = yt_service()
+    except Exception:
+        pass
+    chan = channel_published(yt) if yt else []
+    published = []
+    if chan:
+        for vid, title in chan:
+            base = scored.get(rev.get(vid, ""))
+            published.append({"slug": rev.get(vid) or vid, "title": title, "videoId": vid,
+                              "score": base["score"] if base else None,
+                              "ai": base["ai"] if base else None,
+                              "ai_note": base.get("ai_note", "") if base else "",
+                              "reasons": base["reasons"] if base else [],
+                              "status": "published", "published": True})
+    else:
+        for slug, vid in ledger.items():
+            base = scored.get(slug)
+            published.append({"slug": slug, "title": (base or {}).get("title", slug), "videoId": vid,
+                              "score": (base or {}).get("score"), "ai": (base or {}).get("ai"),
+                              "ai_note": (base or {}).get("ai_note", ""), "reasons": (base or {}).get("reasons", []),
+                              "status": "published", "published": True})
     payload = {"updated": tw_now(), "min_score": min_score,
-               "summary": {"total": len(items),
-                           "pass": sum(1 for i in items if i["status"] == "pass"),
-                           "reject": sum(1 for i in items if i["status"].startswith("reject")),
-                           "published": sum(1 for i in items if i["published"])},
-               "items": items}
+               "summary": {"pending": len(pending), "published": len(published),
+                           "pass": sum(1 for i in pending if i["status"] == "pass"),
+                           "reject": sum(1 for i in pending if i["status"].startswith("reject"))},
+               "pending": pending, "published": published}
     STUDIO.mkdir(parents=True, exist_ok=True)
     SCORES.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     s = payload["summary"]
-    log_ops("倉庫評分", f"評分 {s['total']} 支：pass {s['pass']}／退件建議 {s['reject']}（門檻{min_score}、新評AI {new_ai}）")
-    print(f"[ok] 倉庫評分完成：{s['total']} 支，pass {s['pass']}／退件 {s['reject']}，門檻 {min_score}，本次新評 AI {new_ai} 支 → quality_scores.json")
+    log_ops("倉庫評分", f"未發布 {s['pending']}(pass{s['pass']}/退{s['reject']})、已發布 {s['published']}（門檻{min_score}、新評AI{new_ai}）")
+    print(f"[ok] 倉庫評分：未發布 {s['pending']} 支(pass {s['pass']}／退件 {s['reject']})、已發布 {s['published']} 支，"
+          f"門檻 {min_score}，新評 AI {new_ai} → quality_scores.json")
     return payload
 
 
@@ -233,14 +284,10 @@ def reject(slug, manual=True):
         except Exception as e:  # noqa: BLE001
             print(f"[warn] 移動 {f.name} 失敗：{e}")
     _free_topic(title)
-    # 在 scores 記一筆 rejected_manual
-    data = _load(SCORES, {"items": []})
-    for i in data.get("items", []):
-        if i["slug"] == slug:
-            i["status"] = "rejected_manual"
-    SCORES.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     log_ops("倉庫評分", f"退件重做：{title[:24]}（隔離 {moved} 檔、釋放題目待補產）")
     print(f"[ok] 已退件：{slug}（隔離 {moved} 檔，釋放題目，下輪自動補產新片）")
+    if manual:
+        scan(rescore_ai=False)  # 重掃刷新清單（該片已移走→自動從未發布消失）
     return 0
 
 
@@ -248,9 +295,11 @@ def auto_reject():
     """排程用：把『未發布且低於門檻』的自動退件重做。"""
     data = scan()
     n = 0
-    for i in data["items"]:
-        if (not i["published"]) and i["status"] == "reject":
+    for i in data["pending"]:
+        if i["status"] == "reject":
             reject(i["slug"], manual=False); n += 1
+    if n:
+        scan(rescore_ai=False)
     log_ops("倉庫評分", f"自動退件 {n} 支未發布低分片")
     print(f"[ok] 自動退件 {n} 支（未發布、低於門檻 {data['min_score']}）。")
     return 0

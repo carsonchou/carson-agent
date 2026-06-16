@@ -269,6 +269,7 @@ class App(tk.Tk):
         self.tab_cloud(nb)
         self.tab_departments(nb)
         self.tab_library(nb)
+        self.tab_published(nb)
         self.tab_hr(nb)
         self.tab_reports(nb)
         self.tab_decisions(nb)
@@ -1696,16 +1697,14 @@ class App(tk.Tk):
         self._btn(thr, "🔄 重新評分", self.lib_rescore)
         self._btn(thr, "⟳ 重新整理", self.refresh_library_scores)
         self._btn(thr, "🧹 自動退件低分片", self.lib_auto_reject)
-        # 兩區：未發布（囤貨，可退件）＋ 已發布
-        zones = tk.Frame(f, bg=NAVY); zones.pack(fill="both", expand=True, padx=18, pady=2)
-        self.lib_tree_pending = self._make_lib_zone(zones, "📦 未發布（倉庫囤貨）— 選中可退件重做", 9)
-        self.lib_tree_pub = self._make_lib_zone(zones, "🟢 已發布（線上影片）", 7)
-        # 動作列
+        # 只放未發布（囤貨）；已發布另開唯讀分頁，避免誤觸線上影片
+        self._section(f, "📦 未發布（倉庫囤貨）— 選中可退件重做")
+        self.lib_tree_pending = self._make_lib_zone(f, 11)
         act = tk.Frame(f, bg=NAVY); act.pack(fill="x", padx=18, pady=(6, 2))
         tk.Button(act, text="❌ 退件重做（選中項）", font=FONT_B, bg="#3a1620", fg=RED, bd=0,
                   padx=14, pady=7, activebackground=RED, activeforeground="#fff",
                   command=self.lib_reject_selected).pack(side="left")
-        tk.Label(act, text="  退件＝隔離該片＋釋放題目，下輪雲端自動補產新的（已發布片只隔離本機檔、不動線上）",
+        tk.Label(act, text="  退件＝隔離該片＋釋放題目，下輪雲端自動補產新的（只動未發布囤貨）",
                  font=("Microsoft JhengHei", 9), bg=NAVY, fg=SUB).pack(side="left")
         self._section(f, "🔍 品管細項（製作過程＋AI 評分明細）")
         dwrap = tk.Frame(f, bg=BORDER); dwrap.pack(fill="x", padx=18, pady=(2, 14))
@@ -1714,18 +1713,41 @@ class App(tk.Tk):
                                                     insertbackground=TEXTCOL)
         self.lib_detail.pack(fill="x", padx=1, pady=1)
         self._lib_items = []
-        self._lib_active = None
         self.refresh_library_scores()
 
-    def _make_lib_zone(self, parent, title, height):
-        """建一個帶標題的深色清單區，回傳 Treeview。"""
-        tk.Label(parent, text=title, font=FONT_B, bg=NAVY, fg=ACCENT).pack(anchor="w", pady=(6, 2))
-        wrap = tk.Frame(parent, bg=BORDER); wrap.pack(fill="both", expand=True)
+    # ---------- Tab: 已發布（線上影片，唯讀） ----------
+    def tab_published(self, nb):
+        f = tk.Frame(nb, bg=NAVY); nb.add(f, text="🟢 已發布")
+        self._section(f, "🟢 已發布影片（線上，唯讀）")
+        tk.Label(f, text="這裡只看不動：已發布影片的品質分數一覽。雙擊任一列開 YouTube。"
+                         "要改線上標題用 refresh_library.py、改縮圖用 refresh_thumbnails.py、下架用 set_public.py。",
+                 font=("Microsoft JhengHei", 9), bg=NAVY, fg=SUB, justify="left", anchor="w").pack(anchor="w", padx=20, pady=(0, 4))
+        bar = tk.Frame(f, bg=NAVY); bar.pack(fill="x", padx=18, pady=(2, 4))
+        self.pub_summary = tk.Label(bar, text="—", font=FONT_B, bg=NAVY, fg=ACCENT)
+        self.pub_summary.pack(side="left")
+        self._btn(bar, "⟳ 重新整理", self.refresh_library_scores)
+        self.lib_tree_pub = self._make_lib_zone(f, 14)
+        self.lib_tree_pub.bind("<Double-1>", self._pub_open)
+        ddwrap = tk.Frame(f, bg=BORDER); ddwrap.pack(fill="x", padx=18, pady=(6, 14))
+        self.pub_detail = scrolledtext.ScrolledText(ddwrap, height=5, font=("Microsoft JhengHei", 10), wrap="word",
+                                                    bg="#0a1020", fg=TEXTCOL, bd=0, padx=12, pady=10,
+                                                    insertbackground=TEXTCOL)
+        self.pub_detail.pack(fill="x", padx=1, pady=1)
+
+    def _pub_open(self, _=None):
+        slug = self.lib_tree_pub.selection()[0] if self.lib_tree_pub.selection() else None
+        it = next((x for x in self._lib_items if x["slug"] == slug), None)
+        if it and it.get("videoId"):
+            webbrowser.open(f"https://youtu.be/{it['videoId']}")
+
+    def _make_lib_zone(self, parent, height):
+        """建一個深色清單 Treeview（無內建標題），回傳 tree。"""
+        wrap = tk.Frame(parent, bg=BORDER); wrap.pack(fill="both", expand=True, padx=18, pady=2)
         box = tk.Frame(wrap, bg=CARD); box.pack(fill="both", expand=True, padx=1, pady=1)
         cols = ("score", "status", "title")
         tree = ttk.Treeview(box, columns=cols, show="headings", height=height, style="Lib.Treeview")
         for c, t, w, anc in [("score", "分數", 70, "center"), ("status", "狀態", 110, "center"),
-                             ("title", "標題", 600, "w")]:
+                             ("title", "標題", 620, "w")]:
             tree.heading(c, text=t)
             tree.column(c, width=w, anchor=anc)
         tree.pack(side="left", fill="both", expand=True, padx=2, pady=2)
@@ -1764,77 +1786,65 @@ class App(tk.Tk):
         threading.Thread(target=lambda: self._lib_fetch_worker(self._render_lib), daemon=True).start()
 
     def _render_lib(self, data):
-        self._lib_items = data.get("items", [])
+        pend = data.get("pending", [])
+        pub = data.get("published", [])
+        self._lib_items = pend + pub
         s = data.get("summary", {})
         mn = data.get("min_score", 70)
         try:
             self.lib_thresh.set(int(mn))
         except Exception:
             pass
-        pend = [it for it in self._lib_items if not it.get("published")]
-        pub = [it for it in self._lib_items if it.get("published")]
         self.lib_summary.config(
-            text=f"🎬 倉庫 {s.get('total',0)} 支　｜　📦 未發布 {len(pend)}　｜　🟢 已發布 {len(pub)}　｜　"
-                 f"✅ 通過 {s.get('pass',0)}　｜　⚠️ 建議退件 {s.get('reject',0)}　｜　門檻 {mn} 分"
-                 f"　（更新 {data.get('updated','—')}）")
-        STAT = {"pass": "✅ 通過", "reject": "⚠️ 建議退件", "rejected_manual": "❌ 已退件"}
+            text=f"📦 未發布囤貨 {len(pend)} 支　｜　✅ 通過 {s.get('pass',0)}　｜　⚠️ 建議退件 {s.get('reject',0)}"
+                 f"　｜　門檻 {mn} 分　（更新 {data.get('updated','—')}）")
+        if hasattr(self, "pub_summary"):
+            self.pub_summary.config(text=f"🟢 已發布 {len(pub)} 支（含長片；唯讀，雙擊開 YouTube）")
+        STAT = {"pass": "✅ 通過", "reject": "⚠️ 建議退件", "rejected_manual": "❌ 已退件", "published": "🟢 已發布"}
 
         def fill(tree, rows):
             for r in tree.get_children():
                 tree.delete(r)
             for idx, it in enumerate(rows):
                 st = it.get("status", "pass")
-                tag = "pass" if st == "pass" else "reject"
+                tag = "pass" if st in ("pass", "published") else "reject"
+                sc = it.get("score")
                 tree.insert("", "end", iid=it["slug"],
-                            values=(it.get("score", 0), STAT.get(st, st), it.get("title", "")[:64]),
+                            values=("—" if sc is None else sc, STAT.get(st, st), it.get("title", "")[:64]),
                             tags=("odd" if idx % 2 else "even", tag))
         fill(self.lib_tree_pending, pend)
-        fill(self.lib_tree_pub, pub)
+        if hasattr(self, "lib_tree_pub"):
+            fill(self.lib_tree_pub, pub)
         self.lib_detail.delete("1.0", "end")
-        if not self._lib_items:
-            self.lib_detail.insert("1.0", "尚無評分資料。按「🔄 重新評分」在雲端跑一次品管評分，或確認雲端倉庫有已渲染的影片。")
+        if not pend:
+            self.lib_detail.insert("1.0", "未發布囤貨目前 0 支（都發布或都退件了）。按「🔄 重新評分」可在雲端重跑品管。")
 
     def _lib_on_select(self, tree):
-        """記住作用中清單、清掉另一個清單的選取，再顯示細項。"""
-        self._lib_active = tree
-        other = self.lib_tree_pub if tree is self.lib_tree_pending else self.lib_tree_pending
-        try:
-            if other.selection():
-                other.selection_remove(other.selection())
-        except Exception:
-            pass
-        self._lib_show_detail()
+        widget = self.pub_detail if (hasattr(self, "lib_tree_pub") and tree is self.lib_tree_pub) else self.lib_detail
+        if tree.selection():
+            self._render_detail(tree.selection()[0], widget)
 
-    def _lib_sel_slug(self):
-        for tree in (self._lib_active, self.lib_tree_pending, self.lib_tree_pub):
-            if tree and tree.selection():
-                return tree.selection()[0]
-        return None
-
-    def _lib_show_detail(self, _=None):
-        slug = self._lib_sel_slug()
-        if not slug:
-            return
+    def _render_detail(self, slug, widget):
         it = next((x for x in self._lib_items if x["slug"] == slug), None)
         if not it:
             return
-        self.lib_detail.delete("1.0", "end")
-        lines = [f"標題：{it.get('title','')}", f"slug：{it['slug']}　總分：{it.get('score',0)}　"
-                 f"狀態：{it.get('status','')}　{'已發布' if it.get('published') else '未發布（倉庫囤貨）'}"]
+        widget.delete("1.0", "end")
+        sc = it.get("score")
+        lines = [f"標題：{it.get('title','')}",
+                 f"總分：{'—（無本機腳本可評，如手動發布的長片）' if sc is None else sc}　"
+                 f"{'已發布' if it.get('published') else '未發布（倉庫囤貨）'}"]
         ai = it.get("ai") or {}
         if ai:
             lines.append(f"AI 內容評分（各 25）：🪝 鉤子 {ai.get('hook','?')}　🎯 標題 {ai.get('title','?')}　"
                          f"📚 內容 {ai.get('content','?')}　🛡 誠信 {ai.get('honesty','?')}")
             if ai.get("note"):
                 lines.append(f"💡 最該改：{ai['note']}")
-        else:
-            lines.append("AI 內容評分：尚未評（無腳本或未跑），按「🔄 重新評分」")
         rs = it.get("reasons", [])
         if rs:
             lines.append("⚠ 品管硬傷扣分：" + "、".join(rs))
         if it.get("videoId"):
             lines.append(f"YouTube：https://youtu.be/{it['videoId']}")
-        self.lib_detail.insert("1.0", "\n".join(lines))
+        widget.insert("1.0", "\n".join(lines))
 
     def _lib_cloud_then_refresh(self, args, name):
         """雲端跑 quality_score.py（阻塞等完成）後刷新清單；無雲端則本機跑。"""
@@ -1872,14 +1882,15 @@ class App(tk.Tk):
         self._lib_cloud_then_refresh(["--auto-reject"], "自動退件低分片")
 
     def lib_reject_selected(self):
-        slug = self._lib_sel_slug()
-        if not slug:
-            messagebox.showinfo("退件重做", "請先在「未發布」或「已發布」清單點選一支片。")
+        sel = self.lib_tree_pending.selection()
+        if not sel:
+            messagebox.showinfo("退件重做", "請先在「📦 未發布」清單點選一支片。\n（已發布影片在另一個分頁，唯讀不退件）")
             return
+        slug = sel[0]
         it = next((x for x in self._lib_items if x["slug"] == slug), None)
         title = (it or {}).get("title", slug)
-        if not messagebox.askyesno("退件重做", f"確定退件重做這支？\n\n{title}\n\n"
-                                   "（隔離該片＋釋放題目，下輪雲端自動補產新的。已發布片只隔離本機檔、不動線上影片。）"):
+        if not messagebox.askyesno("退件重做", f"確定退件重做這支未發布片？\n\n{title}\n\n"
+                                   "（隔離該片＋釋放題目，下輪雲端自動補產新的）"):
             return
         self._lib_cloud_then_refresh(["--reject", slug], f"退件重做 {title[:18]}")
 
