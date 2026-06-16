@@ -17,6 +17,8 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 7 6 * * * /root/yt/run.sh scripts/produce_batch.py --shorts 13 --long 0 --target 300 >> /root/yt/logs/cron.log 2>&1
 # 片庫品管評分（produce 後跑，供決策中心『🎬 片庫評分』分頁檢視＋退件重做）
 40 6 * * * /root/yt/run.sh scripts/quality_score.py >> /root/yt/logs/cron.log 2>&1
+# 自動記帳·固定成本（每天跑、同月只記一筆，冪等）
+10 3 * * * /root/yt/run.sh scripts/auto_cost.py >> /root/yt/logs/cron.log 2>&1
 7 9 * * * /root/yt/run.sh scripts/daily_publish.py --max 6 >> /root/yt/logs/cron.log 2>&1
 7 21 * * * /root/yt/run.sh scripts/daily_publish.py --max 6 >> /root/yt/logs/cron.log 2>&1
 37 9 * * * /root/yt/run.sh scripts/retro_dept.py >> /root/yt/logs/cron.log 2>&1

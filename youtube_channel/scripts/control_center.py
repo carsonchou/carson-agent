@@ -315,8 +315,23 @@ class App(tk.Tk):
         win = canvas.create_window((0, 0), window=inner, anchor="nw")
         inner.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
         canvas.bind("<Configure>", lambda e: canvas.itemconfig(win, width=e.width))
-        canvas.bind("<Enter>", lambda e: canvas.bind_all(
-            "<MouseWheel>", lambda ev: canvas.yview_scroll(int(-ev.delta / 120), "units")))
+
+        def _on_wheel(ev):
+            # 游標下若是可獨立捲動的 log/清單(且還有內容可捲)，只捲它；否則才捲整頁。
+            step = int(-ev.delta / 120) or (-1 if ev.delta > 0 else 1)
+            node = self.winfo_containing(ev.x_root, ev.y_root)
+            while node is not None and node is not canvas:
+                if isinstance(node, (tk.Text, tk.Listbox, ttk.Treeview)):
+                    try:
+                        if node.yview() != (0.0, 1.0):   # 有隱藏內容才攔截
+                            node.yview_scroll(step, "units")
+                            return
+                    except Exception:
+                        pass
+                    break
+                node = getattr(node, "master", None)
+            canvas.yview_scroll(step, "units")
+        canvas.bind("<Enter>", lambda e: canvas.bind_all("<MouseWheel>", _on_wheel))
         canvas.bind("<Leave>", lambda e: canvas.unbind_all("<MouseWheel>"))
         inner._outer = outer  # 需要 nb.select 的分頁(雲端/控制台)取外層用
         return inner
