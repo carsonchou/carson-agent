@@ -33,5 +33,6 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 30 10 * * * /root/yt/run.sh scripts/daily_check.py >> /root/yt/logs/cron.log 2>&1
 30 4 * * 0 /root/yt/run.sh scripts/train_depts.py >> /root/yt/logs/cron.log 2>&1
 0 5 * * 0 /root/yt/run.sh scripts/topic_bank.py >> /root/yt/logs/cron.log 2>&1
-# 爆款獵手：每週日拆解本頻道最紅片的共同贏點→回寫心法+灌同款題目，產線越跑越準(破萬自動全押)
+# 爆款獵手：每天輕量盯爆款(出現破門檻就即時全押)，每週日完整拆解贏點回寫心法(贏點要週數據才準)
+45 10 * * * /root/yt/run.sh scripts/breakout_hunter.py --watch >> /root/yt/logs/cron.log 2>&1
 0 11 * * 0 /root/yt/run.sh scripts/breakout_hunter.py >> /root/yt/logs/cron.log 2>&1

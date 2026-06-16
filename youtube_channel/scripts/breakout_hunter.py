@@ -115,10 +115,67 @@ def write_playbook(win, avoid):
     return True
 
 
+SEEN_FILE = STUDIO / "breakout_seen.json"
+
+
+def _seen():
+    try:
+        return set(json.loads(SEEN_FILE.read_text(encoding="utf-8")))
+    except Exception:
+        return set()
+
+
+def _mark_seen(vid):
+    s = _seen(); s.add(vid)
+    try:
+        SEEN_FILE.write_text(json.dumps(sorted(s), ensure_ascii=False), encoding="utf-8")
+    except Exception:
+        pass
+
+
+def do_full(tops, breakout, dry=False):
+    """拆贏點→回寫心法→灌同模式題目→寫報告。breakout=True 時題目灌兩份(全押)。"""
+    best = tops[0]["views"]
+    res = distill(tops)
+    if not res:
+        print("[FATAL] 拆解不出贏點。", file=sys.stderr); return 3
+    win, avoid = res.get("win", "").strip(), res.get("avoid", "").strip()
+    topics = [t for t in res.get("topics", []) if t.get("title")]
+    print(f"\n★ 贏點：{win}\n⛔ 避免：{avoid}")
+    print(f"★ 同模式新題目 {len(topics)} 個{'｜🚀 全押模式' if breakout else ''}")
+    if dry:
+        for t in topics:
+            print(f"   - {t['title']}")
+        return 0
+    pb_ok = write_playbook(win, avoid)
+    from topic_bank import add_topics
+    items = [{"title": t["title"], "angle": t.get("angle", ""), "category": "市場觀念",
+              "format": "short", "priority": "breakout"} for t in topics]
+    if breakout:
+        items = items + items
+    added = add_topics(items, source="breakout", front=True)
+    REPORTS.mkdir(parents=True, exist_ok=True)
+    L = [f"# 🏆 爆款獵手{'·全押' if breakout else '週報'}｜{tw_today()}", "",
+         f"## 本頻道前 {len(tops)} 名（最高 {best:,} 觀看）", ""]
+    for t in tops:
+        L.append(f"- 👁 {t['views']:,}　留存 {t.get('retention','?')}%　{t.get('title','')}")
+    L += ["", "## ★ 實證贏點（已寫回心法，產線專攻）", "", win, "", "## ⛔ 要避免", "", avoid,
+          "", f"## 🎯 已灌 {added} 個同模式題目進題庫（優先製作）" + ("　🚀【全押】偵測到爆款！" if breakout else ""), ""]
+    for t in topics:
+        L.append(f"- {t['title']}")
+    (REPORTS / f"{tw_today()}_爆款獵手.md").write_text("\n".join(L), encoding="utf-8")
+    log_ops("爆款獵手", f"贏點回寫{'✓' if pb_ok else '✗'}、灌 {added} 題{'、🚀全押' if breakout else ''}（最高 {best} 觀看）")
+    print(f"\n[ok] 爆款獵手完成：贏點已回寫心法、{added} 個同模式題目進題庫"
+          f"{'，🚀 全押已啟動' if breakout else ''} → {tw_today()}_爆款獵手.md")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--top", type=int, default=4)
-    ap.add_argument("--breakout", type=int, default=5000, help="任一支觀看達此數＝爆款，觸發全押多灌題目")
+    ap.add_argument("--breakout", type=int, default=5000, help="任一支觀看達此數＝爆款")
+    ap.add_argument("--watch", action="store_true",
+                    help="每日輕量盯：只在出現新爆款時才啟動全套＋全押，否則便宜空轉、不動心法")
     ap.add_argument("--dry", action="store_true")
     args = ap.parse_args()
 
@@ -126,48 +183,23 @@ def main() -> int:
     if not tops:
         print("[info] 還沒有帶觀看數據的已發布片（先讓 quality_score 抓 analytics）。"); return 0
     best = tops[0]["views"]
+
+    if args.watch:
+        # 每日跑：沒爆款就只記一行、不打 AI、不動心法（贏點交給每週完整跑）
+        topvid = tops[0].get("videoId", "")
+        if best >= args.breakout and topvid not in _seen():
+            print(f"🚀 偵測到爆款（{best:,} 觀看）！立即啟動全押…")
+            _mark_seen(topvid)
+            return do_full(tops, breakout=True, dry=args.dry)
+        log_ops("爆款獵手", f"每日盯：最高 {best} 觀看，未達爆款門檻 {args.breakout}")
+        print(f"[watch] 最高 {best} 觀看，未達爆款門檻 {args.breakout}，持續盯著（不動心法、不花 AI）。")
+        return 0
+
+    # 每週完整跑：拆贏點＋回寫心法
     print(f"== 本頻道前 {len(tops)} 名（最高 {best} 觀看）==")
     for t in tops:
         print(f"   👁{t['views']:>7} 留存{t.get('retention','?')}%  {t.get('title','')[:34]}")
-
-    res = distill(tops)
-    if not res:
-        print("[FATAL] 拆解不出贏點。", file=sys.stderr); return 3
-    win, avoid = res.get("win", "").strip(), res.get("avoid", "").strip()
-    topics = [t for t in res.get("topics", []) if t.get("title")]
-    breakout = best >= args.breakout
-
-    print(f"\n★ 贏點：{win}\n⛔ 避免：{avoid}")
-    print(f"★ 同模式新題目 {len(topics)} 個{'｜🚀 偵測到爆款，全押模式' if breakout else ''}")
-    if args.dry:
-        for t in topics:
-            print(f"   - {t['title']}")
-        return 0
-
-    pb_ok = write_playbook(win, avoid)
-    from topic_bank import add_topics
-    items = [{"title": t["title"], "angle": t.get("angle", ""), "category": "市場觀念",
-              "format": "short", "priority": "breakout"} for t in topics]
-    if breakout:  # 全押：同模式題目灌兩份(衝量壓這條線)
-        items = items + items
-    added = add_topics(items, source="breakout", front=True)
-
-    REPORTS.mkdir(parents=True, exist_ok=True)
-    L = [f"# 🏆 爆款獵手週報｜{tw_today()}", "",
-         f"## 本頻道前 {len(tops)} 名（最高 {best:,} 觀看）", ""]
-    for t in tops:
-        L.append(f"- 👁 {t['views']:,}　留存 {t.get('retention','?')}%　{t.get('title','')}")
-    L += ["", "## ★ 本週實證贏點（已寫回心法，下週產線專攻）", "", win,
-          "", f"## ⛔ 要避免", "", avoid,
-          "", f"## 🎯 已灌 {added} 個同模式題目進題庫（優先製作）" + ("　🚀【全押】偵測到爆款！" if breakout else ""), ""]
-    for t in topics:
-        L.append(f"- {t['title']}")
-    (REPORTS / f"{tw_today()}_爆款獵手.md").write_text("\n".join(L), encoding="utf-8")
-
-    log_ops("爆款獵手", f"贏點回寫{'✓' if pb_ok else '✗'}、灌 {added} 題{'、🚀全押' if breakout else ''}（最高 {best} 觀看）")
-    print(f"\n[ok] 爆款獵手完成：贏點已回寫心法、{added} 個同模式題目進題庫"
-          f"{'，🚀 全押模式已啟動' if breakout else ''} → {tw_today()}_爆款獵手.md")
-    return 0
+    return do_full(tops, breakout=best >= args.breakout, dry=args.dry)
 
 
 if __name__ == "__main__":
