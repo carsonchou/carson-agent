@@ -6,4 +6,6 @@ set -a
 . ./.env 2>/dev/null
 set +a
 export PYTHONIOENCODING=utf-8
+# 確保 logs/ 目錄存在（cron 第一次跑時若目錄不存在，輸出會消失而非寫入檔案）
+mkdir -p /root/yt/logs
 exec .venv/bin/python "$@"
