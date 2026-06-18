@@ -19,11 +19,12 @@ jobs:
         uses: appleboy/ssh-action@v1.0.3
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           password: ${{ secrets.SERVER_PASS }}
-          envs: ANTHROPIC_API_KEY
+          envs: ANTHROPIC_API_KEY,GH_TOKEN
           script_stop: false
           script: |
             ${{ github.event.inputs.cmd != '' && github.event.inputs.cmd || secrets.MONITOR_SCRIPT }}
