@@ -109,8 +109,17 @@ def _strategy():
 
 def _kpis():
     hist = _j(METRICS, [])
-    if hist: return hist[-1].get("subs"), hist[-1].get("views")
+    if hist:
+        last = hist[-1]
+        subs = last.get("subs") or last.get("subscribers")
+        views = last.get("views") or last.get("total_views")
+        return subs, views
     return None, None
+
+def _mdata():
+    hist = _j(METRICS, [])
+    if not hist: return {}
+    return hist[-1]
 
 def _qsum():
     q = _j(QUALITY, {}); s = q.get("summary",{})
@@ -241,7 +250,7 @@ def _page(t, body, msg="", err=""):
 # ── Tab: 總覽 ─────────────────────────────────────────────
 def t_overview():
     q=_queue(); pt=_today_count(); pub=_pub_total(); buf=_buf()
-    subs,views=_kpis(); strategy=_strategy(); running=_running(); cron_ok=_cron_ok()
+    subs,views=_kpis(); md=_mdata(); strategy=_strategy(); running=_running(); cron_ok=_cron_ok()
     pend=_j(PENDING,[]); qp,qok,qrej,qmin=_qsum(); k=_k()
     net=None
     try:
@@ -260,6 +269,10 @@ def t_overview():
     cron_log=html.escape(_tail(LOGS/"cron.log",10))
     strat=html.escape(strategy) if strategy else "（待今日決策部門運行後顯示）"
     pass_pct = int(qok/(qp or 1)*100) if qp else 0
+    n_vid = md.get("n_videos","—"); uploaded = md.get("uploaded","—")
+    sh_today = md.get("shorts_today","—"); lo_today = md.get("longs_today","—")
+    mdate = md.get("date","")
+    mdate_str = f'<span class=muted style="font-size:10px">資料日期：{mdate}</span>' if mdate else ""
     return (f'{pa}'
             f'<div class=g4>'
             f'<div class=card><div class=num-sm>{q}</div><div class=lbl>📦待上傳</div></div>'
@@ -273,6 +286,13 @@ def t_overview():
             f'<div class=card><div class=num>{nd}</div><div class=lbl>💰淨利</div></div>'
             f'<div class=card><div class=num-sm>{qok}<span style="font-size:13px;color:#6b80a0">/{qp}</span></div><div class=lbl>🎬庫存達標</div></div>'
             f'</div>'
+            f'<div class=g4>'
+            f'<div class=card><div class=num-sm>{n_vid}</div><div class=lbl>🎥影片總數</div></div>'
+            f'<div class=card><div class=num-sm>{uploaded}</div><div class=lbl>📤已上傳</div></div>'
+            f'<div class=card><div class=num-sm>{sh_today}</div><div class=lbl>⚡Shorts數</div></div>'
+            f'<div class=card><div class=num-sm>{lo_today}</div><div class=lbl>🎬長片數</div></div>'
+            f'</div>'
+            f'{mdate_str}'
             f'<div class=box><h3>📈 YPP達標進度</h3>'
             f'<div style="display:flex;justify-content:space-between;margin-bottom:3px"><span>訂閱 {sd}/{SUB_GOAL:,}</span><span class=muted>{sp}%</span></div>'
             f'<div class=pb><div class="pbf" style="width:{sp}%;background:#ffd23f"></div></div>'
