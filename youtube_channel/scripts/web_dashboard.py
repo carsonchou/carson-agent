@@ -93,12 +93,15 @@ def _tail(path, n=30):
     except: return ""
 
 def _bg(script, args=None):
-    LOGS.mkdir(exist_ok=True)
-    sh = ROOT/"deploy"/"run.sh"
-    if not sh.exists(): sh = ROOT/"run.sh"
-    log = open(LOGS/f"{script}.log","a",encoding="utf-8")
-    subprocess.Popen([str(sh),f"scripts/{script}.py"]+(args or[]),
-                     stdout=log, stderr=log, cwd=str(ROOT))
+    try:
+        LOGS.mkdir(exist_ok=True)
+        sh = ROOT/"deploy"/"run.sh"
+        if not sh.exists(): sh = ROOT/"run.sh"
+        log = open(LOGS/f"{script}.log","a",encoding="utf-8")
+        subprocess.Popen([str(sh),f"scripts/{script}.py"]+(args or[]),
+                         stdout=log, stderr=log, cwd=str(ROOT))
+    except Exception:
+        pass
 
 def _strategy():
     if not REPORTS.exists(): return ""
