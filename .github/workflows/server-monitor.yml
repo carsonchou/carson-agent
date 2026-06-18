@@ -1,0 +1,20 @@
+name: 伺服器自動監控
+
+on:
+  schedule:
+    - cron: '20 4,12 * * *'   # UTC 4:20/12:20 = 台灣 12:20/20:20
+  workflow_dispatch:           # 可手動觸發
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: SSH 維護伺服器
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          password: ${{ secrets.SERVER_PASS }}
+          script_stop: false
+          script: ${{ secrets.MONITOR_SCRIPT }}
