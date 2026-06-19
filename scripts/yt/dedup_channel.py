@@ -7,7 +7,10 @@ import re
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent.parent
+# 在 repo: scripts/yt/dedup_channel.py → parent×3 = repo root
+# 在伺服器: scripts/dedup_channel.py → parent×2 = /root/yt
+_here = Path(__file__).resolve()
+ROOT = _here.parent.parent if _here.parent.name == "scripts" else _here.parent.parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
 try:
@@ -18,7 +21,7 @@ except Exception:
 
 LEDGER = ROOT / "STUDIO" / "uploaded_ledger.json"
 OUTPUT = ROOT / "output"
-TOKEN = ROOT.parent / "token.json"  # /root/yt/token.json
+TOKEN = ROOT / "token.json"  # /root/yt/token.json
 SCOPES = [
     "https://www.googleapis.com/auth/youtube",
     "https://www.googleapis.com/auth/youtube.upload",
