@@ -30,7 +30,7 @@ jobs:
             DST="/root/yt/scripts"
             NEED_RESTART=0
 
-            for SCRIPT in web_dashboard quality_score; do
+            for SCRIPT in audit_video quality_score produce_batch decision_dept control_center web_dashboard; do
               FILE="${SCRIPT}.py"
               HTTP=$(curl -o /tmp/${FILE} -sfH "Authorization: token $GH_TOKEN" \
                 -w "%{http_code}" "${API}/${FILE}?ref=${BRANCH}")
@@ -54,3 +54,8 @@ print('✅ 已更新 ${FILE}')
             else
               echo "ℹ️ web_dashboard.py 未變動，跳過重啟"
             fi
+
+            # 若 audit_video 或 quality_score 有更新，重新評分讓前端立即看到正確分數
+            echo "🔄 重新評分（套用最新 audit 邏輯）…"
+            cd /root/yt && .venv/bin/python scripts/quality_score.py 2>&1 | tail -3
+            echo "✅ 重新評分完成"
