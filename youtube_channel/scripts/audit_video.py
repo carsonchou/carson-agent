@@ -30,9 +30,15 @@ BANNED = [
 ]
 
 # 否定詞：禁語前若有這些字，視為誠實聲明（如「不保證收益」）而非違規
-NEG_CHARS = "不沒別非勿未拒避免絕毋"
-# 破除/反問語境標記：禁語前有這些(如「你以為網格穩賺?」)或後接問號，屬誠實破除，非違規
-DEBUNK = ("以為", "迷思", "真的", "真能", "真會", "別信", "別再", "騙", "假象", "謊", "難道", "憑什麼", "怎麼可能")
+NEG_CHARS = "不沒別非勿未拒避免絕毋並"
+# 破除/反問語境標記：禁語前/同句有這些，屬誠實揭穿，非違規
+DEBUNK = (
+    "以為", "迷思", "真的", "真能", "真會", "別信", "別再", "騙", "假象", "謊", "難道",
+    "憑什麼", "怎麼可能", "陷阱", "小心", "當心", "謊言", "宣稱", "號稱",
+    "算出", "計算", "測試", "驗證", "分析", "研究", "真相", "揭秘", "破解",
+    "真實", "實際上", "事實上", "其實", "實測", "才知道", "錯了", "錯誤",
+    "警告", "注意", "風險", "虧損", "虧錢", "破產", "賠錢",
+)
 QUESTION = "？?嗎吗"
 
 
@@ -81,15 +87,19 @@ def audit(slug: str):
     if md.exists():
         blob += "\n" + md.read_text(encoding="utf-8")
     def _ok_context(i, b):
-        pre = blob[max(0, i - 8):i]
-        post = blob[i + len(b): i + len(b) + 2]
-        if any(n in pre for n in NEG_CHARS):       # 不/沒保證…
+        # 前視窗 20 字（中文平均詞距），後視窗 6 字
+        pre = blob[max(0, i - 20):i]
+        post = blob[i + len(b): i + len(b) + 6]
+        if any(n in pre for n in NEG_CHARS):
             return True
-        if any(dk in pre for dk in DEBUNK):        # 你以為/迷思/真的…穩賺
+        if any(dk in pre for dk in DEBUNK):
             return True
-        if any(q in post for q in QUESTION):       # 穩賺？ 反問
+        if any(q in post for q in QUESTION):
             return True
-        return False
+        # 句子級：找本句句首，掃整句是否含否定/破除詞（捕捉「以為…穩賺」跨距長的句型）
+        sent_start = max((blob.rfind(sep, 0, i) for sep in "。！？\n"), default=-1) + 1
+        pre_sent = blob[sent_start:i]
+        return any(n in pre_sent for n in NEG_CHARS) or any(dk in pre_sent for dk in DEBUNK)
 
     hits = []
     for b in BANNED:
