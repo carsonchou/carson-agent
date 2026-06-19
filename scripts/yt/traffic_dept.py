@@ -57,29 +57,31 @@ def generate_report() -> None:
 
     lines += [f"# {today} 流量洞察", "", f"> 自動生成時間：{today} 05:35 CST", ""]
 
-    svc = None
-    yta = None
     try:
-        import yt_analytics as _yta
-        svc = _yta.get_service()
-        yta = _yta
+        import yt_analytics as yta
     except Exception as exc:
+        lines += [f"⚠️ 無法載入 yt_analytics 模組：{exc}", ""]
+        out = REPORTS / f"{today}_流量洞察.md"
+        out.write_text("\n".join(lines), encoding="utf-8")
+        print(f"[WARN] 模組載入失敗：{out}")
+        return
+
+    if not yta.available():
         lines += [
-            "## ⚠️ Analytics API 連線失敗",
+            "## ⚠️ Analytics API 未授權",
             "",
-            f"錯誤：{exc}",
-            "",
-            "請確認 `/root/yt/token_analytics.json` 是否有效（需重新 OAuth 授權）。",
+            "找不到有效的 OAuth token（`/root/yt/token_analytics.json`）。",
+            "請重新執行 `python scripts/auth_analytics.py` 完成授權。",
             "",
         ]
         out = REPORTS / f"{today}_流量洞察.md"
         out.write_text("\n".join(lines), encoding="utf-8")
-        print(f"[WARN] 無法連接 Analytics API，已輸出錯誤報告：{out}")
+        print(f"[WARN] Analytics 未授權，已輸出提示報告：{out}")
         return
 
     # ─── 頻道總覽（近 28 天）───
     try:
-        summary = yta.channel_summary(svc)
+        summary = yta.channel_summary(days=28)
         views = summary.get("views", 0)
         minutes = summary.get("estimatedMinutesWatched", 0)
         avg_pct = summary.get("averageViewPercentage", 0)
@@ -106,7 +108,7 @@ def generate_report() -> None:
 
     # ─── 高表現影片（依觀看排名）───
     try:
-        top = yta.top_by_ctr(svc, limit=10)
+        top = yta.top_by_ctr(days=28, limit=10)
         if top:
             lines += ["## 近期影片表現（依觀看排名）", ""]
             lines += ["| # | 標題 | 觀看 | 完播率 |"]
