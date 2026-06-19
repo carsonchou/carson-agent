@@ -2103,14 +2103,27 @@ class App(tk.Tk):
             perf.append(f"🔔 訂閱 +{int(sb)}" if sb is not None else "🔔 訂閱 —")
             lines.append("近 180 天成效：" + "　".join(perf) + "（YouTube Analytics；CTR 為 Studio 限定、API 不提供）")
         ai = it.get("ai") or {}
+        rs = it.get("reasons", [])
         if ai:
+            ai_total = ai.get("total") or sum(ai.get(k, 0) for k in ("hook", "title", "content", "honesty"))
             lines.append(f"AI 內容評分（各 25）：🪝 鉤子 {ai.get('hook','?')}　🎯 標題 {ai.get('title','?')}　"
-                         f"📚 內容 {ai.get('content','?')}　🛡 誠信 {ai.get('honesty','?')}")
+                         f"📚 內容 {ai.get('content','?')}　🛡 誠信 {ai.get('honesty','?')}　→ AI合計 {ai_total}")
             if ai.get("note"):
                 lines.append(f"💡 最該改：{ai['note']}")
-        rs = it.get("reasons", [])
         if rs:
-            lines.append("⚠ 品管硬傷扣分：" + "、".join(rs))
+            _DEDUCT_MAP = [
+                ("mp4 不存在", 100), ("無視訊軌", 45), ("無音軌", 45), ("片長過短", 35),
+                ("檔案過小", 30), (".md 腳本不存在", 25), ("禁語", 50), ("Shorts 超過", 18),
+                ("缺影片標題", 15), ("缺風險聲明", 12),
+            ]
+            ded = sum(w for kw, w in _DEDUCT_MAP if any(kw in r for r in rs))
+            lines.append(f"⚠ 品管扣分 −{ded}：" + "、".join(rs))
+            if ai and sc is not None:
+                ai_total = ai.get("total") or sum(ai.get(k, 0) for k in ("hook", "title", "content", "honesty"))
+                lines.append(f"   計分：AI合計 {ai_total} − 扣 {ded} = {sc}（已限制在 0–100）")
+        elif ai and sc is not None:
+            ai_total = ai.get("total") or sum(ai.get(k, 0) for k in ("hook", "title", "content", "honesty"))
+            lines.append(f"✅ 無品管硬傷，最終分 = AI合計 {ai_total} = {sc}")
         if it.get("videoId"):
             lines.append(f"YouTube：https://youtu.be/{it['videoId']}")
         widget.insert("1.0", "\n".join(lines))

@@ -145,7 +145,9 @@ def score_one(slug, ai):
     ok, reasons = audit_video.audit(slug)
     ded = sum(w for kw, w in DEDUCT if any(kw in r for r in reasons))
     if ai:
-        score = max(0, min(100, ai["total"] - ded))
+        # 向後相容：舊快取可能缺 "total" 欄位，動態從子項加總
+        total = ai.get("total") or sum(ai.get(k, 0) for k in ("hook", "title", "content", "honesty"))
+        score = max(0, min(100, total - ded))
     else:
         score = max(0, 100 - ded)
     return score, reasons

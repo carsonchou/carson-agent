@@ -51,6 +51,23 @@ def tw_today():
     return datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m-%d")
 
 
+def queue_topics(n: int = 20) -> list[str]:
+    """讀目前片庫（output/*.md）按修改時間最新的 n 筆題目，讓決策部門知道庫存已有哪些題材。"""
+    out_dir = ROOT / "output"
+    if not out_dir.exists():
+        return []
+    titles = []
+    for f in sorted(out_dir.glob("*.md"), key=lambda x: x.stat().st_mtime, reverse=True)[:n]:
+        try:
+            first = f.read_text(encoding="utf-8").splitlines()[0]
+            t = first.replace("# 🎬", "").replace("#", "").strip()
+            if t:
+                titles.append(t)
+        except Exception:
+            pass
+    return titles
+
+
 def yt_service():
     creds = Credentials.from_authorized_user_file(str(TOKEN), SCOPES)
     if not creds.valid and creds.expired and creds.refresh_token:
@@ -113,12 +130,21 @@ def decide(rows):
         boss_txt += "\n\n【老闆已拍板的決策（務必遵守，不要再問）】：\n" + "\n".join(
             f"- {v.get('question','')} → 老闆選：{v.get('choice','')}" for v in answered.values())
     summary = "\n".join(f"- [{'短' if r['is_short'] else '長'}] {r['title']}｜觀看{r['views']} 讚{r['likes']} 留言{r['comments']}" for r in rows[:30])
+    # 片庫現況：讓決策部門知道哪些題材已在排隊，避免重複推薦同質題材
+    qt = queue_topics(20)
+    queue_ctx = ""
+    if qt:
+        queue_ctx = "\n\n【目前片庫已有的題目（請推薦不同方向，避免庫存同質化）】：\n" + "\n".join(f"- {t[:44]}" for t in qt[:15])
     prompt = f"""你是量化阿森 YouTube 工作室的【決策部門】總監，直接對大老闆 Carson 負責。
 頻道主題=量化/自動交易教學(網格、定投、派網Pionex、回測、風控)，繁體中文。
 第一目標=YPP 達標(主攻 Shorts 衝1000萬觀看/訂閱1000)。誠信鐵則:不編造損益、不保證收益。
 
 目前所有影片成效(總觀看 {total_views})：
-{summary or '（尚無影片數據，頻道剛起步）'}{boss_txt}
+{summary or '（尚無影片數據，頻道剛起步）'}{boss_txt}{queue_ctx}
+
+【多樣性鐵則】produce_more 必須橫跨至少 3 種不同主題維度（如：風控/策略/工具使用/回測方法/心態/定投等類別）。
+片庫已有大量某類型→降優先、推新方向。嚴禁把同一個概念拆成 3-6 個換字變體充數（如「破產機率A/B/C/D」）。
+每個 produce_more 條目要能代表一個獨立可拍的角度，且與庫存中現有題目明顯不同。
 
 請做出**營運決策**並只輸出 JSON(不要其他字)：
 {{
