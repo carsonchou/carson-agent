@@ -81,7 +81,7 @@ def generate_report() -> None:
 
     # ─── 頻道總覽（近 28 天）───
     try:
-        summary = yta.channel_summary(days=28)
+        summary = yta.channel_summary(days=28) or {}
         views = summary.get("views", 0)
         minutes = summary.get("estimatedMinutesWatched", 0)
         avg_pct = summary.get("averageViewPercentage", 0)
@@ -171,24 +171,13 @@ def generate_report() -> None:
     out.write_text("\n".join(lines), encoding="utf-8")
     print(f"[OK] 流量洞察已輸出：{out}")
 
-    # ─── 更新 production_orders.json ───
-    new_orders = {
-        "preferred_keywords": [
-            "定投", "回測", "夏普", "網格", "勝率", "馬丁格爾",
-            "量化", "風控", "期望值", "派網",
-        ],
-        "produce_more": [
-            "數學拆穿直覺：定投/回測/勝率類反直覺揭錯",
-            "夏普比率實戰應用",
-            "網格策略風控設定",
-        ],
-        "avoid_topics": ["複利基礎（單獨製作）", "回撤介紹（單獨製作）"],
-        "last_updated": today,
-    }
+    # ─── 更新 production_orders.json（只更新 last_updated，保留既有策略）───
+    existing_orders = load_orders()
+    existing_orders["last_updated"] = today
     ORDERS_PATH.write_text(
-        json.dumps(new_orders, ensure_ascii=False, indent=2), encoding="utf-8"
+        json.dumps(existing_orders, ensure_ascii=False, indent=2), encoding="utf-8"
     )
-    print(f"[OK] 製作指令已更新：{ORDERS_PATH}")
+    print(f"[OK] 製作指令時戳已更新：{ORDERS_PATH}")
 
 
 if __name__ == "__main__":
