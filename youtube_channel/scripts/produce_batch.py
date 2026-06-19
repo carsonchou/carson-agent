@@ -151,6 +151,19 @@ def existing_titles():
             out.append(first.replace("# 🎬", "").strip())
         except Exception:
             pass
+    # 從已上架 ledger 讀標題，防止每日重複生成近似題材
+    ledger_path = ROOT / "STUDIO" / "uploaded_ledger.json"
+    if ledger_path.exists():
+        try:
+            import re as _re
+            ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
+            for slug_key in ledger:
+                title = _re.sub(r"^[SL]_", "", slug_key)
+                title = _re.sub(r"\d{3,5}$", "", title)
+                if title:
+                    out.append(title)
+        except Exception:
+            pass
     return out
 
 

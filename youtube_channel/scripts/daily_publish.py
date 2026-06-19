@@ -108,9 +108,23 @@ def save_ledger(d: dict) -> None:
     LEDGER.write_text(json.dumps(d, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def _norm(slug: str) -> str:
+    import re as _re
+    s = _re.sub(r"^[SL]_", "", slug)
+    return _re.sub(r"\d{3,5}$", "", s)
+
+
+def _char_sim(a: str, b: str) -> float:
+    sa, sb = set(_norm(a)), set(_norm(b))
+    if not sa or not sb:
+        return 0.0
+    return len(sa & sb) / max(len(sa), len(sb))
+
+
 def find_candidates(ledger: dict) -> list:
     # Shorts(S_) 優先，其次長片(L_)；過濾已上傳與壞檔
     mp4s = sorted(OUTPUT.glob("S_*.mp4")) + sorted(OUTPUT.glob("L_*.mp4"))
+    ledger_slugs = list(ledger.keys())
     out = []
     for f in mp4s:
         slug = f.stem
@@ -118,6 +132,11 @@ def find_candidates(ledger: dict) -> list:
             continue
         if f.stat().st_size < 100 * 1024:  # 壞檔/空檔跳過
             continue
+        # 近似重複檢查：「決策」系列豁免
+        if "決策" not in slug:
+            if any(_char_sim(slug, s) >= 0.68 for s in ledger_slugs):
+                print(f"[dedup] {slug} 與已上架內容相似，跳過")
+                continue
         out.append(slug)
     return out
 
