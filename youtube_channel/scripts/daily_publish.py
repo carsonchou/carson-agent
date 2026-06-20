@@ -138,29 +138,49 @@ def find_candidates(ledger: dict) -> list:
                 print(f"[dedup] {slug} 與已上架內容相似，跳過")
                 continue
         out.append(slug)
-    return out
+    # 在 Shorts 和長片各自群組內，依品質分由高到低排——每天 6 支配額要上最好的
+    qmap, _ = load_quality()
+    shorts = [s for s in out if s.startswith("S_")]
+    longs = [s for s in out if not s.startswith("S_")]
+    shorts.sort(key=lambda s: -(qmap.get(s) or 0))
+    longs.sort(key=lambda s: -(qmap.get(s) or 0))
+    return shorts + longs
 
+
+_SHORTS_HASHTAGS = "\n\n#Shorts #量化交易 #網格交易 #派網 #Pionex #被動收入 #投資理財 #自動交易"
 
 def upload_one(yt, slug: str, privacy: str) -> str:
     cfg = up.load_channel_config()
     meta = up.assemble_metadata(slug=slug, md_path=OUTPUT / f"{slug}.md", channel_config=cfg, append_affiliate=True)
     meta = up.enforce_youtube_limits(meta)
+    is_short = slug.startswith("S_")
+
+    # Shorts 必須有 #Shorts 才能進 Shorts shelf（YouTube 分類依據）
+    if is_short and "#shorts" not in meta["description"].lower():
+        meta["description"] = (meta["description"] + _SHORTS_HASHTAGS)[:5000]
+
+    # Shorts 用 #Shorts 加進標題尾端（字數允許時）；長片 categoryId 用教育(27)
+    title = meta["title"]
+    if is_short and "#shorts" not in title.lower() and len(title) <= 90:
+        title = title + " #Shorts"
+    category_id = "28" if is_short else "27"  # Shorts=科技(28), Long=教育(27)
+
     body = {
         "snippet": {
-            "title": meta["title"],
+            "title": title,
             "description": meta["description"],
             "tags": meta.get("tags", []),
-            "categoryId": "28",
+            "categoryId": category_id,
             "defaultLanguage": "zh-Hant",
         },
-        # Shorts 隱藏設定：不是兒童內容(保留留言/廣告/推薦) + 允許嵌入(站外流量是演算法加分訊號)
+        # 不是兒童內容(保留留言/廣告/推薦) + 允許嵌入(站外流量是演算法加分訊號)
         "status": {"privacyStatus": privacy, "selfDeclaredMadeForKids": False, "embeddable": True},
     }
     media = MediaFileUpload(str(OUTPUT / f"{slug}.mp4"), resumable=True, chunksize=4 * 1024 * 1024)
-    # Shorts 關鍵：notifySubscribers=False —— Shorts 是冷啟動給陌生人測試，通知訂閱者(衝長片來的)
-    # 會讓他們划走→完播率低→演算法判定沒人看→掐死推薦。
+    # Shorts 冷啟動給陌生人測試：notifySubscribers=False（通知訂閱者會拉高划走率→掐死推薦）
+    # 長片 notifySubscribers=True：訂閱者觀看可累積觀看時數 + 訂閱信號
     req = yt.videos().insert(part="snippet,status", body=body, media_body=media,
-                             notifySubscribers=False)
+                             notifySubscribers=not is_short)
     resp = None
     while resp is None:
         _status, resp = req.next_chunk()

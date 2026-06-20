@@ -249,6 +249,12 @@ def call_claude(kind, avoid, topic_override=None):
     playbook = load_playbook()  # 每支腳本都即時讀最新競品 playbook
     training = load_training()  # 每週進修部門的資料驅動洞察
     avoid_block = "\n".join(f"  · {t}" for t in (avoid or [])[:60]) if avoid else "  （無）"
+    if kind == "short":
+        hashtag_json = '"hashtags":["#Shorts","#量化交易","#..."]}'
+        hashtag_rule = "hashtags 規則：第一個必為 #Shorts（YouTube Shorts shelf 分類依據），再給 3-5 個精準利基標籤（如 #網格交易 #派網 #Pionex #自動交易）；不要硬塞熱門泛標——精準勝過熱門，乾淨又利於演算法。"
+    else:
+        hashtag_json = '"hashtags":["#量化交易","#..."]}'
+        hashtag_rule = "hashtags 規則：給 4-6 個精準利基標籤（如 #量化交易 #網格交易 #回測 #風控 #派網）；長片不要放 #Shorts——放了反而害演算法分類錯誤。"
     prompt = f"""你是量化阿森頻道的專業腳本寫手。{GUARD}
 {QUANT_STANDARD}
 {playbook}{training}
@@ -260,8 +266,8 @@ def call_claude(kind, avoid, topic_override=None):
 請避免重複以下已有題目（換切角可以，換字重說同主題不行）：
 {avoid_block}
 只輸出 JSON（不要任何其他文字、不要 markdown 圍欄），格式：
-{{"title":"有點擊慾的標題","voice_text":"完整旁白逐字稿(口語、適合中文TTS)","segments":[{{"heading":"段落小標","broll":["english keyword","english keyword"]}}],"description":"SEO 描述（1-2 句精簡、含關鍵字，結尾含風險聲明『投資有風險，不構成投資建議』）","hashtags":["#Shorts","#量化交易","#..."]}}
-hashtags 規則：給 4-6 個「精準且利基相關」的標籤(第一個必為 #Shorts)，不要硬塞 20 個——精準勝過熱門，乾淨又利於演算法分類。"""
+{{"title":"有點擊慾的標題","voice_text":"完整旁白逐字稿(口語、適合中文TTS)","segments":[{{"heading":"段落小標","broll":["english keyword","english keyword"]}}],"description":"SEO 描述（1-2 句精簡、含關鍵字，結尾含風險聲明『投資有風險，不構成投資建議』）",{hashtag_json}
+{hashtag_rule}"""
     body = {"model": MODEL, "max_tokens": 3500, "messages": [{"role": "user", "content": prompt}]}
     r = requests.post("https://api.anthropic.com/v1/messages",
                       headers={"x-api-key": API_KEY, "anthropic-version": "2023-06-01",

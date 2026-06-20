@@ -31,7 +31,7 @@ jobs:
             DST="/root/yt/scripts"
             NEED_RESTART=0
 
-            for SCRIPT in audit_video quality_score produce_batch decision_dept control_center web_dashboard train_depts; do
+            for SCRIPT in audit_video quality_score produce_batch decision_dept control_center web_dashboard train_depts daily_publish retrofit_shorts_tags; do
               FILE="${SCRIPT}.py"
               HTTP=$(curl -o /tmp/${FILE} -sfH "Authorization: token $GH_TOKEN" \
                 -w "%{http_code}" "${API}/${FILE}?ref=${BRANCH}")
