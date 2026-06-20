@@ -49,8 +49,8 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG_PATH = PROJECT_ROOT / "channel_config.json"
 DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "output"
 
-DEFAULT_MODEL = "claude-opus-4-8"
-DEFAULT_MAX_TOKENS = 16000
+DEFAULT_MODEL = "claude-sonnet-4-6"
+DEFAULT_MAX_TOKENS = 4000
 DEFAULT_EFFORT = "high"
 
 
