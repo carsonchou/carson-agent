@@ -1,18 +1,24 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""ai_budget.py — Anthropic API 省錢守門人。
+"""ai_budget.py — Anthropic API 省錢中間層。
 
-用法（其他腳本 import）：
-    from ai_budget import call_ai, budget_ok
+省錢邏輯：
+  1. 快取（相同 model + prompt hash → 不重複付費）
+  2. 用量追蹤（記每次 call 的 token 數 + 估算台幣）
+  3. 不限制次數（限制會讓補產停掉）
 
-直接執行看今日用量：
+其他腳本使用方式：
+    from ai_budget import call_ai
+    text = call_ai(prompt, model, max_tokens=400)
+
+直接執行看本週用量：
     python scripts/ai_budget.py
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
-import re
 import sys
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -25,18 +31,13 @@ except Exception:
 
 ROOT = Path(__file__).resolve().parent.parent
 USAGE_FILE = ROOT / "STUDIO" / "ai_usage.json"
+CACHE_FILE = ROOT / "STUDIO" / "ai_cache.json"
 TW = timezone(timedelta(hours=8))
 
 API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
 
-# 每日上限（可在 boss_directives.json 覆蓋）
-DEFAULT_LIMITS = {
-    "claude-haiku-4-5-20251001": 80,   # 便宜，放寬一點
-    "claude-sonnet-4-6":         15,   # 較貴，每天最多 15 次
-    "claude-opus-4-8":            3,   # 超貴，幾乎不讓用
-}
+CACHE_TTL_DAYS = 14  # 快取保留幾天
 
-# 每個 token 的美元成本（per token，非 per million）
 COST_PER_TOKEN = {
     "claude-haiku-4-5-20251001":  {"in": 0.80e-6, "out": 4.00e-6},
     "claude-sonnet-4-6":          {"in": 3.00e-6, "out": 15.00e-6},
@@ -49,61 +50,102 @@ def _today() -> str:
     return datetime.now(TW).strftime("%Y-%m-%d")
 
 
-def _load() -> dict:
+def _now_iso() -> str:
+    return datetime.now(TW).isoformat(timespec="seconds")
+
+
+def _load_json(path: Path, default):
     try:
-        return json.loads(USAGE_FILE.read_text(encoding="utf-8"))
+        return json.loads(path.read_text(encoding="utf-8"))
     except Exception:
-        return {}
+        return default
 
 
-def _save(data: dict) -> None:
-    USAGE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    USAGE_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+def _save_json(path: Path, data) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def _get_limits() -> dict:
+# ─── 快取 ─────────────────────────────────────────────────────────────────────
+
+def _cache_key(model: str, prompt: str) -> str:
+    return hashlib.sha256(f"{model}\n{prompt}".encode()).hexdigest()[:20]
+
+
+def _cache_get(model: str, prompt: str) -> str | None:
+    cache = _load_json(CACHE_FILE, {})
+    key = _cache_key(model, prompt)
+    entry = cache.get(key)
+    if not entry:
+        return None
+    # TTL 檢查
     try:
-        d = json.loads((ROOT / "STUDIO" / "boss_directives.json").read_text(encoding="utf-8"))
-        overrides = d.get("ai_daily_limits", {})
-        return {**DEFAULT_LIMITS, **overrides}
+        saved = datetime.fromisoformat(entry["ts"])
+        now = datetime.now(TW)
+        if (now - saved).days > CACHE_TTL_DAYS:
+            return None
     except Exception:
-        return DEFAULT_LIMITS
+        return None
+    return entry.get("text")
 
 
-def budget_ok(model: str) -> bool:
-    """回傳今天這個 model 是否還有配額。"""
-    limits = _get_limits()
-    limit = limits.get(model, 10)
-    data = _load()
-    today = _today()
-    used = data.get(today, {}).get(model, {}).get("calls", 0)
-    if used >= limit:
-        print(f"[budget] {model} 今日已達上限 {limit} 次（已用 {used}），跳過。", file=sys.stderr)
-        return False
-    return True
+def _cache_set(model: str, prompt: str, text: str) -> None:
+    cache = _load_json(CACHE_FILE, {})
+    # 清理過期 entry（保持快取精簡）
+    cutoff = datetime.now(TW)
+    cache = {
+        k: v for k, v in cache.items()
+        if _days_old(v.get("ts", "")) <= CACHE_TTL_DAYS
+    }
+    key = _cache_key(model, prompt)
+    cache[key] = {"ts": _now_iso(), "model": model, "text": text}
+    _save_json(CACHE_FILE, cache)
 
 
-def _record(model: str, in_tokens: int, out_tokens: int) -> None:
-    data = _load()
+def _days_old(ts_str: str) -> int:
+    try:
+        return (datetime.now(TW) - datetime.fromisoformat(ts_str)).days
+    except Exception:
+        return 9999
+
+
+# ─── 用量記錄 ──────────────────────────────────────────────────────────────────
+
+def _record(model: str, in_tokens: int, out_tokens: int, cached: bool = False) -> None:
+    data = _load_json(USAGE_FILE, {})
     today = _today()
     day = data.setdefault(today, {})
-    m = day.setdefault(model, {"calls": 0, "in_tokens": 0, "out_tokens": 0, "est_twd": 0.0})
+    m = day.setdefault(model, {"calls": 0, "cached": 0, "in_tokens": 0, "out_tokens": 0, "est_twd": 0.0})
     m["calls"] += 1
-    m["in_tokens"] += in_tokens
-    m["out_tokens"] += out_tokens
-    cost = COST_PER_TOKEN.get(model, {"in": 3e-6, "out": 15e-6})
-    m["est_twd"] = round(
-        (m["in_tokens"] * cost["in"] + m["out_tokens"] * cost["out"]) * USD_TO_TWD, 4
-    )
-    _save(data)
+    if cached:
+        m["cached"] += 1
+    else:
+        m["in_tokens"] += in_tokens
+        m["out_tokens"] += out_tokens
+        cost = COST_PER_TOKEN.get(model, {"in": 3e-6, "out": 15e-6})
+        m["est_twd"] = round(
+            (m["in_tokens"] * cost["in"] + m["out_tokens"] * cost["out"]) * USD_TO_TWD, 4
+        )
+    _save_json(USAGE_FILE, data)
 
 
-def call_ai(prompt: str, model: str, max_tokens: int = 800, temperature: float = 0) -> str | None:
-    """呼叫 Anthropic API，有預算才打；回傳 response text 或 None。"""
+# ─── 主要介面 ──────────────────────────────────────────────────────────────────
+
+def call_ai(prompt: str, model: str, max_tokens: int = 800,
+            temperature: float = 0, use_cache: bool = True) -> str | None:
+    """呼叫 Anthropic API，自動快取 + 記帳。回傳 response text 或 None。
+
+    use_cache=False 強制不走快取（produce_batch 產腳本時用，因為每次要新內容）。
+    """
     if not API_KEY:
         return None
-    if not budget_ok(model):
-        return None
+
+    if use_cache:
+        cached = _cache_get(model, prompt)
+        if cached is not None:
+            _record(model, 0, 0, cached=True)
+            return cached
+
     import requests
     try:
         r = requests.post(
@@ -118,34 +160,42 @@ def call_ai(prompt: str, model: str, max_tokens: int = 800, temperature: float =
         body = r.json()
         text = body["content"][0]["text"]
         usage = body.get("usage", {})
-        _record(model, usage.get("input_tokens", len(prompt) // 4),
-                usage.get("output_tokens", len(text) // 4))
+        in_tok = usage.get("input_tokens", max(1, len(prompt) // 4))
+        out_tok = usage.get("output_tokens", max(1, len(text) // 4))
+        _record(model, in_tok, out_tok, cached=False)
+        if use_cache:
+            _cache_set(model, prompt, text)
         return text
     except Exception as exc:
-        print(f"[budget] API 呼叫失敗：{str(exc)[:80]}", file=sys.stderr)
+        print(f"[ai_budget] API 呼叫失敗：{str(exc)[:100]}", file=sys.stderr)
         return None
 
 
+# ─── 報表 ──────────────────────────────────────────────────────────────────────
+
 def report() -> None:
-    data = _load()
+    data = _load_json(USAGE_FILE, {})
+    cache = _load_json(CACHE_FILE, {})
     if not data:
         print("尚無用量記錄。")
         return
-    limits = _get_limits()
+
     total_twd = 0.0
+    print(f"快取條目：{len(cache)} 筆（TTL {CACHE_TTL_DAYS} 天）\n")
     for day in sorted(data.keys(), reverse=True)[:7]:
-        print(f"\n── {day} ──")
+        print(f"── {day} ──")
         day_twd = 0.0
-        for model, m in data[day].items():
-            limit = limits.get(model, "?")
-            est = m.get("est_twd", 0)
+        for model, m in sorted(data[day].items()):
+            est = m.get("est_twd", 0.0)
             day_twd += est
-            bar = "█" * m["calls"] + "░" * max(0, (limit if isinstance(limit, int) else 0) - m["calls"])
-            print(f"  {model:<35} {m['calls']:>3}/{limit} 次  {m['in_tokens']:>7} in  "
-                  f"{m['out_tokens']:>6} out  NT${est:.2f}  [{bar[:20]}]")
-        print(f"  小計：NT${day_twd:.2f}")
+            hit = m.get("cached", 0)
+            real = m["calls"] - hit
+            print(f"  {model:<35}  {real:>3} 次實呼叫  {hit:>3} 次快取命中"
+                  f"  {m['in_tokens']:>7} in  {m['out_tokens']:>6} out"
+                  f"  NT${est:.2f}")
+        print(f"  小計：NT${day_twd:.2f}\n")
         total_twd += day_twd
-    print(f"\n7 日合計：NT${total_twd:.2f}")
+    print(f"7 日合計：NT${total_twd:.2f}")
 
 
 if __name__ == "__main__":

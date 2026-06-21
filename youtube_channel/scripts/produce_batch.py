@@ -276,9 +276,9 @@ def call_claude(kind, avoid, topic_override=None):
 {hashtag_rule}"""
     body = {"model": MODEL, "max_tokens": 3500, "messages": [{"role": "user", "content": prompt}]}
     if _USE_BUDGET:
-        txt = _call_ai(prompt, MODEL, max_tokens=3500)
+        txt = _call_ai(prompt, MODEL, max_tokens=3500, use_cache=False)
         if txt is None:
-            raise RuntimeError("AI 預算已達上限，跳過本次補產")
+            raise RuntimeError("AI 呼叫失敗（無 API key 或網路錯誤）")
     else:
         r = requests.post("https://api.anthropic.com/v1/messages",
                           headers={"x-api-key": API_KEY, "anthropic-version": "2023-06-01",
