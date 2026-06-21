@@ -39,6 +39,12 @@ PY = _py_win if _py_win.exists() else (_py_nix if _py_nix.exists() else Path(sys
 API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
 MODEL = "claude-haiku-4-5-20251001"  # 便宜、寫腳本夠用
 
+try:
+    from ai_budget import call_ai as _call_ai, budget_ok as _budget_ok
+    _USE_BUDGET = True
+except ImportError:
+    _USE_BUDGET = False
+
 GUARD = ("誠信鐵則：不編造個人損益、不保證收益、不喊單、絕不用『保證賺/穩賺不賠/一定賺』等詞；"
          "聯盟軟推＋風險聲明；教學與觀念為主。頻道＝量化阿森｜Carson Quant，繁體中文，"
          "主題＝量化／自動交易（網格、定投、派網 Pionex、回測、風控）。")
@@ -269,12 +275,17 @@ def call_claude(kind, avoid, topic_override=None):
 {{"title":"有點擊慾的標題","voice_text":"完整旁白逐字稿(口語、適合中文TTS)","segments":[{{"heading":"段落小標","broll":["english keyword","english keyword"]}}],"description":"SEO 描述（1-2 句精簡、含關鍵字，結尾含風險聲明『投資有風險，不構成投資建議』）",{hashtag_json}
 {hashtag_rule}"""
     body = {"model": MODEL, "max_tokens": 3500, "messages": [{"role": "user", "content": prompt}]}
-    r = requests.post("https://api.anthropic.com/v1/messages",
-                      headers={"x-api-key": API_KEY, "anthropic-version": "2023-06-01",
-                               "content-type": "application/json"},
-                      json=body, timeout=150)
-    r.raise_for_status()
-    txt = r.json()["content"][0]["text"]
+    if _USE_BUDGET:
+        txt = _call_ai(prompt, MODEL, max_tokens=3500)
+        if txt is None:
+            raise RuntimeError("AI 預算已達上限，跳過本次補產")
+    else:
+        r = requests.post("https://api.anthropic.com/v1/messages",
+                          headers={"x-api-key": API_KEY, "anthropic-version": "2023-06-01",
+                                   "content-type": "application/json"},
+                          json=body, timeout=150)
+        r.raise_for_status()
+        txt = r.json()["content"][0]["text"]
     m = re.search(r"\{.*\}", txt, re.S)
     if not m:
         raise ValueError("Claude 回應非 JSON")

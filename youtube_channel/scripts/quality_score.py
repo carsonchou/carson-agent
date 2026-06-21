@@ -51,6 +51,12 @@ import re
 API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
 AI_MODEL = "claude-haiku-4-5-20251001"  # 便宜，評分夠用
 
+try:
+    from ai_budget import call_ai as _call_ai, budget_ok as _budget_ok
+    _USE_BUDGET = True
+except ImportError:
+    _USE_BUDGET = False
+
 # audit reason 關鍵字 → 硬扣分（技術/誠信硬傷，AI 分數之上再扣）
 DEDUCT = [
     ("mp4 不存在", 100), ("無視訊軌", 45), ("無音軌", 45), ("片長過短", 35),
@@ -70,7 +76,6 @@ def ai_score(slug):
     """Claude 真讀腳本，依四面向各 0–25 評分（鉤子/標題CTR/內容/誠信），回 dict 或 None。"""
     if not API_KEY:
         return None
-    import requests
     title, voice = _read_script(slug)
     if len(voice) < 40:
         return None
@@ -83,13 +88,20 @@ def ai_score(slug):
         '只輸出 JSON（不要其他字）：{"hook":N,"title":N,"content":N,"honesty":N,"note":"一句最該改的具體建議"}'
     )
     try:
-        r = requests.post("https://api.anthropic.com/v1/messages",
-                          headers={"x-api-key": API_KEY, "anthropic-version": "2023-06-01",
-                                   "content-type": "application/json"},
-                          json={"model": AI_MODEL, "max_tokens": 400, "temperature": 0,
-                                "messages": [{"role": "user", "content": prompt}]}, timeout=60)
-        r.raise_for_status()
-        m = re.search(r"\{.*\}", r.json()["content"][0]["text"], re.S)
+        if _USE_BUDGET:
+            text = _call_ai(prompt, AI_MODEL, max_tokens=400)
+        else:
+            import requests
+            r = requests.post("https://api.anthropic.com/v1/messages",
+                              headers={"x-api-key": API_KEY, "anthropic-version": "2023-06-01",
+                                       "content-type": "application/json"},
+                              json={"model": AI_MODEL, "max_tokens": 400, "temperature": 0,
+                                    "messages": [{"role": "user", "content": prompt}]}, timeout=60)
+            r.raise_for_status()
+            text = r.json()["content"][0]["text"]
+        if not text:
+            return None
+        m = re.search(r"\{.*\}", text, re.S)
         if not m:
             return None
         d = json.loads(m.group(0))
