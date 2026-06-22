@@ -33,6 +33,12 @@ from googleapiclient.discovery import build
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from ops import log_ops
+
+try:
+    from ai_budget import call_ai as _call_ai
+    _USE_BUDGET = True
+except ImportError:
+    _USE_BUDGET = False
 STUDIO = ROOT / "STUDIO"
 REPORTS = STUDIO / "REPORTS"
 LEDGER = STUDIO / "uploaded_ledger.json"
@@ -160,12 +166,18 @@ def decide(rows):
 }}
 pending_decisions：**不設數量上限** —— 凡是「真正需要老闆拍板」的策略選擇，有幾個就列幾個，全部端出來給老闆看(別為了精簡而漏掉該問的)。判準＝會花錢、大方向轉變、題材/節奏/品牌取捨、是否擴編或做某系列、實驗性方向等真正該老闆決定的事；每個給 2-4 個具體選項＋你的建議。但**只放真正值得老闆決定的，絕不為湊數硬湊填充**；老闆已拍板過的不要重複問；真的沒有值得問的就回空陣列。寧可這次 0 個、需要時 5 個、8 個都行，重點是「必要才給、必要的全給」。
 數據太少時方向就給「保持多元測試、衝Shorts量、累積數據」這類務實方向,不要硬掰假洞察。"""
-    body = {"model": MODEL, "max_tokens": 3500, "messages": [{"role": "user", "content": prompt}]}
-    r = requests.post("https://api.anthropic.com/v1/messages",
-                      headers={"x-api-key": API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json"},
-                      json=body, timeout=120)
-    r.raise_for_status()
-    txt = r.json()["content"][0]["text"]
+    if _USE_BUDGET:
+        # use_cache=False：決策每天都要用最新成效數據，不走快取；但透過 ai_budget 記帳
+        txt = _call_ai(prompt, MODEL, max_tokens=3500, use_cache=False)
+        if txt is None:
+            raise RuntimeError("AI 呼叫失敗（無 API key 或網路錯誤）")
+    else:
+        body = {"model": MODEL, "max_tokens": 3500, "messages": [{"role": "user", "content": prompt}]}
+        r = requests.post("https://api.anthropic.com/v1/messages",
+                          headers={"x-api-key": API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json"},
+                          json=body, timeout=120)
+        r.raise_for_status()
+        txt = r.json()["content"][0]["text"]
     m = re.search(r"\{.*\}", txt, re.S)
     return json.loads(m.group(0))
 

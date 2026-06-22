@@ -72,8 +72,11 @@ def _read_script(slug):
     return title_of(slug), txt[:1400]
 
 
-def ai_score(slug):
-    """Claude 真讀腳本，依四面向各 0–25 評分（鉤子/標題CTR/內容/誠信），回 dict 或 None。"""
+def ai_score(slug, use_cache=True):
+    """Claude 真讀腳本，依四面向各 0–25 評分（鉤子/標題CTR/內容/誠信），回 dict 或 None。
+
+    use_cache=False 強制重打 API（--rescore-ai 時用）；True 則走 ai_budget 快取（省費）。
+    """
     if not API_KEY:
         return None
     title, voice = _read_script(slug)
@@ -89,7 +92,7 @@ def ai_score(slug):
     )
     try:
         if _USE_BUDGET:
-            text = _call_ai(prompt, AI_MODEL, max_tokens=400)
+            text = _call_ai(prompt, AI_MODEL, max_tokens=400, use_cache=use_cache)
         else:
             import requests
             r = requests.post("https://api.anthropic.com/v1/messages",
@@ -214,7 +217,8 @@ def scan(rescore_ai=False):
     for slug in all_slugs():
         was = prev.get(slug, {})
         if rescore_ai or "ai" not in was:
-            ai = ai_score(slug)
+            # rescore_ai=True → 強制重打 API（use_cache=False）；正常掃描走快取
+            ai = ai_score(slug, use_cache=not rescore_ai)
             if ai:
                 new_ai += 1
         else:
@@ -318,9 +322,13 @@ def _quarantine(slug):
 
 def produce_until_pass(title, angle=REMAKE_ANGLE, tries=3):
     """產同主題新片直到分數 ≥ 門檻（最多 tries 次）；保留最高分那支、其餘隔離。
-    回 (slug, score)。確保『重做出來的一定不低於門檻』(tries 用盡仍未過則保留最佳並警告)。"""
+    回 (slug, score)。確保『重做出來的一定不低於門檻』(tries 用盡仍未過則保留最佳並警告)。
+
+    軟門檻：若差 5 分以內且已嘗試 2 次以上，直接接受省 API 費（避免因差 1 分重做整片）。
+    """
     from produce_batch import make_one
     mn = get_min()
+    soft_mn = max(mn - 5, 60)  # 差 5 分以內視為可接受
     best, best_sc = None, -1
     for t in range(1, tries + 1):
         try:
@@ -341,6 +349,10 @@ def produce_until_pass(title, angle=REMAKE_ANGLE, tries=3):
             best, best_sc = slug, sc
         else:
             _quarantine(slug)
+        # 軟門檻：差 5 分以內且已試 2 次以上，不再浪費 API 重做整片
+        if best_sc >= soft_mn and t >= 2:
+            print(f"  [軟門檻] 得分 {best_sc} 在軟門檻 {soft_mn} 以上，省略剩餘嘗試。")
+            break
     if best:
         print(f"[warn] {title[:20]}：{tries} 次都沒過門檻 {mn}，保留最高分 {best_sc} 那支。")
     return best, best_sc

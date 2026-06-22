@@ -32,6 +32,12 @@ MODEL = "claude-haiku-4-5-20251001"
 PY = sys.executable
 
 try:
+    from ai_budget import call_ai as _call_ai
+    _USE_BUDGET = True
+except ImportError:
+    _USE_BUDGET = False
+
+try:
     from ops import log_ops
 except Exception:  # noqa: BLE001
     def log_ops(stage, msg):
@@ -103,13 +109,18 @@ def _judge(headlines: list[str]) -> dict:
 誠信鐵則：只根據標題已知事實，不誇大、不預測漲跌、不喊單、不保證收益。**有疑慮就回 worthy=false**。
 
 只輸出 JSON：{{"worthy":true/false,"news":"觸發的新聞重點一句","title":"有點擊慾的影片標題","angle":"切入點：把時事連到量化/網格/風控的觀點"}}"""
-    body = {"model": MODEL, "max_tokens": 800, "messages": [{"role": "user", "content": prompt}]}
-    import requests
-    r = requests.post("https://api.anthropic.com/v1/messages",
-                      headers={"x-api-key": API_KEY, "anthropic-version": "2023-06-01",
-                               "content-type": "application/json"}, json=body, timeout=90)
-    r.raise_for_status()
-    txt = r.json()["content"][0]["text"]
+    if _USE_BUDGET:
+        txt = _call_ai(prompt, MODEL, max_tokens=800, use_cache=True)
+        if txt is None:
+            raise RuntimeError("AI 呼叫失敗（無 API key 或網路錯誤）")
+    else:
+        body = {"model": MODEL, "max_tokens": 800, "messages": [{"role": "user", "content": prompt}]}
+        import requests
+        r = requests.post("https://api.anthropic.com/v1/messages",
+                          headers={"x-api-key": API_KEY, "anthropic-version": "2023-06-01",
+                                   "content-type": "application/json"}, json=body, timeout=90)
+        r.raise_for_status()
+        txt = r.json()["content"][0]["text"]
     return json.loads(re.search(r"\{.*\}", txt, re.S).group(0))
 
 

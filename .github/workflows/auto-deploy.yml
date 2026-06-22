@@ -30,6 +30,7 @@ jobs:
             API="https://api.github.com/repos/$REPO/contents/youtube_channel/scripts"
             DST="/root/yt/scripts"
             NEED_RESTART=0
+            NEED_RESCORE=0
 
             for SCRIPT in audit_video quality_score produce_batch decision_dept control_center web_dashboard train_depts daily_publish retrofit_shorts_tags ai_budget; do
               FILE="${SCRIPT}.py"
@@ -43,6 +44,7 @@ open('${DST}/${FILE}','wb').write(base64.b64decode(d['content'].replace(chr(10),
 print('✅ 已更新 ${FILE}')
 "
                 [ "$SCRIPT" = "web_dashboard" ] && NEED_RESTART=1
+                ( [ "$SCRIPT" = "quality_score" ] || [ "$SCRIPT" = "audit_video" ] ) && NEED_RESCORE=1
               fi
             done
 
@@ -56,7 +58,11 @@ print('✅ 已更新 ${FILE}')
               echo "ℹ️ web_dashboard.py 未變動，跳過重啟"
             fi
 
-            # 若 audit_video 或 quality_score 有更新，重新評分讓前端立即看到正確分數
-            echo "🔄 重新評分（套用最新 audit 邏輯）…"
-            cd /root/yt && .venv/bin/python scripts/quality_score.py 2>&1 | tail -3
-            echo "✅ 重新評分完成"
+            # 只在 audit_video 或 quality_score 本身有更新時才重新評分（其他腳本推送不需重算）
+            if [ "$NEED_RESCORE" = "1" ]; then
+              echo "🔄 重新評分（套用最新 audit 邏輯）…"
+              cd /root/yt && .venv/bin/python scripts/quality_score.py 2>&1 | tail -3
+              echo "✅ 重新評分完成"
+            else
+              echo "ℹ️ audit/scoring 邏輯未變動，跳過重新評分"
+            fi
