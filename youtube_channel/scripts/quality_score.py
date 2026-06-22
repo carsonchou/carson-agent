@@ -162,6 +162,10 @@ def score_one(slug, ai):
     if ai:
         # 向後相容：舊快取可能缺 "total" 欄位，動態從子項加總
         total = ai.get("total") or sum(ai.get(k, 0) for k in ("hook", "title", "content", "honesty"))
+        # 鉤子懲罰：前2秒是完播率命脈，弱鉤子額外重扣，強制工廠重做
+        hook_val = ai.get("hook", 25)
+        if hook_val < 15:
+            ded += (15 - hook_val) * 3  # hook=10 → 額外扣15分；hook=5 → 額外扣30分
         score = max(0, min(100, total - ded))
     else:
         score = max(0, 100 - ded)

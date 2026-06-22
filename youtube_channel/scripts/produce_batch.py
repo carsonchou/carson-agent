@@ -254,7 +254,12 @@ def call_claude(kind, avoid, topic_override=None):
                 "segments 給 4–5 段。")
     playbook = load_playbook()  # 每支腳本都即時讀最新競品 playbook
     training = load_training()  # 每週進修部門的資料驅動洞察
-    avoid_block = "\n".join(f"  · {t}" for t in (avoid or [])[:60]) if avoid else "  （無）"
+    avoid_header = (
+        "【🚫 嚴格禁令｜以下題目近期已做，本次絕對不可重複同主題或換字版本。\n"
+        "  題材高度重疊（含上位/下位概念）＝浪費配額＋蠶食演算法流量，後果嚴重。\n"
+        "  若只是換字（如「定投停利A/B」「停損設多少/設幾%」）算同題材，必須選完全不同維度：】"
+    )
+    avoid_block = (avoid_header + "\n" + "\n".join(f"  · {t}" for t in (avoid or [])[:60])) if avoid else "  （無）"
     if kind == "short":
         hashtag_json = '"hashtags":["#Shorts","#量化交易","#..."]}'
         hashtag_rule = "hashtags 規則：第一個必為 #Shorts（YouTube Shorts shelf 分類依據），再給 3-5 個精準利基標籤（如 #網格交易 #派網 #Pionex #自動交易）；不要硬塞熱門泛標——精準勝過熱門，乾淨又利於演算法。"

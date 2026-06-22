@@ -44,9 +44,18 @@ QSCORES = PROJECT_ROOT / "STUDIO" / "quality_scores.json"
 
 
 _ENGAGE_QS = [
+    # 互動型（讓人分享自己的設定/數據）
     "你的網格參數都怎麼設？留言區聊聊你的設定 👇",
+    "你現在的策略最大回撤是多少？留下數字，我看有沒有辦法壓低",
+    "說說你踩過最貴的坑，讓大家參考，一起少虧點 💀",
+    "這招你知道幾分？0-10 分留個數字，我統計結果下支公布",
+    # 引戰型（製造討論、拉留言數）
     "這題你站哪邊？同意的 +1，有不同看法的留言戰起來 👇",
     "你踩過這個坑嗎？分享一下慘痛經驗，我看能不能幫你拆 👇",
+    "你覺得網格最大的風險是什麼？A 爆倉 / B 套牢 / C 手續費吃光，留字母",
+    "有沒有人靠這個真的賺到的？說說你的參數，不說數字沒人信 👇",
+    # 懸念型（轉換成訂閱者）
+    "下支我要公開一個 90% 人都設錯的參數——先追蹤，不然找不回來 👇",
     "想看完整實測數據的留言『+1』，夠多我就出深度版 👇",
     "你會怎麼做？留言告訴我，下支可能就拍你的問題 👇",
     "猜猜最後是賺還是賠？留言你的答案，揭曉在置頂 👇",
@@ -240,7 +249,7 @@ def main() -> int:
     ap.add_argument("--privacy", default="public", choices=["public", "unlisted", "private"])
     args = ap.parse_args()
 
-    # 老闆控制台指令（暫停 / 隱私）
+    # 老闆控制台指令（暫停 / 隱私 / 發布時段）
     bpath = PROJECT_ROOT / "STUDIO" / "boss_directives.json"
     if bpath.exists():
         try:
@@ -250,6 +259,15 @@ def main() -> int:
                 return 0
             if boss.get("privacy") in ("public", "unlisted", "private"):
                 args.privacy = boss["privacy"]
+            # 黃金時段控制：publish_hours 設哪些小時（台灣時間）才允許發布
+            # 建議設 [12,13,20,21,22]，對應午休 + 晚間高峰；未設則不限制
+            allowed_hours = boss.get("publish_hours")
+            if allowed_hours and not getattr(args, "force", False):
+                tw_hour = datetime.now(timezone(timedelta(hours=8))).hour
+                if tw_hour not in allowed_hours:
+                    print(f"[info] 現在台灣時間 {tw_hour} 時，不在發布時段 {allowed_hours}，跳過。")
+                    log_ops("上架部門", f"非發布時段（{tw_hour}時），跳過")
+                    return 0
         except Exception:
             pass
 
