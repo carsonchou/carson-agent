@@ -153,7 +153,15 @@ def find_candidates(ledger: dict) -> list:
     longs = [s for s in out if not s.startswith("S_")]
     shorts.sort(key=lambda s: -(qmap.get(s) or 0))
     longs.sort(key=lambda s: -(qmap.get(s) or 0))
-    return shorts + longs
+    # 批次內去重：同主題只保留分數最高的那支，避免同天上架4支「手動關機器人」互蠶食
+    out_deduped, seen_topics = [], []
+    for slug in shorts + longs:
+        if "決策" not in slug and any(_char_sim(slug, s) >= 0.65 for s in seen_topics):
+            print(f"[dedup-batch] {slug} 與本批次 {next(s for s in seen_topics if _char_sim(slug, s) >= 0.65)!r} 相似，跳過")
+            continue
+        out_deduped.append(slug)
+        seen_topics.append(slug)
+    return out_deduped
 
 
 _SHORTS_HASHTAGS = "\n\n#Shorts #量化交易 #網格交易 #派網 #Pionex #被動收入 #投資理財 #自動交易"
