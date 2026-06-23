@@ -232,7 +232,7 @@ def write_report(date: str, results: list, remaining: int, quota_hit: bool, priv
     lines += [
         "",
         f"## 片庫狀態",
-        f"- 尚未上傳的成片庫存：約 **{remaining}** 支（約 {max(1, remaining)//6 + 1} 天上傳量）",
+        f"- 尚未上傳的成片庫存：約 **{remaining}** 支（約 {max(1, remaining)//6 + 1} 天上傳量，每天6支=早晚各3）",
     ]
     if quota_hit:
         lines.append("- ⚠️ 今日 YouTube API 配額用罄，已自動停止，明日續傳。")
@@ -253,7 +253,7 @@ def write_report(date: str, results: list, remaining: int, quota_hit: bool, priv
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--max", type=int, default=6, help="今日最多上傳幾支(配額約6)")
+    ap.add_argument("--max", type=int, default=3, help="每次排程最多上傳幾支(兩次排程共6支/日)")
     ap.add_argument("--privacy", default="public", choices=["public", "unlisted", "private"])
     args = ap.parse_args()
 
