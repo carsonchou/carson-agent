@@ -9,7 +9,7 @@
 用法：python scripts/intel_sync.py [--max-learn 100] [--pace 2.5] [--no-push]
 """
 from __future__ import annotations
-import argparse, json, subprocess, sys
+import argparse, json, re, subprocess, sys
 from pathlib import Path
 
 try:
@@ -20,6 +20,8 @@ except Exception:
 
 ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS = ROOT / "scripts"
+ANALYSIS = ROOT / "competitor_analysis.md"
+AUTO_MARKER = "\n---\n\n# ⟳ 自動競品學習｜"  # intel_dept 每輪追加塊的開頭錨點
 _py_win = ROOT / ".venv" / "Scripts" / "python.exe"
 _py_nix = ROOT / ".venv" / "bin" / "python"
 PY = _py_win if _py_win.exists() else (_py_nix if _py_nix.exists() else Path(sys.executable))
@@ -30,6 +32,47 @@ def run_learn(max_learn, pace):
     cmd = [str(PY), str(SCRIPTS / "intel_dept.py"), "--max-learn", str(max_learn), "--pace", str(pace)]
     print(f"[sync] 本機學習：{' '.join(cmd)}", flush=True)
     return subprocess.call(cmd, cwd=str(ROOT))
+
+
+def trim_analysis(keep_days=4):
+    """只保留導讀 + 檔內「最新 keep_days 天」的自動學習塊，防止 competitor_analysis.md 無限長大。
+
+    重點：用「檔內現有最新 N 個日期」而非「距今 N 天」來保留——學習若中斷好幾天(例如出國)，
+    按日曆砍會把整份明細清空只剩導讀；用最新 N 天則永遠保住最近的實際資料，不會誤刪。
+    playbook 招式不在這檔(在 STUDIO/competitor_playbook.md)，這裡只精簡明細，招式完全不動。
+    """
+    try:
+        if not ANALYSIS.exists():
+            return
+        txt = ANALYSIS.read_text(encoding="utf-8")
+        parts = txt.split(AUTO_MARKER)
+        if len(parts) <= 1:
+            return  # 還沒有自動塊，無需截斷
+        preamble, blocks = parts[0], parts[1:]
+
+        def bdate(b):
+            m = re.match(r"(20\d{2}-\d{2}-\d{2})", b)
+            return m.group(1) if m else ""
+
+        dates = sorted({bdate(b) for b in blocks if bdate(b)}, reverse=True)
+        keep = set(dates[:keep_days])
+        kept = [b for b in blocks if bdate(b) in keep]
+        dropped = len(blocks) - len(kept)
+        if dropped <= 0:
+            print(f"[trim] analysis.md：現有 {len(dates)} 天 ≤ 上限 {keep_days} 天，不截斷。", flush=True)
+            return
+        new_txt = preamble + "".join(AUTO_MARKER + b for b in kept)
+        ANALYSIS.write_text(new_txt, encoding="utf-8")
+        size = ANALYSIS.stat().st_size
+        msg = f"留最近{keep_days}天｜丟{dropped}個舊塊｜現{size:,}B"
+        print(f"[trim] analysis.md 已截斷：{msg}", flush=True)
+        try:
+            from ops import log_ops
+            log_ops("情報精簡", msg)
+        except Exception:
+            pass
+    except Exception as e:
+        print(f"[trim] 略過(不影響學習與 playbook)：{e}", file=sys.stderr)
 
 
 def push_to_cloud():
@@ -70,8 +113,12 @@ def main():
     ap.add_argument("--max-learn", type=int, default=100)
     ap.add_argument("--pace", type=float, default=2.5)
     ap.add_argument("--no-push", action="store_true", help="只學不推雲端")
+    ap.add_argument("--keep-days", type=int, default=4,
+                    help="competitor_analysis.md 只保留最新 N 天的自動塊(防無限長大)；0=不截斷")
     a = ap.parse_args()
     run_learn(a.max_learn, a.pace)
+    if a.keep_days > 0:
+        trim_analysis(a.keep_days)
     if not a.no_push:
         push_to_cloud()
     return 0
