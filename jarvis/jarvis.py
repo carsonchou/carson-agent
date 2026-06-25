@@ -57,7 +57,7 @@ PERMISSION_MODE = os.environ.get(
 )
 WHISPER_SIZE = os.environ.get("JARVIS_WHISPER", "small")   # tiny/base/small/medium
 WAKE_WORD = os.environ.get("JARVIS_WAKEWORD", "hey_jarvis")  # openWakeWord 內建模型
-WAKE_THRESHOLD = float(os.environ.get("JARVIS_WAKE_THRESHOLD", "0.5"))
+WAKE_THRESHOLD = float(os.environ.get("JARVIS_WAKE_THRESHOLD", "0.6"))
 BRAIN_TIMEOUT = int(os.environ.get("JARVIS_BRAIN_TIMEOUT", "300"))
 SAMPLE_RATE = 16000
 
@@ -81,28 +81,63 @@ if _persona_file.exists():
 # 嘴巴：TTS（Windows 內建語音，免費離線）
 # ════════════════════════════════════════════════════════════
 class Mouth:
-    """用 Windows System.Speech（SAPI）念字——比 pyttsx3 在背景程序可靠（pyttsx3 的
-    runAndWait 在背景/迴圈裡常不出聲）。預設用中文嗓音 Microsoft Hanhan(zh-TW)。"""
+    """念字。主引擎＝Edge 神經語音（免費、音質好、有男聲），預設台灣男聲 YunJhe
+    並把音調壓低做出低沉感；用 ffplay 播放。沒網路時退回 Windows SAPI（女聲 Hanhan）。
+
+    可調環境變數：JARVIS_VOICE(嗓音, 如 zh-CN-YunjianNeural 更低沉)、
+    JARVIS_PITCH(音調, 如 -20Hz 更低)、JARVIS_RATE(語速, 如 -5%)。"""
 
     def __init__(self) -> None:
+        import glob
+        import shutil
         import tempfile
-        self._tmp = os.path.join(tempfile.gettempdir(), "jarvis_say.txt")
-        self._voice = os.environ.get("JARVIS_VOICE", "Microsoft Hanhan Desktop")
+        tmp = tempfile.gettempdir()
+        self._mp3 = os.path.join(tmp, "jarvis_say.mp3")
+        self._txt = os.path.join(tmp, "jarvis_say.txt")
+        # 賈維斯定版嗓音：雲健 + 壓低音調 + 放慢 → 沉穩磁性（老闆欽點 A 版）
+        self._voice = os.environ.get("JARVIS_VOICE", "zh-CN-YunjianNeural")
+        self._pitch = os.environ.get("JARVIS_PITCH", "-13Hz")
+        self._rate = os.environ.get("JARVIS_RATE", "-8%")
+        self._ffplay = (os.environ.get("JARVIS_FFPLAY")
+                        or shutil.which("ffplay") or shutil.which("ffplay.exe"))
+        if not self._ffplay:
+            g = glob.glob(os.path.expanduser(
+                "~/AppData/Local/Microsoft/WinGet/Packages/Gyan.FFmpeg*/ffmpeg*/bin/ffplay.exe"))
+            self._ffplay = g[0] if g else None
 
     def say(self, text: str) -> None:
         text = (text or "").strip()
         if not text:
             return
         print(f"🔊 Jarvis：{text}", flush=True)
+        if self._ffplay and self._speak_edge(text):
+            return
+        self._speak_sapi(text)  # 沒網路/edge 失敗 → 退回 SAPI 女聲
+
+    def _speak_edge(self, text: str) -> bool:
         try:
-            with open(self._tmp, "w", encoding="utf-8") as f:
+            import asyncio
+            import edge_tts
+
+            async def _gen():
+                c = edge_tts.Communicate(text, self._voice, rate=self._rate, pitch=self._pitch)
+                await c.save(self._mp3)
+            asyncio.run(_gen())
+            subprocess.run([self._ffplay, "-nodisp", "-autoexit", "-loglevel", "quiet", self._mp3],
+                           timeout=90, capture_output=True)
+            return True
+        except Exception as e:  # noqa: BLE001
+            print(f"[warn] Edge 語音失敗，改用系統語音：{e!r}", file=sys.stderr)
+            return False
+
+    def _speak_sapi(self, text: str) -> None:
+        try:
+            with open(self._txt, "w", encoding="utf-8") as f:
                 f.write(text)
-            tmp = self._tmp.replace("\\", "/")
+            tmp = self._txt.replace("\\", "/")
             ps = (
                 "Add-Type -AssemblyName System.Speech;"
                 "$s=New-Object System.Speech.Synthesis.SpeechSynthesizer;"
-                f"try{{$s.SelectVoice('{self._voice}')}}catch{{}};"
-                "$s.Rate=1;"
                 f"$s.Speak([IO.File]::ReadAllText('{tmp}',[Text.Encoding]::UTF8))"
             )
             subprocess.run(["powershell", "-NoProfile", "-Command", ps],
