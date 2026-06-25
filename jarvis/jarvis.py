@@ -29,6 +29,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import subprocess
@@ -336,6 +337,21 @@ class Ears:
 # ════════════════════════════════════════════════════════════
 # 喚醒：openWakeWord 一直聽「Hey Jarvis」
 # ════════════════════════════════════════════════════════════
+# 即時把賈維斯狀態寫給儀表板（idle/listening/thinking/speaking），全息球會跟著情緒動
+_STATE_FILE = Path(__file__).resolve().parent / "dashboard" / "state.json"
+
+
+def _set_state(state: str, text: str = "") -> None:
+    try:
+        _STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _STATE_FILE.write_text(
+            json.dumps({"state": state, "text": text[:80]}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+    except Exception:
+        pass
+
+
 def _beep():
     """叫醒後給個短「嗶」當「請說」提示（不念『在』，省掉那一秒避免蓋掉你開頭）。"""
     try:
@@ -404,6 +420,7 @@ def converse_loop(ears, mouth, brain: bool = True) -> None:
     block = 1280  # openWakeWord 要 80ms@16k = 1280 samples
     pre = deque(maxlen=int(1.5 * SAMPLE_RATE / block))  # 喚醒前 ~1.5s 滾動緩衝
     print("👂 待命中——對著麥克風說「Hey Jarvis」叫醒我。(Ctrl-C 結束)")
+    _set_state("idle")
     history = []  # 最近幾輪對話，讓她記得前文、像同一個人從頭聊到尾
     with sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype="int16",
                         blocksize=block) as stream:
@@ -416,6 +433,7 @@ def converse_loop(ears, mouth, brain: bool = True) -> None:
                 idle_limit = float(os.environ.get("JARVIS_CONVO_SEC", "300"))
                 print(f"✨ 喚醒！嗶——進入對話模式（閒置 {int(idle_limit)} 秒才回待命）")
                 _beep()
+                _set_state("listening")
                 first_pre = list(pre)   # 對話第一句帶喚醒前緩衝；之後不用
                 pre.clear()
                 last_active = time.time()
@@ -442,10 +460,13 @@ def converse_loop(ears, mouth, brain: bool = True) -> None:
                             if not proceed:
                                 mouth.say("好，那我先不動。")
                         if proceed:
+                            _set_state("thinking")
                             reply = ask_brain(text, history)
                             history.append((text, reply))
                             del history[:-8]   # 只留最近 8 輪
+                            _set_state("speaking", reply)
                             mouth.say(reply)
+                        _set_state("listening")
                         last_active = time.time()  # 互動後重置閒置計時
                         # 清掉 TTS 期間累積的舊音訊，避免回授/誤收自己的聲音
                         try:
@@ -460,6 +481,7 @@ def converse_loop(ears, mouth, brain: bool = True) -> None:
                         except Exception:
                             pass
                 print("💤 閒置太久，回待命。喊「Hey Jarvis」再叫醒我。")
+                _set_state("idle")
                 model.reset()
 
 

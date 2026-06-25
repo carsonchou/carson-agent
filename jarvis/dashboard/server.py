@@ -77,6 +77,10 @@ def gather() -> dict:
     drc = _load(STUDIO / "boss_directives.json") or {}
     out["paused"] = bool(drc.get("paused"))
 
+    # ── 賈維斯情緒狀態（jarvis.py 即時寫入）──
+    jst = _load(HERE / "state.json") or {}
+    out["jarvis"] = {"state": jst.get("state", "idle"), "text": jst.get("text", "")}
+
     # ── 今日焦點（簡單規則）──
     if out["paused"]:
         out["focus"] = "工廠目前<b>已暫停</b>。"
@@ -95,6 +99,15 @@ class H(BaseHTTPRequestHandler):
         pass
 
     def do_GET(self):
+        if self.path.startswith("/api/state"):   # 輕量：只回賈維斯情緒狀態(高頻輪詢)
+            jst = _load(HERE / "state.json") or {}
+            body = json.dumps({"state": jst.get("state", "idle")}, ensure_ascii=False).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(body)
+            return
         if self.path.startswith("/api/data"):
             body = json.dumps(gather(), ensure_ascii=False).encode("utf-8")
             self.send_response(200)

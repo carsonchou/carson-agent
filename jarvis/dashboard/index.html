@@ -133,7 +133,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
-const CY=new THREE.Color(0x44ecff);
+const CY=new THREE.Color(0xc98a4e);
 const renderer=new THREE.WebGLRenderer({canvas:document.getElementById('bg'),antialias:true,alpha:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio,2));
 const scene=new THREE.Scene();
@@ -143,8 +143,8 @@ cam.position.set(0,0,8.5);
 // 圓形發光點貼圖（讓每顆粒子是柔光圓點，不是方塊）
 function dotTex(){const c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d');
   const g=x.createRadialGradient(32,32,0,32,32,32);
-  g.addColorStop(0,'rgba(255,255,255,1)');g.addColorStop(.25,'rgba(190,245,255,.95)');
-  g.addColorStop(.55,'rgba(68,236,255,.5)');g.addColorStop(1,'rgba(68,236,255,0)');
+  g.addColorStop(0,'rgba(255,240,220,1)');g.addColorStop(.25,'rgba(224,170,110,.9)');
+  g.addColorStop(.55,'rgba(180,120,70,.42)');g.addColorStop(1,'rgba(180,120,70,0)');
   x.fillStyle=g;x.fillRect(0,0,64,64);return new THREE.CanvasTexture(c);}
 const TEX=dotTex();
 const pmat=(size,opacity)=>new THREE.PointsMaterial({size,map:TEX,color:CY,transparent:true,
@@ -166,12 +166,6 @@ const gg2=gg.clone(); const globe2=new THREE.Points(gg2,pmat(0.05,0.5)); globe2.
 const coreGlow=new THREE.Points(new THREE.BufferGeometry().setAttribute('position',
   new THREE.BufferAttribute(new Float32Array([0,0,0]),3)), pmat(1.6,1.0)); core.add(coreGlow);
 
-// ── 三個傾斜光環(細，additive 發光) ──
-const rings=[];[ [0.0,0.0],[1.2,0.5],[2.1,2.0] ].forEach((rr,i)=>{
-  const t=new THREE.Mesh(new THREE.TorusGeometry(3.2+i*0.5,0.012,8,180),
-    new THREE.MeshBasicMaterial({color:CY,transparent:true,opacity:.7,blending:THREE.AdditiveBlending,depthWrite:false}));
-  t.rotation.set(rr[0],rr[1],0);core.add(t);rings.push(t);});
-
 // ── 滿天飄的資料粒子(景深) ──
 const NA=2600,ap=new Float32Array(NA*3);
 for(let i=0;i<NA;i++){const r=7+Math.random()*40,th=Math.random()*Math.PI*2,ph=Math.acos(2*Math.random()-1);
@@ -182,22 +176,37 @@ const amb=new THREE.Points(ag,pmat(0.10,0.5)); scene.add(amb);
 // ── 強泛光：整個畫面「由光構成」的關鍵 ──
 const composer=new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene,cam));
-const bloom=new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),1.7,0.75,0.0);
+const bloom=new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),0.8,0.7,0.08);
 composer.addPass(bloom); composer.addPass(new OutputPass());
 
 function size(){renderer.setSize(innerWidth,innerHeight);composer.setSize(innerWidth,innerHeight);
   cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();}
 size(); addEventListener('resize',()=>{size();drawSpark(window._series);});
 
-let t=0;
+// ── 情緒狀態 → 動態目標（賈維斯在聆聽/思考/回應時，全息球用不同方式脈動）──
+const STATES={
+  idle:     {glow:0.10,spin:0.0015,bright:0.68,label:'待命中',  sub:'STANDBY'},
+  listening:{glow:0.28,spin:0.0032,bright:1.00,label:'聆聽中…', sub:'LISTENING'},
+  thinking: {glow:0.42,spin:0.0120,bright:1.22,label:'思考中…', sub:'PROCESSING'},
+  speaking: {glow:0.78,spin:0.0058,bright:1.55,label:'回應中',  sub:'SPEAKING'},
+};
+window.JST='idle'; let _lastJ='';
+const cm=document.getElementById('core_main'), cs=document.getElementById('core_sub');
+let t=0, gAmp=0.12, spin=0.0015, bright=0.7;
 function loop(){
   t+=0.004;
-  core.rotation.y+=0.0028; core.rotation.x=Math.sin(t)*0.10;
-  globe.rotation.y+=0.0006; globe2.rotation.y-=0.0022; globe2.rotation.x+=0.0012;
-  rings.forEach((r,i)=>{r.rotation.z+=0.003*(i%2?-1:1);r.rotation.x+=0.0008*(i+1);});
-  coreGlow.scale.setScalar(1+0.18*Math.sin(Date.now()/500));
+  const s=STATES[window.JST]||STATES.idle;
+  gAmp+=(s.glow-gAmp)*0.07; spin+=(s.spin-spin)*0.07; bright+=(s.bright-bright)*0.07;
+  if(window.JST!==_lastJ){_lastJ=window.JST; cm.textContent=s.label; cs.textContent=s.sub;}
+  core.rotation.y+=spin; core.rotation.x=Math.sin(t)*0.10;
+  globe.rotation.y+=spin*0.25; globe2.rotation.y-=spin*0.9; globe2.rotation.x+=0.0012;
+  const fast=window.JST==='speaking'?160:(window.JST==='thinking'?250:520);
+  coreGlow.scale.setScalar(1+gAmp*(2.4+Math.sin(Date.now()/fast)*2.4));
+  globe.material.opacity=Math.min(1,0.85*bright); amb.material.opacity=0.42*bright; coreGlow.material.opacity=Math.min(1,bright);
+  const br=window.JST==='speaking'?1+0.05*Math.sin(Date.now()/150):1; // 講話時球微微脈動
+  globe.scale.setScalar(br); globe2.scale.setScalar(0.7*br);
   amb.rotation.y+=0.0004; amb.rotation.x+=0.0002;
-  cam.position.x=Math.sin(t*0.5)*0.6; cam.position.y=Math.cos(t*0.4)*0.4; cam.lookAt(0,0,0); // 緩慢運鏡
+  cam.position.x=Math.sin(t*0.5)*0.6; cam.position.y=Math.cos(t*0.4)*0.4; cam.lookAt(0,0,0);
   composer.render(); requestAnimationFrame(loop);
 }
 loop();
@@ -233,10 +242,13 @@ async function pull(){try{
   set('q_pend',fmt(y.pending)); set('q_pub',fmt(y.published));
   set('f_net',y.net!=null?'NT$ '+fmt(Math.round(y.net)):'—',y.net>=0?'good':'bad');
   set('d_pend',y.decisions!=null?y.decisions+' 件':'—','gold');
-  core_main.textContent=d.paused?'已暫停':'全自動運轉中';
+  window.JST=(d.jarvis&&d.jarvis.state)||'idle';   // ← 賈維斯情緒狀態驅動全息球
   focus.innerHTML=d.focus||'一切順。'; drawSpark(y.series);
 }catch(e){focus.textContent='（連不上資料來源，重試中…）';}}
 pull(); setInterval(pull,5000);
+// 高頻只抓「賈維斯情緒狀態」→ 全息球即時反應她在聆聽/思考/回應
+async function pullState(){try{const j=await(await fetch('/api/state',{cache:'no-store'})).json();if(j&&j.state)window.JST=j.state;}catch(e){}}
+setInterval(pullState,350); pullState();
 </script>
 </body>
 </html>
