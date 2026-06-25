@@ -253,12 +253,56 @@ def run_voice() -> int:
     return 0
 
 
+def selftest() -> int:
+    """逐項自我診斷：印出哪個環節 OK / 壞掉（不進入無限監聽，安全可重複跑）。"""
+    print(f"[1] Python：{sys.executable} {sys.version.split()[0]}")
+    # TTS
+    try:
+        import pyttsx3  # noqa: F401
+        Mouth()
+        print("[2] TTS(pyttsx3)：OK")
+    except Exception as e:  # noqa: BLE001
+        print(f"[2] TTS(pyttsx3)：FAIL — {type(e).__name__}: {str(e)[:120]}")
+    # 麥克風裝置
+    try:
+        import sounddevice as sd
+        ins = [d for d in sd.query_devices() if d.get("max_input_channels", 0) > 0]
+        if ins:
+            print(f"[3] 麥克風：OK — 偵測到 {len(ins)} 個輸入裝置，預設＝{sd.query_devices(kind='input')['name']}")
+        else:
+            print("[3] 麥克風：FAIL — 沒有任何輸入裝置（沒接麥克風，或被 Windows 隱私設定擋）")
+    except Exception as e:  # noqa: BLE001
+        print(f"[3] 麥克風：FAIL — {type(e).__name__}: {str(e)[:120]}")
+    # Whisper
+    try:
+        Ears()._model()
+        print("[4] Whisper 聽寫模型：OK")
+    except Exception as e:  # noqa: BLE001
+        print(f"[4] Whisper：FAIL — {type(e).__name__}: {str(e)[:120]}")
+    # 喚醒模型
+    try:
+        from openwakeword.model import Model
+        Model(wakeword_models=[WAKE_WORD], inference_framework="onnx")
+        print(f"[5] 喚醒模型({WAKE_WORD})：OK")
+    except Exception as e:  # noqa: BLE001
+        print(f"[5] 喚醒模型：FAIL — {type(e).__name__}: {str(e)[:120]}")
+    # claude
+    import shutil
+    print(f"[6] claude 指令：{'OK — ' + shutil.which(CLAUDE_BIN) if shutil.which(CLAUDE_BIN) else 'FAIL — PATH 上找不到 claude'}")
+    print("自我診斷完成。")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="語音版賈維斯（Claude Code 為大腦）")
     ap.add_argument("--text", metavar="MSG", help="只測大腦：把這句送給 Claude 並印出回答（不用音訊）")
     ap.add_argument("--say", metavar="MSG", help="只測 TTS：把這句念出來")
     ap.add_argument("--listen", action="store_true", help="只測喚醒+聽寫，印出聽到什麼")
+    ap.add_argument("--selftest", action="store_true", help="逐項自我診斷（不進監聽），找出哪裡壞")
     args = ap.parse_args()
+
+    if args.selftest:
+        return selftest()
 
     if args.say is not None:
         Mouth().say(args.say)
