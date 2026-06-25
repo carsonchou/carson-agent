@@ -152,40 +152,38 @@ class Ears:
             self._whisper = WhisperModel(WHISPER_SIZE, device="cpu", compute_type="int8")
         return self._whisper
 
-    def record_until_silence(self, max_sec: float = 15.0, silence_sec: float = 1.0,
-                             start_grace: float = 6.0):
-        """喚醒後立刻開始錄音，偵測到你講完（持續靜音）就停。回傳 float32 波形。
-
-        start_grace：開口前的寬限——你還沒開始講話時，最多等這麼久才放棄，
-        避免「嗶」完你還沒開口就被當講完。RMS 門檻調低以收得到較小聲的講話。
-        """
+    def capture(self, stream, block: int, max_sec: float = 15.0,
+                silence_sec: float = 1.0, start_grace: float = 6.0):
+        """從『喚醒所用的同一條』stream 接著錄命令——不另開第二條，避免兩條搶麥克風
+        導致收到靜音。stream 為 int16 InputStream。偵測到講完（持續靜音）就停。"""
         import numpy as np
-        import sounddevice as sd
 
-        block = int(SAMPLE_RATE * 0.05)  # 50ms
         frames = []
         silent_for = 0.0
         spoke = False
-        threshold = float(os.environ.get("JARVIS_RMS_THRESHOLD", "0.008"))
-        with sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype="float32",
-                            blocksize=block) as stream:
-            start = time.time()
-            while time.time() - start < max_sec:
-                buf, _ = stream.read(block)
-                mono = buf[:, 0]
-                frames.append(mono.copy())
-                rms = float(np.sqrt(np.mean(mono ** 2)) if len(mono) else 0.0)
-                if rms >= threshold:
-                    spoke = True
-                    silent_for = 0.0
-                elif spoke:
-                    silent_for += 0.05
-                    if silent_for >= silence_sec:
-                        break
-                elif time.time() - start >= start_grace:
-                    break  # 寬限時間內都沒開口 → 放棄這次
+        max_rms = 0.0
+        blk_sec = block / SAMPLE_RATE
+        threshold = float(os.environ.get("JARVIS_RMS_THRESHOLD", "0.006"))
+        start = time.time()
+        while time.time() - start < max_sec:
+            buf, _ = stream.read(block)
+            mono = buf[:, 0].astype(np.float32) / 32768.0
+            frames.append(mono)
+            rms = float(np.sqrt(np.mean(mono ** 2))) if len(mono) else 0.0
+            max_rms = max(max_rms, rms)
+            if rms >= threshold:
+                spoke = True
+                silent_for = 0.0
+            elif spoke:
+                silent_for += blk_sec
+                if silent_for >= silence_sec:
+                    break
+            elif time.time() - start >= start_grace:
+                break  # 寬限時間內都沒開口 → 放棄這次
+        print(f"[聽] 有偵測到講話={spoke} 最大RMS={max_rms:.4f} "
+              f"收音長度={len(frames)*blk_sec:.1f}s", flush=True)
         if not frames or not spoke:
-            return None  # 完全沒偵測到講話 → 視為沒聽到（不送 Whisper 幻聽）
+            return None
         return np.concatenate(frames)
 
     def transcribe(self, audio) -> str:
@@ -204,28 +202,59 @@ class Ears:
 # ════════════════════════════════════════════════════════════
 # 喚醒：openWakeWord 一直聽「Hey Jarvis」
 # ════════════════════════════════════════════════════════════
-def wake_loop(on_wake) -> None:
-    import numpy as np
+def _beep():
+    """叫醒後給個短「嗶」當「請說」提示（不念『在』，省掉那一秒避免蓋掉你開頭）。"""
+    try:
+        import winsound
+        winsound.Beep(1000, 120)
+    except Exception:
+        print("\a", end="", flush=True)
+
+
+def converse_loop(ears, mouth, brain: bool = True) -> None:
+    """單一麥克風通道的待命→喚醒→收音→（大腦→回話）迴圈。
+
+    關鍵：喚醒偵測與命令收音用『同一條』InputStream，不另開第二條，
+    否則兩條搶同一支麥克風會讓收音那條只收到靜音（之前的 bug）。
+    """
     import sounddevice as sd
     from openwakeword.model import Model
     try:
         import openwakeword
-        openwakeword.utils.download_models()  # 首次自動下載內建模型
+        openwakeword.utils.download_models()
     except Exception:
         pass
 
-    # 指定 onnx 框架（我們裝的是 onnxruntime，非 tflite-runtime；不指定會找不到 tflite 而報錯）
     model = Model(wakeword_models=[WAKE_WORD], inference_framework="onnx")
     block = 1280  # openWakeWord 要 80ms@16k = 1280 samples
-    print(f"👂 待命中——對著麥克風說「Hey Jarvis」叫醒我。(Ctrl-C 結束)")
+    print("👂 待命中——對著麥克風說「Hey Jarvis」叫醒我。(Ctrl-C 結束)")
     with sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype="int16",
                         blocksize=block) as stream:
         while True:
             buf, _ = stream.read(block)
-            scores = model.predict(buf[:, 0])
-            if scores.get(WAKE_WORD, 0.0) >= WAKE_THRESHOLD:
+            if model.predict(buf[:, 0]).get(WAKE_WORD, 0.0) >= WAKE_THRESHOLD:
                 model.reset()
-                on_wake()
+                print("✨ 喚醒！嗶——請說…")
+                _beep()
+                audio = ears.capture(stream, block)   # ← 同一條 stream 接著錄
+                text = ears.transcribe(audio)
+                if not text:
+                    if brain:
+                        mouth.say("我沒聽清楚，再說一次？")
+                    else:
+                        print("🗣  （這次沒收到講話）")
+                else:
+                    print(f"🗣  你：{text}")
+                    if brain:
+                        mouth.say("好的，我看一下。")
+                        mouth.say(ask_brain(text))
+                # 清掉喚醒提示音/TTS 回話期間累積的舊音訊，避免回授或誤觸下一輪
+                try:
+                    while stream.read_available > block:
+                        stream.read(block)
+                except Exception:
+                    pass
+                model.reset()
 
 
 # ════════════════════════════════════════════════════════════
@@ -236,34 +265,8 @@ def run_voice() -> int:
     ears = Ears()
     ears._model()  # 預載，避免第一句很慢
     mouth.say("賈維斯待命中，老闆。")
-
-    def _beep():
-        # 叫醒後給個短「嗶」當「請說」的提示（不用念『在』，省掉那一秒避免蓋掉你開頭）
-        try:
-            import winsound
-            winsound.Beep(1000, 120)
-        except Exception:
-            print("\a", end="", flush=True)
-
-    def on_wake():
-        try:
-            print("✨ 喚醒！嗶——請說…")
-            _beep()
-            audio = ears.record_until_silence()   # 立刻收音，不等
-            text = ears.transcribe(audio)
-            if not text:
-                mouth.say("我沒聽清楚，再說一次？")
-                return
-            print(f"🗣  你：{text}")
-            mouth.say("好的，我看一下。")
-            reply = ask_brain(text)
-            mouth.say(reply)
-        except Exception as e:  # noqa: BLE001 一輪出錯不可讓整個待命崩潰
-            print(f"[warn] 本輪處理失敗：{e!r}", file=sys.stderr)
-            mouth.say("剛剛出了點狀況，再試一次。")
-
     try:
-        wake_loop(on_wake)
+        converse_loop(ears, mouth, brain=True)
     except KeyboardInterrupt:
         print("\n👋 賈維斯下線。")
     except Exception as e:  # noqa: BLE001 多半是找不到麥克風/音訊裝置
@@ -333,11 +336,8 @@ def main() -> int:
         return 0
     if args.listen:
         ears = Ears(); ears._model()
-        def on_wake():
-            print("✨ 喚醒！請說…")
-            print(f"🗣  聽到：{ears.transcribe(ears.record_until_silence())!r}")
         try:
-            wake_loop(on_wake)
+            converse_loop(ears, Mouth(), brain=False)  # 只印聽到什麼，不送大腦/不回話
         except KeyboardInterrupt:
             pass
         return 0
