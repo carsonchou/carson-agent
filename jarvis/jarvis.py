@@ -58,7 +58,7 @@ PERMISSION_MODE = os.environ.get(
 )
 WHISPER_SIZE = os.environ.get("JARVIS_WHISPER", "large-v3-turbo")  # GPU 跑得動最強的，又快又準
 WAKE_WORD = os.environ.get("JARVIS_WAKEWORD", "hey_jarvis")  # openWakeWord 內建模型
-WAKE_THRESHOLD = float(os.environ.get("JARVIS_WAKE_THRESHOLD", "0.4"))
+WAKE_THRESHOLD = float(os.environ.get("JARVIS_WAKE_THRESHOLD", "0.45"))
 BRAIN_TIMEOUT = int(os.environ.get("JARVIS_BRAIN_TIMEOUT", "300"))
 # 大腦模型：sonnet 聰明又夠快(適合語音即時對答)；要更聰明設 opus(較慢)、要更快設 haiku。
 JARVIS_MODEL = os.environ.get("JARVIS_MODEL", "sonnet")
@@ -401,13 +401,6 @@ def converse_loop(ears, mouth, brain: bool = True) -> None:
     with sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype="int16",
                         blocksize=block) as stream:
         while True:
-            # 待命時若麥克風緩衝積壓(她剛忙完→這段沒讀的舊音訊)，先丟掉舊的，
-            # 讓喚醒偵測永遠跑在「即時」音訊上，不然喊了要等它消化舊聲音→感覺很慢。
-            try:
-                while stream.read_available > 6 * block:   # >~0.5s 積壓就清掉
-                    stream.read(block)
-            except Exception:
-                pass
             buf, _ = stream.read(block)
             pcm = buf[:, 0]
             pre.append(pcm.copy())
