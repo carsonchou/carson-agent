@@ -46,25 +46,42 @@
   .coretag.t{top:27%;}.coretag.b{bottom:21%;}
   .coretag .big{font-size:17px;letter-spacing:.32em;color:#fff0db;text-shadow:0 0 16px rgba(224,168,95,.75);}
   .coretag .sm{font-size:10px;letter-spacing:.4em;color:var(--dim);margin-top:4px;}
-  .bottom{display:grid;grid-template-columns:1.7fr 1fr;gap:18px;height:140px;}
-  #spark{width:100%;height:100%;}
-  #focus{font-size:16px;color:#f3e2cb;line-height:1.7;}#focus b{color:var(--amb2);}
+  .list{display:flex;flex-direction:column;gap:11px;width:460px;max-width:44vw;pointer-events:auto;align-self:center;}
+  .lhead{font-size:11px;color:var(--amb);letter-spacing:.26em;margin-bottom:4px;opacity:.85;}
+  .item{display:flex;align-items:center;gap:14px;cursor:pointer;padding:14px 18px;
+    background:linear-gradient(135deg,rgba(70,45,20,.34),rgba(26,16,7,.24));
+    -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+    border:1px solid rgba(224,168,95,.20);border-left:3px solid rgba(224,168,95,.6);
+    transition:transform .16s,background .16s,box-shadow .16s,border-color .16s;
+    clip-path:polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,0 100%);}
+  .item:hover{border-color:var(--amb);border-left-color:var(--amb2);
+    background:linear-gradient(135deg,rgba(224,168,95,.20),rgba(26,16,7,.32));
+    transform:translateX(9px);box-shadow:0 0 26px rgba(224,168,95,.32);}
+  .item .ic{font-size:17px;color:var(--amb);width:24px;text-align:center;text-shadow:0 0 10px var(--amb);}
+  .item .nm{flex:1;font-size:16px;color:#fff0db;letter-spacing:.06em;}
+  .item .nm .sub2{display:block;font-size:11px;color:var(--dim);letter-spacing:.1em;margin-top:2px;}
+  .item .val{font-size:20px;font-weight:600;color:var(--amb2);text-shadow:0 0 10px rgba(243,205,146,.5);}
+  .item .arr{color:var(--dim);font-size:14px;}
+  .footbar{position:relative;z-index:3;pointer-events:none;display:flex;gap:14px;align-items:baseline;padding:4px 4px 0;}
+  .footbar .fl{font-size:11px;color:var(--amb);letter-spacing:.2em;flex:0 0 auto;}
+  #focus{font-size:15px;color:#f3e2cb;line-height:1.5;}#focus b{color:var(--amb2);}
   .hint{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:6;font-size:11px;color:var(--dim);letter-spacing:.2em;pointer-events:none;}
   .hudc{position:fixed;width:28px;height:28px;border:2px solid rgba(224,168,95,.55);z-index:5;}
   .hudc.tl{top:14px;left:14px;border-right:0;border-bottom:0;}.hudc.tr{top:14px;right:14px;border-left:0;border-bottom:0;}
   .hudc.bl{bottom:14px;left:14px;border-right:0;border-top:0;}.hudc.br{bottom:14px;right:14px;border-left:0;border-top:0;}
   /* 展開細節 overlay */
-  #detail{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;
-    background:rgba(6,4,2,.55);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);}
-  #detail.show{display:flex;}
-  .card{width:min(1080px,92vw);max-height:86vh;overflow:auto;opacity:0;transform:scale(.9) translateY(20px);
-    transition:opacity .28s,transform .28s;
-    background:linear-gradient(135deg,rgba(60,40,18,.92),rgba(22,14,7,.95));
-    border:1px solid rgba(224,168,95,.5);border-radius:4px;padding:26px 30px;
-    box-shadow:0 0 60px rgba(224,168,95,.3),inset 0 0 40px rgba(224,168,95,.06);
+  /* 浮動可拖曳視窗：背景不擋(球還能轉)，抓標題列拖移 */
+  #detail{position:fixed;inset:0;z-index:50;display:none;pointer-events:none;}
+  #detail.show{display:block;}
+  .card{position:absolute;width:min(1000px,90vw);max-height:84vh;overflow:auto;pointer-events:auto;
+    opacity:0;transform:scale(.92);transition:opacity .26s,transform .26s;
+    background:linear-gradient(135deg,rgba(58,38,16,.94),rgba(20,13,6,.96));
+    border:1px solid rgba(224,168,95,.55);border-radius:4px;padding:22px 28px 26px;
+    box-shadow:0 18px 70px rgba(0,0,0,.6),0 0 50px rgba(224,168,95,.28),inset 0 0 40px rgba(224,168,95,.06);
     clip-path:polygon(0 0,calc(100% - 24px) 0,100% 24px,100% 100%,24px 100%,0 calc(100% - 24px));}
-  #detail.show .card{opacity:1;transform:scale(1) translateY(0);}
-  .card .hd{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(224,168,95,.3);padding-bottom:12px;margin-bottom:18px;}
+  #detail.show .card{opacity:1;transform:scale(1);}
+  .card .hd{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(224,168,95,.3);padding-bottom:12px;margin-bottom:18px;cursor:move;user-select:none;}
+  .card .hd h3::before{content:"⠿ ";color:var(--dim);}
   .card .hd h3{font-size:20px;color:#fff0db;letter-spacing:.2em;text-shadow:0 0 14px rgba(224,168,95,.6);}
   .card .x{cursor:pointer;color:var(--amb);border:1px solid rgba(224,168,95,.5);width:34px;height:34px;display:flex;align-items:center;justify-content:center;font-size:18px;border-radius:3px;}
   .card .x:hover{background:rgba(224,168,95,.15);}
@@ -92,40 +109,17 @@
     <div><div id="clock">--:--:--</div><div id="date">—</div><div class="on"><span class="dot"></span>SYSTEMS ONLINE</div></div>
   </div>
   <div class="mid">
-    <div class="side">
-      <div class="panel l" onclick="openDetail('trading')">
-        <h2>交易引擎 ・ 策略回測<span class="more">點開 ▸</span></h2>
-        <div class="kpi"><span class="k">總報酬</span><span class="v" id="t_ret">—</span></div>
-        <div class="kpi"><span class="k">SHARPE</span><span class="v" id="t_sharpe">—</span></div>
-        <div class="kpi"><span class="k">勝率</span><span class="v" id="t_win">—</span></div>
-        <div class="kpi"><span class="k">模擬權益</span><span class="v" id="t_eq">—</span></div>
-      </div>
-      <div class="panel l" onclick="openDetail('trading')">
-        <h2>標的 ・ 模式<span class="more">點開 ▸</span></h2>
-        <div class="kpi"><span class="k">標的</span><span class="v" id="t_sym">—</span></div>
-        <div class="kpi"><span class="k">最大回撤</span><span class="v" id="t_dd">—</span></div>
-        <div class="kpi"><span class="k">運行模式</span><span class="v gold" id="t_mode">DRY-RUN</span></div>
-      </div>
-    </div>
-    <div class="side">
-      <div class="panel r" onclick="openDetail('youtube')">
-        <h2>YouTube ・ 量化阿森<span class="more">點開 ▸</span></h2>
-        <div class="kpi"><span class="k">訂閱數</span><span class="v" id="y_subs">—</span></div>
-        <div class="kpi"><span class="k">總觀看</span><span class="v" id="y_views">—</span></div>
-        <div class="kpi"><span class="k">離 YPP 還差</span><span class="v gold" id="y_gap">—</span></div>
-      </div>
-      <div class="panel r" onclick="openDetail('youtube')">
-        <h2>工廠 ・ 變現<span class="more">點開 ▸</span></h2>
-        <div class="kpi"><span class="k">倉庫待發</span><span class="v" id="q_pend">—</span></div>
-        <div class="kpi"><span class="k">累計淨利</span><span class="v" id="f_net">—</span></div>
-        <div class="kpi"><span class="k">待你拍板</span><span class="v gold" id="d_pend">—</span></div>
-      </div>
+    <div class="list">
+      <div class="lhead">專案總覽 ・ 點選展開細節</div>
+      <div class="item" onclick="openDetail('trading')"><div class="ic">◧</div><div class="nm">交易引擎<span class="sub2">BTC_USDT ・ 策略回測</span></div><div class="val" id="li_t">—</div><div class="arr">▸</div></div>
+      <div class="item" onclick="openDetail('youtube')"><div class="ic">▶</div><div class="nm">YouTube 頻道<span class="sub2">量化阿森 Carson ・ 成長</span></div><div class="val" id="li_y">—</div><div class="arr">▸</div></div>
+      <div class="item" onclick="openDetail('warehouse')"><div class="ic">▤</div><div class="nm">內容工廠 ・ 倉庫<span class="sub2">品質 ・ 待發/已上架</span></div><div class="val" id="li_q">—</div><div class="arr">▸</div></div>
+      <div class="item" onclick="openDetail('finance')"><div class="ic">＄</div><div class="nm">變現 ・ 財務<span class="sub2">營收 ・ 成本 ・ 淨利</span></div><div class="val" id="li_f">—</div><div class="arr">▸</div></div>
+      <div class="item" onclick="openDetail('decisions')"><div class="ic">!</div><div class="nm">待你拍板<span class="sub2">決策佇列</span></div><div class="val" id="li_d">—</div><div class="arr">▸</div></div>
     </div>
   </div>
-  <div class="bottom">
-    <div class="panel" style="cursor:default;display:flex;flex-direction:column;"><h2>頻道成效走勢 ・ 觀看</h2><canvas id="spark" style="flex:1;"></canvas></div>
-    <div class="panel" style="cursor:default;"><h2>今日焦點</h2><div id="focus">系統初始化中…</div></div>
-  </div>
+  <div class="footbar"><span class="fl">今日焦點</span><span id="focus">系統初始化中…</span></div>
+  <canvas id="spark" style="display:none;"></canvas>
 </div>
 <div class="hint">拖曳旋轉全息核心 ・ 滾輪縮放 ・ 點任一面板展開細節</div>
 
@@ -217,18 +211,16 @@ const fmt=n=>n==null?'—':Number(n).toLocaleString('en-US');
 const pct=n=>n==null?'—':(n*100).toFixed(1)+'%';
 const set=(id,v,cls)=>{const e=document.getElementById(id);if(!e)return;e.textContent=v;e.className='v'+(cls?' '+cls:'');};
 window._data={};
+const li=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
 async function pull(){try{
   const d=await(await fetch('/api/data',{cache:'no-store'})).json(); window._data=d;
   const tr=d.trading||{},y=d.youtube||{};
-  set('t_ret',pct(tr.total_return),tr.total_return>=0?'good':'bad');
-  set('t_sharpe',tr.sharpe!=null?tr.sharpe.toFixed(2):'—',tr.sharpe>=1?'good':'');
-  set('t_win',pct(tr.win_rate)); set('t_eq',tr.final_equity!=null?fmt(Math.round(tr.final_equity)):'—');
-  set('t_sym',tr.symbol||'—'); set('t_dd',pct(tr.max_drawdown),'bad');
-  set('y_subs',fmt(y.subs)); set('y_views',fmt(y.views));
-  set('y_gap',y.subs!=null?fmt(Math.max(0,1000-y.subs))+' 訂閱':'—','gold');
-  set('q_pend',fmt(y.pending)); set('f_net',y.net!=null?'NT$ '+fmt(Math.round(y.net)):'—',y.net>=0?'good':'bad');
-  set('d_pend',y.decisions!=null?y.decisions+' 件':'—','gold');
-  focus.innerHTML=d.focus||'一切順。'; drawSpark(y.series);
+  li('li_t', tr.total_return!=null?((tr.total_return>=0?'+':'')+pct(tr.total_return)):'—');
+  li('li_y', y.subs!=null?fmt(y.subs)+' 訂閱':'—');
+  li('li_q', y.pending!=null?fmt(y.pending)+' 待發':'—');
+  li('li_f', y.net!=null?'NT$ '+fmt(Math.round(y.net)):'—');
+  li('li_d', (y.decisions||0)+' 件');
+  focus.innerHTML=d.focus||'一切順。';
   if(detail.classList.contains('show'))renderDetail(window._curDetail);   // 開著就刷新
 }catch(e){focus.textContent='（連不上資料來源，重試中…）';}}
 pull(); setInterval(pull,5000);
@@ -240,9 +232,10 @@ const detail=document.getElementById('detail');
 window._curDetail=null;
 function row(k,v){return `<div class="row"><span>${k}</span><b>${v}</b></div>`;}
 function renderDetail(kind){
-  const d=window._data||{}; const T=document.getElementById('d_title'),B=document.getElementById('d_body');
+  const d=window._data||{}, T=document.getElementById('d_title'), B=document.getElementById('d_body');
+  const tr=d.trading||{}, y=d.youtube||{};
   if(kind==='trading'){
-    const tr=d.trading||{}, fr=tr.frames||{};
+    const fr=tr.frames||{};
     T.textContent='交易引擎 ・ '+(tr.symbol||'')+' ・ 策略回測（各時框）';
     let cards=Object.keys(fr).map(k=>{const f=fr[k];return `<div class="mini"><div class="t">${k}</div>
       ${row('總報酬',pct(f.total_return))}${row('Sharpe',f.sharpe!=null?f.sharpe.toFixed(2):'—')}
@@ -250,25 +243,47 @@ function renderDetail(kind){
       ${row('交易數',f.num_trades??'—')}${row('期末權益',fmt(Math.round(f.final_equity||0)))}</div>`;}).join('');
     const p=tr.params||{};
     B.innerHTML=`<div class="cards">${cards||'<div class="mini">尚無回測資料</div>'}</div>
-      <div style="margin-top:18px;color:#c9a877;font-size:13px;letter-spacing:.1em;">
-      策略參數：${Object.keys(p).length?Object.entries(p).map(([k,v])=>k+'='+v).join('  ・  '):'—'}　｜　模式：<b style="color:#f3cd92">DRY-RUN（模擬，未動真錢）</b></div>`;
+      <div style="margin-top:18px;color:#c9a877;font-size:13px;">策略參數：${Object.keys(p).length?Object.entries(p).map(([k,v])=>k+'='+v).join('  ・  '):'—'}　｜　模式：<b style="color:#f3cd92">DRY-RUN（模擬，未動真錢）</b></div>`;
   } else if(kind==='youtube'){
-    const y=d.youtube||{}, w=y.warehouse||{}, f=y.finance||{};
-    T.textContent='YouTube ・ 量化阿森 Carson ・ 營運明細';
-    B.innerHTML=`
-      <div class="cards">
-        <div class="mini"><div class="t">成長</div>${row('訂閱數',fmt(y.subs))}${row('總觀看',fmt(y.views))}${row('離 YPP',fmt(Math.max(0,1000-(y.subs||0)))+' 訂閱')}</div>
-        <div class="mini"><div class="t">倉庫品質</div>${row('待發',fmt(w.pending))}${row('累計上架',fmt(w.published))}${row('達標',fmt(w.pass))}${row('待補強',fmt(w.reject))}${row('門檻分',w.min_score??'—')}</div>
-        <div class="mini"><div class="t">變現（${f.month||'本月'}）</div>${row('營收',fmt(f.revenue))}${row('成本',fmt(f.cost))}${row('淨利',fmt(f.net))}${row('ROI',f.roi!=null?f.roi+'%':'—')}</div>
-      </div>
+    T.textContent='YouTube ・ 量化阿森 Carson ・ 頻道成長';
+    B.innerHTML=`<div class="cards"><div class="mini"><div class="t">成長</div>
+      ${row('訂閱數',fmt(y.subs))}${row('總觀看',fmt(y.views))}${row('離 YPP',fmt(Math.max(0,1000-(y.subs||0)))+' 訂閱')}</div></div>
       <div style="margin-top:18px;color:#e0a85f;font-size:12px;letter-spacing:.2em;">近期觀看走勢</div>
       <canvas id="d_spark" class="big2"></canvas>`;
     setTimeout(()=>drawSpark(y.series,'d_spark'),30);
+  } else if(kind==='warehouse'){
+    const w=y.warehouse||{};
+    T.textContent='內容工廠 ・ 倉庫品質';
+    B.innerHTML=`<div class="cards"><div class="mini"><div class="t">倉庫狀態</div>
+      ${row('待發布',fmt(w.pending))}${row('累計上架',fmt(w.published))}${row('達標',fmt(w.pass))}${row('待補強',fmt(w.reject))}${row('品質門檻',w.min_score??'—')}</div></div>`;
+  } else if(kind==='finance'){
+    const f=y.finance||{};
+    T.textContent='變現 ・ 財務（'+(f.month||'本月')+'）';
+    B.innerHTML=`<div class="cards"><div class="mini"><div class="t">損益</div>
+      ${row('營收',fmt(f.revenue))}${row('成本',fmt(f.cost))}${row('淨利',fmt(f.net))}${row('ROI',f.roi!=null?f.roi+'%':'—')}</div>
+      <div class="mini"><div class="t">收入來源</div>${row('聯盟返佣',fmt(f.affiliate))}${row('AdSense',fmt(f.adsense))}</div></div>`;
+  } else if(kind==='decisions'){
+    const dl=y.decision_list||[];
+    T.textContent='待你拍板 ・ 決策佇列（'+(y.decisions||0)+' 件）';
+    B.innerHTML= dl.length
+      ? `<div style="display:flex;flex-direction:column;gap:10px;">`+dl.map((q,i)=>`<div class="mini"><div class="row"><span style="color:#e0a85f;flex:0 0 auto;margin-right:12px">#${i+1}</span><b style="text-align:left">${q}</b></div></div>`).join('')+`</div>`
+      : `<div class="mini">目前沒有待你拍板的決策，工廠自己跑著。</div>`;
   }
 }
-window.openDetail=function(kind){window._curDetail=kind;renderDetail(kind);detail.classList.add('show');};
+const card=detail.querySelector('.card'), hd=card.querySelector('.hd');
+window.openDetail=function(kind){window._curDetail=kind;renderDetail(kind);detail.classList.add('show');
+  requestAnimationFrame(()=>{const w=card.offsetWidth,h=card.offsetHeight;   // 置中浮現，之後可拖走
+    card.style.left=Math.max(10,(innerWidth-w)/2)+'px';
+    card.style.top=Math.max(10,Math.min(innerHeight*0.12,(innerHeight-h)/2))+'px';});};
 window.closeDetail=function(){detail.classList.remove('show');window._curDetail=null;};
 addEventListener('keydown',e=>{if(e.key==='Escape')closeDetail();});
+// 拖曳：抓標題列把視窗拖到任意位置（像鋼鐵人移動全息視窗）
+let dg=false,ox=0,oy=0;
+hd.addEventListener('mousedown',e=>{if(e.target.classList.contains('x'))return;
+  dg=true;const r=card.getBoundingClientRect();ox=e.clientX-r.left;oy=e.clientY-r.top;
+  card.style.transition='none';e.preventDefault();});
+addEventListener('mousemove',e=>{if(!dg)return;card.style.left=(e.clientX-ox)+'px';card.style.top=(e.clientY-oy)+'px';});
+addEventListener('mouseup',()=>{if(dg){dg=false;card.style.transition='opacity .26s,transform .26s';}});
 </script>
 </body>
 </html>

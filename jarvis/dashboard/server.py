@@ -85,7 +85,13 @@ def gather() -> dict:
                         "affiliate": s.get("affiliate"), "adsense": s.get("adsense")}
 
     pend = _load(STUDIO / "pending_decisions.json")
-    y["decisions"] = len(pend) if isinstance(pend, list) else 0
+    if isinstance(pend, list):
+        y["decisions"] = len(pend)
+        y["decision_list"] = [str((it or {}).get("question") if isinstance(it, dict) else it)
+                              for it in pend][:8]
+    else:
+        y["decisions"] = 0
+        y["decision_list"] = []
     out["youtube"] = y
 
     drc = _load(STUDIO / "boss_directives.json") or {}
