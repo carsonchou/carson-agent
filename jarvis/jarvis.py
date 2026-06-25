@@ -158,8 +158,43 @@ class Mouth:
 # ════════════════════════════════════════════════════════════
 # 大腦：claude -p（無頭 Claude Code，全工具）
 # ════════════════════════════════════════════════════════════
-def ask_brain(text: str, history=None) -> str:
-    """把使用者的話交給 Claude Code，回傳她要說的話（純文字）。history=最近對話讓她連貫。"""
+# 需要「實際動手做事/讀即時資料」才走較慢的全能腦；其餘純聊天/問答走直連快路。
+_ACTION_INTENT = re.compile(
+    r"打開|開啟|開一下|執行|跑一?下|跑個|啟動|產片?|補產|上架|發布|發片|刪|移除|"
+    r"格式化|關機|重開|重啟|設定|改成|改一下|搜尋|上網|爬蟲?|看一下我的|查一下我的|"
+    r"交易機器人|工作室|頻道(數據|狀況)|部位|淨值|倉庫|餘額|存檔|寫檔|開程式|記事本|瀏覽器", re.I)
+
+_FAST_MODEL = os.environ.get("JARVIS_FAST_MODEL", "claude-sonnet-4-6")
+
+
+def _ask_brain_fast(text: str, history=None) -> str:
+    """直連 Anthropic API 的快路（1-2 秒）：純聊天/問答用。把現在時間餵給她，問時間也準。"""
+    import datetime
+    import requests
+    key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    if not key:
+        raise RuntimeError("無 ANTHROPIC_API_KEY")
+    now = datetime.datetime.now()
+    wk = "一二三四五六日"[now.weekday()]
+    sysp = (PERSONA + f"\n（現在時間：{now.year}年{now.month}月{now.day}日 星期{wk} "
+            f"{now.hour}點{now.minute}分；地點台灣）")
+    msgs = []
+    for u, a in (history or [])[-6:]:
+        msgs += [{"role": "user", "content": u}, {"role": "assistant", "content": a}]
+    msgs.append({"role": "user", "content": text})
+    r = requests.post(
+        "https://api.anthropic.com/v1/messages",
+        headers={"x-api-key": key, "anthropic-version": "2023-06-01",
+                 "content-type": "application/json"},
+        json={"model": _FAST_MODEL, "max_tokens": 500, "system": sysp, "messages": msgs},
+        timeout=30,
+    )
+    data = r.json()
+    return "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text").strip()
+
+
+def _ask_brain_full(text: str, history=None) -> str:
+    """完整全能腦：claude -p，能實際操作電腦/專案（較慢）。"""
     convo = ""
     if history:
         for u, a in history[-6:]:
@@ -190,6 +225,19 @@ def ask_brain(text: str, history=None) -> str:
         err = (r.stderr or "").strip()
         return f"我這邊出了點狀況：{err[:120]}" if err else "我沒收到回應，再說一次好嗎？"
     return out
+
+
+def ask_brain(text: str, history=None) -> str:
+    """分流：要動手做事/讀即時資料→全能腦；純聊天/問答→直連快路（失敗自動退回全能腦）。"""
+    if _ACTION_INTENT.search(text or ""):
+        return _ask_brain_full(text, history)
+    try:
+        out = _ask_brain_fast(text, history)
+        if out:
+            return out
+    except Exception as e:  # noqa: BLE001
+        print(f"[warn] 快路失敗，改用全能腦：{e!r}", file=sys.stderr)
+    return _ask_brain_full(text, history)
 
 
 # ════════════════════════════════════════════════════════════
@@ -357,50 +405,54 @@ def converse_loop(ears, mouth, brain: bool = True) -> None:
             pre.append(pcm.copy())
             if model.predict(pcm).get(WAKE_WORD, 0.0) >= WAKE_THRESHOLD:
                 model.reset()
-                print("✨ 喚醒！嗶——請說…")
-                try:
-                    _beep()
-                    # 把喚醒前緩衝(含「Hey Jarvis」及緊接的話)一起交給收音，免抓時機
-                    audio = ears.capture(stream, block, pre_frames=list(pre))
-                    pre.clear()
-                    text = ears.transcribe(audio)
-                    if not text:
-                        if brain:
-                            mouth.say("我沒聽清楚，再說一次？")
-                        else:
-                            print("🗣  （這次沒收到講話）")
-                    else:
+                idle_limit = float(os.environ.get("JARVIS_CONVO_SEC", "300"))
+                print(f"✨ 喚醒！嗶——進入對話模式（閒置 {int(idle_limit)} 秒才回待命）")
+                _beep()
+                first_pre = list(pre)   # 對話第一句帶喚醒前緩衝；之後不用
+                pre.clear()
+                last_active = time.time()
+                # ── 對話模式：連續聽你講，不用每句重喊；漏聽/沒講不退出，閒置才回待命 ──
+                while time.time() - last_active < idle_limit:
+                    try:
+                        audio = ears.capture(stream, block, pre_frames=first_pre)
+                        first_pre = None
+                        text = ears.transcribe(audio)
+                        if not text:
+                            continue  # 沒聽到→繼續聽（漏一句也救得回）
+                        last_active = time.time()
                         print(f"🗣  你：{text}")
-                        if brain:
-                            proceed = True
-                            # 全能模式安全護欄：危險/不可逆指令動手前先口頭確認
-                            if _FULL_POWER and _looks_destructive(text):
-                                mouth.say("這個動作有風險，確定要我做嗎？確定請說『確定』。")
-                                _beep()
-                                conf = ears.transcribe(ears.capture(stream, block))
-                                print(f"🗣  確認回覆：{conf!r}")
-                                proceed = _is_confirm(conf)
-                                if not proceed:
-                                    mouth.say("好，那我先不動。")
-                            if proceed:
-                                reply = ask_brain(text, history)
-                                history.append((text, reply))
-                                del history[:-8]   # 只留最近 8 輪
-                                mouth.say(reply)
-                except Exception as e:  # noqa: BLE001 單句出錯不可讓整個待命崩潰
-                    print(f"[warn] 本輪處理失敗：{e!r}", file=sys.stderr)
-                    try:
-                        mouth.say("剛剛出了點狀況，再試一次。")
-                    except Exception:
-                        pass
-                finally:
-                    # 清掉喚醒提示音/TTS 期間累積的舊音訊，避免回授或誤觸下一輪
-                    try:
-                        while stream.read_available > block:
-                            stream.read(block)
-                    except Exception:
-                        pass
-                    model.reset()
+                        if not brain:
+                            continue
+                        proceed = True
+                        # 全能模式安全護欄：危險/不可逆指令動手前先口頭確認
+                        if _FULL_POWER and _looks_destructive(text):
+                            mouth.say("這個動作有風險，確定要我做嗎？確定請說『確定』。")
+                            _beep()
+                            conf = ears.transcribe(ears.capture(stream, block))
+                            print(f"🗣  確認回覆：{conf!r}")
+                            proceed = _is_confirm(conf)
+                            if not proceed:
+                                mouth.say("好，那我先不動。")
+                        if proceed:
+                            reply = ask_brain(text, history)
+                            history.append((text, reply))
+                            del history[:-8]   # 只留最近 8 輪
+                            mouth.say(reply)
+                        last_active = time.time()  # 互動後重置閒置計時
+                        # 清掉 TTS 期間累積的舊音訊，避免回授/誤收自己的聲音
+                        try:
+                            while stream.read_available > block:
+                                stream.read(block)
+                        except Exception:
+                            pass
+                    except Exception as e:  # noqa: BLE001 單輪錯不可中斷整段對話
+                        print(f"[warn] 本輪處理失敗：{e!r}", file=sys.stderr)
+                        try:
+                            mouth.say("剛剛出了點狀況，再說一次。")
+                        except Exception:
+                            pass
+                print("💤 閒置太久，回待命。喊「Hey Jarvis」再叫醒我。")
+                model.reset()
 
 
 # ════════════════════════════════════════════════════════════
