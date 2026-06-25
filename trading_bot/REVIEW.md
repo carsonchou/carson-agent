@@ -31,17 +31,24 @@
 
 ---
 
-## 🟠 真實但屬「架構級／會動到實盤行為」，建議你拍板再做（本輪刻意不自動改，避免動到live風控）
+## 🟢 架構級項目（本輪全數實作，附測試 test_review_fixes2~6.py）
 
-1. **當日回撤上限只看「已實現損益」，不含未實現浮虧**（`risk_manager.daily_loss_limit_hit`）。
-   重倉抱大浮虧時回撤閘門不會關。安全修需先讓 `equity` = 現金 + 持倉市值（現貨目前 `equity` 只取 quote 餘額），否則直接用 equity 跌幅判斷會對「持倉中」誤判。**影響大、需設計。**
-2. **風控當日狀態未持久化**（`_daily_realized_pnl` / `_daily_start_equity`）。盤中重啟 → 當日虧損歸零，同一天可二度虧到上限。建議併入 `PositionTracker` 持久化。
-3. **錯誤分類過粗**：`pionex_client` 把網路 timeout / HTTP 5xx / result=false 全包成同一種 `PionexAPIError`，executor 一律標 REJECTED。timeout 後「其實已成交」會被當沒成交。建議區分「確定拒單 vs 需查證」，timeout 時先用 `client_order_id` 查單再決定重送。
-4. **缺 tick/lot size 取整、429/時鐘偏移退避**（`pionex_client`）。精度不符或限流會被拒單造成空窗。
-5. **缺「本地 tracker vs 交易所實際持倉」對帳 + 資料源長掛只靜默空轉無告警**。**你出國無人看管時這條最危險**，建議加連續失敗計數 + 退避 + ntfy 告警（topic 見 memory）。
-6. **金額/數量用 float 記帳**：長跑會有累積誤差漂移 entry_price/停損基準。建議改 `Decimal`（較大重構）。
-7. **K 棒邊界語意依賴 feed 履約 `get_latest`「已收盤」契約**：`coordinator` 已假設收盤，但若某 feed 回 forming K 棒會有前視/同根重複進場。建議由 DataFeed 明示 `last_is_forming` 旗標而非靠約定。
+| # | 項目 | 實作 | 測試 |
+|---|------|------|------|
+| 1 | 回撤上限納入未實現浮虧 | `daily_loss_limit_hit` 取「已實現%」與「權益回撤%」較大者；coordinator 改傳市值化權益(現金+持倉市值) | fixes2 |
+| 2 | 風控當日狀態持久化 | `risk_manager` 原子持久化 today/realized/start_equity，盤中重啟沿用；main 接 `.state/{symbol}_risk.json` | fixes2 |
+| 3 | 錯誤分類 + 不確定不當拒單 | `pionex_client` 細分 Network/RateLimit/Server/Client；executor 不確定→NEW+needs_reconcile、確定→REJECTED | fixes5 |
+| 4 | 取整 + 退避 | `floor_to_step`/`round_to_tick`；idempotent(GET) 退避重試、POST 不重試 | fixes5 |
+| 5 | 對帳 + 失敗退避告警 | coordinator 啟動+週期對帳本地 vs 交易所持倉(背離 CRITICAL)；連續失敗指數退避+告警；可注入 alert 出口 | fixes3 |
+| 6 | Decimal 記帳 | `PositionTracker` 內部全 Decimal、消除累積漂移；對外仍 float、持久化字串保精度、相容舊格式 | fixes6 |
+| 7 | K 棒 forming 語意明示 | `DataFeed.last_is_forming()`；coordinator 據此對齊策略 `drop_forming` | fixes4 |
+
+### ⚠️ 仍需「實盤驗證 / 一行接線」才完整（已留 hook，非缺口）
+- **#4 取整**：`size_step`/`price_tick` 預設 None＝不取整（維持原行為）。實盤前要從 Pionex 交易對規格填入**真實 stepSize/tickSize**，否則取整不生效。
+- **#3 錯誤分類**：分類邏輯已就緒，但「timeout 後用 clientOrderId 查單對帳」需依 Pionex 實際 API 行為驗證（Pionex `get_order` 用 orderId 非 clientOrderId，對帳目前走 `get_position` 比對）。
+- **#5 ntfy 告警**：`alert(level,msg)` 出口已串到 `from_config`，但 main 尚未接上 ntfy。要出國推播，於 `main.build_coordinator` 傳入一個 POST ntfy 的函式即可（topic 見 memory `carsonquant-hc-9k3x7m2q`）。
+- **#1 回撤含浮虧**：現貨 `equity` 已改市值化；合約/槓桿商品的市值計算另需對應。
 
 ---
 
-*產生方式：3 個平行 review agent → 人工對照原始碼核實 → 安全項修復+測試，風險項記錄待決。*
+*產生方式：3 個平行 review agent → 人工對照原始碼核實（剔除過度告警）→ 安全項與架構項逐一修復+測試。全套測試 76/76 綠。*
