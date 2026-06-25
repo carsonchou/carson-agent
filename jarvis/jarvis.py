@@ -653,41 +653,58 @@ def run_voice() -> int:
 
 def selftest() -> int:
     """逐項自我診斷：印出哪個環節 OK / 壞掉（不進入無限監聽，安全可重複跑）。"""
-    print(f"[1] Python：{sys.executable} {sys.version.split()[0]}")
-    # TTS
+    import shutil
+    ok = f"{_AMB}OK{_R}"
+    bad = f"\033[31mFAIL{_R}" if _ANSI else "FAIL"
+    _banner("自我診斷")
+    print(f"[1] Python　　　{ok} — {sys.version.split()[0]}  {_DIM}{sys.executable}{_R}")
+    # TTS：edge-tts 主嗓 + ffplay 放音（pyttsx3/SAPI 只是備援）
     try:
-        import pyttsx3  # noqa: F401
-        Mouth()
-        print("[2] TTS(pyttsx3)：OK")
+        import edge_tts  # noqa: F401
+        m = Mouth()
+        ff = "有 ffplay" if m._ffplay else "缺 ffplay(會退 SAPI 女聲)"
+        print(f"[2] 嗓音(edge)　{ok} — {m._voice}　{_DIM}{ff}{_R}")
     except Exception as e:  # noqa: BLE001
-        print(f"[2] TTS(pyttsx3)：FAIL — {type(e).__name__}: {str(e)[:120]}")
+        print(f"[2] 嗓音(edge)　{bad} — {type(e).__name__}: {str(e)[:100]}")
     # 麥克風裝置
     try:
         import sounddevice as sd
         ins = [d for d in sd.query_devices() if d.get("max_input_channels", 0) > 0]
         if ins:
-            print(f"[3] 麥克風：OK — 偵測到 {len(ins)} 個輸入裝置，預設＝{sd.query_devices(kind='input')['name']}")
+            print(f"[3] 麥克風　　　{ok} — {len(ins)} 個輸入，預設＝{sd.query_devices(kind='input')['name']}")
         else:
-            print("[3] 麥克風：FAIL — 沒有任何輸入裝置（沒接麥克風，或被 Windows 隱私設定擋）")
+            print(f"[3] 麥克風　　　{bad} — 沒有輸入裝置（沒接麥克風，或被隱私設定擋）")
     except Exception as e:  # noqa: BLE001
-        print(f"[3] 麥克風：FAIL — {type(e).__name__}: {str(e)[:120]}")
+        print(f"[3] 麥克風　　　{bad} — {type(e).__name__}: {str(e)[:100]}")
     # Whisper
     try:
         Ears()._model()
-        print("[4] Whisper 聽寫模型：OK")
+        print(f"[4] 聽寫(Whisper){ok} — {WHISPER_SIZE}")
     except Exception as e:  # noqa: BLE001
-        print(f"[4] Whisper：FAIL — {type(e).__name__}: {str(e)[:120]}")
+        print(f"[4] 聽寫(Whisper){bad} — {type(e).__name__}: {str(e)[:100]}")
     # 喚醒模型
     try:
         from openwakeword.model import Model
         Model(wakeword_models=[WAKE_WORD], inference_framework="onnx")
-        print(f"[5] 喚醒模型({WAKE_WORD})：OK")
+        print(f"[5] 喚醒({WAKE_WORD}){ok}")
     except Exception as e:  # noqa: BLE001
-        print(f"[5] 喚醒模型：FAIL — {type(e).__name__}: {str(e)[:120]}")
-    # claude
-    import shutil
-    print(f"[6] claude 指令：{'OK — ' + shutil.which(CLAUDE_BIN) if shutil.which(CLAUDE_BIN) else 'FAIL — PATH 上找不到 claude'}")
-    print("自我診斷完成。")
+        print(f"[5] 喚醒　　　　{bad} — {type(e).__name__}: {str(e)[:100]}")
+    # claude 全能腦
+    print(f"[6] 全能腦(claude){ok + ' — ' + shutil.which(CLAUDE_BIN) if shutil.which(CLAUDE_BIN) else bad + ' — PATH 上找不到 claude'}")
+    # 直連快路 / 看螢幕用的 API 金鑰
+    print(f"[7] 快路+看螢幕　{ok if os.environ.get('ANTHROPIC_API_KEY') else bad} — "
+          f"{'ANTHROPIC_API_KEY 已設' if os.environ.get('ANTHROPIC_API_KEY') else '缺 ANTHROPIC_API_KEY(聊天會退全能腦、不能看螢幕)'}")
+    # 電腦操控手腳
+    if computer is None:
+        print(f"[8] 電腦操控　　{bad} — computer.py 沒載入")
+    else:
+        try:
+            computer._pg().size()
+            import pygetwindow, PIL, pyperclip  # noqa: F401
+            print(f"[8] 電腦操控　　{ok} — pyautogui/視窗/截圖/剪貼簿 都在")
+        except Exception as e:  # noqa: BLE001
+            print(f"[8] 電腦操控　　{bad} — {type(e).__name__}: {str(e)[:100]}")
+    print(f"\n{_DIM}診斷完成。{_R}")
     return 0
 
 
