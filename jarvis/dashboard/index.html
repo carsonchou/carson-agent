@@ -5,247 +5,220 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>J.A.R.V.I.S — 量化阿森</title>
 <style>
-  :root{ --cyan:#2de2ff; --cyan-dim:#1a7e95; --gold:#ffd23f; --green:#46d98a; --red:#ff6b6b; --bg:#04070f; }
-  *{box-sizing:border-box; margin:0; padding:0;}
-  html,body{height:100%; background:#04070f; color:#bfefff; overflow:hidden;
-    font-family:"Rajdhani","Microsoft JhengHei","Segoe UI",sans-serif;
-    font-feature-settings:"tnum"; letter-spacing:.04em;}
-  /* 背景網格 + 暈影 + 掃描線 */
-  body::before{content:""; position:fixed; inset:0; z-index:0;
-    background-image:linear-gradient(rgba(45,226,255,.05) 1px,transparent 1px),
-      linear-gradient(90deg,rgba(45,226,255,.05) 1px,transparent 1px);
-    background-size:42px 42px;
-    -webkit-mask-image:radial-gradient(ellipse at center,#000 55%,transparent 100%);
-            mask-image:radial-gradient(ellipse at center,#000 55%,transparent 100%);}
-  body::after{content:""; position:fixed; inset:0; z-index:60; pointer-events:none;
-    background:repeating-linear-gradient(0deg,rgba(0,0,0,.18) 0,rgba(0,0,0,.18) 1px,transparent 2px,transparent 4px);
-    opacity:.35;}
-  .vig{position:fixed; inset:0; z-index:1; pointer-events:none;
-    background:radial-gradient(ellipse at center,transparent 50%,rgba(0,0,0,.7) 100%);}
-  .wrap{position:relative; z-index:2; height:100%; display:flex; flex-direction:column; padding:20px 26px;}
+  :root{ --cyan:#33e6ff; --dim:#1a7e95; --gold:#ffd23f; --green:#46d98a; --red:#ff6b6b; }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{height:100%;background:#02060d;color:#cdf3ff;overflow:hidden;
+    font-family:"Rajdhani","Microsoft JhengHei","Segoe UI",sans-serif;letter-spacing:.04em;}
+  #bg{position:fixed;inset:0;z-index:0;}      /* Three.js 全息 canvas */
+  .scan{position:fixed;inset:0;z-index:40;pointer-events:none;
+    background:repeating-linear-gradient(0deg,rgba(0,0,0,.16) 0,rgba(0,0,0,.16) 1px,transparent 2px,transparent 4px);opacity:.3;}
+  .vig{position:fixed;inset:0;z-index:1;pointer-events:none;
+    background:radial-gradient(ellipse at center,transparent 45%,rgba(0,2,8,.85) 100%);}
+  .wrap{position:relative;z-index:3;height:100%;display:flex;flex-direction:column;padding:22px 30px;pointer-events:none;}
 
-  /* 頂列 */
-  .top{display:flex; align-items:flex-end; justify-content:space-between; border-bottom:1px solid rgba(45,226,255,.25); padding-bottom:10px;}
-  .brand{display:flex; align-items:baseline; gap:14px;}
-  .brand h1{font-size:30px; font-weight:700; color:#eaffff; letter-spacing:.32em;
-    text-shadow:0 0 18px rgba(45,226,255,.7);}
-  .brand .sub{font-size:11px; color:var(--cyan-dim); letter-spacing:.36em;}
-  .status{display:flex; align-items:center; gap:18px; font-size:12px; color:var(--cyan);}
-  .dot{width:9px;height:9px;border-radius:50%;background:var(--green);box-shadow:0 0 10px var(--green);
-    display:inline-block;margin-right:6px;animation:pulse 1.6s infinite;}
-  #clock{font-size:26px;color:#eaffff;text-shadow:0 0 12px rgba(45,226,255,.6);}
-  #date{font-size:11px;color:var(--cyan-dim);text-align:right;letter-spacing:.2em;}
-  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+  .top{display:flex;align-items:flex-end;justify-content:space-between;}
+  .brand h1{font-size:32px;font-weight:700;color:#eaffff;letter-spacing:.34em;text-shadow:0 0 22px rgba(51,230,255,.8);}
+  .brand .sub{font-size:11px;color:var(--dim);letter-spacing:.4em;margin-top:2px;}
+  .stat{text-align:right;}
+  .stat .on{font-size:12px;color:var(--green);letter-spacing:.2em;}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 10px var(--green);display:inline-block;margin-right:6px;animation:pulse 1.5s infinite;}
+  #clock{font-size:30px;color:#eaffff;text-shadow:0 0 16px rgba(51,230,255,.7);line-height:1;}
+  #date{font-size:11px;color:var(--dim);letter-spacing:.22em;margin-top:4px;}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
 
-  /* 主體三欄 */
-  .grid{flex:1; display:grid; grid-template-columns:1fr 1.15fr 1fr; gap:18px; padding-top:16px; min-height:0;}
-  .col{display:flex; flex-direction:column; gap:14px; min-height:0;}
-  .colmid{align-items:center; justify-content:center;}
+  .mid{flex:1;display:flex;justify-content:space-between;align-items:center;min-height:0;}
+  .side{display:flex;flex-direction:column;gap:18px;width:330px;}
 
-  .panel{position:relative; border:1px solid rgba(45,226,255,.28); background:rgba(8,20,34,.55);
-    padding:12px 14px; clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,14px 100%,0 calc(100% - 14px));
-    box-shadow:inset 0 0 22px rgba(45,226,255,.06);}
-  .panel h2{font-size:11px; color:var(--cyan); letter-spacing:.28em; margin-bottom:10px;
-    display:flex; align-items:center; gap:8px;}
-  .panel h2::before{content:"";width:5px;height:14px;background:var(--cyan);box-shadow:0 0 8px var(--cyan);}
-
-  .kpi{display:flex; justify-content:space-between; align-items:baseline; padding:6px 0;
-    border-bottom:1px dashed rgba(45,226,255,.12);}
+  /* 毛玻璃 + 景深面板 */
+  .panel{position:relative;pointer-events:auto;
+    background:linear-gradient(135deg,rgba(20,45,70,.42),rgba(8,20,34,.30));
+    -webkit-backdrop-filter:blur(7px);backdrop-filter:blur(7px);
+    border:1px solid rgba(51,230,255,.30);border-radius:3px;padding:14px 16px;
+    box-shadow:0 8px 32px rgba(0,0,0,.5),inset 0 0 26px rgba(51,230,255,.07),0 0 0 1px rgba(51,230,255,.05);
+    clip-path:polygon(0 0,calc(100% - 16px) 0,100% 16px,100% 100%,16px 100%,0 calc(100% - 16px));}
+  .panel.r{transform:perspective(900px) rotateY(7deg);}
+  .panel.l{transform:perspective(900px) rotateY(-7deg);}
+  .panel h2{font-size:11px;color:var(--cyan);letter-spacing:.26em;margin-bottom:12px;display:flex;align-items:center;gap:8px;text-shadow:0 0 8px rgba(51,230,255,.5);}
+  .panel h2::before{content:"";width:5px;height:15px;background:var(--cyan);box-shadow:0 0 9px var(--cyan);}
+  .kpi{display:flex;justify-content:space-between;align-items:baseline;padding:7px 0;border-bottom:1px dashed rgba(51,230,255,.13);}
   .kpi:last-child{border-bottom:none;}
-  .kpi .k{font-size:13px;color:#7fbfd6;letter-spacing:.1em;}
-  .kpi .v{font-size:22px;color:#eaffff;font-weight:600;text-shadow:0 0 10px rgba(45,226,255,.45);}
-  .v.good{color:var(--green);text-shadow:0 0 10px rgba(70,217,138,.5);}
-  .v.bad{color:var(--red);text-shadow:0 0 10px rgba(255,107,107,.5);}
-  .v.gold{color:var(--gold);text-shadow:0 0 10px rgba(255,210,63,.5);}
+  .kpi .k{font-size:13px;color:#84c7dd;}
+  .kpi .v{font-size:23px;font-weight:600;color:#eaffff;text-shadow:0 0 12px rgba(51,230,255,.5);}
+  .v.good{color:var(--green);text-shadow:0 0 12px rgba(70,217,138,.6);}
+  .v.bad{color:var(--red);text-shadow:0 0 12px rgba(255,107,107,.6);}
+  .v.gold{color:var(--gold);text-shadow:0 0 12px rgba(255,210,63,.6);}
 
-  /* 中央反應爐 */
-  #reactor{filter:drop-shadow(0 0 24px rgba(45,226,255,.55));}
-  .corebox{display:flex;flex-direction:column;align-items:center;gap:10px;}
-  .coretag{font-size:11px;letter-spacing:.4em;color:var(--cyan-dim);}
-  .corebig{font-size:15px;letter-spacing:.3em;color:#eaffff;text-shadow:0 0 14px rgba(45,226,255,.6);}
+  .coretag{position:absolute;left:50%;transform:translateX(-50%);text-align:center;}
+  .coretag.t{top:30%;}.coretag.b{bottom:24%;}
+  .coretag .big{font-size:16px;letter-spacing:.3em;color:#eaffff;text-shadow:0 0 16px rgba(51,230,255,.7);}
+  .coretag .sm{font-size:10px;letter-spacing:.4em;color:var(--dim);margin-top:4px;}
 
-  /* 底部走勢 + 焦點 */
-  .bottom{height:148px;display:grid;grid-template-columns:1.6fr 1fr;gap:18px;margin-top:14px;}
+  .bottom{display:grid;grid-template-columns:1.7fr 1fr;gap:18px;height:140px;}
   #spark{width:100%;height:100%;}
-  #focus{font-size:15px;color:#cfefff;line-height:1.7;}
+  #focus{font-size:16px;color:#dff5ff;line-height:1.7;}
   #focus b{color:var(--gold);}
-  .hudc{position:fixed;width:26px;height:26px;border:2px solid rgba(45,226,255,.5);z-index:3;}
-  .hudc.tl{top:12px;left:12px;border-right:none;border-bottom:none;}
-  .hudc.tr{top:12px;right:12px;border-left:none;border-bottom:none;}
-  .hudc.bl{bottom:12px;left:12px;border-right:none;border-top:none;}
-  .hudc.br{bottom:12px;right:12px;border-left:none;border-top:none;}
-  .muted{color:var(--cyan-dim);font-size:11px;letter-spacing:.2em;}
+  .hudc{position:fixed;width:28px;height:28px;border:2px solid rgba(51,230,255,.55);z-index:5;}
+  .hudc.tl{top:14px;left:14px;border-right:0;border-bottom:0;}
+  .hudc.tr{top:14px;right:14px;border-left:0;border-bottom:0;}
+  .hudc.bl{bottom:14px;left:14px;border-right:0;border-top:0;}
+  .hudc.br{bottom:14px;right:14px;border-left:0;border-top:0;}
 </style>
+<script type="importmap">
+{ "imports":{
+  "three":"https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"
+}}
+</script>
 </head>
 <body>
-<div class="vig"></div>
+<canvas id="bg"></canvas>
+<div class="vig"></div><div class="scan"></div>
 <div class="hudc tl"></div><div class="hudc tr"></div><div class="hudc bl"></div><div class="hudc br"></div>
+
+<div class="coretag t"><div class="big" id="core_main">全自動運轉中</div><div class="sm">CORE ・ ARC REACTOR</div></div>
+<div class="coretag b"><div class="sm" id="core_sub">SYSTEMS NOMINAL</div></div>
 
 <div class="wrap">
   <div class="top">
-    <div class="brand">
-      <h1>J.A.R.V.I.S</h1>
-      <div class="sub">量化阿森 ・ AUTONOMOUS OPS</div>
-    </div>
-    <div class="status">
-      <div><span class="dot"></span>SYSTEMS ONLINE</div>
-      <div style="text-align:right"><div id="clock">--:--:--</div><div id="date">—</div></div>
-    </div>
+    <div class="brand"><h1>J.A.R.V.I.S</h1><div class="sub">量化阿森 ・ AUTONOMOUS OPS</div></div>
+    <div class="stat"><div id="clock">--:--:--</div><div id="date">—</div><div class="on"><span class="dot"></span>SYSTEMS ONLINE</div></div>
   </div>
 
-  <div class="grid">
-    <!-- 左：交易 -->
-    <div class="col">
-      <div class="panel">
+  <div class="mid">
+    <div class="side">
+      <div class="panel l">
         <h2>交易引擎 ・ 策略回測</h2>
         <div class="kpi"><span class="k">總報酬</span><span class="v" id="t_ret">—</span></div>
         <div class="kpi"><span class="k">SHARPE</span><span class="v" id="t_sharpe">—</span></div>
         <div class="kpi"><span class="k">勝率</span><span class="v" id="t_win">—</span></div>
         <div class="kpi"><span class="k">最大回撤</span><span class="v" id="t_dd">—</span></div>
       </div>
-      <div class="panel">
+      <div class="panel l">
         <h2>部位 ・ 權益</h2>
         <div class="kpi"><span class="k">標的</span><span class="v" id="t_sym">—</span></div>
         <div class="kpi"><span class="k">模擬權益</span><span class="v" id="t_eq">—</span></div>
-        <div class="kpi"><span class="k">交易次數</span><span class="v" id="t_trades">—</span></div>
         <div class="kpi"><span class="k">運行模式</span><span class="v gold" id="t_mode">DRY-RUN</span></div>
       </div>
     </div>
 
-    <!-- 中：反應爐 -->
-    <div class="col colmid">
-      <div class="corebox">
-        <div class="coretag">CORE STATUS</div>
-        <canvas id="reactor" width="360" height="360"></canvas>
-        <div class="corebig" id="core_main">全自動運轉中</div>
-        <div class="muted" id="core_sub">ARC REACTOR ・ STABLE</div>
-      </div>
-    </div>
-
-    <!-- 右：頻道 -->
-    <div class="col">
-      <div class="panel">
-        <h2>YouTube ・ 量化阿森 Carson</h2>
+    <div class="side">
+      <div class="panel r">
+        <h2>YouTube ・ 量化阿森</h2>
         <div class="kpi"><span class="k">訂閱數</span><span class="v" id="y_subs">—</span></div>
         <div class="kpi"><span class="k">總觀看</span><span class="v" id="y_views">—</span></div>
         <div class="kpi"><span class="k">離 YPP 還差</span><span class="v gold" id="y_gap">—</span></div>
       </div>
-      <div class="panel">
+      <div class="panel r">
         <h2>工廠 ・ 倉庫 ・ 變現</h2>
         <div class="kpi"><span class="k">倉庫待發</span><span class="v" id="q_pend">—</span></div>
         <div class="kpi"><span class="k">累計上架</span><span class="v" id="q_pub">—</span></div>
-        <div class="kpi"><span class="k">累計淨利</span><span class="v" id="f_net">—</span></div>
+        <div class="kpi"><span class="k">淨利</span><span class="v" id="f_net">—</span></div>
         <div class="kpi"><span class="k">待你拍板</span><span class="v gold" id="d_pend">—</span></div>
       </div>
     </div>
   </div>
 
   <div class="bottom">
-    <div class="panel" style="display:flex;flex-direction:column;">
-      <h2>頻道成效走勢 ・ 觀看</h2>
-      <canvas id="spark" style="flex:1;"></canvas>
+    <div class="panel" style="display:flex;flex-direction:column;pointer-events:auto;">
+      <h2>頻道成效走勢 ・ 觀看</h2><canvas id="spark" style="flex:1;"></canvas>
     </div>
-    <div class="panel">
-      <h2>今日焦點</h2>
-      <div id="focus">系統初始化中…</div>
-    </div>
+    <div class="panel" style="pointer-events:auto;"><h2>今日焦點</h2><div id="focus">系統初始化中…</div></div>
   </div>
 </div>
 
-<script>
-// ── 中央反應爐動畫 ──
-const cv=document.getElementById('reactor'), cx=cv.getContext('2d');
-let rot=0;
-function reactor(){
-  const w=cv.width,h=cv.height,cxp=w/2,cyp=h/2;
-  cx.clearRect(0,0,w,h); rot+=0.006;
-  // 外圈刻度旋轉
-  for(let ring=0;ring<3;ring++){
-    const r=150-ring*26, seg=ring%2?40:60, dir=ring%2?-1:1;
-    cx.save(); cx.translate(cxp,cyp); cx.rotate(rot*dir*(ring+1));
-    for(let i=0;i<seg;i++){
-      const a=i/seg*Math.PI*2, on=(i%(ring+2)===0);
-      cx.beginPath();
-      cx.strokeStyle=on?'rgba(45,226,255,.9)':'rgba(45,226,255,.18)';
-      cx.lineWidth=on?3:1.5;
-      cx.moveTo(Math.cos(a)*(r-6),Math.sin(a)*(r-6));
-      cx.lineTo(Math.cos(a)*r,Math.sin(a)*r);
-      cx.stroke();
-    }
-    cx.restore();
-  }
-  // 同心發光圓
-  [70,96,120].forEach((r,i)=>{
-    cx.beginPath(); cx.arc(cxp,cyp,r,0,Math.PI*2);
-    cx.strokeStyle='rgba(45,226,255,'+(0.5-i*0.12)+')'; cx.lineWidth=2; cx.stroke();
-  });
-  // 核心脈動
-  const pulse=0.5+0.5*Math.sin(Date.now()/600);
-  const g=cx.createRadialGradient(cxp,cyp,4,cxp,cyp,60);
-  g.addColorStop(0,'rgba(180,250,255,'+(0.85+pulse*0.15)+')');
-  g.addColorStop(0.4,'rgba(45,226,255,'+(0.5+pulse*0.3)+')');
-  g.addColorStop(1,'rgba(45,226,255,0)');
-  cx.fillStyle=g; cx.beginPath(); cx.arc(cxp,cyp,60,0,Math.PI*2); cx.fill();
-  // 三角形核心
-  cx.save(); cx.translate(cxp,cyp); cx.rotate(-rot*2);
-  cx.beginPath();
-  for(let i=0;i<3;i++){const a=i/3*Math.PI*2-Math.PI/2; cx[i?'lineTo':'moveTo'](Math.cos(a)*30,Math.sin(a)*30);}
-  cx.closePath(); cx.strokeStyle='rgba(220,250,255,.95)'; cx.lineWidth=2.5; cx.stroke();
-  cx.restore();
-  requestAnimationFrame(reactor);
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+const CY=0x33e6ff;
+const renderer=new THREE.WebGLRenderer({canvas:document.getElementById('bg'),antialias:true,alpha:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+const scene=new THREE.Scene();
+const cam=new THREE.PerspectiveCamera(55,innerWidth/innerHeight,0.1,100);
+cam.position.set(0,0,7);
+
+const core=new THREE.Group(); scene.add(core);
+// 線框二十面體（全息球）
+const ico=new THREE.Mesh(new THREE.IcosahedronGeometry(2.2,2),
+  new THREE.MeshBasicMaterial({color:CY,wireframe:true,transparent:true,opacity:.55}));
+core.add(ico);
+// 內層發光小球（被 bloom 放大成光暈）
+const glow=new THREE.Mesh(new THREE.IcosahedronGeometry(1.1,3),
+  new THREE.MeshBasicMaterial({color:0xbff6ff,transparent:true,opacity:.95}));
+core.add(glow);
+// 三個傾斜光環（arc reactor 陀螺感）
+const rings=[];
+[[0,0,0],[Math.PI/2.3,0.4,0],[0.6,Math.PI/2.5,0]].forEach((r,i)=>{
+  const t=new THREE.Mesh(new THREE.TorusGeometry(3.0+i*0.45,0.02,12,140),
+    new THREE.MeshBasicMaterial({color:CY,transparent:true,opacity:.8}));
+  t.rotation.set(r[0],r[1],r[2]); core.add(t); rings.push(t);
+});
+// 粒子星場（景深）
+const N=900,pos=new Float32Array(N*3);
+for(let i=0;i<N;i++){const r=6+Math.random()*22,th=Math.random()*Math.PI*2,ph=Math.acos(2*Math.random()-1);
+  pos[i*3]=r*Math.sin(ph)*Math.cos(th);pos[i*3+1]=r*Math.sin(ph)*Math.sin(th);pos[i*3+2]=r*Math.cos(ph);}
+const pg=new THREE.BufferGeometry();pg.setAttribute('position',new THREE.BufferAttribute(pos,3));
+scene.add(new THREE.Points(pg,new THREE.PointsMaterial({color:CY,size:0.05,transparent:true,opacity:.6})));
+
+// 泛光：讓線框/核心真的發亮（鋼鐵人全息感的關鍵）
+const composer=new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene,cam));
+const bloom=new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),1.15,0.55,0.15);
+composer.addPass(bloom); composer.addPass(new OutputPass());
+
+function size(){renderer.setSize(innerWidth,innerHeight);composer.setSize(innerWidth,innerHeight);
+  cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();}
+size(); addEventListener('resize',()=>{size();drawSpark(window._series);});
+
+let t=0;
+function loop(){
+  t+=0.005;
+  core.rotation.y+=0.0035; core.rotation.x=Math.sin(t)*0.12;
+  ico.rotation.y-=0.002; ico.rotation.x+=0.001;
+  rings.forEach((r,i)=>{r.rotation.z+=0.004*(i%2?-1:1);r.rotation.x+=0.001*(i+1);});
+  glow.scale.setScalar(1+0.06*Math.sin(Date.now()/600));
+  composer.render(); requestAnimationFrame(loop);
 }
-reactor();
+loop();
 
 // ── 時鐘 ──
-function tick(){
-  const n=new Date();
-  const wk=['日','一','二','三','四','五','六'][n.getDay()];
-  document.getElementById('clock').textContent=n.toLocaleTimeString('zh-TW',{hour12:false});
-  document.getElementById('date').textContent=
-    n.getFullYear()+'.'+String(n.getMonth()+1).padStart(2,'0')+'.'+String(n.getDate()).padStart(2,'0')+'  星期'+wk+'  台北';
-}
-setInterval(tick,1000); tick();
+function tick(){const n=new Date();const wk=['日','一','二','三','四','五','六'][n.getDay()];
+  clock.textContent=n.toLocaleTimeString('zh-TW',{hour12:false});
+  date.textContent=n.getFullYear()+'.'+String(n.getMonth()+1).padStart(2,'0')+'.'+String(n.getDate()).padStart(2,'0')+'  星期'+wk+'  台北';}
+setInterval(tick,1000);tick();
 
 // ── 走勢圖 ──
-function drawSpark(series){
-  const c=document.getElementById('spark'),g=c.getContext('2d');
-  const w=c.width=c.clientWidth, h=c.height=c.clientHeight;
-  g.clearRect(0,0,w,h);
+function drawSpark(series){window._series=series;const c=document.getElementById('spark'),g=c.getContext('2d');
+  const w=c.width=c.clientWidth,h=c.height=c.clientHeight;g.clearRect(0,0,w,h);
   if(!series||series.length<2){g.fillStyle='#1a7e95';g.font='12px sans-serif';g.fillText('累積資料中…',12,h/2);return;}
-  const vals=series.map(p=>p.views), lo=Math.min(...vals),hi=Math.max(...vals),rng=(hi-lo)||1,pad=10;
-  g.beginPath();
-  vals.forEach((v,i)=>{const x=pad+(w-2*pad)*i/(vals.length-1),y=h-pad-(h-2*pad)*(v-lo)/rng; i?g.lineTo(x,y):g.moveTo(x,y);});
-  g.strokeStyle='#2de2ff'; g.lineWidth=2; g.shadowColor='#2de2ff'; g.shadowBlur=10; g.stroke();
-  g.lineTo(w-pad,h-pad); g.lineTo(pad,h-pad); g.closePath();
-  g.shadowBlur=0; g.fillStyle='rgba(45,226,255,.10)'; g.fill();
-}
+  const v=series.map(p=>p.views),lo=Math.min(...v),hi=Math.max(...v),rng=(hi-lo)||1,pad=10;
+  g.beginPath();v.forEach((x,i)=>{const px=pad+(w-2*pad)*i/(v.length-1),py=h-pad-(h-2*pad)*(x-lo)/rng;i?g.lineTo(px,py):g.moveTo(px,py);});
+  g.strokeStyle='#33e6ff';g.lineWidth=2;g.shadowColor='#33e6ff';g.shadowBlur=12;g.stroke();
+  g.lineTo(w-pad,h-pad);g.lineTo(pad,h-pad);g.closePath();g.shadowBlur=0;g.fillStyle='rgba(51,230,255,.10)';g.fill();}
 
 // ── 抓資料 ──
 const fmt=n=>n==null?'—':Number(n).toLocaleString('en-US');
 const pct=n=>n==null?'—':(n*100).toFixed(1)+'%';
-async function pull(){
-  try{
-    const d=await (await fetch('/api/data',{cache:'no-store'})).json();
-    const t=d.trading||{},y=d.youtube||{};
-    const set=(id,v,cls)=>{const e=document.getElementById(id); if(!e)return; e.textContent=v; if(cls){e.className='v '+cls;}};
-    set('t_ret',pct(t.total_return), t.total_return>=0?'good':'bad');
-    set('t_sharpe', t.sharpe!=null?t.sharpe.toFixed(2):'—', t.sharpe>=1?'good':'');
-    set('t_win',pct(t.win_rate));
-    set('t_dd',pct(t.max_drawdown),'bad');
-    set('t_sym',t.symbol||'—'); set('t_eq', t.final_equity!=null?fmt(Math.round(t.final_equity)):'—');
-    set('t_trades',t.num_trades!=null?t.num_trades:'—');
-    set('y_subs',fmt(y.subs)); set('y_views',fmt(y.views));
-    set('y_gap', y.subs!=null?fmt(Math.max(0,1000-y.subs))+' 訂閱':'—','gold');
-    set('q_pend',fmt(y.pending)); set('q_pub',fmt(y.published));
-    set('f_net', y.net!=null?('NT$ '+fmt(Math.round(y.net))):'—', y.net>=0?'good':'bad');
-    set('d_pend', y.decisions!=null?y.decisions+' 件':'—','gold');
-    document.getElementById('core_main').textContent = d.paused?'已暫停':'全自動運轉中';
-    document.getElementById('focus').innerHTML = d.focus||'一切順，沒有要你決定的事。';
-    drawSpark(y.series);
-  }catch(e){ document.getElementById('focus').textContent='（連不上資料來源，重試中…）'; }
-}
+const set=(id,v,cls)=>{const e=document.getElementById(id);if(!e)return;e.textContent=v;e.className='v'+(cls?' '+cls:'');};
+async function pull(){try{
+  const d=await(await fetch('/api/data',{cache:'no-store'})).json();
+  const tr=d.trading||{},y=d.youtube||{};
+  set('t_ret',pct(tr.total_return),tr.total_return>=0?'good':'bad');
+  set('t_sharpe',tr.sharpe!=null?tr.sharpe.toFixed(2):'—',tr.sharpe>=1?'good':'');
+  set('t_win',pct(tr.win_rate)); set('t_dd',pct(tr.max_drawdown),'bad');
+  set('t_sym',tr.symbol||'—'); set('t_eq',tr.final_equity!=null?fmt(Math.round(tr.final_equity)):'—');
+  set('y_subs',fmt(y.subs)); set('y_views',fmt(y.views));
+  set('y_gap',y.subs!=null?fmt(Math.max(0,1000-y.subs))+' 訂閱':'—','gold');
+  set('q_pend',fmt(y.pending)); set('q_pub',fmt(y.published));
+  set('f_net',y.net!=null?'NT$ '+fmt(Math.round(y.net)):'—',y.net>=0?'good':'bad');
+  set('d_pend',y.decisions!=null?y.decisions+' 件':'—','gold');
+  core_main.textContent=d.paused?'已暫停':'全自動運轉中';
+  focus.innerHTML=d.focus||'一切順。'; drawSpark(y.series);
+}catch(e){focus.textContent='（連不上資料來源，重試中…）';}}
 pull(); setInterval(pull,5000);
-window.addEventListener('resize',()=>drawSpark(window._lastSeries));
 </script>
 </body>
 </html>
