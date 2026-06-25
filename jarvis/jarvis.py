@@ -280,7 +280,9 @@ class Ears:
         spoke = False
         max_rms = 0.0
         blk_sec = block / SAMPLE_RATE
-        threshold = float(os.environ.get("JARVIS_RMS_THRESHOLD", "0.004"))
+        # 門檻要在「背景雜音(約0.005~0.01)之上、人聲之下」，否則雜音會讓她以為你還在講、
+        # 永遠等不到靜音→硬錄滿整個視窗→每句等十幾秒。0.015 乾淨分開雜音與講話。
+        threshold = float(os.environ.get("JARVIS_RMS_THRESHOLD", "0.015"))
         start = time.time()
         while time.time() - start < max_sec:
             buf, _ = stream.read(block)
