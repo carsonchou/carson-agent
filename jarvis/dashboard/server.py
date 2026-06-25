@@ -47,6 +47,13 @@ def gather() -> dict:
             "max_drawdown": r.get("max_drawdown"),
             "num_trades": r.get("num_trades"),
             "final_equity": r.get("final_equity"),
+            # 各時框完整明細（給點開展開用）
+            "frames": {k: {
+                "total_return": v.get("total_return"), "sharpe": v.get("sharpe"),
+                "win_rate": v.get("win_rate"), "max_drawdown": v.get("max_drawdown"),
+                "num_trades": v.get("num_trades"), "final_equity": v.get("final_equity"),
+            } for k, v in res.items()},
+            "params": bt.get("params"),
         }
 
     # ── 頻道：成效歷史（最新 + 走勢）──
@@ -64,11 +71,18 @@ def gather() -> dict:
         s = q.get("summary") or {}
         y["pending"] = s.get("pending")
         y["published"] = s.get("published")
+        y["warehouse"] = {"pending": s.get("pending"), "published": s.get("published"),
+                          "pass": s.get("pass"), "reject": s.get("reject"),
+                          "min_score": q.get("min_score")}
 
     fin = _load(STUDIO / "finance.json")
     if fin:
-        y["net"] = (fin.get("summary") or {}).get("net")
-        y["roi"] = (fin.get("summary") or {}).get("roi")
+        s = fin.get("summary") or {}
+        y["net"] = s.get("net")
+        y["roi"] = s.get("roi")
+        y["finance"] = {"revenue": s.get("revenue"), "cost": s.get("cost"),
+                        "net": s.get("net"), "roi": s.get("roi"), "month": s.get("month"),
+                        "affiliate": s.get("affiliate"), "adsense": s.get("adsense")}
 
     pend = _load(STUDIO / "pending_decisions.json")
     y["decisions"] = len(pend) if isinstance(pend, list) else 0

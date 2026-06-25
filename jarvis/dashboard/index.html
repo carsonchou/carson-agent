@@ -1,254 +1,274 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>J.A.R.V.I.S — 量化阿森</title>
 <style>
-  :root{ --cyan:#33e6ff; --dim:#1a7e95; --gold:#ffd23f; --green:#46d98a; --red:#ff6b6b; }
+  :root{ --amb:#e0a85f; --amb2:#f3cd92; --dim:#9b774a; --green:#7fd6a0; --red:#ff8b6b; }
   *{box-sizing:border-box;margin:0;padding:0;}
-  html,body{height:100%;background:#02060d;color:#cdf3ff;overflow:hidden;
+  html,body{height:100%;background:#0a0704;color:#f0dcc0;overflow:hidden;
     font-family:"Rajdhani","Microsoft JhengHei","Segoe UI",sans-serif;letter-spacing:.04em;}
-  #bg{position:fixed;inset:0;z-index:0;}      /* Three.js 全息 canvas */
-  .scan{position:fixed;inset:0;z-index:40;pointer-events:none;
-    background:repeating-linear-gradient(0deg,rgba(0,0,0,.16) 0,rgba(0,0,0,.16) 1px,transparent 2px,transparent 4px);opacity:.3;}
-  .vig{position:fixed;inset:0;z-index:1;pointer-events:none;
-    background:radial-gradient(ellipse at center,transparent 45%,rgba(0,2,8,.85) 100%);}
+  #bg{position:fixed;inset:0;z-index:0;}
+  .vig{position:fixed;inset:0;z-index:1;pointer-events:none;background:radial-gradient(ellipse at center,transparent 42%,rgba(8,5,2,.88) 100%);}
+  .scan{position:fixed;inset:0;z-index:40;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(0,0,0,.14) 0,rgba(0,0,0,.14) 1px,transparent 2px,transparent 4px);opacity:.28;}
   .wrap{position:relative;z-index:3;height:100%;display:flex;flex-direction:column;padding:22px 30px;pointer-events:none;}
-
   .top{display:flex;align-items:flex-end;justify-content:space-between;}
-  .brand h1{font-size:32px;font-weight:700;color:#eaffff;letter-spacing:.34em;text-shadow:0 0 22px rgba(51,230,255,.8);}
+  .brand h1{font-size:32px;font-weight:700;color:#fff0db;letter-spacing:.34em;text-shadow:0 0 22px rgba(224,168,95,.85);}
   .brand .sub{font-size:11px;color:var(--dim);letter-spacing:.4em;margin-top:2px;}
-  .stat{text-align:right;}
-  .stat .on{font-size:12px;color:var(--green);letter-spacing:.2em;}
+  #clock{font-size:30px;color:#fff0db;text-shadow:0 0 16px rgba(224,168,95,.7);line-height:1;text-align:right;}
+  #date{font-size:11px;color:var(--dim);letter-spacing:.22em;margin-top:4px;text-align:right;}
+  .on{font-size:12px;color:var(--green);letter-spacing:.2em;text-align:right;}
   .dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 10px var(--green);display:inline-block;margin-right:6px;animation:pulse 1.5s infinite;}
-  #clock{font-size:30px;color:#eaffff;text-shadow:0 0 16px rgba(51,230,255,.7);line-height:1;}
-  #date{font-size:11px;color:var(--dim);letter-spacing:.22em;margin-top:4px;}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
-
   .mid{flex:1;display:flex;justify-content:space-between;align-items:center;min-height:0;}
   .side{display:flex;flex-direction:column;gap:18px;width:330px;}
-
-  /* 毛玻璃 + 景深面板 */
-  .panel{position:relative;pointer-events:auto;
-    background:linear-gradient(135deg,rgba(20,45,70,.42),rgba(8,20,34,.30));
+  .panel{position:relative;pointer-events:auto;cursor:pointer;transition:transform .18s,box-shadow .18s,border-color .18s;
+    background:linear-gradient(135deg,rgba(70,45,20,.42),rgba(30,18,8,.32));
     -webkit-backdrop-filter:blur(7px);backdrop-filter:blur(7px);
-    border:1px solid rgba(51,230,255,.30);border-radius:3px;padding:14px 16px;
-    box-shadow:0 8px 32px rgba(0,0,0,.5),inset 0 0 26px rgba(51,230,255,.07),0 0 0 1px rgba(51,230,255,.05);
+    border:1px solid rgba(224,168,95,.32);border-radius:3px;padding:14px 16px;
+    box-shadow:0 8px 32px rgba(0,0,0,.5),inset 0 0 26px rgba(224,168,95,.07);
     clip-path:polygon(0 0,calc(100% - 16px) 0,100% 16px,100% 100%,16px 100%,0 calc(100% - 16px));}
-  .panel.r{transform:perspective(900px) rotateY(7deg);}
   .panel.l{transform:perspective(900px) rotateY(-7deg);}
-  .panel h2{font-size:11px;color:var(--cyan);letter-spacing:.26em;margin-bottom:12px;display:flex;align-items:center;gap:8px;text-shadow:0 0 8px rgba(51,230,255,.5);}
-  .panel h2::before{content:"";width:5px;height:15px;background:var(--cyan);box-shadow:0 0 9px var(--cyan);}
-  .kpi{display:flex;justify-content:space-between;align-items:baseline;padding:7px 0;border-bottom:1px dashed rgba(51,230,255,.13);}
+  .panel.r{transform:perspective(900px) rotateY(7deg);}
+  .panel.l:hover{transform:perspective(900px) rotateY(-3deg) scale(1.035);border-color:var(--amb);box-shadow:0 10px 40px rgba(0,0,0,.6),0 0 26px rgba(224,168,95,.35);}
+  .panel.r:hover{transform:perspective(900px) rotateY(3deg) scale(1.035);border-color:var(--amb);box-shadow:0 10px 40px rgba(0,0,0,.6),0 0 26px rgba(224,168,95,.35);}
+  .panel h2{font-size:11px;color:var(--amb);letter-spacing:.26em;margin-bottom:12px;display:flex;align-items:center;gap:8px;text-shadow:0 0 8px rgba(224,168,95,.5);}
+  .panel h2::before{content:"";width:5px;height:15px;background:var(--amb);box-shadow:0 0 9px var(--amb);}
+  .panel h2 .more{margin-left:auto;font-size:9px;color:var(--dim);letter-spacing:.1em;}
+  .kpi{display:flex;justify-content:space-between;align-items:baseline;padding:7px 0;border-bottom:1px dashed rgba(224,168,95,.14);}
   .kpi:last-child{border-bottom:none;}
-  .kpi .k{font-size:13px;color:#84c7dd;}
-  .kpi .v{font-size:23px;font-weight:600;color:#eaffff;text-shadow:0 0 12px rgba(51,230,255,.5);}
-  .v.good{color:var(--green);text-shadow:0 0 12px rgba(70,217,138,.6);}
-  .v.bad{color:var(--red);text-shadow:0 0 12px rgba(255,107,107,.6);}
-  .v.gold{color:var(--gold);text-shadow:0 0 12px rgba(255,210,63,.6);}
-
-  .coretag{position:absolute;left:50%;transform:translateX(-50%);text-align:center;}
-  .coretag.t{top:30%;}.coretag.b{bottom:24%;}
-  .coretag .big{font-size:16px;letter-spacing:.3em;color:#eaffff;text-shadow:0 0 16px rgba(51,230,255,.7);}
+  .kpi .k{font-size:13px;color:#cB9b6f;}
+  .kpi .v{font-size:23px;font-weight:600;color:#fff0db;text-shadow:0 0 12px rgba(224,168,95,.5);}
+  .v.good{color:var(--green);text-shadow:0 0 12px rgba(127,214,160,.6);}
+  .v.bad{color:var(--red);text-shadow:0 0 12px rgba(255,139,107,.6);}
+  .v.gold{color:var(--amb2);text-shadow:0 0 12px rgba(243,205,146,.6);}
+  .coretag{position:fixed;left:50%;transform:translateX(-50%);text-align:center;z-index:3;pointer-events:none;}
+  .coretag.t{top:27%;}.coretag.b{bottom:21%;}
+  .coretag .big{font-size:17px;letter-spacing:.32em;color:#fff0db;text-shadow:0 0 16px rgba(224,168,95,.75);}
   .coretag .sm{font-size:10px;letter-spacing:.4em;color:var(--dim);margin-top:4px;}
-
   .bottom{display:grid;grid-template-columns:1.7fr 1fr;gap:18px;height:140px;}
   #spark{width:100%;height:100%;}
-  #focus{font-size:16px;color:#dff5ff;line-height:1.7;}
-  #focus b{color:var(--gold);}
-  .hudc{position:fixed;width:28px;height:28px;border:2px solid rgba(51,230,255,.55);z-index:5;}
-  .hudc.tl{top:14px;left:14px;border-right:0;border-bottom:0;}
-  .hudc.tr{top:14px;right:14px;border-left:0;border-bottom:0;}
-  .hudc.bl{bottom:14px;left:14px;border-right:0;border-top:0;}
-  .hudc.br{bottom:14px;right:14px;border-left:0;border-top:0;}
+  #focus{font-size:16px;color:#f3e2cb;line-height:1.7;}#focus b{color:var(--amb2);}
+  .hint{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:6;font-size:11px;color:var(--dim);letter-spacing:.2em;pointer-events:none;}
+  .hudc{position:fixed;width:28px;height:28px;border:2px solid rgba(224,168,95,.55);z-index:5;}
+  .hudc.tl{top:14px;left:14px;border-right:0;border-bottom:0;}.hudc.tr{top:14px;right:14px;border-left:0;border-bottom:0;}
+  .hudc.bl{bottom:14px;left:14px;border-right:0;border-top:0;}.hudc.br{bottom:14px;right:14px;border-left:0;border-top:0;}
+  /* 展開細節 overlay */
+  #detail{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;
+    background:rgba(6,4,2,.55);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);}
+  #detail.show{display:flex;}
+  .card{width:min(1080px,92vw);max-height:86vh;overflow:auto;opacity:0;transform:scale(.9) translateY(20px);
+    transition:opacity .28s,transform .28s;
+    background:linear-gradient(135deg,rgba(60,40,18,.92),rgba(22,14,7,.95));
+    border:1px solid rgba(224,168,95,.5);border-radius:4px;padding:26px 30px;
+    box-shadow:0 0 60px rgba(224,168,95,.3),inset 0 0 40px rgba(224,168,95,.06);
+    clip-path:polygon(0 0,calc(100% - 24px) 0,100% 24px,100% 100%,24px 100%,0 calc(100% - 24px));}
+  #detail.show .card{opacity:1;transform:scale(1) translateY(0);}
+  .card .hd{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(224,168,95,.3);padding-bottom:12px;margin-bottom:18px;}
+  .card .hd h3{font-size:20px;color:#fff0db;letter-spacing:.2em;text-shadow:0 0 14px rgba(224,168,95,.6);}
+  .card .x{cursor:pointer;color:var(--amb);border:1px solid rgba(224,168,95,.5);width:34px;height:34px;display:flex;align-items:center;justify-content:center;font-size:18px;border-radius:3px;}
+  .card .x:hover{background:rgba(224,168,95,.15);}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;}
+  .mini{border:1px solid rgba(224,168,95,.28);background:rgba(224,168,95,.05);padding:12px 14px;border-radius:3px;}
+  .mini .t{font-size:12px;color:var(--amb);letter-spacing:.2em;margin-bottom:8px;}
+  .mini .row{display:flex;justify-content:space-between;font-size:13px;color:#d7bf9c;padding:3px 0;}
+  .mini .row b{color:#fff0db;font-weight:600;}
+  .big2{width:100%;height:200px;margin-top:8px;}
 </style>
 <script type="importmap">
-{ "imports":{
-  "three":"https://unpkg.com/three@0.160.0/build/three.module.js",
-  "three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"
-}}
+{ "imports":{ "three":"https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/" }}
 </script>
 </head>
 <body>
 <canvas id="bg"></canvas>
 <div class="vig"></div><div class="scan"></div>
 <div class="hudc tl"></div><div class="hudc tr"></div><div class="hudc bl"></div><div class="hudc br"></div>
-
-<div class="coretag t"><div class="big" id="core_main">全自動運轉中</div><div class="sm">CORE ・ ARC REACTOR</div></div>
-<div class="coretag b"><div class="sm" id="core_sub">SYSTEMS NOMINAL</div></div>
+<div class="coretag t"><div class="big" id="core_main">待命中</div><div class="sm" id="core_sub">STANDBY</div></div>
 
 <div class="wrap">
   <div class="top">
     <div class="brand"><h1>J.A.R.V.I.S</h1><div class="sub">量化阿森 ・ AUTONOMOUS OPS</div></div>
-    <div class="stat"><div id="clock">--:--:--</div><div id="date">—</div><div class="on"><span class="dot"></span>SYSTEMS ONLINE</div></div>
+    <div><div id="clock">--:--:--</div><div id="date">—</div><div class="on"><span class="dot"></span>SYSTEMS ONLINE</div></div>
   </div>
-
   <div class="mid">
     <div class="side">
-      <div class="panel l">
-        <h2>交易引擎 ・ 策略回測</h2>
+      <div class="panel l" onclick="openDetail('trading')">
+        <h2>交易引擎 ・ 策略回測<span class="more">點開 ▸</span></h2>
         <div class="kpi"><span class="k">總報酬</span><span class="v" id="t_ret">—</span></div>
         <div class="kpi"><span class="k">SHARPE</span><span class="v" id="t_sharpe">—</span></div>
         <div class="kpi"><span class="k">勝率</span><span class="v" id="t_win">—</span></div>
-        <div class="kpi"><span class="k">最大回撤</span><span class="v" id="t_dd">—</span></div>
-      </div>
-      <div class="panel l">
-        <h2>部位 ・ 權益</h2>
-        <div class="kpi"><span class="k">標的</span><span class="v" id="t_sym">—</span></div>
         <div class="kpi"><span class="k">模擬權益</span><span class="v" id="t_eq">—</span></div>
+      </div>
+      <div class="panel l" onclick="openDetail('trading')">
+        <h2>標的 ・ 模式<span class="more">點開 ▸</span></h2>
+        <div class="kpi"><span class="k">標的</span><span class="v" id="t_sym">—</span></div>
+        <div class="kpi"><span class="k">最大回撤</span><span class="v" id="t_dd">—</span></div>
         <div class="kpi"><span class="k">運行模式</span><span class="v gold" id="t_mode">DRY-RUN</span></div>
       </div>
     </div>
-
     <div class="side">
-      <div class="panel r">
-        <h2>YouTube ・ 量化阿森</h2>
+      <div class="panel r" onclick="openDetail('youtube')">
+        <h2>YouTube ・ 量化阿森<span class="more">點開 ▸</span></h2>
         <div class="kpi"><span class="k">訂閱數</span><span class="v" id="y_subs">—</span></div>
         <div class="kpi"><span class="k">總觀看</span><span class="v" id="y_views">—</span></div>
         <div class="kpi"><span class="k">離 YPP 還差</span><span class="v gold" id="y_gap">—</span></div>
       </div>
-      <div class="panel r">
-        <h2>工廠 ・ 倉庫 ・ 變現</h2>
+      <div class="panel r" onclick="openDetail('youtube')">
+        <h2>工廠 ・ 變現<span class="more">點開 ▸</span></h2>
         <div class="kpi"><span class="k">倉庫待發</span><span class="v" id="q_pend">—</span></div>
-        <div class="kpi"><span class="k">累計上架</span><span class="v" id="q_pub">—</span></div>
-        <div class="kpi"><span class="k">淨利</span><span class="v" id="f_net">—</span></div>
+        <div class="kpi"><span class="k">累計淨利</span><span class="v" id="f_net">—</span></div>
         <div class="kpi"><span class="k">待你拍板</span><span class="v gold" id="d_pend">—</span></div>
       </div>
     </div>
   </div>
-
   <div class="bottom">
-    <div class="panel" style="display:flex;flex-direction:column;pointer-events:auto;">
-      <h2>頻道成效走勢 ・ 觀看</h2><canvas id="spark" style="flex:1;"></canvas>
-    </div>
-    <div class="panel" style="pointer-events:auto;"><h2>今日焦點</h2><div id="focus">系統初始化中…</div></div>
+    <div class="panel" style="cursor:default;display:flex;flex-direction:column;"><h2>頻道成效走勢 ・ 觀看</h2><canvas id="spark" style="flex:1;"></canvas></div>
+    <div class="panel" style="cursor:default;"><h2>今日焦點</h2><div id="focus">系統初始化中…</div></div>
   </div>
+</div>
+<div class="hint">拖曳旋轉全息核心 ・ 滾輪縮放 ・ 點任一面板展開細節</div>
+
+<div id="detail" onclick="if(event.target.id==='detail')closeDetail()">
+  <div class="card"><div class="hd"><h3 id="d_title">—</h3><div class="x" onclick="closeDetail()">✕</div></div>
+  <div id="d_body"></div></div>
 </div>
 
 <script type="module">
 import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
-const CY=new THREE.Color(0xc98a4e);
+const CY=new THREE.Color(0xe0a85f);
 const renderer=new THREE.WebGLRenderer({canvas:document.getElementById('bg'),antialias:true,alpha:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio,2));
 const scene=new THREE.Scene();
-const cam=new THREE.PerspectiveCamera(55,innerWidth/innerHeight,0.1,200);
-cam.position.set(0,0,8.5);
+const cam=new THREE.PerspectiveCamera(55,innerWidth/innerHeight,0.1,200); cam.position.set(0,0,8.5);
+const controls=new OrbitControls(cam,renderer.domElement);
+controls.enableDamping=true; controls.dampingFactor=0.08; controls.enablePan=false;
+controls.minDistance=4.2; controls.maxDistance=15; controls.autoRotate=true; controls.autoRotateSpeed=0.5;
 
-// 圓形發光點貼圖（讓每顆粒子是柔光圓點，不是方塊）
 function dotTex(){const c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d');
   const g=x.createRadialGradient(32,32,0,32,32,32);
   g.addColorStop(0,'rgba(255,240,220,1)');g.addColorStop(.25,'rgba(224,170,110,.9)');
   g.addColorStop(.55,'rgba(180,120,70,.42)');g.addColorStop(1,'rgba(180,120,70,0)');
   x.fillStyle=g;x.fillRect(0,0,64,64);return new THREE.CanvasTexture(c);}
 const TEX=dotTex();
-const pmat=(size,opacity)=>new THREE.PointsMaterial({size,map:TEX,color:CY,transparent:true,
-  opacity,depthWrite:false,blending:THREE.AdditiveBlending,sizeAttenuation:true});
-
+const pmat=(s,o)=>new THREE.PointsMaterial({size:s,map:TEX,color:CY,transparent:true,opacity:o,depthWrite:false,blending:THREE.AdditiveBlending});
 const core=new THREE.Group(); scene.add(core);
-
-// ── 粒子球：上萬顆點均勻鋪在球面(費氏球) → 鋼鐵人全息地球感 ──
-const NG=11000,R=2.5,gp=new Float32Array(NG*3),ga=2.399963229;
+const NG=12000,R=2.5,gp=new Float32Array(NG*3),ga=2.399963229;
 for(let i=0;i<NG;i++){const y=1-(i/(NG-1))*2,r=Math.sqrt(1-y*y),ph=i*ga;
-  gp[i*3]=Math.cos(ph)*r*R;gp[i*3+1]=y*R;gp[i*3+2]=Math.sin(ph)*r*R;}
+  // 半徑與位置都加亂數 → 球殼有厚度、粒子散落不是乾淨殼；少數粒子飄更遠製造游離感
+  const rr=R*(0.78+Math.random()*0.42)*(Math.random()<0.06?1.25:1);
+  const j=()=>(Math.random()-0.5)*0.28;
+  gp[i*3]=Math.cos(ph)*r*rr+j(); gp[i*3+1]=y*rr+j(); gp[i*3+2]=Math.sin(ph)*r*rr+j();}
 const gg=new THREE.BufferGeometry();gg.setAttribute('position',new THREE.BufferAttribute(gp,3));
-const globe=new THREE.Points(gg,pmat(0.07,0.95)); core.add(globe);
-
-// 內層第二顆粒子球(反向轉，增加層次與密度)
-const gg2=gg.clone(); const globe2=new THREE.Points(gg2,pmat(0.05,0.5)); globe2.scale.setScalar(0.7); core.add(globe2);
-
-// 核心光點
-const coreGlow=new THREE.Points(new THREE.BufferGeometry().setAttribute('position',
-  new THREE.BufferAttribute(new Float32Array([0,0,0]),3)), pmat(1.6,1.0)); core.add(coreGlow);
-
-// ── 滿天飄的資料粒子(景深) ──
+const globe=new THREE.Points(gg,pmat(0.07,0.9)); core.add(globe);
+const globe2=new THREE.Points(gg.clone(),pmat(0.05,0.5)); globe2.scale.setScalar(0.7); core.add(globe2);
+const coreGlow=new THREE.Points(new THREE.BufferGeometry().setAttribute('position',new THREE.BufferAttribute(new Float32Array([0,0,0]),3)),pmat(1.6,1)); core.add(coreGlow);
 const NA=2600,ap=new Float32Array(NA*3);
-for(let i=0;i<NA;i++){const r=7+Math.random()*40,th=Math.random()*Math.PI*2,ph=Math.acos(2*Math.random()-1);
-  ap[i*3]=r*Math.sin(ph)*Math.cos(th);ap[i*3+1]=r*Math.sin(ph)*Math.sin(th);ap[i*3+2]=r*Math.cos(ph);}
+for(let i=0;i<NA;i++){const r=7+Math.random()*40,th=Math.random()*Math.PI*2,ph=Math.acos(2*Math.random()-1);ap[i*3]=r*Math.sin(ph)*Math.cos(th);ap[i*3+1]=r*Math.sin(ph)*Math.sin(th);ap[i*3+2]=r*Math.cos(ph);}
 const ag=new THREE.BufferGeometry();ag.setAttribute('position',new THREE.BufferAttribute(ap,3));
-const amb=new THREE.Points(ag,pmat(0.10,0.5)); scene.add(amb);
-
-// ── 強泛光：整個畫面「由光構成」的關鍵 ──
-const composer=new EffectComposer(renderer);
-composer.addPass(new RenderPass(scene,cam));
+const amb=new THREE.Points(ag,pmat(0.10,0.45)); scene.add(amb);
+const composer=new EffectComposer(renderer);composer.addPass(new RenderPass(scene,cam));
 const bloom=new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),0.8,0.7,0.08);
-composer.addPass(bloom); composer.addPass(new OutputPass());
-
-function size(){renderer.setSize(innerWidth,innerHeight);composer.setSize(innerWidth,innerHeight);
-  cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();}
+composer.addPass(bloom);composer.addPass(new OutputPass());
+function size(){renderer.setSize(innerWidth,innerHeight);composer.setSize(innerWidth,innerHeight);cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();}
 size(); addEventListener('resize',()=>{size();drawSpark(window._series);});
 
-// ── 情緒狀態 → 動態目標（賈維斯在聆聽/思考/回應時，全息球用不同方式脈動）──
-const STATES={
-  idle:     {glow:0.10,spin:0.0015,bright:0.68,label:'待命中',  sub:'STANDBY'},
-  listening:{glow:0.28,spin:0.0032,bright:1.00,label:'聆聽中…', sub:'LISTENING'},
-  thinking: {glow:0.42,spin:0.0120,bright:1.22,label:'思考中…', sub:'PROCESSING'},
-  speaking: {glow:0.78,spin:0.0058,bright:1.55,label:'回應中',  sub:'SPEAKING'},
-};
-window.JST='idle'; let _lastJ='';
-const cm=document.getElementById('core_main'), cs=document.getElementById('core_sub');
-let t=0, gAmp=0.12, spin=0.0015, bright=0.7;
+const STATES={idle:{glow:0.10,spin:0.4,bright:0.7,label:'待命中',sub:'STANDBY'},
+  listening:{glow:0.28,spin:1.0,bright:1.0,label:'聆聽中…',sub:'LISTENING'},
+  thinking:{glow:0.42,spin:3.4,bright:1.2,label:'思考中…',sub:'PROCESSING'},
+  speaking:{glow:0.78,spin:1.6,bright:1.55,label:'回應中',sub:'SPEAKING'}};
+window.JST='idle'; let _lj='';
+const cm=document.getElementById('core_main'),cs=document.getElementById('core_sub');
+let t=0,gA=0.12,bright=0.7;
 function loop(){
-  t+=0.004;
-  const s=STATES[window.JST]||STATES.idle;
-  gAmp+=(s.glow-gAmp)*0.07; spin+=(s.spin-spin)*0.07; bright+=(s.bright-bright)*0.07;
-  if(window.JST!==_lastJ){_lastJ=window.JST; cm.textContent=s.label; cs.textContent=s.sub;}
-  core.rotation.y+=spin; core.rotation.x=Math.sin(t)*0.10;
-  globe.rotation.y+=spin*0.25; globe2.rotation.y-=spin*0.9; globe2.rotation.x+=0.0012;
+  t+=0.004; const s=STATES[window.JST]||STATES.idle;
+  gA+=(s.glow-gA)*0.07; bright+=(s.bright-bright)*0.07;
+  controls.autoRotateSpeed+=(s.spin-controls.autoRotateSpeed)*0.05;
+  if(window.JST!==_lj){_lj=window.JST;cm.textContent=s.label;cs.textContent=s.sub;}
+  globe2.rotation.y-=0.002; globe2.rotation.x+=0.001;
   const fast=window.JST==='speaking'?160:(window.JST==='thinking'?250:520);
-  coreGlow.scale.setScalar(1+gAmp*(2.4+Math.sin(Date.now()/fast)*2.4));
-  globe.material.opacity=Math.min(1,0.85*bright); amb.material.opacity=0.42*bright; coreGlow.material.opacity=Math.min(1,bright);
-  const br=window.JST==='speaking'?1+0.05*Math.sin(Date.now()/150):1; // 講話時球微微脈動
-  globe.scale.setScalar(br); globe2.scale.setScalar(0.7*br);
-  amb.rotation.y+=0.0004; amb.rotation.x+=0.0002;
-  cam.position.x=Math.sin(t*0.5)*0.6; cam.position.y=Math.cos(t*0.4)*0.4; cam.lookAt(0,0,0);
-  composer.render(); requestAnimationFrame(loop);
+  coreGlow.scale.setScalar(1+gA*(2.4+Math.sin(Date.now()/fast)*2.4));
+  globe.material.opacity=Math.min(1,0.9*bright);amb.material.opacity=0.45*bright;coreGlow.material.opacity=Math.min(1,bright);
+  const br=window.JST==='speaking'?1+0.05*Math.sin(Date.now()/150):1; globe.scale.setScalar(br);globe2.scale.setScalar(0.7*br);
+  amb.rotation.y+=0.0004; controls.update(); composer.render(); requestAnimationFrame(loop);
 }
 loop();
 
-// ── 時鐘 ──
-function tick(){const n=new Date();const wk=['日','一','二','三','四','五','六'][n.getDay()];
+function tick(){const n=new Date(),wk=['日','一','二','三','四','五','六'][n.getDay()];
   clock.textContent=n.toLocaleTimeString('zh-TW',{hour12:false});
   date.textContent=n.getFullYear()+'.'+String(n.getMonth()+1).padStart(2,'0')+'.'+String(n.getDate()).padStart(2,'0')+'  星期'+wk+'  台北';}
 setInterval(tick,1000);tick();
 
-// ── 走勢圖 ──
-function drawSpark(series){window._series=series;const c=document.getElementById('spark'),g=c.getContext('2d');
+function drawSpark(series,cid){const c=document.getElementById(cid||'spark');if(!c)return;const g=c.getContext('2d');
   const w=c.width=c.clientWidth,h=c.height=c.clientHeight;g.clearRect(0,0,w,h);
-  if(!series||series.length<2){g.fillStyle='#1a7e95';g.font='12px sans-serif';g.fillText('累積資料中…',12,h/2);return;}
+  if(!series||series.length<2){g.fillStyle='#9b774a';g.font='12px sans-serif';g.fillText('累積資料中…',12,h/2);return;}
   const v=series.map(p=>p.views),lo=Math.min(...v),hi=Math.max(...v),rng=(hi-lo)||1,pad=10;
   g.beginPath();v.forEach((x,i)=>{const px=pad+(w-2*pad)*i/(v.length-1),py=h-pad-(h-2*pad)*(x-lo)/rng;i?g.lineTo(px,py):g.moveTo(px,py);});
-  g.strokeStyle='#33e6ff';g.lineWidth=2;g.shadowColor='#33e6ff';g.shadowBlur=12;g.stroke();
-  g.lineTo(w-pad,h-pad);g.lineTo(pad,h-pad);g.closePath();g.shadowBlur=0;g.fillStyle='rgba(51,230,255,.10)';g.fill();}
+  g.strokeStyle='#e0a85f';g.lineWidth=2;g.shadowColor='#e0a85f';g.shadowBlur=12;g.stroke();
+  g.lineTo(w-pad,h-pad);g.lineTo(pad,h-pad);g.closePath();g.shadowBlur=0;g.fillStyle='rgba(224,168,95,.10)';g.fill();}
 
-// ── 抓資料 ──
 const fmt=n=>n==null?'—':Number(n).toLocaleString('en-US');
 const pct=n=>n==null?'—':(n*100).toFixed(1)+'%';
 const set=(id,v,cls)=>{const e=document.getElementById(id);if(!e)return;e.textContent=v;e.className='v'+(cls?' '+cls:'');};
+window._data={};
 async function pull(){try{
-  const d=await(await fetch('/api/data',{cache:'no-store'})).json();
+  const d=await(await fetch('/api/data',{cache:'no-store'})).json(); window._data=d;
   const tr=d.trading||{},y=d.youtube||{};
   set('t_ret',pct(tr.total_return),tr.total_return>=0?'good':'bad');
   set('t_sharpe',tr.sharpe!=null?tr.sharpe.toFixed(2):'—',tr.sharpe>=1?'good':'');
-  set('t_win',pct(tr.win_rate)); set('t_dd',pct(tr.max_drawdown),'bad');
-  set('t_sym',tr.symbol||'—'); set('t_eq',tr.final_equity!=null?fmt(Math.round(tr.final_equity)):'—');
+  set('t_win',pct(tr.win_rate)); set('t_eq',tr.final_equity!=null?fmt(Math.round(tr.final_equity)):'—');
+  set('t_sym',tr.symbol||'—'); set('t_dd',pct(tr.max_drawdown),'bad');
   set('y_subs',fmt(y.subs)); set('y_views',fmt(y.views));
   set('y_gap',y.subs!=null?fmt(Math.max(0,1000-y.subs))+' 訂閱':'—','gold');
-  set('q_pend',fmt(y.pending)); set('q_pub',fmt(y.published));
-  set('f_net',y.net!=null?'NT$ '+fmt(Math.round(y.net)):'—',y.net>=0?'good':'bad');
+  set('q_pend',fmt(y.pending)); set('f_net',y.net!=null?'NT$ '+fmt(Math.round(y.net)):'—',y.net>=0?'good':'bad');
   set('d_pend',y.decisions!=null?y.decisions+' 件':'—','gold');
-  window.JST=(d.jarvis&&d.jarvis.state)||'idle';   // ← 賈維斯情緒狀態驅動全息球
   focus.innerHTML=d.focus||'一切順。'; drawSpark(y.series);
+  if(detail.classList.contains('show'))renderDetail(window._curDetail);   // 開著就刷新
 }catch(e){focus.textContent='（連不上資料來源，重試中…）';}}
 pull(); setInterval(pull,5000);
-// 高頻只抓「賈維斯情緒狀態」→ 全息球即時反應她在聆聽/思考/回應
 async function pullState(){try{const j=await(await fetch('/api/state',{cache:'no-store'})).json();if(j&&j.state)window.JST=j.state;}catch(e){}}
 setInterval(pullState,350); pullState();
+
+// ── 展開細節（鋼鐵人點開全息）──
+const detail=document.getElementById('detail');
+window._curDetail=null;
+function row(k,v){return `<div class="row"><span>${k}</span><b>${v}</b></div>`;}
+function renderDetail(kind){
+  const d=window._data||{}; const T=document.getElementById('d_title'),B=document.getElementById('d_body');
+  if(kind==='trading'){
+    const tr=d.trading||{}, fr=tr.frames||{};
+    T.textContent='交易引擎 ・ '+(tr.symbol||'')+' ・ 策略回測（各時框）';
+    let cards=Object.keys(fr).map(k=>{const f=fr[k];return `<div class="mini"><div class="t">${k}</div>
+      ${row('總報酬',pct(f.total_return))}${row('Sharpe',f.sharpe!=null?f.sharpe.toFixed(2):'—')}
+      ${row('勝率',pct(f.win_rate))}${row('最大回撤',pct(f.max_drawdown))}
+      ${row('交易數',f.num_trades??'—')}${row('期末權益',fmt(Math.round(f.final_equity||0)))}</div>`;}).join('');
+    const p=tr.params||{};
+    B.innerHTML=`<div class="cards">${cards||'<div class="mini">尚無回測資料</div>'}</div>
+      <div style="margin-top:18px;color:#c9a877;font-size:13px;letter-spacing:.1em;">
+      策略參數：${Object.keys(p).length?Object.entries(p).map(([k,v])=>k+'='+v).join('  ・  '):'—'}　｜　模式：<b style="color:#f3cd92">DRY-RUN（模擬，未動真錢）</b></div>`;
+  } else if(kind==='youtube'){
+    const y=d.youtube||{}, w=y.warehouse||{}, f=y.finance||{};
+    T.textContent='YouTube ・ 量化阿森 Carson ・ 營運明細';
+    B.innerHTML=`
+      <div class="cards">
+        <div class="mini"><div class="t">成長</div>${row('訂閱數',fmt(y.subs))}${row('總觀看',fmt(y.views))}${row('離 YPP',fmt(Math.max(0,1000-(y.subs||0)))+' 訂閱')}</div>
+        <div class="mini"><div class="t">倉庫品質</div>${row('待發',fmt(w.pending))}${row('累計上架',fmt(w.published))}${row('達標',fmt(w.pass))}${row('待補強',fmt(w.reject))}${row('門檻分',w.min_score??'—')}</div>
+        <div class="mini"><div class="t">變現（${f.month||'本月'}）</div>${row('營收',fmt(f.revenue))}${row('成本',fmt(f.cost))}${row('淨利',fmt(f.net))}${row('ROI',f.roi!=null?f.roi+'%':'—')}</div>
+      </div>
+      <div style="margin-top:18px;color:#e0a85f;font-size:12px;letter-spacing:.2em;">近期觀看走勢</div>
+      <canvas id="d_spark" class="big2"></canvas>`;
+    setTimeout(()=>drawSpark(y.series,'d_spark'),30);
+  }
+}
+window.openDetail=function(kind){window._curDetail=kind;renderDetail(kind);detail.classList.add('show');};
+window.closeDetail=function(){detail.classList.remove('show');window._curDetail=null;};
+addEventListener('keydown',e=>{if(e.key==='Escape')closeDetail();});
 </script>
 </body>
 </html>
