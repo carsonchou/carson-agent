@@ -294,16 +294,28 @@ addEventListener('keydown',e=>{if(e.key==='Escape'){const a=[...wins.values()]; 
 const blocks=[...document.querySelectorAll('#board .item')];
 blocks.forEach((b,i)=>{b.style.left='40px';b.style.top=(122+i*74)+'px';});  // 初始左側直排
 function ov(a,b){return !(a.right<=b.left||a.left>=b.right||a.bottom<=b.top||a.top>=b.bottom);}
-function resolve(el){
-  for(let p=0;p<5;p++){const a=el.getBoundingClientRect();
-    for(const o of blocks){if(o===el)continue;const b=o.getBoundingClientRect();
-      if(ov(a,b)){const dx=Math.min(a.right,b.right)-Math.max(a.left,b.left),dy=Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top);
-        let l=parseFloat(o.style.left)||b.left,t=parseFloat(o.style.top)||b.top;
-        if(dx<dy)l+=(b.left<a.left?-(dx+2):(dx+2)); else t+=(b.top<a.top?-(dy+2):(dy+2));
-        o.style.left=Math.max(6,Math.min(innerWidth-b.width-6,l))+'px';
-        o.style.top=Math.max(80,Math.min(innerHeight-b.height-12,t))+'px';}}}
-}
 const MG=6,TOP=80,clampv=v=>Math.max(-42,Math.min(42,v));
+function moveBy(el,dx,dy){
+  el.style.left=Math.max(MG,Math.min(innerWidth-el.offsetWidth-MG,(parseFloat(el.style.left)||0)+dx))+'px';
+  el.style.top=Math.max(TOP,Math.min(innerHeight-el.offsetHeight-12,(parseFloat(el.style.top)||0)+dy))+'px';}
+// 全域分離：每幀對所有方塊兩兩檢查，重疊就沿較短重疊軸推開 → 永遠不會疊在一起。
+// 正在拖的方塊(bd)當錨點不動，被它壓到的整個讓開；其餘兩塊各退一半。
+function separate(){
+  for(let p=0;p<10;p++){let any=false;
+    for(let i=0;i<blocks.length;i++)for(let j=i+1;j<blocks.length;j++){
+      const A=blocks[i],B=blocks[j],a=A.getBoundingClientRect(),b=B.getBoundingClientRect();
+      if(!ov(a,b))continue; any=true;
+      const dx=Math.min(a.right,b.right)-Math.max(a.left,b.left),dy=Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top);
+      if(dx<=dy){const d=a.left<b.left?1:-1;
+        if(A===bd)moveBy(B,d*(dx+1),0); else if(B===bd)moveBy(A,-d*(dx+1),0);
+        else{moveBy(A,-d*(dx/2+0.6),0);moveBy(B,d*(dx/2+0.6),0);}
+      }else{const d=a.top<b.top?1:-1;
+        if(A===bd)moveBy(B,0,d*(dy+1)); else if(B===bd)moveBy(A,0,-d*(dy+1));
+        else{moveBy(A,0,-d*(dy/2+0.6));moveBy(B,0,d*(dy/2+0.6));}}
+    }
+    if(!any)break;
+  }
+}
 const vel=new Map(); blocks.forEach(b=>vel.set(b,{x:0,y:0}));
 let bd=null,bmoved=false,bsx,bsy,box,boy,lmx,lmy;
 blocks.forEach(b=>b.addEventListener('mousedown',e=>{bd=b;bmoved=false;bsx=lmx=e.clientX;bsy=lmy=e.clientY;
@@ -312,13 +324,12 @@ blocks.forEach(b=>b.addEventListener('mousedown',e=>{bd=b;bmoved=false;bsx=lmx=e
 addEventListener('mousemove',e=>{if(!bd)return;if(Math.hypot(e.clientX-bsx,e.clientY-bsy)>4)bmoved=true;
   bd.style.left=Math.max(MG,Math.min(innerWidth-bd.offsetWidth-MG,e.clientX-box))+'px';
   bd.style.top=Math.max(TOP,Math.min(innerHeight-bd.offsetHeight-12,e.clientY-boy))+'px';
-  vel.set(bd,{x:clampv(e.clientX-lmx),y:clampv(e.clientY-lmy)});lmx=e.clientX;lmy=e.clientY;resolve(bd);});
+  vel.set(bd,{x:clampv(e.clientX-lmx),y:clampv(e.clientY-lmy)});lmx=e.clientX;lmy=e.clientY;});
 addEventListener('mouseup',()=>{if(!bd)return;const el=bd;bd=null;el.classList.remove('dragging');
   if(!bmoved){vel.set(el,{x:0,y:0});openDetail(el.dataset.kind);return;}
   const v=vel.get(el),w=el.offsetWidth,h=el.offsetHeight,l=parseFloat(el.style.left)||0,t=parseFloat(el.style.top)||0;
   if(l<=MG+1)v.x=Math.abs(v.x)+15; if(l>=innerWidth-w-MG-1)v.x=-Math.abs(v.x)-15;   // 貼邊放開→彈回場內
   if(t<=TOP+1)v.y=Math.abs(v.y)+15; if(t>=innerHeight-h-12-1)v.y=-Math.abs(v.y)-15;});
-// 物理：慣性滑行 + 撞邊反彈(帶摩擦) + 邊滑邊避免重疊
 function physics(){
   for(const b of blocks){ if(b===bd)continue; const v=vel.get(b); if(!v)continue;
     if(Math.abs(v.x)<0.15&&Math.abs(v.y)<0.15){v.x=v.y=0;continue;}
@@ -327,8 +338,9 @@ function physics(){
     if(l<MG){l=MG;v.x=-v.x*0.7;} else if(l>maxX){l=maxX;v.x=-v.x*0.7;}   // 撞牆反彈
     if(t<TOP){t=TOP;v.y=-v.y*0.7;} else if(t>maxY){t=maxY;v.y=-v.y*0.7;}
     v.x*=0.93; v.y*=0.93;   // 摩擦
-    b.style.left=l+'px'; b.style.top=t+'px'; resolve(b);
+    b.style.left=l+'px'; b.style.top=t+'px';
   }
+  separate();   // 每幀分離所有方塊 → 永不重疊（含靜止時）
   requestAnimationFrame(physics);
 }
 physics();
