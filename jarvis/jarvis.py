@@ -152,8 +152,13 @@ class Ears:
             self._whisper = WhisperModel(WHISPER_SIZE, device="cpu", compute_type="int8")
         return self._whisper
 
-    def record_until_silence(self, max_sec: float = 12.0, silence_sec: float = 0.9):
-        """喚醒後開始錄音，偵測到你講完（持續靜音）就停。回傳 float32 波形。"""
+    def record_until_silence(self, max_sec: float = 15.0, silence_sec: float = 1.0,
+                             start_grace: float = 6.0):
+        """喚醒後立刻開始錄音，偵測到你講完（持續靜音）就停。回傳 float32 波形。
+
+        start_grace：開口前的寬限——你還沒開始講話時，最多等這麼久才放棄，
+        避免「嗶」完你還沒開口就被當講完。RMS 門檻調低以收得到較小聲的講話。
+        """
         import numpy as np
         import sounddevice as sd
 
@@ -161,7 +166,7 @@ class Ears:
         frames = []
         silent_for = 0.0
         spoke = False
-        threshold = 0.012  # RMS 門檻（依環境可微調）
+        threshold = float(os.environ.get("JARVIS_RMS_THRESHOLD", "0.008"))
         with sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype="float32",
                             blocksize=block) as stream:
             start = time.time()
@@ -177,14 +182,22 @@ class Ears:
                     silent_for += 0.05
                     if silent_for >= silence_sec:
                         break
-        if not frames:
-            return None
+                elif time.time() - start >= start_grace:
+                    break  # 寬限時間內都沒開口 → 放棄這次
+        if not frames or not spoke:
+            return None  # 完全沒偵測到講話 → 視為沒聽到（不送 Whisper 幻聽）
         return np.concatenate(frames)
 
     def transcribe(self, audio) -> str:
         if audio is None or len(audio) < SAMPLE_RATE * 0.3:
             return ""
-        segments, _ = self._model().transcribe(audio, language="zh", beam_size=1)
+        # vad_filter：用 Silero VAD 切掉非語音段，避免 Whisper 對靜音「幻聽」出
+        # 「好的，下次見」這種填充句。no_speech 門檻一併拉高，更不容易硬湊。
+        segments, _ = self._model().transcribe(
+            audio, language="zh", beam_size=1,
+            vad_filter=True, vad_parameters={"min_silence_duration_ms": 500},
+            no_speech_threshold=0.6, condition_on_previous_text=False,
+        )
         return "".join(s.text for s in segments).strip()
 
 
@@ -224,11 +237,19 @@ def run_voice() -> int:
     ears._model()  # 預載，避免第一句很慢
     mouth.say("賈維斯待命中，老闆。")
 
+    def _beep():
+        # 叫醒後給個短「嗶」當「請說」的提示（不用念『在』，省掉那一秒避免蓋掉你開頭）
+        try:
+            import winsound
+            winsound.Beep(1000, 120)
+        except Exception:
+            print("\a", end="", flush=True)
+
     def on_wake():
         try:
-            print("✨ 喚醒！請說…")
-            mouth.say("在")
-            audio = ears.record_until_silence()
+            print("✨ 喚醒！嗶——請說…")
+            _beep()
+            audio = ears.record_until_silence()   # 立刻收音，不等
             text = ears.transcribe(audio)
             if not text:
                 mouth.say("我沒聽清楚，再說一次？")
