@@ -245,6 +245,11 @@ def run_voice() -> int:
         wake_loop(on_wake)
     except KeyboardInterrupt:
         print("\n👋 賈維斯下線。")
+    except Exception as e:  # noqa: BLE001 多半是找不到麥克風/音訊裝置
+        print(f"\n[音訊錯誤] 起不來，通常是沒偵測到麥克風或音訊裝置：{e!r}", file=sys.stderr)
+        print("請確認：① 這台電腦有接麥克風、② Windows 隱私設定允許程式存取麥克風、"
+              "③ 在你自己的終端機（非遠端/無音訊環境）執行。", file=sys.stderr)
+        return 1
     return 0
 
 
