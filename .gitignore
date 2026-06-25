@@ -106,3 +106,7 @@ youtube_channel/STUDIO/
 /MAX_BOOST_LV
 /*_panel.txt
 /v3_applied_snapshot.txt
+
+# 賈維斯對話記憶(隱私，不進版控)
+jarvis/.jarvis_history.json
+jarvis/persona.txt

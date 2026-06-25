@@ -263,6 +263,8 @@ def _ask_brain_full(text: str, history=None) -> str:
         f"{PERSONA}\n\n"
         f"【你們剛剛的對話】{convo if convo else '（還沒聊過，這是第一句）'}\n\n"
         f"老闆現在對你說：「{text}」\n\n"
+        "（你能用 PowerShell 完整操控這台 Windows；也可跑 python jarvis/computer.py \"指令\" 或在程式裡 "
+        "import computer 來開程式、切視窗、控音量媒體、截圖、打字；要看畫面就截圖。能直接做掉就做掉再回報。）\n\n"
         "用賈維斯的口吻自然、簡短地回他（會被念出來，別用任何符號/markdown/emoji）。"
     )
     cmd = [
@@ -411,6 +413,32 @@ def _set_state(state: str, text: str = "") -> None:
         pass
 
 
+# 跨重啟記憶：把最近幾輪對話存檔，下次叫醒還記得；太舊(預設 12 小時)就自動忘掉避免亂接。
+_HISTORY_FILE = Path(__file__).resolve().parent / ".jarvis_history.json"
+_HISTORY_KEEP = 8
+_HISTORY_TTL = float(os.environ.get("JARVIS_MEMORY_TTL_HR", "12")) * 3600
+
+
+def _load_history():
+    try:
+        d = json.loads(_HISTORY_FILE.read_text(encoding="utf-8"))
+        if time.time() - float(d.get("ts", 0)) > _HISTORY_TTL:
+            return []   # 太久沒聊→當新的一天，不拿舊話接
+        return [tuple(t) for t in d.get("turns", []) if isinstance(t, (list, tuple)) and len(t) == 2]
+    except Exception:
+        return []
+
+
+def _save_history(history) -> None:
+    try:
+        _HISTORY_FILE.write_text(
+            json.dumps({"ts": time.time(), "turns": history[-_HISTORY_KEEP:]}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+    except Exception:
+        pass
+
+
 def _beep():
     """叫醒後給個短「嗶」當「請說」提示（不念『在』，省掉那一秒避免蓋掉你開頭）。"""
     try:
@@ -510,7 +538,9 @@ def converse_loop(ears, mouth, brain: bool = True) -> None:
     fp = f"{_AMB}全能{_R}" if _FULL_POWER else f"{_DIM}安全{_R}"
     print(f"   {_DK}●{_R} 待命中　{_DIM}模式={_R}{fp}{_DIM}　大腦={JARVIS_MODEL}　嗓音={WAKE_WORD}{_R}\n")
     _set_state("idle")
-    history = []  # 最近幾輪對話，讓她記得前文、像同一個人從頭聊到尾
+    history = _load_history()  # 最近幾輪對話(含跨重啟)，讓她記得前文、像同一個人從頭聊到尾
+    if history:
+        print(f"   {_DIM}● 記得上次聊的 {len(history)} 句{_R}")
     with sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype="int16",
                         blocksize=block) as stream:
         while True:
@@ -572,7 +602,8 @@ def converse_loop(ears, mouth, brain: bool = True) -> None:
                             _set_state("thinking")
                             reply = ask_brain(text, history)
                             history.append((text, reply))
-                            del history[:-8]   # 只留最近 8 輪
+                            del history[:-_HISTORY_KEEP]   # 只留最近幾輪
+                            _save_history(history)         # 存檔→下次叫醒還記得
                             _set_state("speaking", reply)
                             mouth.say(reply)
                         _set_state("listening")
