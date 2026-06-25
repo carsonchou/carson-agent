@@ -46,7 +46,10 @@
 ### ⚠️ 仍需「實盤驗證 / 一行接線」才完整（已留 hook，非缺口）
 - **#4 取整**：`size_step`/`price_tick` 預設 None＝不取整（維持原行為）。實盤前要從 Pionex 交易對規格填入**真實 stepSize/tickSize**，否則取整不生效。
 - **#3 錯誤分類**：分類邏輯已就緒，但「timeout 後用 clientOrderId 查單對帳」需依 Pionex 實際 API 行為驗證（Pionex `get_order` 用 orderId 非 clientOrderId，對帳目前走 `get_position` 比對）。
-- **#5 ntfy 告警**：`alert(level,msg)` 出口已串到 `from_config`，但 main 尚未接上 ntfy。要出國推播，於 `main.build_coordinator` 傳入一個 POST ntfy 的函式即可（topic 見 memory `carsonquant-hc-9k3x7m2q`）。
+- **#5 ntfy 告警**：✅ 已接上 `main.build_alert`，coordinator 對帳背離/連續失敗會推 ntfy。
+  **啟用方式**：在 `config.yaml` 的 `notify.ntfy_topic` 填一個夠隨機的 topic（或設環境變數
+  `TRADING_NTFY_TOPIC`），手機 ntfy app 訂閱同 topic 即可。留空＝告警僅記 log。
+  等級對應 ntfy Priority：CRITICAL→urgent、ERROR→high、WARNING→default、INFO→low。
 - **#1 回撤含浮虧**：現貨 `equity` 已改市值化；合約/槓桿商品的市值計算另需對應。
 
 ---

@@ -21,9 +21,10 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 # 匯入根設定：專案內部混用兩種寫法
 #   - `from core.interfaces import ...`（需要 trading_bot 目錄本身在 sys.path）
@@ -185,6 +186,52 @@ def build_executor(config: AppConfig, data_feed: Optional[DataFeed] = None) -> E
 # ────────────────────────────────────────────────────────────
 # 組裝 + 啟動：即時交易
 # ────────────────────────────────────────────────────────────
+def build_alert(
+    config: AppConfig, poster: Optional[Callable[[str, bytes, dict], None]] = None
+) -> Optional[Callable[[str, str], None]]:
+    """組出告警出口 fn(level, msg)：推 ntfy 手機通知。未設 topic 則回 None（告警僅記 log）。
+
+    topic 來源優先序：環境變數 TRADING_NTFY_TOPIC > config.notify.ntfy_topic。
+    告警永不拋例外（失敗只記 log），不可拖垮交易主迴圈。poster 可注入以利測試。
+    """
+    notify = getattr(config, "notify", None)
+    topic = os.environ.get("TRADING_NTFY_TOPIC") or (getattr(notify, "ntfy_topic", "") if notify else "")
+    server = (
+        os.environ.get("TRADING_NTFY_SERVER")
+        or (getattr(notify, "ntfy_server", "") if notify else "")
+        or "https://ntfy.sh"
+    )
+    if not topic:
+        logger.info("未設定 ntfy topic（notify.ntfy_topic / TRADING_NTFY_TOPIC），告警僅記 log。")
+        return None
+
+    url = f"{server.rstrip('/')}/{topic}"
+    _prio = {"INFO": "low", "WARNING": "default", "ERROR": "high", "CRITICAL": "urgent"}
+    _tags = {"INFO": "information_source", "WARNING": "warning",
+             "ERROR": "warning", "CRITICAL": "rotating_light"}
+
+    def _default_poster(u: str, data: bytes, headers: dict) -> None:
+        import requests  # 延遲匯入，避免無告警需求時的硬相依
+        requests.post(u, data=data, headers=headers, timeout=5)
+
+    send = poster or _default_poster
+
+    def alert(level: str, msg: str) -> None:
+        lvl = (level or "INFO").upper()
+        headers = {
+            "Title": f"量化阿森交易機器人 [{lvl}]",
+            "Priority": _prio.get(lvl, "default"),
+            "Tags": _tags.get(lvl, "robot"),
+        }
+        try:
+            send(url, msg.encode("utf-8"), headers)
+        except Exception as exc:  # 告警失敗不可拖垮主迴圈
+            logger.warning(f"ntfy 告警發送失敗（{exc!r}），訊息：{msg}")
+
+    logger.info(f"ntfy 告警已啟用 → {url}")
+    return alert
+
+
 def build_coordinator(config: AppConfig, poll_interval_sec: float = 5.0):
     """組裝完整的 TradingCoordinator（即時交易）。"""
     from orchestrator import TradingCoordinator
@@ -203,6 +250,7 @@ def build_coordinator(config: AppConfig, poll_interval_sec: float = 5.0):
         executor=executor,
         cross_feed=cross_feed,
         poll_interval_sec=poll_interval_sec,
+        alert=build_alert(config),
     )
     return coordinator
 
