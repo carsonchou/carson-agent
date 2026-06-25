@@ -280,9 +280,11 @@ class Ears:
         spoke = False
         max_rms = 0.0
         blk_sec = block / SAMPLE_RATE
-        # 門檻要在「背景雜音(約0.005~0.01)之上、人聲之下」，否則雜音會讓她以為你還在講、
-        # 永遠等不到靜音→硬錄滿整個視窗→每句等十幾秒。0.015 乾淨分開雜音與講話。
-        threshold = float(os.environ.get("JARVIS_RMS_THRESHOLD", "0.015"))
+        # 動態門檻：自動追蹤背景雜音底(最安靜時的音量)，講話門檻＝雜音底的幾倍(夾在
+        # 合理範圍)。環境吵自動調高、安靜自動調低——人聲一定收得到，停了也馬上斷，
+        # 不會像固定門檻兩頭不討好(太低→雜音錄滿12秒；太高→漏掉你)。可用環境變數覆寫成固定值。
+        fixed = os.environ.get("JARVIS_RMS_THRESHOLD")
+        noise = None
         start = time.time()
         while time.time() - start < max_sec:
             buf, _ = stream.read(block)
@@ -290,7 +292,10 @@ class Ears:
             frames.append(mono)
             rms = float(np.sqrt(np.mean(mono ** 2))) if len(mono) else 0.0
             max_rms = max(max_rms, rms)
-            if rms >= threshold:
+            if noise is None or rms < noise:
+                noise = rms   # 追蹤最安靜＝背景雜音底
+            thr = float(fixed) if fixed else max(0.010, min(0.05, (noise + 1e-6) * 4.0))
+            if rms >= thr:
                 spoke = True
                 silent_for = 0.0
             elif spoke:
