@@ -334,6 +334,11 @@ class TradingCoordinator:
         poll_interval_sec: float = 5.0,
         state_path: Optional[str] = None,
         max_slippage_pct: float = 0.5,
+        alert: Optional[Callable[[str, str], None]] = None,
+        reconcile_every: int = 20,
+        reconcile_tolerance: float = 1e-6,
+        max_consecutive_failures: int = 3,
+        max_backoff_sec: float = 300.0,
     ) -> None:
         self.symbol = symbol
         self.interval = interval
@@ -342,6 +347,16 @@ class TradingCoordinator:
         self.dry_run = dry_run
         self.poll_interval_sec = poll_interval_sec
         self.max_slippage_pct = max_slippage_pct
+
+        # 告警出口（level, msg）：未注入時退回 logger。可接 Monitor.alert / ntfy / Telegram。
+        self._alert = alert
+        # 對帳：每 N 次成功 run_once 對一次「本地 tracker vs 交易所實際持倉」
+        self._reconcile_every = max(0, int(reconcile_every))
+        self._reconcile_tolerance = float(reconcile_tolerance)
+        # 連續失敗退避告警：資料源/網路長掛時不再靜默空轉
+        self._max_consecutive_failures = max(1, int(max_consecutive_failures))
+        self._max_backoff_sec = float(max_backoff_sec)
+        self._consecutive_failures = 0
 
         # 部位/損益的單一真相來源（修復停損 entry_price=0 與已實現損益沒接線）。
         # 持久化到 .state/，重啟後沿用部位與最近處理的 K 棒，避免重複下單。
@@ -360,6 +375,16 @@ class TradingCoordinator:
             cross_symbol=cross_symbol,
         )
         self.strategy_agent = StrategyAgent(strategy)
+        # 依資料源明示的 forming 語意對齊策略 drop_forming，消除「策略假設 vs 資料源
+        # 實際」不一致造成的訊號延遲/前視偏差（#7）。僅在兩端都支援時才動。
+        if hasattr(strategy, "drop_forming") and hasattr(data_feed, "last_is_forming"):
+            forming = bool(data_feed.last_is_forming())
+            if getattr(strategy, "drop_forming", None) != forming:
+                logger.info(
+                    f"依資料源 last_is_forming={forming} 對齊策略 drop_forming "
+                    f"(原 {getattr(strategy, 'drop_forming', None)})"
+                )
+                strategy.drop_forming = forming
         self.risk_agent = RiskAgent(risk_manager)
         self.execution_agent = ExecutionAgent(executor, dry_run=dry_run)
         self.monitor_agent = monitor or MonitorAgent()
@@ -389,8 +414,14 @@ class TradingCoordinator:
         cross_feed: Optional[DataFeed] = None,
         monitor: Optional[MonitorAgent] = None,
         poll_interval_sec: float = 5.0,
+        alert: Optional[Callable[[str, str], None]] = None,
     ) -> "TradingCoordinator":
-        """用 config.AppConfig 的欄位組裝 coordinator，省去手動拆欄位。"""
+        """用 config.AppConfig 的欄位組裝 coordinator，省去手動拆欄位。
+
+        alert:（選填）告警出口 fn(level, msg)。出國無人看管時，main 可在此
+        傳入一個推 ntfy/Telegram 的函式，對帳背離與連續失敗就會推到手機。
+        未傳則退回 logger。
+        """
         return cls(
             data_feed=data_feed,
             strategy=strategy,
@@ -405,6 +436,7 @@ class TradingCoordinator:
             dry_run=config.dry_run,
             monitor=monitor,
             poll_interval_sec=poll_interval_sec,
+            alert=alert,
         )
 
     # ── 主迴圈：單次 tick ──
@@ -425,9 +457,10 @@ class TradingCoordinator:
 
         # 2) 交叉比對（背離 → 暫停本根，不交易）
         cc = self.data_agent.cross_check_price(last_price)
-        # 部位以追蹤器為「權威來源」（含真實 entry_price，停損才有效）；權益仍取自帳戶
+        # 部位以追蹤器為「權威來源」（含真實 entry_price，停損才有效）；
+        # 權益市值化（現金 + 持倉市值），使回撤保護能納入浮虧
         position = self.tracker.get(self.symbol, mark_price=last_price)
-        equity = self.execution_agent.balance(self.quote_asset)
+        equity = self._equity_mtm(position, last_price)
 
         if cc.diverged:
             logger.warning(f"資料背離，暫停本根交易：{cc.reason}")
@@ -450,7 +483,7 @@ class TradingCoordinator:
             order_sent = True
             self._account_fill(executed, last_price)          # 記帳 + 回報已實現損益
             position = self.tracker.get(self.symbol, mark_price=last_price)
-            equity = self.execution_agent.balance(self.quote_asset)
+            equity = self._equity_mtm(position, last_price)
             stopped = True
 
         # 4) 產訊號
@@ -468,7 +501,7 @@ class TradingCoordinator:
                 order_sent = True
                 self._account_fill(executed, last_price)
                 position = self.tracker.get(self.symbol, mark_price=last_price)
-                equity = self.execution_agent.balance(self.quote_asset)
+                equity = self._equity_mtm(position, last_price)
             elif signal.type != SignalType.HOLD:
                 logger.info(f"風控否決訊號 {signal.type.value}：{signal.reason}")
 
@@ -526,6 +559,49 @@ class TradingCoordinator:
                     f"{getattr(rm, 'daily_realized_pnl', 0.0):+.4f}）"
                 )
 
+    def _emit_alert(self, level: str, msg: str) -> None:
+        """統一告警出口：有注入 alert 就用（可接 ntfy/Telegram/Monitor），否則記 log。"""
+        try:
+            if self._alert is not None:
+                self._alert(level.upper(), msg)
+                return
+        except Exception:  # 告警管道失效不可拖垮主迴圈
+            logger.exception("alert 出口發送失敗，退回 log")
+        lvl = level.upper()
+        (logger.error if lvl in ("ERROR", "CRITICAL") else logger.warning)(f"[{lvl}] {msg}")
+
+    def _reconcile(self) -> bool:
+        """對帳：本地 tracker 持倉 vs 交易所實際持倉。背離超過容忍值即告警。
+
+        回傳 True=一致 / False=背離（或查詢失敗）。只告警不自動平倉——自動動作
+        本身也是風險；無人看管時「推 ntfy 讓 Carson 知道」才是這裡的目的。
+        """
+        try:
+            local = self.tracker.get(self.symbol).size
+            actual = self.execution_agent.position(self.symbol).size
+        except Exception as exc:  # noqa: BLE001
+            self._emit_alert("ERROR", f"對帳查詢失敗（{self.symbol}）：{exc!r}")
+            return False
+        if abs(local - actual) > self._reconcile_tolerance:
+            self._emit_alert(
+                "CRITICAL",
+                f"持倉背離！本地追蹤={local} vs 交易所實際={actual}"
+                f"（{self.symbol}）。請人工核對，避免重複下單或停損失準。",
+            )
+            return False
+        return True
+
+    def _equity_mtm(self, position: Position, last_price: float) -> float:
+        """市值化權益 = 計價幣現金餘額 + 持倉市值（size * mark）。
+
+        原本只用 quote 現金餘額，現貨持倉中現金會偏低、且完全看不到浮虧；
+        改為市值化後，風控的當日回撤判斷才能納入未實現損益（見
+        risk_manager.daily_loss_limit_hit）。空手時等同純現金餘額。
+        """
+        cash = self.execution_agent.balance(self.quote_asset)
+        size = getattr(position, "size", 0.0) or 0.0
+        return cash + size * (last_price or 0.0)
+
     def _is_new_bar(self, candle: Candle) -> bool:
         """以最新 K 棒 timestamp 判斷是否進到新一根（避免同一根重複下單）。"""
         ts = candle.timestamp
@@ -556,18 +632,38 @@ class TradingCoordinator:
             f"TradingCoordinator 啟動：{self.symbol} {self.interval} 模式={mode} "
             f"交叉比對={'啟用' if self.data_agent.cross_check else '停用'}"
         )
+        # 啟動先對帳一次：本地持久化部位 vs 交易所實際持倉
+        self._reconcile()
         try:
             while self._running:
                 loops += 1
+                sleep_for = self.poll_interval_sec
                 try:
                     latest = self.data_agent.latest_candle()
                     if self._is_new_bar(latest):
                         self.run_once()
                         iterations += 1
+                        # 週期性對帳（每 N 根新 K 棒）
+                        if self._reconcile_every and iterations % self._reconcile_every == 0:
+                            self._reconcile()
                     else:
                         logger.debug("尚無新 K 棒，等待中…")
+                    self._consecutive_failures = 0   # 成功一輪 → 重置失敗計數
                 except Exception as exc:  # 單根錯誤不應使整個 bot 崩潰
-                    logger.exception(f"主迴圈本根發生例外，已捕捉並續跑：{exc!r}")
+                    self._consecutive_failures += 1
+                    logger.exception(
+                        f"主迴圈本根發生例外（連續第 {self._consecutive_failures} 次），"
+                        f"已捕捉並續跑：{exc!r}"
+                    )
+                    # 指數退避，避免資料源長掛時高速空轉；達門檻即告警（出國無人看管必要）
+                    backoff = self.poll_interval_sec * (2 ** min(self._consecutive_failures, 10))
+                    sleep_for = min(max(backoff, self.poll_interval_sec), self._max_backoff_sec)
+                    if self._consecutive_failures >= self._max_consecutive_failures:
+                        self._emit_alert(
+                            "ERROR",
+                            f"主迴圈連續失敗 {self._consecutive_failures} 次"
+                            f"（{self.symbol}），退避 {sleep_for:.0f}s。最近錯誤：{exc!r}",
+                        )
 
                 if max_iterations is not None and iterations >= max_iterations:
                     logger.info(f"達到 max_iterations={max_iterations}，停止主迴圈。")
@@ -576,7 +672,7 @@ class TradingCoordinator:
                     logger.info(f"達到 max_loops={max_loops}，停止主迴圈。")
                     break
 
-                self._sleep(self.poll_interval_sec)
+                self._sleep(sleep_for)
         except KeyboardInterrupt:
             logger.info("收到中斷訊號（Ctrl-C），優雅停止。")
         finally:

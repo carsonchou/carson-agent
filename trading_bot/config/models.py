@@ -77,10 +77,14 @@ class DataConfig(BaseModel):
 
 
 class NotifyConfig(BaseModel):
-    """通知設定（Telegram / Discord webhook 等）。"""
+    """通知設定（ntfy / Telegram / Discord webhook 等）。"""
 
     enabled: bool = False
     webhook_url: str = ""
+    # ntfy 推播（出國無人看管時，對帳背離/連續失敗會推到手機）。
+    # 留空則告警僅記 log；亦可用環境變數 TRADING_NTFY_TOPIC 覆寫。
+    ntfy_topic: str = ""
+    ntfy_server: str = "https://ntfy.sh"
 
 
 class AppConfig(BaseModel):
