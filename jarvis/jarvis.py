@@ -460,6 +460,35 @@ def _register_cuda_dlls() -> None:
         pass
 
 
+# ── 終端美化：琥珀色系（鋼鐵人風），不支援 ANSI 的舊主控台會自動降級成純文字 ──
+def _ansi_on() -> bool:
+    if os.environ.get("JARVIS_NOCOLOR"):
+        return False
+    try:
+        os.system("")   # Win10+ 這招會開啟主控台的 ANSI(VT) 處理
+        return True
+    except Exception:
+        return False
+
+
+_ANSI = _ansi_on()
+_AMB = "\033[38;5;179m" if _ANSI else ""   # 琥珀
+_DK = "\033[38;5;94m" if _ANSI else ""     # 深咖啡
+_DIM = "\033[2m" if _ANSI else ""
+_B = "\033[1m" if _ANSI else ""
+_R = "\033[0m" if _ANSI else ""
+
+
+def _banner(mode: str = "") -> None:
+    tag = f"  {_DIM}[{mode}]{_R}" if mode else ""
+    print(f"""{_AMB}
+   ◢◤  {_B}J · A · R · V · I · S{_R}{_AMB}  ◥◣   你的語音管家{tag}
+   {_DK}────────────────────────────────────────────────{_R}
+   {_AMB}全能腦 · 操控整台電腦 · 看得到螢幕 · 記得你說過的話{_R}
+   {_DIM}喊「Hey Jarvis」叫醒我　·　Ctrl-C 下線{_R}
+""")
+
+
 def converse_loop(ears, mouth, brain: bool = True) -> None:
     """單一麥克風通道的待命→喚醒→收音→（大腦→回話）迴圈。
 
@@ -478,7 +507,8 @@ def converse_loop(ears, mouth, brain: bool = True) -> None:
     model = Model(wakeword_models=[WAKE_WORD], inference_framework="onnx")
     block = 1280  # openWakeWord 要 80ms@16k = 1280 samples
     pre = deque(maxlen=int(1.5 * SAMPLE_RATE / block))  # 喚醒前 ~1.5s 滾動緩衝
-    print("👂 待命中——對著麥克風說「Hey Jarvis」叫醒我。(Ctrl-C 結束)")
+    fp = f"{_AMB}全能{_R}" if _FULL_POWER else f"{_DIM}安全{_R}"
+    print(f"   {_DK}●{_R} 待命中　{_DIM}模式={_R}{fp}{_DIM}　大腦={JARVIS_MODEL}　嗓音={WAKE_WORD}{_R}\n")
     _set_state("idle")
     history = []  # 最近幾輪對話，讓她記得前文、像同一個人從頭聊到尾
     with sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype="int16",
@@ -490,7 +520,7 @@ def converse_loop(ears, mouth, brain: bool = True) -> None:
             if model.predict(pcm).get(WAKE_WORD, 0.0) >= WAKE_THRESHOLD:
                 model.reset()
                 idle_limit = float(os.environ.get("JARVIS_CONVO_SEC", "300"))
-                print(f"✨ 喚醒！嗶——進入對話模式（閒置 {int(idle_limit)} 秒才回待命）")
+                print(f"   {_AMB}◆ 喚醒{_R}{_DIM}　進入對話模式，閒置 {int(idle_limit)} 秒才回待命{_R}")
                 _beep()
                 _set_state("listening")
                 first_pre = list(pre)   # 對話第一句帶喚醒前緩衝；之後不用
@@ -505,7 +535,7 @@ def converse_loop(ears, mouth, brain: bool = True) -> None:
                         if not text:
                             continue  # 沒聽到→繼續聽（漏一句也救得回）
                         last_active = time.time()
-                        print(f"🗣  你：{text}")
+                        print(f"   {_DIM}🗣{_R}  {_B}你{_R}：{text}")
                         if not brain:
                             continue
                         # ── 先看是不是「直接操控電腦」的指令 → 本機秒做，不繞大腦（秒回）──
@@ -559,7 +589,7 @@ def converse_loop(ears, mouth, brain: bool = True) -> None:
                             mouth.say("剛剛出了點狀況，再說一次。")
                         except Exception:
                             pass
-                print("💤 閒置太久，回待命。喊「Hey Jarvis」再叫醒我。")
+                print(f"   {_DIM}● 閒置回待命，喊「Hey Jarvis」再叫醒我{_R}\n")
                 _set_state("idle")
                 model.reset()
 
@@ -568,8 +598,10 @@ def converse_loop(ears, mouth, brain: bool = True) -> None:
 # 主流程
 # ════════════════════════════════════════════════════════════
 def run_voice() -> int:
+    _banner("全能模式" if _FULL_POWER else "安全模式")
     mouth = Mouth()
     ears = Ears()
+    print(f"   {_DIM}載入語音模型中…首次較久，之後就快了{_R}")
     ears._model()  # 預載，避免第一句很慢
     mouth.say("賈維斯待命中，老闆。")
     # 開麥克風失敗自動重試：常見於「停舊實例→秒開新的」時裝置還沒釋放的瞬間衝突
@@ -633,11 +665,24 @@ def main() -> int:
     ap.add_argument("--text", metavar="MSG", help="只測大腦：把這句送給 Claude 並印出回答（不用音訊）")
     ap.add_argument("--say", metavar="MSG", help="只測 TTS：把這句念出來")
     ap.add_argument("--listen", action="store_true", help="只測喚醒+聽寫，印出聽到什麼")
+    ap.add_argument("--do", metavar="CMD", help="只測電腦操控：把這句當指令直接執行（如「打開記事本」）")
     ap.add_argument("--selftest", action="store_true", help="逐項自我診斷（不進監聽），找出哪裡壞")
     args = ap.parse_args()
 
     if args.selftest:
         return selftest()
+
+    if args.do is not None:   # 直接測本機操控路由（命中就真的做、並念出來）
+        if computer is None:
+            print("電腦操控模組沒載入。")
+            return 1
+        hit = computer.route(args.do)
+        if hit is None:
+            print(f"[沒命中本機動作，正常會交給大腦] {args.do!r}")
+        else:
+            print(f"🦾 {hit[0]}")
+            Mouth().say(hit[0])
+        return 0
 
     if args.say is not None:
         Mouth().say(args.say)
