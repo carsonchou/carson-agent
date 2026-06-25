@@ -195,7 +195,10 @@ class BasicRiskManager(RiskManager):
         # 2) 決定倉位比例：優先用訊號建議，否則用 config 的 position_pct，
         #    再依 confidence 微調，最後不得超過 max_position_pct。
         size_pct = signal.size_pct if signal.size_pct is not None else self.position_pct
-        confidence = max(0.0, min(1.0, float(signal.confidence)))
+        # confidence 容錯：策略可能送 None（介面雖預設 1.0，但明確傳 None 會讓
+        # float(None) 拋 TypeError 使整個 evaluate 崩潰，連停損都評估不到 → fail-open）。
+        conf_raw = signal.confidence if signal.confidence is not None else 1.0
+        confidence = max(0.0, min(1.0, float(conf_raw)))
         size_pct = size_pct * confidence
 
         # 3) 曝險上限：考量既有持倉的同向曝險
