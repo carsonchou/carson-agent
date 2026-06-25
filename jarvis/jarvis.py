@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import subprocess
 import sys
 import time
@@ -263,6 +264,22 @@ def _beep():
         print("\a", end="", flush=True)
 
 
+# 全能模式安全護欄：聽起來像破壞性/不可逆的指令，動手前先口頭確認。
+_DESTRUCTIVE = re.compile(
+    r"刪|删|格式化|清空|清除|移除|卸載|卸载|解除安裝|關機|关机|重開機|重新開機|重啟|重启|"
+    r"覆寫|覆盖|清掉|砍掉|清乾淨|wipe|uninstall|shutdown|reboot|format|\brm\b|\bdel\b|"
+    r"\bdrop\b|\bkill\b|\brmdir\b", re.I)
+_CONFIRM = re.compile(r"確定|确定|沒錯|没错|對|对|執行|执行|去做|做吧|可以|yes|confirm|go ahead", re.I)
+
+
+def _looks_destructive(text: str) -> bool:
+    return bool(_DESTRUCTIVE.search(text or ""))
+
+
+def _is_confirm(text: str) -> bool:
+    return bool(text) and bool(_CONFIRM.search(text))
+
+
 def converse_loop(ears, mouth, brain: bool = True) -> None:
     """單一麥克風通道的待命→喚醒→收音→（大腦→回話）迴圈。
 
@@ -304,8 +321,19 @@ def converse_loop(ears, mouth, brain: bool = True) -> None:
                 else:
                     print(f"🗣  你：{text}")
                     if brain:
-                        mouth.say("好的，我看一下。")
-                        mouth.say(ask_brain(text))
+                        proceed = True
+                        # 全能模式安全護欄：危險/不可逆指令動手前先口頭確認
+                        if _FULL_POWER and _looks_destructive(text):
+                            mouth.say("這個動作有風險，確定要我做嗎？確定請說『確定』。")
+                            _beep()
+                            conf = ears.transcribe(ears.capture(stream, block))
+                            print(f"🗣  確認回覆：{conf!r}")
+                            proceed = _is_confirm(conf)
+                            if not proceed:
+                                mouth.say("好，那我先不動。")
+                        if proceed:
+                            mouth.say("好的，我看一下。")
+                            mouth.say(ask_brain(text))
                 # 清掉喚醒提示音/TTS 回話期間累積的舊音訊，避免回授或誤觸下一輪
                 try:
                     while stream.read_available > block:
