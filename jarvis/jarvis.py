@@ -81,32 +81,32 @@ if _persona_file.exists():
 # 嘴巴：TTS（Windows 內建語音，免費離線）
 # ════════════════════════════════════════════════════════════
 class Mouth:
+    """用 Windows System.Speech（SAPI）念字——比 pyttsx3 在背景程序可靠（pyttsx3 的
+    runAndWait 在背景/迴圈裡常不出聲）。預設用中文嗓音 Microsoft Hanhan(zh-TW)。"""
+
     def __init__(self) -> None:
-        self._engine = None
-        try:
-            import pyttsx3
-            eng = pyttsx3.init()
-            eng.setProperty("rate", 185)
-            # 盡量挑中文嗓音（Hanhan / Yating / Zhiwei / Huihui…），挑不到就用預設
-            for v in eng.getProperty("voices"):
-                blob = f"{getattr(v,'id','')} {getattr(v,'name','')}".lower()
-                if any(k in blob for k in ("zh", "chinese", "hanhan", "yating", "zhiwei", "huihui")):
-                    eng.setProperty("voice", v.id)
-                    break
-            self._engine = eng
-        except Exception as e:  # noqa: BLE001
-            print(f"[warn] TTS 初始化失敗，改用純文字輸出：{e!r}", file=sys.stderr)
+        import tempfile
+        self._tmp = os.path.join(tempfile.gettempdir(), "jarvis_say.txt")
+        self._voice = os.environ.get("JARVIS_VOICE", "Microsoft Hanhan Desktop")
 
     def say(self, text: str) -> None:
         text = (text or "").strip()
         if not text:
             return
-        print(f"🔊 Jarvis：{text}")
-        if self._engine is None:
-            return
+        print(f"🔊 Jarvis：{text}", flush=True)
         try:
-            self._engine.say(text)
-            self._engine.runAndWait()
+            with open(self._tmp, "w", encoding="utf-8") as f:
+                f.write(text)
+            tmp = self._tmp.replace("\\", "/")
+            ps = (
+                "Add-Type -AssemblyName System.Speech;"
+                "$s=New-Object System.Speech.Synthesis.SpeechSynthesizer;"
+                f"try{{$s.SelectVoice('{self._voice}')}}catch{{}};"
+                "$s.Rate=1;"
+                f"$s.Speak([IO.File]::ReadAllText('{tmp}',[Text.Encoding]::UTF8))"
+            )
+            subprocess.run(["powershell", "-NoProfile", "-Command", ps],
+                           timeout=60, capture_output=True)
         except Exception as e:  # noqa: BLE001
             print(f"[warn] 念字失敗：{e!r}", file=sys.stderr)
 
