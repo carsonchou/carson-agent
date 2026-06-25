@@ -152,18 +152,25 @@ class Ears:
             self._whisper = WhisperModel(WHISPER_SIZE, device="cpu", compute_type="int8")
         return self._whisper
 
-    def capture(self, stream, block: int, max_sec: float = 15.0,
-                silence_sec: float = 1.0, start_grace: float = 6.0):
-        """從『喚醒所用的同一條』stream 接著錄命令——不另開第二條，避免兩條搶麥克風
-        導致收到靜音。stream 為 int16 InputStream。偵測到講完（持續靜音）就停。"""
+    def capture(self, stream, block: int, pre_frames=None, max_sec: float = 12.0,
+                silence_sec: float = 1.0, start_grace: float = 5.0):
+        """從『喚醒所用的同一條』stream 接著錄命令（不另開第二條，避免搶麥克風）。
+
+        pre_frames：喚醒『之前』緩衝的 int16 區塊（含你說「Hey Jarvis」當下與緊接
+        的話）——一併納入，讓你「Hey Jarvis 接著講」連在一起也收得到，不必抓時機。
+        收完做自動增益（這支數位麥克風 int16 進來的音量偏小，約低 30 倍），把峰值
+        放大到正常水準再交給 Whisper。"""
         import numpy as np
 
         frames = []
+        if pre_frames:
+            for pf in pre_frames:
+                frames.append(pf.astype(np.float32) / 32768.0)
         silent_for = 0.0
         spoke = False
         max_rms = 0.0
         blk_sec = block / SAMPLE_RATE
-        threshold = float(os.environ.get("JARVIS_RMS_THRESHOLD", "0.006"))
+        threshold = float(os.environ.get("JARVIS_RMS_THRESHOLD", "0.004"))
         start = time.time()
         while time.time() - start < max_sec:
             buf, _ = stream.read(block)
@@ -179,12 +186,22 @@ class Ears:
                 if silent_for >= silence_sec:
                     break
             elif time.time() - start >= start_grace:
-                break  # 寬限時間內都沒開口 → 放棄這次
-        print(f"[聽] 有偵測到講話={spoke} 最大RMS={max_rms:.4f} "
-              f"收音長度={len(frames)*blk_sec:.1f}s", flush=True)
-        if not frames or not spoke:
+                break
+        if not frames:
             return None
-        return np.concatenate(frames)
+        audio = np.concatenate(frames)
+        # 自動增益：峰值拉到 ~0.3，補償低輸入音量（上限放大 25 倍，免放大純噪音）
+        peak = float(np.max(np.abs(audio))) if len(audio) else 0.0
+        gain = 1.0
+        if 1e-4 < peak < 0.3:
+            gain = min(25.0, 0.3 / peak)
+            audio = np.clip(audio * gain, -1.0, 1.0)
+        print(f"[聽] 講話={spoke} 原始峰值={peak:.4f} 增益x{gain:.1f} "
+              f"最大RMS={max_rms:.4f} 長度={len(frames)*blk_sec:.1f}s", flush=True)
+        # 全程近乎純靜音（連微弱人聲都沒有）才放棄；否則交給 Whisper+VAD 判斷
+        if max_rms < 0.0025:
+            return None
+        return audio
 
     def transcribe(self, audio) -> str:
         if audio is None or len(audio) < SAMPLE_RATE * 0.3:
@@ -225,18 +242,24 @@ def converse_loop(ears, mouth, brain: bool = True) -> None:
     except Exception:
         pass
 
+    from collections import deque
     model = Model(wakeword_models=[WAKE_WORD], inference_framework="onnx")
     block = 1280  # openWakeWord 要 80ms@16k = 1280 samples
+    pre = deque(maxlen=int(1.5 * SAMPLE_RATE / block))  # 喚醒前 ~1.5s 滾動緩衝
     print("👂 待命中——對著麥克風說「Hey Jarvis」叫醒我。(Ctrl-C 結束)")
     with sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype="int16",
                         blocksize=block) as stream:
         while True:
             buf, _ = stream.read(block)
-            if model.predict(buf[:, 0]).get(WAKE_WORD, 0.0) >= WAKE_THRESHOLD:
+            pcm = buf[:, 0]
+            pre.append(pcm.copy())
+            if model.predict(pcm).get(WAKE_WORD, 0.0) >= WAKE_THRESHOLD:
                 model.reset()
                 print("✨ 喚醒！嗶——請說…")
                 _beep()
-                audio = ears.capture(stream, block)   # ← 同一條 stream 接著錄
+                # 把喚醒前緩衝(含「Hey Jarvis」及緊接的話)一起交給收音，免抓時機
+                audio = ears.capture(stream, block, pre_frames=list(pre))
+                pre.clear()
                 text = ears.transcribe(audio)
                 if not text:
                     if brain:
