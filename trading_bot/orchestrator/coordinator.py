@@ -375,6 +375,16 @@ class TradingCoordinator:
             cross_symbol=cross_symbol,
         )
         self.strategy_agent = StrategyAgent(strategy)
+        # 依資料源明示的 forming 語意對齊策略 drop_forming，消除「策略假設 vs 資料源
+        # 實際」不一致造成的訊號延遲/前視偏差（#7）。僅在兩端都支援時才動。
+        if hasattr(strategy, "drop_forming") and hasattr(data_feed, "last_is_forming"):
+            forming = bool(data_feed.last_is_forming())
+            if getattr(strategy, "drop_forming", None) != forming:
+                logger.info(
+                    f"依資料源 last_is_forming={forming} 對齊策略 drop_forming "
+                    f"(原 {getattr(strategy, 'drop_forming', None)})"
+                )
+                strategy.drop_forming = forming
         self.risk_agent = RiskAgent(risk_manager)
         self.execution_agent = ExecutionAgent(executor, dry_run=dry_run)
         self.monitor_agent = monitor or MonitorAgent()

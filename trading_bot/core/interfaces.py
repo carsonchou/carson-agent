@@ -123,6 +123,16 @@ class DataFeed(ABC):
         """回傳最新一根（已收盤）K 棒。"""
         ...
 
+    def last_is_forming(self) -> bool:
+        """``get_historical`` 回傳的「最後一根」是否為未收盤(forming) K 棒。
+
+        多數即時資料源最後一根是 forming（會隨價格跳動），策略需丟棄它以避免
+        重繪，故預設 True。若某資料源保證只回已收盤 K 棒（如純歷史/回測 feed），
+        應覆寫回傳 False，coordinator 會據此對齊策略的 drop_forming，避免
+        「策略砍最後一根、但那其實是已收盤資料」造成訊號延遲一根或前視偏差。
+        """
+        return True
+
 
 class Strategy(ABC):
     """交易策略抽象。輸入 K 棒 DataFrame，輸出訊號。"""
