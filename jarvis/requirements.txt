@@ -1,0 +1,10 @@
+# 語音版賈維斯所需套件（Windows / Python 3.9+）
+# 安裝：  uv pip install -r jarvis/requirements.txt   （或 pip install -r ...）
+# 首次執行會自動下載 Whisper 與喚醒詞模型（約數百 MB）。
+
+openwakeword>=0.6.0      # 「Hey Jarvis」喚醒詞（內建模型，免費、本機）
+faster-whisper>=1.0.0    # 語音轉文字（本機、免費）
+sounddevice>=0.4.6       # 麥克風錄音
+numpy                    # 音訊處理
+pyttsx3>=2.90            # 念字（Windows 內建語音，免費離線）
+comtypes                 # pyttsx3 在 Windows 的相依（SAPI5）
