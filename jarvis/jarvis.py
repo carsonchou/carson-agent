@@ -46,6 +46,15 @@ except Exception:
 # repo 根目錄 = 大腦的工作目錄（這樣 Claude 能直接碰 trading_bot / youtube_channel）
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
+# 賈維斯的「手腳」：直接操控整台電腦（開程式/視窗/鍵鼠/媒體/截圖/看螢幕…）。
+# 放同目錄，確保 import 得到；載不到也不致命（只是少了本機秒做的能力）。
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+try:
+    import computer  # noqa: E402  賈維斯的本機操控工具
+except Exception as _e:  # noqa: BLE001
+    computer = None
+    print(f"[warn] 電腦操控模組沒載入（{_e!r}），仍可聊天/動腦但不能直接操控電腦。", file=sys.stderr)
+
 # ── 可調設定（都能用環境變數覆寫）──
 CLAUDE_BIN = os.environ.get("JARVIS_CLAUDE_BIN", "claude")
 # 安全預設＝'default'：無頭模式下，需要權限的危險工具（亂跑 Bash、刪改檔…）會被
@@ -75,8 +84,10 @@ PERSONA = (
     "鐵則（因為你的話會被語音念出來）：絕對不要用 markdown、條列、表格、程式碼、emoji 或任何"
     "符號；數字、時間、金額都用口語講（說『十一點半』不是 23:30，說『兩千三百塊』不是 $2300）。\n"
     "你記得你們剛剛聊的內容，對話要連貫，像同一個人從頭跟他聊到尾。\n"
-    "能力：你能實際操作這台電腦和他的專案（trading_bot 交易機器人、youtube_channel 工作室），"
-    "能查資料、開程式、實際做事。能直接做掉的就做掉再簡短回報，需要他拍板的才問他。"
+    "能力：你能完整操控這整台 Windows 電腦——用 PowerShell 開程式、切視窗、控制媒體與音量、"
+    "截圖看螢幕、敲鍵盤點滑鼠，也能操作他的專案（trading_bot 交易機器人、youtube_channel 工作室）、"
+    "查資料、上網、改檔跑腳本。簡單的開程式/調音量/截圖等動作通常已被即時處理掉了，輪到你時多半是"
+    "比較複雜、多步驟的事——直接動手做掉再簡短回報，只有需要他拍板的才開口問。"
     "沒聽懂他說什麼時，自然地反問一句，別硬猜。"
 )
 _persona_file = Path(__file__).resolve().parent / "persona.txt"
@@ -97,13 +108,14 @@ class Mouth:
     可調環境變數：JARVIS_VOICE(嗓音, 如 zh-CN-YunjianNeural 更低沉)、
     JARVIS_PITCH(音調, 如 -20Hz 更低)、JARVIS_RATE(語速, 如 -5%)。"""
 
+    _STOP = object()
+
     def __init__(self) -> None:
         import glob
         import shutil
         import tempfile
-        tmp = tempfile.gettempdir()
-        self._mp3 = os.path.join(tmp, "jarvis_say.mp3")
-        self._txt = os.path.join(tmp, "jarvis_say.txt")
+        self._tmpdir = tempfile.gettempdir()
+        self._txt = os.path.join(self._tmpdir, "jarvis_say.txt")
         # 賈維斯定版嗓音：雲健 + 壓低音調 + 放慢 → 沉穩磁性（老闆欽點 A 版）
         self._voice = os.environ.get("JARVIS_VOICE", "zh-CN-YunjianNeural")
         self._pitch = os.environ.get("JARVIS_PITCH", "-13Hz")
@@ -115,30 +127,73 @@ class Mouth:
                 "~/AppData/Local/Microsoft/WinGet/Packages/Gyan.FFmpeg*/ffmpeg*/bin/ffplay.exe"))
             self._ffplay = g[0] if g else None
 
+    @staticmethod
+    def _split(text: str):
+        """切句：邊念邊生下一句用。太短的句子併到下一句，避免一堆零碎音檔。"""
+        parts = re.split(r"(?<=[。！？!?\n…：])", text)
+        out, buf = [], ""
+        for p in parts:
+            if not p.strip():
+                continue
+            buf += p
+            if len(buf.strip()) >= 8:
+                out.append(buf.strip())
+                buf = ""
+        if buf.strip():
+            out.append(buf.strip())
+        return out or [text]
+
     def say(self, text: str) -> None:
         text = (text or "").strip()
         if not text:
             return
         print(f"🔊 Jarvis：{text}", flush=True)
-        if self._ffplay and self._speak_edge(text):
-            return
+        sents = self._split(text)
+        # 串流分句：先把第一句生出來就開口；同時背景續生後面幾句，邊播邊生→開口快又連貫。
+        if self._ffplay:
+            first = os.path.join(self._tmpdir, "jarvis_say_0.mp3")
+            if self._gen_edge(sents[0], first):
+                import queue
+                import threading
+                q: "queue.Queue" = queue.Queue()
+
+                def _producer():
+                    for i, s in enumerate(sents[1:], 1):
+                        f = os.path.join(self._tmpdir, f"jarvis_say_{i}.mp3")
+                        q.put(f if self._gen_edge(s, f) else None)
+                    q.put(self._STOP)
+
+                threading.Thread(target=_producer, daemon=True).start()
+                self._play(first)
+                while True:
+                    nxt = q.get()
+                    if nxt is self._STOP:
+                        break
+                    if nxt:
+                        self._play(nxt)
+                return
         self._speak_sapi(text)  # 沒網路/edge 失敗 → 退回 SAPI 女聲
 
-    def _speak_edge(self, text: str) -> bool:
+    def _gen_edge(self, text: str, path: str) -> bool:
         try:
             import asyncio
             import edge_tts
 
             async def _gen():
                 c = edge_tts.Communicate(text, self._voice, rate=self._rate, pitch=self._pitch)
-                await c.save(self._mp3)
+                await c.save(path)
             asyncio.run(_gen())
-            subprocess.run([self._ffplay, "-nodisp", "-autoexit", "-loglevel", "quiet", self._mp3],
-                           timeout=90, capture_output=True)
-            return True
+            return os.path.exists(path) and os.path.getsize(path) > 0
         except Exception as e:  # noqa: BLE001
-            print(f"[warn] Edge 語音失敗，改用系統語音：{e!r}", file=sys.stderr)
+            print(f"[warn] Edge 語音生成失敗，改用系統語音：{e!r}", file=sys.stderr)
             return False
+
+    def _play(self, path: str) -> None:
+        try:
+            subprocess.run([self._ffplay, "-nodisp", "-autoexit", "-loglevel", "quiet", path],
+                           timeout=120, capture_output=True)
+        except Exception:  # noqa: BLE001
+            pass
 
     def _speak_sapi(self, text: str) -> None:
         try:
@@ -159,11 +214,14 @@ class Mouth:
 # ════════════════════════════════════════════════════════════
 # 大腦：claude -p（無頭 Claude Code，全工具）
 # ════════════════════════════════════════════════════════════
-# 預設一律走完整 Claude Code 全能腦（claude 能做的她都能做）；只有「純寒暄」整句才走
-# 直連 API 快路（秒回）。凡是有可能要做事/查資料的，都交給全能腦，絕不因分流而失能。
-_SMALLTALK = re.compile(
-    r"\s*((嗨+|哈囉|哈嘍|你好|您好|早安|午安|晚安|掰+|拜拜|再見|謝謝|感謝|辛苦了|"
-    r"你是誰|你叫什麼名?字?|你好嗎|還在嗎|在嗎|賈維斯|jarvis)[，。、!！?？～~\s]*)+",
+# 分流策略（為了「快」）：語音互動九成是聊天/問答/意見 → 預設走直連 API 快路（1-2 秒秒回）。
+# 只有「明顯要碰他的專案、讀寫檔、跑腳本、查即時外部資料、實際做事」才升級到全能腦
+# （claude -p，較慢但能動工具）。這樣常見對話飛快，需要做事時又不失能。
+_NEEDS_TOOLS = re.compile(
+    r"交易|回測|機器人|倉庫|影片|頻道|訂閱|發布|發佈|上架|渲染|配音|縮圖|腳本|跑一?輪|"
+    r"部署|雲端|droplet|營收|成本|淨利|帳|報表|數據|檔案?|資料夾|程式碼|寫一?個|改一?下|"
+    r"執行|安裝|git|commit|抓取|爬|幫我做|幫我跑|幫我查|幫我看(?!螢幕|畫面)|"
+    r"現在.{0,6}(價|股價|幣價|匯率|天氣|新聞)|查.{0,8}(價|股價|匯率|天氣|新聞)|最新.{0,6}(新聞|價)",
     re.I)
 
 _FAST_MODEL = os.environ.get("JARVIS_FAST_MODEL", "claude-sonnet-4-6")
@@ -230,16 +288,17 @@ def _ask_brain_full(text: str, history=None) -> str:
 
 
 def ask_brain(text: str, history=None) -> str:
-    """預設走完整全能腦（claude 能做的都能做）；只有整句純寒暄才走直連快路秒回。"""
+    """預設走直連快路秒回（聊天/問答/意見）；只有要碰專案/做事/查即時資料才升級全能腦。"""
     t = (text or "").strip()
-    if t and _SMALLTALK.fullmatch(t):   # 整句就是打招呼/寒暄 → 快路秒回
-        try:
-            out = _ask_brain_fast(text, history)
-            if out:
-                return out
-        except Exception as e:  # noqa: BLE001
-            print(f"[warn] 快路失敗，改用全能腦：{e!r}", file=sys.stderr)
-    return _ask_brain_full(text, history)   # 其餘一律全能腦，確保什麼都能做
+    if t and _NEEDS_TOOLS.search(t):     # 要動工具/讀專案/做事 → 全能腦（慢但能做）
+        return _ask_brain_full(text, history)
+    try:                                 # 其餘 → 直連快路，1-2 秒秒回
+        out = _ask_brain_fast(text, history)
+        if out:
+            return out
+    except Exception as e:  # noqa: BLE001
+        print(f"[warn] 快路失敗，改用全能腦：{e!r}", file=sys.stderr)
+    return _ask_brain_full(text, history)   # 快路掛了也不失能，退回全能腦
 
 
 # ════════════════════════════════════════════════════════════
@@ -449,6 +508,26 @@ def converse_loop(ears, mouth, brain: bool = True) -> None:
                         print(f"🗣  你：{text}")
                         if not brain:
                             continue
+                        # ── 先看是不是「直接操控電腦」的指令 → 本機秒做，不繞大腦（秒回）──
+                        if computer is not None:
+                            try:
+                                hit = computer.route(text)
+                            except Exception as e:  # noqa: BLE001
+                                print(f"[warn] 操控路由出錯：{e!r}", file=sys.stderr)
+                                hit = None
+                            if hit:
+                                reply = hit[0]
+                                print(f"🦾 [本機操控] {reply}")
+                                _set_state("speaking", reply)
+                                mouth.say(reply)
+                                _set_state("listening")
+                                last_active = time.time()
+                                try:    # 清掉念回時累積的舊音訊，避免誤收自己的聲音
+                                    while stream.read_available > block:
+                                        stream.read(block)
+                                except Exception:  # noqa: BLE001
+                                    pass
+                                continue
                         proceed = True
                         # 全能模式安全護欄：危險/不可逆指令動手前先口頭確認
                         if _FULL_POWER and _looks_destructive(text):
