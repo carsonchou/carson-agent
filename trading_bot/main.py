@@ -142,7 +142,13 @@ def build_risk_manager(config: AppConfig) -> RiskManager:
                 f"請確認 risk 模組已就緒。原始錯誤：{exc!r}"
             ) from exc
 
-    return BasicRiskManager(risk_config, symbol=config.trading.symbol)
+    # 風控當日狀態持久化路徑（與 tracker state 同目錄），盤中重啟沿用當日回撤計數
+    _risk_state = str(
+        Path(".state") / f"{config.trading.symbol.replace('/', '_')}_risk.json"
+    )
+    return BasicRiskManager(
+        risk_config, symbol=config.trading.symbol, state_path=_risk_state
+    )
 
 
 def build_executor(config: AppConfig, data_feed: Optional[DataFeed] = None) -> Executor:

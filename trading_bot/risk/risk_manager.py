@@ -21,8 +21,14 @@
 """
 from __future__ import annotations
 
+import json
+import logging
+import os
 from datetime import date, datetime
+from pathlib import Path
 from typing import Optional
+
+logger = logging.getLogger("risk_manager")
 
 # ── 依賴抽象介面（缺檔時給清楚錯誤）──
 try:
@@ -53,6 +59,7 @@ class BasicRiskManager(RiskManager):
         symbol: Optional[str] = None,
         *,
         clock: Optional[type] = None,
+        state_path: Optional[str] = None,
     ) -> None:
         """
         參數
@@ -83,6 +90,10 @@ class BasicRiskManager(RiskManager):
         self._daily_realized_pnl: float = 0.0   # 當日已實現損益（虧損為負）
         self._daily_start_equity: float = 0.0   # 當日起始權益（首次評估時設定）
 
+        # ── 當日狀態持久化（修：盤中重啟不再把當日虧損歸零，回撤保護才連續有效）──
+        self._state_path: Optional[Path] = Path(state_path) if state_path else None
+        self._load_daily_state()
+
         # ── 否決原因（供 Monitor / log 觀察）──
         self.last_rejection: Optional[str] = None
 
@@ -100,6 +111,39 @@ class BasicRiskManager(RiskManager):
             self._today = today
             self._daily_realized_pnl = 0.0
             self._daily_start_equity = equity
+            self._save_daily_state()
+
+    # ────────────────────────────────────────────────────────────
+    # 當日狀態持久化（盤中重啟沿用，避免回撤計數歸零）
+    # ────────────────────────────────────────────────────────────
+    def _load_daily_state(self) -> None:
+        if self._state_path is None or not self._state_path.exists():
+            return
+        try:
+            d = json.loads(self._state_path.read_text(encoding="utf-8"))
+            saved_day = d.get("today")
+            # 僅在「同一天」才沿用；跨日載入則維持今日歸零起點
+            if saved_day == self._today.isoformat():
+                self._daily_realized_pnl = float(d.get("daily_realized_pnl", 0.0))
+                self._daily_start_equity = float(d.get("daily_start_equity", 0.0))
+        except Exception:
+            logger.error("風控當日狀態載入失敗：%s", self._state_path, exc_info=True)
+
+    def _save_daily_state(self) -> None:
+        if self._state_path is None:
+            return
+        try:
+            data = {
+                "today": self._today.isoformat(),
+                "daily_realized_pnl": self._daily_realized_pnl,
+                "daily_start_equity": self._daily_start_equity,
+            }
+            self._state_path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = self._state_path.with_name(f"{self._state_path.name}.tmp.{os.getpid()}")
+            tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+            os.replace(tmp, self._state_path)
+        except Exception:
+            logger.error("風控當日狀態持久化失敗：%s", self._state_path, exc_info=True)
 
     # ────────────────────────────────────────────────────────────
     # 外部回報接口：當日損益狀態維護
@@ -114,12 +158,14 @@ class BasicRiskManager(RiskManager):
             本次平倉的已實現損益（獲利為正、虧損為負）。
         """
         self._daily_realized_pnl += float(pnl)
+        self._save_daily_state()
 
     def reset_daily(self, start_equity: float = 0.0) -> None:
         """手動重置當日損益統計（例如系統啟動時呼叫）。"""
         self._today = self._current_date()
         self._daily_realized_pnl = 0.0
         self._daily_start_equity = float(start_equity)
+        self._save_daily_state()
 
     @property
     def daily_realized_pnl(self) -> float:
@@ -128,18 +174,28 @@ class BasicRiskManager(RiskManager):
 
     def daily_loss_limit_hit(self, equity: float) -> bool:
         """
-        判斷當日累計虧損是否已達 ``max_daily_loss_pct`` 上限。
+        判斷當日虧損是否已達 ``max_daily_loss_pct`` 上限。
 
-        以「當日起始權益」為基準計算虧損百分比；若尚未設定起始權益，
-        則退而使用傳入的當前 equity 作基準。
+        以「當日起始權益」為基準，取下列兩者較大者（max，非相加，避免重複計）：
+          1) 已實現虧損佔比：-daily_realized_pnl / base
+          2) 權益回撤佔比：(base - equity) / base
+             ── 只要 coordinator 傳入「市值化權益（現金 + 持倉市值）」，
+                這一項就能捕捉「重倉抱大浮虧但尚未平倉」的最危險情境
+                （原本只看已實現損益會對浮虧視而不見）。
+        傳入 equity 為純現金時，第 2 項在持倉中可能偏大造成保守觸發，但
+        coordinator 已改傳市值化權益；外部直接呼叫者若只有現金請自行斟酌。
         """
         base = self._daily_start_equity or equity
         if base <= 0:
             return False
-        # 僅在淨虧損（pnl < 0）時才需要檢查
-        if self._daily_realized_pnl >= 0:
-            return False
-        loss_pct = (-self._daily_realized_pnl / base) * 100.0
+        realized_loss_pct = (
+            (-self._daily_realized_pnl / base) * 100.0
+            if self._daily_realized_pnl < 0 else 0.0
+        )
+        equity_drawdown_pct = (
+            ((base - equity) / base) * 100.0 if equity < base else 0.0
+        )
+        loss_pct = max(realized_loss_pct, equity_drawdown_pct)
         return loss_pct >= self.max_daily_loss_pct
 
     # ────────────────────────────────────────────────────────────
@@ -166,6 +222,7 @@ class BasicRiskManager(RiskManager):
         # 首次評估：建立當日起始權益基準
         if self._daily_start_equity == 0.0 and equity > 0:
             self._daily_start_equity = equity
+            self._save_daily_state()
 
         # ── 基本健全性檢查 ──
         if signal is None or signal.type == SignalType.HOLD:

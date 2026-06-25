@@ -425,9 +425,10 @@ class TradingCoordinator:
 
         # 2) 交叉比對（背離 → 暫停本根，不交易）
         cc = self.data_agent.cross_check_price(last_price)
-        # 部位以追蹤器為「權威來源」（含真實 entry_price，停損才有效）；權益仍取自帳戶
+        # 部位以追蹤器為「權威來源」（含真實 entry_price，停損才有效）；
+        # 權益市值化（現金 + 持倉市值），使回撤保護能納入浮虧
         position = self.tracker.get(self.symbol, mark_price=last_price)
-        equity = self.execution_agent.balance(self.quote_asset)
+        equity = self._equity_mtm(position, last_price)
 
         if cc.diverged:
             logger.warning(f"資料背離，暫停本根交易：{cc.reason}")
@@ -450,7 +451,7 @@ class TradingCoordinator:
             order_sent = True
             self._account_fill(executed, last_price)          # 記帳 + 回報已實現損益
             position = self.tracker.get(self.symbol, mark_price=last_price)
-            equity = self.execution_agent.balance(self.quote_asset)
+            equity = self._equity_mtm(position, last_price)
             stopped = True
 
         # 4) 產訊號
@@ -468,7 +469,7 @@ class TradingCoordinator:
                 order_sent = True
                 self._account_fill(executed, last_price)
                 position = self.tracker.get(self.symbol, mark_price=last_price)
-                equity = self.execution_agent.balance(self.quote_asset)
+                equity = self._equity_mtm(position, last_price)
             elif signal.type != SignalType.HOLD:
                 logger.info(f"風控否決訊號 {signal.type.value}：{signal.reason}")
 
@@ -525,6 +526,17 @@ class TradingCoordinator:
                     f"已實現損益回報 {realized:+.4f}（當日累計 "
                     f"{getattr(rm, 'daily_realized_pnl', 0.0):+.4f}）"
                 )
+
+    def _equity_mtm(self, position: Position, last_price: float) -> float:
+        """市值化權益 = 計價幣現金餘額 + 持倉市值（size * mark）。
+
+        原本只用 quote 現金餘額，現貨持倉中現金會偏低、且完全看不到浮虧；
+        改為市值化後，風控的當日回撤判斷才能納入未實現損益（見
+        risk_manager.daily_loss_limit_hit）。空手時等同純現金餘額。
+        """
+        cash = self.execution_agent.balance(self.quote_asset)
+        size = getattr(position, "size", 0.0) or 0.0
+        return cash + size * (last_price or 0.0)
 
     def _is_new_bar(self, candle: Candle) -> bool:
         """以最新 K 棒 timestamp 判斷是否進到新一根（避免同一根重複下單）。"""
