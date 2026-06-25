@@ -431,6 +431,40 @@ def route(text: str):
     if re.search(r"(音量|聲音).*(小|低)|小聲(一?點)?|(調|轉)小聲|turn down", t):
         return (volume("down", 4), True)
 
+    # 打開儀表板（要在通用「打開 X」之前攔下）
+    if re.search(r"(打開|開|看|叫出).{0,3}儀表板|dashboard", t):
+        open_url("http://127.0.0.1:8787")
+        return ("幫你開儀表板了。", True)
+
+    # 常用快捷鍵 / 作用中視窗
+    if re.search(r"全螢幕|全屏|fullscreen", low):
+        press_keys("f11")
+        return ("好，全螢幕。", True)
+    if re.search(r"重新整理|刷新|reload|refresh", low):
+        press_keys("f5")
+        return ("刷新了。", True)
+    if re.search(r"關(掉|閉)\s*(這個|目前|當前|現在)?\s*(視窗|頁面|分頁|程式)$|alt\s*f4", t):
+        press_keys("alt+f4")
+        return ("關掉了。", True)
+    if re.fullmatch(r"(幫我)?最小化(這個)?(視窗)?", t):
+        press_keys("win+down")
+        return ("縮小了。", True)
+    if re.fullmatch(r"(幫我)?(最大化|放到?最大)(這個)?(視窗)?", t):
+        press_keys("win+up")
+        return ("放大了。", True)
+    if re.fullmatch(r"(幫我)?全選", t):
+        press_keys("ctrl+a")
+        return ("全選了。", True)
+    if re.fullmatch(r"(幫我)?複製", t):
+        press_keys("ctrl+c")
+        return ("複製了。", True)
+    if re.fullmatch(r"(幫我)?(貼上|貼一?下)", t):
+        press_keys("ctrl+v")
+        return ("貼上了。", True)
+    if re.fullmatch(r"(幫我)?(存檔|儲存|存一?下)", t) or low in ("save", "幫我save"):
+        press_keys("ctrl+s")
+        return ("存好了。", True)
+
     # 視窗
     if re.search(r"回(到)?桌面|顯示桌面|最小化全部", t):
         return (window("minimize_all"), True)
