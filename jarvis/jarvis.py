@@ -307,16 +307,16 @@ class Ears:
         if not frames:
             return None
         audio = np.concatenate(frames)
-        # 自動增益：峰值拉到 ~0.3，補償低輸入音量（上限放大 25 倍，免放大純噪音）
-        peak = float(np.max(np.abs(audio))) if len(audio) else 0.0
+        # 增益對準「最大語音段 RMS」拉到目標(0.12)，讓低能量/遠講也夠大聲給 Whisper。
+        # 用 RMS 不用峰值——峰值常是雜訊尖點，會害真正人聲沒被放大。最後 clip 防爆音。
         gain = 1.0
-        if 1e-4 < peak < 0.3:
-            gain = min(25.0, 0.3 / peak)
+        if max_rms > 1e-4:
+            gain = max(1.0, min(40.0, 0.12 / max_rms))
             audio = np.clip(audio * gain, -1.0, 1.0)
-        print(f"[聽] 講話={spoke} 原始峰值={peak:.4f} 增益x{gain:.1f} "
-              f"最大RMS={max_rms:.4f} 長度={len(frames)*blk_sec:.1f}s", flush=True)
-        # 全程近乎純靜音（連微弱人聲都沒有）才放棄；否則交給 Whisper+VAD 判斷
-        if max_rms < 0.0025:
+        print(f"[聽] 講話={spoke} 最大RMS={max_rms:.4f} 增益x{gain:.1f} "
+              f"長度={len(frames)*blk_sec:.1f}s", flush=True)
+        # 全程近乎純靜音才放棄；否則交給 Whisper+VAD 判斷（低音量也給機會）
+        if max_rms < 0.003:
             return None
         return audio
 
