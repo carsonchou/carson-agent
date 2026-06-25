@@ -158,11 +158,12 @@ class Mouth:
 # ════════════════════════════════════════════════════════════
 # 大腦：claude -p（無頭 Claude Code，全工具）
 # ════════════════════════════════════════════════════════════
-# 需要「實際動手做事/讀即時資料」才走較慢的全能腦；其餘純聊天/問答走直連快路。
-_ACTION_INTENT = re.compile(
-    r"打開|開啟|開一下|執行|跑一?下|跑個|啟動|產片?|補產|上架|發布|發片|刪|移除|"
-    r"格式化|關機|重開|重啟|設定|改成|改一下|搜尋|上網|爬蟲?|看一下我的|查一下我的|"
-    r"交易機器人|工作室|頻道(數據|狀況)|部位|淨值|倉庫|餘額|存檔|寫檔|開程式|記事本|瀏覽器", re.I)
+# 預設一律走完整 Claude Code 全能腦（claude 能做的她都能做）；只有「純寒暄」整句才走
+# 直連 API 快路（秒回）。凡是有可能要做事/查資料的，都交給全能腦，絕不因分流而失能。
+_SMALLTALK = re.compile(
+    r"\s*((嗨+|哈囉|哈嘍|你好|您好|早安|午安|晚安|掰+|拜拜|再見|謝謝|感謝|辛苦了|"
+    r"你是誰|你叫什麼名?字?|你好嗎|還在嗎|在嗎|賈維斯|jarvis)[，。、!！?？～~\s]*)+",
+    re.I)
 
 _FAST_MODEL = os.environ.get("JARVIS_FAST_MODEL", "claude-sonnet-4-6")
 
@@ -228,16 +229,16 @@ def _ask_brain_full(text: str, history=None) -> str:
 
 
 def ask_brain(text: str, history=None) -> str:
-    """分流：要動手做事/讀即時資料→全能腦；純聊天/問答→直連快路（失敗自動退回全能腦）。"""
-    if _ACTION_INTENT.search(text or ""):
-        return _ask_brain_full(text, history)
-    try:
-        out = _ask_brain_fast(text, history)
-        if out:
-            return out
-    except Exception as e:  # noqa: BLE001
-        print(f"[warn] 快路失敗，改用全能腦：{e!r}", file=sys.stderr)
-    return _ask_brain_full(text, history)
+    """預設走完整全能腦（claude 能做的都能做）；只有整句純寒暄才走直連快路秒回。"""
+    t = (text or "").strip()
+    if t and _SMALLTALK.fullmatch(t):   # 整句就是打招呼/寒暄 → 快路秒回
+        try:
+            out = _ask_brain_fast(text, history)
+            if out:
+                return out
+        except Exception as e:  # noqa: BLE001
+            print(f"[warn] 快路失敗，改用全能腦：{e!r}", file=sys.stderr)
+    return _ask_brain_full(text, history)   # 其餘一律全能腦，確保什麼都能做
 
 
 # ════════════════════════════════════════════════════════════
