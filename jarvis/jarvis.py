@@ -471,16 +471,20 @@ def run_voice() -> int:
     ears = Ears()
     ears._model()  # 預載，避免第一句很慢
     mouth.say("賈維斯待命中，老闆。")
-    try:
-        converse_loop(ears, mouth, brain=True)
-    except KeyboardInterrupt:
-        print("\n👋 賈維斯下線。")
-    except Exception as e:  # noqa: BLE001 多半是找不到麥克風/音訊裝置
-        print(f"\n[音訊錯誤] 起不來，通常是沒偵測到麥克風或音訊裝置：{e!r}", file=sys.stderr)
-        print("請確認：① 這台電腦有接麥克風、② Windows 隱私設定允許程式存取麥克風、"
-              "③ 在你自己的終端機（非遠端/無音訊環境）執行。", file=sys.stderr)
-        return 1
-    return 0
+    # 開麥克風失敗自動重試：常見於「停舊實例→秒開新的」時裝置還沒釋放的瞬間衝突
+    for attempt in range(4):
+        try:
+            converse_loop(ears, mouth, brain=True)
+            return 0
+        except KeyboardInterrupt:
+            print("\n👋 賈維斯下線。")
+            return 0
+        except Exception as e:  # noqa: BLE001 多半是音訊裝置短暫被占用/沒釋放
+            print(f"\n[音訊錯誤] {e!r}（第 {attempt + 1}/4 次，1.5 秒後重試）", file=sys.stderr)
+            time.sleep(1.5)
+    print("音訊裝置連續開不起來。請確認：①有接麥克風 ②Windows 隱私設定允許存取麥克風 "
+          "③沒有別的程式正獨占麥克風。", file=sys.stderr)
+    return 1
 
 
 def selftest() -> int:
