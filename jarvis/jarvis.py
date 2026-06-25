@@ -383,9 +383,6 @@ def converse_loop(ears, mouth, brain: bool = True) -> None:
                                 if not proceed:
                                     mouth.say("好，那我先不動。")
                             if proceed:
-                                import random
-                                mouth.say(random.choice(
-                                    ["嗯，我看看。", "好，等我一下。", "讓我查一下。", "OK，我處理一下。"]))
                                 reply = ask_brain(text, history)
                                 history.append((text, reply))
                                 del history[:-8]   # 只留最近 8 輪
