@@ -56,7 +56,7 @@ _FULL_POWER = os.environ.get("JARVIS_FULL_POWER", "").strip().lower() in ("1", "
 PERMISSION_MODE = os.environ.get(
     "JARVIS_PERMISSION_MODE", "bypassPermissions" if _FULL_POWER else "default"
 )
-WHISPER_SIZE = os.environ.get("JARVIS_WHISPER", "small")   # tiny/base/small/medium
+WHISPER_SIZE = os.environ.get("JARVIS_WHISPER", "large-v3-turbo")  # GPU 跑得動最強的，又快又準
 WAKE_WORD = os.environ.get("JARVIS_WAKEWORD", "hey_jarvis")  # openWakeWord 內建模型
 WAKE_THRESHOLD = float(os.environ.get("JARVIS_WAKE_THRESHOLD", "0.6"))
 BRAIN_TIMEOUT = int(os.environ.get("JARVIS_BRAIN_TIMEOUT", "300"))
@@ -184,8 +184,14 @@ class Ears:
     def _model(self):
         if self._whisper is None:
             from faster_whisper import WhisperModel
-            print(f"[init] 載入 Whisper（{WHISPER_SIZE}）…")
-            self._whisper = WhisperModel(WHISPER_SIZE, device="cpu", compute_type="int8")
+            # 優先 GPU(float16)：又快又準；失敗(無 CUDA)自動退回 CPU(int8)
+            try:
+                print(f"[init] 載入 Whisper（{WHISPER_SIZE}, GPU）…", flush=True)
+                self._whisper = WhisperModel(WHISPER_SIZE, device="cuda", compute_type="float16")
+                print("[init] Whisper GPU 模式 ✓", flush=True)
+            except Exception as e:  # noqa: BLE001
+                print(f"[init] GPU 不可用（{str(e)[:80]}），改用 CPU…", flush=True)
+                self._whisper = WhisperModel(WHISPER_SIZE, device="cpu", compute_type="int8")
         return self._whisper
 
     def capture(self, stream, block: int, pre_frames=None, max_sec: float = 12.0,
