@@ -1,0 +1,15 @@
+# 語音版賈維斯所需套件（Windows / Python 3.9+）
+# 安裝：  uv pip install -r jarvis/requirements.txt   （或 pip install -r ...）
+# 首次執行會自動下載 Whisper 與喚醒詞模型（約數百 MB）。
+
+openwakeword>=0.6.0      # 「Hey Jarvis」喚醒詞（內建模型，免費、本機）
+faster-whisper>=1.0.0    # 語音轉文字（本機、免費）
+sounddevice>=0.4.6       # 麥克風錄音
+numpy                    # 音訊處理
+pyttsx3>=2.90            # 念字備援（SAPI 女聲，沒網路時用）
+comtypes                 # pyttsx3 在 Windows 的相依（SAPI5）
+edge-tts>=6.1.0          # 主嗓音：Edge 神經語音（免費，有磁性男聲；需網路+ffmpeg 放音）
+
+# ── GPU 加速聽寫（有 NVIDIA 顯卡才需要；沒裝會自動退回 CPU）──
+nvidia-cublas-cu12       # faster-whisper GPU 運算所需（cublas64_12.dll）
+nvidia-cudnn-cu12        # faster-whisper GPU 運算所需（cuDNN）
