@@ -58,9 +58,9 @@ PERMISSION_MODE = os.environ.get(
 )
 WHISPER_SIZE = os.environ.get("JARVIS_WHISPER", "large-v3-turbo")  # GPU 跑得動最強的，又快又準
 WAKE_WORD = os.environ.get("JARVIS_WAKEWORD", "hey_jarvis")  # openWakeWord 內建模型
-WAKE_THRESHOLD = float(os.environ.get("JARVIS_WAKE_THRESHOLD", "0.6"))
+WAKE_THRESHOLD = float(os.environ.get("JARVIS_WAKE_THRESHOLD", "0.45"))
 BRAIN_TIMEOUT = int(os.environ.get("JARVIS_BRAIN_TIMEOUT", "300"))
-# 大腦模型：sonnet 聰明又夠快(適合語音即時對答)；要更聰明可設 opus(較慢)、要更快設 haiku。
+# 大腦模型：sonnet 聰明又夠快(適合語音即時對答)；要更聰明設 opus(較慢)、要更快設 haiku。
 JARVIS_MODEL = os.environ.get("JARVIS_MODEL", "sonnet")
 SAMPLE_RATE = 16000
 
