@@ -186,6 +186,7 @@ class Ears:
             from faster_whisper import WhisperModel
             # 優先 GPU(float16)：又快又準；失敗(無 CUDA)自動退回 CPU(int8)
             try:
+                _register_cuda_dlls()  # 掛上 pip 裝的 cuBLAS/cuDNN，否則 GPU 轉寫缺 dll
                 print(f"[init] 載入 Whisper（{WHISPER_SIZE}, GPU）…", flush=True)
                 self._whisper = WhisperModel(WHISPER_SIZE, device="cuda", compute_type="float16")
                 print("[init] Whisper GPU 模式 ✓", flush=True)
@@ -286,6 +287,30 @@ def _is_confirm(text: str) -> bool:
     return bool(text) and bool(_CONFIRM.search(text))
 
 
+_CUDA_DLLS_DONE = False
+
+
+def _register_cuda_dlls() -> None:
+    """把 pip 裝的 nvidia cuBLAS/cuDNN bin 目錄掛進 DLL 搜尋路徑——否則 GPU 轉寫時
+    會報 cublas64_12.dll not found（模型載入不需要、實際運算才需要）。"""
+    global _CUDA_DLLS_DONE
+    if _CUDA_DLLS_DONE:
+        return
+    _CUDA_DLLS_DONE = True
+    try:
+        import glob
+        import sysconfig
+        sp = sysconfig.get_paths()["purelib"]
+        for b in glob.glob(os.path.join(sp, "nvidia", "*", "bin")):
+            try:
+                os.add_dll_directory(b)
+                os.environ["PATH"] = b + os.pathsep + os.environ.get("PATH", "")
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+
 def converse_loop(ears, mouth, brain: bool = True) -> None:
     """單一麥克風通道的待命→喚醒→收音→（大腦→回話）迴圈。
 
@@ -314,39 +339,47 @@ def converse_loop(ears, mouth, brain: bool = True) -> None:
             if model.predict(pcm).get(WAKE_WORD, 0.0) >= WAKE_THRESHOLD:
                 model.reset()
                 print("✨ 喚醒！嗶——請說…")
-                _beep()
-                # 把喚醒前緩衝(含「Hey Jarvis」及緊接的話)一起交給收音，免抓時機
-                audio = ears.capture(stream, block, pre_frames=list(pre))
-                pre.clear()
-                text = ears.transcribe(audio)
-                if not text:
-                    if brain:
-                        mouth.say("我沒聽清楚，再說一次？")
-                    else:
-                        print("🗣  （這次沒收到講話）")
-                else:
-                    print(f"🗣  你：{text}")
-                    if brain:
-                        proceed = True
-                        # 全能模式安全護欄：危險/不可逆指令動手前先口頭確認
-                        if _FULL_POWER and _looks_destructive(text):
-                            mouth.say("這個動作有風險，確定要我做嗎？確定請說『確定』。")
-                            _beep()
-                            conf = ears.transcribe(ears.capture(stream, block))
-                            print(f"🗣  確認回覆：{conf!r}")
-                            proceed = _is_confirm(conf)
-                            if not proceed:
-                                mouth.say("好，那我先不動。")
-                        if proceed:
-                            mouth.say("好的，我看一下。")
-                            mouth.say(ask_brain(text))
-                # 清掉喚醒提示音/TTS 回話期間累積的舊音訊，避免回授或誤觸下一輪
                 try:
-                    while stream.read_available > block:
-                        stream.read(block)
-                except Exception:
-                    pass
-                model.reset()
+                    _beep()
+                    # 把喚醒前緩衝(含「Hey Jarvis」及緊接的話)一起交給收音，免抓時機
+                    audio = ears.capture(stream, block, pre_frames=list(pre))
+                    pre.clear()
+                    text = ears.transcribe(audio)
+                    if not text:
+                        if brain:
+                            mouth.say("我沒聽清楚，再說一次？")
+                        else:
+                            print("🗣  （這次沒收到講話）")
+                    else:
+                        print(f"🗣  你：{text}")
+                        if brain:
+                            proceed = True
+                            # 全能模式安全護欄：危險/不可逆指令動手前先口頭確認
+                            if _FULL_POWER and _looks_destructive(text):
+                                mouth.say("這個動作有風險，確定要我做嗎？確定請說『確定』。")
+                                _beep()
+                                conf = ears.transcribe(ears.capture(stream, block))
+                                print(f"🗣  確認回覆：{conf!r}")
+                                proceed = _is_confirm(conf)
+                                if not proceed:
+                                    mouth.say("好，那我先不動。")
+                            if proceed:
+                                mouth.say("好的，我看一下。")
+                                mouth.say(ask_brain(text))
+                except Exception as e:  # noqa: BLE001 單句出錯不可讓整個待命崩潰
+                    print(f"[warn] 本輪處理失敗：{e!r}", file=sys.stderr)
+                    try:
+                        mouth.say("剛剛出了點狀況，再試一次。")
+                    except Exception:
+                        pass
+                finally:
+                    # 清掉喚醒提示音/TTS 期間累積的舊音訊，避免回授或誤觸下一輪
+                    try:
+                        while stream.read_available > block:
+                            stream.read(block)
+                    except Exception:
+                        pass
+                    model.reset()
 
 
 # ════════════════════════════════════════════════════════════
