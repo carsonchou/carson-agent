@@ -70,17 +70,16 @@
   .hudc.tl{top:14px;left:14px;border-right:0;border-bottom:0;}.hudc.tr{top:14px;right:14px;border-left:0;border-bottom:0;}
   .hudc.bl{bottom:14px;left:14px;border-right:0;border-top:0;}.hudc.br{bottom:14px;right:14px;border-left:0;border-top:0;}
   /* 展開細節 overlay */
-  /* 浮動可拖曳視窗：背景不擋(球還能轉)，抓標題列拖移 */
-  #detail{position:fixed;inset:0;z-index:50;display:none;pointer-events:none;}
-  #detail.show{display:block;}
-  .card{position:absolute;width:min(1000px,90vw);max-height:84vh;overflow:auto;pointer-events:auto;
-    opacity:0;transform:scale(.92);transition:opacity .26s,transform .26s;
-    background:linear-gradient(135deg,rgba(58,38,16,.94),rgba(20,13,6,.96));
-    border:1px solid rgba(224,168,95,.55);border-radius:4px;padding:22px 28px 26px;
-    box-shadow:0 18px 70px rgba(0,0,0,.6),0 0 50px rgba(224,168,95,.28),inset 0 0 40px rgba(224,168,95,.06);
+  /* 浮動可拖曳視窗(可同時多開)：背景不擋，抓標題列拖移 */
+  .card{position:fixed;z-index:60;width:min(880px,86vw);max-height:82vh;overflow:auto;
+    opacity:0;transform:scale(.92);transition:opacity .24s,transform .24s;
+    background:linear-gradient(135deg,rgba(58,38,16,.95),rgba(20,13,6,.97));
+    border:1px solid rgba(224,168,95,.55);border-radius:4px;padding:20px 26px 24px;
+    box-shadow:0 18px 70px rgba(0,0,0,.62),0 0 50px rgba(224,168,95,.26),inset 0 0 40px rgba(224,168,95,.06);
     clip-path:polygon(0 0,calc(100% - 24px) 0,100% 24px,100% 100%,24px 100%,0 calc(100% - 24px));}
-  #detail.show .card{opacity:1;transform:scale(1);}
+  .card.show{opacity:1;transform:scale(1);}
   .card .hd{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(224,168,95,.3);padding-bottom:12px;margin-bottom:18px;cursor:move;user-select:none;}
+  .card .hd h3{font-size:18px;}
   .card .hd h3::before{content:"⠿ ";color:var(--dim);}
   .card .hd h3{font-size:20px;color:#fff0db;letter-spacing:.2em;text-shadow:0 0 14px rgba(224,168,95,.6);}
   .card .x{cursor:pointer;color:var(--amb);border:1px solid rgba(224,168,95,.5);width:34px;height:34px;display:flex;align-items:center;justify-content:center;font-size:18px;border-radius:3px;}
@@ -122,10 +121,6 @@
 </div>
 <div class="hint">拖曳方塊排列(自動避免重疊) ・ 拖曳空白處轉動全息核心 ・ 滾輪縮放 ・ 點方塊展開細節(可拖)</div>
 
-<div id="detail" onclick="if(event.target.id==='detail')closeDetail()">
-  <div class="card"><div class="hd"><h3 id="d_title">—</h3><div class="x" onclick="closeDetail()">✕</div></div>
-  <div id="d_body"></div></div>
-</div>
 
 <script type="module">
 import * as THREE from 'three';
@@ -210,6 +205,7 @@ const fmt=n=>n==null?'—':Number(n).toLocaleString('en-US');
 const pct=n=>n==null?'—':(n*100).toFixed(1)+'%';
 const set=(id,v,cls)=>{const e=document.getElementById(id);if(!e)return;e.textContent=v;e.className='v'+(cls?' '+cls:'');};
 window._data={};
+const wins=new Map(); let ztop=60, woff=0;   // 多視窗：kind→元素、最上層 z、開窗位移
 const li=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
 async function pull(){try{
   const d=await(await fetch('/api/data',{cache:'no-store'})).json(); window._data=d;
@@ -220,36 +216,40 @@ async function pull(){try{
   li('li_f', y.net!=null?'NT$ '+fmt(Math.round(y.net)):'—');
   li('li_d', (y.decisions||0)+' 件');
   focus.innerHTML=d.focus||'一切順。';
-  if(detail.classList.contains('show'))renderDetail(window._curDetail);   // 開著就刷新
+  wins.forEach((el,k)=>renderWin(el,k));   // 刷新所有開著的視窗
 }catch(e){focus.textContent='（連不上資料來源，重試中…）';}}
 pull(); setInterval(pull,5000);
 async function pullState(){try{const j=await(await fetch('/api/state',{cache:'no-store'})).json();if(j&&j.state)window.JST=j.state;}catch(e){}}
 setInterval(pullState,350); pullState();
 
-// ── 展開細節（鋼鐵人點開全息）──
-const detail=document.getElementById('detail');
-window._curDetail=null;
+// ── 可同時多開的浮動細節視窗（鋼鐵人攤多個全息面板）──
 function row(k,v){return `<div class="row"><span>${k}</span><b>${v}</b></div>`;}
-function renderDetail(kind){
-  const d=window._data||{}, T=document.getElementById('d_title'), B=document.getElementById('d_body');
+function drawSparkEl(cv,series){const g=cv.getContext('2d');const w=cv.width=cv.clientWidth,h=cv.height=cv.clientHeight||180;g.clearRect(0,0,w,h);
+  if(!series||series.length<2){g.fillStyle='#9b774a';g.font='12px sans-serif';g.fillText('累積資料中…',12,h/2);return;}
+  const v=series.map(p=>p.views),lo=Math.min(...v),hi=Math.max(...v),rng=(hi-lo)||1,pad=10;
+  g.beginPath();v.forEach((x,i)=>{const px=pad+(w-2*pad)*i/(v.length-1),py=h-pad-(h-2*pad)*(x-lo)/rng;i?g.lineTo(px,py):g.moveTo(px,py);});
+  g.strokeStyle='#e0a85f';g.lineWidth=2;g.shadowColor='#e0a85f';g.shadowBlur=12;g.stroke();
+  g.lineTo(w-pad,h-pad);g.lineTo(pad,h-pad);g.closePath();g.shadowBlur=0;g.fillStyle='rgba(224,168,95,.10)';g.fill();}
+function renderWin(el,kind){
+  const d=window._data||{}, T=el.querySelector('h3'), B=el.querySelector('.bd');
   const tr=d.trading||{}, y=d.youtube||{};
   if(kind==='trading'){
     const fr=tr.frames||{};
-    T.textContent='交易引擎 ・ '+(tr.symbol||'')+' ・ 策略回測（各時框）';
+    T.textContent='交易引擎 ・ '+(tr.symbol||'')+' ・ 策略回測';
     let cards=Object.keys(fr).map(k=>{const f=fr[k];return `<div class="mini"><div class="t">${k}</div>
       ${row('總報酬',pct(f.total_return))}${row('Sharpe',f.sharpe!=null?f.sharpe.toFixed(2):'—')}
       ${row('勝率',pct(f.win_rate))}${row('最大回撤',pct(f.max_drawdown))}
       ${row('交易數',f.num_trades??'—')}${row('期末權益',fmt(Math.round(f.final_equity||0)))}</div>`;}).join('');
     const p=tr.params||{};
     B.innerHTML=`<div class="cards">${cards||'<div class="mini">尚無回測資料</div>'}</div>
-      <div style="margin-top:18px;color:#c9a877;font-size:13px;">策略參數：${Object.keys(p).length?Object.entries(p).map(([k,v])=>k+'='+v).join('  ・  '):'—'}　｜　模式：<b style="color:#f3cd92">DRY-RUN（模擬，未動真錢）</b></div>`;
+      <div style="margin-top:16px;color:#c9a877;font-size:13px;">策略參數：${Object.keys(p).length?Object.entries(p).map(([k,v])=>k+'='+v).join('  ・  '):'—'}　｜　模式：<b style="color:#f3cd92">DRY-RUN（模擬，未動真錢）</b></div>`;
   } else if(kind==='youtube'){
-    T.textContent='YouTube ・ 量化阿森 Carson ・ 頻道成長';
+    T.textContent='YouTube ・ 量化阿森 ・ 頻道成長';
     B.innerHTML=`<div class="cards"><div class="mini"><div class="t">成長</div>
       ${row('訂閱數',fmt(y.subs))}${row('總觀看',fmt(y.views))}${row('離 YPP',fmt(Math.max(0,1000-(y.subs||0)))+' 訂閱')}</div></div>
-      <div style="margin-top:18px;color:#e0a85f;font-size:12px;letter-spacing:.2em;">近期觀看走勢</div>
-      <canvas id="d_spark" class="big2"></canvas>`;
-    setTimeout(()=>drawSpark(y.series,'d_spark'),30);
+      <div style="margin-top:16px;color:#e0a85f;font-size:12px;letter-spacing:.2em;">近期觀看走勢</div>
+      <canvas class="big2 dspark"></canvas>`;
+    setTimeout(()=>{const cv=B.querySelector('.dspark'); if(cv)drawSparkEl(cv,y.series);},30);
   } else if(kind==='warehouse'){
     const w=y.warehouse||{};
     T.textContent='內容工廠 ・ 倉庫品質';
@@ -269,20 +269,26 @@ function renderDetail(kind){
       : `<div class="mini">目前沒有待你拍板的決策，工廠自己跑著。</div>`;
   }
 }
-const card=detail.querySelector('.card'), hd=card.querySelector('.hd');
-window.openDetail=function(kind){window._curDetail=kind;renderDetail(kind);detail.classList.add('show');
-  requestAnimationFrame(()=>{const w=card.offsetWidth,h=card.offsetHeight;   // 置中浮現，之後可拖走
-    card.style.left=Math.max(10,(innerWidth-w)/2)+'px';
-    card.style.top=Math.max(10,Math.min(innerHeight*0.12,(innerHeight-h)/2))+'px';});};
-window.closeDetail=function(){detail.classList.remove('show');window._curDetail=null;};
-addEventListener('keydown',e=>{if(e.key==='Escape')closeDetail();});
-// 拖曳：抓標題列把視窗拖到任意位置（像鋼鐵人移動全息視窗）
-let dg=false,ox=0,oy=0;
-hd.addEventListener('mousedown',e=>{if(e.target.classList.contains('x'))return;
-  dg=true;const r=card.getBoundingClientRect();ox=e.clientX-r.left;oy=e.clientY-r.top;
-  card.style.transition='none';e.preventDefault();});
-addEventListener('mousemove',e=>{if(!dg)return;card.style.left=(e.clientX-ox)+'px';card.style.top=(e.clientY-oy)+'px';});
-addEventListener('mouseup',()=>{if(dg){dg=false;card.style.transition='opacity .26s,transform .26s';}});
+window.openDetail=function(kind){
+  let el=wins.get(kind);
+  if(el){el.style.zIndex=++ztop; return;}            // 已開→帶到最前，不重複
+  el=document.createElement('div'); el.className='card'; el.dataset.kind=kind;
+  el.innerHTML='<div class="hd"><h3>—</h3><div class="x">✕</div></div><div class="bd"></div>';
+  document.body.appendChild(el); wins.set(kind,el);
+  const w=Math.min(880,innerWidth*0.86);
+  el.style.left=Math.min(innerWidth-w-20,150+woff)+'px'; el.style.top=(64+woff)+'px';
+  el.style.zIndex=++ztop; woff=(woff+38)%200;
+  el.querySelector('.x').addEventListener('click',()=>{el.remove(); wins.delete(kind);});
+  el.addEventListener('mousedown',()=>{el.style.zIndex=++ztop;});   // 點到帶到最前
+  const hd=el.querySelector('.hd'); let dg=false,ox,oy;
+  hd.addEventListener('mousedown',e=>{if(e.target.classList.contains('x'))return;
+    dg=true;const r=el.getBoundingClientRect();ox=e.clientX-r.left;oy=e.clientY-r.top;el.style.transition='none';e.preventDefault();});
+  addEventListener('mousemove',e=>{if(!dg)return;el.style.left=(e.clientX-ox)+'px';el.style.top=(e.clientY-oy)+'px';});
+  addEventListener('mouseup',()=>{if(dg){dg=false;el.style.transition='opacity .24s,transform .24s';}});
+  renderWin(el,kind); requestAnimationFrame(()=>el.classList.add('show'));
+};
+addEventListener('keydown',e=>{if(e.key==='Escape'){const a=[...wins.values()]; const last=a[a.length-1];
+  if(last){wins.delete(last.dataset.kind); last.remove();}}});
 
 // ── 專案方塊：自由拖曳排列 + 自動避免重疊 + 沒拖動=點擊展開 ──
 const blocks=[...document.querySelectorAll('#board .item')];
