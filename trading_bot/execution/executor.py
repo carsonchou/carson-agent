@@ -12,6 +12,7 @@
 """
 from __future__ import annotations
 
+import math
 import uuid
 from typing import Any, Optional
 
@@ -22,7 +23,31 @@ from core.interfaces import (
     Position,
     Side,
 )
-from execution.pionex_client import PionexAPIError, PionexClient
+from execution.pionex_client import (
+    PionexAPIError,
+    PionexClient,
+    PionexClientError,
+    PionexNetworkError,
+    PionexRateLimitError,
+    PionexServerError,
+)
+
+
+def floor_to_step(value: float, step: Optional[float]) -> float:
+    """把數量無條件捨去到交易所最小變動單位(stepSize)。step 為 None/<=0 則原樣回傳。
+
+    下單量取整方向採「向下」，確保不會超過原本想下的量（保守、不超買/超賣）。
+    """
+    if step is None or step <= 0:
+        return value
+    return math.floor(value / step) * step
+
+
+def round_to_tick(value: Optional[float], tick: Optional[float]) -> Optional[float]:
+    """把價格四捨五入到交易所最小報價單位(tickSize)。tick 為 None/<=0 或 value None 則原樣回傳。"""
+    if value is None or tick is None or tick <= 0:
+        return value
+    return round(value / tick) * tick
 
 
 # ════════════════════════════════════════════════════════════
@@ -46,6 +71,8 @@ class LiveExecutor(Executor):
         symbol: str,
         dry_run: bool = False,
         max_slippage_pct: float = 0.5,
+        size_step: Optional[float] = None,
+        price_tick: Optional[float] = None,
     ) -> None:
         self.client = client
         self.symbol = symbol
@@ -53,6 +80,10 @@ class LiveExecutor(Executor):
         # 市價單滑價保護上限（%）：>0 時把市價單轉成「參考價±此幅度」的保護限價，
         # 避免薄盤/瞬間波動以極差價成交。0 則維持純市價單。
         self.max_slippage_pct = float(max_slippage_pct)
+        # 交易對精度（stepSize/tickSize）：有設定才取整，避免精度不符被交易所拒單。
+        # 預設 None＝不取整（維持原行為）；實盤應由交易對規格填入真實值。
+        self.size_step = size_step
+        self.price_tick = price_tick
 
     def submit(self, order: Order) -> Order:
         """送出訂單到 Pionex 並回傳含狀態的 Order。"""
@@ -77,17 +108,31 @@ class LiveExecutor(Executor):
                 send_price = ref_price * (1.0 + slip) if side == "BUY" else ref_price * (1.0 - slip)
                 order_type = "LIMIT"
 
+        # ── 精度取整：數量向下、價格到 tick，避免精度不符被交易所拒單 ──
+        send_size = floor_to_step(order.quantity, self.size_step)
+        send_price = round_to_tick(send_price, self.price_tick)
+
         try:
             resp = self.client.place_order(
                 symbol=order.symbol,
                 side=side,
                 order_type=order_type,
-                size=order.quantity,
+                size=send_size,
                 price=send_price,
                 client_order_id=client_order_id,
             )
+        except (PionexNetworkError, PionexRateLimitError, PionexServerError) as exc:
+            # 不確定是否成交（網路/限流/5xx）：絕不可當成『確定拒單』，否則上層會
+            # 誤以為空手而補單。標 NEW + needs_reconcile，交由 coordinator 對帳處理。
+            order.status = OrderStatus.NEW
+            order.client_order_id = client_order_id
+            order.raw = {
+                "error": str(exc), "uncertain": True, "needs_reconcile": True,
+                "payload": getattr(exc, "payload", None),
+            }
+            return order
         except PionexAPIError as exc:
-            # 下單被交易所拒絕：回傳 REJECTED 狀態，保留原始錯誤
+            # 確定被拒（PionexClientError：4xx/result=false）：回傳 REJECTED
             order.status = OrderStatus.REJECTED
             order.client_order_id = client_order_id
             order.raw = {"error": str(exc), "payload": getattr(exc, "payload", None)}

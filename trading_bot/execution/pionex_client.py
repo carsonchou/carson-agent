@@ -47,6 +47,25 @@ class PionexAPIError(RuntimeError):
         self.payload = payload
 
 
+# ── 細分錯誤型別（皆繼承 PionexAPIError，舊有 except PionexAPIError 仍相容）──
+# 區分的關鍵：呼叫端要能判斷「確定沒成交（可安全重送）」vs「不確定（可能已成交，
+# 必須查單對帳，不可當拒單）」vs「暫時性（可退避重試）」。
+class PionexNetworkError(PionexAPIError):
+    """網路層失敗 / timeout：請求是否送達『不確定』。對下單而言不可當成拒單，須對帳。"""
+
+
+class PionexRateLimitError(PionexAPIError):
+    """HTTP 429 限流：暫時性，idempotent 請求可退避重試。"""
+
+
+class PionexServerError(PionexAPIError):
+    """HTTP 5xx 伺服器錯誤：暫時性，idempotent 請求可退避重試。"""
+
+
+class PionexClientError(PionexAPIError):
+    """HTTP 4xx(非429) 或 result=false：『確定』被拒，重試無益。"""
+
+
 class PionexClient:
     """
     封裝 Pionex 私有 REST API。
@@ -67,6 +86,9 @@ class PionexClient:
         base_url: str = "https://api.pionex.com",
         timeout: float = 10.0,
         session: Optional["requests.Session"] = None,
+        max_retries: int = 3,
+        backoff_base: float = 0.5,
+        sleep_fn=None,
     ) -> None:
         if not api_key or not api_secret:
             raise ValueError("PionexClient 需要有效的 api_key 與 api_secret")
@@ -75,6 +97,14 @@ class PionexClient:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self._session = session or requests.Session()
+        # 暫時性錯誤（429/5xx/網路）的退避重試：僅對 idempotent 方法(GET/DELETE)生效，
+        # POST 下單一律不自動重試（避免重複下單），交由上層查單對帳。
+        self.max_retries = max(0, int(max_retries))
+        self.backoff_base = float(backoff_base)
+        self._sleep = sleep_fn or time.sleep
+
+    # idempotent 方法才可安全自動重試
+    _IDEMPOTENT = frozenset({"GET", "DELETE"})
 
     # ────────────────────────────────────────────────────────────
     # 簽名與低階請求
@@ -111,6 +141,25 @@ class PionexClient:
 
         會自動加入 timestamp、計算簽名、帶上認證標頭。
         """
+        method_up = method.upper()
+        idempotent = method_up in self._IDEMPOTENT
+        attempt = 0
+        while True:
+            try:
+                return self._request_once(method_up, path, params, body)
+            except (PionexNetworkError, PionexRateLimitError, PionexServerError) as exc:
+                # 暫時性錯誤：僅 idempotent 方法可重試；POST(下單)一律往上拋，交給對帳
+                if not idempotent or attempt >= self.max_retries:
+                    raise
+                wait = self.backoff_base * (2 ** attempt)
+                attempt += 1
+                self._sleep(wait)
+                # 迴圈重試（會以新 timestamp 重新簽名）
+
+    def _request_once(
+        self, method_up: str, path: str, params: Optional[dict], body: Optional[dict]
+    ) -> dict:
+        """單次已簽名請求；依失敗型態拋出對應的細分錯誤。"""
         params = dict(params or {})
         params["timestamp"] = self._timestamp_ms()
 
@@ -120,7 +169,7 @@ class PionexClient:
             # 用 separators 去除空白，確保送出的字串與簽名原文一致
             body_str = json.dumps(body, separators=(",", ":"), ensure_ascii=False)
 
-        signature = self._sign(method, path, params, body_str)
+        signature = self._sign(method_up, path, params, body_str)
 
         headers = {
             "PIONEX-KEY": self.api_key,
@@ -131,7 +180,7 @@ class PionexClient:
         url = f"{self.base_url}{path}"
         try:
             resp = self._session.request(
-                method=method.upper(),
+                method=method_up,
                 url=url,
                 params=params,
                 data=body_str.encode("utf-8") if body_str else None,
@@ -139,26 +188,47 @@ class PionexClient:
                 timeout=self.timeout,
             )
         except requests.RequestException as exc:
-            raise PionexAPIError(f"Pionex 請求失敗（網路層）：{exc}") from exc
+            # 網路層失敗/timeout：請求是否送達不確定（對下單尤其關鍵）
+            raise PionexNetworkError(f"Pionex 請求失敗（網路層）：{exc}") from exc
 
         # 解析 JSON
         try:
             data = resp.json()
         except ValueError as exc:
-            raise PionexAPIError(
-                f"Pionex 回應非 JSON（HTTP {resp.status_code}）：{resp.text[:200]}"
+            # 非 JSON 多半伴隨 HTTP 錯誤；依 status 分類
+            if resp.status_code == 429:
+                raise PionexRateLimitError(
+                    f"Pionex 限流(429)，回應非 JSON：{resp.text[:200]}",
+                    code="429",
+                ) from exc
+            if resp.status_code >= 500:
+                raise PionexServerError(
+                    f"Pionex 伺服器錯誤({resp.status_code})，回應非 JSON：{resp.text[:200]}",
+                    code=str(resp.status_code),
+                ) from exc
+            raise PionexClientError(
+                f"Pionex 回應非 JSON（HTTP {resp.status_code}）：{resp.text[:200]}",
+                code=str(resp.status_code),
             ) from exc
 
         if resp.status_code >= 400:
-            raise PionexAPIError(
+            if resp.status_code == 429:
+                raise PionexRateLimitError(
+                    "Pionex 限流(429)", code="429", payload=data
+                )
+            if resp.status_code >= 500:
+                raise PionexServerError(
+                    f"Pionex 伺服器錯誤 {resp.status_code}",
+                    code=str(resp.status_code), payload=data,
+                )
+            raise PionexClientError(
                 f"Pionex HTTP 錯誤 {resp.status_code}",
-                code=str(resp.status_code),
-                payload=data,
+                code=str(resp.status_code), payload=data,
             )
 
-        # Pionex 統一以 result 旗標標示成功與否
+        # Pionex 統一以 result 旗標標示成功與否（確定失敗，非暫時性）
         if isinstance(data, dict) and data.get("result") is False:
-            raise PionexAPIError(
+            raise PionexClientError(
                 f"Pionex API 回傳失敗：{data.get('message', data)}",
                 code=str(data.get("code")),
                 payload=data,
