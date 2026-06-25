@@ -201,7 +201,8 @@ def wake_loop(on_wake) -> None:
     except Exception:
         pass
 
-    model = Model(wakeword_models=[WAKE_WORD])
+    # 指定 onnx 框架（我們裝的是 onnxruntime，非 tflite-runtime；不指定會找不到 tflite 而報錯）
+    model = Model(wakeword_models=[WAKE_WORD], inference_framework="onnx")
     block = 1280  # openWakeWord 要 80ms@16k = 1280 samples
     print(f"👂 待命中——對著麥克風說「Hey Jarvis」叫醒我。(Ctrl-C 結束)")
     with sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype="int16",
