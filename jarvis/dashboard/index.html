@@ -46,17 +46,17 @@
   .coretag.t{top:27%;}.coretag.b{bottom:21%;}
   .coretag .big{font-size:17px;letter-spacing:.32em;color:#fff0db;text-shadow:0 0 16px rgba(224,168,95,.75);}
   .coretag .sm{font-size:10px;letter-spacing:.4em;color:var(--dim);margin-top:4px;}
-  .list{display:flex;flex-direction:column;gap:11px;width:460px;max-width:44vw;pointer-events:auto;align-self:center;}
-  .lhead{font-size:11px;color:var(--amb);letter-spacing:.26em;margin-bottom:4px;opacity:.85;}
-  .item{display:flex;align-items:center;gap:14px;cursor:pointer;padding:14px 18px;
-    background:linear-gradient(135deg,rgba(70,45,20,.34),rgba(26,16,7,.24));
+  #board{position:fixed;inset:0;z-index:4;pointer-events:none;}
+  #board .lhead{position:fixed;left:40px;top:92px;font-size:11px;color:var(--amb);letter-spacing:.26em;opacity:.8;pointer-events:none;}
+  .item{position:fixed;width:404px;display:flex;align-items:center;gap:14px;cursor:grab;padding:14px 18px;pointer-events:auto;
+    background:linear-gradient(135deg,rgba(70,45,20,.40),rgba(26,16,7,.30));
     -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
-    border:1px solid rgba(224,168,95,.20);border-left:3px solid rgba(224,168,95,.6);
-    transition:transform .16s,background .16s,box-shadow .16s,border-color .16s;
+    border:1px solid rgba(224,168,95,.22);border-left:3px solid rgba(224,168,95,.6);
+    transition:background .16s,box-shadow .16s,border-color .16s;
     clip-path:polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,0 100%);}
   .item:hover{border-color:var(--amb);border-left-color:var(--amb2);
-    background:linear-gradient(135deg,rgba(224,168,95,.20),rgba(26,16,7,.32));
-    transform:translateX(9px);box-shadow:0 0 26px rgba(224,168,95,.32);}
+    background:linear-gradient(135deg,rgba(224,168,95,.22),rgba(26,16,7,.36));box-shadow:0 0 26px rgba(224,168,95,.34);}
+  .item.dragging{cursor:grabbing;box-shadow:0 0 38px rgba(224,168,95,.5);z-index:20;}
   .item .ic{font-size:17px;color:var(--amb);width:24px;text-align:center;text-shadow:0 0 10px var(--amb);}
   .item .nm{flex:1;font-size:16px;color:#fff0db;letter-spacing:.06em;}
   .item .nm .sub2{display:block;font-size:11px;color:var(--dim);letter-spacing:.1em;margin-top:2px;}
@@ -108,20 +108,19 @@
     <div class="brand"><h1>J.A.R.V.I.S</h1><div class="sub">量化阿森 ・ AUTONOMOUS OPS</div></div>
     <div><div id="clock">--:--:--</div><div id="date">—</div><div class="on"><span class="dot"></span>SYSTEMS ONLINE</div></div>
   </div>
-  <div class="mid">
-    <div class="list">
-      <div class="lhead">專案總覽 ・ 點選展開細節</div>
-      <div class="item" onclick="openDetail('trading')"><div class="ic">◧</div><div class="nm">交易引擎<span class="sub2">BTC_USDT ・ 策略回測</span></div><div class="val" id="li_t">—</div><div class="arr">▸</div></div>
-      <div class="item" onclick="openDetail('youtube')"><div class="ic">▶</div><div class="nm">YouTube 頻道<span class="sub2">量化阿森 Carson ・ 成長</span></div><div class="val" id="li_y">—</div><div class="arr">▸</div></div>
-      <div class="item" onclick="openDetail('warehouse')"><div class="ic">▤</div><div class="nm">內容工廠 ・ 倉庫<span class="sub2">品質 ・ 待發/已上架</span></div><div class="val" id="li_q">—</div><div class="arr">▸</div></div>
-      <div class="item" onclick="openDetail('finance')"><div class="ic">＄</div><div class="nm">變現 ・ 財務<span class="sub2">營收 ・ 成本 ・ 淨利</span></div><div class="val" id="li_f">—</div><div class="arr">▸</div></div>
-      <div class="item" onclick="openDetail('decisions')"><div class="ic">!</div><div class="nm">待你拍板<span class="sub2">決策佇列</span></div><div class="val" id="li_d">—</div><div class="arr">▸</div></div>
-    </div>
-  </div>
+  <div class="mid"></div>
   <div class="footbar"><span class="fl">今日焦點</span><span id="focus">系統初始化中…</span></div>
   <canvas id="spark" style="display:none;"></canvas>
 </div>
-<div class="hint">拖曳旋轉全息核心 ・ 滾輪縮放 ・ 點任一面板展開細節</div>
+<div id="board">
+  <div class="lhead">專案 ・ 拖曳排列 ・ 點開細節</div>
+  <div class="item" data-kind="trading"><div class="ic">◧</div><div class="nm">交易引擎<span class="sub2">BTC_USDT ・ 策略回測</span></div><div class="val" id="li_t">—</div><div class="arr">▸</div></div>
+  <div class="item" data-kind="youtube"><div class="ic">▶</div><div class="nm">YouTube 頻道<span class="sub2">量化阿森 Carson</span></div><div class="val" id="li_y">—</div><div class="arr">▸</div></div>
+  <div class="item" data-kind="warehouse"><div class="ic">▤</div><div class="nm">內容工廠 ・ 倉庫<span class="sub2">品質 ・ 待發</span></div><div class="val" id="li_q">—</div><div class="arr">▸</div></div>
+  <div class="item" data-kind="finance"><div class="ic">＄</div><div class="nm">變現 ・ 財務<span class="sub2">營收 ・ 淨利</span></div><div class="val" id="li_f">—</div><div class="arr">▸</div></div>
+  <div class="item" data-kind="decisions"><div class="ic">!</div><div class="nm">待你拍板<span class="sub2">決策佇列</span></div><div class="val" id="li_d">—</div><div class="arr">▸</div></div>
+</div>
+<div class="hint">拖曳方塊排列(自動避免重疊) ・ 拖曳空白處轉動全息核心 ・ 滾輪縮放 ・ 點方塊展開細節(可拖)</div>
 
 <div id="detail" onclick="if(event.target.id==='detail')closeDetail()">
   <div class="card"><div class="hd"><h3 id="d_title">—</h3><div class="x" onclick="closeDetail()">✕</div></div>
@@ -284,6 +283,27 @@ hd.addEventListener('mousedown',e=>{if(e.target.classList.contains('x'))return;
   card.style.transition='none';e.preventDefault();});
 addEventListener('mousemove',e=>{if(!dg)return;card.style.left=(e.clientX-ox)+'px';card.style.top=(e.clientY-oy)+'px';});
 addEventListener('mouseup',()=>{if(dg){dg=false;card.style.transition='opacity .26s,transform .26s';}});
+
+// ── 專案方塊：自由拖曳排列 + 自動避免重疊 + 沒拖動=點擊展開 ──
+const blocks=[...document.querySelectorAll('#board .item')];
+blocks.forEach((b,i)=>{b.style.left='40px';b.style.top=(122+i*74)+'px';});  // 初始左側直排
+function ov(a,b){return !(a.right<=b.left||a.left>=b.right||a.bottom<=b.top||a.top>=b.bottom);}
+function resolve(el){
+  for(let p=0;p<5;p++){const a=el.getBoundingClientRect();
+    for(const o of blocks){if(o===el)continue;const b=o.getBoundingClientRect();
+      if(ov(a,b)){const dx=Math.min(a.right,b.right)-Math.max(a.left,b.left),dy=Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top);
+        let l=parseFloat(o.style.left)||b.left,t=parseFloat(o.style.top)||b.top;
+        if(dx<dy)l+=(b.left<a.left?-(dx+2):(dx+2)); else t+=(b.top<a.top?-(dy+2):(dy+2));
+        o.style.left=Math.max(6,Math.min(innerWidth-b.width-6,l))+'px';
+        o.style.top=Math.max(80,Math.min(innerHeight-b.height-12,t))+'px';}}}
+}
+let bd=null,bmoved=false,bsx,bsy,box,boy;
+blocks.forEach(b=>b.addEventListener('mousedown',e=>{bd=b;bmoved=false;bsx=e.clientX;bsy=e.clientY;
+  const r=b.getBoundingClientRect();box=e.clientX-r.left;boy=e.clientY-r.top;b.classList.add('dragging');e.preventDefault();}));
+addEventListener('mousemove',e=>{if(!bd)return;if(Math.hypot(e.clientX-bsx,e.clientY-bsy)>4)bmoved=true;
+  bd.style.left=Math.max(6,Math.min(innerWidth-bd.offsetWidth-6,e.clientX-box))+'px';
+  bd.style.top=Math.max(80,Math.min(innerHeight-bd.offsetHeight-12,e.clientY-boy))+'px';resolve(bd);});
+addEventListener('mouseup',()=>{if(!bd)return;const el=bd;bd=null;el.classList.remove('dragging');if(!bmoved)openDetail(el.dataset.kind);});
 </script>
 </body>
 </html>
