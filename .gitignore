@@ -110,3 +110,7 @@ youtube_channel/STUDIO/
 # 賈維斯對話記憶(隱私，不進版控)
 jarvis/.jarvis_history.json
 jarvis/persona.txt
+
+# LiveKit 版金鑰與 clone 出來的官方 starter
+jarvis/livekit/.env
+jarvis/livekit/agent-starter-python/
