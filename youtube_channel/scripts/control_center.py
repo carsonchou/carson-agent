@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shlex
 import subprocess
 import threading
 import time
@@ -67,25 +68,79 @@ def load_cloud_cfg():
             pass
     return None
 
-FONT = ("Microsoft JhengHei", 11)
-FONT_B = ("Microsoft JhengHei", 13, "bold")
-FONT_BIG = ("Microsoft JhengHei", 26, "bold")
-# ── 配色系統（深色金融儀表板）──
-NAVY = "#0b1224"      # 主背景（更深、更沉穩）
-PANEL = "#111a31"     # 中層面板（介於背景與卡片）
-CARD = "#182543"      # 卡片表面（抬升感）
-BORDER = "#28395f"    # 細邊框／分隔線
-ACCENT = "#ffd23f"    # 品牌主色（金黃）
-ACCENT2 = "#5b8cff"   # 次要強調（藍）
-GREEN = "#46d98a"
-RED = "#ff6b6b"
-TEXTCOL = "#eef2ff"
-SUB = "#8da3c4"       # 次要文字（柔藍灰）
+# ════════════════════════════════════════════════════════════════════
+#  設計 Token 系統 ─ 高端金融終端 / 鋼鐵人 HUD
+#  一處定義、全儀表板共用。改這裡＝改全域風格。
+#  分四組：① 背景層次 ② 線條/文字 ③ 主色/語意色 ④ 字型階層 ⑤ 間距尺度
+# ════════════════════════════════════════════════════════════════════
+
+# ── ① 背景層次（由深到淺，疊出抬升/景深感）──
+BG0  = "#080d1a"   # 最底：應用程式背景（近黑深藍）
+BG1  = "#0e1626"   # 中層：面板 / 分組底
+BG2  = "#152139"   # 卡片表面（抬升一階）
+BG3  = "#1c2c4a"   # 更高：hover / 強調列 / 選中
+WELL = "#0a1020"   # 內凹深井：多行文字框 / 輸入框
+TERM = "#070b13"   # 終端機底：日誌 / 心跳（最深，配等寬綠字）
+
+# ── ② 線條 / 文字 ──
+LINE    = "#243650"   # 細邊框 / 分隔線（hairline）
+LINE_HI = "#3a4f78"   # 較亮的邊框 / 角落光點
+INK     = "#eaf0fb"   # 主文字（柔白）
+MUTED   = "#8497b8"   # 次要文字（柔藍灰）
+FAINT   = "#5c6e90"   # 最弱：提示 / 佔位字
+
+# ── ③ 主色 / 語意色 ──
+GOLD    = "#ffcf4a"   # 品牌主色（金黃）＝主要 CTA / 進度 / 選中分頁
+GOLD_HI = "#ffdf7a"   # 金黃 hover 提亮
+AZURE   = "#4fb0ff"   # HUD 次要強調（青藍）＝數據 / 走勢 / 技術點綴
+OK    = "#3ddc97"   # 語意：運轉 / 達標（綠）
+WARN  = "#ffae54"   # 語意：注意 / 警示（琥珀）
+BAD   = "#ff6b72"   # 語意：異常 / 退件（紅）
+
+# 語意動作按鈕配色對（深底 + 亮字，hover 提亮）──
+ACT_BG  = "#11402d"; ACT_FG  = "#5ceeae"                       # ⚡激活 / ➕招募（綠系）
+SQ_BG   = "#48141b"; SQ_FG   = "#ff9296"                       # 🔥壓榨（紅系）
+MAX_BG  = "#5e1620"; MAX_FG  = "#ffb3b3"; MAX_HI = "#ff5a5a"   # 🔥🔥最大化（深紅系）
+TEAL_BG = "#123b4d"; TEAL_FG = "#9fe0f2"; TEAL_HI = "#1c5870"  # 🎬每日產量（青系）
+PUR_BG  = "#2c2350"; PUR_FG  = "#c9b3ff"; PUR_HI = "#473877"   # 🧑‍🤝‍🧑員額分配（紫系）
+DEL_BG  = "#3a1f2a"; DEL_FG  = "#ffb3c0"                       # ➖減員
+TERM_FG = "#9ef0b8"; ASSIST_BG = "#14213c"                     # 終端綠字 / 特助面板底
+
+# ── 既有命名相容別名（全檔仍以這些名字引用）──
+NAVY = BG0
+PANEL = BG1
+CARD = BG2
+BORDER = LINE
+ACCENT = GOLD
+ACCENT2 = AZURE
+GREEN = OK
+RED = BAD
+TEXTCOL = INK
+SUB = MUTED
+
+# ── ④ 字型階層 ──
+_UI = "Microsoft JhengHei"   # 介面中文字
+_MONO = "Consolas"           # 等寬：數字 / 代碼 / 終端（Win 內建）
+FONT        = (_UI, 11)
+FONT_B      = (_UI, 13, "bold")
+FONT_BIG    = (_UI, 26, "bold")
+FONT_TITLE  = (_UI, 20, "bold")        # 視窗主標題
+FONT_SEC    = (_UI, 13, "bold")        # 區段標題
+FONT_LBL    = (_UI, 10)                # 卡片 / 表頭標籤
+FONT_SMALL  = (_UI, 9)                 # 輔助說明
+FONT_TINY   = (_UI, 8)                 # 最小註腳
+FONT_NUM    = (_MONO, 27, "bold")      # KPI 大數字（等寬）
+FONT_NUM_MD = (_MONO, 22, "bold")      # 次級數字
+FONT_MONO   = (_MONO, 9)               # 日誌 / 終端
+FONT_MONO_SM = (_MONO, 8, "bold")      # 代碼小標
+
+# ── ⑤ 間距尺度（4 的倍數）──
+PAD_XS, PAD_S, PAD_M, PAD_L, PAD_XL = 4, 8, 12, 16, 24
 
 SUB_GOAL = 1000
 VIEW_GOAL = 10_000_000  # Shorts 路徑
 
-# 11 大部門（對齊 STUDIO/00_工作室章程.md）。head = AI 員額（AI 代理數，非真人）。
+# 18 大部門（對齊 STUDIO/00_工作室章程.md）。head = AI 員額（AI 代理數，非真人）。
 # kind 用來決定「狀態」怎麼判：有真排程/腳本的標運轉，未獨立自動化的如實標規劃中（誠實鐵則）。
 DEPTS = [
     {"tag": "①", "name": "影片部門（長片）",   "head": 3, "kind": "long",     "owner": "produce_batch.py ・06:07",
@@ -218,50 +273,56 @@ class App(tk.Tk):
         self._cloud_last = None
 
         head = tk.Frame(self, bg=NAVY)
-        head.pack(fill="x", padx=20, pady=(16, 2))
+        head.pack(fill="x", padx=PAD_XL, pady=(PAD_L, PAD_XS))
         titlebox = tk.Frame(head, bg=NAVY); titlebox.pack(side="left")
-        tk.Frame(titlebox, bg=ACCENT, width=5, height=34).pack(side="left", padx=(0, 12))
+        tk.Frame(titlebox, bg=ACCENT, width=5, height=36).pack(side="left", padx=(0, PAD_M))
         namecol = tk.Frame(titlebox, bg=NAVY); namecol.pack(side="left")
-        tk.Label(namecol, text="量化阿森 決策中心", font=("Microsoft JhengHei", 20, "bold"),
+        tk.Label(namecol, text="量化阿森 決策中心", font=FONT_TITLE,
                  bg=NAVY, fg=TEXTCOL).pack(anchor="w")
-        tk.Label(namecol, text="CARSON QUANT ・ AUTONOMOUS STUDIO", font=("Consolas", 8, "bold"),
-                 bg=NAVY, fg=SUB).pack(anchor="w")
+        tk.Label(namecol, text="C A R S O N   Q U A N T  ・  A U T O N O M O U S   S T U D I O",
+                 font=FONT_MONO_SM, bg=NAVY, fg=AZURE).pack(anchor="w", pady=(2, 0))
         right = tk.Frame(head, bg=NAVY); right.pack(side="right")
         self.status_lbl = tk.Label(right, text="", font=FONT, bg=NAVY, fg=TEXTCOL)
         self.status_lbl.pack(anchor="e")
-        self.updated_lbl = tk.Label(right, text="🕒 最後更新 --:--:--", font=("Microsoft JhengHei", 9),
-                                    bg=NAVY, fg=SUB)
-        self.updated_lbl.pack(anchor="e")
-        # 標題下細分隔線
-        tk.Frame(self, bg=BORDER, height=1).pack(fill="x", padx=20, pady=(8, 0))
+        self.updated_lbl = tk.Label(right, text="🕒 最後更新 --:--:--", font=FONT_SMALL,
+                                    bg=NAVY, fg=FAINT)
+        self.updated_lbl.pack(anchor="e", pady=(2, 0))
+        # 標題下細分隔線（雙線：主線 + 微亮，做出 HUD 質感）
+        tk.Frame(self, bg=BORDER, height=1).pack(fill="x", padx=PAD_XL, pady=(PAD_S, 0))
+        tk.Frame(self, bg=BG1, height=1).pack(fill="x", padx=PAD_XL)
 
         style = ttk.Style()
         try:
             style.theme_use("clam")
         except Exception:
             pass
-        style.configure("TNotebook", background=NAVY, borderwidth=0, tabmargins=(6, 6, 6, 0))
-        style.configure("TNotebook.Tab", font=FONT, padding=(18, 9),
-                        background=PANEL, foreground=SUB, borderwidth=0)
+        # ── 分頁列：扁平膠囊、選中金字、未選柔灰 ──
+        style.configure("TNotebook", background=NAVY, borderwidth=0, tabmargins=(PAD_S, PAD_S, PAD_S, 0))
+        style.configure("TNotebook.Tab", font=FONT_LBL, padding=(PAD_L, 9),
+                        background=BG1, foreground=MUTED, borderwidth=0)
         style.map("TNotebook.Tab",
-                  background=[("selected", CARD), ("active", "#1d2c4d")],
-                  foreground=[("selected", ACCENT), ("active", TEXTCOL)],
-                  padding=[("selected", (18, 10))])
-        style.configure("Y.Horizontal.TProgressbar", troughcolor=PANEL, background=ACCENT,
-                        borderwidth=0, thickness=14)
-        style.configure("G.Horizontal.TProgressbar", troughcolor=PANEL, background=GREEN,
-                        borderwidth=0, thickness=14)
-        # 捲軸：扁平、融入深色背景
+                  background=[("selected", CARD), ("active", BG3)],
+                  foreground=[("selected", ACCENT), ("active", INK)],
+                  padding=[("selected", (PAD_L, 11))],
+                  font=[("selected", (_UI, 10, "bold"))])
+        # ── 進度條：較粗、無邊框、金/綠語意 ──
+        style.configure("Y.Horizontal.TProgressbar", troughcolor=WELL, background=ACCENT,
+                        borderwidth=0, thickness=16)
+        style.configure("G.Horizontal.TProgressbar", troughcolor=WELL, background=GREEN,
+                        borderwidth=0, thickness=16)
+        # ── 捲軸：扁平、融入深色背景 ──
         style.configure("Vertical.TScrollbar", background=BORDER, troughcolor=NAVY,
-                        bordercolor=NAVY, arrowcolor=SUB, borderwidth=0)
+                        bordercolor=NAVY, arrowcolor=MUTED, borderwidth=0, width=11)
         style.map("Vertical.TScrollbar", background=[("active", ACCENT2)])
-        # Treeview（倉庫評分清單）：融入深色主題，不要預設白底醜表格
-        style.configure("Lib.Treeview", background=CARD, fieldbackground=CARD, foreground=TEXTCOL,
-                        borderwidth=0, rowheight=30, font=("Microsoft JhengHei", 10))
-        style.configure("Lib.Treeview.Heading", background=PANEL, foreground=SUB, borderwidth=0,
-                        relief="flat", font=("Microsoft JhengHei", 10, "bold"), padding=(8, 6))
-        style.map("Lib.Treeview.Heading", background=[("active", "#1d2c4d")])
-        style.map("Lib.Treeview", background=[("selected", ACCENT2)], foreground=[("selected", "#0b1224")])
+        # ── 分隔線：細、融入背景 ──
+        style.configure("TSeparator", background=BORDER)
+        # ── Treeview（倉庫評分清單）：深色主題，去掉預設白底醜表格 ──
+        style.configure("Lib.Treeview", background=CARD, fieldbackground=CARD, foreground=INK,
+                        borderwidth=0, rowheight=32, font=FONT_LBL)
+        style.configure("Lib.Treeview.Heading", background=BG1, foreground=MUTED, borderwidth=0,
+                        relief="flat", font=(_UI, 10, "bold"), padding=(PAD_S, PAD_S))
+        style.map("Lib.Treeview.Heading", background=[("active", BG3)], foreground=[("active", INK)])
+        style.map("Lib.Treeview", background=[("selected", ACCENT2)], foreground=[("selected", NAVY)])
 
         nb = ttk.Notebook(self)
         nb.pack(fill="both", expand=True, padx=16, pady=8)
@@ -283,23 +344,25 @@ class App(tk.Tk):
 
     # ---------- Tab 0: 總覽（戰情室） ----------
     def _section(self, parent, text):
-        """區段標題：左側 accent 直條 + 標題，視覺層次更分明（專業感）。"""
-        bar = tk.Frame(parent, bg=NAVY); bar.pack(fill="x", padx=18, pady=(14, 4))
-        tk.Frame(bar, bg=ACCENT, width=4, height=18).pack(side="left", padx=(0, 9))
-        tk.Label(bar, text=text, font=FONT_B, bg=NAVY, fg=TEXTCOL).pack(side="left")
-        tk.Frame(bar, bg=BORDER, height=1).pack(side="left", fill="x", expand=True, padx=(12, 0))
+        """區段標題：左側 accent 直條 + 標題 + 向右延伸的細分隔線（HUD 分組感）。"""
+        bar = tk.Frame(parent, bg=NAVY); bar.pack(fill="x", padx=PAD_L, pady=(PAD_L + 2, PAD_XS))
+        tk.Frame(bar, bg=ACCENT, width=4, height=18).pack(side="left", padx=(0, PAD_S + 1))
+        tk.Label(bar, text=text, font=FONT_SEC, bg=NAVY, fg=INK).pack(side="left")
+        tk.Frame(bar, bg=BORDER, height=1).pack(side="left", fill="x", expand=True, padx=(PAD_M, PAD_XS))
+        tk.Frame(bar, bg=LINE_HI, width=3, height=3).pack(side="left")   # 線尾光點
         return bar
 
     def _kpi_card(self, parent, key):
-        stripe = {"subs": ACCENT, "views": ACCENT2, "retention": GREEN, "net": "#ff9f43"}.get(key, ACCENT)
-        border = tk.Frame(parent, bg=BORDER); border.pack(side="left", expand=True, fill="both", padx=6)
+        stripe = {"subs": ACCENT, "views": ACCENT2, "retention": GREEN, "net": WARN}.get(key, ACCENT)
+        border = tk.Frame(parent, bg=BORDER); border.pack(side="left", expand=True, fill="both", padx=PAD_S - 2)
         c = tk.Frame(border, bg=CARD); c.pack(fill="both", expand=True, padx=1, pady=1)
-        tk.Frame(c, bg=stripe, height=3).pack(fill="x")            # 頂部色條
-        tk.Label(c, text=self._kpi_labels[key], font=("Microsoft JhengHei", 10), bg=CARD, fg=SUB).pack(pady=(11, 0))
-        val = tk.Label(c, text="—", font=("Microsoft JhengHei", 26, "bold"), bg=CARD, fg=TEXTCOL)
-        val.pack(pady=(2, 0))
-        sub = tk.Label(c, text="", font=("Microsoft JhengHei", 9), bg=CARD, fg=stripe)
-        sub.pack(pady=(0, 12))
+        tk.Frame(c, bg=stripe, height=3).pack(fill="x")            # 頂部語意色條
+        tk.Label(c, text=self._kpi_labels[key], font=FONT_LBL, bg=CARD, fg=MUTED).pack(
+            anchor="w", padx=PAD_M, pady=(PAD_M, 0))
+        val = tk.Label(c, text="—", font=FONT_NUM, bg=CARD, fg=INK, anchor="w")
+        val.pack(anchor="w", padx=PAD_M, pady=(PAD_XS, 0))
+        sub = tk.Label(c, text="", font=FONT_SMALL, bg=CARD, fg=stripe, anchor="w")
+        sub.pack(anchor="w", padx=PAD_M, pady=(0, PAD_M))
         self.kpi[key] = val
         self.kpi_sub[key] = sub
 
@@ -353,21 +416,22 @@ class App(tk.Tk):
         f = self._scroll_tab(nb, "🏠 總覽")
 
         # ── 擬真特助：會報告，也會做事 ──
-        _abg = "#15213d"
-        aborder = tk.Frame(f, bg=BORDER); aborder.pack(fill="x", padx=12, pady=(14, 2))
+        _abg = ASSIST_BG
+        aborder = tk.Frame(f, bg=BORDER); aborder.pack(fill="x", padx=PAD_M, pady=(PAD_L, PAD_XS))
         abar = tk.Frame(aborder, bg=_abg); abar.pack(fill="x", padx=1, pady=1)
         tk.Frame(abar, bg=ACCENT2, width=4).pack(side="left", fill="y")   # 左側強調條
-        tk.Label(abar, text="🤝", font=("Microsoft JhengHei", 22), bg=_abg).pack(side="left", padx=(12, 6), pady=(10, 0), anchor="n")
-        col = tk.Frame(abar, bg=_abg); col.pack(side="left", fill="x", expand=True, pady=8, padx=(0, 10))
-        self.assistant_lbl = tk.Label(col, text="特助小祕正在看今天的狀況…", font=("Microsoft JhengHei", 11),
+        tk.Label(abar, text="🤝", font=(_UI, 22), bg=_abg).pack(side="left", padx=(PAD_M, PAD_S - 2), pady=(PAD_M, 0), anchor="n")
+        col = tk.Frame(abar, bg=_abg); col.pack(side="left", fill="x", expand=True, pady=PAD_M, padx=(0, PAD_M - 1))
+        self.assistant_lbl = tk.Label(col, text="特助小祕正在看今天的狀況…", font=FONT,
                                       bg=_abg, fg=TEXTCOL, justify="left", wraplength=980, anchor="w")
         self.assistant_lbl.pack(fill="x", anchor="w")
         # 行動按鈕列（特助直接做事）
-        actrow = tk.Frame(col, bg=_abg); actrow.pack(fill="x", pady=(8, 4))
+        actrow = tk.Frame(col, bg=_abg); actrow.pack(fill="x", pady=(PAD_S + 2, PAD_XS))
 
         def _ab(txt, cmd):
-            tk.Button(actrow, text=txt, font=("Microsoft JhengHei", 9), bg=CARD, fg=TEXTCOL, bd=0,
-                      padx=9, pady=4, activebackground=ACCENT2, command=cmd).pack(side="left", padx=3)
+            tk.Button(actrow, text=txt, font=FONT_SMALL, bg=CARD, fg=TEXTCOL, bd=0,
+                      padx=PAD_S + 1, pady=PAD_XS, relief="flat", cursor="hand2",
+                      activebackground=BG3, activeforeground=AZURE, command=cmd).pack(side="left", padx=PAD_XS - 1)
         _ab("🎬 補產", lambda: self._assistant_act("produce"))
         _ab("🚀 上架", lambda: self._assistant_act("publish"))
         _ab("🏃 跑一輪", lambda: self._assistant_act("cycle"))
@@ -376,29 +440,31 @@ class App(tk.Tk):
         _ab("🩺 大檢查", lambda: self._assistant_act("check"))
         _ab("🔄 刷新", lambda: self._assistant_act("refresh"))
         # 指令框（打字叫特助做事，懂模糊講法）
-        cmdrow = tk.Frame(col, bg=_abg); cmdrow.pack(fill="x", pady=(2, 2))
-        tk.Label(cmdrow, text="跟小祕說：", font=("Microsoft JhengHei", 9), bg=_abg, fg=SUB).pack(side="left")
-        self.assistant_cmd = tk.Entry(cmdrow, font=("Microsoft JhengHei", 10), bg=PANEL, fg=TEXTCOL,
-                                      insertbackground=TEXTCOL, relief="flat", bd=0)
-        self.assistant_cmd.pack(side="left", fill="x", expand=True, padx=6, ipady=4)
+        cmdrow = tk.Frame(col, bg=_abg); cmdrow.pack(fill="x", pady=(PAD_XS - 2, PAD_XS - 2))
+        tk.Label(cmdrow, text="跟小祕說：", font=FONT_SMALL, bg=_abg, fg=MUTED).pack(side="left")
+        self.assistant_cmd = tk.Entry(cmdrow, font=FONT_LBL, bg=WELL, fg=TEXTCOL,
+                                      insertbackground=ACCENT, relief="flat", bd=0)
+        self.assistant_cmd.pack(side="left", fill="x", expand=True, padx=PAD_S - 2, ipady=PAD_XS)
         self.assistant_cmd.bind("<Return>", lambda e: self.assistant_do())
-        tk.Button(cmdrow, text="執行", font=("Microsoft JhengHei", 9, "bold"), bg=ACCENT, fg=NAVY, bd=0,
-                  padx=12, pady=4, command=self.assistant_do).pack(side="left")
+        tk.Button(cmdrow, text="執行", font=(_UI, 9, "bold"), bg=ACCENT, fg=NAVY, bd=0,
+                  padx=PAD_M, pady=PAD_XS, relief="flat", cursor="hand2",
+                  activebackground=GOLD_HI, activeforeground=NAVY,
+                  command=self.assistant_do).pack(side="left")
         tk.Label(col, text="例：補產5支、上架、跑一輪、整理倉庫、門檻設75、重新評分、大檢查",
-                 font=("Microsoft JhengHei", 8), bg=_abg, fg=SUB).pack(anchor="w")
+                 font=FONT_TINY, bg=_abg, fg=FAINT).pack(anchor="w")
 
         # ── KPI 卡片列（4 張：訂閱 / 總觀看 / 留存 / 淨利）──
         self._kpi_labels = {"subs": "訂閱數", "views": "總觀看", "retention": "平均觀看率", "net": "淨利 NT$"}
         self.kpi = {}; self.kpi_sub = {}
-        row = tk.Frame(f, bg=NAVY); row.pack(fill="x", padx=12, pady=(14, 2))
+        row = tk.Frame(f, bg=NAVY); row.pack(fill="x", padx=PAD_M, pady=(PAD_L, PAD_XS))
         for key in ("subs", "views", "retention", "net"):
             self._kpi_card(row, key)
-        tk.Button(f, text="🔄 刷新數據", font=("Microsoft JhengHei", 9), bg=CARD, fg=TEXTCOL, bd=0,
+        tk.Button(f, text="🔄 刷新數據", font=FONT_SMALL, bg=CARD, fg=TEXTCOL, bd=0,
                   command=self.fetch_stats).pack(anchor="e", padx=16, pady=(4, 0))
 
         # ── 即時成效波形（觀看 / 訂閱 隨時間）──
         self._section(f, "📈 即時成效（觀看 / 訂閱 走勢）")
-        self.wave_canvas = tk.Canvas(f, height=120, bg="#0a1020", highlightthickness=0)
+        self.wave_canvas = tk.Canvas(f, height=120, bg=WELL, highlightthickness=0)
         self.wave_canvas.pack(fill="x", padx=20, pady=(2, 4))
         self.wave_canvas.bind("<Configure>", lambda e: self._draw_waveform())
 
@@ -406,7 +472,7 @@ class App(tk.Tk):
         self._section(f, "🎯 YPP 達標進度")
         self.pb_sub = self._progress(f, "訂閱 → 1,000", SUB_GOAL, "Y")
         self.pb_view = self._progress(f, "Shorts 觀看 → 1,000 萬", VIEW_GOAL, "G")
-        self.ypp_gap = tk.Label(f, text="", font=("Microsoft JhengHei", 10), bg=NAVY, fg=ACCENT)
+        self.ypp_gap = tk.Label(f, text="", font=FONT_LBL, bg=NAVY, fg=ACCENT)
         self.ypp_gap.pack(anchor="w", padx=24, pady=(1, 0))
 
         # ── 數據洞察（近 28 天，來自 YouTube Analytics）──
@@ -422,22 +488,23 @@ class App(tk.Tk):
         self.cloud_oneline = tk.Label(f, text="☁ 雲端：連線中…", font=FONT, bg=NAVY, fg=SUB, justify="left")
         self.cloud_oneline.pack(anchor="w", padx=24, pady=(2, 0))
         tk.Label(f, text="自動排程：05:30 競品 → 05:37 決策 → 06:07 補產 → 09:07 上架 → 09:37 回顧 → 09:42 人事 …",
-                 font=("Microsoft JhengHei", 9), bg=NAVY, fg=SUB).pack(anchor="w", padx=24, pady=(1, 0))
+                 font=FONT_SMALL, bg=NAVY, fg=SUB).pack(anchor="w", padx=24, pady=(1, 0))
 
         # ── 今日戰略 & 待你拍板 ──
         self._section(f, "🧭 今日戰略 & 待你拍板")
         self.brief = scrolledtext.ScrolledText(f, height=4, font=FONT, wrap="word",
-                                               bg="#0a1020", fg=TEXTCOL, bd=0, padx=12, pady=8)
+                                               bg=WELL, fg=TEXTCOL, bd=0, padx=12, pady=8)
         self.brief.pack(fill="both", expand=True, padx=16, pady=(2, 4))
 
         # ── 工廠心跳（精簡）──
         self._section(f, "📜 工廠心跳")
-        self.ops_box = scrolledtext.ScrolledText(f, height=4, font=("Consolas", 9), wrap="none",
-                                                 bg="#06090f", fg=GREEN, bd=0, padx=10, pady=4)
+        self.ops_box = scrolledtext.ScrolledText(f, height=4, font=FONT_MONO, wrap="none",
+                                                 bg=TERM, fg=GREEN, bd=0, padx=10, pady=4)
         self.ops_box.pack(fill="x", padx=16, pady=(2, 4))
 
-        tk.Button(f, text="▶ 立即跑一輪（決策 → 補產 → 上架 → 回顧 → 人事）", font=FONT_B, bg=ACCENT, fg=NAVY, bd=0,
-                  command=self.run_full_cycle).pack(fill="x", padx=16, pady=(4, 12))
+        tk.Button(f, text="▶  立即跑一輪（決策 → 補產 → 上架 → 回顧 → 人事）", font=FONT_B, bg=ACCENT, fg=NAVY, bd=0,
+                  relief="flat", cursor="hand2", pady=PAD_S, activebackground=GOLD_HI, activeforeground=NAVY,
+                  command=self.run_full_cycle).pack(fill="x", padx=PAD_L, pady=(PAD_S, PAD_M))
 
     def _progress(self, parent, label, goal, style):
         wrap = tk.Frame(parent, bg=NAVY); wrap.pack(fill="x", padx=20, pady=3)
@@ -476,8 +543,11 @@ class App(tk.Tk):
                 if ya.available():
                     self._analytics = ya.channel_summary(28)
                     self._ya_ctr = ya.impressions_ctr(28)
-            except Exception:
-                pass
+                    self._analytics_err = None
+                else:
+                    self._analytics_err = "未授權"
+            except Exception as _ya_e:
+                self._analytics_err = str(_ya_e)[:120]
             try:
                 fin = STUDIO / "finance.json"
                 self._net = (json.loads(fin.read_text(encoding="utf-8")).get("summary") or {}).get("net") \
@@ -518,9 +588,13 @@ class App(tk.Tk):
             hist = []
         if len(hist) < 2:
             cv.create_text(w // 2, h // 2, text="（成效資料累積中…決策中心開著就會自動記錄並畫成走勢）",
-                           fill=SUB, font=("Microsoft JhengHei", 10))
+                           fill=FAINT, font=FONT_LBL)
             return
-        pad = 10
+        pad = 12
+        # 背景 HUD 細格線（4 條水平基準線，弱對比）
+        for i in range(1, 4):
+            gy = pad + (h - 2 * pad) * i / 4
+            cv.create_line(pad, gy, w - pad, gy, fill=LINE, dash=(2, 4))
 
         def line(key, color):
             vals = [p.get(key, 0) for p in hist]
@@ -533,15 +607,20 @@ class App(tk.Tk):
                 y = h - pad - (h - 2 * pad) * (v - lo) / rng
                 pts += [x, y]
             if len(pts) >= 4:
+                # 漸層感：先畫半透明面積（stipple 模擬），再描線、末端打點
+                area = pts + [pts[-2], h - pad, pts[0], h - pad]
+                cv.create_polygon(*area, fill=color, stipple="gray12", outline="")
                 cv.create_line(*pts, fill=color, width=2, smooth=True)
+                cv.create_oval(pts[-2] - 3, pts[-1] - 3, pts[-2] + 3, pts[-1] + 3,
+                               fill=color, outline=BG0, width=1)
             return vals[-1], (vals[-1] - vals[0])
 
         v_now, v_d = line("views", ACCENT)
         s_now, s_d = line("subs", GREEN)
-        cv.create_text(pad + 2, pad - 2, anchor="nw",
-                       text=f"觀看 {v_now}（+{v_d}）", fill=ACCENT, font=("Microsoft JhengHei", 9, "bold"))
-        cv.create_text(pad + 2, pad + 16, anchor="nw",
-                       text=f"訂閱 {s_now}（+{s_d}）", fill=GREEN, font=("Microsoft JhengHei", 9, "bold"))
+        cv.create_text(pad + 2, pad - 4, anchor="nw",
+                       text=f"觀看 {v_now}（+{v_d}）", fill=ACCENT, font=FONT_MONO_SM)
+        cv.create_text(pad + 2, pad + 12, anchor="nw",
+                       text=f"訂閱 {s_now}（+{s_d}）", fill=GREEN, font=FONT_MONO_SM)
 
     def _latest_check(self) -> str:
         """讀最新一篇『大檢查』報告的總評＋待處理（決策中心同步回本機的）。"""
@@ -573,7 +652,12 @@ class App(tk.Tk):
             scored = [p for p in q.get("published", []) if p.get("views") is not None]
             if scored:
                 top = max(scored, key=lambda x: x.get("views") or 0)
-            return s.get("pending", 0), s.get("pass", 0), s.get("reject", 0), q.get("min_score", "?"), top
+            pending = s.get("pending", 0)
+            # 未發布數以即時 queue(mp4−ledger) 為單一真相，避免 quality_scores 快照過期(192/74 bug)
+            cl = self._cloud if (getattr(self, "_cloud_state", "") == "online" and self._cloud) else None
+            if cl and cl.get("queue") is not None:
+                pending = cl["queue"]
+            return pending, s.get("pass", 0), s.get("reject", 0), q.get("min_score", "?"), top
         except Exception:
             return None, None, None, None, None
 
@@ -796,12 +880,17 @@ class App(tk.Tk):
                 text=f"平均觀看率 {analytics['avg_pct']:.1f}%　・　近28天新增訂閱 {analytics['subs_gained']}　"
                      f"・　總觀看分鐘 {analytics['minutes']:,}{ctr_txt}", fg=TEXTCOL)
         else:
-            self.insight_lbl.config(
-                text="（尚未連線 YouTube Analytics，或數據累積中）", fg=SUB)
+            ya_err = getattr(self, "_analytics_err", None)
+            if ya_err:
+                self.insight_lbl.config(
+                    text=f"⚠ Analytics 未連線（{ya_err}）→ 請執行 python scripts/auth_analytics.py 完成授權",
+                    fg=ACCENT)
+            else:
+                self.insight_lbl.config(
+                    text="（尚未連線 YouTube Analytics，或數據累積中）", fg=SUB)
 
-        # ── 工廠狀態（16 部門）──
-        q = len(set(p.stem for p in OUT.glob("S_*.mp4")) | set(p.stem for p in OUT.glob("L_*.mp4")))
-        pub = len(json.loads(LEDGER.read_text(encoding="utf-8"))) if LEDGER.exists() else 0
+        # ── 工廠狀態（18 部門）──
+        q, pub, _online = self._lib_counts()  # 與頂部狀態列統一來源，避免同一數字兩處不一致
         paused = load_directives().get("paused", False)
         self.fac_lbl.config(
             text=f"{len(DEPTS)} 部門　｜　倉庫 {q} 支　｜　累計上架 {pub} 支　｜　"
@@ -870,25 +959,30 @@ class App(tk.Tk):
         f = self._scroll_tab(nb, "☁ 雲端營運")
         self._cloud_frame = f._outer
 
-        # 連線狀態橫幅
-        top = tk.Frame(f, bg=CARD); top.pack(fill="x", padx=16, pady=(14, 6))
+        # 連線狀態橫幅（細邊框包裹，做出儀表卡片感）
+        topb = tk.Frame(f, bg=BORDER); topb.pack(fill="x", padx=PAD_L, pady=(PAD_L, PAD_S))
+        top = tk.Frame(topb, bg=CARD); top.pack(fill="x", padx=1, pady=1)
         self.cloud_banner = tk.Label(top, text="☁ 雲端連線中…", font=FONT_B, bg=CARD, fg=ACCENT,
                                      anchor="w", justify="left")
-        self.cloud_banner.pack(side="left", padx=12, pady=10)
-        self.cloud_sub = tk.Label(top, text="", font=("Microsoft JhengHei", 9), bg=CARD, fg=SUB)
-        self.cloud_sub.pack(side="right", padx=12)
+        self.cloud_banner.pack(side="left", padx=PAD_M, pady=PAD_M)
+        self.cloud_sub = tk.Label(top, text="", font=FONT_SMALL, bg=CARD, fg=MUTED)
+        self.cloud_sub.pack(side="right", padx=PAD_M)
 
         # 雲端 KPI 四卡（倉庫 / 今日已產 / 累計上架 / 排程囤片剩餘）
         self._cloud_kpi_labels = {"queue": "雲端倉庫", "produced": "今日已產",
                                   "published": "累計上架", "buffer": "排程囤片剩餘"}
+        self._cloud_kpi_stripe = {"queue": ACCENT, "produced": AZURE, "published": OK, "buffer": WARN}
         self.cloud_kpi = {}
-        krow = tk.Frame(f, bg=NAVY); krow.pack(fill="x", padx=12, pady=(2, 2))
+        krow = tk.Frame(f, bg=NAVY); krow.pack(fill="x", padx=PAD_M, pady=(PAD_XS, PAD_XS))
         for key in ("queue", "produced", "published", "buffer"):
-            c = tk.Frame(krow, bg=CARD); c.pack(side="left", expand=True, fill="both", padx=5)
-            val = tk.Label(c, text="—", font=("Microsoft JhengHei", 24, "bold"), bg=CARD, fg=ACCENT)
-            val.pack(pady=(12, 0))
-            tk.Label(c, text=self._cloud_kpi_labels[key], font=("Microsoft JhengHei", 10),
-                     bg=CARD, fg=SUB).pack(pady=(0, 10))
+            stripe = self._cloud_kpi_stripe[key]
+            cb = tk.Frame(krow, bg=BORDER); cb.pack(side="left", expand=True, fill="both", padx=PAD_S - 2)
+            c = tk.Frame(cb, bg=CARD); c.pack(fill="both", expand=True, padx=1, pady=1)
+            tk.Frame(c, bg=stripe, height=3).pack(fill="x")
+            tk.Label(c, text=self._cloud_kpi_labels[key], font=FONT_LBL,
+                     bg=CARD, fg=MUTED, anchor="w").pack(anchor="w", padx=PAD_M, pady=(PAD_M, 0))
+            val = tk.Label(c, text="—", font=FONT_NUM_MD, bg=CARD, fg=stripe, anchor="w")
+            val.pack(anchor="w", padx=PAD_M, pady=(PAD_XS, PAD_M))
             self.cloud_kpi[key] = val
 
         # 操作列
@@ -897,13 +991,13 @@ class App(tk.Tk):
                   command=self.fetch_cloud).pack(side="left", padx=(0, 6))
         tk.Button(bar, text="📜 看雲端日誌", font=FONT, bg=CARD, fg=TEXTCOL, bd=0, padx=12, pady=5,
                   command=self.cloud_view_log).pack(side="left", padx=6)
-        tk.Label(bar, text="（補產／上架／排程囤片都在「🎛 控制台」操作）", font=("Microsoft JhengHei", 9),
+        tk.Label(bar, text="（補產／上架／排程囤片都在「🎛 控制台」操作）", font=FONT_SMALL,
                  bg=NAVY, fg=SUB).pack(side="left", padx=10)
 
         # 排程囤片清單（出國保險）
         self._section(f, "📅 排程囤片（YouTube 伺服器自動公開・不依賴家用網路）")
-        self.cloud_buffer_box = scrolledtext.ScrolledText(f, height=6, font=("Microsoft JhengHei", 10),
-                                                          wrap="word", bg="#0a1020", fg=TEXTCOL, bd=0,
+        self.cloud_buffer_box = scrolledtext.ScrolledText(f, height=6, font=FONT_LBL,
+                                                          wrap="word", bg=WELL, fg=TEXTCOL, bd=0,
                                                           padx=12, pady=8)
         self.cloud_buffer_box.pack(fill="x", padx=16, pady=(2, 4))
 
@@ -915,14 +1009,14 @@ class App(tk.Tk):
 
         # cron 日誌
         self._section(f, "📜 雲端 cron 最近日誌")
-        self.cloud_cronbox = scrolledtext.ScrolledText(f, height=5, font=("Consolas", 9), wrap="none",
-                                                       bg="#06090f", fg=GREEN, bd=0, padx=10, pady=4)
+        self.cloud_cronbox = scrolledtext.ScrolledText(f, height=5, font=FONT_MONO, wrap="none",
+                                                       bg=TERM, fg=GREEN, bd=0, padx=10, pady=4)
         self.cloud_cronbox.pack(fill="x", padx=16, pady=(2, 4))
 
         # 操作輸出
         self._section(f, "⌨ 雲端操作輸出")
-        self.cloud_log = scrolledtext.ScrolledText(f, height=7, font=("Consolas", 9), wrap="word",
-                                                   bg="#06090f", fg="#b9f7c0", bd=0, padx=10, pady=6)
+        self.cloud_log = scrolledtext.ScrolledText(f, height=7, font=FONT_MONO, wrap="word",
+                                                   bg=TERM, fg=TERM_FG, bd=0, padx=10, pady=6)
         self.cloud_log.pack(fill="both", expand=True, padx=16, pady=(2, 12))
 
     def _cloud_env(self, cfg):
@@ -1078,21 +1172,45 @@ class App(tk.Tk):
         if not cfg:
             messagebox.showwarning("未設定雲端", "找不到 cloud.json，無法連雲端。")
             return
+        if getattr(self, "_op_running", False):  # ⑥ 互斥：防連點同時觸發多條 SSH 互搶
+            messagebox.showinfo("請稍候", "前一個雲端操作還在進行中，完成後再執行。")
+            return
+        self._op_running = True; self._op_started = time.time()
         box = logbox if logbox is not None else self.cloud_log
         box.insert("end", f"\n=== {name} 開始（雲端）… ===\n"); box.see("end")
 
         def worker():
+            def _log(t):  # Tkinter 非執行緒安全：一律排回主執行緒更新
+                self.after(0, lambda s=t: (box.insert("end", s), box.see("end")))
+            st = {"last": time.time(), "killed": False}
             try:
                 p = _popen([str(PY), str(CLOUD_SSH), "run", remote_cmd],
                                      env=self._cloud_env(cfg), stdout=subprocess.PIPE,
                                      stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace")
+                start = time.time()
+
+                def _watchdog():  # SSH 半斷會永久阻塞 → 看門狗：閒置>180s 或 總時>2400s 就中止
+                    while p.poll() is None:
+                        time.sleep(5)
+                        if time.time() - st["last"] > 90 or time.time() - start > 1800:
+                            st["killed"] = True
+                            try:
+                                p.kill()
+                            except Exception:  # noqa: BLE001
+                                pass
+                            return
+                threading.Thread(target=_watchdog, daemon=True).start()
                 for line in p.stdout:
-                    box.insert("end", line); box.see("end")
+                    st["last"] = time.time()
+                    _log(line)
                 p.wait()
-                box.insert("end", f"=== {name} 完成 (exit {p.returncode}) ===\n")
+                _log(f"=== {name} 逾時中止（連線無回應，已停止）===\n" if st["killed"]
+                     else f"=== {name} 完成 (exit {p.returncode}) ===\n")
             except Exception as e:  # noqa: BLE001
-                box.insert("end", f"[錯誤] {e}\n")
-            self.after(0, self.fetch_cloud)
+                _log(f"[錯誤] {e}\n")
+            finally:
+                self._op_running = False  # ⑥ 釋放互斥鎖(finally 確保即使例外也放鎖，不卡死後續按鈕)
+                self.after(0, self.fetch_cloud)
         threading.Thread(target=worker, daemon=True).start()
 
     def cloud_produce(self):
@@ -1149,14 +1267,17 @@ class App(tk.Tk):
         return f"cd {cfg['remote_root']} && {tail}" if cfg else None
 
     def _trig_decision(self):
-        return self._remote("nohup ./run.sh scripts/decision_dept.py > logs/manual_decision.log 2>&1 & echo triggered")
+        # setsid 讓子程序成為新 session leader，channel 關閉時不會收到 SIGHUP。
+        return self._remote(
+            "setsid nohup ./run.sh scripts/decision_dept.py "
+            "</dev/null >>logs/manual_decision.log 2>&1 & echo triggered")
 
     def _trig_produce(self, shorts, longn):
-        # 已在渲染就不重複啟動，避免堆疊
+        # 已在渲染就不重複啟動，避免堆疊；setsid 確保背景程序不被 channel 關閉殺掉。
         return self._remote(
             f"(pgrep -f produce_batch >/dev/null && echo 'already-rendering') || "
-            f"(nohup ./run.sh scripts/produce_batch.py --shorts {shorts} --long {longn} --target 60 "
-            f"> logs/manual_produce.log 2>&1 & echo triggered)")
+            f"(setsid nohup ./run.sh scripts/produce_batch.py --shorts {shorts} --long {longn} --target 60 "
+            f"</dev/null >>logs/manual_produce.log 2>&1 & echo triggered)")
 
     def _cloud_apply(self, files=(), trigger_remote=None, label=""):
         """把指定的 STUDIO 設定檔推到雲端，並（可選）立刻觸發對應腳本。非阻塞。"""
@@ -1176,7 +1297,8 @@ class App(tk.Tk):
                                        encoding="utf-8", errors="replace", timeout=45)
                         okmsg.append(fn)
                 if trigger_remote:
-                    _run([str(PY), str(CLOUD_SSH), "run", trigger_remote],
+                    # 用 "detached" 不開 PTY，避免 channel 關閉時 SIGHUP 殺掉 nohup 背景程序
+                    _run([str(PY), str(CLOUD_SSH), "detached", trigger_remote],
                                    env=self._cloud_env(cfg), capture_output=True, text=True,
                                    encoding="utf-8", errors="replace", timeout=45)
                 line = f"[雲端] {label}：已推送 {'、'.join(okmsg) or '設定'}" + ("，並立即觸發執行 ✓\n" if trigger_remote else " ✓\n")
@@ -1195,7 +1317,8 @@ class App(tk.Tk):
         cfg = load_cloud_cfg()
         if not cfg:
             return False
-        argstr = " ".join(args)
+        # shlex.join 確保含空白/特殊字元的參數不會被 shell 誤解析
+        argstr = shlex.join(args) if args else ""
         self._nb.select(self._cloud_frame)
         self._cloud_stream(f"cd {cfg['remote_root']} && ./run.sh {script} {argstr}", label + "（雲端）")
         return True
@@ -1260,56 +1383,57 @@ class App(tk.Tk):
                   command=self.render_departments).pack(side="right")
         # 一鍵設定每日產量（直接設 ②Shorts／①長片，立即同步雲端）
         outrow = tk.Frame(f, bg=NAVY); outrow.pack(fill="x", padx=16, pady=(0, 4))
-        tk.Button(outrow, text="🎬 一鍵設定每日產量", font=FONT_B, bg="#1f5f7a", fg="#eaf6ff", bd=0,
-                  padx=12, pady=5, activebackground="#2f7f9a", command=self.set_daily_output).pack(side="left")
-        self.output_lbl = tk.Label(outrow, text="", font=("Microsoft JhengHei", 10), bg=NAVY, fg=ACCENT)
+        tk.Button(outrow, text="🎬 一鍵設定每日產量", font=FONT_B, bg=TEAL_BG, fg=TEAL_FG, bd=0,
+                  padx=12, pady=5, activebackground=TEAL_HI, command=self.set_daily_output).pack(side="left")
+        self.output_lbl = tk.Label(outrow, text="", font=FONT_LBL, bg=NAVY, fg=ACCENT)
         self.output_lbl.pack(side="left", padx=10)
 
         # 一鍵激活 / 一鍵壓榨 / 一鍵最大化壓榨（全公司）
         allrow = tk.Frame(f, bg=NAVY); allrow.pack(fill="x", padx=16, pady=(0, 2))
-        tk.Button(allrow, text="⚡ 一鍵激活全部（雲端跑一輪）", font=FONT_B, bg="#1f6f43", fg="#eafff1", bd=0,
+        tk.Button(allrow, text="⚡ 一鍵激活全部（雲端跑一輪）", font=FONT_B, bg=ACT_BG, fg=ACT_FG, bd=0,
                   padx=12, pady=4, activebackground=GREEN, command=self.activate_all).pack(side="left", padx=(0, 6))
-        tk.Button(allrow, text="🔥 一鍵壓榨（全部 +1）", font=FONT, bg="#7a2f2f", fg="#ffeaea", bd=0,
+        tk.Button(allrow, text="🔥 一鍵壓榨（全部 +1）", font=FONT, bg=SQ_BG, fg=SQ_FG, bd=0,
                   padx=12, pady=4, activebackground=RED, command=self.squeeze_all).pack(side="left", padx=(0, 6))
-        tk.Button(allrow, text="🔥🔥 一鍵最大化壓榨（火力全開）", font=FONT_B, bg="#a01f1f", fg="#fff0f0", bd=0,
-                  padx=12, pady=4, activebackground="#ff5050", command=self.max_squeeze_all).pack(side="left")
+        tk.Button(allrow, text="🔥🔥 一鍵最大化壓榨（火力全開）", font=FONT_B, bg=MAX_BG, fg=MAX_FG, bd=0,
+                  padx=12, pady=4, activebackground=MAX_HI, command=self.max_squeeze_all).pack(side="left")
 
         # 表頭
-        hdr = tk.Frame(f, bg=NAVY); hdr.pack(fill="x", padx=16, pady=(8, 2))
+        hdr = tk.Frame(f, bg=NAVY); hdr.pack(fill="x", padx=PAD_L, pady=(PAD_M, 0))
         for txt, w, anc in [("部門", 18, "w"), ("員額", 5, "center"), ("狀態", 20, "w"), ("操作", 16, "w")]:
-            tk.Label(hdr, text=txt, font=("Microsoft JhengHei", 10, "bold"), bg=NAVY, fg=SUB,
-                     width=w, anchor=anc).pack(side="left", padx=2)
+            tk.Label(hdr, text=txt, font=FONT_MONO_SM, bg=NAVY, fg=FAINT,
+                     width=w, anchor=anc).pack(side="left", padx=PAD_XS - 2)
+        tk.Frame(f, bg=BORDER, height=1).pack(fill="x", padx=PAD_L, pady=(PAD_XS, PAD_XS))
 
         self.dept_rows = {}
         self.dept_head_lbls = {}
         hc = load_headcount()
-        body = tk.Frame(f, bg=NAVY); body.pack(fill="both", expand=True, padx=16)
+        body = tk.Frame(f, bg=NAVY); body.pack(fill="both", expand=True, padx=PAD_L)
         for i, d in enumerate(DEPTS):
-            bgc = CARD if i % 2 == 0 else "#16223d"
+            bgc = CARD if i % 2 == 0 else BG1
             r = tk.Frame(body, bg=bgc); r.pack(fill="x", pady=1)
-            tk.Label(r, text=f"{d['tag']}{d['name']}", font=("Microsoft JhengHei", 11, "bold"), bg=bgc, fg=TEXTCOL,
-                     width=18, anchor="w").pack(side="left", padx=(4, 0), pady=5)
-            hl = tk.Label(r, text=f"{hc.get(d['tag'], d['head'])} 人", font=FONT, bg=bgc, fg=ACCENT,
+            tk.Label(r, text=f"{d['tag']}{d['name']}", font=(_UI, 11, "bold"), bg=bgc, fg=TEXTCOL,
+                     width=18, anchor="w").pack(side="left", padx=(PAD_S, 0), pady=PAD_XS + 2)
+            hl = tk.Label(r, text=f"{hc.get(d['tag'], d['head'])} 人", font=(_MONO, 11, "bold"), bg=bgc, fg=ACCENT,
                           width=5, anchor="center")
-            hl.pack(side="left", padx=2)
+            hl.pack(side="left", padx=PAD_XS - 2)
             self.dept_head_lbls[d["tag"]] = hl
-            stat = tk.Label(r, text="—", font=("Microsoft JhengHei", 10), bg=bgc, fg=TEXTCOL,
+            stat = tk.Label(r, text="—", font=FONT_LBL, bg=bgc, fg=TEXTCOL,
                             width=20, anchor="w")
-            stat.pack(side="left", padx=2)
-            tk.Button(r, text="⚡激活", font=("Microsoft JhengHei", 9), bg="#1f6f43", fg="#eafff1", bd=0,
-                      padx=6, pady=3, activebackground=GREEN,
-                      command=lambda dd=d: self.activate_dept(dd)).pack(side="left", padx=(6, 2))
-            tk.Button(r, text="🔥壓榨", font=("Microsoft JhengHei", 9), bg="#7a2f2f", fg="#ffeaea", bd=0,
-                      padx=6, pady=3, activebackground=RED,
-                      command=lambda dd=d: self.squeeze_dept(dd)).pack(side="left", padx=2)
-            tk.Button(r, text="🔥🔥最大化", font=("Microsoft JhengHei", 9), bg="#a01f1f", fg="#fff0f0", bd=0,
-                      padx=6, pady=3, activebackground="#ff5050",
-                      command=lambda dd=d: self.max_squeeze_dept(dd)).pack(side="left", padx=2)
+            stat.pack(side="left", padx=PAD_XS - 2)
+            tk.Button(r, text="⚡激活", font=FONT_SMALL, bg=ACT_BG, fg=ACT_FG, bd=0,
+                      padx=PAD_S - 2, pady=PAD_XS - 1, relief="flat", cursor="hand2", activebackground=GREEN,
+                      command=lambda dd=d: self.activate_dept(dd)).pack(side="left", padx=(PAD_S - 2, PAD_XS - 2))
+            tk.Button(r, text="🔥壓榨", font=FONT_SMALL, bg=SQ_BG, fg=SQ_FG, bd=0,
+                      padx=PAD_S - 2, pady=PAD_XS - 1, relief="flat", cursor="hand2", activebackground=RED,
+                      command=lambda dd=d: self.squeeze_dept(dd)).pack(side="left", padx=PAD_XS - 2)
+            tk.Button(r, text="🔥🔥最大化", font=FONT_SMALL, bg=MAX_BG, fg=MAX_FG, bd=0,
+                      padx=PAD_S - 2, pady=PAD_XS - 1, relief="flat", cursor="hand2", activebackground=MAX_HI,
+                      command=lambda dd=d: self.max_squeeze_dept(dd)).pack(side="left", padx=PAD_XS - 2)
             self.dept_rows[d["tag"]] = stat
 
         tk.Label(f, text="⚡激活＝立刻叫該部門跑一次　🔥壓榨＝下加碼令，叫它長期多產出（決策部門會讀）。"
                          "員額＝AI 代理數非真人；「規劃中」為章程已列、尚未自動化的部門。",
-                 font=("Microsoft JhengHei", 9), bg=NAVY, fg=SUB, justify="left", wraplength=1000).pack(anchor="w", padx=18, pady=(8, 6))
+                 font=FONT_SMALL, bg=NAVY, fg=SUB, justify="left", wraplength=1000).pack(anchor="w", padx=18, pady=(8, 6))
         self.render_departments()
 
     def render_departments(self):
@@ -1361,7 +1485,8 @@ class App(tk.Tk):
                        GR if has_orders else SUBC); running += has_orders
             elif k == "seo":
                 ok = rep("流量洞察")
-                setrow(tag, "✅ 今日已分析流量數據選題" if ok else "🟢 數據選題待命（05:35）", GR); running += 1
+                setrow(tag, "✅ 今日已分析流量數據選題" if ok else "🕒 數據選題待命（05:35）",
+                       GR if ok else SUBC); running += ok
             elif k == "data":
                 if isinstance(subs, int):
                     setrow(tag, f"✅ 已連線・訂閱 {subs}", GR); running += 1
@@ -1369,8 +1494,8 @@ class App(tk.Tk):
                     setrow(tag, "🕒 待連線 YouTube", SUBC)
             elif k == "audit":
                 done = rep("自動上架")
-                setrow(tag, "✅ 把關中・今日已上架" if done else "🟢 發布前自動把關中",
-                       GR); running += 1
+                setrow(tag, "✅ 把關中・今日已上架" if done else "🕒 待今日上架報告",
+                       GR if done else SUBC); running += done
             elif k == "manage":
                 ok = rep("營運匯報")
                 setrow(tag, "✅ 今日已匯報" if ok else "🕒 待 09 點後彙整",
@@ -1385,8 +1510,8 @@ class App(tk.Tk):
                        GR if ok else SUBC); running += ok
             elif k == "hr":
                 ok = rep("人事監察")
-                setrow(tag, "✅ 今日已監察" if ok else "🟢 監察+編制待命",
-                       GR if ok else GR); running += 1
+                setrow(tag, "✅ 今日已監察" if ok else "🕒 監察+編制待命",
+                       GR if ok else SUBC); running += ok
             elif k == "finance":
                 fin = STUDIO / "finance.json"
                 net = None
@@ -1395,24 +1520,37 @@ class App(tk.Tk):
                         net = (json.loads(fin.read_text(encoding="utf-8")).get("summary") or {}).get("net")
                     except Exception:
                         net = None
-                setrow(tag, (f"✅ 淨利 NT${net:.0f}" if isinstance(net, (int, float)) else "🟢 待記帳/出報告"),
-                       GR); running += 1
+                has_fin = isinstance(net, (int, float))
+                setrow(tag, (f"✅ 淨利 NT${net:.0f}" if has_fin else "🕒 待記帳/出報告"),
+                       GR if has_fin else SUBC); running += has_fin
             elif k == "organize":
-                ok = rep("頻道整理"); setrow(tag, "✅ 今日已歸類" if ok else "🟢 待整理播放清單", GR); running += 1
+                ok = rep("頻道整理")
+                setrow(tag, "✅ 今日已歸類" if ok else "🕒 待整理播放清單",
+                       GR if ok else SUBC); running += ok
             elif k == "promo":
-                ok = rep("宣傳文案"); setrow(tag, "✅ 今日已產文案" if ok else "🟢 待產導流文案", GR); running += 1
+                ok = rep("宣傳文案")
+                setrow(tag, "✅ 今日已產文案" if ok else "🕒 待產導流文案",
+                       GR if ok else SUBC); running += ok
             elif k == "comment":
-                ok = rep("留言回覆草稿"); setrow(tag, "✅ 今日已擬回覆" if ok else "🟢 待擬留言回覆", GR); running += 1
+                ok = rep("留言回覆草稿")
+                setrow(tag, "✅ 今日已擬回覆" if ok else "🕒 待擬留言回覆",
+                       GR if ok else SUBC); running += ok
             elif k == "thumb":
-                ok = rep("縮圖CTR"); setrow(tag, "✅ 今日已分析" if ok else "🟢 待縮圖/CTR 分析", GR); running += 1
+                ok = rep("縮圖CTR")
+                setrow(tag, "✅ 今日已分析" if ok else "🕒 待縮圖/CTR 分析",
+                       GR if ok else SUBC); running += ok
             elif k == "intel":
-                ok = rep("競品情報"); setrow(tag, "✅ 今日已掃描" if ok else "🟢 待掃描競品", GR); running += 1
+                ok = rep("競品情報")
+                setrow(tag, "✅ 今日已掃描" if ok else "🕒 待掃描競品",
+                       GR if ok else SUBC); running += ok
             elif k == "design":
                 has_ds = (STUDIO / "design_system.json").exists()
                 setrow(tag, "✅ 品牌設計系統運作中（每片套用）" if has_ds else "🟢 待設定品牌設計",
                        GR if has_ds else SUBC); running += has_ds
             elif k == "news":
-                setrow(tag, "✅ 每2h掃時事・有大事自動產+即時發", GR); running += 1
+                ok = rep("消息")
+                setrow(tag, "✅ 今日已產時事片" if ok else "🕒 每2h掃時事（待今日報告）",
+                       GR if ok else SUBC); running += ok
             else:  # 後備（理論上不會到）
                 setrow(tag, "🔧 規劃中・尚未自動化", SUBC)
 
@@ -1471,15 +1609,22 @@ class App(tk.Tk):
                 return
             self._goto_control(); self.run_script([script] + args, name + "・激活(本機備援)")
         elif act == "data":
+            # ⑦數據分析（僅檢視/唯讀）：只刷新 YouTube 數據，無獨立自動化腳本
             self.fetch_stats(); self.fetch_cloud()
-            messagebox.showinfo("已激活", f"{name} 已重新抓取最新頻道數據與雲端狀態。")
+            messagebox.showinfo("⑦數據分析（僅檢視）",
+                                f"{name} 已重新抓取最新頻道數據與雲端狀態。\n"
+                                "此部門為唯讀檢視，數據由 YouTube Data API 自動拉取，無需手動觸發腳本。")
         elif act == "reports":
+            # ⑩總監管（僅檢視/唯讀）：只開資料夾，匯報由各部門自動產生
             try:
                 subprocess.Popen(["explorer", str(REPORTS)])
             except Exception:
                 pass
-            messagebox.showinfo("總監管部門", "已打開《每日營運匯報》資料夾。\n總監管的產出就是每日匯報。")
+            messagebox.showinfo("⑩總監管（僅檢視）",
+                                "已打開《每日營運匯報》資料夾。\n"
+                                "總監管為唯讀部門：每日匯報由各部門自動產生，此處僅供閱讀，無需手動觸發。")
         elif act == "design":
+            # ⑰美編（僅檢視/唯讀）：只開 design_system.json 編輯，無獨立自動化腳本
             ds_path = STUDIO / "design_system.json"
             info = "（尚未設定）"
             try:
@@ -1489,21 +1634,18 @@ class App(tk.Tk):
                 info = f"品牌字體：{font}\n配色數：{npal} 組\n品牌：{ds.get('brand','')}"
             except Exception:
                 pass
-            if messagebox.askyesno("美編部門（品牌視覺）",
+            if messagebox.askyesno("⑰美編部門（僅檢視）",
                                    f"每支影片都會自動套用品牌設計系統：\n\n{info}\n\n"
-                                   "要打開 design_system.json 編輯（換字體/配色）嗎？\n"
+                                   "⚠ 此部門為唯讀/設定檢視，沒有對應自動化腳本。\n"
+                                   "要打開 design_system.json 手動編輯（換字體/配色）嗎？\n"
                                    "（字體檔放 assets/fonts/，改完下支影片即生效）"):
                 try:
                     subprocess.Popen(["notepad", str(ds_path)])
                 except Exception:
                     subprocess.Popen(["explorer", str(STUDIO)])
-        else:  # todo：章程有列、尚未獨立自動化
-            if messagebox.askyesno(name,
-                                   "這個部門章程有列、但還沒獨立自動化。\n"
-                                   "要我之後幫你把它做成自動運轉嗎？\n"
-                                   "（例：自動歸播放清單／自動發社群貼文／自動草擬留言回覆）"):
-                self._append_directive(f"【開發需求】把「{name}」做成自動化部門。")
-                messagebox.showinfo("已記下", "已記錄你的需求，下次我進來會幫你把這個部門自動化。")
+        else:
+            # DEPTS 中目前所有 act 值都有對應分支，此處為後備保護（理論上不會觸發）
+            messagebox.showinfo(name, f"「{name}」尚無對應激活動作（act={act!r}）。")
 
     def _apply_boost(self, d, level, refresh=True):
         """把某部門壓榨強度設到 level（1..MAX_BOOST_LV）。回傳 (name, lv) 或 None（不適用）。"""
@@ -1625,8 +1767,8 @@ class App(tk.Tk):
         """可捲動的確認對話框，回傳 True/False。"""
         dlg = tk.Toplevel(self); dlg.title(title); dlg.configure(bg=NAVY); dlg.geometry("660x540")
         dlg.transient(self); dlg.grab_set()
-        txt = scrolledtext.ScrolledText(dlg, font=("Microsoft JhengHei", 10), wrap="word",
-                                        bg="#0a1020", fg=TEXTCOL, bd=0, padx=12, pady=10)
+        txt = scrolledtext.ScrolledText(dlg, font=FONT_LBL, wrap="word",
+                                        bg=WELL, fg=TEXTCOL, bd=0, padx=12, pady=10)
         txt.pack(fill="both", expand=True, padx=12, pady=12)
         txt.insert("1.0", body); txt.config(state="disabled")
         result = {"ok": False}
@@ -1716,15 +1858,15 @@ class App(tk.Tk):
         self.hr_summary.pack(side="left")
         tk.Button(top, text="🔄 重新整理", font=FONT, bg=CARD, fg=TEXTCOL, bd=0, padx=12, pady=4,
                   command=self._refresh_hr).pack(side="right")
-        tk.Button(top, text="🧑‍🤝‍🧑 一鍵調整員額分配", font=FONT_B, bg="#5a3f7a", fg="#f0e8ff", bd=0, padx=12, pady=4,
-                  activebackground="#7a5f9a", command=self.rebalance_headcount).pack(side="right", padx=6)
-        tk.Button(top, text="🚀 自動擴編", font=FONT_B, bg="#1f6f43", fg="#eafff1", bd=0, padx=12, pady=4,
+        tk.Button(top, text="🧑‍🤝‍🧑 一鍵調整員額分配", font=FONT_B, bg=PUR_BG, fg=PUR_FG, bd=0, padx=12, pady=4,
+                  activebackground=PUR_HI, command=self.rebalance_headcount).pack(side="right", padx=6)
+        tk.Button(top, text="🚀 自動擴編", font=FONT_B, bg=ACT_BG, fg=ACT_FG, bd=0, padx=12, pady=4,
                   activebackground=GREEN, command=self.auto_expand).pack(side="right", padx=6)
 
         # 區塊 A：編制管理（招募 / 分配員額）
         tk.Label(f, text="① 編制管理（招募 / 分配員額 → 擴大公司）", font=FONT_B, bg=NAVY, fg=GREEN).pack(anchor="w", padx=16, pady=(10, 2))
         tk.Label(f, text="員額＝AI 代理數。①影片／②Shorts 的員額會『真的』決定每日產出量（加員額＝加產能）；其餘為編制容量。",
-                 font=("Microsoft JhengHei", 9), bg=NAVY, fg=SUB, wraplength=1000, justify="left").pack(anchor="w", padx=18)
+                 font=FONT_SMALL, bg=NAVY, fg=SUB, wraplength=1000, justify="left").pack(anchor="w", padx=18)
         grid = tk.Frame(f, bg=NAVY); grid.pack(fill="x", padx=16, pady=(4, 2))
         self.hr_head_lbls = {}
         hc = load_headcount()
@@ -1733,20 +1875,20 @@ class App(tk.Tk):
             if col == 0:
                 rowf = tk.Frame(grid, bg=NAVY); rowf.pack(fill="x")
             cell = tk.Frame(rowf, bg=CARD); cell.pack(side="left", expand=True, fill="x", padx=3, pady=2)
-            tk.Label(cell, text=f"{d['tag']}{d['name']}", font=("Microsoft JhengHei", 10, "bold"), bg=CARD, fg=TEXTCOL,
+            tk.Label(cell, text=f"{d['tag']}{d['name']}", font=(_UI, 10, "bold"), bg=CARD, fg=TEXTCOL,
                      width=16, anchor="w").pack(side="left", padx=(8, 2), pady=4)
-            tk.Button(cell, text="➖", font=("Microsoft JhengHei", 10, "bold"), bg="#3a2330", fg="#ffd0d0", bd=0,
+            tk.Button(cell, text="➖", font=(_UI, 10, "bold"), bg=DEL_BG, fg=DEL_FG, bd=0,
                       width=2, command=lambda t=d["tag"]: self.adjust_headcount(t, -1)).pack(side="left", padx=1)
             hl = tk.Label(cell, text=f"{hc.get(d['tag'], 0)}", font=FONT_B, bg=CARD, fg=ACCENT, width=3, anchor="center")
             hl.pack(side="left")
             self.hr_head_lbls[d["tag"]] = hl
-            tk.Button(cell, text="➕招募", font=("Microsoft JhengHei", 9, "bold"), bg="#1f6f43", fg="#eafff1", bd=0,
+            tk.Button(cell, text="➕招募", font=(_UI, 9, "bold"), bg=ACT_BG, fg=ACT_FG, bd=0,
                       command=lambda t=d["tag"]: self.adjust_headcount(t, +1)).pack(side="left", padx=(1, 8))
 
         # 區塊 B：部門監察（出勤 / 健康）
         tk.Label(f, text="② 部門監察（出勤 / 考核 / 健康）", font=FONT_B, bg=NAVY, fg=GREEN).pack(anchor="w", padx=16, pady=(12, 2))
-        self.hr_box = scrolledtext.ScrolledText(f, height=11, font=("Microsoft JhengHei", 10), wrap="word",
-                                                bg="#0a1020", fg=TEXTCOL, bd=0, padx=12, pady=10)
+        self.hr_box = scrolledtext.ScrolledText(f, height=11, font=FONT_LBL, wrap="word",
+                                                bg=WELL, fg=TEXTCOL, bd=0, padx=12, pady=10)
         self.hr_box.pack(fill="both", expand=True, padx=16, pady=(2, 6))
         rowb = tk.Frame(f, bg=NAVY); rowb.pack(fill="x", padx=16, pady=(0, 10))
         tk.Button(rowb, text="🧑‍💼 立即跑人事監察（產報告）", font=FONT, bg=ACCENT, fg=NAVY, bd=0,
@@ -1890,9 +2032,10 @@ class App(tk.Tk):
         # 編制建議
         L.append("")
         L.append("🧑‍💼 編制建議")
-        unbuilt = [d['tag'] + d['name'] for d in DEPTS if d.get("kind") == "todo"]
+        # kind == "todo" 已清除（DEPTS 所有部門都有對應腳本或明確唯讀標注），此行保留備用
+        unbuilt: list = []
         if unbuilt:
-            L.append(f"   ・尚未自動化（可擴編開發）：{ '、'.join(unbuilt) }")
+            L.append(f"   ・尚未自動化（可擴編開發）：{'、'.join(unbuilt)}")
         hc = load_headcount()
         if hc.get("②", 0) < 4:
             L.append("   ・②Shorts 員額偏低（衝量主力建議 ≥4）。")
@@ -1902,13 +2045,13 @@ class App(tk.Tk):
     # ---------- Tab 1: 匯報 ----------
     # ---------- Tab: 倉庫評分（每部片品質分數＋退件重做） ----------
     def tab_library(self, nb):
-        f = tk.Frame(nb, bg=NAVY); nb.add(f, text="🎬 倉庫評分")
+        f = self._scroll_tab(nb, "🎬 倉庫評分")
         self._section(f, "🎬 倉庫品質評分")
         # 摘要列（卡片）
         sumwrap = tk.Frame(f, bg=BORDER); sumwrap.pack(fill="x", padx=18, pady=(2, 6))
         sumcard = tk.Frame(sumwrap, bg=CARD); sumcard.pack(fill="x", padx=1, pady=1)
         tk.Frame(sumcard, bg=ACCENT, height=3).pack(fill="x")
-        self.lib_summary = tk.Label(sumcard, text="載入中…", font=("Microsoft JhengHei", 11, "bold"),
+        self.lib_summary = tk.Label(sumcard, text="載入中…", font=(_UI, 11, "bold"),
                                     bg=CARD, fg=TEXTCOL, anchor="w", justify="left", padx=14, pady=10)
         self.lib_summary.pack(fill="x")
         # 評分依據與標準（說明卡）
@@ -1920,14 +2063,14 @@ class App(tk.Tk):
                 "　　📚 內容｜紮實・正確・清晰　　🛡 誠信｜不誇大不喊單、有風險意識、不空泛\n"
                 "　品管硬傷再扣：禁語 −50、無影音軌 −45、片長過短 −35、檔案過小 −30、缺風險聲明 −12…\n"
                 "　門檻：總分 < 你設定的門檻 → 標「⚠️ 建議退件」；可手動或一鍵自動退件重做。")
-        tk.Label(ecard, text=expl, font=("Microsoft JhengHei", 9), bg=PANEL, fg=SUB,
+        tk.Label(ecard, text=expl, font=FONT_SMALL, bg=PANEL, fg=SUB,
                  anchor="w", justify="left", padx=14, pady=10).pack(fill="x")
         # 工具列（門檻 + 動作）
         thr = tk.Frame(f, bg=NAVY); thr.pack(fill="x", padx=18, pady=(4, 6))
         tk.Label(thr, text="退件門檻", font=FONT, bg=NAVY, fg=SUB).pack(side="left")
         self.lib_thresh = tk.IntVar(value=70)
         tk.Spinbox(thr, from_=0, to=100, width=4, textvariable=self.lib_thresh,
-                   font=("Microsoft JhengHei", 11, "bold"), justify="center",
+                   font=(_UI, 11, "bold"), justify="center",
                    bg=PANEL, fg=ACCENT, buttonbackground=CARD, bd=0, relief="flat",
                    highlightthickness=1, highlightbackground=BORDER).pack(side="left", padx=(6, 2))
         tk.Label(thr, text="分", font=FONT, bg=NAVY, fg=SUB).pack(side="left", padx=(0, 8))
@@ -1939,15 +2082,15 @@ class App(tk.Tk):
         self._section(f, "📦 未發布（倉庫囤貨）— 選中可退件重做")
         self.lib_tree_pending = self._make_lib_zone(f, 11)
         act = tk.Frame(f, bg=NAVY); act.pack(fill="x", padx=18, pady=(6, 2))
-        tk.Button(act, text="❌ 退件重做（選中項）", font=FONT_B, bg="#3a1620", fg=RED, bd=0,
+        tk.Button(act, text="❌ 退件重做（選中項）", font=FONT_B, bg=SQ_BG, fg=RED, bd=0,
                   padx=14, pady=7, activebackground=RED, activeforeground="#fff",
                   command=self.lib_reject_selected).pack(side="left")
         tk.Label(act, text="  退件＝隔離該片＋釋放題目，下輪雲端自動補產新的（只動未發布囤貨）",
-                 font=("Microsoft JhengHei", 9), bg=NAVY, fg=SUB).pack(side="left")
+                 font=FONT_SMALL, bg=NAVY, fg=SUB).pack(side="left")
         self._section(f, "🔍 品管細項（製作過程＋AI 評分明細）")
         dwrap = tk.Frame(f, bg=BORDER); dwrap.pack(fill="x", padx=18, pady=(2, 14))
-        self.lib_detail = scrolledtext.ScrolledText(dwrap, height=6, font=("Microsoft JhengHei", 10), wrap="word",
-                                                    bg="#0a1020", fg=TEXTCOL, bd=0, padx=12, pady=10,
+        self.lib_detail = scrolledtext.ScrolledText(dwrap, height=6, font=FONT_LBL, wrap="word",
+                                                    bg=WELL, fg=TEXTCOL, bd=0, padx=12, pady=10,
                                                     insertbackground=TEXTCOL)
         self.lib_detail.pack(fill="x", padx=1, pady=1)
         self._lib_items = []
@@ -1955,11 +2098,11 @@ class App(tk.Tk):
 
     # ---------- Tab: 已發布（線上影片，唯讀） ----------
     def tab_published(self, nb):
-        f = tk.Frame(nb, bg=NAVY); nb.add(f, text="🟢 已發布")
+        f = self._scroll_tab(nb, "🟢 已發布")
         self._section(f, "🟢 已發布影片（線上，唯讀）")
         tk.Label(f, text="這裡只看不動：已發布影片的品質分數一覽。雙擊任一列開 YouTube。"
                          "要改線上標題用 refresh_library.py、改縮圖用 refresh_thumbnails.py、下架用 set_public.py。",
-                 font=("Microsoft JhengHei", 9), bg=NAVY, fg=SUB, justify="left", anchor="w").pack(anchor="w", padx=20, pady=(0, 4))
+                 font=FONT_SMALL, bg=NAVY, fg=SUB, justify="left", anchor="w").pack(anchor="w", padx=20, pady=(0, 4))
         bar = tk.Frame(f, bg=NAVY); bar.pack(fill="x", padx=18, pady=(2, 4))
         self.pub_summary = tk.Label(bar, text="—", font=FONT_B, bg=NAVY, fg=ACCENT)
         self.pub_summary.pack(side="left")
@@ -1969,8 +2112,8 @@ class App(tk.Tk):
             ("subs", "訂閱+", 60, "center"), ("score", "品質", 58, "center"), ("title", "標題", 460, "w")])
         self.lib_tree_pub.bind("<Double-1>", self._pub_open)
         ddwrap = tk.Frame(f, bg=BORDER); ddwrap.pack(fill="x", padx=18, pady=(6, 14))
-        self.pub_detail = scrolledtext.ScrolledText(ddwrap, height=5, font=("Microsoft JhengHei", 10), wrap="word",
-                                                    bg="#0a1020", fg=TEXTCOL, bd=0, padx=12, pady=10,
+        self.pub_detail = scrolledtext.ScrolledText(ddwrap, height=5, font=FONT_LBL, wrap="word",
+                                                    bg=WELL, fg=TEXTCOL, bd=0, padx=12, pady=10,
                                                     insertbackground=TEXTCOL)
         self.pub_detail.pack(fill="x", padx=1, pady=1)
 
@@ -1997,7 +2140,7 @@ class App(tk.Tk):
         tree.bind("<<TreeviewSelect>>", lambda e, t=tree: self._lib_on_select(t))
         tree.tag_configure("reject", foreground=RED)
         tree.tag_configure("pass", foreground=GREEN)
-        tree.tag_configure("odd", background="#142039")
+        tree.tag_configure("odd", background=BG1)
         tree.tag_configure("even", background=CARD)
         return tree
 
@@ -2036,8 +2179,11 @@ class App(tk.Tk):
             self.lib_thresh.set(int(mn))
         except Exception:
             pass
+        # 未發布數以即時 queue 為單一真相(避免評分快照過期)；清單細項仍用快照,每日重掃自動對齊
+        cl = self._cloud if (getattr(self, "_cloud_state", "") == "online" and self._cloud) else None
+        pend_n = cl["queue"] if (cl and cl.get("queue") is not None) else len(pend)
         self.lib_summary.config(
-            text=f"📦 未發布囤貨 {len(pend)} 支　｜　✅ 通過 {s.get('pass',0)}　｜　⚠️ 建議退件 {s.get('reject',0)}"
+            text=f"📦 未發布囤貨 {pend_n} 支　｜　✅ 通過 {s.get('pass',0)}　｜　⚠️ 建議退件 {s.get('reject',0)}"
                  f"　｜　門檻 {mn} 分　（更新 {data.get('updated','—')}）")
         if hasattr(self, "pub_summary"):
             extra = "" if data.get("has_analytics") else "（成效待 analytics token）"
@@ -2175,15 +2321,15 @@ class App(tk.Tk):
         nb.add(f, text="📋 每日匯報")
         left = tk.Frame(f, bg=NAVY); left.pack(side="left", fill="y", padx=(0, 8), pady=8)
         tk.Label(left, text="選擇匯報", font=FONT_B, bg=NAVY, fg=TEXTCOL).pack(anchor="w")
-        self.rep_list = tk.Listbox(left, width=30, height=16, font=("Microsoft JhengHei", 10),
+        self.rep_list = tk.Listbox(left, width=30, height=16, font=FONT_LBL,
                                    bg=CARD, fg=TEXTCOL, selectbackground=ACCENT, selectforeground=NAVY, bd=0)
         self.rep_list.pack(fill="y", expand=True, pady=6)
         self.rep_list.bind("<<ListboxSelect>>", self.show_report)
         tk.Button(left, text="🔄 從雲端重新整理", font=FONT, command=self.refresh_reports, bg=CARD, fg=TEXTCOL, bd=0).pack(fill="x")
-        self.rep_sync_lbl = tk.Label(left, text="", font=("Microsoft JhengHei", 9), bg=NAVY, fg=SUB)
+        self.rep_sync_lbl = tk.Label(left, text="", font=FONT_SMALL, bg=NAVY, fg=SUB)
         self.rep_sync_lbl.pack(anchor="w", pady=(4, 0))
-        self.rep_text = scrolledtext.ScrolledText(f, font=("Microsoft JhengHei", 11), wrap="word",
-                                                  bg="#0a1020", fg=TEXTCOL, bd=0, padx=14, pady=12)
+        self.rep_text = scrolledtext.ScrolledText(f, font=FONT, wrap="word",
+                                                  bg=WELL, fg=TEXTCOL, bd=0, padx=14, pady=12)
         self.rep_text.pack(side="left", fill="both", expand=True, pady=8)
         self.load_reports()
         self.refresh_reports()  # 開頁即從雲端抓最新報告
@@ -2269,7 +2415,7 @@ class App(tk.Tk):
 
         ttk.Separator(f, orient="horizontal").pack(fill="x", padx=16, pady=10)
         tk.Label(f, text="① 給工廠下指令（決策部門明天會照做）", font=FONT_B, bg=NAVY, fg=ACCENT).pack(anchor="w", **pad)
-        tk.Label(f, text="例：多做派網教學的 Shorts／停掉定投題材／這週主打風控", font=("Microsoft JhengHei", 10),
+        tk.Label(f, text="例：多做派網教學的 Shorts／停掉定投題材／這週主打風控", font=FONT_LBL,
                  bg=NAVY, fg=SUB).pack(anchor="w", padx=16)
         self.cmd_entry = tk.Text(f, height=3, font=FONT, bg=CARD, fg=TEXTCOL, bd=0, padx=10, pady=8)
         self.cmd_entry.pack(fill="x", padx=16, pady=6)
@@ -2281,10 +2427,10 @@ class App(tk.Tk):
             tk.Radiobutton(rowf, text=t, variable=self.fmt_var, value=v, font=FONT, bg=NAVY, fg=TEXTCOL,
                            selectcolor=CARD, activebackground=NAVY, command=self.save_fmt).pack(side="left", padx=6)
         tk.Label(f, text="③ 目前生效中的指令", font=FONT_B, bg=NAVY, fg=ACCENT).pack(anchor="w", **pad)
-        self.dir_box = scrolledtext.ScrolledText(f, height=10, font=("Microsoft JhengHei", 10), wrap="word",
-                                                 bg="#0a1020", fg=TEXTCOL, bd=0, padx=12, pady=10)
+        self.dir_box = scrolledtext.ScrolledText(f, height=10, font=FONT_LBL, wrap="word",
+                                                 bg=WELL, fg=TEXTCOL, bd=0, padx=12, pady=10)
         self.dir_box.pack(fill="both", expand=True, padx=16, pady=(4, 10))
-        tk.Button(f, text="🗑 清空所有指令", font=("Microsoft JhengHei", 10), bg=CARD, fg=TEXTCOL, bd=0,
+        tk.Button(f, text="🗑 清空所有指令", font=FONT_LBL, bg=CARD, fg=TEXTCOL, bd=0,
                   command=self.clear_directives).pack(anchor="e", padx=16, pady=(0, 8))
         self.refresh_directives()
 
@@ -2349,21 +2495,25 @@ class App(tk.Tk):
         pend = self._load_pending()
         if not pend:
             tk.Label(self.pending_frame, text="（目前沒有待拍板的決策。決策部門有需要時會在這裡列出選擇題）",
-                     font=("Microsoft JhengHei", 10), bg=NAVY, fg=SUB).pack(anchor="w", pady=4)
+                     font=FONT_LBL, bg=NAVY, fg=FAINT).pack(anchor="w", pady=PAD_XS)
             return
         for p in pend:
-            card = tk.Frame(self.pending_frame, bg=CARD)
-            card.pack(fill="x", pady=5)
-            tk.Label(card, text="❓ " + p.get("question", ""), font=FONT, bg=CARD, fg=TEXTCOL,
-                     wraplength=940, justify="left").pack(anchor="w", padx=12, pady=(8, 2))
+            # 細邊框 + 左側金色強調條，做出「待拍板」卡片的份量感
+            wrap = tk.Frame(self.pending_frame, bg=BORDER); wrap.pack(fill="x", pady=PAD_XS + 1)
+            shell = tk.Frame(wrap, bg=CARD); shell.pack(fill="x", padx=1, pady=1)
+            tk.Frame(shell, bg=ACCENT, width=4).pack(side="left", fill="y")
+            card = tk.Frame(shell, bg=CARD); card.pack(side="left", fill="x", expand=True)
+            tk.Label(card, text="❓ " + p.get("question", ""), font=(_UI, 11, "bold"), bg=CARD, fg=TEXTCOL,
+                     wraplength=940, justify="left").pack(anchor="w", padx=PAD_M, pady=(PAD_S + 2, PAD_XS - 2))
             if p.get("recommendation"):
-                tk.Label(card, text="💡 建議：" + p["recommendation"], font=("Microsoft JhengHei", 9),
-                         bg=CARD, fg=ACCENT, wraplength=940, justify="left").pack(anchor="w", padx=12)
+                tk.Label(card, text="💡 建議：" + p["recommendation"], font=FONT_SMALL,
+                         bg=CARD, fg=ACCENT, wraplength=940, justify="left").pack(anchor="w", padx=PAD_M)
             brow = tk.Frame(card, bg=CARD)
-            brow.pack(anchor="w", padx=12, pady=(6, 10))
+            brow.pack(anchor="w", padx=PAD_M, pady=(PAD_S - 2, PAD_M - 2))
             for opt in p.get("options", []):
-                tk.Button(brow, text=opt, font=FONT, bg=ACCENT, fg=NAVY, bd=0, padx=12, pady=5,
-                          activebackground="#fff", command=lambda pp=p, oo=opt: self.choose_option(pp, oo)).pack(side="left", padx=5)
+                tk.Button(brow, text=opt, font=FONT, bg=ACCENT, fg=NAVY, bd=0, padx=PAD_M, pady=PAD_XS + 1,
+                          relief="flat", cursor="hand2", activebackground=GOLD_HI, activeforeground=NAVY,
+                          command=lambda pp=p, oo=opt: self.choose_option(pp, oo)).pack(side="left", padx=PAD_XS + 1)
 
     def choose_option(self, p, opt):
         from datetime import datetime, timedelta, timezone
@@ -2399,7 +2549,7 @@ class App(tk.Tk):
         self._ctrl_frame = f._outer
         tk.Label(f, text="日常操作（按下＝在 24/7 雲端執行，不佔你電腦）", font=FONT_B, bg=NAVY, fg=ACCENT).pack(anchor="w", padx=16, pady=(14, 2))
         tk.Label(f, text="背景在雲端跑，下方「執行輸出」會回報；進度/狀態看「☁ 雲端營運」。各部門單獨激活在「🏢 部門」。",
-                 font=("Microsoft JhengHei", 9), bg=NAVY, fg=SUB).pack(anchor="w", padx=16, pady=(0, 4))
+                 font=FONT_SMALL, bg=NAVY, fg=SUB).pack(anchor="w", padx=16, pady=(0, 4))
         row = tk.Frame(f, bg=NAVY); row.pack(anchor="w", padx=16, pady=4)
         self._btn(row, "🧠 立即決策", lambda: self._cloud_op("scripts/decision_dept.py", [], "決策"))
         self._btn(row, "🎬 立即補產", lambda: self._cloud_op("scripts/produce_batch.py", ["--target", "60"], "補產"))
@@ -2418,8 +2568,8 @@ class App(tk.Tk):
         self._btn(row3, "🎚 YouTube Studio", lambda: webbrowser.open(STUDIO_URL))
         self._btn(row3, "📁 工作室資料夾", lambda: subprocess.Popen(["explorer", str(ROOT)]))
         tk.Label(f, text="執行輸出", font=FONT_B, bg=NAVY, fg=ACCENT).pack(anchor="w", padx=16, pady=(14, 4))
-        self.log = scrolledtext.ScrolledText(f, height=14, font=("Consolas", 9), wrap="word",
-                                             bg="#06090f", fg="#b9f7c0", bd=0, padx=10, pady=8)
+        self.log = scrolledtext.ScrolledText(f, height=14, font=FONT_MONO, wrap="word",
+                                             bg=TERM, fg=TERM_FG, bd=0, padx=10, pady=8)
         self.log.pack(fill="both", expand=True, padx=16, pady=(4, 12))
         self._nb = nb
 
@@ -2439,15 +2589,18 @@ class App(tk.Tk):
             return
         note = (simpledialog.askstring("備註", "備註（可空）：", parent=self) or "").replace('"', "'")
         if load_cloud_cfg():
+            # shlex.quote 確保 note 含引號/空白時不被 shell 誤解析
             self._activate_on_cloud("scripts/finance_dept.py",
-                                    ["--add", etype, "--amount", str(amt), "--note", f'"{note}"'], "財務記帳")
+                                    ["--add", etype, "--amount", str(amt), "--note", note], "財務記帳")
         else:
             self.run_script(["scripts/finance_dept.py", "--add", etype, "--amount", str(amt), "--note", note], "財務記帳")
         messagebox.showinfo("已記帳", f"已記一筆「{kind}」NT$ {amt:.0f}。\n已記在雲端帳上，財務報告更新中。")
 
     def _btn(self, parent, text, cmd):
-        tk.Button(parent, text=text, font=FONT, bg=CARD, fg=TEXTCOL, bd=0, padx=12, pady=6,
-                  activebackground=ACCENT, command=cmd).pack(side="left", padx=5)
+        tk.Button(parent, text=text, font=FONT, bg=CARD, fg=TEXTCOL, bd=0,
+                  padx=PAD_M + 1, pady=PAD_S - 1, relief="flat", cursor="hand2",
+                  activebackground=BG3, activeforeground=ACCENT,
+                  command=cmd).pack(side="left", padx=PAD_XS + 1, pady=PAD_XS - 2)
 
     def _goto_control(self):
         try:
@@ -2477,7 +2630,8 @@ class App(tk.Tk):
         if not cfg:
             self.run_script([script] + args, name + "(本機)")
             return
-        argstr = " ".join(args)
+        # shlex.join 確保含空白/特殊字元的參數不會被 shell 誤解析
+        argstr = shlex.join(args) if args else ""
         remote = f"cd {cfg['remote_root']} && ./run.sh {script} {argstr}"
         self.log.insert("end", f"\n=== {name}：雲端執行中（請稍候，完成前別關視窗）… ===\n"); self.log.see("end")
 
@@ -2499,17 +2653,19 @@ class App(tk.Tk):
         threading.Thread(target=lambda: self._run_blocking(args, name), daemon=True).start()
 
     def _run_blocking(self, args, name):
-        self.log.insert("end", f"\n=== {name} 開始執行… ===\n"); self.log.see("end")
+        def _log(t):  # 由 run_script 在背景執行緒呼叫 → 一律排回主執行緒動 widget
+            self.after(0, lambda s=t: (self.log.insert("end", s), self.log.see("end")))
+        _log(f"\n=== {name} 開始執行… ===\n")
         try:
             p = _popen([str(PY)] + args, cwd=str(ROOT),
                                  stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                  text=True, encoding="utf-8", errors="replace")
             for line in p.stdout:
-                self.log.insert("end", line); self.log.see("end")
+                _log(line)
             p.wait()
-            self.log.insert("end", f"=== {name} 完成 (exit {p.returncode}) ===\n")
+            _log(f"=== {name} 完成 (exit {p.returncode}) ===\n")
         except Exception as e:
-            self.log.insert("end", f"[錯誤] {e}\n")
+            _log(f"[錯誤] {e}\n")
         self.after(0, self.refresh_status)
 
     def _lib_counts(self):
@@ -2548,6 +2704,9 @@ class App(tk.Tk):
             pass
 
     def auto_tick(self):
+        # 防呆：雲端操作鎖卡死超過 1900s 自動釋放（避免某次 SSH 卡死後，後續雲端按鈕全部沒反應）
+        if getattr(self, "_op_running", False) and time.time() - getattr(self, "_op_started", 0) > 1900:
+            self._op_running = False
         # 每 8 秒：刷新所有「本地」資料（讀檔，便宜），讓畫面永遠是最新的
         self.refresh_status()
         for fn in (self.render_dashboard, self.render_departments, self._refresh_hr, self.render_cloud):
