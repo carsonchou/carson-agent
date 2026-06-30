@@ -60,6 +60,13 @@ except Exception as _e:                     # pragma: no cover
     chips = None
     print(f"[hunter] chips 模組不可用，籌碼面停用：{type(_e).__name__}: {_e}")
 
+# R4 融資融券/當沖面(同樣獨立模組、無循環匯入；缺則優雅降級)
+try:
+    import margin as margin_mod                                        # noqa: E402
+except Exception as _e:                     # pragma: no cover
+    margin_mod = None
+    print(f"[hunter] margin 模組不可用，融資券面停用：{type(_e).__name__}: {_e}")
+
 # .env(NTFY_TOPIC / LINE_NOTIFY_TOKEN) 由 quant-service 載入
 try:
     from dotenv import load_dotenv
@@ -526,6 +533,12 @@ def _analyse_core(code: str, df_raw: pd.DataFrame, drop_last: bool) -> dict | No
     chg = round((price - prev_px) / prev_px * 100, 2) if prev_px else 0.0
     mom5 = round((price - float(fclose.iloc[-6])) / float(fclose.iloc[-6]) * 100, 2) if len(fclose) >= 6 else 0.0
     spark = [round(float(x), 2) for x in fclose.tail(20).tolist()]   # 近~20根收盤(給前端迷你走勢)
+    # 近~30根 OHLC(給前端迷你K線)；含 forming/realtime 最後一根(與 spark 同基準=full)。
+    # 只算進 core，序列化僅發生在『會顯示的卡片』(_card/_watch)，不對全市場 1900 檔寫進 state。
+    _oh = full.tail(30)
+    ohlc = [[round(float(o), 2), round(float(h), 2), round(float(l), 2), round(float(c), 2)]
+            for o, h, l, c in zip(_oh["open"].astype(float), _oh["high"].astype(float),
+                                  _oh["low"].astype(float), _oh["close"].astype(float))]
 
     # 訊號/指標用『已收盤』序列
     closed = full.iloc[:-1] if (drop_last and len(full) > 22) else full
@@ -617,8 +630,9 @@ def _analyse_core(code: str, df_raw: pd.DataFrame, drop_last: bool) -> dict | No
         "relvol": relvol, "no_chase": no_chase,
         "recent_high20": round(recent_high20, 2), "hi60": hi60, "lo60": lo60,
         "score": score, "signal": signal, "reason": reason, "firm": firm,
-        "stop": stop, "tp1": tp1, "tp2": tp2, "spark": spark,
+        "stop": stop, "tp1": tp1, "tp2": tp2, "spark": spark, "ohlc": ohlc,
         "trend_frac": trend_frac, "turnover_60d": turnover60, "pool_pass": pool_pass,
+        "vol_lots": int(round(cur_vol / 1000)),   # 當根成交張(給當沖比分母用)
     }
     _ANALYSE_MEMO[code] = (key, result)
     return result
@@ -711,6 +725,43 @@ def build_state(data: dict[str, pd.DataFrame], rows: list[tuple[str, str, str]],
                       "instinv_net": rec["instinv_net"],
                       "consec_buy_days": rec["consec_buy_days"],
                       "chip_confirm": bool(ft_buy), "chip_t_minus": chips_t_minus})
+
+    # ── R4：合併融資融券/當沖(顯示/confluence，不 gate；盤中 realtime 標 T-1) ──
+    margin_t_minus = 1 if drop_last else 0
+    margin_map: dict[str, dict] = {}
+    margin_date = None
+    if margin_mod is not None:
+        try:
+            margin_map = margin_mod.load_margin([s["code"] for s in stocks],
+                                                offline=chips_offline)
+            if margin_map:
+                margin_date = next(iter(margin_map.values())).get("date")
+        except Exception as e:
+            print(f"[hunter] 融資券載入略過：{type(e).__name__}: {e}")
+            margin_map = {}
+    for s in stocks:
+        m = margin_map.get(s["code"])
+        if m is None:
+            s.update({"margin_balance": None, "margin_chg": None, "short_balance": None,
+                      "short_margin_ratio": None, "day_trade_pct": None,
+                      "margin_t_minus": margin_t_minus if margin_map else None})
+        else:
+            # 當沖比% = 當沖成交張 / 當根成交張 ×100。
+            #   day_trade_lots is None(當沖端點整段無資料) → None 隱藏(別誤顯示 0%)；
+            #   lots=0(真當沖 0) → 0.0；成交量缺/0 → None；>100% 不可能(量能基準對不上) → None。
+            vl = s.get("vol_lots") or 0
+            lots = m.get("day_trade_lots")
+            if lots is None:
+                dtp = None
+            elif vl > 0:
+                _raw = (lots / vl * 100) if lots else 0.0
+                dtp = round(_raw, 1) if _raw <= 100 else None
+            else:
+                dtp = None
+            s.update({"margin_balance": m["margin_balance"], "margin_chg": m["margin_chg"],
+                      "short_balance": m["short_balance"],
+                      "short_margin_ratio": m["short_margin_ratio"], "day_trade_pct": dtp,
+                      "margin_t_minus": margin_t_minus})
 
     # ── Track B：池濾網『不再 gate firm 訊號』(calibrate 證實單一ST訊號上無 edge)；
     #   n_pool/pool_active 與個股 pool_pass 仍算給看板顯示/confluence 參考用，不排除任何訊號。
@@ -849,10 +900,26 @@ def build_state(data: dict[str, pd.DataFrame], rows: list[tuple[str, str, str]],
         with_chip, key=lambda s: (s.get("consec_buy_days") or 0,
                                   (s.get("foreign_net") or 0) + (s.get("trust_net") or 0)),
         reverse=True)[:CHIP_TOP] if (s.get("consec_buy_days") or 0) > 0]
+    # ── R4：融資融券/當沖榜(券資比高→空方壓力 + 當沖比高→投機熱；缺資料者排除) ──
+    with_margin = [s for s in stocks if s.get("short_margin_ratio") is not None]
+    margin_top = [{"code": s["code"], "name": s["name"],
+                   "short_margin_ratio": s.get("short_margin_ratio"),
+                   "margin_chg": s.get("margin_chg"),
+                   "day_trade_pct": s.get("day_trade_pct")}
+                  for s in sorted(with_margin,
+                                  key=lambda s: (s.get("short_margin_ratio") or 0,
+                                                 s.get("day_trade_pct") or 0),
+                                  reverse=True)[:CHIP_TOP]]
+
     chips_block = {
         "t_minus": chips_t_minus, "date": chip_date,
         "foreign_top": foreign_top, "trust_top": trust_top, "consec_top": consec_top,
         "n_with_data": len(with_chip),
+        "margin_top": margin_top, "margin_t_minus": margin_t_minus, "margin_date": margin_date,
+        "margin_note": ("R4 融資融券/當沖(TWSE MI_MARGN + TWTB4U，盤後)："
+                        "margin_balance/short_balance單位張、short_margin_ratio券資比%、"
+                        "day_trade_pct當沖比%"),
+        "margin_n_with_data": len(with_margin),
     }
 
     return {
@@ -886,11 +953,16 @@ def build_state(data: dict[str, pd.DataFrame], rows: list[tuple[str, str, str]],
 def _card(s: dict) -> dict:
     return {"code": s["code"], "name": s["name"], "industry": s["industry"],
             "price": s["price"], "chg": s["chg"], "rsi": s["rsi"], "score": s["score"],
-            "st": s["st"], "spark": s["spark"],
+            "st": s["st"], "spark": s["spark"], "ohlc": s.get("ohlc"),
             # Track A/B：三大法人籌碼 + 選股池(缺資料為 None，前端自行容錯)
             "foreign_net": s.get("foreign_net"), "trust_net": s.get("trust_net"),
             "instinv_net": s.get("instinv_net"), "consec_buy_days": s.get("consec_buy_days"),
-            "chip_confirm": s.get("chip_confirm"), "pool_pass": s.get("pool_pass")}
+            "chip_confirm": s.get("chip_confirm"), "pool_pass": s.get("pool_pass"),
+            # R4 融資融券/當沖(顯示/confluence；缺資料 None)
+            "margin_balance": s.get("margin_balance"), "margin_chg": s.get("margin_chg"),
+            "short_balance": s.get("short_balance"),
+            "short_margin_ratio": s.get("short_margin_ratio"),
+            "day_trade_pct": s.get("day_trade_pct")}
 
 
 def _sig(s: dict, confirmed_mode: bool) -> dict:
@@ -909,7 +981,8 @@ def _watch(s: dict, why: str) -> dict:
     gap = round(gap, 1)
     return {"code": s["code"], "name": s["name"], "industry": s["industry"],
             "price": s["price"], "chg": s["chg"], "rsi": s["rsi"], "score": s["score"],
-            "gap_pct": gap, "reason": f"{why}差 {gap}% 觸發" if gap > 0 else f"{why}(已觸及)"}
+            "gap_pct": gap, "reason": f"{why}差 {gap}% 觸發" if gap > 0 else f"{why}(已觸及)",
+            "ohlc": s.get("ohlc")}
 
 
 # ── 當日已確認訊號流水 ──────────────────────────────────────────────────────

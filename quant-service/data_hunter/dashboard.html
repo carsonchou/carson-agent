@@ -211,13 +211,17 @@
   .blink{animation:bk 2s infinite}@keyframes bk{50%{opacity:.35}}
 
   /* ════ popover 下鑽 ════ */
-  #pop{position:fixed;z-index:80;display:none;width:236px;background:rgba(6,12,22,.97);
+  #pop{position:fixed;z-index:80;display:none;width:252px;background:rgba(6,12,22,.97);
     border:1px solid var(--acc);border-radius:10px;padding:12px 14px;box-shadow:0 0 22px rgba(84,214,255,.28);backdrop-filter:blur(10px)}
   #pop .pt{display:flex;align-items:baseline;gap:8px;margin-bottom:2px}
   #pop .pt .pc{font-family:var(--mono);font-size:12px;color:var(--dim)}
   #pop .pt .pname{font-size:15px;font-weight:700;color:var(--txt)}
   #pop .pind{font-family:var(--mono);font-size:11px;color:var(--dim);margin-bottom:8px}
   #pop .pspark{width:100%;height:46px;display:block;margin-bottom:8px}
+  /* 迷你日K：蠟燭(紅漲綠跌)+MA20 */
+  #pop .pkline{width:100%;height:96px;display:block;margin-bottom:3px}
+  #pop .pklegend{font-family:var(--mono);font-size:10px;color:var(--faint);margin-bottom:7px;display:flex;gap:8px}
+  #pop .pklegend .ma{color:var(--gold)}
   #pop .prow{display:flex;justify-content:space-between;font-family:var(--mono);font-size:12px;color:var(--dim);padding:3px 0;border-top:1px solid rgba(120,160,220,.1)}
   #pop .prow b{font-weight:400;color:var(--txt)}
   #pop .tag{font-size:11px;padding:1px 7px;border-radius:10px;border:1px solid currentColor}
@@ -313,6 +317,31 @@
   .cbadge.chip{color:var(--gold);border:1px solid rgba(255,215,94,.32);background:rgba(255,215,94,.06)}
   .chipline{font-family:var(--mono);font-size:11px;color:var(--dim);margin-top:7px;padding-top:7px;border-top:1px dashed var(--line)}
   .chipline .ci{opacity:.7;margin-right:4px}
+
+  /* ════ 融資融券 / 當沖熱榜（R4） ════ */
+  .marginSec{margin-top:14px;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .marginHdr{font-family:var(--mono);font-size:12px;letter-spacing:1px;color:var(--acc2);padding:9px 12px;
+    background:linear-gradient(160deg,rgba(20,42,68,.5),rgba(8,18,34,.55));border-bottom:1px solid var(--line);
+    display:flex;justify-content:space-between;align-items:baseline}
+  .marginHdr .chl{font-size:10px;color:var(--faint);letter-spacing:0}
+  .mgrow,.mghead{display:grid;grid-template-columns:22px 1.4fr .9fr .9fr .9fr;gap:8px;align-items:center;
+    padding:8px 12px;font-family:var(--mono);font-size:12px}
+  .mghead{color:var(--dim);font-size:11px;letter-spacing:.5px;background:rgba(255,255,255,.03);border-bottom:1px solid var(--line)}
+  .mgrow{border-bottom:1px solid rgba(120,160,220,.06);cursor:pointer;transition:background .15s}
+  .mgrow:last-child{border-bottom:none}
+  .mgrow:nth-child(even){background:rgba(255,255,255,.02)}
+  .mgrow:hover{background:rgba(84,214,255,.07)}
+  .mgrow .mgn{font-family:var(--tc);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mgrow .mgn .rcode{font-family:var(--mono)}
+  .mgrow .mgv{font-variant-numeric:tabular-nums;font-weight:700;text-align:right;white-space:nowrap}
+  .mghead .r{text-align:right}
+  /* 券資比警示色：越高空方壓力越大(暖色警示，非紅綠語意) */
+  .warn1{color:var(--gold)} .warn2{color:#ff9f45} .warn3{color:#ff6b4d}
+  /* 當沖熱標 */
+  .dt-hot{font-family:var(--mono);font-size:10px;padding:1px 6px;border-radius:10px;margin-left:5px;
+    color:#ff9f45;border:1px solid rgba(255,159,69,.4)}
+  .mg-tag{font-family:var(--mono);font-size:10px;padding:1px 6px;border-radius:10px;margin-left:5px;
+    color:#ff6b4d;border:1px solid rgba(255,107,77,.4)}
 
   /* ════════════ 手機 RWD（<480px 再收一級） ════════════ */
   @media(max-width:480px){
@@ -502,8 +531,15 @@
           <div id="chipConsec"></div>
         </div>
       </div>
+      <!-- 融資融券 / 當沖熱榜（券資比高＝空方壓力警示、融資增紅減綠、當沖比高給熱標） -->
+      <div class="marginSec" id="marginSec">
+        <div class="marginHdr"><span>融資融券 · 當沖熱 · MARGIN &amp; DAY-TRADE</span><span class="chl">融資增紅減綠 · 券資比高＝空壓 · 🔥當沖熱</span></div>
+        <div class="mghead"><span>#</span><span>個股</span><span class="r">券資比%</span><span class="r">融資增減(張)</span><span class="r">當沖比%</span></div>
+        <div id="chipMargin"></div>
+      </div>
       <div style="font-family:var(--mono);font-size:11px;color:var(--faint);margin-top:12px;text-align:center">
-        三大法人盤後籌碼（證交所 T86＋櫃買）· 淨買單位＝張 · 買超紅／賣超綠 · 連買＝連續同方向買超天數
+        三大法人盤後籌碼（證交所 T86＋櫃買）· 淨買單位＝張 · 買超紅／賣超綠 · 連買＝連續同方向買超天數<br>
+        融資融券／當沖（MI_MARGN＋TWTB4U 盤後）· 融資增＝偏多(紅)、減＝偏空(綠) · 券資比越高空方壓力越大
       </div>
     </section>
   </div>
@@ -639,7 +675,7 @@ const sign=v=>(v>0?'+':'')+v;
 const chgCls=v=>v>0?'adv':(v<0?'dec':'');
 const chgColor=v=>v>0?'var(--up)':(v<0?'var(--dn)':'var(--dim)');
 // 紅漲綠跌的 hex（給 canvas/SVG 用）
-const upHex='#ff4d6d', dnHex='#28c08b', dimHex='#7f93b3';
+const upHex='#ff4d6d', dnHex='#28c08b', dimHex='#7f93b3', goldHex='#ffd75e';
 const dirHex=v=>v>0?upHex:(v<0?dnHex:dimHex);
 
 // ── 背景粒子（低密度，分頁隱藏即停） ──
@@ -724,6 +760,49 @@ function sparkSVG(arr,w=208,h=46){
     <circle cx="${lx}" cy="${ly}" r="2.2" fill="${col}"/></svg>`;
 }
 
+// ── 迷你日K：蠟燭圖(紅漲綠跌) + MA20（看盤核心，畫在 canvas 上） ──
+// 滾動均線：每點取近 period 根(不足則用現有根數)，確保短樣本也有連續線
+function rollingMA(closes,period){
+  return closes.map((_,i)=>{const s=Math.max(0,i-period+1);let sum=0;for(let j=s;j<=i;j++)sum+=closes[j];return sum/(i-s+1);});
+}
+function drawKline(cv,ohlc){
+  if(!cv||!Array.isArray(ohlc)||ohlc.length<1)return;
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  const cssW=cv.clientWidth||224, cssH=cv.clientHeight||96;
+  cv.width=Math.round(cssW*dpr); cv.height=Math.round(cssH*dpr);
+  const x=cv.getContext('2d'); x.setTransform(dpr,0,0,dpr,0,0); x.clearRect(0,0,cssW,cssH);
+  const n=ohlc.length;
+  const highs=ohlc.map(d=>d[1]), lows=ohlc.map(d=>d[2]), closes=ohlc.map(d=>d[3]);
+  const ma=rollingMA(closes,20);
+  const pad={l:3,r:34,t:7,b:7}; // 右側留最後價標籤
+  let hi=Math.max(...highs,...ma), lo=Math.min(...lows,...ma); const rng=(hi-lo)||1;
+  const plotW=cssW-pad.l-pad.r, plotH=cssH-pad.t-pad.b;
+  const X=i=> pad.l + (n<=1?plotW/2:i/(n-1)*plotW);
+  const Y=v=> pad.t + (1-(v-lo)/rng)*plotH;
+  const cw=Math.max(1.5,Math.min(9, plotW/Math.max(1,n)*0.62)); // 蠟燭寬度自適應
+  // 極簡上下界格線
+  x.strokeStyle='rgba(120,160,220,.12)'; x.lineWidth=1;
+  x.beginPath(); x.moveTo(pad.l,Y(hi)+.5); x.lineTo(cssW-pad.r,Y(hi)+.5);
+  x.moveTo(pad.l,Y(lo)-.5); x.lineTo(cssW-pad.r,Y(lo)-.5); x.stroke();
+  // 蠟燭(紅漲綠跌：收≥開紅、收<開綠；含上下影線)
+  for(let i=0;i<n;i++){
+    const o=ohlc[i][0],h=ohlc[i][1],l=ohlc[i][2],c=ohlc[i][3];
+    const col=(c>=o)?upHex:dnHex, cx=X(i);
+    x.strokeStyle=col; x.lineWidth=1;
+    x.beginPath(); x.moveTo(cx,Y(h)); x.lineTo(cx,Y(l)); x.stroke();          // 影線
+    const yO=Y(o),yC=Y(c), top=Math.min(yO,yC), bh=Math.max(1,Math.abs(yC-yO));
+    x.fillStyle=col; x.fillRect(cx-cw/2, top, cw, bh);                        // 實體
+  }
+  // MA20 線(金色)
+  x.strokeStyle=goldHex; x.lineWidth=1.4; x.globalAlpha=.92;
+  x.beginPath(); ma.forEach((v,i)=>{const px=X(i),py=Y(v); i?x.lineTo(px,py):x.moveTo(px,py);}); x.stroke(); x.globalAlpha=1;
+  // 最後價：圓點 + 右側價格標籤(色＝最後一根漲跌)
+  const lastC=closes[n-1], lup=lastC>=ohlc[n-1][0], lcol=lup?upHex:dnHex, ly=Y(lastC);
+  x.fillStyle=lcol; x.beginPath(); x.arc(X(n-1),ly,2.4,0,7); x.fill();
+  x.font='10px "Share Tech Mono",monospace'; x.textAlign='left';
+  x.fillText(lastC.toFixed(lastC<50?2:1), cssW-pad.r+3, ly+3);
+}
+
 // ── 下鑽 popover ──
 const pop=$('#pop'); let popKey=null;
 function stStatus(st){return st==='UP'?'<span class="tag" style="color:var(--up)">翻多</span>'
@@ -733,18 +812,24 @@ function ma20Status(s){const up=s.st==='UP'||(s.rsi&&s.rsi>=50);
 function showPop(s,anchor){
   if(popKey===s.code && pop.style.display==='block'){hidePop();return;}
   popKey=s.code;
+  // 有 ohlc → 畫迷你日K(蠟燭+MA20)；無 → 退回收盤 sparkline(優雅降級)
+  const hasK=Array.isArray(s.ohlc)&&s.ohlc.length>=2;
+  const chart=hasK
+    ? `<canvas class="pkline"></canvas><div class="pklegend"><span class="ma">— MA20</span><span>近 ${s.ohlc.length} 根日K · 紅漲綠跌</span></div>`
+    : sparkSVG(s.spark||[]);
   pop.innerHTML=
     `<div class="pt"><span class="pc">${s.code}</span><span class="pname">${s.name}</span></div>`+
     `<div class="pind">${s.industry||''}　·　收 ${s.price}　<span style="color:${dirHex(s.chg)}">${sign(s.chg)}%</span></div>`+
-    sparkSVG(s.spark||[])+
+    chart+
     `<div class="prow"><span>RSI</span><b>${s.rsi??'—'}</b></div>`+
     `<div class="prow"><span>SuperTrend</span><b>${stStatus(s.st)}</b></div>`+
     `<div class="prow"><span>站上20MA</span><b>${ma20Status(s)}</b></div>`+
     `<div class="prow"><span>強弱分</span><b style="color:var(--acc)">${s.score??'—'}</b></div>`+
     chipPopRows(s);
   pop.style.display='block';
+  if(hasK) drawKline(pop.querySelector('.pkline'), s.ohlc); // innerHTML 設定後才能取 canvas 畫
   // 定位：貼著被點元素，避免出界
-  const r=anchor.getBoundingClientRect(), pw=236, ph=pop.offsetHeight;
+  const r=anchor.getBoundingClientRect(), pw=252, ph=pop.offsetHeight;
   let x=r.left, y=r.bottom+6;
   if(x+pw>innerWidth-8)x=innerWidth-pw-8;
   if(y+ph>innerHeight-8)y=r.top-ph-6;
@@ -780,11 +865,11 @@ function chipLine(s){
   if(!parts.length)return '';
   return `<div class="chipline"><span class="ci">🏛</span>${parts.join('　·　')}</div>`;
 }
-// popover 籌碼下鑽列（連買天數 / 法人淨買 / 籌碼確認）— 欄位缺則整段不顯示
+// 券資比警示等級：越高空方壓力越大(暖色,非紅綠語意)
+function shortRatioCls(v){ return v>=20?'warn3':(v>=12?'warn2':(v>=6?'warn1':'')); }
+// popover 籌碼/融資券下鑽列（連買 / 法人淨買 / 濾網 / 融資增減 / 券資比 / 當沖比）— 欄位缺則跳過
 function chipPopRows(s){
   const net=(s.instinv_net!=null)?s.instinv_net:((s.foreign_net!=null||s.trust_net!=null)?(s.foreign_net||0)+(s.trust_net||0):null);
-  const has=(s.consec_buy_days!=null)||(net!=null)||s.chip_confirm||s.pool_pass;
-  if(!has)return '';
   let r='';
   if(s.consec_buy_days!=null) r+=`<div class="prow"><span>法人連買</span><b style="color:var(--up)">${s.consec_buy_days} 日</b></div>`;
   if(net!=null) r+=`<div class="prow"><span>法人淨買</span><b style="color:${chgColor(net)}">${fmtNet(net)} 張</b></div>`;
@@ -792,6 +877,10 @@ function chipPopRows(s){
     const tags=(s.pool_pass?'<span class="tag" style="color:var(--acc2)">過池</span> ':'')+(s.chip_confirm?'<span class="tag" style="color:var(--gold)">籌碼✓</span>':'');
     r+=`<div class="prow"><span>濾網</span><b>${tags}</b></div>`;
   }
+  // R4 融資融券 / 當沖（融資增紅減綠、券資比高警示、當沖比高熱標）
+  if(s.margin_chg!=null) r+=`<div class="prow"><span>融資增減</span><b style="color:${chgColor(s.margin_chg)}">${fmtNet(s.margin_chg)} 張</b></div>`;
+  if(s.short_margin_ratio!=null) r+=`<div class="prow"><span>券資比</span><b class="${shortRatioCls(s.short_margin_ratio)}">${s.short_margin_ratio}%${s.short_margin_ratio>=12?' 空壓':''}</b></div>`;
+  if(s.day_trade_pct!=null){const hot=s.day_trade_pct>=30; r+=`<div class="prow"><span>當沖比</span><b style="color:${hot?'#ff9f45':'var(--txt)'}">${s.day_trade_pct}%${hot?' 🔥熱':''}</b></div>`;}
   return r;
 }
 function sigHTML(s){
@@ -1068,16 +1157,36 @@ function chipRow(x,rank,withSide){
     `<span class="cnet" style="color:${chgColor(net)}">${fmtNet(net)}</span>`+
     consecBadge(x.consec)+`</div>`;
 }
+// 融資融券/當沖榜一列：券資比%(警示色) / 融資增減(紅增綠減) / 當沖比%(高給熱標)
+function marginRow(x,rank){
+  const rich=drillMap.has(x.code);
+  const sr=x.short_margin_ratio, mc=x.margin_chg, dt=x.day_trade_pct;
+  const srTxt=sr!=null?`<span class="${shortRatioCls(sr)}">${sr}${sr>=12?'<span class="mg-tag">空壓</span>':''}</span>`:'—';
+  const mcTxt=mc!=null?`<span style="color:${chgColor(mc)}">${fmtNet(mc)}</span>`:'—';
+  const dtHot=dt!=null&&dt>=30;
+  const dtTxt=dt!=null?`${dt}${dtHot?'<span class="dt-hot">🔥熱</span>':''}`:'—';
+  return `<div class="mgrow"${rich?' data-drill':''} data-code="${x.code}">`+
+    `<span class="crank">${rank}</span>`+
+    `<span class="mgn"><span class="rcode">${x.code}</span>${x.name||''}</span>`+
+    `<span class="mgv">${srTxt}</span>`+
+    `<span class="mgv">${mcTxt}</span>`+
+    `<span class="mgv" style="color:${dtHot?'#ff9f45':'var(--txt)'}">${dtTxt}</span></div>`;
+}
 function renderChips(c){
-  const asof=$('#chipsAsof'), fb=$('#chipForeign'), tb=$('#chipTrust'), cb=$('#chipConsec');
+  const asof=$('#chipsAsof'), fb=$('#chipForeign'), tb=$('#chipTrust'), cb=$('#chipConsec'), mg=$('#chipMargin'), msec=$('#marginSec');
   if(!fb)return;
   const emptyC='<div class="empty" style="padding:22px">尚無資料</div>';
-  if(!c){ asof.textContent='—'; [fb,tb,cb].forEach(e=>e.innerHTML=emptyC); return; }
+  if(!c){ asof.textContent='—'; [fb,tb,cb].forEach(e=>e.innerHTML=emptyC); if(msec)msec.style.display='none'; return; }
   asof.textContent=chipsAsofText(c);
-  const f=c.foreign_top||[], t=c.trust_top||[], cs=c.consec_top||[];
+  const f=c.foreign_top||[], t=c.trust_top||[], cs=c.consec_top||[], mt=c.margin_top||[];
   fb.innerHTML=f.length?f.map((x,i)=>chipRow(x,i+1,false)).join(''):emptyC;
   tb.innerHTML=t.length?t.map((x,i)=>chipRow(x,i+1,false)).join(''):emptyC;
   cb.innerHTML=cs.length?cs.map((x,i)=>chipRow(x,i+1,true)).join(''):emptyC;
+  // 融資融券/當沖榜：無資料整段隱藏(優雅降級)
+  if(msec){
+    if(mt.length){ msec.style.display=''; mg.innerHTML=mt.map((x,i)=>marginRow(x,i+1)).join(''); }
+    else msec.style.display='none';
+  }
 }
 
 // ── 主資料載入 ──

@@ -67,6 +67,8 @@ twdata/cache/
 **/cache/*.csv
 # 三大法人籌碼本地快取（每交易日一檔 JSON，可由 TWSE/TPEX 重抓）
 twdata/chips/
+# 融資融券/當沖本地快取（每交易日一檔 JSON，可由 TWSE MI_MARGN/TWTB4U 重抓）
+twdata/margin/
 # 校準/最佳化產出報告（可重跑重生）
 twdata/calibrate_result.md
 
