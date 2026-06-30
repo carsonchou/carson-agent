@@ -22,7 +22,12 @@
     "adv": 84,
     "dec": 36,
     "flat": 5,
-    "adr": 2.33
+    "adr": 2.33,
+    "nh": 18,
+    "nl": 6,
+    "nhnl": 12,
+    "vol_med": 1.12,
+    "components": {"rsi": 54.5, "breadth": 52.8, "adr": 70.0, "nhnl": 60.0, "vol": 50.0}
   },
   "sectors": [
     {"name": "半導體", "avg_chg": 2.91, "bull_pct": 81, "score": 62.4, "count": 16, "hue": 200, "leader": "創意 +9.6%"},
@@ -48,5 +53,21 @@
   },
   "watch_long": [
     {"code": "2330", "name": "台積電", "industry": "半導體", "price": 1085.0, "chg": 0.46, "rsi": 58.0, "score": 64.0, "gap_pct": 0.8, "reason": "距 SuperTrend 翻多差 0.8%，待量能"}
-  ]
+  ],
+  "track": {
+    "_note": "#1 訊號命中率回灌：已平倉訊號的真實戰績(由 track.py 用快取價事後評估)",
+    "n_closed": 42,
+    "n_open": 7,
+    "win_rate": 0.571,
+    "avg_r": 0.83,
+    "avg_ret_pct": 1.42,
+    "long_win_rate": 0.62,
+    "short_win_rate": 0.50,
+    "updated": "2026-06-30",
+    "recent": [
+      {"code": "2723", "name": "美食-KY", "side": "long", "entry_date": "2026-06-20", "entry": 60.1, "exit_date": "2026-06-27", "exit": 68.3, "ret_pct": 13.6, "r": 1.95, "result": "win", "exit_reason": "tp1"},
+      {"code": "2002", "name": "中鋼", "side": "short", "entry_date": "2026-06-23", "entry": 19.5, "exit_date": "2026-06-30", "exit": 18.55, "ret_pct": 4.9, "r": 0.7, "result": "win", "exit_reason": "open"},
+      {"code": "3008", "name": "大立光", "side": "long", "entry_date": "2026-06-18", "entry": 4400, "exit_date": "2026-06-24", "exit": 4290, "ret_pct": -2.5, "r": -1.0, "result": "loss", "exit_reason": "stop"}
+    ]
+  }
 }

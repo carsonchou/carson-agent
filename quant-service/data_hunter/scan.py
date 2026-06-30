@@ -489,6 +489,10 @@ def _analyse_core(code: str, df_raw: pd.DataFrame, drop_last: bool) -> dict | No
     cur_vol = float(full["volume"].astype(float).iloc[-1])
     relvol = round(cur_vol / avg_vol20, 2) if avg_vol20 and avg_vol20 > 0 else None
     recent_high20 = float(cclose.tail(20).max())
+    # 60 日新高/新低旗標(給市場溫度 nhnl 成分；需 >=20 根才判，避免新股雜訊)
+    tail60 = cclose.tail(60)
+    hi60 = bool(sig_price >= float(tail60.max())) if len(tail60) >= 20 else False
+    lo60 = bool(sig_price <= float(tail60.min())) if len(tail60) >= 20 else False
 
     above20 = ma20 is not None and sig_price > ma20
     above60 = ma60 is not None and sig_price > ma60
@@ -545,7 +549,7 @@ def _analyse_core(code: str, df_raw: pd.DataFrame, drop_last: bool) -> dict | No
         "adx": round(adx, 1) if adx is not None else None,
         "percent_b": round(pctb, 3) if pctb is not None else None,
         "relvol": relvol, "no_chase": no_chase,
-        "recent_high20": round(recent_high20, 2),
+        "recent_high20": round(recent_high20, 2), "hi60": hi60, "lo60": lo60,
         "score": score, "signal": signal, "reason": reason, "firm": firm,
         "stop": stop, "tp1": tp1, "tp2": tp2, "spark": spark,
     }
@@ -620,9 +624,27 @@ def build_state(data: dict[str, pd.DataFrame], rows: list[tuple[str, str, str]],
     flat = n - adv - dec
     adr = round(adv / dec, 2) if dec else float(adv)
 
-    # 市場溫度 0-100：平均RSI(50%) + 站上20MA比例(35%) + 漲跌家數比映射(15%)
-    adr_score = 100 * adv / (adv + dec) if (adv + dec) else 50
-    temperature = 0.50 * avg_rsi + 0.35 * breadth + 0.15 * adr_score
+    # ── 市場溫度升級：多成分加權(原 rsi/breadth/adr + 新 nhnl/vol) ──
+    #   nhnl = 60日新高家數 − 新低家數(動能擴散)；vol_med = 全市場 relVol 中位數(參與度)
+    nh = sum(1 for s in stocks if s.get("hi60"))
+    nl = sum(1 for s in stocks if s.get("lo60"))
+    nhnl = nh - nl
+    relvols = [s["relvol"] for s in stocks if s["relvol"] is not None]
+    vol_med = round(float(np.median(relvols)), 2) if relvols else 1.0
+
+    # 各成分正規化 0-100
+    adr_score = 100 * adv / (adv + dec) if (adv + dec) else 50.0
+    comp_rsi = round(avg_rsi, 1)                                   # 已 0-100
+    comp_breadth = round(breadth, 1)                              # 已 0-100
+    comp_adr = round(adr_score, 1)
+    comp_nhnl = round(min(100.0, max(0.0, 50.0 + (nhnl / max(n, 1)) * 200.0)), 1)  # ±佔比→50±
+    comp_vol = round(min(100.0, max(0.0, 50.0 + (vol_med - 1.0) * 100.0)), 1)      # 1.0=中性50
+    components = {"rsi": comp_rsi, "breadth": comp_breadth, "adr": comp_adr,
+                  "nhnl": comp_nhnl, "vol": comp_vol}
+
+    # 加權(rsi .30 / breadth .25 / adr .15 / nhnl .20 / vol .10)；偏空再 ×0.90
+    temperature = (0.30 * comp_rsi + 0.25 * comp_breadth + 0.15 * comp_adr
+                   + 0.20 * comp_nhnl + 0.10 * comp_vol)
     if not mkt_long_ok:
         temperature *= 0.90          # 大盤偏空 → 調降市場溫度
     temperature = round(temperature, 1)
@@ -704,6 +726,8 @@ def build_state(data: dict[str, pd.DataFrame], rows: list[tuple[str, str, str]],
             "temperature": temperature, "label": t_label, "color": t_color,
             "avg_rsi": avg_rsi, "breadth": breadth,
             "adv": adv, "dec": dec, "flat": flat, "adr": adr,
+            "nh": nh, "nl": nl, "nhnl": nhnl, "vol_med": vol_med,
+            "components": components,
         },
         "sectors": sectors,
         "strong": strong,
@@ -847,9 +871,11 @@ def run_once(push: bool = True, cache_only: bool = False, intraday: bool = False
     scope_txt = f"全市場 {len(rows)} 檔" if full else f"精選 {len(rows)} 檔"
 
     if realtime:
-        # 跟市場同步：快取日線歷史 + 證交所即時價覆蓋最後一根
-        mode_txt = "即時同步(證交所)"
-        source, mode = "realtime", "realtime"
+        # 跟市場同步：快取日線歷史 + 證交所即時價『完整 OHLC』組成最後一根 forming K
+        # 盤中即時標 intraday_rt(高低/量能即時反映)；盤後仍 realtime。
+        source = "realtime"
+        mode = "intraday_rt" if _market_open_now() else "realtime"
+        mode_txt = "盤中即時(證交所)" if mode == "intraday_rt" else "即時同步(證交所·盤後)"
         # 強制確保前一根=前一交易日(否則當日漲跌幅基準錯)；快取太舊先 freshen
         if not _cache_fresh_enough(rows):
             print("[hunter] 快取落後前一交易日，先刷新…")
@@ -873,6 +899,14 @@ def run_once(push: bool = True, cache_only: bool = False, intraday: bool = False
     confirmed_mode = not drop_last
     state = build_state(data, rows, source=source, mode=mode,
                         drop_last=drop_last, confirmed_mode=confirmed_mode)
+
+    # #1 訊號命中率回灌：記錄本輪新確認訊號 → 用快取價事後評估已平倉戰績 → 塞進 state["track"]
+    try:
+        import track
+        state["track"] = track.update(state)
+    except Exception as e:
+        print(f"[hunter] track 回灌略過：{type(e).__name__}: {e}")
+
     _atomic_write_json(STATE_FILE, state)
     if not state.get("ok"):
         print(f"[hunter] ✗ 掃描無資料：{state.get('error')}")

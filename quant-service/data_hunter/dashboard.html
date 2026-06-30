@@ -222,6 +222,67 @@
   #pop .prow b{font-weight:400;color:var(--txt)}
   #pop .tag{font-size:11px;padding:1px 7px;border-radius:10px;border:1px solid currentColor}
 
+  /* ════ 提示音 / 通知開關（header 小圖示鈕） ════ */
+  .togs{display:flex;gap:6px}
+  .tog{width:30px;height:30px;border:1px solid var(--line2);border-radius:7px;background:rgba(255,255,255,.02);
+    color:var(--dim);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;line-height:1}
+  .tog:hover{border-color:var(--acc);color:var(--acc)}
+  .tog.on{color:var(--acc2);border-color:rgba(84,214,255,.4);background:rgba(84,214,255,.08);box-shadow:inset 0 0 10px rgba(84,214,255,.12)}
+  .tog.off{opacity:.55}
+
+  /* ════ #4 市場溫度反應爐（three.js / 2D fallback 共用畫布，置於 gauge 後方） ════ */
+  #reactor{position:absolute;top:34px;left:50%;transform:translateX(-50%);width:300px;height:300px;z-index:0;pointer-events:none}
+  .gaugeWrap>canvas#gauge,.gaugeWrap .gtemp,.gaugeWrap .glabel,.gaugeWrap .gstats,.gaugeWrap .breadth,.gaugeWrap h2{position:relative;z-index:1}
+
+  /* 盤中數字跳動高亮 */
+  @keyframes flashUp{0%{text-shadow:0 0 22px var(--up);color:#fff}100%{}}
+  @keyframes flashDn{0%{text-shadow:0 0 22px var(--dn);color:#fff}100%{}}
+  .flash-up{animation:flashUp .9s ease-out}
+  .flash-dn{animation:flashDn .9s ease-out}
+
+  /* ════ #1 實盤戰績面板（可截圖成績單） ════ */
+  .trackHero{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}
+  @media(max-width:760px){.trackHero{grid-template-columns:repeat(2,1fr)}}
+  .tk{border:1px solid var(--line2);border-radius:12px;padding:14px 14px;position:relative;overflow:hidden;
+    background:linear-gradient(160deg,rgba(20,42,68,.55),rgba(8,18,34,.62));box-shadow:var(--bevel)}
+  .tk::after{content:'';position:absolute;top:0;right:0;width:10px;height:10px;border-top:1px solid var(--acc);border-right:1px solid var(--acc);opacity:.5}
+  .tk .tkl{font-family:var(--mono);font-size:11px;color:var(--dim);letter-spacing:1px;margin-bottom:6px}
+  .tk .tkv{font-family:var(--ttl);font-weight:900;font-size:34px;line-height:1;letter-spacing:-.5px;text-shadow:0 0 16px rgba(84,214,255,.25)}
+  .tk .tks{font-family:var(--mono);font-size:11px;color:var(--faint);margin-top:6px}
+  .tk.win .tkv{color:var(--up)} /* 勝率高=紅(賺) */
+  .tk.r .tkv{color:var(--acc2)}
+  .tk .tksplit{display:flex;gap:10px;margin-top:7px;font-family:var(--mono);font-size:12px}
+  .tk .tksplit b{font-weight:400}
+  .trackList{border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .trackList .th,.trkrow{display:grid;grid-template-columns:1.3fr .7fr 1fr .8fr .6fr .9fr;gap:8px;align-items:center;
+    padding:8px 12px;font-family:var(--mono);font-size:12px}
+  .trackList .th{color:var(--dim);background:rgba(255,255,255,.03);border-bottom:1px solid var(--line);font-size:11px;letter-spacing:1px}
+  .trkrow{border-bottom:1px solid rgba(120,160,220,.07)}
+  .trkrow:nth-child(even){background:rgba(255,255,255,.02)}
+  .trkrow .tdir{font-size:11px;padding:1px 7px;border-radius:10px;justify-self:start}
+  .trkrow .tdir.long{background:rgba(255,77,109,.14);color:var(--up)}
+  .trkrow .tdir.short{background:rgba(40,192,139,.14);color:var(--dn)}
+  /* 賺=紅、賠=綠、進行中=灰（台股慣例） */
+  .trkrow .tret.win{color:var(--up);font-weight:700}
+  .trkrow .tret.loss{color:var(--dn);font-weight:700}
+  .trkrow .tret.open{color:var(--dim)}
+  .trkrow .tres{font-size:11px}
+  .trkrow .tres.win{color:var(--up)}.trkrow .tres.loss{color:var(--dn)}.trkrow .tres.open{color:var(--dim)}
+  .trkname b{font-family:var(--tc)}
+
+  /* ════ #4 板塊資金流向 treemap ════ */
+  #heatmap{position:relative;width:100%;height:440px;border-radius:12px;overflow:hidden;border:1px solid var(--line)}
+  @media(max-width:620px){#heatmap{height:360px}}
+  .tmtile{position:absolute;border:1px solid rgba(6,11,20,.6);border-radius:6px;overflow:hidden;cursor:pointer;
+    display:flex;flex-direction:column;justify-content:space-between;padding:8px 9px;transition:filter .15s}
+  .tmtile:hover{filter:brightness(1.18)}
+  .tmtile .tmn{font-weight:700;font-size:14px;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.6);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tmtile .tmsub{font-family:var(--mono);font-size:11px;color:rgba(255,255,255,.85);text-shadow:0 1px 3px rgba(0,0,0,.6)}
+  .tmtile .tmchg{font-family:var(--mono);font-weight:700;font-size:18px;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.6)}
+  .tmlegend{display:flex;align-items:center;gap:14px;margin-top:10px;font-family:var(--mono);font-size:11px;color:var(--dim);flex-wrap:wrap}
+  .tmlegend .lg{display:flex;align-items:center;gap:5px}
+  .tmlegend .sw{width:22px;height:9px;border-radius:2px}
+
   /* ════════════ 手機 RWD（<480px 再收一級） ════════════ */
   @media(max-width:480px){
     .wrap{padding:12px 11px 50px}
@@ -243,7 +304,7 @@
   body.snap{background:radial-gradient(900px 1100px at 50% -5%,#11233f 0%,var(--bg) 62%) fixed,var(--bg)}
   body.snap #bg{opacity:.28}
   body.snap #scan{opacity:.22}body.snap #grain{opacity:.02}
-  body.snap .tabs,body.snap .upd,body.snap .badge,body.snap .corner,body.snap #pop,body.snap .blink{display:none!important}
+  body.snap .tabs,body.snap .upd,body.snap .badge,body.snap .corner,body.snap #pop,body.snap .blink,body.snap .togs{display:none!important}
   body.snap .panel::after{display:none} /* 截圖不要動畫掃光 */
   body.snap .wrap{max-width:1040px;padding:30px 34px 30px}
   body.snap header{justify-content:center;text-align:center;flex-direction:column;gap:8px;margin-bottom:22px}
@@ -290,6 +351,11 @@
       <span class="iyl" id="idxYL">—</span>
     </div>
     <div class="spacer"></div>
+    <!-- 提示音 / 桌面通知開關（狀態存 localStorage） -->
+    <div class="togs">
+      <button class="tog" id="togSound" title="新訊號提示音 開/關">🔔</button>
+      <button class="tog" id="togNotify" title="桌面通知 開/關">🖥</button>
+    </div>
     <div class="upd">
       <span class="hb" id="hb"></span>
       <span id="upd">連線中…</span>
@@ -309,6 +375,8 @@
   <!-- 主分頁 -->
   <div class="tabs">
     <div class="tab active" data-v="board">看板 · LIVE</div>
+    <div class="tab" data-v="heat">板塊熱流 · FLOW MAP</div>
+    <div class="tab" data-v="track">實盤戰績 · TRACK RECORD</div>
     <div class="tab" data-v="history">歷史訊號 · TIMELINE</div>
   </div>
 
@@ -318,6 +386,8 @@
       <!-- 市場溫度 -->
       <section class="panel gaugeWrap">
         <span class="corner tl"></span><span class="corner br"></span>
+        <!-- #4 反應爐畫布：three.js 粒子核心(失敗自動退 2D 光環)，亮度/色由溫度驅動 -->
+        <canvas id="reactor"></canvas>
         <h2>市場溫度 · MARKET HEAT</h2>
         <canvas id="gauge" width="560" height="340"></canvas>
         <div class="gtemp mono" id="gtemp">--</div>
@@ -367,6 +437,33 @@
     </section>
   </div>
 
+  <!-- ════ 板塊資金流向 view（treemap） ════ -->
+  <div class="view" data-view="heat">
+    <section class="panel">
+      <span class="corner tl"></span><span class="corner br"></span>
+      <h2>板塊資金流向 · SECTOR FLOW MAP　<span style="color:var(--faint);font-size:11px">面積＝家數 · 顏色＝漲跌</span></h2>
+      <div id="heatmap"></div>
+      <div class="tmlegend">
+        <span class="lg"><span class="sw" style="background:linear-gradient(90deg,#7a1f2e,#ff4d6d)"></span>漲(紅,越深越強)</span>
+        <span class="lg"><span class="sw" style="background:linear-gradient(90deg,#10402f,#28c08b)"></span>跌(綠,越深越弱)</span>
+        <span class="lg">點板塊看領頭/站上20MA</span>
+      </div>
+    </section>
+  </div>
+
+  <!-- ════ 實盤戰績 view（戰績成績單） ════ -->
+  <div class="view" data-view="track">
+    <section class="panel">
+      <span class="corner tl"></span><span class="corner br"></span>
+      <h2>實盤戰績 · TRACK RECORD　<span style="color:var(--faint);font-size:11px">訊號命中率事後回灌 · 賺紅賠綠</span></h2>
+      <div class="trackHero" id="trackHero"></div>
+      <div class="trackList" id="trackList"></div>
+      <div style="font-family:var(--mono);font-size:11px;color:var(--faint);margin-top:10px;text-align:center">
+        戰績由系統用快取真實價對「已觸發訊號」事後評估，非回測美化 · R＝報酬／停損風險倍數
+      </div>
+    </section>
+  </div>
+
   <!-- ════ 歷史訊號 view ════ -->
   <div class="view" data-view="history">
     <section class="panel">
@@ -390,6 +487,87 @@
 
 <!-- 下鑽 popover -->
 <div id="pop"></div>
+
+<!-- ════ #4 市場溫度反應爐：three.js 粒子核心（WebGL 失敗自動退 2D 光環，達 ~80% 效果） ════ -->
+<script type="module">
+import * as THREE from './three.module.min.js';
+(function(){
+  const canvas=document.getElementById('reactor'); if(!canvas)return;
+  // 溫度→顏色：低溫藍綠冷、中性青、高溫紅熱（紅漲綠跌語意一致）
+  function tempColor(t,C){
+    const cold=new THREE.Color(0x3b7bd6), mid=new THREE.Color(0x4fd1c5), hot=new THREE.Color(0xff3b6b);
+    const c=C||new THREE.Color();
+    if(t<=50) c.copy(cold).lerp(mid,Math.max(0,t)/50);
+    else c.copy(mid).lerp(hot,Math.min(50,t-50)/50);
+    return c;
+  }
+  function roundTex(){const c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d');
+    const g=x.createRadialGradient(32,32,0,32,32,32);g.addColorStop(0,'#fff');g.addColorStop(.35,'rgba(255,255,255,.78)');g.addColorStop(1,'rgba(255,255,255,0)');
+    x.fillStyle=g;x.beginPath();x.arc(32,32,32,0,7);x.fill();return new THREE.CanvasTexture(c);}
+  function glowTex(){const c=document.createElement('canvas');c.width=c.height=128;const x=c.getContext('2d');
+    const g=x.createRadialGradient(64,64,0,64,64,64);g.addColorStop(0,'rgba(255,255,255,.9)');g.addColorStop(.4,'rgba(255,255,255,.22)');g.addColorStop(1,'rgba(255,255,255,0)');
+    x.fillStyle=g;x.fillRect(0,0,128,128);return new THREE.CanvasTexture(c);}
+
+  let renderer,scene,camera,points,glow,raf=0,running=false,pulse=0;
+  const N=620, cur=new THREE.Color(0x4fd1c5), tgt=new THREE.Color(0x4fd1c5);
+  function size(){const w=canvas.clientWidth||300,h=canvas.clientHeight||300;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
+  function init(){
+    renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:true});
+    renderer.setClearColor(0x000000,0);renderer.setPixelRatio(Math.min(devicePixelRatio||1,2));
+    scene=new THREE.Scene();
+    camera=new THREE.PerspectiveCamera(45,1,0.1,100);camera.position.z=7.4;
+    const tex=roundTex(), pos=new Float32Array(N*3);
+    for(let i=0;i<N;i++){const th=Math.random()*Math.PI*2,ph=Math.acos(2*Math.random()-1),r=1.95+Math.random()*0.55;
+      pos[i*3]=r*Math.sin(ph)*Math.cos(th);pos[i*3+1]=r*Math.sin(ph)*Math.sin(th);pos[i*3+2]=r*Math.cos(ph);}
+    const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(pos,3));
+    points=new THREE.Points(g,new THREE.PointsMaterial({map:tex,size:0.11,transparent:true,opacity:0.32,
+      sizeAttenuation:true,blending:THREE.AdditiveBlending,depthWrite:false}));
+    points.material.color.copy(cur);scene.add(points);
+    glow=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex(),transparent:true,opacity:0.2,blending:THREE.AdditiveBlending,depthWrite:false}));
+    glow.material.color.copy(cur);glow.scale.set(4.2,4.2,1);scene.add(glow);
+    size();
+  }
+  function frame(){
+    const h=window.__heat; if(h)tempColor(h.t,tgt);
+    cur.lerp(tgt,0.05);
+    points.material.color.copy(cur);glow.material.color.copy(cur);
+    if(window.__heatPulse){window.__heatPulse=0;pulse=1;}      // 盤中更新→脈衝
+    pulse*=0.93;
+    const now=performance.now();
+    glow.material.opacity=0.16+pulse*0.42+Math.sin(now*0.0016)*0.03;
+    glow.scale.setScalar(3.9+pulse*1.3+Math.sin(now*0.0016)*0.12);
+    points.rotation.y+=0.0017;points.rotation.x+=0.0006;
+    renderer.render(scene,camera);
+    raf=requestAnimationFrame(frame);
+  }
+  function start(){if(running)return;running=true;frame();}
+  function stop(){running=false;cancelAnimationFrame(raf);raf=0;}
+
+  // 2D 退路：純 canvas 徑向光環脈衝
+  function fallback2D(){
+    const x=canvas.getContext('2d');
+    (function r(){const w=canvas.width=canvas.clientWidth||300,hh=canvas.height=canvas.clientHeight||300,cx=w/2,cy=hh/2;
+      x.clearRect(0,0,w,hh);const t=(window.__heat||{t:50}).t;
+      const base=t<=50?'79,209,197':'255,59,107';
+      let pr=0.5+Math.sin(performance.now()*0.002)*0.12; if(window.__heatPulse){window.__heatPulse=0;pr+=0.45;}
+      const gr=x.createRadialGradient(cx,cy,0,cx,cy,w*0.42);
+      gr.addColorStop(0,`rgba(${base},${0.22*pr})`);gr.addColorStop(.5,`rgba(${base},${0.08*pr})`);gr.addColorStop(1,`rgba(${base},0)`);
+      x.fillStyle=gr;x.beginPath();x.arc(cx,cy,w*0.42,0,7);x.fill();
+      requestAnimationFrame(r);})();
+  }
+
+  try{
+    init();start();
+    addEventListener('resize',()=>{if(renderer)size();});
+    document.addEventListener('visibilitychange',()=>{document.hidden?stop():start();}); // 分頁隱藏停渲染
+    window.__reactorMode='3d';
+  }catch(e){
+    window.__reactorMode='2d';
+    console.warn('[reactor] WebGL 不可用，退 2D 光環：',e.message);
+    fallback2D();
+  }
+})();
+</script>
 
 <script>
 const $=s=>document.querySelector(s);
@@ -629,7 +807,10 @@ document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
   document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
   t.classList.add('active');
   $(`.view[data-view="${t.dataset.v}"]`).classList.add('active');
-  if(t.dataset.v==='history')loadHistory();
+  const v=t.dataset.v;
+  if(v==='history')loadHistory();
+  if(v==='heat'&&lastData)renderHeatmap(lastData.sectors);
+  if(v==='track'&&lastData)renderTrack(lastData.track);
 }));
 
 // ── 歷史訊號時間軸 ──
@@ -656,8 +837,122 @@ async function loadHistory(force){
   }catch(e){ $('#timeline').innerHTML='<div class="empty">讀取 history.json 失敗（後端尚未產出？）</div>'; }
 }
 
+// ── #3 提示音 + 桌面通知（開關存 localStorage） ──
+let soundOn=localStorage.getItem('dh_sound')!=='0';   // 預設開
+let notifyOn=localStorage.getItem('dh_notify')==='1'; // 預設關(需授權)
+let audioCtx=null;
+function ensureAudio(){ if(!audioCtx){try{audioCtx=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}
+  if(audioCtx&&audioCtx.state==='suspended')audioCtx.resume(); }
+function beep(){ // 短促雙音提示
+  if(SNAP)return; ensureAudio(); if(!audioCtx)return;
+  const t=audioCtx.currentTime;
+  [880,1320].forEach((f,i)=>{const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+    o.type='sine';o.frequency.value=f;o.connect(g);g.connect(audioCtx.destination);
+    const st=t+i*0.11;
+    g.gain.setValueAtTime(0,st);g.gain.linearRampToValueAtTime(0.18,st+0.012);g.gain.exponentialRampToValueAtTime(0.0008,st+0.16);
+    o.start(st);o.stop(st+0.19);});
+}
+function paintTogs(){
+  const s=$('#togSound'); s.classList.toggle('on',soundOn);s.classList.toggle('off',!soundOn);s.textContent=soundOn?'🔔':'🔕';
+  const n=$('#togNotify'); n.classList.toggle('on',notifyOn);n.classList.toggle('off',!notifyOn);
+}
+$('#togSound').addEventListener('click',()=>{soundOn=!soundOn;localStorage.setItem('dh_sound',soundOn?'1':'0');paintTogs();if(soundOn)beep();});
+$('#togNotify').addEventListener('click',async()=>{
+  if(!notifyOn){
+    if(!('Notification' in window)){alert('此瀏覽器不支援桌面通知');return;}
+    let p=Notification.permission; if(p==='default')p=await Notification.requestPermission();
+    if(p==='granted')notifyOn=true; else {notifyOn=false;alert('通知被瀏覽器封鎖，請在網址列權限手動開啟');}
+  } else notifyOn=false;
+  localStorage.setItem('dh_notify',notifyOn?'1':'0'); paintTogs();
+});
+paintTogs();
+function fireNewSignals(fresh){ // fresh: 本輪新確認訊號物件陣列
+  if(!fresh.length||SNAP)return;
+  if(soundOn)beep();
+  if(notifyOn&&'Notification' in window&&Notification.permission==='granted'){
+    const f=fresh[0], more=fresh.length>1?`（+${fresh.length-1} 筆）`:'';
+    try{new Notification('數據獵手 · 新訊號',{body:`${f.code} ${f.name}　${f.side==='long'?'做多':'做空'}｜${f.reason||''}${more}`});}catch(e){}
+  }
+}
+
+// ── #4 板塊資金流向 treemap（squarified；面積=家數、色=漲跌） ──
+function squarify(items,x,y,w,h){
+  const out=[],list=items.slice(); let i=0,rx=x,ry=y,rw=w,rh=h;
+  const worst=(row,len,sum,scale)=>{const mx=Math.max(...row.map(r=>r.value))*scale,mn=Math.min(...row.map(r=>r.value))*scale,s=sum*scale;
+    return Math.max((len*len*mx)/(s*s),(s*s)/(len*len*mn));};
+  while(i<list.length){
+    const horizontal=rw>=rh, len=horizontal?rh:rw;
+    const total=list.slice(i).reduce((a,b)=>a+b.value,0), area=rw*rh, scale=area/total;
+    let row=[],sum=0;
+    while(i+row.length<list.length){
+      const next=list[i+row.length], nr=row.concat(next), ns=sum+next.value;
+      if(row.length&&worst(row,len,sum,scale)<worst(nr,len,ns,scale))break;
+      row=nr;sum=ns;
+    }
+    const rowArea=sum*scale, thick=rowArea/len; let off=0;
+    for(const it of row){const frac=(it.value*scale)/rowArea*len;
+      if(horizontal)out.push({...it,x:rx,y:ry+off,w:thick,h:frac}); else out.push({...it,x:rx+off,y:ry,w:frac,h:thick});
+      off+=frac;}
+    if(horizontal){rx+=thick;rw-=thick;}else{ry+=thick;rh-=thick;}
+    i+=row.length;
+  }
+  return out;
+}
+function tileColor(chg){
+  const m=Math.min(1,Math.abs(chg)/3); // 0~3% 對應深淺
+  if(chg>0)return `rgba(${Math.round(122+133*m)},${Math.round(31+46*m)},${Math.round(46+63*m)},.92)`; // 暗紅→亮紅
+  if(chg<0)return `rgba(${Math.round(16+24*m)},${Math.round(64+128*m)},${Math.round(47+92*m)},.92)`;   // 暗綠→亮綠
+  return 'rgba(80,95,120,.55)';
+}
+function renderHeatmap(sectors){
+  const box=$('#heatmap'); if(!box)return;
+  if(!sectors||!sectors.length){box.innerHTML='<div class="empty" style="padding:40px">尚無板塊資料</div>';return;}
+  const W=box.clientWidth||600,H=box.clientHeight||440;
+  const items=sectors.map(s=>({...s,value:Math.max(1,s.count||1)})).sort((a,b)=>b.value-a.value);
+  const tiles=squarify(items,0,0,W,H);
+  box.innerHTML=tiles.map(t=>{
+    const small=t.w<96||t.h<56;
+    return `<div class="tmtile" style="left:${t.x}px;top:${t.y}px;width:${t.w}px;height:${t.h}px;background:${tileColor(t.avg_chg)}">`+
+      `<div class="tmn">${t.name}</div>`+
+      (small?'':`<div class="tmsub">${t.count}檔 · 站上20MA ${t.bull_pct}% · 領頭 ${t.leader||'—'}</div>`)+
+      `<div class="tmchg">${sign(t.avg_chg)}%</div></div>`;
+  }).join('');
+}
+
+// ── #1 實盤戰績成績單 ──
+function renderTrack(tk){
+  const hero=$('#trackHero'), list=$('#trackList'); if(!hero||!list)return;
+  if(!tk || !tk.n_closed){
+    const op=(tk&&tk.n_open)?`，目前 ${tk.n_open} 筆進行中（待後續交易日結算）`:'';
+    hero.innerHTML='';
+    list.innerHTML='<div class="empty" style="padding:30px">尚無已平倉戰績'+op+'</div>';
+    return;
+  }
+  const wr=(tk.win_rate||0)*100, lwr=tk.long_win_rate!=null?tk.long_win_rate*100:null, swr=tk.short_win_rate!=null?tk.short_win_rate*100:null;
+  const ar=tk.avg_ret_pct;
+  hero.innerHTML=
+    `<div class="tk win"><div class="tkl">勝率 WIN RATE</div><div class="tkv">${wr.toFixed(0)}%</div>`+
+      `<div class="tksplit"><span style="color:var(--up)">多 <b>${lwr!=null?lwr.toFixed(0)+'%':'—'}</b></span>`+
+      `<span style="color:var(--dn)">空 <b>${swr!=null?swr.toFixed(0)+'%':'—'}</b></span></div></div>`+
+    `<div class="tk r"><div class="tkl">平均 R</div><div class="tkv">${tk.avg_r>=0?'+':''}${(tk.avg_r||0).toFixed(2)}</div><div class="tks">報酬／停損風險倍數</div></div>`+
+    `<div class="tk"><div class="tkl">平均報酬</div><div class="tkv" style="color:${ar>=0?'var(--up)':'var(--dn)'}">${ar>=0?'+':''}${(ar||0).toFixed(1)}%</div><div class="tks">每筆平均損益</div></div>`+
+    `<div class="tk"><div class="tkl">樣本 SAMPLE</div><div class="tkv" style="color:var(--txt)">${tk.n_closed}</div><div class="tks">已平倉 · 進行中 ${tk.n_open}</div></div>`;
+  const recent=tk.recent||[];
+  const head=`<div class="th"><span>個股</span><span>方向</span><span>進→出</span><span>報酬%</span><span>R</span><span>結果</span></div>`;
+  list.innerHTML=head+(recent.length?recent.map(r=>{
+    const cls=r.result==='win'?'win':(r.result==='loss'?'loss':'open');
+    const resTxt={win:'✓ 賺',loss:'✗ 賠',open:'… 持有'}[cls]||(r.result||'');
+    return `<div class="trkrow"><span class="trkname"><b>${r.name}</b> <span style="color:var(--dim)">${r.code}</span></span>`+
+      `<span class="tdir ${r.side}">${r.side==='long'?'多':'空'}</span>`+
+      `<span style="color:var(--dim)">${r.entry}→${r.exit}</span>`+
+      `<span class="tret ${cls}">${sign(r.ret_pct)}%</span>`+
+      `<span class="tret ${cls}">${r.r>=0?'+':''}${r.r}</span>`+
+      `<span class="tres ${cls}">${resTxt}</span></div>`;
+  }).join(''):`<div class="empty" style="padding:24px">近期無已平倉紀錄</div>`);
+}
+
 // ── 主資料載入 ──
-let lastTs=null, prevSigCodes=new Set();
+let lastTs=null, prevSigCodes=new Set(), lastData=null, lastTemp=null;
 async function load(){
   try{
     const r=await fetch(STATE_URL+'?_='+Date.now(),{cache:'no-store'});
@@ -679,6 +974,17 @@ async function load(){
     renderIndex(d.index);
     buildNarration(d);
 
+    // #4 反應爐：把溫度餵給 three.js 核心；盤中觸發脈衝
+    const intra=(d.mode==='realtime'||d.mode==='intraday'||d.mode==='intraday_rt');
+    window.__heat={t:g.temperature,color:g.color};
+    if(intra)window.__heatPulse=1;
+    // #3 盤中數字跳動高亮（溫度變動才閃）
+    if(lastTemp!=null && g.temperature!==lastTemp && intra){
+      const el=$('#gtemp'); el.classList.remove('flash-up','flash-dn'); void el.offsetWidth;
+      el.classList.add(g.temperature>lastTemp?'flash-up':'flash-dn');
+    }
+    lastTemp=g.temperature;
+
     const sm=Math.max(...d.sectors.map(s=>Math.abs(s.avg_chg)),1);
     $('#sectors').innerHTML=d.sectors.map(s=>{
       const w=Math.max(4,Math.abs(s.avg_chg)/sm*100);
@@ -698,9 +1004,16 @@ async function load(){
     $('#longHdr').innerHTML='做多 · LONG'+(capL>sg.long.length?`（前 ${sg.long.length}／共 ${capL}）`:(capL?`（${capL}）`:''));
     $('#shortHdr').innerHTML='做空 · SHORT'+(capS>sg.short.length?`（前 ${sg.short.length}／共 ${capS}）`:(capS?`（${capS}）`:''));
 
-    // 新訊號邊框閃光：和上一輪比對 code
-    const nowCodes=new Set([...(sg.long||[]),...(sg.short||[])].map(s=>s.side+s.code));
+    // 新訊號邊框閃光 + 提示音/通知：和上一輪比對 code
+    const allSigs=[...(sg.long||[]),...(sg.short||[])];
+    const nowCodes=new Set(allSigs.map(s=>s.side+s.code));
+    const sigObjs=new Map(allSigs.map(s=>[s.side+s.code,s]));
     const markFresh=(s)=>{const k=s.side+s.code; return !prevSigCodes.has(k);};
+    // 只在「非首輪」且有新增 code 時響鈴/通知，避免初次載入炸一串
+    if(prevSigCodes.size){
+      const fresh=[...nowCodes].filter(k=>!prevSigCodes.has(k)).map(k=>sigObjs.get(k)).filter(Boolean);
+      fireNewSignals(fresh);
+    }
 
     if(sg.long.length){
       $('#longs').innerHTML=sg.long.map(s=>{const h=sigHTML(s);return markFresh(s)?h.replace('class="sigcard long','class="sigcard long fresh'):h;}).join('');
@@ -721,15 +1034,19 @@ async function load(){
     src.textContent=srcMap[d.source]||d.source;
     src.className='badge '+(d.source==='cache'?'cache':'live');
     const md=$('#mode');
-    const modeMap={realtime:'跟市場同步',intraday:'盤中 15分K',daily:'日線'};
+    const modeMap={realtime:'跟市場同步',intraday_rt:'盤中即時',intraday:'盤中 15分K',daily:'日線'};
     md.textContent=modeMap[d.mode]||d.mode;
-    md.className='badge '+(d.mode==='realtime'?'live':(d.mode==='intraday'?'live':''));
+    md.className='badge '+(['realtime','intraday_rt','intraday'].includes(d.mode)?'live':'');
     $('#uni').textContent='掃描 '+d.universe+' 檔';
     $('#upd').textContent='最後更新 '+d.ts.replace('T',' ');
     $('#hb').style.background='#7dffb0';
 
-    // 歷史 tab 若開著就刷新
-    if($('.tab[data-v="history"]').classList.contains('active')) loadHistory(true);
+    // 存最新資料，並刷新目前開著的分頁
+    lastData=d;
+    const av=document.querySelector('.tab.active')?.dataset.v;
+    if(av==='history') loadHistory(true);
+    if(av==='heat') renderHeatmap(d.sectors);
+    if(av==='track') renderTrack(d.track);
   }catch(e){
     $('#upd').textContent='讀取 '+STATE_URL+' 失敗（掃描器尚未產出？）';
     $('#hb').style.background='#ff7d83';
