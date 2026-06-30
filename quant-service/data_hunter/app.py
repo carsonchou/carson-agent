@@ -64,10 +64,24 @@ def worker():
 
 def main():
     threading.Thread(target=worker, daemon=True).start()
-    url = f"http://127.0.0.1:{PORT}/"
+    # 埠占用 → 自動 +1 重試(最多 10 個埠)，綁定成功後再開實際埠的瀏覽器
+    httpd = None
+    port = PORT
+    for p in range(PORT, PORT + 10):
+        try:
+            httpd = ThreadingHTTPServer(("127.0.0.1", p), Handler)
+            port = p
+            break
+        except OSError:
+            continue
+    if httpd is None:
+        print(f"[app] 連續 10 個埠({PORT}-{PORT + 9})皆被占用，無法啟動。")
+        input("按 Enter 關閉…")
+        return
+    url = f"http://127.0.0.1:{port}/"
     print("=" * 46)
     print("  量化阿森 · 台股數據獵手")
-    print(f"  看板 → {url}")
+    print(f"  看板 → {url}" + (f"（埠 {PORT} 被占用改用 {port}）" if port != PORT else ""))
     print("  關閉此視窗即停止")
     print("=" * 46)
     try:
@@ -75,13 +89,9 @@ def main():
     except Exception:
         pass
     try:
-        httpd = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
         httpd.serve_forever()
     except KeyboardInterrupt:
         print("\n[app] 已停止")
-    except OSError as e:
-        print(f"[app] 伺服器啟動失敗（埠 {PORT} 可能已被占用）：{e}")
-        input("按 Enter 關閉…")
 
 
 if __name__ == "__main__":

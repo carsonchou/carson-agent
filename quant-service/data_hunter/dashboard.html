@@ -4,134 +4,383 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>量化阿森 · 台股數據獵手</title>
+<!-- 科技字體：Orbitron(標題) / Share Tech Mono(數字等寬) / Noto Sans TC(中文) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@500;700;900&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#070b14; --bg2:#0b1220; --panel:rgba(18,26,42,.72); --line:rgba(120,160,220,.13);
-    --txt:#dbe6f5; --dim:#7f93b3; --acc:#54d6ff; --gold:#ffd75e;
+    --bg:#070b14; --bg2:#0b1220; --panel:rgba(18,26,42,.72); --line:rgba(120,160,220,.13); --line2:rgba(120,160,220,.22);
+    --txt:#dbe6f5; --dim:#7f93b3; --faint:#4d6480; --acc:#54d6ff; --acc2:#9aebff; --gold:#ffd75e;
     --up:#ff4d6d; --dn:#28c08b; /* 台股慣例：紅漲綠跌 */
     --glow:0 0 18px rgba(84,214,255,.18);
+    --depth:0 14px 34px rgba(0,4,10,.5),0 4px 12px rgba(0,6,16,.4);
+    --bevel:inset 0 1px 0 rgba(120,200,255,.10),inset 0 0 0 1px rgba(82,216,255,.03),inset 0 -16px 30px rgba(0,4,12,.22);
+    --mono:'Share Tech Mono',ui-monospace,monospace;
+    --ttl:'Orbitron',sans-serif;
+    --tc:"Noto Sans TC",system-ui,-apple-system,sans-serif;
+    /* SVG 雜訊紋理（玻璃面上一層細顆粒，暗色才高級） */
+    --noise:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{height:100%}
   body{
-    background:radial-gradient(1200px 800px at 70% -10%,#10203a 0%,var(--bg) 60%) fixed,var(--bg);
-    color:var(--txt); font-family:"Segoe UI","Noto Sans TC",system-ui,-apple-system,monospace;
+    background:
+      radial-gradient(1200px 800px at 70% -10%,#10203a 0%,var(--bg) 60%) fixed,
+      /* 細格線網格,科技底紋(克制) */
+      linear-gradient(rgba(82,216,255,.022) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(82,216,255,.018) 1px,transparent 1px),
+      var(--bg);
+    background-size:auto,38px 38px,38px 38px,auto;
+    color:var(--txt); font-family:var(--tc);
     overflow-x:hidden; -webkit-font-smoothing:antialiased;
+    padding-bottom:env(safe-area-inset-bottom);
   }
+  /* 等寬科技數字統一 class */
+  .mono{font-family:var(--mono);font-variant-numeric:tabular-nums;letter-spacing:.5px}
+
+  /* ════ HUD 氛圍層（移植自 web_center，發光克制、暗色） ════ */
+  #scan{position:fixed;inset:0;z-index:40;pointer-events:none;opacity:.45;mix-blend-mode:multiply;
+    background:repeating-linear-gradient(0deg,rgba(0,0,0,.16) 0 1px,transparent 1px 3px)}
+  #grain{position:fixed;inset:-50%;width:200%;height:200%;z-index:41;pointer-events:none;opacity:.035;
+    mix-blend-mode:overlay;background-image:var(--noise);background-size:160px;animation:grain 1.1s steps(3) infinite}
+  #vig{position:fixed;inset:0;z-index:39;pointer-events:none;
+    background:radial-gradient(ellipse 82% 82% at 50% 42%,transparent 56%,rgba(2,6,14,.34) 88%,rgba(1,4,10,.6) 100%)}
+  @keyframes grain{0%{transform:translate(0,0)}33%{transform:translate(-5%,3%)}66%{transform:translate(4%,-4%)}100%{transform:translate(0,0)}}
+  /* 四角精緻括弧 */
+  .bracket{position:fixed;width:24px;height:24px;z-index:38;pointer-events:none;border:1.5px solid var(--acc);opacity:.4}
+  .bracket.tl{top:7px;left:7px;border-right:none;border-bottom:none}
+  .bracket.tr{top:7px;right:7px;border-left:none;border-bottom:none}
+  .bracket.bl{bottom:7px;left:7px;border-right:none;border-top:none}
+  .bracket.br{bottom:7px;right:7px;border-left:none;border-top:none}
+  /* 邊緣刻度尺 */
+  .ruler{position:fixed;z-index:37;pointer-events:none;opacity:.4}
+  .ruler.top{top:0;left:42px;right:42px;height:6px;background:repeating-linear-gradient(90deg,var(--faint) 0 1px,transparent 1px 14px)}
+  .ruler.bottom{bottom:0;left:42px;right:42px;height:6px;background:repeating-linear-gradient(90deg,var(--faint) 0 1px,transparent 1px 14px)}
+
   #bg{position:fixed;inset:0;z-index:0;opacity:.5}
   .wrap{position:relative;z-index:1;max-width:1320px;margin:0 auto;padding:18px 16px 60px}
-  header{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:16px}
-  .logo{font-size:22px;font-weight:700;letter-spacing:1px}
+
+  /* ════ header ════ */
+  header{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+  .logo{font-family:var(--ttl);font-size:20px;font-weight:700;letter-spacing:2px}
   .logo b{color:var(--acc);text-shadow:var(--glow)}
-  .badge{font-size:11px;padding:3px 9px;border:1px solid var(--line);border-radius:20px;color:var(--dim)}
+  .badge{font-family:var(--mono);font-size:11px;padding:3px 9px;border:1px solid var(--line2);border-radius:4px;color:var(--dim);letter-spacing:.5px}
   .badge.live{color:#7dffb0;border-color:rgba(40,192,139,.4)}
   .badge.cache{color:var(--gold);border-color:rgba(255,215,94,.35)}
+  /* 大盤總閘徽章：紅漲綠跌 + 站上年線 */
+  .idx{display:flex;align-items:center;gap:8px;padding:4px 11px;border:1px solid var(--line2);border-radius:6px;
+    background:linear-gradient(160deg,rgba(20,42,68,.5),rgba(8,18,34,.6));box-shadow:var(--bevel)}
+  .idx .iname{font-family:var(--mono);font-size:11px;color:var(--dim);letter-spacing:1px}
+  .idx .iprice{font-family:var(--mono);font-size:15px;font-weight:700}
+  .idx .ichg{font-family:var(--mono);font-size:12px;font-weight:700}
+  .idx .iyl{font-size:10px;padding:1px 6px;border-radius:10px;border:1px solid currentColor;opacity:.9}
   .spacer{flex:1}
-  .upd{font-size:12px;color:var(--dim)}
-  .grid{display:grid;grid-template-columns:340px 1fr;gap:14px}
+  .upd{display:flex;align-items:center;gap:9px;font-family:var(--mono);font-size:12px;color:var(--dim)}
+  /* 連線心跳脈衝點 */
+  .hb{width:7px;height:7px;border-radius:50%;background:#7dffb0;box-shadow:0 0 7px #7dffb0;animation:hbp 1.6s infinite}
+  @keyframes hbp{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.7)}}
+  /* 下次更新倒數環 */
+  .ring{width:26px;height:26px;flex-shrink:0}
+  .ring .track{stroke:rgba(120,160,220,.18)}
+  .ring .arc{stroke:var(--acc);stroke-linecap:round;transition:stroke-dashoffset 1s linear;filter:drop-shadow(0 0 3px rgba(84,214,255,.5))}
+  .ring text{font-family:var(--mono);font-size:11px;fill:var(--dim)}
+
+  /* ════ 主分頁切換 ════ */
+  .tabs{display:flex;gap:4px;margin-bottom:14px}
+  .tab{font-family:var(--mono);font-size:13px;letter-spacing:1px;padding:7px 16px;cursor:pointer;
+    border:1px solid var(--line);border-radius:8px;background:rgba(255,255,255,.02);color:var(--dim);transition:all .15s}
+  .tab:hover{color:var(--acc);border-color:var(--line2)}
+  .tab.active{color:var(--acc2);border-color:rgba(84,214,255,.4);background:rgba(84,214,255,.08);box-shadow:inset 0 0 12px rgba(84,214,255,.1)}
+  .view{display:none}.view.active{display:block}
+
+  .grid{display:grid;grid-template-columns:360px 1fr;gap:14px}
   @media(max-width:880px){.grid{grid-template-columns:1fr}}
   .panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px 18px;
-    backdrop-filter:blur(10px);box-shadow:inset 0 1px 0 rgba(255,255,255,.04),0 10px 30px rgba(0,0,0,.35);position:relative}
-  .panel h2{font-size:12px;font-weight:600;color:var(--dim);letter-spacing:2px;margin-bottom:12px;text-transform:uppercase}
-  .corner{position:absolute;width:12px;height:12px;border:1px solid var(--acc);opacity:.35}
+    backdrop-filter:blur(10px);box-shadow:var(--bevel),var(--depth);position:relative;overflow:hidden}
+  /* 玻璃斜角掃掠光（克制,6s 一次） */
+  .panel::after{content:'';position:absolute;top:0;left:0;right:0;height:1px;
+    background:linear-gradient(90deg,transparent,var(--acc) 50%,transparent);opacity:.35;animation:sweepx 7s ease-in-out infinite}
+  @keyframes sweepx{0%,100%{transform:translateX(-40%);opacity:.12}50%{transform:translateX(40%);opacity:.5}}
+  .panel h2{font-family:var(--mono);font-size:12px;font-weight:400;color:var(--dim);letter-spacing:2px;margin-bottom:12px}
+  .panel h2::before{content:'▸ ';color:var(--acc);opacity:.6}
+  .corner{position:absolute;width:11px;height:11px;border:1.5px solid var(--acc);opacity:.32}
   .corner.tl{top:8px;left:8px;border-right:0;border-bottom:0}
   .corner.br{bottom:8px;right:8px;border-left:0;border-top:0}
-  /* gauge */
+
+  /* ════ gauge ════ */
   .gaugeWrap{display:flex;flex-direction:column;align-items:center}
   #gauge{width:280px;height:170px;margin-top:4px}
-  .gtemp{font-size:46px;font-weight:800;line-height:1;margin-top:-14px}
-  .glabel{font-size:15px;font-weight:700;margin-top:2px}
-  .gstats{display:flex;gap:18px;margin-top:14px;font-size:13px;color:var(--dim);flex-wrap:wrap;justify-content:center}
-  .gstats b{color:var(--txt);font-weight:700}
+  .gtemp{font-family:var(--ttl);font-size:48px;font-weight:900;line-height:1;margin-top:-14px;letter-spacing:-1px;
+    text-shadow:0 0 18px rgba(84,214,255,.25)}
+  .glabel{font-family:var(--tc);font-size:15px;font-weight:700;margin-top:2px}
+  .gstats{display:flex;gap:18px;margin-top:14px;font-size:12px;color:var(--dim);flex-wrap:wrap;justify-content:center}
+  .gstats b{font-family:var(--mono);color:var(--txt);font-weight:400;font-size:14px}
   .adv{color:var(--up)} .dec{color:var(--dn)}
-  /* sectors */
-  .sector{display:grid;grid-template-columns:78px 1fr 60px;align-items:center;gap:10px;margin:7px 0;font-size:13px}
+  /* 漲跌家數紅綠廣度條 */
+  .breadth{width:100%;margin-top:14px}
+  .breadth .bl{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;color:var(--dim);margin-bottom:4px}
+  .breadth .bl .adv{font-size:13px}.breadth .bl .dec{font-size:13px}
+  .segbar{display:flex;gap:2px;height:9px;border-radius:3px;overflow:hidden}
+  .segbar i{flex:1;background:rgba(255,255,255,.05);border-radius:1px;transition:background .4s,box-shadow .4s}
+  .segbar i.up{background:var(--up);box-shadow:0 0 5px rgba(255,77,109,.5)}
+  .segbar i.dn{background:var(--dn);box-shadow:0 0 5px rgba(40,192,139,.5)}
+  .segbar i.flat{background:rgba(127,147,179,.45)}
+
+  /* ════ sectors ════ */
+  .sector{display:grid;grid-template-columns:78px 1fr 58px;align-items:center;gap:10px;margin:7px 0;font-size:13px}
   .sname{color:var(--txt);font-weight:600;white-space:nowrap}
   .sbar{height:14px;border-radius:7px;background:rgba(255,255,255,.05);overflow:hidden;position:relative}
-  .sfill{height:100%;border-radius:7px;transition:width .6s cubic-bezier(.2,.7,.2,1)}
-  .schg{text-align:right;font-variant-numeric:tabular-nums;font-weight:700}
+  .sfill{height:100%;border-radius:7px;transition:width .7s cubic-bezier(.2,.7,.2,1)}
+  .schg{font-family:var(--mono);text-align:right;font-variant-numeric:tabular-nums;font-weight:700;font-size:13px}
   .sleader{grid-column:2/4;font-size:11px;color:var(--dim);margin-top:-3px}
-  /* lists */
+
+  /* ════ lists ════ */
   .cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}
   @media(max-width:620px){.cols{grid-template-columns:1fr}}
-  .row{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding:7px 8px;border-radius:9px;font-size:13px}
+  .row{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding:7px 8px;border-radius:9px;font-size:13px;cursor:pointer;transition:background .15s}
   .row:nth-child(odd){background:rgba(255,255,255,.025)}
+  .row:hover{background:rgba(84,214,255,.08)}
   .rname{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .rcode{color:var(--dim);font-size:11px;margin-right:5px}
-  .rscore{font-variant-numeric:tabular-nums;color:var(--acc);font-weight:700;min-width:38px;text-align:right}
-  .rchg{font-variant-numeric:tabular-nums;font-weight:700;min-width:54px;text-align:right}
-  /* signals */
+  .rcode{font-family:var(--mono);color:var(--dim);font-size:11px;margin-right:5px}
+  .rscore{font-family:var(--mono);font-variant-numeric:tabular-nums;color:var(--acc);font-weight:700;min-width:38px;text-align:right}
+  .rchg{font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:700;min-width:54px;text-align:right}
+
+  /* ════ signals ════ */
   .sigs{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
   @media(max-width:620px){.sigs{grid-template-columns:1fr}}
-  .sigcard{border:1px solid var(--line);border-radius:12px;padding:11px 13px;margin:8px 0;position:relative;
-    background:rgba(255,255,255,.02);animation:pop .5s cubic-bezier(.2,.9,.2,1)}
+  .sigcard{border:1px solid var(--line);border-radius:12px;padding:11px 13px;margin:8px 0;position:relative;cursor:pointer;
+    background:rgba(255,255,255,.02);animation:pop .5s cubic-bezier(.2,.9,.2,1);transition:border-color .15s,transform .15s}
+  .sigcard:hover{transform:translateY(-1px)}
   @keyframes pop{from{transform:translateY(8px) scale(.98);opacity:0}to{transform:none;opacity:1}}
   .sigcard.long{border-left:3px solid var(--up)}
   .sigcard.short{border-left:3px solid var(--dn)}
-  .sigtop{display:flex;align-items:center;gap:8px;font-weight:700}
-  .pill{font-size:11px;padding:2px 8px;border-radius:20px;font-weight:700}
+  /* 新訊號邊框閃光 */
+  .sigcard.fresh{animation:pop .5s cubic-bezier(.2,.9,.2,1),flash 1.6s ease 2}
+  @keyframes flash{0%,100%{box-shadow:0 0 0 rgba(84,214,255,0)}50%{box-shadow:0 0 14px rgba(84,214,255,.45)}}
+  .sigtop{display:flex;align-items:center;gap:8px;font-weight:700;flex-wrap:wrap}
+  .scode{font-family:var(--mono);font-size:13px}
+  .pill{font-family:var(--mono);font-size:11px;padding:2px 8px;border-radius:20px;font-weight:400;letter-spacing:.5px}
   .pill.long{background:rgba(255,77,109,.16);color:var(--up)}
   .pill.short{background:rgba(40,192,139,.16);color:var(--dn)}
-  .sigreason{font-size:12px;color:var(--dim);margin-top:4px}
-  .empty{color:var(--dim);font-size:13px;padding:14px;text-align:center}
-  .foot{margin-top:22px;text-align:center;color:var(--dim);font-size:11px;line-height:1.7}
+  .sigreason{font-size:12px;color:var(--dim);margin-top:5px;line-height:1.5}
+  /* 停損停利條 */
+  .levels{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+  .lvl{font-family:var(--mono);font-size:11px;padding:2px 8px;border-radius:5px;border:1px solid var(--line);
+    display:flex;gap:5px;align-items:baseline;background:rgba(255,255,255,.02)}
+  .lvl .lk{color:var(--dim);font-size:10px}
+  .lvl.stop{border-color:rgba(127,147,179,.3)}
+  .lvl.stop .lv{color:var(--dim)}
+  /* 做多停損紅、停利也紅;做空相反綠(語意色:長=紅,空=綠) */
+  .sigcard.long .lvl.tp .lv{color:var(--up)}
+  .sigcard.short .lvl.tp .lv{color:var(--dn)}
+  .empty{color:var(--dim);font-size:13px;padding:14px;text-align:center;font-family:var(--mono)}
+  /* 觀察名單(做多空時填補) */
+  .watch{margin-top:6px}
+  .wrow{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:6px 9px;margin:5px 0;
+    border:1px dashed var(--line2);border-radius:9px;font-size:12px;cursor:pointer;transition:background .15s}
+  .wrow:hover{background:rgba(84,214,255,.06)}
+  .wrow .wn{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .wrow .wn b{color:var(--txt)}
+  .wrow .wgap{font-family:var(--mono);color:var(--gold);font-weight:700;white-space:nowrap}
+  .wrow .wr{grid-column:1/3;color:var(--dim);font-size:11px;margin-top:-2px}
+
+  /* ════ JARVIS 逐字播報 ════ */
+  .jbar{display:flex;align-items:baseline;gap:10px;margin:0 0 14px;padding:9px 14px;border-radius:10px;
+    border:1px solid var(--line);background:linear-gradient(90deg,rgba(84,214,255,.06),transparent);overflow:hidden}
+  .jbar .jl{font-family:var(--mono);font-size:11px;letter-spacing:2px;color:var(--acc);opacity:.8;flex-shrink:0}
+  .jbar .jt{font-family:var(--tc);font-size:14px;color:var(--acc2);line-height:1.4;min-height:18px;
+    text-shadow:0 0 8px rgba(84,214,255,.3)}
+  .jbar .jt::after{content:'▋';color:var(--acc);animation:cur .7s step-end infinite;margin-left:1px}
+  @keyframes cur{50%{opacity:0}}
+
+  /* ════ 歷史訊號時間軸 ════ */
+  .timeline{position:relative;padding-left:6px}
+  .tlrow{display:grid;grid-template-columns:64px 14px 1fr auto;gap:10px;align-items:center;padding:9px 6px;
+    border-bottom:1px solid rgba(120,160,220,.08);font-size:13px}
+  .tlrow .tt{font-family:var(--mono);font-size:12px;color:var(--dim)}
+  .tldot{width:9px;height:9px;border-radius:50%;justify-self:center}
+  .tldot.long{background:var(--up);box-shadow:0 0 6px rgba(255,77,109,.6)}
+  .tldot.short{background:var(--dn);box-shadow:0 0 6px rgba(40,192,139,.6)}
+  .tlmain{overflow:hidden}
+  .tlmain .tn{font-weight:600}.tlmain .tn .rcode{font-family:var(--mono)}
+  .tlmain .trsn{color:var(--dim);font-size:11px;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tlchg{font-family:var(--mono);font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+
+  .foot{margin-top:22px;text-align:center;color:var(--dim);font-size:11px;line-height:1.7;font-family:var(--mono)}
   .blink{animation:bk 2s infinite}@keyframes bk{50%{opacity:.35}}
+
+  /* ════ popover 下鑽 ════ */
+  #pop{position:fixed;z-index:80;display:none;width:236px;background:rgba(6,12,22,.97);
+    border:1px solid var(--acc);border-radius:10px;padding:12px 14px;box-shadow:0 0 22px rgba(84,214,255,.28);backdrop-filter:blur(10px)}
+  #pop .pt{display:flex;align-items:baseline;gap:8px;margin-bottom:2px}
+  #pop .pt .pc{font-family:var(--mono);font-size:12px;color:var(--dim)}
+  #pop .pt .pname{font-size:15px;font-weight:700;color:var(--txt)}
+  #pop .pind{font-family:var(--mono);font-size:11px;color:var(--dim);margin-bottom:8px}
+  #pop .pspark{width:100%;height:46px;display:block;margin-bottom:8px}
+  #pop .prow{display:flex;justify-content:space-between;font-family:var(--mono);font-size:12px;color:var(--dim);padding:3px 0;border-top:1px solid rgba(120,160,220,.1)}
+  #pop .prow b{font-weight:400;color:var(--txt)}
+  #pop .tag{font-size:11px;padding:1px 7px;border-radius:10px;border:1px solid currentColor}
+
+  /* ════════════ 手機 RWD（<480px 再收一級） ════════════ */
+  @media(max-width:480px){
+    .wrap{padding:12px 11px 50px}
+    .logo{font-size:16px}
+    .grid{gap:10px}
+    .panel{padding:13px 13px;border-radius:13px}
+    #gauge{width:230px;height:140px}
+    .gtemp{font-size:38px}
+    .gstats{gap:12px;font-size:11px}
+    .sigs{grid-template-columns:1fr}
+    .row{font-size:12px}
+    .sector{grid-template-columns:64px 1fr 50px}
+    .tab{padding:6px 12px;font-size:12px}
+    .idx{padding:3px 8px}.idx .iprice{font-size:13px}
+    .jbar .jt{font-size:12.5px}
+  }
+
+  /* ════════════ ?snapshot=1 直式快照版（IG 9:16 / YT 16:9 截圖用） ════════════ */
+  body.snap{background:radial-gradient(900px 1100px at 50% -5%,#11233f 0%,var(--bg) 62%) fixed,var(--bg)}
+  body.snap #bg{opacity:.28}
+  body.snap #scan{opacity:.22}body.snap #grain{opacity:.02}
+  body.snap .tabs,body.snap .upd,body.snap .badge,body.snap .corner,body.snap #pop,body.snap .blink{display:none!important}
+  body.snap .panel::after{display:none} /* 截圖不要動畫掃光 */
+  body.snap .wrap{max-width:1040px;padding:30px 34px 30px}
+  body.snap header{justify-content:center;text-align:center;flex-direction:column;gap:8px;margin-bottom:22px}
+  body.snap .logo{font-size:34px;letter-spacing:3px}
+  body.snap .idx{margin:0 auto}
+  body.snap .grid{grid-template-columns:1fr;gap:18px}
+  body.snap .jbar{font-size:16px;padding:14px 20px}
+  body.snap .jbar .jt::after{display:none} /* 快照不要游標 */
+  body.snap .jbar .jt{font-size:19px}
+  body.snap #gauge{width:420px;height:250px}
+  body.snap .gtemp{font-size:84px}
+  body.snap .glabel{font-size:24px}
+  body.snap .gstats{font-size:16px;gap:26px}body.snap .gstats b{font-size:19px}
+  body.snap .panel h2{font-size:15px}
+  body.snap .sector{font-size:16px;grid-template-columns:96px 1fr 72px}
+  body.snap .sname{font-size:16px}.snap .schg{font-size:16px}
+  body.snap .sigs{grid-template-columns:1fr 1fr}
+  body.snap .sigtop{font-size:16px}
+  /* 快照浮水印 */
+  .watermark{display:none}
+  body.snap .watermark{display:block;margin-top:24px;text-align:center;font-family:var(--mono);
+    color:var(--dim);font-size:13px;line-height:1.8;border-top:1px solid var(--line);padding-top:16px}
+  body.snap .watermark .wm-brand{font-family:var(--ttl);font-size:18px;color:var(--acc);letter-spacing:2px;display:block;margin-bottom:4px}
 </style>
 </head>
 <body>
 <canvas id="bg"></canvas>
+<!-- HUD 氛圍層 -->
+<div id="scan"></div><div id="vig"></div><div id="grain"></div>
+<div class="bracket tl"></div><div class="bracket tr"></div><div class="bracket bl"></div><div class="bracket br"></div>
+<div class="ruler top"></div><div class="ruler bottom"></div>
+
 <div class="wrap">
   <header>
     <div class="logo">量化阿森 · <b>台股數據獵手</b></div>
     <span id="src" class="badge">—</span>
     <span id="mode" class="badge">—</span>
     <span id="uni" class="badge">—</span>
+    <!-- 大盤總閘徽章 -->
+    <div class="idx" id="idxBadge" style="display:none">
+      <span class="iname" id="idxName">大盤</span>
+      <span class="iprice mono" id="idxPrice">—</span>
+      <span class="ichg mono" id="idxChg">—</span>
+      <span class="iyl" id="idxYL">—</span>
+    </div>
     <div class="spacer"></div>
-    <div class="upd" id="upd">連線中…</div>
+    <div class="upd">
+      <span class="hb" id="hb"></span>
+      <span id="upd">連線中…</span>
+      <!-- 下次更新倒數環 -->
+      <svg class="ring" id="ring" viewBox="0 0 36 36">
+        <circle class="track" cx="18" cy="18" r="15" fill="none" stroke-width="3"></circle>
+        <circle class="arc" id="ringArc" cx="18" cy="18" r="15" fill="none" stroke-width="3"
+          stroke-dasharray="94.2" stroke-dashoffset="0" transform="rotate(-90 18 18)"></circle>
+        <text id="ringT" x="18" y="22" text-anchor="middle">30</text>
+      </svg>
+    </div>
   </header>
 
-  <div class="grid">
-    <!-- 市場溫度 -->
-    <section class="panel gaugeWrap">
+  <!-- JARVIS 逐字播報 -->
+  <div class="jbar"><span class="jl">J.A.R.V.I.S.</span><span class="jt" id="jt"></span></div>
+
+  <!-- 主分頁 -->
+  <div class="tabs">
+    <div class="tab active" data-v="board">看板 · LIVE</div>
+    <div class="tab" data-v="history">歷史訊號 · TIMELINE</div>
+  </div>
+
+  <!-- ════ 看板 view ════ -->
+  <div class="view active" data-view="board">
+    <div class="grid">
+      <!-- 市場溫度 -->
+      <section class="panel gaugeWrap">
+        <span class="corner tl"></span><span class="corner br"></span>
+        <h2>市場溫度 · MARKET HEAT</h2>
+        <canvas id="gauge" width="560" height="340"></canvas>
+        <div class="gtemp mono" id="gtemp">--</div>
+        <div class="glabel" id="glabel">—</div>
+        <div class="gstats">
+          <span>平均RSI <b id="grsi">--</b></span>
+          <span>站上20MA <b id="gbr">--</b>%</span>
+          <span>漲<b class="adv" id="gadv">--</b>/跌<b class="dec" id="gdec">--</b></span>
+        </div>
+        <!-- 漲跌家數紅綠廣度條 -->
+        <div class="breadth">
+          <div class="bl">
+            <span class="adv mono">▲ 漲 <span id="bAdv">--</span></span>
+            <span class="mono" id="bFlat" style="color:var(--dim)">平 --</span>
+            <span class="dec mono">跌 <span id="bDec">--</span> ▼</span>
+          </div>
+          <div class="segbar" id="segbar"></div>
+        </div>
+      </section>
+
+      <!-- 產業板塊熱流 -->
+      <section class="panel">
+        <span class="corner tl"></span><span class="corner br"></span>
+        <h2>產業板塊熱流 · SECTOR ROTATION</h2>
+        <div id="sectors"></div>
+      </section>
+    </div>
+
+    <!-- 強弱榜 -->
+    <section class="panel" style="margin-top:14px">
       <span class="corner tl"></span><span class="corner br"></span>
-      <h2>市場溫度 · Market Heat</h2>
-      <canvas id="gauge" width="560" height="340"></canvas>
-      <div class="gtemp" id="gtemp">--</div>
-      <div class="glabel" id="glabel">—</div>
-      <div class="gstats">
-        <span>平均RSI <b id="grsi">--</b></span>
-        <span>站上20MA <b id="gbr">--</b>%</span>
-        <span>漲<b class="adv" id="gadv">--</b>/跌<b class="dec" id="gdec">--</b></span>
+      <h2>強弱榜 · STRENGTH LEADERBOARD</h2>
+      <div class="cols">
+        <div><div style="font-size:12px;color:var(--up);font-weight:700;margin-bottom:6px">▲ 最強 8</div><div id="strong"></div></div>
+        <div><div style="font-size:12px;color:var(--dn);font-weight:700;margin-bottom:6px">▼ 最弱 8</div><div id="weak"></div></div>
       </div>
     </section>
 
-    <!-- 產業板塊熱流 -->
-    <section class="panel">
+    <!-- 即時訊號 -->
+    <section class="panel" style="margin-top:14px">
       <span class="corner tl"></span><span class="corner br"></span>
-      <h2>產業板塊熱流 · Sector Rotation</h2>
-      <div id="sectors"></div>
+      <h2>即時訊號 · LIVE SIGNALS <span class="blink" style="color:var(--acc)">●</span></h2>
+      <div class="sigs">
+        <div><div id="longHdr" style="font-size:12px;color:var(--up);font-weight:700;margin-bottom:2px">做多 · LONG</div><div id="longs"></div></div>
+        <div><div id="shortHdr" style="font-size:12px;color:var(--dn);font-weight:700;margin-bottom:2px">做空 · SHORT</div><div id="shorts"></div></div>
+      </div>
     </section>
   </div>
 
-  <!-- 強弱榜 -->
-  <section class="panel" style="margin-top:14px">
-    <span class="corner tl"></span><span class="corner br"></span>
-    <h2>強弱榜 · Strength Leaderboard</h2>
-    <div class="cols">
-      <div><div style="font-size:12px;color:var(--up);font-weight:700;margin-bottom:6px">▲ 最強 8</div><div id="strong"></div></div>
-      <div><div style="font-size:12px;color:var(--dn);font-weight:700;margin-bottom:6px">▼ 最弱 8</div><div id="weak"></div></div>
-    </div>
-  </section>
+  <!-- ════ 歷史訊號 view ════ -->
+  <div class="view" data-view="history">
+    <section class="panel">
+      <span class="corner tl"></span><span class="corner br"></span>
+      <h2>今日訊號時間軸 · TODAY'S SIGNAL FLOW</h2>
+      <div class="timeline" id="timeline"><div class="empty">載入中…</div></div>
+    </section>
+  </div>
 
-  <!-- 即時訊號 -->
-  <section class="panel" style="margin-top:14px">
-    <span class="corner tl"></span><span class="corner br"></span>
-    <h2>即時訊號 · Live Signals <span class="blink" style="color:var(--acc)">●</span></h2>
-    <div class="sigs">
-      <div><div id="longHdr" style="font-size:12px;color:var(--up);font-weight:700;margin-bottom:2px">🟢 做多</div><div id="longs"></div></div>
-      <div><div id="shortHdr" style="font-size:12px;color:var(--dn);font-weight:700;margin-bottom:2px">🔴 做空</div><div id="shorts"></div></div>
-    </div>
-  </section>
+  <!-- 快照浮水印（只在 ?snapshot=1 顯示） -->
+  <div class="watermark">
+    <span class="wm-brand">量化阿森 Carson Quant</span>
+    <span id="wmDate">—</span>　·　純真實 K 線計算，本看板僅為技術數據呈現，非投資建議
+  </div>
 
   <div class="foot">
     每 30 秒自動更新 · 訊號同步推播 ntfy · 純真實 K 線計算<br>
@@ -139,11 +388,24 @@
   </div>
 </div>
 
+<!-- 下鑽 popover -->
+<div id="pop"></div>
+
 <script>
 const $=s=>document.querySelector(s);
+const params=new URLSearchParams(location.search);
+const MOCK=params.get('mock')==='1';
+const SNAP=params.get('snapshot')==='1';
+if(SNAP) document.body.classList.add('snap');
+const STATE_URL  = MOCK?'state.sample.json':'state.json';
+const HISTORY_URL= MOCK?'history.sample.json':'history.json';
+
 const sign=v=>(v>0?'+':'')+v;
 const chgCls=v=>v>0?'adv':(v<0?'dec':'');
 const chgColor=v=>v>0?'var(--up)':(v<0?'var(--dn)':'var(--dim)');
+// 紅漲綠跌的 hex（給 canvas/SVG 用）
+const upHex='#ff4d6d', dnHex='#28c08b', dimHex='#7f93b3';
+const dirHex=v=>v>0?upHex:(v<0?dnHex:dimHex);
 
 // ── 背景粒子（低密度，分頁隱藏即停） ──
 const bg=$('#bg'), bx=bg.getContext('2d'); let W,H,parts=[],raf=0;
@@ -183,11 +445,12 @@ function drawGauge(val,color){
   gx.strokeStyle=color;gx.shadowColor=color;gx.shadowBlur=16;gx.stroke();gx.shadowBlur=0;
   gx.beginPath();gx.arc(cx,cy,7,0,7);gx.fillStyle=color;gx.fill();
   // 端點刻度數
-  gx.fillStyle='rgba(127,147,179,.8)';gx.font='13px monospace';
+  gx.fillStyle='rgba(127,147,179,.8)';gx.font='13px "Share Tech Mono",monospace';
   gx.fillText('0',cx-R-6,cy+6); gx.fillText('100',cx+R-10,cy+6); gx.fillText('50',cx-8,cy-R-8);
 }
 function animateGauge(target,color){
   cancelAnimationFrame(animateGauge._r);
+  if(SNAP){gShown=target;drawGauge(target,color);return;} // 快照直接畫定值,不掃針
   const step=()=>{gShown+=(target-gShown)*.12;
     if(Math.abs(target-gShown)<.3)gShown=target;
     drawGauge(gShown,color);
@@ -195,25 +458,213 @@ function animateGauge(target,color){
   step();
 }
 
+// ── 數字 count-up 補間（推廣 animateGauge 的手法到任意數字欄位） ──
+function animateNum(el,target,{dec=0,suffix=''}={}){
+  if(!el)return;
+  const from=parseFloat(el.dataset.v||'0')||0; el.dataset.v=target;
+  if(SNAP){el.textContent=Number(target).toFixed(dec)+suffix;return;} // 快照不補間,直接落定值
+  const t0=performance.now(),dur=600;
+  const step=now=>{const k=Math.min(1,(now-t0)/dur);
+    const e=1-Math.pow(1-k,3); // easeOutCubic
+    const v=from+(target-from)*e;
+    el.textContent=v.toFixed(dec)+suffix;
+    if(k<1)requestAnimationFrame(step);};
+  requestAnimationFrame(step);
+}
+
+// ── 迷你 sparkline（紅漲綠跌：收盤末值>首值=紅，否則綠） ──
+function sparkSVG(arr,w=208,h=46){
+  if(!arr||arr.length<2)return '';
+  const mx=Math.max(...arr),mn=Math.min(...arr),rng=(mx-mn)||1,n=arr.length;
+  const X=i=>i/(n-1)*w, Y=v=>h-3-((v-mn)/rng)*(h-6);
+  const col=arr[n-1]>=arr[0]?upHex:dnHex;
+  const pts=arr.map((v,i)=>`${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(' ');
+  const lx=X(n-1).toFixed(1),ly=Y(arr[n-1]).toFixed(1);
+  const id='g'+Math.random().toString(36).slice(2,7);
+  return `<svg class="pspark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+    <defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="${col}" stop-opacity=".28"/><stop offset="1" stop-color="${col}" stop-opacity="0"/></linearGradient></defs>
+    <polygon points="${X(0).toFixed(1)},${h} ${pts} ${lx},${h}" fill="url(#${id})"/>
+    <polyline points="${pts}" fill="none" stroke="${col}" stroke-width="1.6"/>
+    <circle cx="${lx}" cy="${ly}" r="2.2" fill="${col}"/></svg>`;
+}
+
+// ── 下鑽 popover ──
+const pop=$('#pop'); let popKey=null;
+function stStatus(st){return st==='UP'?'<span class="tag" style="color:var(--up)">翻多</span>'
+  :st==='DOWN'?'<span class="tag" style="color:var(--dn)">翻空</span>':'<span class="tag" style="color:var(--dim)">中性</span>';}
+function ma20Status(s){const up=s.st==='UP'||(s.rsi&&s.rsi>=50);
+  return up?'<span class="tag" style="color:var(--up)">站上</span>':'<span class="tag" style="color:var(--dn)">跌破</span>';}
+function showPop(s,anchor){
+  if(popKey===s.code && pop.style.display==='block'){hidePop();return;}
+  popKey=s.code;
+  pop.innerHTML=
+    `<div class="pt"><span class="pc">${s.code}</span><span class="pname">${s.name}</span></div>`+
+    `<div class="pind">${s.industry||''}　·　收 ${s.price}　<span style="color:${dirHex(s.chg)}">${sign(s.chg)}%</span></div>`+
+    sparkSVG(s.spark||[])+
+    `<div class="prow"><span>RSI</span><b>${s.rsi??'—'}</b></div>`+
+    `<div class="prow"><span>SuperTrend</span><b>${stStatus(s.st)}</b></div>`+
+    `<div class="prow"><span>站上20MA</span><b>${ma20Status(s)}</b></div>`+
+    `<div class="prow"><span>強弱分</span><b style="color:var(--acc)">${s.score??'—'}</b></div>`;
+  pop.style.display='block';
+  // 定位：貼著被點元素，避免出界
+  const r=anchor.getBoundingClientRect(), pw=236, ph=pop.offsetHeight;
+  let x=r.left, y=r.bottom+6;
+  if(x+pw>innerWidth-8)x=innerWidth-pw-8;
+  if(y+ph>innerHeight-8)y=r.top-ph-6;
+  pop.style.left=Math.max(8,x)+'px'; pop.style.top=Math.max(8,y)+'px';
+}
+function hidePop(){pop.style.display='none';popKey=null;}
+document.addEventListener('click',e=>{ if(!pop.contains(e.target) && !e.target.closest('[data-drill]')) hidePop(); });
+addEventListener('scroll',hidePop,true);
+
+// 把下鑽資料存起來，供 popover 取用
+const drillMap=new Map();
+function regDrill(s){ drillMap.set(s.code,s); }
+
 function rowHTML(s){
-  return `<div class="row"><div class="rname"><span class="rcode">${s.code}</span>${s.name}</div>`+
+  regDrill(s);
+  return `<div class="row" data-drill data-code="${s.code}"><div class="rname"><span class="rcode">${s.code}</span>${s.name}</div>`+
     `<div class="rscore">${s.score}</div>`+
     `<div class="rchg" style="color:${chgColor(s.chg)}">${sign(s.chg)}%</div></div>`;
 }
 function sigHTML(s){
+  regDrill(s);
   const cls=s.side, pill=s.side==='long'?'做多':'做空';
-  return `<div class="sigcard ${cls}"><div class="sigtop">`+
-    `<span class="pill ${cls}">${pill}</span>${s.code} ${s.name} `+
-    `<span style="color:${chgColor(s.chg)};font-variant-numeric:tabular-nums">${s.price} (${sign(s.chg)}%)</span></div>`+
-    `<div class="sigreason">${s.reason}　·　強弱分 ${s.score}　·　${s.industry}</div></div>`;
+  // 停損停利條（有才顯示）
+  let lv='';
+  if(s.stop!=null||s.tp1!=null||s.tp2!=null){
+    lv='<div class="levels">';
+    if(s.stop!=null) lv+=`<span class="lvl stop"><span class="lk">停損</span><span class="lv mono">${s.stop}</span></span>`;
+    if(s.tp1!=null)  lv+=`<span class="lvl tp"><span class="lk">TP1</span><span class="lv mono">${s.tp1}</span></span>`;
+    if(s.tp2!=null)  lv+=`<span class="lvl tp"><span class="lk">TP2</span><span class="lv mono">${s.tp2}</span></span>`;
+    lv+='</div>';
+  }
+  return `<div class="sigcard ${cls}" data-drill data-code="${s.code}"><div class="sigtop">`+
+    `<span class="pill ${cls}">${pill}</span><span class="scode">${s.code}</span> ${s.name} `+
+    `<span class="mono" style="color:${chgColor(s.chg)}">${s.price} (${sign(s.chg)}%)</span></div>`+
+    `<div class="sigreason">${s.reason}　·　強弱分 ${s.score}　·　${s.industry}</div>`+lv+`</div>`;
+}
+function watchHTML(w){
+  return `<div class="watch"><div style="font-size:11px;color:var(--dim);margin:4px 2px 2px">觀察名單 · 接近觸發</div>`+
+    w.map(x=>`<div class="wrow" data-drill data-code="${x.code}"><div class="wn"><span class="rcode">${x.code}</span><b>${x.name}</b> `+
+      `<span class="mono" style="color:${chgColor(x.chg)}">${sign(x.chg)}%</span></div>`+
+      `<div class="wgap">差 ${x.gap_pct}%</div>`+
+      `<div class="wr">${x.reason||''}</div></div>`).join('')+`</div>`;
+}
+// 點任一 data-drill 元素 → popover
+document.addEventListener('click',e=>{
+  const el=e.target.closest('[data-drill]'); if(!el)return;
+  const s=drillMap.get(el.dataset.code); if(s)showPop(s,el);
+});
+
+// ── 大盤總閘徽章 ──
+function renderIndex(ix){
+  const box=$('#idxBadge'); if(!ix){box.style.display='none';return;}
+  box.style.display='';
+  $('#idxName').textContent=ix.name||'大盤';
+  $('#idxPrice').textContent=ix.price;
+  const ce=$('#idxChg'); ce.textContent=sign(ix.chg)+'%'; ce.style.color=dirHex(ix.chg);
+  const yl=$('#idxYL');
+  if(ix.above_yearline){yl.textContent='站上年線';yl.style.color=upHex;}
+  else{yl.textContent='年線下';yl.style.color=dnHex;}
 }
 
-let lastTs=null;
+// ── 漲跌家數紅綠廣度條（30 格依比例上紅平灰下綠） ──
+function renderBreadth(g){
+  const seg=$('#segbar'); const N=30;
+  const adv=g.adv||0,dec=g.dec||0,flat=g.flat||0,tot=adv+dec+flat||1;
+  const nA=Math.round(adv/tot*N), nF=Math.round(flat/tot*N), nD=N-nA-nF;
+  let html='';
+  for(let i=0;i<nA;i++)html+='<i class="up"></i>';
+  for(let i=0;i<Math.max(0,nF);i++)html+='<i class="flat"></i>';
+  for(let i=0;i<Math.max(0,nD);i++)html+='<i class="dn"></i>';
+  seg.innerHTML=html;
+  animateNum($('#bAdv'),adv); animateNum($('#bDec'),dec);
+  $('#bFlat').textContent='平 '+flat;
+}
+
+// ── JARVIS 逐字播報（從 state 組字，循環打字） ──
+let narr=[], ni=0, nchars=0, nphase='type', nhold=0, jraf=0;
+const jt=$('#jt');
+function buildNarration(d){
+  const g=d.gauge, lines=[];
+  lines.push(`市場溫度 ${Math.round(g.temperature)} ${g.label}，平均 RSI ${g.avg_rsi}，站上 20MA ${g.breadth}%。`);
+  if(d.sectors&&d.sectors.length){
+    const top=[...d.sectors].sort((a,b)=>b.avg_chg-a.avg_chg)[0];
+    if(top) lines.push(`${top.name}領${top.avg_chg>=0?'漲':'跌'} ${sign(top.avg_chg)}%，領頭 ${top.leader||'—'}。`);
+  }
+  const sg=d.signals||{}, lt=sg.long_total??(sg.long||[]).length, st=sg.short_total??(sg.short||[]).length;
+  lines.push(`偵測 ${lt} 筆做多、${st} 筆做空訊號。`);
+  if(d.index) lines.push(`大盤 ${d.index.name} ${d.index.price}（${sign(d.index.chg)}%），${d.index.above_yearline?'站上年線':'年線之下'}。`);
+  narr=lines; ni=0; nchars=0; nphase='type';
+}
+function narrTick(){
+  if(SNAP){ if(narr.length)jt.textContent=narr[0]; jraf=requestAnimationFrame(narrTick); return; } // 快照:整句落定不打字
+  if(narr.length){
+    const line=narr[ni%narr.length];
+    if(nphase==='type'){nchars+=0.55; jt.textContent=line.slice(0,Math.floor(nchars));
+      if(Math.floor(nchars)>=line.length){nphase='hold';nhold=0;}}
+    else{nhold+=1; if(nhold>150){ni=(ni+1)%narr.length;nchars=0;nphase='type';}}
+  }
+  jraf=requestAnimationFrame(narrTick);
+}
+narrTick();
+
+// ── 下次更新倒數環（30→0） ──
+const CIRC=2*Math.PI*15; // r=15 ≈ 94.2
+let countdown=30;
+const ringArc=$('#ringArc'), ringT=$('#ringT');
+function tickCountdown(){
+  countdown--; if(countdown<0)countdown=0;
+  ringT.textContent=countdown;
+  ringArc.setAttribute('stroke-dashoffset', (CIRC*(1-countdown/30)).toFixed(1));
+}
+setInterval(tickCountdown,1000);
+function resetCountdown(){countdown=30;ringT.textContent='30';ringArc.setAttribute('stroke-dashoffset','0');}
+
+// ── 主分頁切換 ──
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active');
+  $(`.view[data-view="${t.dataset.v}"]`).classList.add('active');
+  if(t.dataset.v==='history')loadHistory();
+}));
+
+// ── 歷史訊號時間軸 ──
+let histLoaded=false;
+async function loadHistory(force){
+  if(histLoaded&&!force)return;
+  try{
+    const r=await fetch(HISTORY_URL+'?_='+Date.now(),{cache:'no-store'});
+    const d=await r.json();
+    const items=(d.items||[]).slice().reverse(); // 新→舊
+    const tl=$('#timeline');
+    if(!items.length){tl.innerHTML='<div class="empty">今日尚無觸發訊號</div>';histLoaded=true;return;}
+    tl.innerHTML=items.map(it=>{
+      const tm=(it.ts||'').slice(11,16);
+      const pill=it.side==='long'?'做多':'做空';
+      return `<div class="tlrow"><span class="tt">${tm}</span>`+
+        `<span class="tldot ${it.side}"></span>`+
+        `<div class="tlmain"><div class="tn"><span class="rcode">${it.code}</span>${it.name} `+
+        `<span style="font-size:11px;color:${it.side==='long'?'var(--up)':'var(--dn)'}">${pill}</span></div>`+
+        `<div class="trsn">${it.reason||''}　·　${it.industry||''}</div></div>`+
+        `<span class="tlchg" style="color:${chgColor(it.chg)}">${sign(it.chg)}%</span></div>`;
+    }).join('');
+    histLoaded=true;
+  }catch(e){ $('#timeline').innerHTML='<div class="empty">讀取 history.json 失敗（後端尚未產出？）</div>'; }
+}
+
+// ── 主資料載入 ──
+let lastTs=null, prevSigCodes=new Set();
 async function load(){
   try{
-    const r=await fetch('state.json?_='+Date.now(),{cache:'no-store'});
+    const r=await fetch(STATE_URL+'?_='+Date.now(),{cache:'no-store'});
     const d=await r.json();
+    resetCountdown();
     if(!d.ok){$('#upd').textContent='等待第一輪掃描…';return;}
+    $('#wmDate').textContent=d.date||(d.ts||'').slice(0,10);
     if(d.ts===lastTs){$('#upd').textContent='最後更新 '+d.ts.replace('T',' ');return;}
     lastTs=d.ts;
 
@@ -221,28 +672,49 @@ async function load(){
     $('#gtemp').textContent=g.temperature;
     $('#gtemp').style.color=g.color;
     $('#glabel').textContent=g.label; $('#glabel').style.color=g.color;
-    $('#grsi').textContent=g.avg_rsi; $('#gbr').textContent=g.breadth;
-    $('#gadv').textContent=g.adv; $('#gdec').textContent=g.dec;
+    animateNum($('#grsi'),g.avg_rsi,{dec:1}); animateNum($('#gbr'),g.breadth,{dec:0});
+    animateNum($('#gadv'),g.adv); animateNum($('#gdec'),g.dec);
     animateGauge(g.temperature,g.color);
+    renderBreadth(g);
+    renderIndex(d.index);
+    buildNarration(d);
 
     const sm=Math.max(...d.sectors.map(s=>Math.abs(s.avg_chg)),1);
     $('#sectors').innerHTML=d.sectors.map(s=>{
       const w=Math.max(4,Math.abs(s.avg_chg)/sm*100);
       // 漲紅跌綠(台股慣例)：長條顏色直接反映方向，一眼判強弱
-      const col=s.avg_chg>0?'#ff4d6d':(s.avg_chg<0?'#28c08b':'#7f93b3');
+      const col=dirHex(s.avg_chg);
       return `<div class="sector"><div class="sname">${s.name}</div>`+
         `<div class="sbar"><div class="sfill" style="width:${w}%;background:${col};box-shadow:0 0 10px ${col}66"></div></div>`+
         `<div class="schg" style="color:${chgColor(s.avg_chg)}">${sign(s.avg_chg)}%</div>`+
         `<div class="sleader">領漲 ${s.leader}　·　站上20MA ${s.bull_pct}%</div></div>`;
     }).join('');
 
+    drillMap.clear();
     $('#strong').innerHTML=d.strong.map(rowHTML).join('');
     $('#weak').innerHTML=d.weak.map(rowHTML).join('');
+
     const sg=d.signals, capL=sg.long_total||sg.long.length, capS=sg.short_total||sg.short.length;
-    $('#longHdr').textContent='🟢 做多'+(capL>sg.long.length?`（前 ${sg.long.length}／共 ${capL}）`:(capL?`（${capL}）`:''));
-    $('#shortHdr').textContent='🔴 做空'+(capS>sg.short.length?`（前 ${sg.short.length}／共 ${capS}）`:(capS?`（${capS}）`:''));
-    $('#longs').innerHTML=sg.long.length?sg.long.map(sigHTML).join(''):'<div class="empty">目前無做多訊號</div>';
-    $('#shorts').innerHTML=sg.short.length?sg.short.map(sigHTML).join(''):'<div class="empty">目前無做空訊號</div>';
+    $('#longHdr').innerHTML='做多 · LONG'+(capL>sg.long.length?`（前 ${sg.long.length}／共 ${capL}）`:(capL?`（${capL}）`:''));
+    $('#shortHdr').innerHTML='做空 · SHORT'+(capS>sg.short.length?`（前 ${sg.short.length}／共 ${capS}）`:(capS?`（${capS}）`:''));
+
+    // 新訊號邊框閃光：和上一輪比對 code
+    const nowCodes=new Set([...(sg.long||[]),...(sg.short||[])].map(s=>s.side+s.code));
+    const markFresh=(s)=>{const k=s.side+s.code; return !prevSigCodes.has(k);};
+
+    if(sg.long.length){
+      $('#longs').innerHTML=sg.long.map(s=>{const h=sigHTML(s);return markFresh(s)?h.replace('class="sigcard long','class="sigcard long fresh'):h;}).join('');
+    }else if(d.watch_long&&d.watch_long.length){
+      // 做多側空 → 顯示觀察名單填補空白
+      d.watch_long.forEach(w=>regDrill(w));
+      $('#longs').innerHTML='<div class="empty" style="padding:8px">目前無做多訊號</div>'+watchHTML(d.watch_long);
+    }else{
+      $('#longs').innerHTML='<div class="empty">目前無做多訊號</div>';
+    }
+    $('#shorts').innerHTML=sg.short.length
+      ? sg.short.map(s=>{const h=sigHTML(s);return markFresh(s)?h.replace('class="sigcard short','class="sigcard short fresh'):h;}).join('')
+      : '<div class="empty">目前無做空訊號</div>';
+    prevSigCodes=nowCodes;
 
     const src=$('#src');
     const srcMap={realtime:'● 即時同步 證交所',live:'● LIVE 即時',cache:'◌ 快取'};
@@ -254,9 +726,19 @@ async function load(){
     md.className='badge '+(d.mode==='realtime'?'live':(d.mode==='intraday'?'live':''));
     $('#uni').textContent='掃描 '+d.universe+' 檔';
     $('#upd').textContent='最後更新 '+d.ts.replace('T',' ');
-  }catch(e){ $('#upd').textContent='讀取 state.json 失敗（掃描器尚未產出？）'; }
+    $('#hb').style.background='#7dffb0';
+
+    // 歷史 tab 若開著就刷新
+    if($('.tab[data-v="history"]').classList.contains('active')) loadHistory(true);
+  }catch(e){
+    $('#upd').textContent='讀取 '+STATE_URL+' 失敗（掃描器尚未產出？）';
+    $('#hb').style.background='#ff7d83';
+  }
 }
 load(); setInterval(load,30000);
+
+// 快照模式：歷史也先抓一次，確保 watermark 日期填上
+if(SNAP){ loadHistory(); }
 </script>
 </body>
 </html>

@@ -57,6 +57,20 @@ def main():
         except Exception as e:
             print(f"[server] 預掃失敗（仍照常開站）：{e}")
 
+    # 埠占用 → 自動 +1 重試(比照 app.py 捕捉 OSError)，最多試 10 個埠
+    httpd = None
+    for p in range(port, port + 10):
+        try:
+            httpd = ThreadingHTTPServer(("127.0.0.1", p), Handler)
+            port = p
+            break
+        except OSError:
+            print(f"[server] 埠 {p} 已被占用，改試 {p + 1}…")
+            continue
+    if httpd is None:
+        print(f"[server] 連續 10 個埠({port}-{port + 9})皆被占用，放棄。")
+        return
+
     url = f"http://127.0.0.1:{port}/"
     print(f"[server] 數據獵手看板 → {url}")
     print("[server] Ctrl+C 結束")
@@ -64,7 +78,6 @@ def main():
         webbrowser.open(url)
     except Exception:
         pass
-    httpd = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

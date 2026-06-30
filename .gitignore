@@ -118,4 +118,6 @@ jarvis/livekit/agent-starter-python/
 # 數據獵手執行期產物(不進版控)
 quant-service/data_hunter/state.json
 quant-service/data_hunter/signals_log.json
+quant-service/data_hunter/history.json
+quant-service/data_hunter/snapshots/
 quant-service/data_hunter/*.log
