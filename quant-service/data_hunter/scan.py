@@ -53,6 +53,13 @@ from universe import (all_codes, load_full_universe, INDUSTRIES,        # noqa: 
                       INDUSTRY_HUE, industry_hue)
 from indicators import calc_rsi, calc_ma, calc_macd, calc_bollinger     # noqa: E402
 
+# Track A 三大法人籌碼面(獨立模組，無循環匯入；缺 requests 等則優雅降級)
+try:
+    import chips                                                        # noqa: E402
+except Exception as _e:                     # pragma: no cover
+    chips = None
+    print(f"[hunter] chips 模組不可用，籌碼面停用：{type(_e).__name__}: {_e}")
+
 # .env(NTFY_TOPIC / LINE_NOTIFY_TOKEN) 由 quant-service 載入
 try:
     from dotenv import load_dotenv
@@ -74,6 +81,20 @@ VOL_MULT = 1.5                         # 做多量能濾網：當根量 > 近20�
 LIMIT_PCT = 9.5                        # 台股漲跌停 10%；±9.5% 以上標記不可追、排除進場
 INDEX_CODE = "0050"                    # 大盤總閘(0050 當代理)
 YEARLINE = 240                         # 年線(約 240 交易日)
+
+# ── Track A 籌碼面參數 ──────────────────────────────────────────────────────
+CHIP_DAYS = 5                          # 載入近 N 交易日三大法人(算連買/近N日淨買)
+CHIP_CONSEC_MIN = 2                    # 做多籌碼確認：外資+投信連買 ≥ 2 日即算確認
+
+# ── Track B 選股池濾網參數(台股回測背書：選股池>微調參數) ──────────────────
+#   ① 趨勢佔比 trend_frac：近 POOL_LOOKBACK 根 ADX≥ADX_TREND_THR 的比例(重用
+#      tw_optimize_adaptive.trend_fraction 觀念，這裡用 ADX 單條件，純歷史不看未來)
+#   ② 流動性 turnover_60d：近 60 根『收盤×量』中位(重用 tw_screener.turnover_60d)
+POOL_LOOKBACK = 60                     # 趨勢佔比回看根數
+ADX_TREND_THR = 25.0                   # ADX≥此值算「有趨勢」的一根
+POOL_TREND_MIN = 0.15                  # 趨勢佔比門檻(別太嚴；calibrate 可校)
+POOL_TURNOVER_MIN = 2.0e7             # 近60日均額(中位)門檻：2000萬(仿 tw_screener 預設)
+MIN_POOL = 40                          # 護欄：全市場通過池濾網檔數<此值→停用池 gate(優雅降級)
 
 
 # ── 通用工具 ────────────────────────────────────────────────────────────────
@@ -436,6 +457,45 @@ def _adx_last(df: pd.DataFrame, period: int = ADX_PERIOD) -> float | None:
     return float(v) if pd.notna(v) else None
 
 
+def _adx_series(df: pd.DataFrame, period: int = ADX_PERIOD) -> pd.Series:
+    """完整 ADX 序列(與 _adx_last 同公式，給趨勢佔比用)。皆不看未來。"""
+    high = df["high"].astype(float)
+    low = df["low"].astype(float)
+    close = df["close"].astype(float)
+    up = high.diff()
+    dn = -low.diff()
+    plus_dm = pd.Series(np.where((up > dn) & (up > 0), up, 0.0), index=df.index)
+    minus_dm = pd.Series(np.where((dn > up) & (dn > 0), dn, 0.0), index=df.index)
+    prev = close.shift(1)
+    tr = pd.concat([high - low, (high - prev).abs(), (low - prev).abs()], axis=1).max(axis=1)
+    atr = tr.ewm(alpha=1 / period, min_periods=period, adjust=False).mean()
+    pdi = 100 * plus_dm.ewm(alpha=1 / period, min_periods=period, adjust=False).mean() / atr
+    mdi = 100 * minus_dm.ewm(alpha=1 / period, min_periods=period, adjust=False).mean() / atr
+    dx = 100 * (pdi - mdi).abs() / (pdi + mdi).replace(0, np.nan)
+    return dx.ewm(alpha=1 / period, min_periods=period, adjust=False).mean()
+
+
+def _trend_frac(closed: pd.DataFrame, lookback: int = POOL_LOOKBACK) -> float | None:
+    """近 lookback 根『有趨勢(ADX≥ADX_TREND_THR)』的比例(0-1)。重用 tw_optimize_adaptive
+    trend_fraction 觀念(該處 ADX&ER 雙條件；此處流式單 ADX 條件，輕量、純歷史)。"""
+    if len(closed) < ADX_PERIOD * 2 + 2:
+        return None
+    adx = _adx_series(closed).dropna().tail(lookback)
+    if len(adx) < 10:
+        return None
+    return round(float((adx >= ADX_TREND_THR).mean()), 4)
+
+
+def _turnover_60d(closed: pd.DataFrame, n: int = 60) -> float | None:
+    """近 n 根『收盤×量』中位(NT$)。重用 tw_screener.turnover_60d 觀念。"""
+    if len(closed) < 20:
+        return None
+    dv = (closed["close"].astype(float) * closed["volume"].astype(float)).dropna().tail(n)
+    if len(dv) == 0:
+        return None
+    return round(float(dv.median()), 0)
+
+
 # ── 個股分析(記憶化) ────────────────────────────────────────────────────────
 # 以「最後一列日期 + 最後收盤 + 長度」為 key 快取 analyse 結果。
 # app/loop 反覆掃同一份快取時：未變的檔直接取上輪(近乎歸零)；
@@ -498,6 +558,12 @@ def _analyse_core(code: str, df_raw: pd.DataFrame, drop_last: bool) -> dict | No
     above60 = ma60 is not None and sig_price > ma60
     no_chase = abs(chg) >= LIMIT_PCT           # 漲跌停附近：不可追、排除進場
 
+    # ── Track B 選股池濾網特徵(純歷史，不看未來) ──
+    trend_frac = _trend_frac(closed)
+    turnover60 = _turnover_60d(closed)
+    pool_pass = (trend_frac is not None and trend_frac >= POOL_TREND_MIN
+                 and turnover60 is not None and turnover60 >= POOL_TURNOVER_MIN)
+
     # ── 個股強弱分 0-100：正交四維(各 0-25)，去除 RSI 與 mom5 雙重計動能 ──
     #   趨勢(ST方向 + ADX 強度)、位置(布林 %B)、動能(RSI)、波動(relVol 參與度)
     st_up = (st_today == "UP")
@@ -552,6 +618,7 @@ def _analyse_core(code: str, df_raw: pd.DataFrame, drop_last: bool) -> dict | No
         "recent_high20": round(recent_high20, 2), "hi60": hi60, "lo60": lo60,
         "score": score, "signal": signal, "reason": reason, "firm": firm,
         "stop": stop, "tp1": tp1, "tp2": tp2, "spark": spark,
+        "trend_frac": trend_frac, "turnover_60d": turnover60, "pool_pass": pool_pass,
     }
     _ANALYSE_MEMO[code] = (key, result)
     return result
@@ -598,7 +665,8 @@ def _temp_label(t: float) -> tuple[str, str]:
 
 def build_state(data: dict[str, pd.DataFrame], rows: list[tuple[str, str, str]],
                 source: str = "live", mode: str = "daily",
-                drop_last: bool = False, confirmed_mode: bool = True) -> dict:
+                drop_last: bool = False, confirmed_mode: bool = True,
+                chips_offline: bool = False) -> dict:
     code_meta = {c: (n, ind) for c, n, ind in rows}
     index, mkt_long_ok = compute_index(data)
 
@@ -615,6 +683,39 @@ def build_state(data: dict[str, pd.DataFrame], rows: list[tuple[str, str, str]],
     n = len(stocks)
     if n == 0:
         return {"ok": False, "error": "no data", "ts": datetime.now().isoformat(timespec="seconds")}
+
+    # ── Track A：合併三大法人籌碼(收盤確認路徑;盤中 realtime 用 T-1 並標 t_minus=1) ──
+    #   drop_last(realtime/盤中)=籌碼為前一交易日 → t_minus=1；日線/快取(收盤確認)=T-0。
+    chips_t_minus = 1 if drop_last else 0
+    chip_map: dict[str, dict] = {}
+    chip_date = None
+    if chips is not None:
+        try:
+            chip_map = chips.load_chips([s["code"] for s in stocks],
+                                        days=CHIP_DAYS, offline=chips_offline)
+            if chip_map:               # 每筆都帶 date，取任一即最近交易日
+                chip_date = next(iter(chip_map.values())).get("date")
+        except Exception as e:
+            print(f"[hunter] 籌碼載入略過：{type(e).__name__}: {e}")
+            chip_map = {}
+    for s in stocks:
+        rec = chip_map.get(s["code"])
+        if rec is None:
+            # 缺資料(ETF/新股/當日無交易/離線無快取) → 不擋，標 None 優雅降級
+            s.update({"foreign_net": None, "trust_net": None, "instinv_net": None,
+                      "consec_buy_days": None, "chip_confirm": None,
+                      "chip_t_minus": chips_t_minus if chip_map else None})
+        else:
+            ft_buy = (rec["net_sum_n"] > 0) or (rec["consec_buy_days"] >= CHIP_CONSEC_MIN)
+            s.update({"foreign_net": rec["foreign_net"], "trust_net": rec["trust_net"],
+                      "instinv_net": rec["instinv_net"],
+                      "consec_buy_days": rec["consec_buy_days"],
+                      "chip_confirm": bool(ft_buy), "chip_t_minus": chips_t_minus})
+
+    # ── Track B：池濾網『不再 gate firm 訊號』(calibrate 證實單一ST訊號上無 edge)；
+    #   n_pool/pool_active 與個股 pool_pass 仍算給看板顯示/confluence 參考用，不排除任何訊號。
+    n_pool = sum(1 for s in stocks if s.get("pool_pass"))
+    pool_active = n_pool >= MIN_POOL
 
     rsis = [s["rsi"] for s in stocks if s["rsi"] is not None]
     avg_rsi = round(sum(rsis) / len(rsis), 1) if rsis else 50.0
@@ -681,12 +782,28 @@ def build_state(data: dict[str, pd.DataFrame], rows: list[tuple[str, str, str]],
     watch_pool: list[dict] = []
     for s in stocks:
         if s["signal"] == "long":
-            if s["firm"] and mkt_long_ok:
-                longs_firm.append(_sig(s, confirmed_mode))
-            else:
-                # 量能待補 或 大盤偏空抑制 → 觀察名單
+            if not (s["firm"] and mkt_long_ok):
                 why = "量能待補" if not s["firm"] else "大盤偏空抑制做多"
                 watch_pool.append(_watch(s, why))
+                continue
+            # firm 做多確認：只用『籌碼確認』(軟確認、缺資料放行)。
+            #   選股池濾網(趨勢佔比/流動性)經 calibrate 誠實 trailing 回測證實：對這個單一
+            #   SuperTrend 訊號『無可交易 edge』(全市場 OOS 54%→50%)，故不再拿它 gate 砍訊號，
+            #   pool_pass 仍照算放進個股欄位 + reason 標記(供 confluence 參考，不宣稱自帶 alpha)。
+            chip_ok = s.get("chip_confirm") is not False           # True 或 None(未知) 放行
+            if chip_ok:
+                extra = []
+                if s.get("chip_confirm"):
+                    cb = s.get("consec_buy_days") or 0
+                    extra.append(f"外資投信連買{cb}日" if cb >= CHIP_CONSEC_MIN else "外資投信近日淨買")
+                tf = s.get("trend_frac")
+                if tf is not None:                                  # 趨勢佔比僅供參，非門檻
+                    extra.append(f"趨勢佔比{tf*100:.0f}%(供參)")
+                if extra:
+                    s["reason"] = s["reason"] + "，" + "、".join(extra)
+                longs_firm.append(_sig(s, confirmed_mode))
+            else:
+                watch_pool.append(_watch(s, "籌碼未確認(法人未買)"))
         elif s["signal"] == "short":
             shorts_all.append(_sig(s, confirmed_mode))
 
@@ -713,6 +830,31 @@ def build_state(data: dict[str, pd.DataFrame], rows: list[tuple[str, str, str]],
     n_long_all, n_short_all = len(longs_all), len(shorts_all)
     longs, shorts = longs_all[:SIG_CAP], shorts_all[:SIG_CAP]
 
+    # ── Track A：三大法人榜(外資 / 投信 / 連買；缺資料者排除) ──
+    CHIP_TOP = 10
+    with_chip = [s for s in stocks if s.get("foreign_net") is not None]
+    foreign_top = [{"code": s["code"], "name": s["name"], "net": s["foreign_net"],
+                    "consec": s.get("consec_buy_days") or 0}
+                   for s in sorted(with_chip, key=lambda s: s["foreign_net"], reverse=True)[:CHIP_TOP]]
+    trust_top = [{"code": s["code"], "name": s["name"], "net": s["trust_net"],
+                  "consec": s.get("consec_buy_days") or 0}
+                 for s in sorted(with_chip, key=lambda s: s["trust_net"], reverse=True)[:CHIP_TOP]]
+
+    def _consec_entry(s: dict) -> dict:
+        fn, tn = s.get("foreign_net") or 0, s.get("trust_net") or 0
+        side, net = ("foreign", fn) if fn >= tn else ("trust", tn)
+        return {"code": s["code"], "name": s["name"], "net": net,
+                "consec": s.get("consec_buy_days") or 0, "side": side}
+    consec_top = [_consec_entry(s) for s in sorted(
+        with_chip, key=lambda s: (s.get("consec_buy_days") or 0,
+                                  (s.get("foreign_net") or 0) + (s.get("trust_net") or 0)),
+        reverse=True)[:CHIP_TOP] if (s.get("consec_buy_days") or 0) > 0]
+    chips_block = {
+        "t_minus": chips_t_minus, "date": chip_date,
+        "foreign_top": foreign_top, "trust_top": trust_top, "consec_top": consec_top,
+        "n_with_data": len(with_chip),
+    }
+
     return {
         "ok": True,
         "ts": datetime.now().isoformat(timespec="seconds"),
@@ -735,13 +877,20 @@ def build_state(data: dict[str, pd.DataFrame], rows: list[tuple[str, str, str]],
         "signals": {"long": longs, "short": shorts,
                     "long_total": n_long_all, "short_total": n_short_all, "cap": SIG_CAP},
         "watch_long": watch_long,
+        "chips": chips_block,
+        "pool": {"active": pool_active, "n_pass": n_pool, "min_pool": MIN_POOL,
+                 "trend_min": POOL_TREND_MIN, "turnover_min": POOL_TURNOVER_MIN},
     }
 
 
 def _card(s: dict) -> dict:
     return {"code": s["code"], "name": s["name"], "industry": s["industry"],
             "price": s["price"], "chg": s["chg"], "rsi": s["rsi"], "score": s["score"],
-            "st": s["st"], "spark": s["spark"]}
+            "st": s["st"], "spark": s["spark"],
+            # Track A/B：三大法人籌碼 + 選股池(缺資料為 None，前端自行容錯)
+            "foreign_net": s.get("foreign_net"), "trust_net": s.get("trust_net"),
+            "instinv_net": s.get("instinv_net"), "consec_buy_days": s.get("consec_buy_days"),
+            "chip_confirm": s.get("chip_confirm"), "pool_pass": s.get("pool_pass")}
 
 
 def _sig(s: dict, confirmed_mode: bool) -> dict:
@@ -897,8 +1046,10 @@ def run_once(push: bool = True, cache_only: bool = False, intraday: bool = False
     # 日線/快取(收盤後)= 已收盤確認，可推。
     drop_last = realtime or intraday
     confirmed_mode = not drop_last
+    # --cache 純離線：籌碼也只讀本地快取不連網；其他模式允許抓最新籌碼
     state = build_state(data, rows, source=source, mode=mode,
-                        drop_last=drop_last, confirmed_mode=confirmed_mode)
+                        drop_last=drop_last, confirmed_mode=confirmed_mode,
+                        chips_offline=cache_only)
 
     # #1 訊號命中率回灌：記錄本輪新確認訊號 → 用快取價事後評估已平倉戰績 → 塞進 state["track"]
     try:

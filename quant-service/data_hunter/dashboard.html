@@ -87,7 +87,7 @@
   .ring text{font-family:var(--mono);font-size:11px;fill:var(--dim)}
 
   /* ════ 主分頁切換 ════ */
-  .tabs{display:flex;gap:4px;margin-bottom:14px}
+  .tabs{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:14px}
   .tab{font-family:var(--mono);font-size:13px;letter-spacing:1px;padding:7px 16px;cursor:pointer;
     border:1px solid var(--line);border-radius:8px;background:rgba(255,255,255,.02);color:var(--dim);transition:all .15s}
   .tab:hover{color:var(--acc);border-color:var(--line2)}
@@ -283,6 +283,37 @@
   .tmlegend .lg{display:flex;align-items:center;gap:5px}
   .tmlegend .sw{width:22px;height:9px;border-radius:2px}
 
+  /* ════ 法人資金流向 chips（三榜並列；買超紅／賣超綠，台股慣例） ════ */
+  #chipsAsof{font-family:var(--mono);font-size:11px;color:var(--gold);font-weight:400;letter-spacing:0}
+  .chipCols{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  @media(max-width:880px){.chipCols{grid-template-columns:1fr}}
+  .chipBoard{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:rgba(255,255,255,.015);position:relative}
+  .chipBoard::after{content:'';position:absolute;top:0;right:0;width:10px;height:10px;border-top:1px solid var(--acc);border-right:1px solid var(--acc);opacity:.4}
+  .chipBoardHdr{font-family:var(--mono);font-size:12px;letter-spacing:1px;color:var(--acc2);padding:9px 12px;
+    background:linear-gradient(160deg,rgba(20,42,68,.5),rgba(8,18,34,.55));border-bottom:1px solid var(--line);
+    display:flex;justify-content:space-between;align-items:baseline}
+  .chipBoardHdr .chl{font-size:10px;color:var(--faint);letter-spacing:0}
+  .chiprow{display:grid;grid-template-columns:22px 1fr auto auto;gap:8px;align-items:center;padding:8px 11px;
+    font-size:13px;cursor:pointer;border-bottom:1px solid rgba(120,160,220,.06);transition:background .15s}
+  .chiprow:last-child{border-bottom:none}
+  .chiprow:nth-child(odd){background:rgba(255,255,255,.02)}
+  .chiprow:hover{background:rgba(84,214,255,.07)}
+  .crank{font-family:var(--mono);font-size:11px;color:var(--faint);text-align:center}
+  .cname{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+  .cnet{font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:700;text-align:right;white-space:nowrap;font-size:13px}
+  .csrc{font-family:var(--mono);font-size:10px;padding:1px 6px;border-radius:10px;margin-left:5px;font-weight:400}
+  .csrc.foreign{color:var(--acc);border:1px solid rgba(84,214,255,.32)}
+  .csrc.trust{color:var(--gold);border:1px solid rgba(255,215,94,.32)}
+  /* 連買火焰標：天數越多越紅亮(階梯式發光，買=紅) */
+  .consec{font-family:var(--mono);font-size:10px;padding:2px 7px;border-radius:10px;white-space:nowrap;
+    color:var(--up);border:1px solid rgba(255,77,109,.3)}
+  /* 訊號卡籌碼徽章 / 籌碼補充行 */
+  .cbadge{font-family:var(--mono);font-size:10px;padding:1px 7px;border-radius:10px;font-weight:400;letter-spacing:.5px}
+  .cbadge.pass{color:var(--acc2);border:1px solid rgba(84,214,255,.35);background:rgba(84,214,255,.08)}
+  .cbadge.chip{color:var(--gold);border:1px solid rgba(255,215,94,.32);background:rgba(255,215,94,.06)}
+  .chipline{font-family:var(--mono);font-size:11px;color:var(--dim);margin-top:7px;padding-top:7px;border-top:1px dashed var(--line)}
+  .chipline .ci{opacity:.7;margin-right:4px}
+
   /* ════════════ 手機 RWD（<480px 再收一級） ════════════ */
   @media(max-width:480px){
     .wrap{padding:12px 11px 50px}
@@ -376,6 +407,7 @@
   <div class="tabs">
     <div class="tab active" data-v="board">看板 · LIVE</div>
     <div class="tab" data-v="heat">板塊熱流 · FLOW MAP</div>
+    <div class="tab" data-v="chips">法人資金流向 · INSTITUTIONS</div>
     <div class="tab" data-v="track">實盤戰績 · TRACK RECORD</div>
     <div class="tab" data-v="history">歷史訊號 · TIMELINE</div>
   </div>
@@ -447,6 +479,31 @@
         <span class="lg"><span class="sw" style="background:linear-gradient(90deg,#7a1f2e,#ff4d6d)"></span>漲(紅,越深越強)</span>
         <span class="lg"><span class="sw" style="background:linear-gradient(90deg,#10402f,#28c08b)"></span>跌(綠,越深越弱)</span>
         <span class="lg">點板塊看領頭/站上20MA</span>
+      </div>
+    </section>
+  </div>
+
+  <!-- ════ 法人資金流向 view（三大法人籌碼榜，可截圖成 IG 單圖） ════ -->
+  <div class="view" data-view="chips">
+    <section class="panel">
+      <span class="corner tl"></span><span class="corner br"></span>
+      <h2>法人資金流向 · INSTITUTIONS　<span id="chipsAsof">—</span></h2>
+      <div class="chipCols">
+        <div class="chipBoard">
+          <div class="chipBoardHdr"><span>外資買超榜 · FOREIGN</span><span class="chl">淨買(張) · 買紅賣綠</span></div>
+          <div id="chipForeign"></div>
+        </div>
+        <div class="chipBoard">
+          <div class="chipBoardHdr"><span>投信買超榜 · TRUST</span><span class="chl">淨買(張) · 買紅賣綠</span></div>
+          <div id="chipTrust"></div>
+        </div>
+        <div class="chipBoard">
+          <div class="chipBoardHdr"><span>連買天數榜 · CONSEC</span><span class="chl">🔥 連續買超 · 標來源</span></div>
+          <div id="chipConsec"></div>
+        </div>
+      </div>
+      <div style="font-family:var(--mono);font-size:11px;color:var(--faint);margin-top:12px;text-align:center">
+        三大法人盤後籌碼（證交所 T86＋櫃買）· 淨買單位＝張 · 買超紅／賣超綠 · 連買＝連續同方向買超天數
       </div>
     </section>
   </div>
@@ -683,7 +740,8 @@ function showPop(s,anchor){
     `<div class="prow"><span>RSI</span><b>${s.rsi??'—'}</b></div>`+
     `<div class="prow"><span>SuperTrend</span><b>${stStatus(s.st)}</b></div>`+
     `<div class="prow"><span>站上20MA</span><b>${ma20Status(s)}</b></div>`+
-    `<div class="prow"><span>強弱分</span><b style="color:var(--acc)">${s.score??'—'}</b></div>`;
+    `<div class="prow"><span>強弱分</span><b style="color:var(--acc)">${s.score??'—'}</b></div>`+
+    chipPopRows(s);
   pop.style.display='block';
   // 定位：貼著被點元素，避免出界
   const r=anchor.getBoundingClientRect(), pw=236, ph=pop.offsetHeight;
@@ -706,6 +764,36 @@ function rowHTML(s){
     `<div class="rscore">${s.score}</div>`+
     `<div class="rchg" style="color:${chgColor(s.chg)}">${sign(s.chg)}%</div></div>`;
 }
+// 籌碼徽章（過池 / 籌碼確認）— 欄位缺則不顯示
+function chipBadges(s){
+  let b='';
+  if(s.pool_pass) b+='<span class="cbadge pass">過池</span>';
+  if(s.chip_confirm) b+='<span class="cbadge chip">籌碼✓</span>';
+  return b;
+}
+// 訊號卡籌碼補充行：外資+投信連買N日、法人淨買X張（買紅賣綠）；無籌碼欄→不顯示不破版
+function chipLine(s){
+  const net=(s.instinv_net!=null)?s.instinv_net:((s.foreign_net!=null||s.trust_net!=null)?(s.foreign_net||0)+(s.trust_net||0):null);
+  let parts=[];
+  if(s.consec_buy_days) parts.push(`外資+投信連買 ${s.consec_buy_days} 日`);
+  if(net!=null&&net!==0) parts.push(`法人淨買 <span style="color:${chgColor(net)}">${fmtNet(net)} 張</span>`);
+  if(!parts.length)return '';
+  return `<div class="chipline"><span class="ci">🏛</span>${parts.join('　·　')}</div>`;
+}
+// popover 籌碼下鑽列（連買天數 / 法人淨買 / 籌碼確認）— 欄位缺則整段不顯示
+function chipPopRows(s){
+  const net=(s.instinv_net!=null)?s.instinv_net:((s.foreign_net!=null||s.trust_net!=null)?(s.foreign_net||0)+(s.trust_net||0):null);
+  const has=(s.consec_buy_days!=null)||(net!=null)||s.chip_confirm||s.pool_pass;
+  if(!has)return '';
+  let r='';
+  if(s.consec_buy_days!=null) r+=`<div class="prow"><span>法人連買</span><b style="color:var(--up)">${s.consec_buy_days} 日</b></div>`;
+  if(net!=null) r+=`<div class="prow"><span>法人淨買</span><b style="color:${chgColor(net)}">${fmtNet(net)} 張</b></div>`;
+  if(s.chip_confirm||s.pool_pass){
+    const tags=(s.pool_pass?'<span class="tag" style="color:var(--acc2)">過池</span> ':'')+(s.chip_confirm?'<span class="tag" style="color:var(--gold)">籌碼✓</span>':'');
+    r+=`<div class="prow"><span>濾網</span><b>${tags}</b></div>`;
+  }
+  return r;
+}
 function sigHTML(s){
   regDrill(s);
   const cls=s.side, pill=s.side==='long'?'做多':'做空';
@@ -720,8 +808,8 @@ function sigHTML(s){
   }
   return `<div class="sigcard ${cls}" data-drill data-code="${s.code}"><div class="sigtop">`+
     `<span class="pill ${cls}">${pill}</span><span class="scode">${s.code}</span> ${s.name} `+
-    `<span class="mono" style="color:${chgColor(s.chg)}">${s.price} (${sign(s.chg)}%)</span></div>`+
-    `<div class="sigreason">${s.reason}　·　強弱分 ${s.score}　·　${s.industry}</div>`+lv+`</div>`;
+    `<span class="mono" style="color:${chgColor(s.chg)}">${s.price} (${sign(s.chg)}%)</span>${chipBadges(s)}</div>`+
+    `<div class="sigreason">${s.reason}　·　強弱分 ${s.score}　·　${s.industry}</div>`+lv+chipLine(s)+`</div>`;
 }
 function watchHTML(w){
   return `<div class="watch"><div style="font-size:11px;color:var(--dim);margin:4px 2px 2px">觀察名單 · 接近觸發</div>`+
@@ -811,6 +899,7 @@ document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
   if(v==='history')loadHistory();
   if(v==='heat'&&lastData)renderHeatmap(lastData.sectors);
   if(v==='track'&&lastData)renderTrack(lastData.track);
+  if(v==='chips'&&lastData)renderChips(lastData.chips);
 }));
 
 // ── 歷史訊號時間軸 ──
@@ -951,6 +1040,46 @@ function renderTrack(tk){
   }).join(''):`<div class="empty" style="padding:24px">近期無已平倉紀錄</div>`);
 }
 
+// ── 法人資金流向（三大法人籌碼榜） ──
+// 淨買格式化：千分位 + 正負號（買超紅、賣超綠，色由 chgColor 給）
+function fmtNet(v){ const n=Number(v)||0; return (n>0?'+':'')+n.toLocaleString('en-US'); }
+// 連買火焰標：天數越多越紅亮（階梯式發光，買=紅）；無連買回空格佔位保 grid
+function consecBadge(n){
+  if(!n||n<1)return '<span></span>';
+  const hot=Math.min(1,(n-1)/5);
+  return `<span class="consec" style="border-color:rgba(255,77,109,${(0.3+hot*0.45).toFixed(2)});`+
+    `box-shadow:0 0 ${(3+hot*9).toFixed(0)}px rgba(255,77,109,${(0.2+hot*0.45).toFixed(2)})">🔥${n}日</span>`;
+}
+// 資料時點標示：t_minus=0 今日盤後、t_minus=1 顯 T-1（盤中未更新）
+function chipsAsofText(c){
+  const d=c.date||''; const tm=c.t_minus;
+  if(tm===0||tm==='0')return `今日盤後法人 · ${d}`;
+  if(tm===1||tm==='1')return `T-1 盤後法人（盤中未更新）· ${d}`;
+  return d?`盤後法人 · ${d}`:'—';
+}
+function chipRow(x,rank,withSide){
+  // 只有同時在訊號/強弱榜(已有豐富資料)的股票才掛 data-drill，避免用精簡籌碼物件覆蓋下鑽資料
+  const rich=drillMap.has(x.code);
+  const net=x.net||0;
+  const sideTag=(withSide&&x.side)?`<span class="csrc ${x.side}">${x.side==='foreign'?'外資':(x.side==='trust'?'投信':x.side)}</span>`:'';
+  return `<div class="chiprow"${rich?' data-drill':''} data-code="${x.code}">`+
+    `<span class="crank">${rank}</span>`+
+    `<span class="cname"><span class="rcode">${x.code}</span>${x.name||''}${sideTag}</span>`+
+    `<span class="cnet" style="color:${chgColor(net)}">${fmtNet(net)}</span>`+
+    consecBadge(x.consec)+`</div>`;
+}
+function renderChips(c){
+  const asof=$('#chipsAsof'), fb=$('#chipForeign'), tb=$('#chipTrust'), cb=$('#chipConsec');
+  if(!fb)return;
+  const emptyC='<div class="empty" style="padding:22px">尚無資料</div>';
+  if(!c){ asof.textContent='—'; [fb,tb,cb].forEach(e=>e.innerHTML=emptyC); return; }
+  asof.textContent=chipsAsofText(c);
+  const f=c.foreign_top||[], t=c.trust_top||[], cs=c.consec_top||[];
+  fb.innerHTML=f.length?f.map((x,i)=>chipRow(x,i+1,false)).join(''):emptyC;
+  tb.innerHTML=t.length?t.map((x,i)=>chipRow(x,i+1,false)).join(''):emptyC;
+  cb.innerHTML=cs.length?cs.map((x,i)=>chipRow(x,i+1,true)).join(''):emptyC;
+}
+
 // ── 主資料載入 ──
 let lastTs=null, prevSigCodes=new Set(), lastData=null, lastTemp=null;
 async function load(){
@@ -1047,6 +1176,7 @@ async function load(){
     if(av==='history') loadHistory(true);
     if(av==='heat') renderHeatmap(d.sectors);
     if(av==='track') renderTrack(d.track);
+    if(av==='chips') renderChips(d.chips);
   }catch(e){
     $('#upd').textContent='讀取 '+STATE_URL+' 失敗（掃描器尚未產出？）';
     $('#hb').style.background='#ff7d83';
