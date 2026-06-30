@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>量化阿森 · 台股數據獵手</title>
+<style>
+  :root{
+    --bg:#070b14; --bg2:#0b1220; --panel:rgba(18,26,42,.72); --line:rgba(120,160,220,.13);
+    --txt:#dbe6f5; --dim:#7f93b3; --acc:#54d6ff; --gold:#ffd75e;
+    --up:#ff4d6d; --dn:#28c08b; /* 台股慣例：紅漲綠跌 */
+    --glow:0 0 18px rgba(84,214,255,.18);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:radial-gradient(1200px 800px at 70% -10%,#10203a 0%,var(--bg) 60%) fixed,var(--bg);
+    color:var(--txt); font-family:"Segoe UI","Noto Sans TC",system-ui,-apple-system,monospace;
+    overflow-x:hidden; -webkit-font-smoothing:antialiased;
+  }
+  #bg{position:fixed;inset:0;z-index:0;opacity:.5}
+  .wrap{position:relative;z-index:1;max-width:1320px;margin:0 auto;padding:18px 16px 60px}
+  header{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:16px}
+  .logo{font-size:22px;font-weight:700;letter-spacing:1px}
+  .logo b{color:var(--acc);text-shadow:var(--glow)}
+  .badge{font-size:11px;padding:3px 9px;border:1px solid var(--line);border-radius:20px;color:var(--dim)}
+  .badge.live{color:#7dffb0;border-color:rgba(40,192,139,.4)}
+  .badge.cache{color:var(--gold);border-color:rgba(255,215,94,.35)}
+  .spacer{flex:1}
+  .upd{font-size:12px;color:var(--dim)}
+  .grid{display:grid;grid-template-columns:340px 1fr;gap:14px}
+  @media(max-width:880px){.grid{grid-template-columns:1fr}}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px 18px;
+    backdrop-filter:blur(10px);box-shadow:inset 0 1px 0 rgba(255,255,255,.04),0 10px 30px rgba(0,0,0,.35);position:relative}
+  .panel h2{font-size:12px;font-weight:600;color:var(--dim);letter-spacing:2px;margin-bottom:12px;text-transform:uppercase}
+  .corner{position:absolute;width:12px;height:12px;border:1px solid var(--acc);opacity:.35}
+  .corner.tl{top:8px;left:8px;border-right:0;border-bottom:0}
+  .corner.br{bottom:8px;right:8px;border-left:0;border-top:0}
+  /* gauge */
+  .gaugeWrap{display:flex;flex-direction:column;align-items:center}
+  #gauge{width:280px;height:170px;margin-top:4px}
+  .gtemp{font-size:46px;font-weight:800;line-height:1;margin-top:-14px}
+  .glabel{font-size:15px;font-weight:700;margin-top:2px}
+  .gstats{display:flex;gap:18px;margin-top:14px;font-size:13px;color:var(--dim);flex-wrap:wrap;justify-content:center}
+  .gstats b{color:var(--txt);font-weight:700}
+  .adv{color:var(--up)} .dec{color:var(--dn)}
+  /* sectors */
+  .sector{display:grid;grid-template-columns:78px 1fr 60px;align-items:center;gap:10px;margin:7px 0;font-size:13px}
+  .sname{color:var(--txt);font-weight:600;white-space:nowrap}
+  .sbar{height:14px;border-radius:7px;background:rgba(255,255,255,.05);overflow:hidden;position:relative}
+  .sfill{height:100%;border-radius:7px;transition:width .6s cubic-bezier(.2,.7,.2,1)}
+  .schg{text-align:right;font-variant-numeric:tabular-nums;font-weight:700}
+  .sleader{grid-column:2/4;font-size:11px;color:var(--dim);margin-top:-3px}
+  /* lists */
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:620px){.cols{grid-template-columns:1fr}}
+  .row{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding:7px 8px;border-radius:9px;font-size:13px}
+  .row:nth-child(odd){background:rgba(255,255,255,.025)}
+  .rname{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rcode{color:var(--dim);font-size:11px;margin-right:5px}
+  .rscore{font-variant-numeric:tabular-nums;color:var(--acc);font-weight:700;min-width:38px;text-align:right}
+  .rchg{font-variant-numeric:tabular-nums;font-weight:700;min-width:54px;text-align:right}
+  /* signals */
+  .sigs{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+  @media(max-width:620px){.sigs{grid-template-columns:1fr}}
+  .sigcard{border:1px solid var(--line);border-radius:12px;padding:11px 13px;margin:8px 0;position:relative;
+    background:rgba(255,255,255,.02);animation:pop .5s cubic-bezier(.2,.9,.2,1)}
+  @keyframes pop{from{transform:translateY(8px) scale(.98);opacity:0}to{transform:none;opacity:1}}
+  .sigcard.long{border-left:3px solid var(--up)}
+  .sigcard.short{border-left:3px solid var(--dn)}
+  .sigtop{display:flex;align-items:center;gap:8px;font-weight:700}
+  .pill{font-size:11px;padding:2px 8px;border-radius:20px;font-weight:700}
+  .pill.long{background:rgba(255,77,109,.16);color:var(--up)}
+  .pill.short{background:rgba(40,192,139,.16);color:var(--dn)}
+  .sigreason{font-size:12px;color:var(--dim);margin-top:4px}
+  .empty{color:var(--dim);font-size:13px;padding:14px;text-align:center}
+  .foot{margin-top:22px;text-align:center;color:var(--dim);font-size:11px;line-height:1.7}
+  .blink{animation:bk 2s infinite}@keyframes bk{50%{opacity:.35}}
+</style>
+</head>
+<body>
+<canvas id="bg"></canvas>
+<div class="wrap">
+  <header>
+    <div class="logo">量化阿森 · <b>台股數據獵手</b></div>
+    <span id="src" class="badge">—</span>
+    <span id="mode" class="badge">—</span>
+    <span id="uni" class="badge">—</span>
+    <div class="spacer"></div>
+    <div class="upd" id="upd">連線中…</div>
+  </header>
+
+  <div class="grid">
+    <!-- 市場溫度 -->
+    <section class="panel gaugeWrap">
+      <span class="corner tl"></span><span class="corner br"></span>
+      <h2>市場溫度 · Market Heat</h2>
+      <canvas id="gauge" width="560" height="340"></canvas>
+      <div class="gtemp" id="gtemp">--</div>
+      <div class="glabel" id="glabel">—</div>
+      <div class="gstats">
+        <span>平均RSI <b id="grsi">--</b></span>
+        <span>站上20MA <b id="gbr">--</b>%</span>
+        <span>漲<b class="adv" id="gadv">--</b>/跌<b class="dec" id="gdec">--</b></span>
+      </div>
+    </section>
+
+    <!-- 產業板塊熱流 -->
+    <section class="panel">
+      <span class="corner tl"></span><span class="corner br"></span>
+      <h2>產業板塊熱流 · Sector Rotation</h2>
+      <div id="sectors"></div>
+    </section>
+  </div>
+
+  <!-- 強弱榜 -->
+  <section class="panel" style="margin-top:14px">
+    <span class="corner tl"></span><span class="corner br"></span>
+    <h2>強弱榜 · Strength Leaderboard</h2>
+    <div class="cols">
+      <div><div style="font-size:12px;color:var(--up);font-weight:700;margin-bottom:6px">▲ 最強 8</div><div id="strong"></div></div>
+      <div><div style="font-size:12px;color:var(--dn);font-weight:700;margin-bottom:6px">▼ 最弱 8</div><div id="weak"></div></div>
+    </div>
+  </section>
+
+  <!-- 即時訊號 -->
+  <section class="panel" style="margin-top:14px">
+    <span class="corner tl"></span><span class="corner br"></span>
+    <h2>即時訊號 · Live Signals <span class="blink" style="color:var(--acc)">●</span></h2>
+    <div class="sigs">
+      <div><div style="font-size:12px;color:var(--up);font-weight:700;margin-bottom:2px">🟢 做多</div><div id="longs"></div></div>
+      <div><div style="font-size:12px;color:var(--dn);font-weight:700;margin-bottom:2px">🔴 做空</div><div id="shorts"></div></div>
+    </div>
+  </section>
+
+  <div class="foot">
+    每 30 秒自動更新 · 訊號同步推播 ntfy · 純真實 K 線計算<br>
+    本看板僅為技術數據呈現，非投資建議。量化阿森 Carson Quant
+  </div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+const sign=v=>(v>0?'+':'')+v;
+const chgCls=v=>v>0?'adv':(v<0?'dec':'');
+const chgColor=v=>v>0?'var(--up)':(v<0?'var(--dn)':'var(--dim)');
+
+// ── 背景粒子（低密度，分頁隱藏即停） ──
+const bg=$('#bg'), bx=bg.getContext('2d'); let W,H,parts=[],raf=0;
+function resize(){W=bg.width=innerWidth;H=bg.height=innerHeight;
+  const n=Math.min(70,Math.floor(W*H/26000));
+  parts=Array.from({length:n},()=>({x:Math.random()*W,y:Math.random()*H,
+    vx:(Math.random()-.5)*.18,vy:(Math.random()-.5)*.18,r:Math.random()*1.4+.4}));}
+function tick(){bx.clearRect(0,0,W,H);
+  for(const p of parts){p.x+=p.vx;p.y+=p.vy;
+    if(p.x<0||p.x>W)p.vx*=-1; if(p.y<0||p.y>H)p.vy*=-1;
+    bx.beginPath();bx.arc(p.x,p.y,p.r,0,7);bx.fillStyle='rgba(84,214,255,.45)';bx.fill();}
+  raf=requestAnimationFrame(tick);}
+addEventListener('resize',resize); resize(); tick();
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden){cancelAnimationFrame(raf);raf=0;}
+  else if(!raf){tick();}});
+
+// ── 溫度 gauge（半圓刻度 0-100） ──
+const gc=$('#gauge'), gx=gc.getContext('2d'); let gShown=0;
+function drawGauge(val,color){
+  const w=gc.width,h=gc.height,cx=w/2,cy=h-30,R=w/2-40;
+  gx.clearRect(0,0,w,h); gx.lineCap='round';
+  // 底弧
+  gx.beginPath();gx.arc(cx,cy,R,Math.PI,2*Math.PI);gx.lineWidth=26;
+  gx.strokeStyle='rgba(255,255,255,.06)';gx.stroke();
+  // 彩色刻度段
+  const segs=[[0,30,'#3b82f6'],[30,45,'#4fd1c5'],[45,60,'#ffd75e'],[60,75,'#ff9f45'],[75,100,'#ff3b6b']];
+  for(const [a,b,col] of segs){
+    gx.beginPath();
+    gx.arc(cx,cy,R,Math.PI+Math.PI*a/100,Math.PI+Math.PI*b/100);
+    gx.lineWidth=26;gx.strokeStyle=col;gx.globalAlpha=.85;gx.stroke();gx.globalAlpha=1;
+  }
+  // 指針
+  const ang=Math.PI+Math.PI*Math.max(0,Math.min(100,val))/100;
+  const nx=cx+Math.cos(ang)*(R-4), ny=cy+Math.sin(ang)*(R-4);
+  gx.beginPath();gx.moveTo(cx,cy);gx.lineTo(nx,ny);gx.lineWidth=4;
+  gx.strokeStyle=color;gx.shadowColor=color;gx.shadowBlur=16;gx.stroke();gx.shadowBlur=0;
+  gx.beginPath();gx.arc(cx,cy,7,0,7);gx.fillStyle=color;gx.fill();
+  // 端點刻度數
+  gx.fillStyle='rgba(127,147,179,.8)';gx.font='13px monospace';
+  gx.fillText('0',cx-R-6,cy+6); gx.fillText('100',cx+R-10,cy+6); gx.fillText('50',cx-8,cy-R-8);
+}
+function animateGauge(target,color){
+  cancelAnimationFrame(animateGauge._r);
+  const step=()=>{gShown+=(target-gShown)*.12;
+    if(Math.abs(target-gShown)<.3)gShown=target;
+    drawGauge(gShown,color);
+    if(gShown!==target)animateGauge._r=requestAnimationFrame(step);};
+  step();
+}
+
+function rowHTML(s){
+  return `<div class="row"><div class="rname"><span class="rcode">${s.code}</span>${s.name}</div>`+
+    `<div class="rscore">${s.score}</div>`+
+    `<div class="rchg" style="color:${chgColor(s.chg)}">${sign(s.chg)}%</div></div>`;
+}
+function sigHTML(s){
+  const cls=s.side, pill=s.side==='long'?'做多':'做空';
+  return `<div class="sigcard ${cls}"><div class="sigtop">`+
+    `<span class="pill ${cls}">${pill}</span>${s.code} ${s.name} `+
+    `<span style="color:${chgColor(s.chg)};font-variant-numeric:tabular-nums">${s.price} (${sign(s.chg)}%)</span></div>`+
+    `<div class="sigreason">${s.reason}　·　強弱分 ${s.score}　·　${s.industry}</div></div>`;
+}
+
+let lastTs=null;
+async function load(){
+  try{
+    const r=await fetch('state.json?_='+Date.now(),{cache:'no-store'});
+    const d=await r.json();
+    if(!d.ok){$('#upd').textContent='等待第一輪掃描…';return;}
+    if(d.ts===lastTs){$('#upd').textContent='最後更新 '+d.ts.replace('T',' ');return;}
+    lastTs=d.ts;
+
+    const g=d.gauge;
+    $('#gtemp').textContent=g.temperature;
+    $('#gtemp').style.color=g.color;
+    $('#glabel').textContent=g.label; $('#glabel').style.color=g.color;
+    $('#grsi').textContent=g.avg_rsi; $('#gbr').textContent=g.breadth;
+    $('#gadv').textContent=g.adv; $('#gdec').textContent=g.dec;
+    animateGauge(g.temperature,g.color);
+
+    const sm=Math.max(...d.sectors.map(s=>Math.abs(s.avg_chg)),1);
+    $('#sectors').innerHTML=d.sectors.map(s=>{
+      const w=Math.max(4,Math.abs(s.avg_chg)/sm*100);
+      // 漲紅跌綠(台股慣例)：長條顏色直接反映方向，一眼判強弱
+      const col=s.avg_chg>0?'#ff4d6d':(s.avg_chg<0?'#28c08b':'#7f93b3');
+      return `<div class="sector"><div class="sname">${s.name}</div>`+
+        `<div class="sbar"><div class="sfill" style="width:${w}%;background:${col};box-shadow:0 0 10px ${col}66"></div></div>`+
+        `<div class="schg" style="color:${chgColor(s.avg_chg)}">${sign(s.avg_chg)}%</div>`+
+        `<div class="sleader">領漲 ${s.leader}　·　站上20MA ${s.bull_pct}%</div></div>`;
+    }).join('');
+
+    $('#strong').innerHTML=d.strong.map(rowHTML).join('');
+    $('#weak').innerHTML=d.weak.map(rowHTML).join('');
+    $('#longs').innerHTML=d.signals.long.length?d.signals.long.map(sigHTML).join(''):'<div class="empty">目前無做多訊號</div>';
+    $('#shorts').innerHTML=d.signals.short.length?d.signals.short.map(sigHTML).join(''):'<div class="empty">目前無做空訊號</div>';
+
+    const src=$('#src'); src.textContent=d.source==='live'?'● LIVE 即時':'◌ 快取';
+    src.className='badge '+(d.source==='live'?'live':'cache');
+    const md=$('#mode'); md.textContent=d.mode==='intraday'?'盤中 15分K':'日線';
+    md.className='badge '+(d.mode==='intraday'?'live':'');
+    $('#uni').textContent='掃描 '+d.universe+' 檔';
+    $('#upd').textContent='最後更新 '+d.ts.replace('T',' ');
+  }catch(e){ $('#upd').textContent='讀取 state.json 失敗（掃描器尚未產出？）'; }
+}
+load(); setInterval(load,30000);
+</script>
+</body>
+</html>
