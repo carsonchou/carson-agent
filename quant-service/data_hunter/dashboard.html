@@ -244,10 +244,14 @@ async function load(){
     $('#longs').innerHTML=sg.long.length?sg.long.map(sigHTML).join(''):'<div class="empty">目前無做多訊號</div>';
     $('#shorts').innerHTML=sg.short.length?sg.short.map(sigHTML).join(''):'<div class="empty">目前無做空訊號</div>';
 
-    const src=$('#src'); src.textContent=d.source==='live'?'● LIVE 即時':'◌ 快取';
-    src.className='badge '+(d.source==='live'?'live':'cache');
-    const md=$('#mode'); md.textContent=d.mode==='intraday'?'盤中 15分K':'日線';
-    md.className='badge '+(d.mode==='intraday'?'live':'');
+    const src=$('#src');
+    const srcMap={realtime:'● 即時同步 證交所',live:'● LIVE 即時',cache:'◌ 快取'};
+    src.textContent=srcMap[d.source]||d.source;
+    src.className='badge '+(d.source==='cache'?'cache':'live');
+    const md=$('#mode');
+    const modeMap={realtime:'跟市場同步',intraday:'盤中 15分K',daily:'日線'};
+    md.textContent=modeMap[d.mode]||d.mode;
+    md.className='badge '+(d.mode==='realtime'?'live':(d.mode==='intraday'?'live':''));
     $('#uni').textContent='掃描 '+d.universe+' 檔';
     $('#upd').textContent='最後更新 '+d.ts.replace('T',' ');
   }catch(e){ $('#upd').textContent='讀取 state.json 失敗（掃描器尚未產出？）'; }

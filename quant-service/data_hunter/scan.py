@@ -116,12 +116,104 @@ def _bulk_yf(codes: list[str], suffix: str, intraday: bool = False) -> dict[str,
     return out
 
 
+def _f(x):
+    """容錯轉 float（即時 API 無成交時回 '-'）。"""
+    try:
+        v = float(x)
+        return v if v > 0 else None
+    except (TypeError, ValueError):
+        return None
+
+
+def fetch_realtime(codes: list[str], chunk: int = 50) -> dict[str, dict]:
+    """證交所即時撮合價(twstock.realtime)，盤中約秒級延遲。回傳 {code: {open,high,low,close,volume}}。
+    比 yfinance(台股延遲15-20分)真正跟市場同步。無成交/失敗的代號略過。"""
+    out: dict[str, dict] = {}
+    try:
+        from twstock import realtime
+    except Exception:
+        return out
+    for i in range(0, len(codes), chunk):
+        batch = codes[i:i + chunk]
+        try:
+            r = realtime.get(batch)
+        except Exception:
+            continue
+        if not r.get("success"):
+            continue
+        for c in batch:
+            d = r.get(c) or {}
+            rt = d.get("realtime") or {}
+            close = _f(rt.get("latest_trade_price")) or _f(rt.get("best_bid_price"))
+            if not close:
+                continue
+            o, hi, lo = _f(rt.get("open")), _f(rt.get("high")), _f(rt.get("low"))
+            vol = _f(rt.get("accumulate_trade_volume")) or 0
+            out[c] = {"open": o or close, "high": max(hi or close, close),
+                      "low": min(lo or close, close), "close": close, "volume": vol * 1000}
+        time.sleep(0.25)
+    return out
+
+
+def apply_realtime(data: dict[str, pd.DataFrame]) -> int:
+    """把即時價覆蓋/接到每檔最後一根 K（同日覆蓋、跨日新增）。回傳成功覆蓋檔數。"""
+    codes = list(data.keys())
+    rt = fetch_realtime(codes)
+    if not rt:
+        return 0
+    today = pd.Timestamp(date.today())
+    n = 0
+    for c, px in rt.items():
+        df = data.get(c)
+        if df is None or len(df) == 0:
+            continue
+        row = {"Open": px["open"], "High": px["high"], "Low": px["low"],
+               "Close": px["close"], "Volume": px["volume"]}
+        df = df.copy()
+        last = df.index[-1]
+        if pd.Timestamp(last).normalize() == today:
+            df.loc[last] = row            # 同日 → 覆蓋
+        else:
+            df.loc[today] = row           # 新交易日 → 接一根
+        data[c] = df
+        n += 1
+    return n
+
+
 def _bulk_chunked(codes: list[str], suffix: str, intraday: bool, chunk: int = 120) -> dict[str, pd.DataFrame]:
     """大宇宙分塊批次抓(每塊120檔)，避免一次抓 1900 檔整批失敗。"""
     out: dict[str, pd.DataFrame] = {}
     for i in range(0, len(codes), chunk):
         out.update(_bulk_yf(codes[i:i + chunk], suffix, intraday=intraday))
     return out
+
+
+def freshen_cache(rows: list[tuple[str, str, str]]) -> int:
+    """把宇宙最近日線抓下來『合併』進 twdata/cache(保留長歷史，只更新近期)。
+    這樣即時覆蓋時，前一根=昨日收盤，當日漲跌幅才正確。回傳更新檔數。"""
+    codes = [c for c, _, _ in rows]
+    data: dict[str, pd.DataFrame] = {}
+    data.update(_bulk_chunked(codes, ".TW", intraday=False))
+    miss = [c for c in codes if c not in data]
+    if miss:
+        data.update(_bulk_chunked(miss, ".TWO", intraday=False))
+    written = 0
+    for c, fresh in data.items():
+        if fresh is None or len(fresh) == 0:
+            continue
+        path = _cache_csv(c) or (CACHE_DIR / f"{c}_TW.csv")
+        try:
+            if path.exists():
+                old = pd.read_csv(path, index_col=0, parse_dates=True)
+                comb = pd.concat([old, fresh[["Open", "High", "Low", "Close", "Volume"]]])
+                comb = comb[~comb.index.duplicated(keep="last")].sort_index()
+            else:
+                comb = fresh[["Open", "High", "Low", "Close", "Volume"]]
+            comb.to_csv(path)
+            written += 1
+        except Exception:
+            continue
+    return written
 
 
 def load_universe_data(rows: list[tuple[str, str, str]],
@@ -254,7 +346,7 @@ def _temp_label(t: float) -> tuple[str, str]:
 
 
 def build_state(data: dict[str, pd.DataFrame], rows: list[tuple[str, str, str]],
-                use_cache_only: bool, intraday: bool = False) -> dict:
+                source: str = "live", mode: str = "daily") -> dict:
     code_meta = {c: (n, ind) for c, n, ind in rows}
     stocks: list[dict] = []
     for code, df in data.items():
@@ -320,8 +412,8 @@ def build_state(data: dict[str, pd.DataFrame], rows: list[tuple[str, str, str]],
         "ok": True,
         "ts": datetime.now().isoformat(timespec="seconds"),
         "date": str(date.today()),
-        "source": "cache" if use_cache_only else "live",
-        "mode": "intraday" if intraday else "daily",
+        "source": source,
+        "mode": mode,
         "universe": n,
         "gauge": {
             "temperature": temperature, "label": t_label, "color": t_color,
@@ -403,18 +495,30 @@ def push_new_signals(state: dict) -> int:
 
 # ── 主程式 ────────────────────────────────────────────────────────────────
 def run_once(push: bool = True, cache_only: bool = False, intraday: bool = False,
-             full: bool = False) -> dict:
+             full: bool = False, realtime: bool = False) -> dict:
     t0 = time.time()
     if full and intraday:
         print("[hunter] 全市場(~1900檔)盤中分時不切實際→自動改日線")
         intraday = False
     rows = load_full_universe() if full else all_codes()
     scope_txt = f"全市場 {len(rows)} 檔" if full else f"精選 {len(rows)} 檔"
-    mode_txt = "盤中15分K" if intraday else ("快取日線" if cache_only else "即時日線")
-    print(f"[hunter] 載入宇宙資料（{scope_txt}／{mode_txt}）…")
-    data = load_universe_data(rows, use_cache_only=cache_only, intraday=intraday)
+
+    if realtime:
+        # 跟市場同步：快取日線歷史 + 證交所即時價覆蓋最後一根
+        mode_txt = "即時同步(證交所)"
+        source, mode = "realtime", "realtime"
+        print(f"[hunter] 載入宇宙資料（{scope_txt}／{mode_txt}）…")
+        data = load_universe_data(rows, use_cache_only=True, intraday=False)
+        nrt = apply_realtime(data)
+        print(f"[hunter] 即時價覆蓋 {nrt}/{len(data)} 檔（證交所撮合價）")
+    else:
+        mode_txt = "盤中15分K" if intraday else ("快取日線" if cache_only else "即時日線")
+        source = "cache" if cache_only else "live"
+        mode = "intraday" if intraday else "daily"
+        print(f"[hunter] 載入宇宙資料（{scope_txt}／{mode_txt}）…")
+        data = load_universe_data(rows, use_cache_only=cache_only, intraday=intraday)
     print(f"[hunter] 取得 {len(data)} 檔，計算指標中…")
-    state = build_state(data, rows, use_cache_only=cache_only, intraday=intraday)
+    state = build_state(data, rows, source=source, mode=mode)
     STATE_FILE.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
     if not state.get("ok"):
         print(f"[hunter] ✗ 掃描無資料：{state.get('error')}")
@@ -438,11 +542,19 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--no-push", action="store_true", help="不推播(測試)")
     ap.add_argument("--cache", action="store_true", help="只讀快取不連網(日線)")
-    ap.add_argument("--intraday", action="store_true", help="盤中 15 分 K 即時模式")
+    ap.add_argument("--intraday", action="store_true", help="盤中 15 分 K(yfinance，延遲約15分)")
+    ap.add_argument("--realtime", action="store_true", help="跟市場同步(證交所即時價覆蓋，盤中秒級)")
     ap.add_argument("--full", action="store_true", help="掃全市場(~1900檔上市櫃，twstock 產業別)")
+    ap.add_argument("--freshen", action="store_true", help="只刷新快取(近期日線合併進twdata/cache)後結束")
     args = ap.parse_args()
+    if args.freshen:
+        rows = load_full_universe() if args.full else all_codes()
+        print(f"[hunter] 刷新快取（{len(rows)} 檔）…")
+        n = freshen_cache(rows)
+        print(f"[hunter] 快取已更新 {n} 檔")
+        return
     run_once(push=not args.no_push, cache_only=args.cache,
-             intraday=args.intraday, full=args.full)
+             intraday=args.intraday, full=args.full, realtime=args.realtime)
 
 
 if __name__ == "__main__":
