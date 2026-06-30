@@ -128,8 +128,8 @@
     <span class="corner tl"></span><span class="corner br"></span>
     <h2>即時訊號 · Live Signals <span class="blink" style="color:var(--acc)">●</span></h2>
     <div class="sigs">
-      <div><div style="font-size:12px;color:var(--up);font-weight:700;margin-bottom:2px">🟢 做多</div><div id="longs"></div></div>
-      <div><div style="font-size:12px;color:var(--dn);font-weight:700;margin-bottom:2px">🔴 做空</div><div id="shorts"></div></div>
+      <div><div id="longHdr" style="font-size:12px;color:var(--up);font-weight:700;margin-bottom:2px">🟢 做多</div><div id="longs"></div></div>
+      <div><div id="shortHdr" style="font-size:12px;color:var(--dn);font-weight:700;margin-bottom:2px">🔴 做空</div><div id="shorts"></div></div>
     </div>
   </section>
 
@@ -238,8 +238,11 @@ async function load(){
 
     $('#strong').innerHTML=d.strong.map(rowHTML).join('');
     $('#weak').innerHTML=d.weak.map(rowHTML).join('');
-    $('#longs').innerHTML=d.signals.long.length?d.signals.long.map(sigHTML).join(''):'<div class="empty">目前無做多訊號</div>';
-    $('#shorts').innerHTML=d.signals.short.length?d.signals.short.map(sigHTML).join(''):'<div class="empty">目前無做空訊號</div>';
+    const sg=d.signals, capL=sg.long_total||sg.long.length, capS=sg.short_total||sg.short.length;
+    $('#longHdr').textContent='🟢 做多'+(capL>sg.long.length?`（前 ${sg.long.length}／共 ${capL}）`:(capL?`（${capL}）`:''));
+    $('#shortHdr').textContent='🔴 做空'+(capS>sg.short.length?`（前 ${sg.short.length}／共 ${capS}）`:(capS?`（${capS}）`:''));
+    $('#longs').innerHTML=sg.long.length?sg.long.map(sigHTML).join(''):'<div class="empty">目前無做多訊號</div>';
+    $('#shorts').innerHTML=sg.short.length?sg.short.map(sigHTML).join(''):'<div class="empty">目前無做空訊號</div>';
 
     const src=$('#src'); src.textContent=d.source==='live'?'● LIVE 即時':'◌ 快取';
     src.className='badge '+(d.source==='live'?'live':'cache');

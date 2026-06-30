@@ -43,7 +43,8 @@ try:
 except Exception:
     pass
 
-from universe import all_codes, INDUSTRIES, INDUSTRY_HUE          # noqa: E402
+from universe import (all_codes, load_full_universe, INDUSTRIES,        # noqa: E402
+                      INDUSTRY_HUE, industry_hue)
 from indicators import calc_rsi, calc_ma, calc_supertrend, calc_macd  # noqa: E402
 
 # .env(NTFY_TOPIC / LINE_NOTIFY_TOKEN) 由 quant-service 載入
@@ -115,20 +116,27 @@ def _bulk_yf(codes: list[str], suffix: str, intraday: bool = False) -> dict[str,
     return out
 
 
-def load_universe_data(use_cache_only: bool = False, intraday: bool = False) -> dict[str, pd.DataFrame]:
+def _bulk_chunked(codes: list[str], suffix: str, intraday: bool, chunk: int = 120) -> dict[str, pd.DataFrame]:
+    """大宇宙分塊批次抓(每塊120檔)，避免一次抓 1900 檔整批失敗。"""
+    out: dict[str, pd.DataFrame] = {}
+    for i in range(0, len(codes), chunk):
+        out.update(_bulk_yf(codes[i:i + chunk], suffix, intraday=intraday))
+    return out
+
+
+def load_universe_data(rows: list[tuple[str, str, str]],
+                       use_cache_only: bool = False, intraday: bool = False) -> dict[str, pd.DataFrame]:
     """回傳 {code: OHLCV df(大寫欄位, index=日期/時間)}。即時優先，缺的退快取(日線)。
     intraday=True 抓 15 分 K；快取只有日線，故盤中模式缺的不退快取。"""
-    rows = all_codes()
     codes = [c for c, _, _ in rows]
     data: dict[str, pd.DataFrame] = {}
 
     if not use_cache_only:
-        # 上市(.TW) 與 上櫃(.TWO) 各批次抓一次；台股代號多為上市，先 .TW 再對缺的試 .TWO
-        fresh = _bulk_yf(codes, ".TW", intraday=intraday)
-        data.update(fresh)
+        # 上市(.TW) 先抓；缺的(多為上櫃)再以 .TWO 抓。大宇宙分塊。
+        data.update(_bulk_chunked(codes, ".TW", intraday))
         missing = [c for c in codes if c not in data]
         if missing:
-            data.update(_bulk_yf(missing, ".TWO", intraday=intraday))
+            data.update(_bulk_chunked(missing, ".TWO", intraday))
 
     # 日線模式：仍缺的(或純快取模式)退回快取。盤中模式快取無分時資料，不退。
     if not intraday:
@@ -145,6 +153,47 @@ def _lower(df: pd.DataFrame) -> pd.DataFrame:
     return df.rename(columns={x: x.lower() for x in df.columns})
 
 
+def _st_dirs(df: pd.DataFrame) -> tuple[str | None, str | None]:
+    """單次計算 SuperTrend，同時回傳(今日方向, 昨日方向)。
+    邏輯與 indicators.calc_supertrend 一致，但只跑一遍(省一半)且用 numpy 加速。"""
+    n = len(df)
+    if n < ST_PERIOD + 2:
+        return None, None
+    high = df["high"].astype(float)
+    low = df["low"].astype(float)
+    close = df["close"].astype(float)
+    prev_close = close.shift(1)
+    tr = pd.concat([high - low, (high - prev_close).abs(), (low - prev_close).abs()], axis=1).max(axis=1)
+    atr = tr.ewm(alpha=1 / ST_PERIOD, min_periods=ST_PERIOD, adjust=False).mean()
+    hl2 = (high + low) / 2
+    ub = (hl2 + ST_MULT * atr).to_numpy()
+    lb = (hl2 - ST_MULT * atr).to_numpy()
+    c = close.to_numpy()
+    st = np.full(n, np.nan)
+    d = np.zeros(n, dtype=int)
+    p = ST_PERIOD
+    for i in range(p, n):
+        if i > p:
+            if d[i - 1] == 1:
+                lb[i] = max(lb[i], st[i - 1])
+            else:
+                ub[i] = min(ub[i], st[i - 1])
+        prev_dir = d[i - 1] if i > p else 1
+        if prev_dir == 1:
+            if c[i] < lb[i]:
+                d[i] = -1; st[i] = ub[i]
+            else:
+                d[i] = 1; st[i] = lb[i]
+        else:
+            if c[i] > ub[i]:
+                d[i] = 1; st[i] = lb[i]
+            else:
+                d[i] = -1; st[i] = ub[i]
+    today = "UP" if d[-1] == 1 else "DOWN"
+    prev = "UP" if d[-2] == 1 else "DOWN"
+    return today, prev
+
+
 def analyse_one(df_raw: pd.DataFrame) -> dict | None:
     if df_raw is None or len(df_raw) < 22:
         return None
@@ -159,9 +208,7 @@ def analyse_one(df_raw: pd.DataFrame) -> dict | None:
     rsi = calc_rsi(df, period=RSI_PERIOD).get("rsi")
     ma = calc_ma(df, periods=[20, 60])
     ma20, ma60 = ma["ma"].get(20), ma["ma"].get(60)
-    st_today = calc_supertrend(df, ST_PERIOD, ST_MULT).get("direction")
-    st_prev = calc_supertrend(df.iloc[:-1].reset_index(drop=True), ST_PERIOD, ST_MULT).get("direction") \
-        if len(df) > ST_PERIOD + 2 else None
+    st_today, st_prev = _st_dirs(df)
     macd = calc_macd(df)
 
     above20 = ma20 is not None and price > ma20
@@ -206,8 +253,9 @@ def _temp_label(t: float) -> tuple[str, str]:
     return "超弱", "#3b82f6"
 
 
-def build_state(data: dict[str, pd.DataFrame], use_cache_only: bool, intraday: bool = False) -> dict:
-    code_meta = {c: (n, ind) for c, n, ind in all_codes()}
+def build_state(data: dict[str, pd.DataFrame], rows: list[tuple[str, str, str]],
+                use_cache_only: bool, intraday: bool = False) -> dict:
+    code_meta = {c: (n, ind) for c, n, ind in rows}
     stocks: list[dict] = []
     for code, df in data.items():
         a = analyse_one(df)
@@ -234,11 +282,14 @@ def build_state(data: dict[str, pd.DataFrame], use_cache_only: bool, intraday: b
     temperature = round(0.50 * avg_rsi + 0.35 * breadth + 0.15 * adr_score, 1)
     t_label, t_color = _temp_label(temperature)
 
-    # 產業板塊熱流
+    # 產業板塊熱流(走實際出現的產業；全市場模式只顯示成員數>=3 的板塊，避免單檔雜訊)
+    by_ind: dict[str, list[dict]] = {}
+    for s in stocks:
+        by_ind.setdefault(s["industry"], []).append(s)
+    min_members = 3 if len(stocks) > 300 else 1
     sectors: list[dict] = []
-    for ind in INDUSTRIES:
-        members = [s for s in stocks if s["industry"] == ind]
-        if not members:
+    for ind, members in by_ind.items():
+        if len(members) < min_members:
             continue
         avg_chg = round(sum(s["chg"] for s in members) / len(members), 2)
         bull = round(sum(1 for s in members if s["above20"]) / len(members) * 100, 0)
@@ -246,7 +297,7 @@ def build_state(data: dict[str, pd.DataFrame], use_cache_only: bool, intraday: b
         leader = max(members, key=lambda s: s["chg"])
         sectors.append({
             "name": ind, "avg_chg": avg_chg, "bull_pct": bull,
-            "score": avg_score, "count": len(members), "hue": INDUSTRY_HUE.get(ind, 200),
+            "score": avg_score, "count": len(members), "hue": industry_hue(ind),
             "leader": f"{leader['name']} {leader['chg']:+.1f}%",
         })
     sectors.sort(key=lambda s: s["score"], reverse=True)
@@ -256,11 +307,14 @@ def build_state(data: dict[str, pd.DataFrame], use_cache_only: bool, intraday: b
     strong = [_card(s) for s in by_score[:8]]
     weak = [_card(s) for s in by_score[-8:][::-1]]
 
-    # 訊號
-    longs = [_sig(s) for s in stocks if s["signal"] == "long"]
-    shorts = [_sig(s) for s in stocks if s["signal"] == "short"]
-    longs.sort(key=lambda s: s["score"], reverse=True)
-    shorts.sort(key=lambda s: s["score"])
+    # 訊號(全市場可能上百個→只留最強/最弱前 N，避免看板過長與推播洗版)
+    SIG_CAP = 12
+    longs_all = sorted((_sig(s) for s in stocks if s["signal"] == "long"),
+                       key=lambda s: s["score"], reverse=True)
+    shorts_all = sorted((_sig(s) for s in stocks if s["signal"] == "short"),
+                        key=lambda s: s["score"])
+    n_long_all, n_short_all = len(longs_all), len(shorts_all)
+    longs, shorts = longs_all[:SIG_CAP], shorts_all[:SIG_CAP]
 
     return {
         "ok": True,
@@ -277,7 +331,8 @@ def build_state(data: dict[str, pd.DataFrame], use_cache_only: bool, intraday: b
         "sectors": sectors,
         "strong": strong,
         "weak": weak,
-        "signals": {"long": longs, "short": shorts},
+        "signals": {"long": longs, "short": shorts,
+                    "long_total": n_long_all, "short_total": n_short_all, "cap": SIG_CAP},
     }
 
 
@@ -347,13 +402,19 @@ def push_new_signals(state: dict) -> int:
 
 
 # ── 主程式 ────────────────────────────────────────────────────────────────
-def run_once(push: bool = True, cache_only: bool = False, intraday: bool = False) -> dict:
+def run_once(push: bool = True, cache_only: bool = False, intraday: bool = False,
+             full: bool = False) -> dict:
     t0 = time.time()
+    if full and intraday:
+        print("[hunter] 全市場(~1900檔)盤中分時不切實際→自動改日線")
+        intraday = False
+    rows = load_full_universe() if full else all_codes()
+    scope_txt = f"全市場 {len(rows)} 檔" if full else f"精選 {len(rows)} 檔"
     mode_txt = "盤中15分K" if intraday else ("快取日線" if cache_only else "即時日線")
-    print(f"[hunter] 載入宇宙資料（{mode_txt}）…")
-    data = load_universe_data(use_cache_only=cache_only, intraday=intraday)
+    print(f"[hunter] 載入宇宙資料（{scope_txt}／{mode_txt}）…")
+    data = load_universe_data(rows, use_cache_only=cache_only, intraday=intraday)
     print(f"[hunter] 取得 {len(data)} 檔，計算指標中…")
-    state = build_state(data, use_cache_only=cache_only, intraday=intraday)
+    state = build_state(data, rows, use_cache_only=cache_only, intraday=intraday)
     STATE_FILE.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
     if not state.get("ok"):
         print(f"[hunter] ✗ 掃描無資料：{state.get('error')}")
@@ -378,8 +439,10 @@ def main():
     ap.add_argument("--no-push", action="store_true", help="不推播(測試)")
     ap.add_argument("--cache", action="store_true", help="只讀快取不連網(日線)")
     ap.add_argument("--intraday", action="store_true", help="盤中 15 分 K 即時模式")
+    ap.add_argument("--full", action="store_true", help="掃全市場(~1900檔上市櫃，twstock 產業別)")
     args = ap.parse_args()
-    run_once(push=not args.no_push, cache_only=args.cache, intraday=args.intraday)
+    run_once(push=not args.no_push, cache_only=args.cache,
+             intraday=args.intraday, full=args.full)
 
 
 if __name__ == "__main__":

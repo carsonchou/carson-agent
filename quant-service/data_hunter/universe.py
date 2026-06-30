@@ -98,7 +98,7 @@ INDUSTRY_HUE: dict[str, int] = {
 
 
 def all_codes() -> list[tuple[str, str, str]]:
-    """回傳 [(code, name, industry), ...]（去重，保序）。"""
+    """精選宇宙：回傳 [(code, name, industry), ...]（去重，保序）。"""
     out: list[tuple[str, str, str]] = []
     seen: set[str] = set()
     for ind, members in INDUSTRIES.items():
@@ -108,6 +108,43 @@ def all_codes() -> list[tuple[str, str, str]]:
             seen.add(code)
             out.append((code, name, ind))
     return out
+
+
+# ── 全市場(twstock 取上市+上櫃所有股票，含真實產業別) ──────────────────────
+_FULL_CACHE: list[tuple[str, str, str]] | None = None
+
+
+def load_full_universe() -> list[tuple[str, str, str]]:
+    """全台股宇宙：回傳 [(code, name, industry), ...]（上市+上櫃所有『股票』，約1900檔）。
+    產業別取 twstock 的 group；缺 group 的歸『其他』。twstock 未安裝則退回精選宇宙。"""
+    global _FULL_CACHE
+    if _FULL_CACHE is not None:
+        return _FULL_CACHE
+    try:
+        import twstock
+    except Exception:
+        print("[universe] ⚠ 未安裝 twstock，全市場模式退回精選宇宙")
+        _FULL_CACHE = all_codes()
+        return _FULL_CACHE
+    out: list[tuple[str, str, str]] = []
+    for code, info in twstock.codes.items():
+        if info.type != "股票" or info.market not in ("上市", "上櫃"):
+            continue
+        ind = (info.group or "").strip() or "其他"
+        out.append((code, info.name, ind))
+    out.sort(key=lambda x: x[0])
+    _FULL_CACHE = out
+    return out
+
+
+def industry_hue(name: str) -> int:
+    """產業 → 色相(0-359)。已知者用手調色，未知者由名稱雜湊穩定生成。"""
+    if name in INDUSTRY_HUE:
+        return INDUSTRY_HUE[name]
+    h = 0
+    for ch in name:
+        h = (h * 131 + ord(ch)) & 0xFFFFFF
+    return h % 360
 
 
 def code_to_name() -> dict[str, str]:
