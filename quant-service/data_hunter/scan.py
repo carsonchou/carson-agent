@@ -174,6 +174,20 @@ def _bulk_yf(codes: list[str], suffix: str, intraday: bool = False,
     auto_adjust=False：與 tw_data.py 寫的快取、證交所即時撮合價(皆原始價)基準一致，
     避免除權息股在 tail(180) 窗內人造跳空。含重試+遞增 backoff(搬 tw_data.py 樣板)。"""
     out: dict[str, pd.DataFrame] = {}
+    # 上櫃(.TWO)日線：yfinance 抓上櫃價格全錯(實測環球晶6488 系統786 vs官方1105，差29%)，
+    # 改走 twstock 官方(證交所/櫃買)。intraday 仍走 yfinance(twstock 無分時；即時另有 realtime 覆蓋)。
+    if suffix == ".TWO" and not intraday:
+        try:
+            import twse_price as _tp
+            for c in codes:
+                df = _tp.fetch_twstock_daily(c, months_back=9)
+                if df is not None and len(df) >= 22:
+                    out[c] = df
+                time.sleep(0.3)      # 節流，twstock 逐檔
+        except Exception as e:
+            print(f"[hunter] 上櫃 twstock 抓取失敗，退 yfinance(可能不準)：{e}")
+        if out:
+            return out
     try:
         import yfinance as yf
     except Exception:
