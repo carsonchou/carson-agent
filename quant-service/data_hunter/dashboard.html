@@ -343,6 +343,25 @@
   .mg-tag{font-family:var(--mono);font-size:10px;padding:1px 6px;border-radius:10px;margin-left:5px;
     color:#ff6b4d;border:1px solid rgba(255,107,77,.4)}
 
+  /* ════ 集保散戶流出 / 主力吸籌（R7；非紅綠語意：吸籌=暖金、散戶進場=警示） ════ */
+  .rthead,.rtrow{display:grid;grid-template-columns:22px 1.4fr 1fr 1fr;gap:8px;align-items:center;
+    padding:8px 12px;font-family:var(--mono);font-size:12px}
+  .rthead{color:var(--dim);font-size:11px;letter-spacing:.5px;background:rgba(255,255,255,.03);border-bottom:1px solid var(--line)}
+  .rthead .r{text-align:right}
+  .rtrow{border-bottom:1px solid rgba(120,160,220,.06);cursor:pointer;transition:background .15s}
+  .rtrow:last-child{border-bottom:none}
+  .rtrow:nth-child(even){background:rgba(255,255,255,.02)}
+  .rtrow:hover{background:rgba(84,214,255,.07)}
+  .rtrow .rtn{font-family:var(--tc);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rtrow .rtn .rcode{font-family:var(--mono)}
+  .rtrow .rtv{font-variant-numeric:tabular-nums;font-weight:700;text-align:right;white-space:nowrap}
+  /* 吸籌標(散戶流出=偏多，暖金) / 散戶進場警示標 */
+  .rt-hot{font-family:var(--mono);font-size:10px;padding:1px 6px;border-radius:10px;margin-left:5px;
+    color:var(--gold);border:1px solid rgba(255,215,94,.45)}
+  .rt-warn{font-family:var(--mono);font-size:10px;padding:1px 6px;border-radius:10px;margin-left:5px;
+    color:#ff9f45;border:1px solid rgba(255,159,69,.45)}
+  body.snap-chips .rthead,body.snap-chips .rtrow{font-size:14px;padding:10px 14px}
+
   /* ════════════ 手機 RWD（<480px 再收一級） ════════════ */
   @media(max-width:480px){
     .wrap{padding:12px 11px 50px}
@@ -583,9 +602,16 @@
         <div class="mghead"><span>#</span><span>個股</span><span class="r">券資比%</span><span class="r">融資增減(張)</span><span class="r">當沖比%</span></div>
         <div id="chipMargin"></div>
       </div>
+      <!-- 集保散戶流出 / 主力吸籌（TDCC 大戶持股週更新；小散戶戶數週縮=主力吸籌=偏多） -->
+      <div class="marginSec" id="retailSec">
+        <div class="marginHdr"><span>集保散戶流出 · 主力吸籌 · RETAIL EXIT</span><span class="chl">🔥吸籌＝散戶週縮(偏多) · ⚠進場 · 週更新·集保</span></div>
+        <div class="rthead"><span>#</span><span>個股</span><span class="r">小散戶週變化%</span><span class="r">戶數</span></div>
+        <div id="chipRetail"></div>
+      </div>
       <div style="font-family:var(--mono);font-size:11px;color:var(--faint);margin-top:12px;text-align:center">
         三大法人盤後籌碼（證交所 T86＋櫃買）· 淨買單位＝張 · 買超紅／賣超綠 · 連買＝連續同方向買超天數<br>
-        融資融券／當沖（MI_MARGN＋TWTB4U 盤後）· 融資增＝偏多(紅)、減＝偏空(綠) · 券資比越高空方壓力越大
+        融資融券／當沖（MI_MARGN＋TWTB4U 盤後）· 融資增＝偏多(紅)、減＝偏空(綠) · 券資比越高空方壓力越大<br>
+        集保大戶持股（TDCC 週更新）· 小散戶戶數週縮(負)＝主力吸籌偏多 · 週增(正)＝散戶進場警示
       </div>
     </section>
   </div>
@@ -932,6 +958,12 @@ function chipPopRows(s){
   if(s.margin_chg!=null) r+=`<div class="prow"><span>融資增減</span><b style="color:${chgColor(s.margin_chg)}">${fmtNet(s.margin_chg)} 張</b></div>`;
   if(s.short_margin_ratio!=null) r+=`<div class="prow"><span>券資比</span><b class="${shortRatioCls(s.short_margin_ratio)}">${s.short_margin_ratio}%${s.short_margin_ratio>=12?' 空壓':''}</b></div>`;
   if(s.day_trade_pct!=null){const hot=s.day_trade_pct>=30; r+=`<div class="prow"><span>當沖比</span><b style="color:${hot?'#ff9f45':'var(--txt)'}">${s.day_trade_pct}%${hot?' 🔥熱':''}</b></div>`;}
+  // R7 集保散戶流出/主力吸籌 + 投信單獨連買（非紅綠語意：吸籌暖金、進場警示）
+  const exit=s.retail_exit||(s.small_chg_pct!=null&&s.small_chg_pct<0);
+  const surge=s.retail_surge||(s.small_chg_pct!=null&&s.small_chg_pct>0);
+  if(exit) r+=`<div class="prow"><span>集保散戶</span><b style="color:var(--gold)">流出${s.small_chg_pct!=null?' '+sign(s.small_chg_pct)+'%':''} 吸籌</b></div>`;
+  else if(surge) r+=`<div class="prow"><span>集保散戶</span><b style="color:#ff9f45">⚠大量進場${s.small_chg_pct!=null?' '+sign(s.small_chg_pct)+'%':''}</b></div>`;
+  if(s.trust_consec_days!=null) r+=`<div class="prow"><span>投信連買</span><b style="color:var(--up)">單獨 ${s.trust_consec_days} 日</b></div>`;
   return r;
 }
 function sigHTML(s){
@@ -1223,13 +1255,29 @@ function marginRow(x,rank){
     `<span class="mgv">${mcTxt}</span>`+
     `<span class="mgv" style="color:${dtHot?'#ff9f45':'var(--txt)'}">${dtTxt}</span></div>`;
 }
+// 集保散戶流出榜一列：小散戶週變化%(負=流出=吸籌暖金、正=進場警示) / 戶數
+function retailRow(x,rank){
+  const rich=drillMap.has(x.code);
+  const sc=x.small_chg_pct, hd=x.holders;
+  const exit=sc!=null&&sc<0;
+  const scTxt=sc!=null
+    ? `<span style="color:${exit?'var(--gold)':'var(--dim)'}">${sign(sc)}%${exit?'<span class="rt-hot">吸籌</span>':(sc>0?'<span class="rt-warn">⚠進場</span>':'')}</span>`
+    : '—';
+  const hdTxt=hd!=null?Number(hd).toLocaleString('en-US'):'—';
+  return `<div class="rtrow"${rich?' data-drill':''} data-code="${x.code}">`+
+    `<span class="crank">${rank}</span>`+
+    `<span class="rtn"><span class="rcode">${x.code}</span>${x.name||''}</span>`+
+    `<span class="rtv">${scTxt}</span>`+
+    `<span class="rtv" style="color:var(--dim)">${hdTxt}</span></div>`;
+}
 function renderChips(c){
-  const asof=$('#chipsAsof'), fb=$('#chipForeign'), tb=$('#chipTrust'), cb=$('#chipConsec'), mg=$('#chipMargin'), msec=$('#marginSec');
+  const asof=$('#chipsAsof'), fb=$('#chipForeign'), tb=$('#chipTrust'), cb=$('#chipConsec'),
+        mg=$('#chipMargin'), msec=$('#marginSec'), rt=$('#chipRetail'), rsec=$('#retailSec');
   if(!fb)return;
   const emptyC='<div class="empty" style="padding:22px">尚無資料</div>';
-  if(!c){ asof.textContent='—'; [fb,tb,cb].forEach(e=>e.innerHTML=emptyC); if(msec)msec.style.display='none'; return; }
+  if(!c){ asof.textContent='—'; [fb,tb,cb].forEach(e=>e.innerHTML=emptyC); if(msec)msec.style.display='none'; if(rsec)rsec.style.display='none'; return; }
   asof.textContent=chipsAsofText(c);
-  const f=c.foreign_top||[], t=c.trust_top||[], cs=c.consec_top||[], mt=c.margin_top||[];
+  const f=c.foreign_top||[], t=c.trust_top||[], cs=c.consec_top||[], mt=c.margin_top||[], re=c.retail_exit_top||[];
   fb.innerHTML=f.length?f.map((x,i)=>chipRow(x,i+1,false)).join(''):emptyC;
   tb.innerHTML=t.length?t.map((x,i)=>chipRow(x,i+1,false)).join(''):emptyC;
   cb.innerHTML=cs.length?cs.map((x,i)=>chipRow(x,i+1,true)).join(''):emptyC;
@@ -1237,6 +1285,11 @@ function renderChips(c){
   if(msec){
     if(mt.length){ msec.style.display=''; mg.innerHTML=mt.map((x,i)=>marginRow(x,i+1)).join(''); }
     else msec.style.display='none';
+  }
+  // 集保散戶流出榜：無資料整段隱藏(優雅降級)
+  if(rsec){
+    if(re.length){ rsec.style.display=''; rt.innerHTML=re.map((x,i)=>retailRow(x,i+1)).join(''); }
+    else rsec.style.display='none';
   }
 }
 
