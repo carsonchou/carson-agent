@@ -322,27 +322,39 @@ def load_chips(codes=None, days: int = DEFAULT_DAYS,
             latest = next((data[code] for _, data in per_day if code in data), None)
             if latest is None:
                 continue
-        # 連買天數 + 近 N 日加總(外資+投信)
+        # 連買天數 + 近 N 日加總(外資+投信合計 / 投信單獨)
         consec = 0
+        trust_consec = 0
         broke = False
+        trust_broke = False
         net_sum = 0
+        trust_net_sum = 0
         for _, data in per_day:
             rec = data.get(code)
             if rec is None:
                 broke = True              # 該日無此檔資料 → 連買中斷判定停止
+                trust_broke = True
             else:
                 ft = rec["foreign_net"] + rec["trust_net"]
+                t = rec["trust_net"]
                 net_sum += ft
+                trust_net_sum += t
                 if not broke and ft > 0:
                     consec += 1
                 elif not broke:
                     broke = True
+                if not trust_broke and t > 0:
+                    trust_consec += 1
+                elif not trust_broke:
+                    trust_broke = True
         out[code] = {
             "foreign_net": latest["foreign_net"],
             "trust_net": latest["trust_net"],
             "instinv_net": latest["instinv_net"],
             "consec_buy_days": consec,
+            "trust_consec_days": trust_consec,   # 投信單獨連買天數(阿斯匹靈法近10日投信超)
             "net_sum_n": net_sum,
+            "trust_net_sum": trust_net_sum,      # 近 N 日投信淨買加總(張)
             "t_minus": 0,
             "date": latest_date.isoformat(),
         }

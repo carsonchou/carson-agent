@@ -67,6 +67,13 @@ except Exception as _e:                     # pragma: no cover
     margin_mod = None
     print(f"[hunter] margin 模組不可用，融資券面停用：{type(_e).__name__}: {_e}")
 
+# 集保戶數面(週更新；缺則優雅降級；散戶流出=主力吸籌輔助訊號)
+try:
+    import tdcc as tdcc_mod                                            # noqa: E402
+except Exception as _e:                     # pragma: no cover
+    tdcc_mod = None
+    print(f"[hunter] tdcc 模組不可用，集保戶數面停用：{type(_e).__name__}: {_e}")
+
 # .env(NTFY_TOPIC / LINE_NOTIFY_TOKEN) 由 quant-service 載入
 try:
     from dotenv import load_dotenv
@@ -90,8 +97,12 @@ INDEX_CODE = "0050"                    # 大盤總閘(0050 當代理)
 YEARLINE = 240                         # 年線(約 240 交易日)
 
 # ── Track A 籌碼面參數 ──────────────────────────────────────────────────────
-CHIP_DAYS = 5                          # 載入近 N 交易日三大法人(算連買/近N日淨買)
+CHIP_DAYS = 10                         # 載入近 N 交易日三大法人(10日=阿斯匹靈法近10日投信超)
 CHIP_CONSEC_MIN = 2                    # 做多籌碼確認：外資+投信連買 ≥ 2 日即算確認
+TRUST_CONSEC_MIN = 3                   # 投信單獨連買 ≥ 3 日 → 追加標示(阿斯匹靈法)
+
+# ── 集保戶數面參數(TDCC 週更新) ──────────────────────────────────────────────
+TDCC_SMALL_CHG_WARN = -2.0             # 小股東戶數週縮 ≥此% → retail_exit(散戶流出/主力吸籌)
 
 # ── Track B 選股池濾網參數(台股回測背書：選股池>微調參數) ──────────────────
 #   ① 趨勢佔比 trend_frac：近 POOL_LOOKBACK 根 ADX≥ADX_TREND_THR 的比例(重用
@@ -847,6 +858,16 @@ def build_state(data: dict[str, pd.DataFrame], rows: list[tuple[str, str, str]],
                 if s.get("chip_confirm"):
                     cb = s.get("consec_buy_days") or 0
                     extra.append(f"外資投信連買{cb}日" if cb >= CHIP_CONSEC_MIN else "外資投信近日淨買")
+                # 投信單獨連買(阿斯匹靈法)
+                tc = s.get("trust_consec_days") or 0
+                if tc >= TRUST_CONSEC_MIN:
+                    extra.append(f"投信單獨連買{tc}日")
+                # 集保散戶流出(散戶在跑=主力在吃)
+                if s.get("retail_exit"):
+                    pct = s.get("small_chg_pct") or 0
+                    extra.append(f"集保散戶流出{abs(pct):.1f}%")
+                elif s.get("retail_surge"):
+                    extra.append("⚠集保散戶大量進場(過熱)")
                 tf = s.get("trend_frac")
                 if tf is not None:                                  # 趨勢佔比僅供參，非門檻
                     extra.append(f"趨勢佔比{tf*100:.0f}%(供參)")
@@ -911,6 +932,40 @@ def build_state(data: dict[str, pd.DataFrame], rows: list[tuple[str, str, str]],
                                                  s.get("day_trade_pct") or 0),
                                   reverse=True)[:CHIP_TOP]]
 
+    # ── 集保戶數(TDCC，週更新；--cache 模式只讀本地，不探 API) ─────────────────
+    tdcc_map: dict[str, dict] = {}
+    if tdcc_mod is not None:
+        try:
+            # 週更新資料；load_tdcc 讀本地快取為主，僅在快取過舊才探 API
+            # --cache 純離線：集保戶數也只讀本地快取，絕不探網
+            tdcc_map = tdcc_mod.load_tdcc([s["code"] for s in stocks],
+                                          offline=chips_offline)
+        except Exception as e:
+            print(f"[hunter] 集保戶數載入略過：{type(e).__name__}: {e}")
+    for s in stocks:
+        rec = tdcc_map.get(s["code"])
+        if rec is None:
+            s.update({"small_count": None, "small_count_chg": None,
+                      "small_chg_pct": None, "retail_exit": None, "retail_surge": None})
+        else:
+            s.update({
+                "small_count": rec["small_count"],
+                "small_count_chg": rec.get("small_chg"),
+                "small_chg_pct": rec.get("small_chg_pct"),
+                "retail_exit": rec.get("retail_exit"),
+                "retail_surge": rec.get("retail_surge"),
+            })
+
+    # 集保戶數散戶流出榜(retail_exit=True 且有確認訊號)
+    TDCC_TOP = 8
+    with_tdcc = [s for s in stocks if s.get("small_chg_pct") is not None]
+    retail_exit_top = [
+        {"code": s["code"], "name": s["name"],
+         "small_chg_pct": s.get("small_chg_pct"), "small_count": s.get("small_count")}
+        for s in sorted(with_tdcc, key=lambda s: s.get("small_chg_pct") or 0)[:TDCC_TOP]
+        if (s.get("small_chg_pct") or 0) <= TDCC_SMALL_CHG_WARN
+    ]
+
     chips_block = {
         "t_minus": chips_t_minus, "date": chip_date,
         "foreign_top": foreign_top, "trust_top": trust_top, "consec_top": consec_top,
@@ -920,6 +975,10 @@ def build_state(data: dict[str, pd.DataFrame], rows: list[tuple[str, str, str]],
                         "margin_balance/short_balance單位張、short_margin_ratio券資比%、"
                         "day_trade_pct當沖比%"),
         "margin_n_with_data": len(with_margin),
+        # 集保戶數面(TDCC 週更新)
+        "retail_exit_top": retail_exit_top,
+        "tdcc_n_with_data": len(with_tdcc),
+        "tdcc_note": "TDCC 集保戶數週資料：small_chg_pct=小散戶(1-10張)週變化%，負值=散戶流出(主力吸籌輔助)",
     }
 
     return {
@@ -962,7 +1021,11 @@ def _card(s: dict) -> dict:
             "margin_balance": s.get("margin_balance"), "margin_chg": s.get("margin_chg"),
             "short_balance": s.get("short_balance"),
             "short_margin_ratio": s.get("short_margin_ratio"),
-            "day_trade_pct": s.get("day_trade_pct")}
+            "day_trade_pct": s.get("day_trade_pct"),
+            # 集保戶數(TDCC 週更新；缺資料 None)
+            "small_count": s.get("small_count"), "small_count_chg": s.get("small_count_chg"),
+            "small_chg_pct": s.get("small_chg_pct"),
+            "retail_exit": s.get("retail_exit"), "retail_surge": s.get("retail_surge")}
 
 
 def _sig(s: dict, confirmed_mode: bool) -> dict:
