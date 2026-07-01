@@ -36,9 +36,9 @@ class Handler(SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
     def _handle_api(self, path: str, qs: dict) -> bool:
-        """動態 API：/api/stock、/api/search。命中回 True(已回應)，否則 False(交還靜態服務)。
-        query.py 在 handler 內 import(而非模組頂層)，讓查價/籌碼失敗絕不拖垮靜態看板服務。"""
-        if path not in ("/api/stock", "/api/search"):
+        """動態 API：/api/stock、/api/search、/api/analyst。命中回 True(已回應)，否則 False(交還靜態服務)。
+        query/analyst 在 handler 內 import(而非模組頂層)，讓查價/分析失敗絕不拖垮靜態看板服務。"""
+        if path not in ("/api/stock", "/api/search", "/api/analyst"):
             return False
         try:
             import query
@@ -56,6 +56,25 @@ class Handler(SimpleHTTPRequestHandler):
                 q = _first("q")
                 self._send_json(query.search_stocks(q) if q else [])
                 return True
+
+            if path == "/api/analyst":
+                # 金融分析團隊四維度：支援 ?code= 或 ?q=(名稱)。名稱先用 query._resolve_code 轉代號，
+                # 再交 analyst.analyze_one(內含四維分析+綜合操作策略)。有界執行(~12s)避免慢網卡死。
+                from concurrent.futures import ThreadPoolExecutor
+                raw = _first("code") or _first("q")
+                if not raw:
+                    self._send_json({"ok": False, "error": "缺少 code 或 q"}, status=400)
+                    return True
+                code = query._resolve_code(raw) or raw
+                import analyst
+                with ThreadPoolExecutor(max_workers=1) as ex:
+                    res = ex.submit(analyst.analyze_one, code).result(timeout=12.0)
+                if res is None:
+                    self._send_json({"ok": False, "error": f"{code} 無法取得資料"}, status=404)
+                else:
+                    self._send_json({"ok": True, **res}, status=200)
+                return True
+
             # /api/stock：支援 ?code= 或 ?q=(名稱)；live=1 用即時價
             code = _first("code") or _first("q")
             if not code:

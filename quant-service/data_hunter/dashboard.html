@@ -523,6 +523,101 @@
     .smHead .sm-name{font-size:19px}
     .smQuote .sm-price{font-size:25px}
   }
+  /* ── 四師評分（內嵌於個股 modal） ────────────────────────── */
+  .team-subhd{font-family:var(--mono);font-size:10.5px;color:var(--dim);letter-spacing:1.5px;text-transform:uppercase;margin:18px 0 10px;padding-top:16px;border-top:1px solid var(--line)}
+  .team-loading{font-family:var(--mono);font-size:12px;color:var(--dim);text-align:center;padding:14px 0}
+  .team-err{font-size:12px;color:var(--faint);padding:8px 0}
+  .team-total{display:flex;align-items:baseline;gap:10px;margin-bottom:8px}
+  .team-score-big{font-family:var(--mono);font-size:36px;font-weight:700;color:var(--acc);line-height:1}
+  .team-score-denom{font-size:13px;color:var(--dim)}
+  .team-rec{font-size:13px;font-weight:600}
+  .team-dim-bars{display:flex;flex-direction:column;gap:4px;margin:6px 0 10px}
+  .team-dim-row{display:grid;grid-template-columns:52px 1fr 26px;align-items:center;gap:7px}
+  .team-dim-label{font-family:var(--mono);font-size:11px}
+  .team-dim-bar{height:3px;background:var(--line);border-radius:2px}
+  .team-dim-fill{height:100%;border-radius:2px;transition:.5s}
+  .team-dim-val{font-family:var(--mono);font-size:11px;text-align:right}
+  .team-confirm{font-family:var(--mono);font-size:11px;color:var(--dim);margin-bottom:12px}
+  .team-view{border-radius:9px;padding:10px 12px;margin-bottom:7px;background:rgba(255,255,255,.02);border:1px solid var(--line)}
+  .team-view-hd{display:flex;align-items:center;gap:8px;margin-bottom:3px}
+  .team-view-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+  .team-view-name{font-size:12.5px;font-weight:600;flex:1}
+  .team-view-score{font-family:var(--mono);font-size:15px;font-weight:700}
+  .team-view-verdict{font-size:11.5px;color:var(--dim);margin-bottom:4px}
+  .team-note{font-size:11.5px;line-height:1.6;color:var(--dim);padding:1px 0}
+  .team-note.pos{color:var(--dn)}
+  .team-note.neg{color:var(--up)}
+  .team-note.warn{color:var(--gold)}
+  .team-zone{margin-top:8px;background:rgba(0,0,0,.18);border-radius:7px;padding:8px 10px}
+  .team-zone-title{font-family:var(--mono);font-size:10px;color:var(--dim);letter-spacing:.8px;margin-bottom:4px}
+  .team-zone-bar{position:relative;height:5px;background:var(--line);border-radius:3px;margin:3px 0 6px}
+  .tzb-stop{position:absolute;top:0;height:100%;background:rgba(255,77,109,.3);border-radius:3px 0 0 3px}
+  .tzb-entry{position:absolute;top:0;height:100%;background:rgba(84,214,255,.3)}
+  .tzb-t1{position:absolute;top:0;height:100%;background:rgba(40,192,139,.22)}
+  .tzb-marker{position:absolute;top:-2px;width:2px;height:9px;background:var(--acc);border-radius:1px}
+  .team-zone-row{display:flex;align-items:baseline;gap:8px;font-size:12px;line-height:1.6}
+  .team-zone-label{font-family:var(--mono);font-size:10px;color:var(--dim);min-width:26px}
+  .team-zone-val{font-family:var(--mono);font-weight:600}
+  .team-zone-val.entry{color:var(--acc)}
+  .team-zone-val.stop{color:var(--dn)}   /* 台股：停損=較低價=綠 */
+  .team-zone-val.target{color:var(--up)} /* 台股：目標=較高價=紅 */
+  .team-zone-rr{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--gold)}
+  .team-zone-no{font-family:var(--mono);font-size:11px;color:var(--faint);font-style:italic;padding:5px 0}
+
+  /* ══ 四師深度分析：綜合操作策略卡 ══ */
+  .deep-hd{font-family:var(--mono);font-size:11px;letter-spacing:1.5px;color:var(--acc2);margin:16px 0 11px;padding-top:15px;border-top:1px solid var(--line2);text-transform:uppercase}
+  .deep-hd::before{content:'◈ ';color:var(--acc);opacity:.7}
+  .deep-hd .cch{font-size:9.5px;color:var(--faint);letter-spacing:0;margin-left:6px}
+  .strat-card{position:relative;border:1px solid var(--line2);border-radius:13px;padding:14px 16px 13px;margin-bottom:12px;
+    background:linear-gradient(158deg,rgba(84,214,255,.055),rgba(255,255,255,.012) 55%);overflow:hidden}
+  .strat-card::after{content:'';position:absolute;top:0;right:0;width:12px;height:12px;border-top:1px solid var(--acc);border-right:1px solid var(--acc);opacity:.4}
+  .strat-top{display:flex;align-items:center;gap:13px;flex-wrap:wrap}
+  .strat-score{font-family:var(--ttl);font-size:42px;font-weight:900;line-height:.85;letter-spacing:-1.5px;text-shadow:0 0 14px rgba(84,214,255,.12)}
+  .strat-score .den{font-family:var(--mono);font-size:13px;font-weight:400;color:var(--dim);margin-left:2px;text-shadow:none}
+  .strat-meta{display:flex;flex-direction:column;gap:5px;flex:1;min-width:150px}
+  .strat-rec{font-size:14px;font-weight:700;line-height:1.25}
+  .strat-confirm{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;color:var(--dim)}
+  .strat-dots{display:inline-flex;gap:3px}
+  .strat-dots i{width:8px;height:8px;border-radius:2px;background:var(--line);display:inline-block}
+  .strat-dots i.on{background:var(--acc);box-shadow:0 0 6px rgba(84,214,255,.55)}
+  .strat-scenario{font-size:12px;line-height:1.65;color:var(--txt);margin-top:11px;padding-top:10px;border-top:1px solid var(--line);opacity:.92}
+  .strat-scenario b{color:var(--acc2);font-weight:600}
+
+  /* ══ 操作區間卡（買在哪·賣在哪，台股紅漲綠跌，交易面板感） ══ */
+  .opzone{border:1px solid var(--line2);border-radius:13px;margin-bottom:14px;overflow:hidden;background:rgba(0,0,0,.24)}
+  .opzone-hd{display:flex;align-items:baseline;justify-content:space-between;padding:9px 14px;
+    font-family:var(--mono);font-size:11px;letter-spacing:1px;color:var(--acc2);border-bottom:1px solid var(--line);
+    background:linear-gradient(90deg,rgba(84,214,255,.07),transparent)}
+  .opzone-hd .side{font-size:10px;font-weight:700;padding:1px 8px;border-radius:8px}
+  .opzone-hd .side.long{background:rgba(255,77,109,.16);color:var(--up)}
+  .opzone-hd .side.none{background:rgba(120,160,220,.1);color:var(--dim)}
+  .opzone-bar{position:relative;height:7px;margin:13px 14px 8px;border-radius:4px;
+    background:linear-gradient(90deg,rgba(40,192,139,.5),rgba(120,160,220,.25) 42%,rgba(255,77,109,.5))}
+  .opzone-bar .oz-band{position:absolute;top:-2px;height:11px;border-radius:3px;background:rgba(255,215,94,.16);border:1px solid rgba(255,215,94,.5)}
+  .opzone-bar .oz-cur{position:absolute;top:-4px;width:2px;height:15px;background:#fff;box-shadow:0 0 7px rgba(255,255,255,.85);border-radius:1px}
+  .opzone-bar .oz-cur::after{content:'現';position:absolute;top:-13px;left:50%;transform:translateX(-50%);font-family:var(--mono);font-size:8px;color:#fff;opacity:.85}
+  .opzone-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);margin-top:6px}
+  .opz-cell{background:rgba(10,16,28,.6);padding:9px 12px;text-align:center}
+  .opz-cell .lbl{font-family:var(--mono);font-size:9.5px;color:var(--dim);letter-spacing:.5px;margin-bottom:4px}
+  .opz-cell .num{font-family:var(--mono);font-size:19px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.05}
+  .opz-cell .num.buy{color:var(--acc2)}
+  .opz-cell .num.stop{color:var(--dn)}   /* 停損=較低價=綠 */
+  .opz-cell .num.tgt{color:var(--up)}    /* 目標=較高價=紅 */
+  .opz-cell .sub{font-family:var(--mono);font-size:10px;color:var(--faint);margin-top:2px}
+  .opzone-foot{display:flex;justify-content:space-around;padding:9px 12px;border-top:1px solid var(--line);font-family:var(--mono);font-size:11px;color:var(--dim)}
+  .opzone-foot span b{font-size:14px;font-weight:800}
+  .opzone-foot .rr b{color:var(--gold)} .opzone-foot .pos b{color:var(--acc)}
+  .opzone-foot .miss{color:var(--faint);font-style:italic}
+
+  /* ══ 四師卡片：招牌 + 分數條 ══ */
+  .team-view-sig{font-family:var(--mono);font-size:9.5px;color:var(--faint);letter-spacing:.3px;margin:-2px 0 6px 14px}
+  .team-view-scorebar{height:4px;background:var(--line);border-radius:2px;margin:1px 0 7px;overflow:hidden}
+  .team-view-scorefill{height:100%;border-radius:2px;transition:width .5s ease}
+  @media(max-width:560px){
+    .strat-score{font-size:34px}
+    .opz-cell .num{font-size:16px}
+    .opzone-foot{flex-wrap:wrap;gap:6px}
+  }
 </style>
 </head>
 <body>
@@ -747,8 +842,10 @@
 
 <!-- ════ #4 市場溫度反應爐：three.js 粒子核心（WebGL 失敗自動退 2D 光環，達 ~80% 效果） ════ -->
 <script type="module">
-import * as THREE from './three.module.min.js';
-(function(){
+(async function(){
+  let THREE;
+  try{ THREE=await import('./three.module.min.js'); }catch(e){ return; }
+  (function(){
   const canvas=document.getElementById('reactor'); if(!canvas)return;
   // 溫度→顏色：低溫藍綠冷、中性青、高溫紅熱（紅漲綠跌語意一致）
   function tempColor(t,C){
@@ -823,7 +920,8 @@ import * as THREE from './three.module.min.js';
     console.warn('[reactor] WebGL 不可用，退 2D 光環：',e.message);
     fallback2D();
   }
-})();
+  })(); // inner IIFE
+})();   // outer async wrapper
 </script>
 
 <script>
@@ -1585,6 +1683,7 @@ if(SNAP){ loadHistory(); }
     if(!data){ const {by}=localIndex(); data=by.get(code)||null; }
     if(!data){ showHint('讀取 '+code+' 失敗 · 詳情需連後端（非 mock）'); return; }
     openModal(data);
+    triggerTeamAnalysis(data); // 傳整個個股物件：後端無 strategy 時可用現價當參考、mock 亦可造樣本
   }
 
   // ── 詳情面板渲染 ──
@@ -1651,6 +1750,182 @@ if(SNAP){ loadHistory(); }
   }
   function closeModal(){ modal.classList.remove('show'); mBody.innerHTML='';
     try{ (lastFocus&&lastFocus.focus)?lastFocus.focus():input.focus(); }catch(e){} }
+
+  // ── 四師深度分析（/api/analyst）：綜合策略卡 + 操作區間卡 + 四師卡×4 ──────────
+  const TEAM_COLORS={'朱家泓':'var(--acc)','阿斯匹靈':'var(--gold)','權證小哥':'var(--up)','張捷':'var(--dn)'};
+  const TEAM_SIG={
+    '朱家泓':'技術三招 · KD／均線／型態',
+    '阿斯匹靈':'籌碼作帳 · 投信／三大法人／集保',
+    '權證小哥':'主力K棒 · 量價／禿頭紅K',
+    '張捷':'產業強弱 · 相對強度／位階',
+  };
+  const DEEP_HD='<div class="deep-hd">四師深度分析 · Elite Panel';
+  // 建議色：跟隨後端 recommendation 的紅綠燈語意（🟢佳→綠 / 🟡→金 / ⚪→灰 / 🔴避開→紅）
+  function recColorOf(rec){
+    const r=rec||'';
+    if(r.startsWith('🟢')) return 'var(--dn)';
+    if(r.startsWith('🟡')) return 'var(--gold)';
+    if(r.startsWith('🔴')) return 'var(--up)';
+    return 'var(--dim)';
+  }
+  const isLong=res=>{ const r=res.recommendation||''; return r.startsWith('🟢')||r.startsWith('🟡')||(res.total_score>=55); };
+
+  // 後端未給 strategy 時，用分數最高且有 zone 的老師合成一份操作區間（優雅降級）
+  function synthStrategy(res){
+    const vs=Object.values(res.views||{}).filter(v=>v&&v.zone).sort((a,b)=>(b.score||0)-(a.score||0));
+    if(!vs.length) return null;
+    const z=vs[0].zone, cd=res.confirm_dims||0;
+    return {buy_zone_lo:z.entry_lo,buy_zone_hi:z.entry_hi,stop:z.stop,target1:z.target1,target2:z.target2,
+      rr:z.rr,position_pct:cd>=3?30:cd>=2?20:cd>=1?10:0,scenario:null};
+  }
+
+  // 每位老師的迷你操作區間（沿用現有 team-zone 樣式，紅漲綠跌）
+  function buildTeamZoneHtml(zone){
+    if(!zone) return '<div class="team-zone-no">此維度分數不足，未提供操作區間</div>';
+    const {entry_lo,entry_hi,stop,target1,target2,rr}=zone;
+    const lo=Math.min(stop,entry_lo)*.995, hi=Math.max(target2,target1)*1.005, span=hi-lo;
+    const pct=v=>span>0?Math.max(0,Math.min(100,(v-lo)/span*100)):0;
+    const stopPct=pct(stop), eLoPct=pct(entry_lo), eHiPct=pct(entry_hi), t2Pct=pct(target2);
+    return `<div class="team-zone">
+      <div class="team-zone-title">操作區間</div>
+      <div class="team-zone-bar">
+        <div class="tzb-stop" style="width:${stopPct}%"></div>
+        <div class="tzb-entry" style="left:${stopPct}%;width:${eHiPct-stopPct}%"></div>
+        <div class="tzb-t1" style="left:${eHiPct}%;width:${t2Pct-eHiPct}%"></div>
+        <div class="tzb-marker" style="left:${eLoPct}%"></div>
+      </div>
+      <div class="team-zone-row"><span class="team-zone-label">進場</span><span class="team-zone-val entry">${entry_lo} ～ ${entry_hi}</span><span class="team-zone-rr">風報比 1:${rr}</span></div>
+      <div class="team-zone-row"><span class="team-zone-label">停損</span><span class="team-zone-val stop">${stop}</span></div>
+      <div class="team-zone-row"><span class="team-zone-label">目標</span><span class="team-zone-val target">${target1} &nbsp;/&nbsp; ${target2}</span></div>
+    </div>`;
+  }
+
+  // ① 綜合操作策略卡（置頂最醒目）
+  function buildStrategyCard(res){
+    const total=Math.round(res.total_score||0), col=recColorOf(res.recommendation), cd=res.confirm_dims||0;
+    const dots=[0,1,2,3].map(i=>`<i class="${i<cd?'on':''}"></i>`).join('');
+    const scen=res.strategy&&res.strategy.scenario;
+    return `<div class="strat-card">
+      <div class="strat-top">
+        <div class="strat-score" style="color:${col}">${total}<span class="den">/100</span></div>
+        <div class="strat-meta">
+          <div class="strat-rec" style="color:${col}">${res.recommendation||'—'}</div>
+          <div class="strat-confirm"><span class="strat-dots">${dots}</span>${cd}/4 維度共振（≥50 分算確認）</div>
+        </div>
+      </div>
+      ${scen?`<div class="strat-scenario"><b>操作情境</b>　${scen}</div>`:''}
+    </div>`;
+  }
+
+  // ② 操作區間卡（Carson 最要「買在哪·賣在哪」；台股紅漲綠跌、交易面板感）
+  function buildOpZoneCard(res,curPrice){
+    const st=res.strategy||synthStrategy(res);
+    if(!st) return '';
+    const lo=st.buy_zone_lo, hi=st.buy_zone_hi, stop=st.stop, t1=st.target1, t2=st.target2, rr=st.rr, pos=st.position_pct;
+    let bar='';
+    const nums=[lo,hi,stop,t1,t2].filter(v=>v!=null);
+    if(nums.length>=3){
+      const minP=Math.min(...nums)*0.99, maxP=Math.max(...nums)*1.01, span=maxP-minP;
+      const P=v=>span>0?Math.max(0,Math.min(100,(v-minP)/span*100)):0;
+      const band=(lo!=null&&hi!=null)?`<div class="oz-band" style="left:${P(lo)}%;width:${Math.max(1.5,P(hi)-P(lo))}%"></div>`:'';
+      const cur=(curPrice!=null&&curPrice>=minP&&curPrice<=maxP)?`<div class="oz-cur" style="left:${P(curPrice)}%"></div>`:'';
+      bar=`<div class="opzone-bar">${band}${cur}</div>`;
+    }
+    const side=isLong(res)?'<span class="side long">做多 LONG</span>':'<span class="side none">觀望</span>';
+    const cell=(lbl,cls,num,sub)=> (num==null||num==='')
+      ?`<div class="opz-cell"><div class="lbl">${lbl}</div><div class="num" style="color:var(--faint)">—</div></div>`
+      :`<div class="opz-cell"><div class="lbl">${lbl}</div><div class="num ${cls}">${num}</div>${sub?`<div class="sub">${sub}</div>`:''}</div>`;
+    const buyTxt=(lo!=null&&hi!=null)?`${lo}~${hi}`:(lo!=null?`${lo}`:null);
+    return `<div class="opzone">
+      <div class="opzone-hd"><span>操作區間 · 買在哪 / 賣在哪</span>${side}</div>
+      ${bar}
+      <div class="opzone-grid">
+        ${cell('買進區間','buy',buyTxt)}
+        ${cell('停損','stop',stop)}
+        ${cell('目標 T1','tgt',t1,t2!=null?`T2 ${t2}`:'')}
+      </div>
+      <div class="opzone-foot">
+        <span class="rr">風報比 <b>${rr!=null?'1:'+rr:'—'}</b></span>
+        <span class="pos">建議部位 <b>${pos!=null?pos+'%':'—'}</b></span>
+      </div>
+    </div>`;
+  }
+
+  // ③ 四師卡片×4（招牌 + 分數條 + 評語 + notes + 迷你操作區間）
+  function renderTeamHtml(res,cached,curPrice){
+    const dimBars=Object.entries(res.views).map(([k,v])=>{
+      const col=TEAM_COLORS[k]||'var(--acc)', sc=Math.round(v.score||0);
+      return `<div class="team-dim-row"><div class="team-dim-label" style="color:${col}">${k.slice(0,3)}</div><div class="team-dim-bar"><div class="team-dim-fill" style="background:${col};width:${sc}%"></div></div><div class="team-dim-val" style="color:${col}">${sc}</div></div>`;
+    }).join('');
+    const viewCards=Object.entries(res.views).map(([key,v])=>{
+      const col=TEAM_COLORS[key]||'var(--acc)', sig=TEAM_SIG[key]||'', sc=Math.round(v.score||0);
+      const notes=(v.notes||[]).map(n=>{
+        const cls=n.startsWith('✅')?'pos':n.startsWith('❌')?'neg':(n.startsWith('⚠')||n.startsWith('⚡'))?'warn':'';
+        return `<div class="team-note ${cls}">${n}</div>`;
+      }).join('');
+      return `<div class="team-view">
+        <div class="team-view-hd"><div class="team-view-dot" style="background:${col}"></div><div class="team-view-name" style="color:${col}">${v.view||key}</div><div class="team-view-score" style="color:${col}">${sc}</div></div>
+        ${sig?`<div class="team-view-sig">${sig}</div>`:''}
+        <div class="team-view-scorebar"><div class="team-view-scorefill" style="background:${col};width:${sc}%"></div></div>
+        <div class="team-view-verdict">${v.verdict||''}</div>
+        <div>${notes}</div>
+        ${buildTeamZoneHtml(v.zone)}
+      </div>`;
+    }).join('');
+    return `${DEEP_HD}${cached?'<span class="cch">(快取)</span>':''}</div>
+      ${buildStrategyCard(res)}
+      ${buildOpZoneCard(res,curPrice)}
+      <div class="team-dim-bars">${dimBars}</div>
+      ${viewCards}`;
+  }
+
+  // mock（?mock=1 無真後端）：造一份符合契約的四師深度分析樣本，驗證渲染
+  function mockAnalyst(s){
+    const price=(s&&s.price!=null)?Number(s.price):580;
+    const r=x=>Math.round(x*100)/100;
+    const zn=(strong)=>({entry_lo:r(price*0.98),entry_hi:r(price*1.01),stop:r(price*0.93),
+      target1:r(price*(strong?1.14:1.10)),target2:r(price*(strong?1.24:1.20)),rr:strong?2.8:1.9});
+    return {ok:true,code:(s&&s.code)||'2330',name:(s&&s.name)||'台積電',industry:(s&&s.industry)||'半導體',
+      date:'樣本',price:price,chg:(s&&s.chg!=null)?s.chg:1.8,total_score:74,confirm_dims:3,
+      recommendation:'🟢 強力做多候選（三維以上共振）',
+      strategy:{buy_zone_lo:r(price*0.98),buy_zone_hi:r(price*1.01),stop:r(price*0.93),
+        target1:r(price*1.12),target2:r(price*1.22),rr:2.6,position_pct:30,
+        scenario:'技術・籌碼・產業三線共振，收盤站上月線且投信連買。建議回踩月線 MA20 分批進場，站不上停損即減碼；帶量突破前高後可加碼、續抱至目標區。'},
+      views:{
+        '朱家泓':{view:'朱家泓 · 技術派',score:78,verdict:'KD 低檔黃金交叉，站上月線多方轉強',
+          notes:['✅ KD 於 30 附近黃金交叉，短線轉強','✅ 收盤站上月線 MA20，波段偏多','⚠ 量能尚未明顯放大，留意假突破'],
+          zone:zn(true),kd_k:34.2,kd_d:28.6,kd_golden:true,st:'UP'},
+        '阿斯匹靈':{view:'阿斯匹靈 · 籌碼派',score:71,verdict:'投信連三買，三大法人同步偏多',
+          notes:['✅ 投信近 3 日連買，作帳味濃','✅ 三大法人合計買超','❌ 融資略增，散戶跟風需留意','📌 集保戶數下降，籌碼趨集中'],
+          zone:zn(true)},
+        '權證小哥':{view:'權證小哥 · 主力派',score:66,verdict:'出現禿頭紅K配大量，主力進場',
+          notes:['✅ 單日禿頭大紅K，量增逾兩倍','✅ 收最高，主力企圖明顯','⚠ 短線乖離偏大，追高留意'],
+          zone:zn(false),bald_red_k:true},
+        '張捷':{view:'張捷 · 產業派',score:69,verdict:'半導體強勢族群，個股相對強度領先',
+          notes:['✅ 所屬產業近月 RS 領先大盤','✅ 股價位階突破年線之上','⚠ 大盤處高檔，慎防族群輪動'],
+          zone:zn(false)}
+      }};
+  }
+
+  async function triggerTeamAnalysis(stock){
+    const code=(typeof stock==='string')?stock:(stock&&stock.code);
+    const curPrice=(stock&&typeof stock==='object'&&stock.price!=null)?Number(stock.price):null;
+    const pl=document.createElement('div');
+    pl.id='tmAnalysis';
+    pl.innerHTML=`${DEEP_HD}</div><div class="team-loading">四師分析中…（技術・籌碼・主力・產業）</div>`;
+    mBody.appendChild(pl);
+    let res=null,cached=false,err=null;
+    try{
+      const r=await fetch('/api/analyst?code='+encodeURIComponent(code),{cache:'no-store'});
+      if(r.ok){ const j=await r.json();
+        if(j&&j.ok!==false&&(j.views||j.total_score!=null)){ res=j; cached=!!j.cached; }
+        else if(j&&j.error){ err=j.error; }
+      }
+    }catch(e){ err=e.message; }
+    if(!res && MOCK){ res=mockAnalyst(typeof stock==='object'?stock:{code}); cached=false; }
+    if(res){ pl.innerHTML=renderTeamHtml(res,cached,res.price!=null?Number(res.price):curPrice); }
+    else{ pl.innerHTML=`${DEEP_HD}</div><div class="team-err">${err?('分析失敗：'+err):'四師深度分析暫無資料（需連後端 /api/analyst）'}</div>`; }
+  }
 
   // ── 事件綁定 ──
   const debouncedSearch=debounce(v=>doSearch(v),220);
