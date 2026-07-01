@@ -52,11 +52,9 @@ class Handler(SimpleHTTPRequestHandler):
 
         try:
             if path == "/api/search":
+                # 前端契約：直接回 JSON 陣列 [{code,name,industry}]；空 q 或出錯回 []（前端好迭代）
                 q = _first("q")
-                if not q:
-                    self._send_json({"ok": False, "error": "缺少 q"}, status=400)
-                    return True
-                self._send_json({"ok": True, "results": query.search_stocks(q)})
+                self._send_json(query.search_stocks(q) if q else [])
                 return True
             # /api/stock：支援 ?code= 或 ?q=(名稱)；live=1 用即時價
             code = _first("code") or _first("q")

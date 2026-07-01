@@ -231,18 +231,22 @@ def _merge_tdcc(code: str) -> dict:
 
 # ── 完整指標補齊(ma20/ma60/macd/atr；adx/%b 已在 core) ───────────────────────
 def _full_indicators(df, live: bool) -> dict:
-    """在與 _analyse_core 同一個『已收盤』序列上補算 ma20/ma60/macd/atr，重用 scan 的 helper。"""
+    """在與 _analyse_core 同一個『已收盤』序列上補算 ma20/ma60/macd/atr，重用 scan 的 helper。
+    前端契約：macd 與 macd_hist 都給純量；完整字典另存 macd_detail(前端可忽略)。"""
     full = scan._lower(df.tail(180).reset_index(drop=True))
     closed = full.iloc[:-1] if (live and len(full) > 22) else full
     ma = scan.calc_ma(closed, periods=[20, 60])
     macd = scan.calc_macd(closed)
     atr = scan._atr_last(closed, scan.CHAND_LEN)
     m20, m60 = ma["ma"].get(20), ma["ma"].get(60)
+    m_line, m_hist = macd.get("macd"), macd.get("histogram")
     return {
         "ma20": round(m20, 2) if m20 is not None else None,
         "ma60": round(m60, 2) if m60 is not None else None,
         "atr": round(atr, 2) if atr is not None else None,
-        "macd": macd,          # {macd, signal_line, histogram, crossover, trend}
+        "macd": round(m_line, 3) if m_line is not None else None,       # MACD 線(純量)
+        "macd_hist": round(m_hist, 3) if m_hist is not None else None,  # 柱狀(純量)
+        "macd_detail": macd,     # {macd, signal_line, histogram, crossover, trend}
     }
 
 
@@ -281,12 +285,14 @@ def analyze_stock(code: str, live: bool = False) -> dict:
         "price": core["price"], "chg": core["chg"], "rsi": core["rsi"],
         "score": core["score"], "st": core["st"],
         "spark": core["spark"], "ohlc": core.get("ohlc"),
-        "signal": core["signal"], "reason": core["reason"],
+        # side 與 signal 同值(前端契約：side('long'/'short'或無)或 signal)
+        "signal": core["signal"], "side": core["signal"], "reason": core["reason"],
         "stop": core["stop"], "tp1": core["tp1"], "tp2": core["tp2"],
-        # ── 四維籌碼(缺資料 None) ──
+        # ── 四維籌碼(缺資料 None)；pool_pass 為選股池濾網旗標 ──
+        "pool_pass": core.get("pool_pass"),
         **chips, **margin, **tdcc,
-        # ── 完整指標 ──
-        "adx": core["adx"], "percent_b": core["percent_b"],
+        # ── 完整指標(pct_b 為前端契約鍵名，percent_b 保留為別名) ──
+        "adx": core["adx"], "pct_b": core["percent_b"], "percent_b": core["percent_b"],
         **ind,
         # 額外參考(不破壞卡片；前端可忽略)
         "mom5": core.get("mom5"), "relvol": core.get("relvol"),
