@@ -12,11 +12,12 @@ server.py — 數據獵手看板伺服器（純標準庫，無相依）
 """
 from __future__ import annotations
 
+import json
 import sys
 import webbrowser
-from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import urlsplit, parse_qs
 
 HERE = Path(__file__).resolve().parent
 
@@ -25,7 +26,54 @@ class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *a, **k):
         super().__init__(*a, directory=str(HERE), **k)
 
+    def _send_json(self, obj, status: int = 200) -> None:
+        body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store, max-age=0")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _handle_api(self, path: str, qs: dict) -> bool:
+        """動態 API：/api/stock、/api/search。命中回 True(已回應)，否則 False(交還靜態服務)。
+        query.py 在 handler 內 import(而非模組頂層)，讓查價/籌碼失敗絕不拖垮靜態看板服務。"""
+        if path not in ("/api/stock", "/api/search"):
+            return False
+        try:
+            import query
+        except Exception as e:                       # query 相依缺失 → 只影響 API，不影響看板
+            self._send_json({"ok": False, "error": f"query 模組載入失敗：{e}"}, status=500)
+            return True
+
+        def _first(key: str) -> str:
+            v = qs.get(key)
+            return (v[0] if v else "").strip()
+
+        try:
+            if path == "/api/search":
+                q = _first("q")
+                if not q:
+                    self._send_json({"ok": False, "error": "缺少 q"}, status=400)
+                    return True
+                self._send_json({"ok": True, "results": query.search_stocks(q)})
+                return True
+            # /api/stock：支援 ?code= 或 ?q=(名稱)；live=1 用即時價
+            code = _first("code") or _first("q")
+            if not code:
+                self._send_json({"ok": False, "error": "缺少 code 或 q"}, status=400)
+                return True
+            live = _first("live") in ("1", "true", "yes")
+            res = query.analyze_stock(code, live=live)
+            self._send_json(res, status=200 if res.get("ok") else 404)
+        except Exception as e:                        # 任意查詢例外都收斂成 JSON，server 不崩
+            self._send_json({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
+        return True
+
     def do_GET(self):
+        split = urlsplit(self.path)
+        if self._handle_api(split.path, parse_qs(split.query)):
+            return
         if self.path in ("/", "/index.html", ""):
             self.path = "/dashboard.html"
         return super().do_GET()

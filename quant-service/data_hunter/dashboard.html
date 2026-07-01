@@ -446,6 +446,83 @@
   body.snap-flow .tmtile .tmchg{font-size:24px}
   body.snap-flow .tmtile .tmsub{font-size:12px}
   body.snap-flow .tmlegend{font-size:13px;margin-top:14px;justify-content:center}
+
+  /* ════════════ 個股查詢：header 搜尋框 + 自動完成下拉 ════════════ */
+  .search{position:relative;display:flex;align-items:center;gap:7px;flex:1 1 190px;min-width:148px;max-width:300px;
+    padding:6px 10px;border:1px solid var(--line2);border-radius:9px;background:rgba(255,255,255,.03);
+    box-shadow:var(--bevel);transition:border-color .15s,box-shadow .15s}
+  .search:focus-within{border-color:rgba(84,214,255,.5);box-shadow:inset 0 0 12px rgba(84,214,255,.1)}
+  .search .sicon{font-size:13px;opacity:.7;flex-shrink:0;line-height:1}
+  .search input{flex:1;min-width:0;background:transparent;border:none;outline:none;color:var(--txt);
+    font-family:var(--tc);font-size:13px}
+  .search input::placeholder{color:var(--faint)}
+  .acDrop{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:85;display:none;max-height:328px;overflow-y:auto;
+    background:rgba(6,12,22,.98);border:1px solid var(--acc);border-radius:10px;
+    box-shadow:0 0 22px rgba(84,214,255,.25);backdrop-filter:blur(10px)}
+  .acDrop.show{display:block}
+  .acItem{display:grid;grid-template-columns:auto 1fr auto;gap:9px;align-items:center;padding:8px 11px;cursor:pointer;
+    border-bottom:1px solid rgba(120,160,220,.08);transition:background .12s}
+  .acItem:last-child{border-bottom:none}
+  .acItem:hover,.acItem.act{background:rgba(84,214,255,.1)}
+  .acItem .ac-code{font-family:var(--mono);font-size:12px;color:var(--acc)}
+  .acItem .ac-name{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .acItem .ac-ind{font-family:var(--mono);font-size:10px;color:var(--dim);white-space:nowrap}
+  .acHint{padding:12px 13px;font-family:var(--mono);font-size:11px;color:var(--faint);text-align:center;line-height:1.6}
+  body.snap .search{display:none!important}
+
+  /* ════════════ 個股詳情 modal（比 popover 大） ════════════ */
+  .stkModal{position:fixed;inset:0;z-index:90;display:none;align-items:flex-start;justify-content:center;
+    padding:40px 16px;background:rgba(3,7,14,.72);backdrop-filter:blur(4px);overflow-y:auto}
+  .stkModal.show{display:flex;animation:smfade .18s ease}
+  @keyframes smfade{from{opacity:0}to{opacity:1}}
+  .smCard{position:relative;width:100%;max-width:560px;background:var(--panel);border:1px solid var(--line2);
+    border-radius:16px;padding:20px 22px 22px;box-shadow:var(--bevel),var(--depth);backdrop-filter:blur(14px);
+    animation:smpop .22s cubic-bezier(.2,.9,.2,1)}
+  @keyframes smpop{from{transform:translateY(14px) scale(.98);opacity:0}to{transform:none;opacity:1}}
+  .smClose{position:absolute;top:12px;right:12px;width:30px;height:30px;border:1px solid var(--line2);border-radius:8px;
+    background:rgba(255,255,255,.03);color:var(--dim);font-size:13px;cursor:pointer;line-height:1;
+    display:flex;align-items:center;justify-content:center;transition:all .15s}
+  .smClose:hover{border-color:var(--up);color:var(--up)}
+  .smHead{display:flex;flex-wrap:wrap;align-items:baseline;gap:9px;padding-right:36px}
+  .smHead .sm-code{font-family:var(--mono);font-size:14px;color:var(--dim)}
+  .smHead .sm-name{font-family:var(--tc);font-size:22px;font-weight:700;color:var(--txt)}
+  .smHead .sm-ind{font-family:var(--mono);font-size:11px;color:var(--dim);border:1px solid var(--line);border-radius:10px;padding:1px 8px}
+  .smHead .sm-etf{font-family:var(--mono);font-size:11px;color:var(--gold);border:1px solid rgba(255,215,94,.4);border-radius:10px;padding:1px 8px;letter-spacing:.5px}
+  .smNote{font-family:var(--mono);font-size:11.5px;color:var(--faint);line-height:1.6;padding:11px 12px;
+    border:1px dashed var(--line2);border-radius:10px;background:rgba(255,255,255,.015)}
+  .smNote b{color:var(--gold);font-weight:400}
+  .smQuote{display:flex;flex-wrap:wrap;align-items:baseline;gap:14px;margin-top:9px}
+  .smQuote .sm-price{font-family:var(--ttl);font-size:30px;font-weight:900;letter-spacing:-.5px;line-height:1}
+  .smQuote .sm-chg{font-family:var(--mono);font-size:16px;font-weight:700}
+  .smQuote .sm-score{font-family:var(--mono);font-size:12px;color:var(--dim)}
+  .smQuote .sm-score b{font-family:var(--mono);color:var(--acc);font-size:15px;font-weight:700}
+  .smSig{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:12px}
+  .smSig .pill{font-family:var(--mono);font-size:12px;padding:3px 11px;border-radius:20px;letter-spacing:.5px}
+  .smSig .pill.long{background:rgba(255,77,109,.16);color:var(--up)}
+  .smSig .pill.short{background:rgba(40,192,139,.16);color:var(--dn)}
+  .smSig .pill.none{background:rgba(127,147,179,.14);color:var(--dim)}
+  .smReason{font-size:12.5px;color:var(--dim);line-height:1.55;margin-top:9px}
+  .smKwrap{margin-top:14px;border:1px solid var(--line);border-radius:11px;padding:10px 12px 7px;background:rgba(255,255,255,.015)}
+  .smKline{width:100%;height:150px;display:block}
+  .smKlegend{font-family:var(--mono);font-size:10px;color:var(--faint);margin-top:4px;display:flex;gap:10px}
+  .smKlegend .ma{color:var(--gold)}
+  .smSubhd{font-family:var(--mono);font-size:11px;letter-spacing:1.5px;color:var(--dim);margin:16px 0 9px}
+  .smSubhd::before{content:'▸ ';color:var(--acc);opacity:.6}
+  .smGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  @media(max-width:560px){.smGrid{grid-template-columns:repeat(2,1fr)}}
+  .smStat{border:1px solid var(--line);border-radius:9px;padding:8px 10px;background:rgba(255,255,255,.02)}
+  .smStat .k{display:block;font-family:var(--mono);font-size:10px;color:var(--dim);letter-spacing:.5px;margin-bottom:3px}
+  .smStat .v{font-family:var(--mono);font-size:15px;font-weight:700;font-variant-numeric:tabular-nums}
+  /* modal 內籌碼列沿用 popover .prow 語意（紅漲綠跌／吸籌暖金） */
+  .smChips .prow{display:flex;justify-content:space-between;font-family:var(--mono);font-size:13px;color:var(--dim);
+    padding:5px 2px;border-top:1px solid rgba(120,160,220,.1)}
+  .smChips .prow b{font-weight:400;color:var(--txt)}
+  .smChips .tag{font-size:11px;padding:1px 7px;border-radius:10px;border:1px solid currentColor}
+  @media(max-width:480px){
+    .smCard{padding:17px 15px 18px}
+    .smHead .sm-name{font-size:19px}
+    .smQuote .sm-price{font-size:25px}
+  }
 </style>
 </head>
 <body>
@@ -467,6 +544,13 @@
       <span class="iprice mono" id="idxPrice">—</span>
       <span class="ichg mono" id="idxChg">—</span>
       <span class="iyl" id="idxYL">—</span>
+    </div>
+    <!-- 個股查詢：代號/名稱自動完成 → 詳情面板 -->
+    <div class="search" id="searchBox">
+      <span class="sicon">🔍</span>
+      <input id="searchInput" type="text" autocomplete="off" spellcheck="false"
+        placeholder="查個股 代號/名稱" aria-label="查詢個股，輸入代號或名稱" aria-autocomplete="list" aria-controls="acDrop">
+      <div class="acDrop" id="acDrop" role="listbox" aria-label="個股查詢結果"></div>
     </div>
     <div class="spacer"></div>
     <!-- 提示音 / 桌面通知開關（狀態存 localStorage） -->
@@ -652,6 +736,14 @@
 
 <!-- 下鑽 popover -->
 <div id="pop"></div>
+
+<!-- 個股詳情 modal（比 popover 大；ESC / 點外 / ✕ 關閉） -->
+<div id="stkModal" class="stkModal" role="dialog" aria-modal="true" aria-labelledby="smBody">
+  <div class="smCard">
+    <button class="smClose" id="smClose" aria-label="關閉詳情" title="關閉 (ESC)">✕</button>
+    <div id="smBody"></div>
+  </div>
+</div>
 
 <!-- ════ #4 市場溫度反應爐：three.js 粒子核心（WebGL 失敗自動退 2D 光環，達 ~80% 效果） ════ -->
 <script type="module">
@@ -1411,6 +1503,177 @@ load(); setInterval(load,30000);
 
 // 快照模式：歷史也先抓一次，確保 watermark 日期填上
 if(SNAP){ loadHistory(); }
+</script>
+
+<!-- ════ 個股查詢：搜尋框自動完成 + 詳情面板（沿用 drawKline/chipPopRows/紅漲綠跌；後端無 /api 時降級用已載入 state 的個股） ════ -->
+<script>
+(function(){
+  const input=$('#searchInput'), drop=$('#acDrop'), box=$('#searchBox');
+  const modal=$('#stkModal'), mBody=$('#smBody'), mClose=$('#smClose');
+  if(!input||!modal) return;
+  if(SNAP) return; // 快照模式不需要互動查詢
+
+  let acItems=[], acActive=-1, reqSeq=0, lastFocus=null;
+  const debounce=(fn,ms)=>{let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>fn(...a),ms);};};
+
+  // 本地索引：後端無 /api（含 ?mock=1）時的降級來源，從最新 state 蒐集個股（含 ohlc/籌碼欄，足以驗證詳情面板）
+  function localIndex(){
+    const d=lastData, by=new Map();
+    if(!d) return {list:[],by};
+    const push=arr=>{(arr||[]).forEach(s=>{ if(s&&s.code&&!by.has(s.code)) by.set(s.code,s); });};
+    push(d.strong); push(d.weak);
+    push(d.signals&&d.signals.long); push(d.signals&&d.signals.short);
+    push(d.watch_long);
+    const list=[...by.values()].map(s=>({code:s.code,name:s.name,industry:s.industry}));
+    return {list,by};
+  }
+  function localSearch(q){
+    const {list}=localIndex(), k=q.trim().toLowerCase(), qt=q.trim();
+    if(!k) return [];
+    return list.filter(x=>(x.code||'').toLowerCase().includes(k)||(x.name||'').includes(qt)).slice(0,10);
+  }
+
+  // 下拉渲染 / 提示 / 收合
+  function renderDrop(list,local){
+    acItems=list.map(x=>({code:x.code,name:x.name,industry:x.industry,local:!!local}));
+    acActive=-1;
+    drop.innerHTML=acItems.map((x,i)=>
+      `<div class="acItem" role="option" data-i="${i}"><span class="ac-code">${x.code}</span>`+
+      `<span class="ac-name">${x.name||''}</span>`+
+      `<span class="ac-ind">${x.industry||''}${local?' · 樣本':''}</span></div>`).join('');
+    drop.classList.add('show');
+    drop.querySelectorAll('.acItem').forEach(el=>{
+      // mousedown+preventDefault：搶在 input blur 之前選取，避免下拉先收合
+      el.addEventListener('mousedown',ev=>{ ev.preventDefault(); const i=+el.dataset.i; pick(acItems[i].code,acItems[i].local); });
+    });
+  }
+  function showHint(msg){ acItems=[]; acActive=-1; drop.innerHTML=`<div class="acHint">${msg}</div>`; drop.classList.add('show'); }
+  function hideDrop(){ drop.classList.remove('show'); }
+  function moveActive(d){ if(!acItems.length)return;
+    acActive=(acActive+d+acItems.length)%acItems.length;
+    drop.querySelectorAll('.acItem').forEach((el,i)=>el.classList.toggle('act',i===acActive)); }
+
+  // 查詢：先試真後端 /api/search，失敗(檔案協定/404/mock)→本地樣本降級
+  async function doSearch(q){
+    q=q.trim(); if(!q){ hideDrop(); return; }
+    const seq=++reqSeq; let results=null;
+    try{
+      const r=await fetch('/api/search?q='+encodeURIComponent(q),{cache:'no-store'});
+      if(r.ok){ const j=await r.json(); if(Array.isArray(j)) results=j; }
+    }catch(e){}
+    if(seq!==reqSeq) return; // 丟棄過期請求
+    if(!results){
+      const loc=localSearch(q);
+      if(loc.length) renderDrop(loc,true);
+      else showHint(MOCK?'本地樣本查無此股 · 全市場查詢需連後端（非 mock）':'查無結果，或後端未提供 /api（需啟動 python server.py）');
+      return;
+    }
+    if(!results.length){ showHint('查無「'+q+'」相關個股'); return; }
+    renderDrop(results,false);
+  }
+
+  // 選取個股：真後端 /api/stock 拉完整分析；失敗或本地項→用已載入 state 的個股物件降級
+  async function pick(code,local){
+    hideDrop(); input.value=code;
+    let data=null;
+    if(!local){
+      try{
+        const r=await fetch('/api/stock?code='+encodeURIComponent(code),{cache:'no-store'});
+        if(r.ok){ const j=await r.json(); if(j&&j.code) data=j; }
+      }catch(e){}
+    }
+    if(!data){ const {by}=localIndex(); data=by.get(code)||null; }
+    if(!data){ showHint('讀取 '+code+' 失敗 · 詳情需連後端（非 mock）'); return; }
+    openModal(data);
+  }
+
+  // ── 詳情面板渲染 ──
+  const fx=(v,d)=>(v==null||v===''||(typeof v==='number'&&isNaN(v)))?null:Number(v).toFixed(d);
+  function statCell(k,v,color){ if(v==null||v==='') return '';
+    return `<div class="smStat"><span class="k">${k}</span><span class="v"${color?` style="color:${color}"`:''}>${v}</span></div>`; }
+
+  function openModal(s){
+    // ETF／指數商品：常無個股籌碼(法人/融資券/集保)，那些欄要優雅隱藏、面板仍以價/指標/K線撐場不空洞
+    const isETF=s.is_etf===true||s.type==='etf'||s.kind==='etf'||(typeof s.code==='string'&&/^00/.test(s.code));
+    const side=s.side||(s.signal==='long'?'long':(s.signal==='short'?'short':null));
+    const sidePill=side
+      ? `<span class="pill ${side}">${side==='long'?'做多 · LONG':'做空 · SHORT'}</span>`
+      : `<span class="pill none">${isETF?'ETF · 趨勢參考':'無明確訊號'}</span>`;
+    // 停損停利（做多語意紅、做空語意綠；有才顯示）
+    let lv='';
+    if(s.stop!=null||s.tp1!=null||s.tp2!=null){
+      const tpCol=side==='short'?'var(--dn)':'var(--up)';
+      lv='<div class="levels">';
+      if(s.stop!=null) lv+=`<span class="lvl stop"><span class="lk">停損</span><span class="lv mono" style="color:var(--dim)">${s.stop}</span></span>`;
+      if(s.tp1!=null)  lv+=`<span class="lvl tp"><span class="lk">TP1</span><span class="lv mono" style="color:${tpCol}">${s.tp1}</span></span>`;
+      if(s.tp2!=null)  lv+=`<span class="lvl tp"><span class="lk">TP2</span><span class="lv mono" style="color:${tpCol}">${s.tp2}</span></span>`;
+      lv+='</div>';
+    }
+    const hasK=Array.isArray(s.ohlc)&&s.ohlc.length>=2;
+    const pctB=(s.pct_b!=null?s.pct_b:(s.percent_b!=null?s.percent_b:(s['%b']!=null?s['%b']:s.bb_pct)));
+    const macd=(s.macd!=null?s.macd:s.macd_hist);
+    const stTxt=s.st?({UP:'翻多',DOWN:'翻空'}[s.st]||'中性'):null;
+    const stCol=s.st==='UP'?'var(--up)':(s.st==='DOWN'?'var(--dn)':'var(--dim)');
+    const stats=[
+      statCell('RSI',fx(s.rsi,1), s.rsi!=null?(s.rsi>=50?'var(--up)':'var(--dn)'):null),
+      statCell('MA20',fx(s.ma20,2)),
+      statCell('MA60',fx(s.ma60,2)),
+      statCell('SuperTrend',stTxt,stCol),
+      statCell('MACD',fx(macd,2), macd!=null?chgColor(macd):null),
+      statCell('ADX',fx(s.adx,1), s.adx!=null?(s.adx>=25?'var(--gold)':'var(--dim)'):null),
+      statCell('%B',fx(pctB,2)),
+      statCell('ATR',fx(s.atr,2)),
+    ].filter(Boolean).join('');
+    const chips=chipPopRows(s);
+
+    mBody.innerHTML=
+      `<div class="smHead"><span class="sm-code">${s.code}</span><span class="sm-name">${s.name||''}</span>`+
+        (isETF?`<span class="sm-etf">ETF</span>`:'')+
+        (s.industry&&!(isETF&&/etf|指數/i.test(s.industry))?`<span class="sm-ind">${s.industry}</span>`:'')+`</div>`+
+      `<div class="smQuote"><span class="sm-price" style="color:${dirHex(s.chg)}">${s.price!=null?s.price:'—'}</span>`+
+        `<span class="sm-chg" style="color:${chgColor(s.chg)}">${sign(s.chg)}%</span>`+
+        `<span class="sm-score">強弱分 <b>${s.score!=null?s.score:'—'}</b></span></div>`+
+      `<div class="smSig">${sidePill}${lv}</div>`+
+      (s.reason?`<div class="smReason">${s.reason}</div>`:'')+
+      (hasK?`<div class="smKwrap"><canvas class="smKline"></canvas><div class="smKlegend"><span class="ma">— MA20</span><span>近 ${s.ohlc.length} 根日K · 紅漲綠跌</span></div></div>`:'')+
+      `<div class="smSubhd">技術指標 · INDICATORS</div>`+
+      `<div class="smGrid">${stats||'<div class="acHint" style="grid-column:1/-1">指標明細需連後端（非 mock）</div>'}</div>`+
+      (chips
+        ? `<div class="smSubhd">四維籌碼 · CHIPS</div><div class="smChips">${chips}</div>`
+        : (isETF
+          ? `<div class="smSubhd">四維籌碼 · CHIPS</div><div class="smNote"><b>ETF／指數商品</b> · 無個股籌碼資料（法人・融資券・當沖・集保不適用），以上方價格・技術指標・日K為主要參考。</div>`
+          : ''));
+
+    lastFocus=document.activeElement;
+    modal.classList.add('show');
+    if(hasK) drawKline(mBody.querySelector('.smKline'), s.ohlc); // innerHTML 落定後才取 canvas
+    try{ mClose.focus(); }catch(e){}
+  }
+  function closeModal(){ modal.classList.remove('show'); mBody.innerHTML='';
+    try{ (lastFocus&&lastFocus.focus)?lastFocus.focus():input.focus(); }catch(e){} }
+
+  // ── 事件綁定 ──
+  const debouncedSearch=debounce(v=>doSearch(v),220);
+  input.addEventListener('input',e=>{ acActive=-1; const v=e.target.value; v.trim()?debouncedSearch(v):hideDrop(); });
+  input.addEventListener('keydown',e=>{
+    if(e.key==='ArrowDown'){ e.preventDefault(); if(drop.classList.contains('show'))moveActive(1); else if(input.value.trim())doSearch(input.value); }
+    else if(e.key==='ArrowUp'){ e.preventDefault(); moveActive(-1); }
+    else if(e.key==='Enter'){ e.preventDefault();
+      if(acItems.length){ const it=acItems[acActive>=0?acActive:0]; pick(it.code,it.local); }
+      else doSearch(input.value); }
+    else if(e.key==='Escape'){ hideDrop(); }
+  });
+  input.addEventListener('focus',()=>{ if(input.value.trim()&&acItems.length) drop.classList.add('show'); });
+  document.addEventListener('click',e=>{ if(!box.contains(e.target)) hideDrop(); });
+
+  mClose.addEventListener('click',closeModal);
+  modal.addEventListener('click',e=>{ if(e.target===modal) closeModal(); });
+  document.addEventListener('keydown',e=>{
+    if(e.key!=='Escape') return;
+    if(modal.classList.contains('show')) closeModal();
+    else if(drop.classList.contains('show')) hideDrop();
+  });
+})();
 </script>
 </body>
 </html>
