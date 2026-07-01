@@ -144,23 +144,38 @@ def _resolve_code(q: str) -> str | None:
 
 
 # ── 資料載入(單檔) ───────────────────────────────────────────────────────────
-def _load_df(code: str, live: bool):
-    """單檔 OHLCV：快取優先，缺則 yfinance(.TW→.TWO)。live=True 再用證交所即時價覆蓋最後一根。"""
+def _run_bounded(fn, timeout: float, default=None):
+    """在硬性 timeout 內跑 fn；逾時/例外都回 default(逾時的背景執行緒任其自然結束，主線程不等)。
+    互動查詢絕不可被單一慢速網路呼叫無限拖住。"""
+    from concurrent.futures import ThreadPoolExecutor
+    try:
+        with ThreadPoolExecutor(max_workers=1) as ex:
+            return ex.submit(fn).result(timeout=timeout)
+    except Exception:
+        return default
+
+
+def _load_df(code: str, live: bool, yf_timeout: float = 10.0):
+    """單檔 OHLCV：快取優先(本地、秒回)，缺則 yfinance(.TW→.TWO)但**硬性 ≤yf_timeout 秒**，
+    逾時就當抓不到回 None(上層轉 {ok:false,error})，絕不無限等。live=True 再用即時價覆蓋(另有 6s 上限)。"""
     df = scan._read_cache(code)
     if df is None:
-        got = scan._bulk_yf([code], ".TW")
-        if code not in got:
-            got = scan._bulk_yf([code], ".TWO")
-        df = got.get(code)
+        # 整段 yfinance(含 .TW→.TWO 兩次嘗試)包在硬性 timeout 內，避免 _bulk_yf 內建 30s×重試把互動查詢卡死
+        def _fetch():
+            got = scan._bulk_yf([code], ".TW")
+            if code not in got:
+                got = scan._bulk_yf([code], ".TWO")
+            return got.get(code)
+        df = _run_bounded(_fetch, timeout=yf_timeout)
     if df is None:
         return None
     if live:
         bag = {code: df}
-        try:
-            scan.apply_realtime(bag)      # 同日覆蓋 / 跨日新增(內建交易時段防呆)
-        except Exception:
-            pass
-        df = bag[code]
+
+        def _rt():
+            scan.apply_realtime(bag)      # 同日覆蓋 / 跨日新增(內建交易時段防呆；走 twstock 即時網路)
+            return bag[code]
+        df = _run_bounded(_rt, timeout=6.0, default=df)   # 即時價也設上限，抓不到就用原日線
     return df
 
 
