@@ -139,7 +139,10 @@ def fetch_margin_twse(d: date) -> dict[str, dict] | None:
 def fetch_daytrade_twse(d: date) -> dict[str, int] | None:
     """抓上市某日當沖成交股數。回傳 {code: day_trade_shares(股)}。非交易日 → None。"""
     ymd = d.strftime("%Y%m%d")
-    url = f"https://www.twse.com.tw/rwd/zh/afterTrading/TWTB4U?date={ymd}&response=json"
+    # 當沖『成交量值』報表：走 exchangeReport(非 rwd)；資料在 tables[1]『當日沖銷交易標的
+    # 及成交量值』(欄 index 3=當日沖銷交易成交股數)。rwd 路徑 404、openapi TWTB4U 只有暫停註記。
+    url = (f"https://www.twse.com.tw/exchangeReport/TWTB4U"
+           f"?response=json&date={ymd}&selectType=All")
     j = _get_json(url)
     if not isinstance(j, dict):
         return None
