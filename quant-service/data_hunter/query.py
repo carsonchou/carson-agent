@@ -159,8 +159,18 @@ def _load_df(code: str, live: bool, yf_timeout: float = 10.0):
     """單檔 OHLCV：快取優先(本地、秒回)，缺則 yfinance(.TW→.TWO)但**硬性 ≤yf_timeout 秒**，
     逾時就當抓不到回 None(上層轉 {ok:false,error})，絕不無限等。live=True 再用即時價覆蓋(另有 6s 上限)。"""
     df = scan._read_cache(code)
+    # 快取過時檢查：非精選股每日不刷新→快取可能停在數週前的舊價(盟立/微星實測停在06-11)。
+    # 最後一筆若距今 > 5 天，視為過時、丟棄改抓官方最新(twstock)，避免顯示舊價。
+    if df is not None and len(df):
+        try:
+            import pandas as _pd
+            stale = (_pd.Timestamp.now().normalize() - df.index[-1].normalize()).days > 5
+        except Exception:
+            stale = False
+        if stale:
+            df = None
     if df is None:
-        # 整段 yfinance(含 .TW→.TWO 兩次嘗試)包在硬性 timeout 內，避免 _bulk_yf 內建 30s×重試把互動查詢卡死
+        # 抓官方最新(_bulk_yf 日線已改走 twstock 官方)，包在硬性 timeout 內避免慢網卡死
         def _fetch():
             got = scan._bulk_yf([code], ".TW")
             if code not in got:
