@@ -119,9 +119,12 @@ def _sector_lines(s: dict) -> tuple[str, str]:
     secs = s.get("sectors", [])
     if not secs:
         return "", ""
-    top, bot = secs[0], secs[-1]
+    # state 的 sectors 是按強弱分排序；「領漲/最弱」要按當日漲跌幅排，否則會出現
+    # 「領漲族群 ▼0.72%」名實不符(公開貼文會漏氣)
+    by_chg = sorted(secs, key=lambda x: x.get("avg_chg") or 0, reverse=True)
+    top, bot = by_chg[0], by_chg[-1]
     return (f"🔥 領漲族群：{top['name']} {_arrow(top.get('avg_chg'))}（{top.get('count',0)} 檔）",
-            f"🧊 最弱族群：{bot['name']} {_arrow(bot.get('avg_chg'))}（{bot.get('count',0)} 檔）")
+            f"🧊 領跌族群：{bot['name']} {_arrow(bot.get('avg_chg'))}（{bot.get('count',0)} 檔）")
 
 
 def _signal_lines(s: dict, per_side: int) -> list[str]:
