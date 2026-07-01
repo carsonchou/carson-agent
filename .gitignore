@@ -71,6 +71,8 @@ twdata/chips/
 twdata/margin/
 # 校準/最佳化產出報告（可重跑重生）
 twdata/calibrate_result.md
+# 一鍵今日貼文執行期產物（文案 txt + 快照 png，可重跑重生）
+quant-service/data_hunter/posts/
 
 # ============================================================
 #  紀錄 / 快取 / 暫存

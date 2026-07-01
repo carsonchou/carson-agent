@@ -388,6 +388,45 @@
   body.snap .watermark{display:block;margin-top:24px;text-align:center;font-family:var(--mono);
     color:var(--dim);font-size:13px;line-height:1.8;border-top:1px solid var(--line);padding-top:16px}
   body.snap .watermark .wm-brand{font-family:var(--ttl);font-size:18px;color:var(--acc);letter-spacing:2px;display:block;margin-bottom:4px}
+
+  /* ════════════ 主題單圖快照（?snapshot=chips / track / flow）直式 1080×1350 海報 ════════════ */
+  .snapPoster{display:none}
+  body.snap-chips, body.snap-track, body.snap-flow{
+    background:radial-gradient(1000px 1300px at 50% -6%,#11233f 0%,var(--bg) 62%) fixed,var(--bg)}
+  /* 只保留目標 view，隱藏互動殼 */
+  body.snap-chips header, body.snap-track header, body.snap-flow header,
+  body.snap-chips .jbar, body.snap-track .jbar, body.snap-flow .jbar,
+  body.snap-chips .foot, body.snap-track .foot, body.snap-flow .foot{display:none!important}
+  body.snap-chips .snapPoster, body.snap-track .snapPoster, body.snap-flow .snapPoster{display:block}
+  body.snap-chips .wrap, body.snap-track .wrap, body.snap-flow .wrap{max-width:1040px;padding:44px 46px 30px}
+  .snapPoster{text-align:center;margin:2px 0 26px}
+  .snapPoster .sp-kicker{font-family:var(--mono);font-size:15px;letter-spacing:3px;color:var(--dim)}
+  .snapPoster .sp-title{font-family:var(--ttl);font-size:42px;font-weight:900;letter-spacing:2px;color:var(--acc2);
+    text-shadow:0 0 24px rgba(84,214,255,.3);margin-top:10px;line-height:1.1}
+  .snapPoster .sp-date{font-family:var(--mono);font-size:17px;color:var(--gold);margin-top:10px}
+  .snapPoster .sp-date::after{content:'　·　台股 紅漲綠跌';color:var(--faint);font-size:13px}
+  /* chips 海報：放大三榜 + 融資券當沖榜 */
+  body.snap-chips #chipsAsof{font-size:15px}
+  body.snap-chips .chipBoardHdr{font-size:14px;padding:11px 14px}
+  body.snap-chips .chiprow{font-size:15px;padding:10px 14px}
+  body.snap-chips .cnet{font-size:15px}
+  body.snap-chips .consec,body.snap-chips .csrc{font-size:11px}
+  body.snap-chips .marginSec{margin-top:18px}
+  body.snap-chips .marginHdr{font-size:14px;padding:11px 14px}
+  body.snap-chips .mghead,body.snap-chips .mgrow{font-size:14px;padding:10px 14px}
+  /* track 海報：放大四大指標 + 成績單 */
+  body.snap-track .trackHero{gap:16px;margin-bottom:18px}
+  body.snap-track .tk{padding:18px 18px}
+  body.snap-track .tk .tkl{font-size:13px}
+  body.snap-track .tk .tkv{font-size:46px}
+  body.snap-track .tk .tksplit,body.snap-track .tk .tks{font-size:13px}
+  body.snap-track .trackList .th,body.snap-track .trkrow{font-size:14px;padding:11px 15px}
+  /* flow 海報：放大 treemap 佔滿直式 */
+  body.snap-flow #heatmap{height:820px}
+  body.snap-flow .tmtile .tmn{font-size:18px}
+  body.snap-flow .tmtile .tmchg{font-size:24px}
+  body.snap-flow .tmtile .tmsub{font-size:12px}
+  body.snap-flow .tmlegend{font-size:13px;margin-top:14px;justify-content:center}
 </style>
 </head>
 <body>
@@ -428,6 +467,13 @@
       </svg>
     </div>
   </header>
+
+  <!-- 主題單圖快照海報標頭（僅 ?snapshot=chips/track/flow 顯示） -->
+  <div class="snapPoster" id="snapPoster">
+    <div class="sp-kicker">量化阿森 · 台股數據獵手</div>
+    <div class="sp-title" id="spTitle">—</div>
+    <div class="sp-date" id="spDate">—</div>
+  </div>
 
   <!-- JARVIS 逐字播報 -->
   <div class="jbar"><span class="jl">J.A.R.V.I.S.</span><span class="jt" id="jt"></span></div>
@@ -666,8 +712,13 @@ import * as THREE from './three.module.min.js';
 const $=s=>document.querySelector(s);
 const params=new URLSearchParams(location.search);
 const MOCK=params.get('mock')==='1';
-const SNAP=params.get('snapshot')==='1';
-if(SNAP) document.body.classList.add('snap');
+// 快照模式：?snapshot=1 看板(原) / chips 法人 / track 戰績 / flow 板塊treemap（主題單圖海報）
+const SNAPVAL=params.get('snapshot');
+const SNAP_VIEWMAP={'1':'board','chips':'chips','track':'track','flow':'heat'}; // 值→view(flow對應heat view)
+const SNAP = SNAPVAL!=null && SNAP_VIEWMAP[SNAPVAL]!=null;
+const SNAPVIEW = SNAP?SNAP_VIEWMAP[SNAPVAL]:null;
+const SNAP_THEMED = SNAP && SNAPVIEW!=='board'; // 主題單圖(非看板)
+if(SNAP){ document.body.classList.add('snap'); if(SNAP_THEMED) document.body.classList.add('snap-'+SNAPVAL); }
 const STATE_URL  = MOCK?'state.sample.json':'state.json';
 const HISTORY_URL= MOCK?'history.sample.json':'history.json';
 
@@ -1286,6 +1337,18 @@ async function load(){
     if(av==='heat') renderHeatmap(d.sectors);
     if(av==='track') renderTrack(d.track);
     if(av==='chips') renderChips(d.chips);
+
+    // 主題單圖快照：切到目標 view、填海報標題、渲染該 view
+    if(SNAP_THEMED){
+      const titles={chips:'法人資金流向 · INSTITUTIONS',track:'實盤戰績 · TRACK RECORD',heat:'板塊資金流向 · FLOW MAP'};
+      $('#spTitle').textContent=titles[SNAPVIEW]||'';
+      $('#spDate').textContent=d.date||(d.ts||'').slice(0,10);
+      document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
+      const tv=document.querySelector(`.view[data-view="${SNAPVIEW}"]`); if(tv)tv.classList.add('active');
+      if(SNAPVIEW==='chips') renderChips(d.chips);
+      else if(SNAPVIEW==='track') renderTrack(d.track);
+      else if(SNAPVIEW==='heat') renderHeatmap(d.sectors);
+    }
   }catch(e){
     $('#upd').textContent='讀取 '+STATE_URL+' 失敗（掃描器尚未產出？）';
     $('#hb').style.background='#ff7d83';
