@@ -320,8 +320,10 @@ def _calc_zone(price: float, ma20: float | None, ma60: float | None,
 
     if zone_type == "zhu":
         # 朱家泓：MA20 附近分批，停損 MA60，目標 60日高或 +10%
-        entry_lo = max(ma20 * 0.99, price * 0.97) if ma20 else price * 0.97
-        entry_hi = min(price * 1.01, ma20 * 1.03) if ma20 else price * 1.01
+        # 買區下緣＝回檔支撐(MA20)，但股價遠離 MA20(延伸股)時退回「現價 -7%」的可執行窄帶，
+        # 避免下緣掉到 MA20 造成區間過寬/顛倒；上緣＝現價微上方。
+        entry_hi = price * 1.01
+        entry_lo = max(ma20 * 0.99 if ma20 else price * 0.97, price * 0.93)
         stop = max(ma60 * 0.99, price * 0.92) if ma60 else price * 0.93
         stop = min(stop, price * 0.93)
         target1 = hi60 * 1.02 if (hi60 and hi60 > price) else price * 1.10
@@ -347,8 +349,9 @@ def _calc_zone(price: float, ma20: float | None, ma60: float | None,
 
     elif zone_type == "zhang":
         # 張捷：回踩 MA20 進，停損年線，目標 60日高後再 +10%
-        entry_lo = max(ma20 * 0.99, price * 0.96) if ma20 else price * 0.96
+        # 同 zhu：延伸股時下緣至多 -8%，避免下緣掉到 MA20 造成區間顛倒。
         entry_hi = price * 1.01
+        entry_lo = max(ma20 * 0.99 if ma20 else price * 0.96, price * 0.92)
         stop = max(year_line * 0.98, price * 0.90) if year_line else price * 0.90
         stop = min(stop, price * 0.92)
         target1 = hi60 * 1.05 if (hi60 and hi60 > price) else price * 1.12
@@ -356,6 +359,13 @@ def _calc_zone(price: float, ma20: float | None, ma60: float | None,
 
     else:
         return None
+
+    # 健全性保證：極端價位/資料缺漏時保證區間合理，四師共用
+    #  ①買區必遞增 ②停損必在買區下緣之下(risk>0) ③目標必在買區上緣之上(reward>0)
+    entry_lo, entry_hi = min(entry_lo, entry_hi), max(entry_lo, entry_hi)
+    stop = min(stop, entry_lo * 0.985)
+    target1 = max(target1, entry_hi * 1.02)
+    target2 = max(target2, target1 * 1.04)
 
     mid = (entry_lo + entry_hi) / 2
     reward = target1 - mid
@@ -416,8 +426,8 @@ def _teach_zhu(price, zone, ma10, ma20, ma60, launch, tangled, days_ago,
             _fmt(price)))
     # 2) 買點掛哪
     teach.append(_step(
-        "2. 買點掛在哪", f"掛 MA10({_fmt(ma10)}) 附近限價 {zone['entry_lo']}~{zone['entry_hi']}",
-        f"朱家泓：最佳買點是回踩月線/MA10 的位置，成本低、停損近。用限價掛 "
+        "2. 買點掛在哪", f"掛回檔支撐區限價 {zone['entry_lo']}~{zone['entry_hi']}",
+        f"朱家泓：最佳買點是回踩月線/均線的支撐位置，成本低、停損近。用限價掛 "
         f"{zone['entry_lo']}~{zone['entry_hi']}，別用市價去追高。",
         f"{zone['entry_lo']}~{zone['entry_hi']}"))
     # 3) 分批

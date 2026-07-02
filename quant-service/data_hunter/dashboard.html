@@ -609,6 +609,46 @@
   .opzone-foot .rr b{color:var(--gold)} .opzone-foot .pos b{color:var(--acc)}
   .opzone-foot .miss{color:var(--faint);font-style:italic}
 
+  /* ══ 手把手操作教學（playbook 總教學，Carson 最要「哪裡買·哪裡賣·為什麼」） ══ */
+  .playbook{border:1px solid var(--line2);border-radius:14px;margin-bottom:14px;overflow:hidden;
+    background:linear-gradient(160deg,rgba(255,215,94,.055),rgba(0,0,0,.22) 58%)}
+  .pb-hd{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;padding:11px 15px;
+    font-size:13px;font-weight:700;color:var(--acc2);border-bottom:1px solid var(--line);
+    background:linear-gradient(90deg,rgba(255,215,94,.09),transparent)}
+  .pb-hd::before{content:'▶';color:var(--gold);font-size:10px;margin-right:1px;opacity:.85}
+  .pb-hd .pb-sub{font-family:var(--mono);font-size:9.5px;font-weight:400;color:var(--dim);letter-spacing:.5px}
+  .pb-steps{padding:4px 0}
+  .pb-step{padding:11px 15px;border-bottom:1px solid rgba(255,255,255,.035)}
+  .pb-step:last-child{border-bottom:none}
+  .pb-step-hd{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:4px}
+  .pb-step-no{font-size:12.5px;font-weight:700;color:var(--acc2);letter-spacing:.3px}
+  .pb-action{font-size:14px;font-weight:700;color:var(--txt);line-height:1.42;margin-bottom:5px}
+  .pb-reason{font-size:11.5px;line-height:1.7;color:var(--dim)}
+  .pb-price{margin-left:auto;font-family:var(--mono);font-size:13px;font-weight:800;font-variant-numeric:tabular-nums;
+    padding:1px 9px;border-radius:7px;background:rgba(255,255,255,.045);white-space:nowrap}
+  .pb-price.buy{color:var(--acc2)}
+  .pb-price.stop{color:var(--dn)}   /* 停損/出場＝守下方＝綠 */
+  .pb-price.tgt{color:var(--up)}    /* 目標/停利＝往上賣＝紅 */
+  .pb-price.neutral{color:var(--gold)}
+
+  /* 四師卡內：操作教學（預設展開）＋ 可收合觀察重點 */
+  .tv-notes{margin:2px 0 3px}
+  .tv-notes>summary{font-family:var(--mono);font-size:10px;color:var(--dim);cursor:pointer;
+    letter-spacing:.5px;list-style:none;padding:3px 0;user-select:none}
+  .tv-notes>summary::-webkit-details-marker{display:none}
+  .tv-notes>summary::before{content:'▸';margin-right:5px;color:var(--faint);font-size:9px;display:inline-block;transition:transform .2s}
+  .tv-notes[open]>summary::before{transform:rotate(90deg)}
+  .tv-notes-body{padding-top:2px}
+  .tv-teach{margin-top:8px;background:rgba(255,215,94,.035);border:1px solid rgba(255,215,94,.15);border-radius:8px;padding:8px 11px}
+  .tv-teach-title{font-family:var(--mono);font-size:10px;color:var(--gold);letter-spacing:.8px;margin-bottom:5px;opacity:.92}
+  .tv-teach-title::before{content:'▶ ';font-size:8px}
+  .tv-teach-step{padding:5px 0;border-top:1px solid rgba(255,255,255,.045)}
+  .tv-teach-step:first-of-type{border-top:none;padding-top:1px}
+  .tv-teach-hd{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+  .tv-teach-no{font-size:11px;font-weight:700;color:var(--acc2)}
+  .tv-teach-act{font-size:12.5px;font-weight:600;color:var(--txt);line-height:1.4;margin:2px 0}
+  .tv-teach-reason{font-size:11px;line-height:1.62;color:var(--dim)}
+
   /* ══ 四師卡片：招牌 + 分數條 ══ */
   .team-view-sig{font-family:var(--mono);font-size:9.5px;color:var(--faint);letter-spacing:.3px;margin:-2px 0 6px 14px}
   .team-view-scorebar{height:4px;background:var(--line);border-radius:2px;margin:1px 0 7px;overflow:hidden}
@@ -617,6 +657,8 @@
     .strat-score{font-size:34px}
     .opz-cell .num{font-size:16px}
     .opzone-foot{flex-wrap:wrap;gap:6px}
+    .pb-action{font-size:13px}
+    .pb-price{font-size:12px}
   }
 </style>
 </head>
@@ -1800,6 +1842,34 @@ if(SNAP){ loadHistory(); }
     </div>`;
   }
 
+  // 教學價位的紅漲綠跌語意色：買/進場→青、停損/出場→綠(守下方)、目標/停利/賣→紅(往上)、其餘→金
+  function pbPriceClass(step,action){
+    const t=(step||'')+' '+(action||'');
+    if(/停損|出場|保護|跌破|認賠/.test(t)) return 'stop';
+    if(/目標|停利|全出|減|落袋|賣|漲上/.test(t)) return 'tgt';
+    if(/進場|買|掛|加碼|佈|分批/.test(t)) return 'buy';
+    return 'neutral';
+  }
+  function pbPriceHtml(step,action,price){
+    if(price==null||price==='') return '';
+    return `<span class="pb-price ${pbPriceClass(step,action)}">${price}</span>`;
+  }
+
+  // ⓪ 手把手操作教學大卡（最醒目：一步步 action + 關聯價位 + 灰字理由，像老師在旁邊教）
+  function buildPlaybookCard(res){
+    const pb=res.playbook;
+    if(!Array.isArray(pb)||!pb.length) return '';
+    const steps=pb.map(s=>`<div class="pb-step">
+        <div class="pb-step-hd"><span class="pb-step-no">${s.step||''}</span>${pbPriceHtml(s.step,s.action,s.price)}</div>
+        <div class="pb-action">${s.action||''}</div>
+        <div class="pb-reason">${s.reason||''}</div>
+      </div>`).join('');
+    return `<div class="playbook">
+      <div class="pb-hd">手把手操作教學 · 今天到底怎麼做<span class="pb-sub">四師整合 · 一步步照做</span></div>
+      <div class="pb-steps">${steps}</div>
+    </div>`;
+  }
+
   // ① 綜合操作策略卡（置頂最醒目）
   function buildStrategyCard(res){
     const total=Math.round(res.total_score||0), col=recColorOf(res.recommendation), cd=res.confirm_dims||0;
@@ -1859,21 +1929,39 @@ if(SNAP){ loadHistory(); }
     }).join('');
     const viewCards=Object.entries(res.views).map(([key,v])=>{
       const col=TEAM_COLORS[key]||'var(--acc)', sig=TEAM_SIG[key]||'', sc=Math.round(v.score||0);
-      const notes=(v.notes||[]).map(n=>{
+      const notesArr=v.notes||[];
+      const notes=notesArr.map(n=>{
         const cls=n.startsWith('✅')?'pos':n.startsWith('❌')?'neg':(n.startsWith('⚠')||n.startsWith('⚡'))?'warn':'';
         return `<div class="team-note ${cls}">${n}</div>`;
       }).join('');
+      // 觀察重點可收合（預設展開，可自行收起省空間）
+      const notesBlock=notesArr.length
+        ? `<details class="tv-notes" open><summary>觀察重點 · ${notesArr.length}</summary><div class="tv-notes-body">${notes}</div></details>`
+        : '';
+      // 操作教學（該師六步）：預設展開，緊接 notes 下方
+      const teach=v.teach;
+      let teachBlock='';
+      if(Array.isArray(teach)&&teach.length){
+        const ts=teach.map(t=>`<div class="tv-teach-step">
+            <div class="tv-teach-hd"><span class="tv-teach-no">${t.step||''}</span>${pbPriceHtml(t.step,t.action,t.price)}</div>
+            <div class="tv-teach-act">${t.action||''}</div>
+            <div class="tv-teach-reason">${t.reason||''}</div>
+          </div>`).join('');
+        teachBlock=`<div class="tv-teach"><div class="tv-teach-title">操作教學</div>${ts}</div>`;
+      }
       return `<div class="team-view">
         <div class="team-view-hd"><div class="team-view-dot" style="background:${col}"></div><div class="team-view-name" style="color:${col}">${v.view||key}</div><div class="team-view-score" style="color:${col}">${sc}</div></div>
         ${sig?`<div class="team-view-sig">${sig}</div>`:''}
         <div class="team-view-scorebar"><div class="team-view-scorefill" style="background:${col};width:${sc}%"></div></div>
         <div class="team-view-verdict">${v.verdict||''}</div>
-        <div>${notes}</div>
+        ${notesBlock}
+        ${teachBlock}
         ${buildTeamZoneHtml(v.zone)}
       </div>`;
     }).join('');
     return `${DEEP_HD}${cached?'<span class="cch">(快取)</span>':''}</div>
       ${buildStrategyCard(res)}
+      ${buildPlaybookCard(res)}
       ${buildOpZoneCard(res,curPrice)}
       <div class="team-dim-bars">${dimBars}</div>
       ${viewCards}`;
@@ -1885,25 +1973,52 @@ if(SNAP){ loadHistory(); }
     const r=x=>Math.round(x*100)/100;
     const zn=(strong)=>({entry_lo:r(price*0.98),entry_hi:r(price*1.01),stop:r(price*0.93),
       target1:r(price*(strong?1.14:1.10)),target2:r(price*(strong?1.24:1.20)),rr:strong?2.8:1.9});
+    const buy=`${r(price*0.98)}~${r(price*1.01)}`, stop=r(price*0.93), t1=r(price*1.12), t2=r(price*1.22), ma20=r(price*0.99);
     return {ok:true,code:(s&&s.code)||'2330',name:(s&&s.name)||'台積電',industry:(s&&s.industry)||'半導體',
       date:'樣本',price:price,chg:(s&&s.chg!=null)?s.chg:1.8,total_score:74,confirm_dims:3,
       recommendation:'🟢 強力做多候選（三維以上共振）',
-      strategy:{buy_zone_lo:r(price*0.98),buy_zone_hi:r(price*1.01),stop:r(price*0.93),
-        target1:r(price*1.12),target2:r(price*1.22),rr:2.6,position_pct:30,
+      strategy:{buy_zone_lo:r(price*0.98),buy_zone_hi:r(price*1.01),stop:stop,
+        target1:t1,target2:t2,rr:2.6,position_pct:30,
         scenario:'技術・籌碼・產業三線共振，收盤站上月線且投信連買。建議回踩月線 MA20 分批進場，站不上停損即減碼；帶量突破前高後可加碼、續抱至目標區。'},
+      playbook:[
+        {step:'① 今天怎麼看',action:'可以分批進場',price:String(price),reason:'四維過 3/4（朱家泓、阿斯匹靈、張捷）、位階不貴、方向偏多，可按紀律分批進場，但一定要先設好停損。'},
+        {step:'② 想買掛哪裡',action:`掛回檔區 ${buy} 分兩批`,price:buy,reason:`別用市價追，掛在四位老師的共識進場區 ${buy}（回踩均線的成本區），買得便宜停損才近、風報比才漂亮（目前 2.6）。`},
+        {step:'③ 怎麼分批進',action:`第一批 1/2 回月線佈、第二批 1/2 突破 ${t1} 追`,price:`${ma20} / ${t1}`,reason:'先回檔佈一半底倉（成本低），等真的帶量突破前高再加另一半，順勢加碼不逆勢攤平。'},
+        {step:'④ 停損掛哪裡',action:`跌破 ${stop} 立刻出場`,price:String(stop),reason:'停損放結構關卡（月/季線或波段低點下方），跌破代表趨勢被破壞，認賠不凹單、硬上限 -10%。'},
+        {step:'⑤ 漲上去怎麼賣',action:`到 ${t1} 先減一半、到 ${t2} 全出`,price:`${t1} / ${t2}`,reason:'第一目標先落袋一半降風險，剩下續抱看 3R 滿足點，獲利要讓它奔跑但也要分批落袋。'},
+        {step:'⑥ 什麼時候立刻出',action:`跌破月線 MA20(${ma20}) 或投信轉賣 → 不猶豫出場`,price:String(ma20),reason:'只要「跌破月線（趨勢轉弱）」或「投信/外資轉賣（籌碼變壞）」其中一個成立，就先出場保護資金。'}
+      ],
       views:{
         '朱家泓':{view:'朱家泓 · 技術派',score:78,verdict:'KD 低檔黃金交叉，站上月線多方轉強',
           notes:['✅ KD 於 30 附近黃金交叉，短線轉強','✅ 收盤站上月線 MA20，波段偏多','⚠ 量能尚未明顯放大，留意假突破'],
-          zone:zn(true),kd_k:34.2,kd_d:28.6,kd_golden:true,st:'UP'},
+          zone:zn(true),kd_k:34.2,kd_d:28.6,kd_golden:true,st:'UP',
+          teach:[
+            {step:'1. 現在能不能進場',action:'站上月線可進、分批不追',price:String(ma20),reason:'朱家泓：站上月線 MA20 就是趨勢轉多，靠近均線分批進，別在乖離大時追高。'},
+            {step:'2. 進場區',action:`回踩 ${buy} 佈局`,price:buy,reason:'均線糾結起漲、靠近均線成本區進場，買得便宜停損才近。'},
+            {step:'3. 停損',action:`跌破 ${stop} 出`,price:String(stop),reason:'跌破月/季線代表起漲失敗，紀律停損不凹。'}
+          ]},
         '阿斯匹靈':{view:'阿斯匹靈 · 籌碼派',score:71,verdict:'投信連三買，三大法人同步偏多',
           notes:['✅ 投信近 3 日連買，作帳味濃','✅ 三大法人合計買超','❌ 融資略增，散戶跟風需留意','📌 集保戶數下降，籌碼趨集中'],
-          zone:zn(true)},
+          zone:zn(true),
+          teach:[
+            {step:'1. 看籌碼進場',action:'投信連買期間偏多操作',price:null,reason:'阿斯匹靈：投信連買＝作帳護盤動能，順著法人的錢走。'},
+            {step:'2. 想買掛哪',action:`共識區 ${buy}`,price:buy,reason:'跟著法人成本區佈局，別追在高點。'},
+            {step:'3. 何時撤',action:'投信由買轉賣即減碼',price:null,reason:'籌碼一鬆動（法人轉賣）就是離場訊號。'}
+          ]},
         '權證小哥':{view:'權證小哥 · 主力派',score:66,verdict:'出現禿頭紅K配大量，主力進場',
           notes:['✅ 單日禿頭大紅K，量增逾兩倍','✅ 收最高，主力企圖明顯','⚠ 短線乖離偏大，追高留意'],
-          zone:zn(false),bald_red_k:true},
+          zone:zn(false),bald_red_k:true,
+          teach:[
+            {step:'1. 主力訊號',action:'禿頭紅K配大量＝主力進',price:null,reason:'權證小哥：量價齊揚、收最高，主力表態明顯。'},
+            {step:'2. 買點',action:`量縮回檔到 ${buy} 接`,price:buy,reason:'等它量縮拉回主力成本區再進，別追在爆量長紅當天。'}
+          ]},
         '張捷':{view:'張捷 · 產業派',score:69,verdict:'半導體強勢族群，個股相對強度領先',
           notes:['✅ 所屬產業近月 RS 領先大盤','✅ 股價位階突破年線之上','⚠ 大盤處高檔，慎防族群輪動'],
-          zone:zn(false)}
+          zone:zn(false),
+          teach:[
+            {step:'1. 選對族群',action:'買強勢產業的領漲股',price:null,reason:'張捷：先選 RS 領先大盤的族群，再挑族群裡最強的個股。'},
+            {step:'2. 位階',action:`年線之上、回檔 ${buy} 佈`,price:buy,reason:'站上年線代表長多，回檔到成本區分批佈局。'}
+          ]}
       }};
   }
 
