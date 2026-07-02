@@ -19,6 +19,12 @@
     --mono:'Share Tech Mono',ui-monospace,monospace;
     --ttl:'Orbitron',sans-serif;
     --tc:"Noto Sans TC",system-ui,-apple-system,sans-serif;
+    /* ── 設計系統 token（統一碎片化的圓角/間距，全站一致） ── */
+    --r-xs:6px; --r-sm:9px; --r-md:12px; --r-lg:16px; --r-pill:999px;
+    --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:22px;
+    /* 凹槽井（inset well，暗下去、放次級內容） */
+    --well:inset 0 1px 2px rgba(0,4,12,.5),inset 0 0 0 1px rgba(120,160,220,.05);
+    --hair:rgba(120,160,220,.14); /* 統一分隔細線 */
     /* SVG 雜訊紋理（玻璃面上一層細顆粒，暗色才高級） */
     --noise:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
   }
@@ -38,6 +44,34 @@
   }
   /* 等寬科技數字統一 class */
   .mono{font-family:var(--mono);font-variant-numeric:tabular-nums;letter-spacing:.5px}
+
+  /* ════ 設計系統 utility（統一小標/膠囊/凹凸/捲軸/垂直節奏） ════ */
+  /* 統一垂直節奏：取代散落的 inline margin-top */
+  .stack>*+*{margin-top:var(--sp-3)}
+  /* 統一區塊小標（合併 .panel h2 / .smSubhd / .team-subhd / .deep-hd） */
+  .hd{font-family:var(--mono);font-size:11px;font-weight:400;color:var(--dim);letter-spacing:1.6px;
+    display:flex;align-items:center;gap:7px;text-transform:uppercase}
+  .hd::before{content:'';width:3px;height:11px;border-radius:2px;background:var(--acc);opacity:.7;flex-shrink:0}
+  .hd .hd-x{margin-left:auto;text-transform:none;letter-spacing:.5px;opacity:.75} /* 右側附註(快取/計數) */
+  /* 凹槽井：暗下去的次級內容盒（統一 rgba 黑底策略） */
+  .well{background:rgba(4,8,16,.42);border-radius:var(--r-sm);box-shadow:var(--well)}
+  /* 統一膠囊：base + 語意 modifier；尺寸圓角一致，語意色沿用 */
+  .chip{display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:11px;line-height:1;
+    padding:3px 8px;border-radius:var(--r-pill);border:1px solid var(--hair);color:var(--dim);
+    letter-spacing:.4px;white-space:nowrap;font-variant-numeric:tabular-nums}
+  .chip.up{color:var(--up);border-color:rgba(255,77,109,.32);background:rgba(255,77,109,.08)}
+  .chip.dn{color:var(--dn);border-color:rgba(40,192,139,.32);background:rgba(40,192,139,.08)}
+  .chip.acc{color:var(--acc2);border-color:rgba(84,214,255,.3);background:rgba(84,214,255,.07)}
+  .chip.gold{color:var(--gold);border-color:rgba(255,215,94,.3);background:rgba(255,215,94,.07)}
+  .chip.solid{font-weight:700}
+  .chip b{font-weight:700;color:inherit}
+  /* 全站自訂捲軸（深色 HUD，取代瀏覽器預設灰條） */
+  *{scrollbar-width:thin;scrollbar-color:rgba(84,214,255,.28) transparent}
+  ::-webkit-scrollbar{width:8px;height:8px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:rgba(84,214,255,.22);border-radius:var(--r-pill);
+    border:2px solid transparent;background-clip:padding-box}
+  ::-webkit-scrollbar-thumb:hover{background:rgba(84,214,255,.4);background-clip:padding-box}
 
   /* ════ HUD 氛圍層（移植自 web_center，發光克制、暗色） ════ */
   #scan{position:fixed;inset:0;z-index:40;pointer-events:none;opacity:.45;mix-blend-mode:multiply;
@@ -65,9 +99,10 @@
   header{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px}
   .logo{font-family:var(--ttl);font-size:20px;font-weight:700;letter-spacing:2px}
   .logo b{color:var(--acc);text-shadow:var(--glow)}
-  .badge{font-family:var(--mono);font-size:11px;padding:3px 9px;border:1px solid var(--line2);border-radius:4px;color:var(--dim);letter-spacing:.5px}
-  .badge.live{color:#7dffb0;border-color:rgba(40,192,139,.4)}
-  .badge.cache{color:var(--gold);border-color:rgba(255,215,94,.35)}
+  .badge{font-family:var(--mono);font-size:11px;padding:3px 9px;border:1px solid var(--hair);border-radius:var(--r-pill);
+    color:var(--dim);letter-spacing:.5px;background:rgba(120,160,220,.05)}
+  .badge.live{color:#7dffb0;border-color:rgba(40,192,139,.4);background:rgba(40,192,139,.08)}
+  .badge.cache{color:var(--gold);border-color:rgba(255,215,94,.35);background:rgba(255,215,94,.07)}
   /* 大盤總閘徽章：紅漲綠跌 + 站上年線 */
   .idx{display:flex;align-items:center;gap:8px;padding:4px 11px;border:1px solid var(--line2);border-radius:6px;
     background:linear-gradient(160deg,rgba(20,42,68,.5),rgba(8,18,34,.6));box-shadow:var(--bevel)}
@@ -87,11 +122,15 @@
   .ring text{font-family:var(--mono);font-size:11px;fill:var(--dim)}
 
   /* ════ 主分頁切換 ════ */
-  .tabs{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:14px}
-  .tab{font-family:var(--mono);font-size:13px;letter-spacing:1px;padding:7px 16px;cursor:pointer;
-    border:1px solid var(--line);border-radius:8px;background:rgba(255,255,255,.02);color:var(--dim);transition:all .15s}
+  .tabs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+  .tab{position:relative;font-family:var(--mono);font-size:13px;letter-spacing:1px;padding:7px 16px;cursor:pointer;
+    border:1px solid var(--line);border-radius:var(--r-sm);background:rgba(255,255,255,.02);color:var(--dim);transition:all .18s}
   .tab:hover{color:var(--acc);border-color:var(--line2)}
   .tab.active{color:var(--acc2);border-color:rgba(84,214,255,.4);background:rgba(84,214,255,.08);box-shadow:inset 0 0 12px rgba(84,214,255,.1)}
+  /* active 底部指示條（滑入，強化當前態） */
+  .tab.active::after{content:'';position:absolute;left:16px;right:16px;bottom:-1px;height:2px;border-radius:2px;
+    background:var(--acc);box-shadow:0 0 8px rgba(84,214,255,.6);animation:tabind .25s ease}
+  @keyframes tabind{from{transform:scaleX(.3);opacity:0}to{transform:scaleX(1);opacity:1}}
   .view{display:none}.view.active{display:block}
 
   .grid{display:grid;grid-template-columns:360px 1fr;gap:14px}
@@ -102,8 +141,9 @@
   .panel::after{content:'';position:absolute;top:0;left:0;right:0;height:1px;
     background:linear-gradient(90deg,transparent,var(--acc) 50%,transparent);opacity:.35;animation:sweepx 7s ease-in-out infinite}
   @keyframes sweepx{0%,100%{transform:translateX(-40%);opacity:.12}50%{transform:translateX(40%);opacity:.5}}
-  .panel h2{font-family:var(--mono);font-size:12px;font-weight:400;color:var(--dim);letter-spacing:2px;margin-bottom:12px}
-  .panel h2::before{content:'▸ ';color:var(--acc);opacity:.6}
+  .panel h2{font-family:var(--mono);font-size:11px;font-weight:400;color:var(--dim);letter-spacing:1.6px;
+    margin-bottom:12px;display:flex;align-items:center;gap:7px;text-transform:uppercase}
+  .panel h2::before{content:'';width:3px;height:12px;border-radius:2px;background:var(--acc);opacity:.7;flex-shrink:0}
   .corner{position:absolute;width:11px;height:11px;border:1.5px solid var(--acc);opacity:.32}
   .corner.tl{top:8px;left:8px;border-right:0;border-bottom:0}
   .corner.br{bottom:8px;right:8px;border-left:0;border-top:0}
@@ -128,22 +168,28 @@
   .segbar i.flat{background:rgba(127,147,179,.45)}
 
   /* ════ sectors ════ */
-  .sector{display:grid;grid-template-columns:78px 1fr 58px;align-items:center;gap:10px;margin:7px 0;font-size:13px}
+  .sector{display:grid;grid-template-columns:92px 1fr 58px;align-items:center;gap:10px;margin:8px 0;font-size:13px}
   .sname{color:var(--txt);font-weight:600;white-space:nowrap}
-  .sbar{height:14px;border-radius:7px;background:rgba(255,255,255,.05);overflow:hidden;position:relative}
-  .sfill{height:100%;border-radius:7px;transition:width .7s cubic-bezier(.2,.7,.2,1)}
+  .sbar{height:14px;border-radius:7px;background:rgba(255,255,255,.05);box-shadow:var(--well);overflow:hidden;position:relative}
+  /* 0 軸中央基準線：漲往右、跌往左，方向感 */
+  .sbar::before{content:'';position:absolute;left:50%;top:1px;bottom:1px;width:1px;background:var(--hair);z-index:1}
+  .sfill{position:absolute;top:0;bottom:0;transition:width .7s cubic-bezier(.2,.7,.2,1)}
+  .sfill.pos{left:50%;border-radius:0 7px 7px 0}
+  .sfill.neg{right:50%;border-radius:7px 0 0 7px}
   .schg{font-family:var(--mono);text-align:right;font-variant-numeric:tabular-nums;font-weight:700;font-size:13px}
-  .sleader{grid-column:2/4;font-size:11px;color:var(--dim);margin-top:-3px}
+  .sleader{grid-column:2/4;font-size:11px;color:var(--dim);margin-top:3px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 
   /* ════ lists ════ */
   .cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}
   @media(max-width:620px){.cols{grid-template-columns:1fr}}
-  .row{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding:7px 8px;border-radius:9px;font-size:13px;cursor:pointer;transition:background .15s}
+  .row{display:grid;grid-template-columns:18px 1fr auto auto;gap:8px;align-items:center;padding:7px 8px 7px 6px;border-radius:var(--r-sm);font-size:13px;cursor:pointer;transition:background .15s}
   .row:nth-child(odd){background:rgba(255,255,255,.025)}
   .row:hover{background:rgba(84,214,255,.08)}
+  .rrank{font-family:var(--mono);font-size:11px;color:var(--faint);text-align:center;font-variant-numeric:tabular-nums}
+  .row:nth-child(1) .rrank,.row:nth-child(2) .rrank,.row:nth-child(3) .rrank{color:var(--gold);font-weight:700} /* 前三名金色 */
   .rname{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .rcode{font-family:var(--mono);color:var(--dim);font-size:11px;margin-right:5px}
-  .rscore{font-family:var(--mono);font-variant-numeric:tabular-nums;color:var(--acc);font-weight:700;min-width:38px;text-align:right}
+  .rscore{font-family:var(--mono);font-variant-numeric:tabular-nums;color:var(--acc);font-weight:700;min-width:34px;text-align:right}
   .rchg{font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:700;min-width:54px;text-align:right}
 
   /* ════ signals ════ */
@@ -163,7 +209,10 @@
   .pill{font-family:var(--mono);font-size:11px;padding:2px 8px;border-radius:20px;font-weight:400;letter-spacing:.5px}
   .pill.long{background:rgba(255,77,109,.16);color:var(--up)}
   .pill.short{background:rgba(40,192,139,.16);color:var(--dn)}
-  .sigreason{font-size:12px;color:var(--dim);margin-top:5px;line-height:1.5}
+  /* 卡面關鍵數字列（強弱分/SuperTrend chip + 產業） */
+  .sigmeta{display:flex;align-items:center;gap:6px;margin-top:7px;flex-wrap:wrap}
+  .sigmeta .sig-ind{font-family:var(--mono);font-size:10.5px;color:var(--faint);letter-spacing:.5px;margin-left:auto}
+  .sigreason{font-size:12px;color:var(--dim);margin-top:6px;line-height:1.5}
   /* 停損停利條 */
   .levels{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
   .lvl{font-family:var(--mono);font-size:11px;padding:2px 8px;border-radius:5px;border:1px solid var(--line);
@@ -174,6 +223,8 @@
   /* 做多停損紅、停利也紅;做空相反綠(語意色:長=紅,空=綠) */
   .sigcard.long .lvl.tp .lv{color:var(--up)}
   .sigcard.short .lvl.tp .lv{color:var(--dn)}
+  /* TP2 次級：比 TP1 淡一階，做層級 */
+  .lvl.tp2{opacity:.68}
   .empty{color:var(--dim);font-size:13px;padding:14px;text-align:center;font-family:var(--mono)}
   /* 觀察名單(做多空時填補) */
   .watch{margin-top:6px}
@@ -502,15 +553,16 @@
   .smSig .pill.short{background:rgba(40,192,139,.16);color:var(--dn)}
   .smSig .pill.none{background:rgba(127,147,179,.14);color:var(--dim)}
   .smReason{font-size:12.5px;color:var(--dim);line-height:1.55;margin-top:9px}
-  .smKwrap{margin-top:14px;border:1px solid var(--line);border-radius:11px;padding:10px 12px 7px;background:rgba(255,255,255,.015)}
+  .smKwrap{margin-top:14px;border:1px solid var(--line);border-radius:var(--r-md);padding:10px 12px 7px;background:rgba(4,8,16,.28)}
   .smKline{width:100%;height:150px;display:block}
   .smKlegend{font-family:var(--mono);font-size:10px;color:var(--faint);margin-top:4px;display:flex;gap:10px}
   .smKlegend .ma{color:var(--gold)}
-  .smSubhd{font-family:var(--mono);font-size:11px;letter-spacing:1.5px;color:var(--dim);margin:16px 0 9px}
-  .smSubhd::before{content:'▸ ';color:var(--acc);opacity:.6}
+  .smSubhd{font-family:var(--mono);font-size:11px;letter-spacing:1.6px;color:var(--dim);margin:16px 0 9px;
+    display:flex;align-items:center;gap:7px;text-transform:uppercase}
+  .smSubhd::before{content:'';width:3px;height:11px;border-radius:2px;background:var(--acc);opacity:.7;flex-shrink:0}
   .smGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
   @media(max-width:560px){.smGrid{grid-template-columns:repeat(2,1fr)}}
-  .smStat{border:1px solid var(--line);border-radius:9px;padding:8px 10px;background:rgba(255,255,255,.02)}
+  .smStat{border:1px solid var(--line);border-radius:var(--r-sm);padding:8px 10px;background:rgba(4,8,16,.32);box-shadow:var(--well)}
   .smStat .k{display:block;font-family:var(--mono);font-size:10px;color:var(--dim);letter-spacing:.5px;margin-bottom:3px}
   .smStat .v{font-family:var(--mono);font-size:15px;font-weight:700;font-variant-numeric:tabular-nums}
   /* modal 內籌碼列沿用 popover .prow 語意（紅漲綠跌／吸籌暖金） */
@@ -524,7 +576,8 @@
     .smQuote .sm-price{font-size:25px}
   }
   /* ── 四師評分（內嵌於個股 modal） ────────────────────────── */
-  .team-subhd{font-family:var(--mono);font-size:10.5px;color:var(--dim);letter-spacing:1.5px;text-transform:uppercase;margin:18px 0 10px;padding-top:16px;border-top:1px solid var(--line)}
+  .team-subhd{font-family:var(--mono);font-size:10.5px;color:var(--dim);letter-spacing:1.6px;text-transform:uppercase;margin:18px 0 10px;padding-top:16px;border-top:1px solid var(--hair);display:flex;align-items:center;gap:7px}
+  .team-subhd::before{content:'';width:3px;height:11px;border-radius:2px;background:var(--acc);opacity:.7;flex-shrink:0}
   .team-loading{font-family:var(--mono);font-size:12px;color:var(--dim);text-align:center;padding:14px 0}
   .team-err{font-size:12px;color:var(--faint);padding:8px 0}
   .team-total{display:flex;align-items:baseline;gap:10px;margin-bottom:8px}
@@ -538,7 +591,7 @@
   .team-dim-fill{height:100%;border-radius:2px;transition:.5s}
   .team-dim-val{font-family:var(--mono);font-size:11px;text-align:right}
   .team-confirm{font-family:var(--mono);font-size:11px;color:var(--dim);margin-bottom:12px}
-  .team-view{border-radius:9px;padding:10px 12px;margin-bottom:7px;background:rgba(255,255,255,.02);border:1px solid var(--line)}
+  .team-view{border-radius:var(--r-sm);padding:11px 13px;margin-bottom:8px;background:rgba(255,255,255,.022);border:1px solid var(--line);box-shadow:var(--bevel)}
   .team-view-hd{display:flex;align-items:center;gap:8px;margin-bottom:3px}
   .team-view-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
   .team-view-name{font-size:12.5px;font-weight:600;flex:1}
@@ -548,7 +601,7 @@
   .team-note.pos{color:var(--dn)}
   .team-note.neg{color:var(--up)}
   .team-note.warn{color:var(--gold)}
-  .team-zone{margin-top:8px;background:rgba(0,0,0,.18);border-radius:7px;padding:8px 10px}
+  .team-zone{margin-top:8px;background:rgba(4,8,16,.45);box-shadow:var(--well);border-left:2px solid rgba(84,214,255,.5);border-radius:var(--r-sm);padding:8px 11px}
   .team-zone-title{font-family:var(--mono);font-size:10px;color:var(--dim);letter-spacing:.8px;margin-bottom:4px}
   .team-zone-bar{position:relative;height:5px;background:var(--line);border-radius:3px;margin:3px 0 6px}
   .tzb-stop{position:absolute;top:0;height:100%;background:rgba(255,77,109,.3);border-radius:3px 0 0 3px}
@@ -557,7 +610,7 @@
   .tzb-marker{position:absolute;top:-2px;width:2px;height:9px;background:var(--acc);border-radius:1px}
   .team-zone-row{display:flex;align-items:baseline;gap:8px;font-size:12px;line-height:1.6}
   .team-zone-label{font-family:var(--mono);font-size:10px;color:var(--dim);min-width:26px}
-  .team-zone-val{font-family:var(--mono);font-weight:600}
+  .team-zone-val{font-family:var(--mono);font-weight:700;font-size:13px;font-variant-numeric:tabular-nums}
   .team-zone-val.entry{color:var(--acc)}
   .team-zone-val.stop{color:var(--dn)}   /* 台股：停損=較低價=綠 */
   .team-zone-val.target{color:var(--up)} /* 台股：目標=較高價=紅 */
@@ -565,10 +618,10 @@
   .team-zone-no{font-family:var(--mono);font-size:11px;color:var(--faint);font-style:italic;padding:5px 0}
 
   /* ══ 四師深度分析：綜合操作策略卡 ══ */
-  .deep-hd{font-family:var(--mono);font-size:11px;letter-spacing:1.5px;color:var(--acc2);margin:16px 0 11px;padding-top:15px;border-top:1px solid var(--line2);text-transform:uppercase}
-  .deep-hd::before{content:'◈ ';color:var(--acc);opacity:.7}
-  .deep-hd .cch{font-size:9.5px;color:var(--faint);letter-spacing:0;margin-left:6px}
-  .strat-card{position:relative;border:1px solid var(--line2);border-radius:13px;padding:14px 16px 13px;margin-bottom:12px;
+  .deep-hd{font-family:var(--mono);font-size:11px;letter-spacing:1.6px;color:var(--acc2);margin:16px 0 11px;padding-top:15px;border-top:1px solid var(--line2);text-transform:uppercase;display:flex;align-items:center;gap:7px}
+  .deep-hd::before{content:'';width:3px;height:12px;border-radius:2px;background:var(--acc);opacity:.85;flex-shrink:0}
+  .deep-hd .cch{font-size:9.5px;color:var(--faint);letter-spacing:0;margin-left:auto}
+  .strat-card{position:relative;border:1px solid var(--line2);border-radius:var(--r-md);padding:14px 16px 13px;margin-bottom:12px;
     background:linear-gradient(158deg,rgba(84,214,255,.055),rgba(255,255,255,.012) 55%);overflow:hidden}
   .strat-card::after{content:'';position:absolute;top:0;right:0;width:12px;height:12px;border-top:1px solid var(--acc);border-right:1px solid var(--acc);opacity:.4}
   .strat-top{display:flex;align-items:center;gap:13px;flex-wrap:wrap}
@@ -584,7 +637,7 @@
   .strat-scenario b{color:var(--acc2);font-weight:600}
 
   /* ══ 操作區間卡（買在哪·賣在哪，台股紅漲綠跌，交易面板感） ══ */
-  .opzone{border:1px solid var(--line2);border-radius:13px;margin-bottom:14px;overflow:hidden;background:rgba(0,0,0,.24)}
+  .opzone{border:1px solid var(--line2);border-radius:var(--r-md);margin-bottom:12px;overflow:hidden;background:rgba(0,0,0,.24)}
   .opzone-hd{display:flex;align-items:baseline;justify-content:space-between;padding:9px 14px;
     font-family:var(--mono);font-size:11px;letter-spacing:1px;color:var(--acc2);border-bottom:1px solid var(--line);
     background:linear-gradient(90deg,rgba(84,214,255,.07),transparent)}
@@ -610,7 +663,7 @@
   .opzone-foot .miss{color:var(--faint);font-style:italic}
 
   /* ══ 手把手操作教學（playbook 總教學，Carson 最要「哪裡買·哪裡賣·為什麼」） ══ */
-  .playbook{border:1px solid var(--line2);border-radius:14px;margin-bottom:14px;overflow:hidden;
+  .playbook{border:1px solid var(--line2);border-radius:var(--r-md);margin-bottom:12px;overflow:hidden;
     background:linear-gradient(160deg,rgba(255,215,94,.055),rgba(0,0,0,.22) 58%)}
   .pb-hd{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;padding:11px 15px;
     font-size:13px;font-weight:700;color:var(--acc2);border-bottom:1px solid var(--line);
@@ -639,7 +692,7 @@
   .tv-notes>summary::before{content:'▸';margin-right:5px;color:var(--faint);font-size:9px;display:inline-block;transition:transform .2s}
   .tv-notes[open]>summary::before{transform:rotate(90deg)}
   .tv-notes-body{padding-top:2px}
-  .tv-teach{margin-top:8px;background:rgba(255,215,94,.035);border:1px solid rgba(255,215,94,.15);border-radius:8px;padding:8px 11px}
+  .tv-teach{margin-top:9px;background:rgba(255,215,94,.045);border:1px solid rgba(255,215,94,.16);border-left:2px solid var(--gold);border-radius:var(--r-sm);padding:9px 12px}
   .tv-teach-title{font-family:var(--mono);font-size:10px;color:var(--gold);letter-spacing:.8px;margin-bottom:5px;opacity:.92}
   .tv-teach-title::before{content:'▶ ';font-size:8px}
   .tv-teach-step{padding:5px 0;border-top:1px solid rgba(255,255,255,.045)}
@@ -659,6 +712,21 @@
     .opzone-foot{flex-wrap:wrap;gap:6px}
     .pb-action{font-size:13px}
     .pb-price{font-size:12px}
+  }
+
+  /* ════ 克制動效（進場淡入、hover 一致、摺疊平滑） ════ */
+  /* 四師深度卡進場：柔和淡入上浮（無新發光） */
+  .strat-card,.opzone,.playbook,.team-view{animation:cardIn .34s cubic-bezier(.2,.8,.2,1) both}
+  @keyframes cardIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  /* 卡片 hover 一致上浮 */
+  .row,.sector,.team-view{transition:background .15s,transform .15s,box-shadow .15s}
+  .team-view:hover{transform:translateY(-1px);border-color:var(--line2)}
+  /* details 摺疊內容平滑展開 */
+  .tv-notes[open] .tv-notes-body{animation:cardIn .2s ease both}
+  /* 尊重系統減量動效偏好：關掉氛圍循環動畫與進場動畫 */
+  @media(prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
+    #grain{animation:none}
   }
 </style>
 </head>
@@ -1152,10 +1220,14 @@ addEventListener('scroll',hidePop,true);
 const drillMap=new Map();
 function regDrill(s){ drillMap.set(s.code,s); }
 
-function rowHTML(s){
+// 分數強度分色：高分亮青、中分青、低分轉灰（一眼看強弱層次）
+function scoreColor(v){ return v>=75?'var(--acc2)':(v>=55?'var(--acc)':(v>=35?'var(--dim)':'var(--faint)')); }
+function rowHTML(s,i){
   regDrill(s);
-  return `<div class="row" data-drill data-code="${s.code}"><div class="rname"><span class="rcode">${s.code}</span>${s.name}</div>`+
-    `<div class="rscore">${s.score}</div>`+
+  const rank=(typeof i==='number')?i+1:'';
+  return `<div class="row" data-drill data-code="${s.code}"><span class="rrank">${rank}</span>`+
+    `<div class="rname"><span class="rcode">${s.code}</span>${s.name}</div>`+
+    `<div class="rscore" style="color:${scoreColor(s.score)}">${s.score}</div>`+
     `<div class="rchg" style="color:${chgColor(s.chg)}">${sign(s.chg)}%</div></div>`;
 }
 // 籌碼徽章（過池 / 籌碼確認）— 欄位缺則不顯示
@@ -1207,13 +1279,16 @@ function sigHTML(s){
     lv='<div class="levels">';
     if(s.stop!=null) lv+=`<span class="lvl stop"><span class="lk">停損</span><span class="lv mono">${s.stop}</span></span>`;
     if(s.tp1!=null)  lv+=`<span class="lvl tp"><span class="lk">TP1</span><span class="lv mono">${s.tp1}</span></span>`;
-    if(s.tp2!=null)  lv+=`<span class="lvl tp"><span class="lk">TP2</span><span class="lv mono">${s.tp2}</span></span>`;
+    if(s.tp2!=null)  lv+=`<span class="lvl tp tp2"><span class="lk">TP2</span><span class="lv mono">${s.tp2}</span></span>`;
     lv+='</div>';
   }
+  // 卡面關鍵數字 chip：強弱分 + SuperTrend 方向（免下鑽 popover 就看得到）
+  const stChip=s.st?`<span class="chip ${s.st==='UP'?'up':(s.st==='DOWN'?'dn':'')}">${({UP:'翻多',DOWN:'翻空'}[s.st]||'中性')}</span>`:'';
   return `<div class="sigcard ${cls}" data-drill data-code="${s.code}"><div class="sigtop">`+
     `<span class="pill ${cls}">${pill}</span><span class="scode">${s.code}</span> ${s.name} `+
     `<span class="mono" style="color:${chgColor(s.chg)}">${s.price} (${sign(s.chg)}%)</span>${chipBadges(s)}</div>`+
-    `<div class="sigreason">${s.reason}　·　強弱分 ${s.score}　·　${s.industry}</div>`+lv+chipLine(s)+`</div>`;
+    `<div class="sigmeta"><span class="chip acc solid">強弱 <b>${s.score}</b></span>${stChip}<span class="sig-ind">${s.industry}</span></div>`+
+    `<div class="sigreason">${s.reason}</div>`+lv+chipLine(s)+`</div>`;
 }
 function watchHTML(w){
   return `<div class="watch"><div style="font-size:11px;color:var(--dim);margin:4px 2px 2px">觀察名單 · 接近觸發</div>`+
@@ -1561,13 +1636,13 @@ async function load(){
 
     const sm=Math.max(...d.sectors.map(s=>Math.abs(s.avg_chg)),1);
     $('#sectors').innerHTML=d.sectors.map(s=>{
-      const w=Math.max(4,Math.abs(s.avg_chg)/sm*100);
-      // 漲紅跌綠(台股慣例)：長條顏色直接反映方向，一眼判強弱
-      const col=dirHex(s.avg_chg);
+      // 0 軸雙向：漲往右紅、跌往左綠，半幅最大 50%，一眼判方向
+      const w=Math.max(3,Math.abs(s.avg_chg)/sm*50);
+      const col=dirHex(s.avg_chg), dir=s.avg_chg>=0?'pos':'neg';
       return `<div class="sector"><div class="sname">${s.name}</div>`+
-        `<div class="sbar"><div class="sfill" style="width:${w}%;background:${col};box-shadow:0 0 10px ${col}66"></div></div>`+
+        `<div class="sbar"><div class="sfill ${dir}" style="width:${w}%;background:${col};box-shadow:0 0 8px ${col}55"></div></div>`+
         `<div class="schg" style="color:${chgColor(s.avg_chg)}">${sign(s.avg_chg)}%</div>`+
-        `<div class="sleader">領漲 ${s.leader}　·　站上20MA ${s.bull_pct}%</div></div>`;
+        `<div class="sleader">領漲 <b style="color:var(--txt)">${s.leader}</b><span class="chip">站上20MA ${s.bull_pct}%</span></div></div>`;
     }).join('');
 
     drillMap.clear();
