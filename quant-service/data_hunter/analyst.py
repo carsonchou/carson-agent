@@ -368,6 +368,355 @@ def _calc_zone(price: float, ma20: float | None, ma60: float | None,
     }
 
 
+# ── 手把手教學（四師逐步操作教學 + 綜合 playbook）─────────────────────────────
+# 這些函式「純用已算好的指標/籌碼/zone 生成文字」，不新造任何數字；價位全部來自
+# df/zone/strategy。訊號弱（zone 為 None 或分數不足）時老實說「不宜進場」，不硬湊買點。
+def _step(label: str, action: str, reason: str, price=None) -> dict:
+    """組一個手把手教學步驟。price 可為 None（缺資料時該步不帶價）。
+    label=第幾步做什麼、action=具體動作、price=關聯價位、reason=為什麼（老師口吻）。"""
+    return {"step": label, "action": action, "price": price, "reason": reason}
+
+
+def _teach_zhu(price, zone, ma10, ma20, ma60, launch, tangled, days_ago,
+               above20, kd_k, div, score) -> list:
+    """朱家泓手把手（技術均線起漲派）：均線糾結起漲、靠近均線進、乖離大不追。"""
+    bias20 = (price - ma20) / ma20 if (ma20 and ma20 > 0) else None
+    teach: list = []
+    # 1) 現在能不能進場
+    if score < 30 or not above20 or not zone:
+        teach.append(_step(
+            "1. 現在能不能進場", "不宜進場、先觀望",
+            f"朱家泓：站不上月線 MA20({_fmt(ma20)}) 就是趨勢還沒轉多，這時候進場是逆勢接刀。"
+            f"寧可空手等它站回均線、出現糾結後帶量紅K突破，才是我的起漲進場點。",
+            _fmt(price)))
+        return teach
+    if bias20 is not None and bias20 > 0.10:
+        teach.append(_step(
+            "1. 現在能不能進場", "先別追、等回檔",
+            f"朱家泓：現在離月線乖離 +{bias20*100:.0f}%，漲太多太遠。起漲要靠近均線進，"
+            f"追高一拉回你就套在山頂，等它回檔靠近 MA10/MA20 再進。",
+            _fmt(price)))
+    elif launch:
+        teach.append(_step(
+            "1. 現在能不能進場", "可進場（起漲剛確認）",
+            f"朱家泓：{days_ago}天前剛帶量突破均線群、紅K發動，這就是『起漲任意門』，"
+            f"而且離均線還近、量價俱足，是標準進場時機。",
+            _fmt(price)))
+    elif tangled:
+        teach.append(_step(
+            "1. 現在能不能進場", "可分批佈局、等突破放大",
+            "朱家泓：均線正在糾結蓄勢，像彈簧壓緊。先小量卡位，等它帶量紅K突破糾結區再加碼，"
+            "突破才是真發動，別在盤整就重押。",
+            _fmt(price)))
+    else:
+        teach.append(_step(
+            "1. 現在能不能進場", "可留意、不強求",
+            "朱家泓：站上月線、多頭格局還在，但沒有明確起漲K棒，進場就要嚴設停損，"
+            "寧可等更漂亮的起漲訊號再重手。",
+            _fmt(price)))
+    # 2) 買點掛哪
+    teach.append(_step(
+        "2. 買點掛在哪", f"掛 MA10({_fmt(ma10)}) 附近限價 {zone['entry_lo']}~{zone['entry_hi']}",
+        f"朱家泓：最佳買點是回踩月線/MA10 的位置，成本低、停損近。用限價掛 "
+        f"{zone['entry_lo']}~{zone['entry_hi']}，別用市價去追高。",
+        f"{zone['entry_lo']}~{zone['entry_hi']}"))
+    # 3) 分批
+    teach.append(_step(
+        "3. 怎麼分批", f"第一批 1/2 掛回檔區 {zone['entry_lo']}；第二批 1/2 突破 {zone['target1']} 再追",
+        f"朱家泓：回檔到均線先佈一半，等真的帶量突破前高 {zone['target1']}、確認方向對了，"
+        f"再把另一半加上去，順勢加碼不逆勢攤平。",
+        f"{zone['entry_lo']} / {zone['target1']}"))
+    # 4) 停損
+    teach.append(_step(
+        "4. 停損掛哪", f"跌破 {zone['stop']} 出場（結構停損）",
+        f"朱家泓：停損放 MA60({_fmt(ma60)}) 下方或波段低點，跌破 {zone['stop']} 代表起漲結構被破壞、"
+        f"趨勢轉弱，紀律停損認賠不凹單，硬上限 -10%。",
+        _fmt(zone['stop'])))
+    # 5) 停利
+    t2_extra = ("；而且 KD 已現頂背離，追高風險高，到目標區要更果斷"
+                if div == "bear" else "，到滿足點別貪、落袋為安")
+    teach.append(_step(
+        "5. 賣點停利", f"漲到 {zone['target1']} 先減 1/2、到 {zone['target2']} 全出",
+        f"朱家泓：第一目標 {zone['target1']}（前高/壓力）先減碼落袋，剩下續抱看 "
+        f"{zone['target2']}（滿足點）{t2_extra}。",
+        f"{zone['target1']} / {zone['target2']}"))
+    # 6) 情境應對
+    kd_txt = f"或 KD 高檔死叉（K={kd_k:.0f}）" if kd_k is not None else ""
+    teach.append(_step(
+        "6. 之後怎麼應變",
+        f"跌破 {zone['stop']} → 立刻走；站上 {zone['target1']} 帶量 → 續抱/加碼；爆量長黑{kd_txt} → 先減碼",
+        "朱家泓：進場後只做三件事——跌破停損就走不囉嗦、帶量過前高就抱住讓獲利奔跑、"
+        "出現爆量長黑或高檔背離就先保護獲利。",
+        _fmt(zone['stop'])))
+    return teach
+
+
+def _teach_asp(price, zone, ma10, ma20, chips_rec, in_window, score) -> list:
+    """阿斯匹靈手把手（籌碼作帳派）：跟投信作帳、法人買抱賣跑、乖離溫度計。"""
+    bias20 = (price - ma20) / ma20 if (ma20 and ma20 > 0) else None
+    tc = (chips_rec or {}).get("trust_consec_days") or 0
+    teach: list = []
+    # 1) 現在能不能進場
+    if score < 25 or not zone:
+        teach.append(_step(
+            "1. 現在能不能進場", "籌碼面不宜進場",
+            f"阿斯匹靈：法人沒連續買、投信也沒作帳（投信連買 {tc} 日），"
+            f"沒有主力籌碼撐腰的票就是散戶在玩，籌碼派不追這種，先放生。",
+            _fmt(price)))
+        return teach
+    if bias20 is not None and bias20 > 0.05:
+        teach.append(_step(
+            "1. 現在能不能進場", "別追高、等回月線",
+            f"阿斯匹靈：乖離溫度計顯示離月線 +{bias20*100:.0f}% 已燒燙，投信作帳的票也怕追高點，"
+            f"等它回檔貼近月線 MA20({_fmt(ma20)}) 再進，勝率高得多。",
+            _fmt(price)))
+    elif tc >= 3:
+        win_txt = "、又逢季底作帳窗" if in_window else ""
+        teach.append(_step(
+            "1. 現在能不能進場", "可順著投信買（作帳波）",
+            f"阿斯匹靈：投信已連買 {tc} 日{win_txt}，這是主力在做帳、有人幫你抬轎，"
+            f"跟著投信方向做多勝算高，但要貼緊它的成本區、別追高。",
+            _fmt(price)))
+    else:
+        teach.append(_step(
+            "1. 現在能不能進場", "可低接、但要看到法人回補",
+            f"阿斯匹靈：位階不貴可在月線附近承接，但要等投信/外資轉買（現投信連買 {tc} 日）"
+            f"再加重，沒有法人買盤就輕倉試單。",
+            _fmt(price)))
+    # 2) 買點
+    teach.append(_step(
+        "2. 買點掛在哪", f"回檔 MA10({_fmt(ma10)}) 分批、區間 {zone['entry_lo']}~{zone['entry_hi']}",
+        f"阿斯匹靈：強勢股不會讓你買在最低，回檔到月線/MA10 就是法人的成本區，"
+        f"掛 {zone['entry_lo']}~{zone['entry_hi']} 限價、貼著投信成本進最安全。",
+        f"{zone['entry_lo']}~{zone['entry_hi']}"))
+    # 3) 分批
+    teach.append(_step(
+        "3. 怎麼分批", f"第一批 1/2 在 {zone['entry_lo']}~{zone['entry_hi']}；投信續買再加第二批",
+        "阿斯匹靈：先進一半卡位，之後只要投信繼續買超、股價守穩月線，就把第二批加上去；"
+        "一旦投信轉賣就停止加碼，籌碼會說話。",
+        _fmt(zone['entry_lo'])))
+    # 4) 停損
+    teach.append(_step(
+        "4. 停損掛哪", f"跌破 {zone['stop']}（月線下緣）出場",
+        f"阿斯匹靈：停損放月線 MA20({_fmt(ma20)}) 下方 {zone['stop']}，跌破代表法人棄守、"
+        f"作帳行情結束，先出場保本，籌碼壞了不留戀。",
+        _fmt(zone['stop'])))
+    # 5) 停利
+    teach.append(_step(
+        "5. 賣點停利", f"漲到 {zone['target1']} 減 1/2、{zone['target2']} 全出（投信轉賣先跑）",
+        f"阿斯匹靈：目標 {zone['target1']} 先落袋一半，剩的看 {zone['target2']}；但作帳行情最關鍵的賣訊"
+        f"是『投信由買轉賣』，看到投信倒貨不管到價沒到都先出。",
+        f"{zone['target1']} / {zone['target2']}"))
+    # 6) 情境
+    teach.append(_step(
+        "6. 之後怎麼應變",
+        f"跌破 {zone['stop']} → 走；投信/外資轉賣 → 立刻減；站穩月線且法人續買 → 抱波段",
+        "阿斯匹靈：籌碼派鐵律——法人買我就抱、法人賣我就跑，股價只是結果，"
+        "三大法人的買賣超才是因，盯緊每天法人動向做調節。",
+        _fmt(zone['stop'])))
+    return teach
+
+
+def _teach_war(price, zone, bald_red, relvol, day_low, long_upper, engulf, score) -> list:
+    """權證小哥手把手（主力K棒/發車派）：光頭紅棒發車、回踩不破低點進、無量不追。"""
+    rv = f"{relvol:.1f}×" if relvol is not None else "—"
+    teach: list = []
+    # 1) 現在能不能進場
+    if long_upper or engulf:
+        sig = "高檔長上影" if long_upper else "爆量收黑吞噬"
+        teach.append(_step(
+            "1. 現在能不能進場", "不要進、甚至該減碼",
+            f"權證小哥：現在K棒出現{sig}，這是主力在出貨倒給散戶的訊號，"
+            f"這時候進場等於接主力的貨，千萬別碰。",
+            _fmt(price)))
+        return teach
+    if score < 15 or not zone:
+        teach.append(_step(
+            "1. 現在能不能進場", "沒主力、不進場",
+            f"權證小哥：今天量能只有 {rv}、也沒有發車紅棒，沒有主力積極介入的股票拉不動，"
+            f"我只做有主力發車的，這種先跳過。",
+            _fmt(price)))
+        return teach
+    if bald_red:
+        teach.append(_step(
+            "1. 現在能不能進場", "可進、但等回踩不追高",
+            f"權證小哥：今天是光頭大紅棒發車、量能 {rv}，主力積極拉抬方向明確。"
+            f"但發車當天追高風險大，最好等隔天回踩不破紅棒低點再上車。",
+            _fmt(price)))
+    else:
+        teach.append(_step(
+            "1. 現在能不能進場", "可留意、要有量才進",
+            f"權證小哥：目前量能 {rv}，主力介入跡象還不夠強。我的紀律是『無量不追』，"
+            f"等看到爆量紅棒發車再進場才安全。",
+            _fmt(price)))
+    # 2) 買點
+    teach.append(_step(
+        "2. 買點掛在哪", f"回踩不破紅棒低點({_fmt(day_low)})進、區間 {zone['entry_lo']}~{zone['entry_hi']}",
+        f"權證小哥：最安全的買點是發車後回測不破發車紅棒低點 {_fmt(day_low)}，"
+        f"掛 {zone['entry_lo']}~{zone['entry_hi']}；回踩量縮不破就是洗盤，可上車。",
+        f"{zone['entry_lo']}~{zone['entry_hi']}"))
+    # 3) 分批
+    teach.append(_step(
+        "3. 怎麼分批", f"第一批 1/2 回踩進；第二批 1/2 帶量再過高點 {zone['target1']}",
+        f"權證小哥：先進一半試單，確認回踩守住、再帶量創高 {zone['target1']} 表示主力還在拉，"
+        f"才加第二批，順著主力方向加碼。",
+        f"{_fmt(day_low)} / {zone['target1']}"))
+    # 4) 停損
+    teach.append(_step(
+        "4. 停損掛哪", f"跌破發車紅棒低點 {zone['stop']} 出場",
+        f"權證小哥：停損就掛在發車紅棒最低點 {zone['stop']}，跌破代表主力發車失敗、這根K是假的，"
+        f"立刻走，這是主力K棒操作最硬的紀律。",
+        _fmt(zone['stop'])))
+    # 5) 停利
+    teach.append(_step(
+        "5. 賣點停利", f"漲到 {zone['target1']} 減 1/2、{zone['target2']} 全出；出長上影/爆量吞噬先跑",
+        f"權證小哥：目標 {zone['target1']} 先減、{zone['target2']} 全出；但只要盤中出現高檔長上影或"
+        f"爆量收黑吞噬（主力出貨），不管到價沒到都先落袋。",
+        f"{zone['target1']} / {zone['target2']}"))
+    # 6) 情境
+    teach.append(_step(
+        "6. 之後怎麼應變",
+        f"跌破 {zone['stop']} → 走；帶量過 {zone['target1']} → 續抱加碼；爆量長上影/收黑吞噬 → 立刻減",
+        "權證小哥：主力K棒只看量價——量增價漲主力還在就抱、跌破發車低點主力跑了就跟著跑、"
+        "出現爆量長黑就是出貨要閃，跟著主力進退別自己想。",
+        _fmt(zone['stop'])))
+    return teach
+
+
+def _teach_zhang(price, zone, ma60, yearline, rs_excess, score) -> list:
+    """張捷手把手（基本強勢/RS 產業派）：買最強、回踩季線進、續抱吃主升段。"""
+    dist_year = (price - yearline) / yearline if (yearline and yearline > 0) else None
+    rs_str = f"（超額報酬 {rs_excess:+.0f}%）" if rs_excess is not None else ""
+    teach: list = []
+    # 1) 現在能不能進場
+    if score < 25 or not zone:
+        weak = rs_excess is not None and rs_excess < 0
+        detail = f"弱於大盤{rs_str}" if weak else "強度/位階不夠"
+        teach.append(_step(
+            "1. 現在能不能進場", "不是強勢股、不進場",
+            f"張捷：這檔{detail}，我只買最強、產業還在成長的領漲股，弱勢股再便宜也不碰，換強的做。",
+            _fmt(price)))
+        return teach
+    if dist_year is not None and dist_year > 0.50:
+        teach.append(_step(
+            "1. 現在能不能進場", "位階偏高、等回檔或換股",
+            f"張捷：離年線已 +{dist_year*100:.0f}%，位階太高（月盈則虧）。這時候不追，"
+            f"要嘛等它回檔到季線附近、要嘛換一檔剛突破年線的強勢股。",
+            _fmt(price)))
+    else:
+        teach.append(_step(
+            "1. 現在能不能進場", "可進（強勢領漲、位階合理）",
+            f"張捷：RS 相對強弱勝過大盤{rs_str}、又站在年線之上的合理位階，"
+            f"這是我要的『買最強的』，可以進場續抱吃波段。",
+            _fmt(price)))
+    # 2) 買點
+    teach.append(_step(
+        "2. 買點掛在哪", f"回踩季線 MA60({_fmt(ma60)}) 分批、區間 {zone['entry_lo']}~{zone['entry_hi']}",
+        f"張捷：強勢股要買在回檔、不追高，回踩季線 MA60({_fmt(ma60)}) 是主力洗盤的好買點，"
+        f"掛 {zone['entry_lo']}~{zone['entry_hi']} 限價承接。",
+        f"{zone['entry_lo']}~{zone['entry_hi']}"))
+    # 3) 分批
+    teach.append(_step(
+        "3. 怎麼分批", f"第一批 1/2 回季線佈；第二批 1/2 帶量創高 {zone['target1']} 再加",
+        f"張捷：先買一半底倉抱波段，等它帶量突破前高 {zone['target1']}、續強領漲時加碼，"
+        f"強者恆強，加碼在創新高的強勢股身上、不在弱股攤平。",
+        f"{zone['entry_lo']} / {zone['target1']}"))
+    # 4) 停損
+    teach.append(_step(
+        "4. 停損掛哪", f"跌破季線 {zone['stop']}（或年線）出場",
+        f"張捷：波段停損放季線 MA60({_fmt(ma60)})/年線 {zone['stop']}，跌破代表趨勢結構轉弱、"
+        f"產業動能鈍化，該換股，結構停損不看短線雜訊。",
+        _fmt(zone['stop'])))
+    # 5) 停利
+    teach.append(_step(
+        "5. 賣點停利", f"漲到 {zone['target1']} 減 1/2、{zone['target2']} 全出；RS 轉弱或大盤破月線先減",
+        f"張捷：目標 {zone['target1']} 先減、{zone['target2']} 續抱；但波段股最重要的賣訊是"
+        f"『RS 由強轉弱（跑輸大盤）或大盤跌破月線』，趨勢轉了就獲利了結不留戀。",
+        f"{zone['target1']} / {zone['target2']}"))
+    # 6) 情境
+    teach.append(_step(
+        "6. 之後怎麼應變",
+        f"跌破季線 {zone['stop']} → 換股；帶量創高 → 續抱加碼；RS 轉弱/大盤破月線 → 減碼",
+        "張捷：續抱條件是『大盤未破月線 + 個股 RS>1（持續強於大盤）』，兩條還在就抱住吃主升段，"
+        "一旦轉弱或大盤走空就先降部位保護獲利。",
+        _fmt(zone['stop'])))
+    return teach
+
+
+def _build_playbook(price, closed, views, strategy, confirm, total) -> list:
+    """整合四師 → 一份『今天到底怎麼操作』的白話總教學（3~6步，每步附理由）。
+    純用 strategy(已彙整四師 zone) 與均線生成，不新造數字。"""
+    if not strategy or price <= 0:
+        return []
+    close_s = closed["close"].astype(float)
+    ma10 = float(close_s.rolling(10).mean().iloc[-1]) if len(close_s) >= 10 else None
+    ma20 = float(close_s.rolling(20).mean().iloc[-1]) if len(close_s) >= 20 else None
+    bias20 = (price - ma20) / ma20 if (ma20 and ma20 > 0) else None
+    passed = [k for k, v in views.items() if v["score"] >= 50]
+    passed_txt = "、".join(passed) if passed else "無"
+    buy_lo, buy_hi = strategy["buy_zone_lo"], strategy["buy_zone_hi"]
+    stop, t1, t2 = strategy["stop"], strategy["target1"], strategy["target2"]
+    pos, rr = strategy["position_pct"], strategy["rr"]
+
+    steps: list = []
+    # ① 今天到底追不追
+    if pos == 0:
+        steps.append(_step(
+            "① 今天怎麼看", "先不要進場、放觀察",
+            f"四維只過 {confirm}/4（{passed_txt}），共振不足；沒有多位老師同時點頭的股票不急著買，"
+            f"等技術起漲＋籌碼轉多再說，空手也是一種部位。",
+            _fmt(price)))
+        steps.append(_step(
+            "② 等什麼訊號", f"等站上月線 MA20({_fmt(ma20)}) 帶量、且投信/外資轉買",
+            "四位老師的共同底線是『趨勢＋籌碼』都要對，缺一就寧可空手等，不虧就是賺。",
+            _fmt(ma20)))
+        return steps
+    hot = bias20 is not None and bias20 > 0.08
+    if hot:
+        steps.append(_step(
+            "① 今天怎麼看", "今天不要追高",
+            f"雖然過了 {confirm}/4 維（{passed_txt}），但離月線乖離 +{bias20*100:.0f}% 已燒燙，"
+            f"四位老師都怕追在山頂，想買就等回檔到均線區。",
+            _fmt(price)))
+    else:
+        steps.append(_step(
+            "① 今天怎麼看", "可以分批進場",
+            f"四維過 {confirm}/4（{passed_txt}）、位階不貴、方向偏多，可按紀律分批進場，"
+            f"但一定要先設好停損。",
+            _fmt(price)))
+    # ② 想買掛哪
+    steps.append(_step(
+        "② 想買掛哪裡", f"掛回檔區 {buy_lo}~{buy_hi} 分兩批",
+        f"別用市價追，掛在四位老師的共識進場區 {buy_lo}~{buy_hi}（回踩均線的成本區），"
+        f"買得便宜停損才近、風報比才漂亮（目前 {rr}）。",
+        f"{buy_lo}~{buy_hi}"))
+    # ③ 怎麼分批
+    steps.append(_step(
+        "③ 怎麼分批進", f"第一批 1/2 回 MA10({_fmt(ma10)}) 佈、第二批 1/2 突破 {t1} 追",
+        "先回檔佈一半底倉（成本低），等真的帶量突破前高、確認方向對了再加另一半，"
+        "順勢加碼不逆勢攤平——這是四位老師共通的加碼紀律。",
+        f"{_fmt(ma10)} / {t1}"))
+    # ④ 停損
+    steps.append(_step(
+        "④ 停損掛哪裡", f"跌破 {stop} 立刻出場",
+        f"停損放結構關卡 {stop}（月/季線或波段低點下方），跌破代表趨勢被破壞，"
+        f"認賠不凹單、硬上限 -10%，留得青山在才有下次。",
+        _fmt(stop)))
+    # ⑤ 停利
+    steps.append(_step(
+        "⑤ 漲上去怎麼賣", f"到 {t1} 先減一半、到 {t2} 全出",
+        f"第一目標 {t1}（前高壓力）先落袋一半降風險，剩下續抱看 {t2}（3R 滿足點），"
+        f"獲利要讓它奔跑但也要分批落袋，別坐雲霄飛車。",
+        f"{t1} / {t2}"))
+    # ⑥ 出場鐵律
+    steps.append(_step(
+        "⑥ 什麼時候立刻出", f"跌破月線 MA20({_fmt(ma20)}) 或投信由買轉賣 → 不猶豫出場",
+        "不管帳上賺賠，只要『跌破月線（趨勢轉弱）』或『投信/外資轉賣（籌碼變壞）』其中一個成立，"
+        "就先出場保護資金——技術面、籌碼面任一破線都是離場訊號。",
+        _fmt(ma20)))
+    return steps
+
+
 # ── 資料載入 ───────────────────────────────────────────────────────────────
 def _load_ohlcv(code: str) -> pd.DataFrame | None:
     """快取優先（秒回）→ 快取過時（最後一筆距今 > 5 天）改抓官方最新。
@@ -574,8 +923,11 @@ def _view_zhujiahe(code: str, df: pd.DataFrame) -> dict:
     sw_lo = _swing_low(close_s)
     zone = _calc_zone(close_last, ma20, ma60, None, sw_lo, hi60, "zhu") if score >= 30 else None
 
+    teach = _teach_zhu(close_last, zone, ma10, ma20, ma60, launch, tangled,
+                       days_ago, above20, kd_k, div, score)
+
     return {"view": "朱家泓 均線糾結+KD三招", "score": min(score, 100),
-            "verdict": verdict, "notes": notes, "zone": zone,
+            "verdict": verdict, "notes": notes, "zone": zone, "teach": teach,
             "kd_k": kd_k, "kd_d": kd_d, "kd_golden": golden, "st": st_today,
             "tangled": tangled, "launch": launch, "kd_diverge": div}
 
@@ -728,8 +1080,10 @@ def _view_aspirin(code: str, df: pd.DataFrame, chips_rec: dict | None,
 
     zone = _calc_zone(price, ma20, None, None, None, None, "asp") if score >= 25 else None
 
+    teach = _teach_asp(price, zone, ma10, ma20, chips_rec, in_window, score)
+
     return {"view": "阿斯匹靈 投信作帳+法人+乖離", "score": min(score, 100),
-            "verdict": verdict, "notes": notes, "zone": zone}
+            "verdict": verdict, "notes": notes, "zone": zone, "teach": teach}
 
 
 # ── 視角 3：權證小哥（主力K棒：光頭大紅棒 + 爆量量價 + 出貨）─────────────
@@ -874,8 +1228,10 @@ def _view_warrant(code: str, df: pd.DataFrame) -> dict:
     sw_lo = _swing_low(close)
     zone = _calc_zone(c_now, None, None, None, sw_lo, None, "war") if score >= 15 else None
 
+    teach = _teach_war(c_now, zone, bald_red, relvol, l, long_upper, engulf, score)
+
     return {"view": "權證小哥 光頭大紅棒+量價", "score": min(score, 100),
-            "verdict": verdict, "notes": all_notes, "zone": zone,
+            "verdict": verdict, "notes": all_notes, "zone": zone, "teach": teach,
             "relvol": relvol, "bald_red_k": bald_red}
 
 
@@ -893,6 +1249,7 @@ def _view_zhang(code: str, df: pd.DataFrame, industry: str = "未分類") -> dic
 
     score = 0
     notes: list[str] = []
+    rs_excess = None   # 供手把手教學引用（個股超額報酬 vs 大盤）
 
     close_s = closed["close"].astype(float)
     high_s = closed["high"].astype(float)
@@ -909,6 +1266,7 @@ def _view_zhang(code: str, df: pd.DataFrame, industry: str = "未分類") -> dic
         mkt_ret = _market_ret(ZHANG_RS_LOOKBACK)
         if mkt_ret is not None:
             excess = stock_ret - mkt_ret
+            rs_excess = excess
             if excess >= ZHANG_RS_STRONG:
                 score += 30
                 notes.append(f"✅ RS 強勢：近{ZHANG_RS_LOOKBACK}日 {stock_ret:+.1f}% 大幅勝大盤 "
@@ -1000,8 +1358,11 @@ def _view_zhang(code: str, df: pd.DataFrame, industry: str = "未分類") -> dic
     hi60_val = float(close_s.tail(60).max()) if len(close_s) >= 20 else None
     zone = _calc_zone(price, ma20_val, None, yearline, None, hi60_val, "zhang") if score >= 25 else None
 
+    teach = _teach_zhang(price, zone, ma60, yearline, rs_excess, score)
+
     return {"view": "張捷 相對強弱+位階", "score": min(score, 100),
-            "verdict": verdict, "notes": notes, "zone": zone, "industry": industry}
+            "verdict": verdict, "notes": notes, "zone": zone, "teach": teach,
+            "industry": industry}
 
 
 # ── 綜合操作策略（整合四師 → 買在哪/賣在哪/怎麼操作）──────────────────────
@@ -1144,6 +1505,9 @@ def analyze_one(code: str, name: str = "", industry: str = "") -> dict | None:
     price_now = float(closed_all["close"].astype(float).iloc[-1])
     strategy = _build_strategy(price_now, closed_all, views, confirm, total)
 
+    # 綜合手把手總教學（今天到底怎麼操作，白話 3~6 步）
+    playbook = _build_playbook(price_now, closed_all, views, strategy, confirm, total)
+
     # 綜合建議
     if total >= 70 and confirm >= 3:
         recommendation = "🟢 強力做多候選（三維以上共振）"
@@ -1165,6 +1529,7 @@ def analyze_one(code: str, name: str = "", industry: str = "") -> dict | None:
         "recommendation": recommendation,
         "price": round(price_now, 2), "chg": _chg,
         "strategy": strategy,
+        "playbook": playbook,
         "views": views,
     }
 
@@ -1202,6 +1567,13 @@ def print_report(result: dict) -> None:
         print(f"  → {v['verdict']}")
         for note in v["notes"]:
             print(f"    {note}")
+        teach = v.get("teach")
+        if teach:
+            print("  ── 手把手教學 ──")
+            for t in teach:
+                pr = f"  [{t['price']}]" if t.get("price") else ""
+                print(f"    ▸ {t['step']}：{t['action']}{pr}")
+                print(f"        理由：{t['reason']}")
 
     stg = result.get("strategy")
     if stg:
@@ -1212,6 +1584,15 @@ def print_report(result: dict) -> None:
         print(f"  目標 T1 {stg['target1']} / T2 {stg['target2']}   "
               f"建議部位 {stg['position_pct']}%")
         print(f"  情境：{stg['scenario']}")
+
+    pb = result.get("playbook")
+    if pb:
+        print(f"\n{'─' * 58}")
+        print("【今天到底怎麼操作 · 總教學 playbook】")
+        for s in pb:
+            pr = f"  [{s['price']}]" if s.get("price") else ""
+            print(f"  {s['step']}：{s['action']}{pr}")
+            print(f"      理由：{s['reason']}")
 
     print(f"\n{SEP}\n")
 
