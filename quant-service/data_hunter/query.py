@@ -237,6 +237,28 @@ def _merge_margin(code: str, vol_lots: int | None) -> dict:
     return out
 
 
+def _merge_fundamentals(code: str) -> dict:
+    """基本面/估值(離線只讀快取；缺→None 優雅降級)：PE/PB/殖利率/EPS/毛利/營收YoY/股利。"""
+    out = {"pe": None, "pb": None, "dividend_yield": None,
+           "eps_q": None, "eps_ttm": None, "eps_yoy": None,
+           "gross_margin": None, "op_margin": None,
+           "rev_yoy": None, "rev_mom": None,
+           "cash_div": None, "stock_div": None}
+    try:
+        import fundamentals as _fd
+    except Exception:
+        return out
+    f = _fd.load_fundamentals(code, offline=True)
+    # 首次查詢該股：本地無財報快取 → 有界線上抓一次(≤7s)，之後快取秒回；抓不到就降級
+    if not f.get("has_financials"):
+        _run_bounded(lambda: _fd.fetch_stock_fundamentals(code), timeout=7.0, default=None)
+        f = _fd.load_fundamentals(code, offline=True)
+    for k in out:
+        if f.get(k) is not None:
+            out[k] = f[k]
+    return out
+
+
 def _merge_tdcc(code: str) -> dict:
     """集保戶數(週更新)：散戶流出旗標 + 週變化%。"""
     out = {"small_count": None, "small_count_chg": None, "small_chg_pct": None,
@@ -300,6 +322,7 @@ def analyze_stock(code: str, live: bool = False) -> dict:
     chips = _merge_chips(resolved, live)
     margin = _merge_margin(resolved, core.get("vol_lots"))
     tdcc = _merge_tdcc(resolved)
+    fund = _merge_fundamentals(resolved)
     ind = _full_indicators(df, live)
 
     result = {
@@ -307,6 +330,7 @@ def analyze_stock(code: str, live: bool = False) -> dict:
         "live": bool(live),
         # ── 卡片核心欄位(對齊 scan._card / _sig，前端 popover 可直接重用) ──
         "code": resolved, "name": name, "industry": industry,
+        **fund,
         "price": core["price"], "chg": core["chg"], "rsi": core["rsi"],
         "score": core["score"], "st": core["st"],
         "spark": core["spark"], "ohlc": core.get("ohlc"),
@@ -327,6 +351,12 @@ def analyze_stock(code: str, live: bool = False) -> dict:
         "kd_golden": core.get("kd_golden"), "kd_death": core.get("kd_death"),
         "bald_red_k": core.get("bald_red_k"),
     }
+    # 個股健診（四面向連續計分；用上面已合併的 技術+籌碼+基本面 統一 dict）
+    try:
+        import health as _health
+        result["health"] = _health.compute_health(result)
+    except Exception:
+        result["health"] = None
     return result
 
 
