@@ -141,6 +141,34 @@
   .panel h2::before{content:'';width:3px;height:12px;border-radius:1px;background:var(--acc);opacity:.8;flex-shrink:0}
   .corner{display:none} /* 移除四角裝飾標記 */
 
+  /* ══ 大盤+國際指數列 ══ */
+  .idxStrip{display:grid;grid-template-columns:repeat(9,1fr);gap:8px;margin-bottom:14px}
+  @media(max-width:1100px){.idxStrip{grid-template-columns:repeat(5,1fr)}}
+  @media(max-width:620px){.idxStrip{grid-template-columns:repeat(3,1fr)}}
+  .idxCard{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-sm);
+    padding:8px 11px;box-shadow:var(--depth);position:relative;overflow:hidden}
+  .idxCard.intl{border-left:2px solid var(--line2)}
+  .idxCard .in{font-family:var(--mono);font-size:10.5px;color:var(--dim);letter-spacing:.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .idxCard .ip{font-family:var(--ttl);font-size:16px;font-weight:600;font-variant-numeric:tabular-nums;margin-top:2px}
+  .idxCard .ic{font-family:var(--mono);font-size:11px;font-weight:700;font-variant-numeric:tabular-nums}
+  /* 左欄堆疊 */
+  .col-left{display:flex;flex-direction:column;gap:14px}
+  /* 市場統計卡 */
+  .mstats{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--hair);border-radius:var(--r-sm);overflow:hidden}
+  .mstat{background:rgba(10,14,22,.5);padding:9px 12px}
+  .mstat .k{font-family:var(--mono);font-size:10px;color:var(--dim);letter-spacing:.5px}
+  .mstat .v{font-family:var(--ttl);font-size:18px;font-weight:600;font-variant-numeric:tabular-nums;margin-top:2px}
+  /* 三大法人買超迷你列 */
+  .itRow{display:grid;grid-template-columns:auto 1fr auto auto;gap:8px;align-items:center;padding:5px 6px;
+    border-radius:var(--r-xs);font-size:12.5px;cursor:pointer;transition:background .15s}
+  .itRow:hover{background:rgba(90,147,189,.08)}
+  .itRow .itside{font-family:var(--mono);font-size:9.5px;padding:1px 5px;border-radius:3px}
+  .itRow .itside.f{color:var(--acc2);border:1px solid var(--line2)}
+  .itRow .itside.t{color:var(--gold);border:1px solid rgba(198,154,76,.4)}
+  .itRow .itnm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .itRow .itnm .rcode{font-family:var(--mono);color:var(--dim);font-size:11px;margin-right:4px}
+  .itRow .itnet{font-family:var(--mono);font-weight:700;font-variant-numeric:tabular-nums;color:var(--up)}
+
   /* ════ gauge ════ */
   .gaugeWrap{display:flex;flex-direction:column;align-items:center}
   #gauge{width:280px;height:170px;margin-top:4px}
@@ -858,8 +886,12 @@
 
   <!-- ════ 看板 view ════ -->
   <div class="view active" data-view="board">
+    <!-- 大盤主要指數 + 國際指數 列 -->
+    <div id="idxStrip" class="idxStrip"></div>
     <div id="watchStrip" class="watchStrip" style="display:none"></div>
     <div class="grid">
+      <!-- 左欄：溫度計 + 市場統計 + 三大法人買超（堆疊，填滿不留白） -->
+      <div class="col-left">
       <!-- 市場溫度 -->
       <section class="panel gaugeWrap">
         <span class="corner tl"></span><span class="corner br"></span>
@@ -884,6 +916,21 @@
           <div class="segbar" id="segbar"></div>
         </div>
       </section>
+
+      <!-- 市場統計卡 -->
+      <section class="panel">
+        <span class="corner tl"></span><span class="corner br"></span>
+        <h2>市場統計 · MARKET STATS</h2>
+        <div class="mstats" id="mstats"></div>
+      </section>
+
+      <!-- 三大法人今日買超 top -->
+      <section class="panel">
+        <span class="corner tl"></span><span class="corner br"></span>
+        <h2>三大法人買超 · INSTITUTIONAL</h2>
+        <div id="instTop"></div>
+      </section>
+      </div><!-- /col-left -->
 
       <!-- 產業板塊熱流 -->
       <section class="panel">
@@ -1776,9 +1823,13 @@ async function load(){
 
     // 存最新資料，並刷新目前開著的分頁
     lastData=d;
-    renderWatchStrip();   // 自選股快速報價(用最新 drillMap)
-    checkAlerts();        // 到價警示檢查
-    renderRanks();        // 多元排行(漲幅/跌幅/成交值/振幅)
+    // 看板 widget 渲染函式定義在下方 modal IIFE，掛在 window 上供這裡(另一 script)呼叫
+    window.renderWatchStrip&&window.renderWatchStrip();   // 自選股快速報價
+    window.checkAlerts&&window.checkAlerts();             // 到價警示檢查
+    window.renderRanks&&window.renderRanks();             // 多元排行
+    window.renderMStats&&window.renderMStats(d.gauge);    // 市場統計卡
+    window.renderInstTop&&window.renderInstTop(d.chips);  // 三大法人買超 top
+    window.renderIndices&&window.renderIndices();         // 大盤+國際指數列
     const av=document.querySelector('.tab.active')?.dataset.v;
     if(av==='history') loadHistory(true);
     if(av==='heat') renderHeatmap(d.sectors);
@@ -2166,6 +2217,48 @@ if(SNAP){ loadHistory(); }
     document.querySelectorAll('.rkTab').forEach(t=>t.classList.toggle('on',t.dataset.r===rkView));
   }
   document.querySelectorAll('.rkTab').forEach(t=>t.addEventListener('click',()=>renderRanks(t.dataset.r)));
+
+  // ══ 大盤+國際指數列（/api/indices，隨輪詢刷新，server 60秒快取）══
+  async function renderIndices(){
+    const box=document.getElementById('idxStrip'); if(!box) return;
+    try{
+      const r=await fetch('/api/indices',{cache:'no-store'}); const j=await r.json();
+      const card=(x,intl)=>`<div class="idxCard${intl?' intl':''}"><div class="in">${x.name}</div>`+
+        `<div class="ip" style="color:${x.chg_pct!=null?dirHex(x.chg_pct):'var(--txt)'}">${x.price!=null?x.price.toLocaleString():'—'}</div>`+
+        `<div class="ic" style="color:${chgColor(x.chg_pct)}">${x.chg_pct!=null?sign(x.chg_pct)+'%':'—'}</div></div>`;
+      const html=(j.twse||[]).map(x=>card(x,false)).join('')+(j.intl||[]).map(x=>card(x,true)).join('');
+      if(html) box.innerHTML=html;
+    }catch(e){}
+  }
+  // ══ 市場統計卡（用 state.gauge 現有欄位）══
+  function renderMStats(g){
+    const box=document.getElementById('mstats'); if(!box||!g) return;
+    const cell=(k,v,col)=>`<div class="mstat"><div class="k">${k}</div><div class="v"${col?` style="color:${col}"`:''}>${v}</div></div>`;
+    box.innerHTML=
+      cell('上漲家數', g.adv!=null?g.adv:'—', 'var(--up)')+
+      cell('下跌家數', g.dec!=null?g.dec:'—', 'var(--dn)')+
+      cell('創新高', g.nh!=null?g.nh:'—', 'var(--up)')+
+      cell('創新低', g.nl!=null?g.nl:'—', 'var(--dn)')+
+      cell('平均漲幅', g.adr!=null?sign(g.adr)+'%':'—', g.adr!=null?chgColor(g.adr):null)+
+      cell('平均RSI', g.avg_rsi!=null?g.avg_rsi:'—', null);
+  }
+  // ══ 三大法人今日買超 top（外資+投信，用 state.chips）══
+  function renderInstTop(chips){
+    const box=document.getElementById('instTop'); if(!box) return;
+    if(!chips){ box.innerHTML='<div class="empty">籌碼資料載入中</div>'; return; }
+    const f=(chips.foreign_top||[]).slice(0,4).map(x=>({...x,side:'f'}));
+    const t=(chips.trust_top||[]).slice(0,4).map(x=>({...x,side:'t'}));
+    const rows=[...f,...t];
+    if(!rows.length){ box.innerHTML='<div class="empty">今日無籌碼資料（盤後更新）</div>'; return; }
+    box.innerHTML=rows.map(x=>{ regDrill&&regDrill(x);
+      return `<div class="itRow" data-drill data-code="${x.code}"><span class="itside ${x.side}">${x.side==='f'?'外資':'投信'}</span>`+
+      `<span class="itnm"><span class="rcode">${x.code}</span>${x.name||''}</span>`+
+      `<span class="itnet">+${(x.net||0).toLocaleString()}</span>`+
+      `<span class="mono" style="font-size:10px;color:var(--dim)">${x.consec?x.consec+'日':''}</span></div>`; }).join('');
+  }
+  // 這些看板 widget 定義在本 IIFE，但主資料輪詢 render(d) 在另一個 script → 掛 window 供其呼叫
+  Object.assign(window, {renderIndices, renderMStats, renderInstTop, renderRanks,
+    renderWatchStrip, checkAlerts});
 
   // ── 四師深度分析（/api/analyst）：綜合策略卡 + 操作區間卡 + 四師卡×4 ──────────
   const TEAM_COLORS={'朱家泓':'var(--acc)','阿斯匹靈':'var(--gold)','權證小哥':'var(--up)','張捷':'var(--dn)'};

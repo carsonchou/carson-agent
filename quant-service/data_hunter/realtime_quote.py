@@ -134,7 +134,71 @@ def fetch_intraday(code: str) -> list | None:
     return None
 
 
+# ── 大盤主要指數群(證交所 MIS) + 國際指數(yfinance) ──────────────────────────
+# MIS 指數代碼：t00 加權、o00 櫃買(上櫃)、t13 電子、t21 金融、t24 半導體
+_TWSE_INDICES = [("t00", "加權指數"), ("o00", "櫃買指數"), ("t13", "電子類"),
+                 ("t21", "金融保險"), ("t24", "半導體")]
+_INTL = [("^DJI", "道瓊"), ("^IXIC", "那斯達克"), ("^SOX", "費半"), ("^N225", "日經")]
+
+
+def fetch_indices(timeout: int = 8) -> list[dict]:
+    """台股主要指數群(MIS，約20秒延遲)。回 [{name, price, chg, chg_pct}]。"""
+    ex = "|".join((f"otc_{c}.tw" if c.startswith("o") else f"tse_{c}.tw")
+                  for c, _ in _TWSE_INDICES)
+    url = f"{_MIS}?ex_ch={ex}&json=1&delay=0&_={int(datetime.now().timestamp())}"
+    try:
+        req = urllib.request.Request(url, headers=_HDR)
+        d = json.loads(urllib.request.urlopen(req, timeout=timeout, context=_CTX)
+                       .read().decode("utf-8", "replace"))
+    except Exception:
+        return []
+    if d.get("rtcode") != "0000":
+        return []
+    by_code = {m.get("c"): m for m in d.get("msgArray") or []}
+    out = []
+    for code, name in _TWSE_INDICES:
+        m = by_code.get(code)
+        if not m:
+            continue
+        y = _num(m.get("y")); z = _num(m.get("z"))
+        px = z if z is not None else _num(m.get("o")) or y
+        chg = (px - y) if (px is not None and y is not None) else None
+        out.append({"name": name, "price": round(px, 2) if px is not None else None,
+                    "chg": round(chg, 2) if chg is not None else None,
+                    "chg_pct": round(chg / y * 100, 2) if (chg is not None and y) else None})
+    return out
+
+
+def fetch_international(timeout: int = 10) -> list[dict]:
+    """國際指數(yfinance，非即時)：道瓊/那指/費半/日經。回 [{name, price, chg_pct}]。"""
+    try:
+        import warnings
+        warnings.filterwarnings("ignore")
+        import yfinance as yf
+    except Exception:
+        return []
+    out = []
+    for tk, name in _INTL:
+        try:
+            h = yf.Ticker(tk).history(period="2d")["Close"].dropna()
+            if len(h) >= 2:
+                px, prev = float(h.iloc[-1]), float(h.iloc[-2])
+                out.append({"name": name, "price": round(px, 2),
+                            "chg_pct": round((px / prev - 1) * 100, 2)})
+        except Exception:
+            continue
+    return out
+
+
 if __name__ == "__main__":
+    if "--indices" in sys.argv:
+        print("台股主要指數:")
+        for x in fetch_indices():
+            print(f"  {x['name']:6} {x['price']}  {x['chg_pct']:+}%")
+        print("國際指數:")
+        for x in fetch_international():
+            print(f"  {x['name']:6} {x['price']}  {x['chg_pct']:+}%")
+        raise SystemExit(0)
     code = sys.argv[1] if len(sys.argv) > 1 else "2330"
     q = fetch_quote(code)
     if not q:

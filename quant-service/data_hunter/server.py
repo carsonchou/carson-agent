@@ -20,6 +20,7 @@ from pathlib import Path
 from urllib.parse import urlsplit, parse_qs
 
 HERE = Path(__file__).resolve().parent
+_INDICES_CACHE: dict = {}          # /api/indices 60 秒 module 快取
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -38,7 +39,8 @@ class Handler(SimpleHTTPRequestHandler):
     def _handle_api(self, path: str, qs: dict) -> bool:
         """動態 API：/api/stock、/api/search、/api/analyst。命中回 True(已回應)，否則 False(交還靜態服務)。
         query/analyst 在 handler 內 import(而非模組頂層)，讓查價/分析失敗絕不拖垮靜態看板服務。"""
-        if path not in ("/api/stock", "/api/search", "/api/analyst", "/api/news", "/api/quote"):
+        if path not in ("/api/stock", "/api/search", "/api/analyst", "/api/news",
+                        "/api/quote", "/api/indices"):
             return False
         try:
             import query
@@ -56,6 +58,30 @@ class Handler(SimpleHTTPRequestHandler):
                 q = _first("q")
                 self._send_json(query.search_stocks(q) if q else [])
                 return True
+
+            if path == "/api/indices":
+                # 大盤主要指數群 + 國際指數；60 秒 module 快取(避免每次輪詢重抓 yfinance)
+                import time as _t
+                global _INDICES_CACHE
+                hit = _INDICES_CACHE.get("v")
+                if hit and (_t.monotonic() - hit[0]) < 60:
+                    self._send_json(hit[1]); return True
+                from concurrent.futures import ThreadPoolExecutor
+                twse = intl = []
+                try:
+                    import realtime_quote as _rq
+                    with ThreadPoolExecutor(max_workers=2) as ex:
+                        ft = ex.submit(_rq.fetch_indices)
+                        fi = ex.submit(_rq.fetch_international)
+                        try: twse = ft.result(timeout=8.0) or []
+                        except Exception: twse = []
+                        try: intl = fi.result(timeout=10.0) or []
+                        except Exception: intl = []
+                except Exception:
+                    pass
+                payload = {"ok": True, "twse": twse, "intl": intl}
+                _INDICES_CACHE["v"] = (_t.monotonic(), payload)
+                self._send_json(payload); return True
 
             if path == "/api/quote":
                 # 即時五檔/報價(證交所 MIS，免費約20秒延遲)：?code= 或 ?q=
