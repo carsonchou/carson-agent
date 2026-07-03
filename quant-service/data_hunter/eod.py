@@ -121,6 +121,18 @@ def run_eod(no_post: bool = False, as_of: date | None = None, push: bool = False
         return f"取得 {len(data)} 檔集保戶數" + (f"（encDate {enc}）" if enc else "（無有效週資料）")
     step("4/6 集保戶數(週)", _tdcc)
 
+    # ── 4b. 基本面預抓(估值全市場 + 輪替刷財報，讓常見股秒回) ─────────────
+    def _fund():
+        try:
+            import fundamentals as _fd
+            import universe as _u
+            codes = [c for c, *_ in _u.all_codes()]
+            r = _fd.prefetch(codes, max_financials=30)
+            return f"估值 {r['valuation']} 檔｜財報輪刷 {r['financials_refreshed']}/{r['financials_stale']}"
+        except Exception as e:
+            return f"略過（{type(e).__name__}: {e}）"
+    step("4b/6 基本面預抓", _fund)
+
     # ── 5. 掃描出 state ─────────────────────────────────────────────────
     temp_txt = "?"
 

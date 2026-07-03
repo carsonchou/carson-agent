@@ -268,6 +268,31 @@ def load_fundamentals(code: str, offline: bool = True) -> dict:
 
 
 # ── 批次刷新(給每日/每週排程或 CLI) ──────────────────────────────────────────
+def prefetch(codes: list[str], max_financials: int = 30, sleep: float = 1.0) -> dict:
+    """盤後背景預抓：估值(BWIBBU 全市場 1 次，免費) + 輪替刷新最舊/缺的財報(FinMind)。
+    FinMind 免 token 300 req/hr、每檔 3 call → 上限 max_financials(預設 30=90 call)遠低於限額，
+    多天輪完整個精選宇宙(財報季更、慢刷可接受)。回統計。讓常見股基本面秒回、不卡首查。"""
+    val = fetch_valuation_all()
+    # 挑「最該刷」的：無快取 或 最舊；已在 TTL 內的跳過
+    def _age(c):
+        p = FUND_DIR / f"stock_{c}.json"
+        if not p.exists():
+            return 1e9                       # 無快取最優先
+        try:
+            t = datetime.fromisoformat(json.loads(p.read_text(encoding="utf-8")).get("fetched_at"))
+            return (datetime.now() - t).total_seconds()
+        except Exception:
+            return 1e9
+    stale = sorted((c for c in codes if _age(c) > STOCK_TTL_DAYS * 86400),
+                   key=_age, reverse=True)[:max_financials]
+    ok = 0
+    for c in stale:
+        d = fetch_stock_fundamentals(c)
+        ok += 1 if (d.get("eps_ttm") is not None or d.get("rev_yoy") is not None) else 0
+        time.sleep(sleep)
+    return {"valuation": len(val), "financials_refreshed": ok, "financials_stale": len(stale)}
+
+
 def refresh_stocks(codes: list[str], sleep: float = 1.2) -> int:
     ok = 0
     for i, c in enumerate(codes, 1):

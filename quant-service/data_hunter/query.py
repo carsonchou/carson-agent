@@ -155,9 +155,21 @@ def _run_bounded(fn, timeout: float, default=None):
         return default
 
 
+# 短期 df 記憶化：開一檔詳情前端會同時打 /api/stock + /api/analyst，兩者都 _load_df 同一檔
+# → 快取讀取+官方回補+即時覆蓋做兩次。用 (code,live)→(ts,df) 短 TTL memo 讓第二次秒回。
+_DF_MEMO: dict = {}
+_DF_TTL = 20.0   # 秒；夠涵蓋同一次開窗的並發呼叫，又不至於拿到過時即時價
+
+
 def _load_df(code: str, live: bool, yf_timeout: float = 10.0):
     """單檔 OHLCV：快取優先(本地、秒回)，缺則 yfinance(.TW→.TWO)但**硬性 ≤yf_timeout 秒**，
-    逾時就當抓不到回 None(上層轉 {ok:false,error})，絕不無限等。live=True 再用即時價覆蓋(另有 6s 上限)。"""
+    逾時就當抓不到回 None(上層轉 {ok:false,error})，絕不無限等。live=True 再用即時價覆蓋(另有 6s 上限)。
+    含 20 秒 memo：避免同一次開窗的 /api/stock 與 /api/analyst 重複載入同一檔。"""
+    import time as _t
+    key = (code, bool(live))
+    hit = _DF_MEMO.get(key)
+    if hit and (_t.monotonic() - hit[0]) < _DF_TTL:
+        return hit[1]
     df = scan._read_cache(code)
     # 快取過時檢查：非精選股每日不刷新→快取可能停在數週前的舊價(盟立/微星實測停在06-11)。
     # 最後一筆若距今 > 5 天，視為過時、丟棄改抓官方最新(twstock)，避免顯示舊價。
@@ -186,6 +198,11 @@ def _load_df(code: str, live: bool, yf_timeout: float = 10.0):
             scan.apply_realtime(bag)      # 同日覆蓋 / 跨日新增(內建交易時段防呆；走 twstock 即時網路)
             return bag[code]
         df = _run_bounded(_rt, timeout=6.0, default=df)   # 即時價也設上限，抓不到就用原日線
+    if df is not None:
+        _DF_MEMO[key] = (_t.monotonic(), df)
+        if len(_DF_MEMO) > 64:            # 上限保護，清最舊
+            for k in sorted(_DF_MEMO, key=lambda k: _DF_MEMO[k][0])[:32]:
+                _DF_MEMO.pop(k, None)
     return df
 
 
