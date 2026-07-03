@@ -587,6 +587,18 @@
   .hz-item .hz-iv{color:var(--txt);font-variant-numeric:tabular-nums}
   .hz-item.hz-na{color:var(--faint);font-style:italic}
   .smKwrap{margin-top:14px;border:1px solid var(--line);border-radius:var(--r-md);padding:10px 12px 7px;background:rgba(4,8,16,.28)}
+  /* 即時五檔 order book（委買紅/委賣綠，量條，成交價置中） */
+  .fv-intra{width:100%;height:64px;display:block;margin-bottom:8px;border:1px solid var(--line);border-radius:var(--r-sm);background:rgba(4,8,16,.3)}
+  .fv-body{border:1px solid var(--line2);border-radius:var(--r-sm);overflow:hidden;background:rgba(4,8,16,.4)}
+  .fv-row{display:grid;grid-template-columns:64px 1fr 64px;align-items:center;gap:8px;padding:3px 12px;
+    font-family:var(--mono);font-size:12px;font-variant-numeric:tabular-nums}
+  .fv-px{font-weight:700}
+  .fv-bar{height:9px;border-radius:2px;background:rgba(255,255,255,.03);overflow:hidden;position:relative}
+  .fv-bar i{display:block;height:100%;border-radius:2px}
+  .fv-asks .fv-bar i{margin-left:auto}   /* 賣量條靠右，與買量鏡像 */
+  .fv-vol{color:var(--dim);text-align:right}
+  .fv-mid{display:flex;justify-content:center;gap:10px;padding:6px 12px;font-family:var(--mono);font-size:12.5px;
+    font-weight:700;color:var(--txt);background:rgba(255,255,255,.03);border-top:1px solid var(--hair);border-bottom:1px solid var(--hair)}
   /* 個股新聞 */
   .news-loading{font-family:var(--mono);font-size:11.5px;color:var(--dim);padding:8px 2px}
   .news-list{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden}
@@ -1875,8 +1887,54 @@ if(SNAP){ loadHistory(); }
     if(!data){ const {by}=localIndex(); data=by.get(code)||null; }
     if(!data){ showHint('讀取 '+code+' 失敗 · 詳情需連後端（非 mock）'); return; }
     openModal(data);
+    triggerQuote(data);        // 即時五檔(證交所 MIS)非同步載入
     triggerTeamAnalysis(data); // 傳整個個股物件：後端無 strategy 時可用現價當參考、mock 亦可造樣本
     triggerNews(data);         // 個股新聞非同步載入(不卡面板)
+  }
+
+  // ── 即時五檔（/api/quote，證交所 MIS 免費約 20 秒延遲；委買紅、委賣綠）──
+  async function triggerQuote(stock){
+    const code=stock.code||''; if(!code) return;
+    const box=document.getElementById('smQuoteBox'); if(!box) return;
+    try{
+      const r=await fetch('/api/quote?code='+encodeURIComponent(code),{cache:'no-store'});
+      const j=await r.json(); const q=j&&j.quote; const intra=j&&j.intraday;
+      if(!q||(!q.ask?.length&&!q.bid?.length)){ box.innerHTML=''; return; }
+      const pc=q.prev_close;
+      const pxCol=p=>p==null||pc==null?'var(--txt)':(p>pc?'var(--up)':(p<pc?'var(--dn)':'var(--dim)'));
+      const maxV=Math.max(1,...(q.ask||[]).map(l=>l.vol),...(q.bid||[]).map(l=>l.vol));
+      const row=(l,side)=>{ const w=Math.max(3,l.vol/maxV*100);
+        const bar=side==='bid'?'rgba(230,74,94,.28)':'rgba(43,171,130,.28)';
+        return `<div class="fv-row"><span class="fv-px" style="color:${pxCol(l.price)}">${l.price}</span>`+
+          `<span class="fv-bar"><i style="width:${w}%;background:${bar}"></i></span>`+
+          `<span class="fv-vol">${l.vol.toLocaleString()}</span></div>`; };
+      const asks=[...(q.ask||[])].reverse().map(l=>row(l,'ask')).join('');   // 賣：高→低
+      const bids=(q.bid||[]).map(l=>row(l,'bid')).join('');                  // 買：高→低
+      const chgTxt=q.chg!=null?`<span style="color:${chgColor(q.chg)}">${q.price??'—'} ${sign(q.chg)}${q.chg_pct!=null?' ('+sign(q.chg_pct)+'%)':''}</span>`:'';
+      const hasIntra=Array.isArray(intra)&&intra.length>=2;
+      box.innerHTML=`<div class="fv"><div class="smSubhd" style="margin-top:14px">五檔即時 · ORDER BOOK<span class="hd-x">MIS約20秒延遲${q.time?' · '+q.time:''}</span></div>`+
+        (hasIntra?`<canvas class="fv-intra"></canvas>`:'')+
+        `<div class="fv-body"><div class="fv-asks">${asks}</div>`+
+        `<div class="fv-mid">成交 ${chgTxt||q.price||'—'}　·　量 ${q.volume?.toLocaleString?.()||q.volume||0} 張</div>`+
+        `<div class="fv-bids">${bids}</div></div></div>`;
+      if(hasIntra) drawIntraday(box.querySelector('.fv-intra'), intra, pc);
+    }catch(e){ box.innerHTML=''; }
+  }
+  // 分時走勢線（今日1分收盤 vs 昨收基準；上紅下綠）
+  function drawIntraday(cv,data,base){
+    if(!cv||!data||data.length<2) return;
+    const dpr=window.devicePixelRatio||1, W=cv.clientWidth||520, H=64;
+    cv.width=W*dpr; cv.height=H*dpr; cv.style.height=H+'px'; const g=cv.getContext('2d'); g.scale(dpr,dpr);
+    const lo=Math.min(base??Infinity,...data), hi=Math.max(base??-Infinity,...data), sp=(hi-lo)||1;
+    const x=i=>i/(data.length-1)*(W-2)+1, y=v=>H-4-((v-lo)/sp)*(H-8);
+    // 昨收基準虛線
+    if(base!=null){ g.strokeStyle='rgba(140,160,190,.35)'; g.setLineDash([3,3]); g.beginPath(); g.moveTo(0,y(base)); g.lineTo(W,y(base)); g.stroke(); g.setLineDash([]); }
+    const last=data[data.length-1], up=base!=null?last>=base:true;
+    const col=up?'#e64a5e':'#2bab82';
+    g.beginPath(); data.forEach((v,i)=>{ i?g.lineTo(x(i),y(v)):g.moveTo(x(i),y(v)); }); g.strokeStyle=col; g.lineWidth=1.4; g.stroke();
+    // 面積填充
+    g.lineTo(x(data.length-1),H); g.lineTo(x(0),H); g.closePath();
+    g.fillStyle=up?'rgba(230,74,94,.10)':'rgba(43,171,130,.10)'; g.fill();
   }
 
   // ── 個股新聞（/api/news 非同步；插在四維籌碼後、四師前的位置由 DOM 順序決定）──
@@ -2005,6 +2063,7 @@ if(SNAP){ loadHistory(); }
         `<span class="sm-alert"><input id="smAlertPx" type="number" step="0.01" placeholder="到價價格"><button id="smAlertUp" class="sm-act" title="漲抵提醒">≥</button><button id="smAlertDn" class="sm-act" title="跌破提醒">≤</button></span>`+
       `</div>`+
       (s.reason?`<div class="smReason">${s.reason}</div>`:'')+
+      `<div id="smQuoteBox"></div>`+
       buildHealthCard(s.health)+
       (hasK?`<div class="smKwrap"><div class="smKtabs">`+
         `<span class="smKtab on" data-k="d">日K</span>`+

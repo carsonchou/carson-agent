@@ -38,7 +38,7 @@ class Handler(SimpleHTTPRequestHandler):
     def _handle_api(self, path: str, qs: dict) -> bool:
         """動態 API：/api/stock、/api/search、/api/analyst。命中回 True(已回應)，否則 False(交還靜態服務)。
         query/analyst 在 handler 內 import(而非模組頂層)，讓查價/分析失敗絕不拖垮靜態看板服務。"""
-        if path not in ("/api/stock", "/api/search", "/api/analyst", "/api/news"):
+        if path not in ("/api/stock", "/api/search", "/api/analyst", "/api/news", "/api/quote"):
             return False
         try:
             import query
@@ -55,6 +55,30 @@ class Handler(SimpleHTTPRequestHandler):
                 # 前端契約：直接回 JSON 陣列 [{code,name,industry}]；空 q 或出錯回 []（前端好迭代）
                 q = _first("q")
                 self._send_json(query.search_stocks(q) if q else [])
+                return True
+
+            if path == "/api/quote":
+                # 即時五檔/報價(證交所 MIS，免費約20秒延遲)：?code= 或 ?q=
+                from concurrent.futures import ThreadPoolExecutor
+                raw = _first("code") or _first("q")
+                code = query._resolve_code(raw) or raw
+                q = None; intraday = None
+                try:
+                    import realtime_quote
+                    with ThreadPoolExecutor(max_workers=2) as ex:
+                        fq = ex.submit(realtime_quote.fetch_quote, code)
+                        fi = ex.submit(realtime_quote.fetch_intraday, code)
+                        try:
+                            q = fq.result(timeout=8.0)
+                        except Exception:
+                            q = None
+                        try:
+                            intraday = fi.result(timeout=8.0)   # 分時走勢(慢一點沒關係)
+                        except Exception:
+                            intraday = None
+                except Exception:
+                    q = None
+                self._send_json({"ok": bool(q), "quote": q, "intraday": intraday})
                 return True
 
             if path == "/api/news":
