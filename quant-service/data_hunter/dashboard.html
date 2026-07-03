@@ -219,6 +219,44 @@
   .rkTab.on{color:var(--acc2);border-color:var(--line2);background:rgba(90,147,189,.12)}
   .rk-px{font-variant-numeric:tabular-nums;font-weight:700;min-width:56px;text-align:right}
   .rk-m{font-variant-numeric:tabular-nums;font-weight:700;min-width:60px;text-align:right}
+
+  /* ══ 交易專區 ══ */
+  .zTabs{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+  .zTab{font-family:var(--mono);font-size:12.5px;letter-spacing:.5px;padding:6px 14px;border-radius:var(--r-sm);cursor:pointer;
+    border:1px solid var(--line);color:var(--dim);background:rgba(255,255,255,.02);transition:all .15s}
+  .zTab:hover{color:var(--acc2);border-color:var(--line2)}
+  .zTab.on{color:var(--acc2);border-color:var(--line2);background:rgba(90,147,189,.12)}
+  .zDesc{font-size:12px;color:var(--dim);line-height:1.6;margin-bottom:10px}
+  .zChips{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+  .zChip{font-family:var(--mono);font-size:11px;padding:3px 10px;border-radius:var(--r-pill);cursor:pointer;
+    border:1px solid var(--hair);color:var(--dim);transition:all .15s}
+  .zChip:hover{color:var(--acc2)}
+  .zChip.on{color:var(--acc2);border-color:rgba(90,147,189,.4);background:rgba(90,147,189,.1)}
+  .zTableWrap{overflow-x:auto}
+  .zTable{width:100%;border-collapse:collapse;font-size:12.5px}
+  .zTable thead th{font-family:var(--mono);font-size:10.5px;font-weight:500;color:var(--dim);letter-spacing:.5px;
+    text-align:right;padding:7px 9px;border-bottom:1px solid var(--line2);cursor:pointer;white-space:nowrap;user-select:none}
+  .zTable thead th:first-child,.zTable thead th.tleft{text-align:left}
+  .zTable thead th:hover{color:var(--acc2)}
+  .zTable thead th .sar{color:var(--acc);margin-left:2px}
+  .zTable tbody td{padding:7px 9px;text-align:right;font-variant-numeric:tabular-nums;border-bottom:1px solid var(--hair);white-space:nowrap}
+  .zTable tbody td.tleft{text-align:left}
+  .zTable tbody tr.zrow{cursor:pointer;transition:background .15s}
+  .zTable tbody tr.zrow:nth-child(4n-1){background:rgba(255,255,255,.02)}
+  .zTable tbody tr.zrow:hover{background:rgba(90,147,189,.08)}
+  .zrank{color:var(--faint);font-family:var(--mono)}
+  .znm b{font-weight:600}.znm .rcode{font-family:var(--mono);color:var(--dim);font-size:11px;margin-right:5px}
+  .zscore-cell{font-family:var(--ttl);font-weight:600}
+  .zsetup{font-family:var(--mono);font-size:9.5px;padding:1px 5px;border-radius:3px;margin-left:4px;
+    color:var(--acc2);border:1px solid var(--line2)}
+  .zexp{width:16px;color:var(--faint);cursor:pointer}
+  .zplay-row td{background:rgba(4,8,16,.4);padding:0!important}
+  .zplay{display:grid;grid-template-columns:repeat(2,1fr);gap:8px 18px;padding:11px 16px;text-align:left}
+  @media(max-width:620px){.zplay{grid-template-columns:1fr}}
+  .zplay .pk{font-family:var(--mono);font-size:10px;color:var(--dim);margin-bottom:2px}
+  .zplay .pv{font-size:12.5px;color:var(--txt);line-height:1.5}
+  .zNote{font-family:var(--mono);font-size:10.5px;color:var(--faint);text-align:center;margin-top:12px}
+  .zEmpty{color:var(--dim);font-size:13px;padding:20px;text-align:center;font-family:var(--mono)}
   .rchg{font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:700;min-width:54px;text-align:right}
 
   /* ════ signals ════ */
@@ -880,6 +918,7 @@
     <div class="tab active" data-v="board">看板 · LIVE</div>
     <div class="tab" data-v="heat">板塊熱流 · FLOW MAP</div>
     <div class="tab" data-v="chips">法人資金流向 · INSTITUTIONS</div>
+    <div class="tab" data-v="zones">交易專區 · TRADE ZONES</div>
     <div class="tab" data-v="track">實盤戰績 · TRACK RECORD</div>
     <div class="tab" data-v="history">歷史訊號 · TIMELINE</div>
   </div>
@@ -971,6 +1010,23 @@
         <div><div id="longHdr" style="font-size:12px;color:var(--up);font-weight:700;margin-bottom:2px">做多 · LONG</div><div id="longs"></div></div>
         <div><div id="shortHdr" style="font-size:12px;color:var(--dn);font-weight:700;margin-bottom:2px">做空 · SHORT</div><div id="shorts"></div></div>
       </div>
+    </section>
+  </div>
+
+  <!-- ════ 交易專區 view（當沖/短線/長線 選股） ════ -->
+  <div class="view" data-view="zones">
+    <section class="panel">
+      <span class="corner tl"></span><span class="corner br"></span>
+      <h2>交易專區 · TRADE ZONES <span id="zMeta" class="hd-x" style="margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--faint)"></span></h2>
+      <div class="zTabs">
+        <span class="zTab on" data-z="daytrade">當沖 · DAY TRADE</span>
+        <span class="zTab" data-z="swing">短線 · SWING</span>
+        <span class="zTab" data-z="longterm">長線 · POSITION</span>
+      </div>
+      <div class="zDesc" id="zDesc"></div>
+      <div class="zChips" id="zChips"></div>
+      <div class="zTableWrap"><table class="zTable" id="zTable"></table></div>
+      <div class="zNote">多因子選股參考 · 非投資建議 · 據此進出風險自負</div>
     </section>
   </div>
 
@@ -1508,6 +1564,7 @@ document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
   if(v==='heat'&&lastData)renderHeatmap(lastData.sectors);
   if(v==='track'&&lastData)renderTrack(lastData.track);
   if(v==='chips'&&lastData)renderChips(lastData.chips);
+  if(v==='zones')window.fetchZones&&window.fetchZones();
 }));
 
 // ── 歷史訊號時間軸 ──
@@ -2256,9 +2313,101 @@ if(SNAP){ loadHistory(); }
       `<span class="itnet">+${(x.net||0).toLocaleString()}</span>`+
       `<span class="mono" style="font-size:10px;color:var(--dim)">${x.consec?x.consec+'日':''}</span></div>`; }).join('');
   }
+  // ══ 交易專區（當沖/短線/長線 選股，可排序表 + 手把手）══
+  let zonesData=null, zStyle='daytrade', zSetup=null, zSort={key:'zscore',dir:-1}, zExpanded=new Set();
+  const ZDESC={
+    daytrade:'當沖活躍標的池：高當沖比 · 大振幅 · 爆量 · 高流動性。個股詳情有分時走勢+即時五檔。當日進出、嚴設停損。',
+    swing:'波段短線（3–20 天）：SuperTrend 翻多起漲 · 突破前高 · 法人連買強勢。強弱分經回測分位對未來報酬單調遞增。',
+    longterm:'長線存股（月–年）：高殖利率 · 低估值 · 基本面成長 · 站上季/年線。合理估值分批、長抱。'};
+  const STORD={UP:2,NEUTRAL:1,DOWN:0};
+  const ZCOLS={
+    daytrade:[
+      {k:'zscore',label:'當沖分',g:c=>c.zscore,cell:c=>`<b class="zscore-cell" style="color:${hzColor(c.zscore)}">${c.zscore}</b>`},
+      {k:'day_trade_pct',label:'當沖比%',g:c=>c.metrics.day_trade_pct,cell:c=>fx(c.metrics.day_trade_pct,1)},
+      {k:'amplitude',label:'振幅%',g:c=>c.metrics.amplitude,cell:c=>fx(c.metrics.amplitude,1)},
+      {k:'relvol',label:'量能x',g:c=>c.metrics.relvol,cell:c=>fx(c.metrics.relvol,1)},
+      {k:'amount',label:'成交值億',g:c=>c.metrics.amount,cell:c=>fx(c.metrics.amount,1)},
+      {k:'chg',label:'漲跌%',g:c=>c.chg,cell:c=>`<span style="color:${chgColor(c.chg)}">${sign(c.chg)}%</span>`}],
+    swing:[
+      {k:'zscore',label:'短線分',g:c=>c.zscore,cell:c=>`<b class="zscore-cell" style="color:${hzColor(c.zscore)}">${c.zscore}</b>`},
+      {k:'score',label:'強弱分',g:c=>c.metrics.score,cell:c=>fx(c.metrics.score,0)},
+      {k:'st',label:'ST',g:c=>STORD[c.metrics.st]??1,cell:c=>{const m={UP:'翻多',DOWN:'翻空'}[c.metrics.st]||'中性';return `<span style="color:${c.metrics.st==='UP'?'var(--up)':c.metrics.st==='DOWN'?'var(--dn)':'var(--dim)'}">${m}</span>`;}},
+      {k:'gap_high',label:'距前高%',g:c=>c.metrics.gap_high,cell:c=>fx(c.metrics.gap_high,1)},
+      {k:'consec',label:'法人連買',g:c=>c.metrics.consec,cell:c=>c.metrics.consec?`<span style="color:var(--up)">${c.metrics.consec}日</span>`:'—'},
+      {k:'rsi',label:'RSI',g:c=>c.metrics.rsi,cell:c=>fx(c.metrics.rsi,0)},
+      {k:'stop',label:'停損',g:c=>c.metrics.stop,cell:c=>c.metrics.stop!=null?`<span style="color:var(--dn)">${c.metrics.stop}</span>`:'—'}],
+    longterm:[
+      {k:'zscore',label:'長線分',g:c=>c.zscore,cell:c=>`<b class="zscore-cell" style="color:${hzColor(c.zscore)}">${c.zscore}</b>`},
+      {k:'pe',label:'PE',g:c=>c.metrics.pe,cell:c=>fx(c.metrics.pe,1)},
+      {k:'yield',label:'殖利率%',g:c=>c.metrics.yield,cell:c=>`<span style="color:var(--gold)">${fx(c.metrics.yield,2)}</span>`},
+      {k:'eps',label:'EPS',g:c=>c.metrics.eps,cell:c=>fx(c.metrics.eps,2)},
+      {k:'rev_yoy',label:'營收YoY%',g:c=>c.metrics.rev_yoy,cell:c=>c.metrics.rev_yoy!=null?`<span style="color:${chgColor(c.metrics.rev_yoy)}">${sign(c.metrics.rev_yoy)}%</span>`:'—'},
+      {k:'roe',label:'ROE%',g:c=>c.metrics.roe,cell:c=>fx(c.metrics.roe,1)}]};
+
+  async function fetchZones(){
+    try{ const r=await fetch('/api/zones',{cache:'no-store'}); const j=await r.json();
+      if(j&&j.daytrade){ zonesData=j; renderZones(); } }catch(e){}
+  }
+  function renderZones(){
+    if(!zonesData){ fetchZones(); return; }
+    document.querySelectorAll('.zTab').forEach(t=>t.classList.toggle('on',t.dataset.z===zStyle));
+    const meta=document.getElementById('zMeta');
+    if(meta) meta.textContent=`全市場 ${zonesData.universe_n||'—'} 檔 · ${(zonesData.generated_at||'').replace('T',' ').slice(5,16)}`;
+    const desc=document.getElementById('zDesc'); if(desc) desc.textContent=ZDESC[zStyle]||'';
+    // setup chips（該風格所有候選出現過的 setup）
+    const cands=(zonesData[zStyle]||{}).cands||[];
+    const setups=[...new Set(cands.flatMap(c=>c.setups||[]))];
+    const chipBox=document.getElementById('zChips');
+    if(chipBox) chipBox.innerHTML=`<span class="zChip${zSetup?'':' on'}" data-s="">全部</span>`+
+      setups.map(s=>`<span class="zChip${zSetup===s?' on':''}" data-s="${s}">${s}</span>`).join('');
+    renderZoneTable();
+  }
+  function renderZoneTable(){
+    const t=document.getElementById('zTable'); if(!t) return;
+    let cands=((zonesData[zStyle]||{}).cands||[]).slice();
+    if(zSetup) cands=cands.filter(c=>(c.setups||[]).includes(zSetup));
+    const cols=ZCOLS[zStyle];
+    cands.sort((a,b)=>{ const va=zSort.key==='chg'?a.chg:(cols.find(c=>c.k===zSort.key)?.g(a));
+      const vb=zSort.key==='chg'?b.chg:(cols.find(c=>c.k===zSort.key)?.g(b));
+      return ((va??-1e9)-(vb??-1e9))*zSort.dir; });
+    if(!cands.length){ t.innerHTML=`<tbody><tr><td class="zEmpty">此條件暫無候選（盤後產生 / 換 setup 或風格）</td></tr></tbody>`; return; }
+    const arrow=k=>zSort.key===k?`<span class="sar">${zSort.dir<0?'▼':'▲'}</span>`:'';
+    const thead=`<thead><tr><th class="tleft">#</th><th class="tleft">個股</th>`+
+      cols.map(c=>`<th data-sk="${c.k}">${c.label}${arrow(c.k)}</th>`).join('')+`<th></th></tr></thead>`;
+    const body=cands.map((c,i)=>{ regDrill&&regDrill(c);
+      const tags=(c.setups||[]).slice(0,2).map(s=>`<span class="zsetup">${s}</span>`).join('');
+      const cells=cols.map(col=>`<td>${col.cell(c)??'—'}</td>`).join('');
+      const exp=zExpanded.has(c.code)?'▾':'▸';
+      let row=`<tr class="zrow" data-code="${c.code}"><td class="zrank tleft">${i+1}</td>`+
+        `<td class="znm tleft" data-open="${c.code}"><span class="rcode">${c.code}</span><b>${c.name}</b>${tags}</td>`+
+        cells+`<td class="zexp" data-exp="${c.code}">${exp}</td></tr>`;
+      if(zExpanded.has(c.code)&&c.play){ const p=c.play;
+        row+=`<tr class="zplay-row"><td colspan="${cols.length+3}"><div class="zplay">`+
+          `<div><div class="pk">進場</div><div class="pv">${p.entry||'—'}</div></div>`+
+          `<div><div class="pk">停損</div><div class="pv" style="color:var(--dn)">${p.stop||'—'}</div></div>`+
+          `<div><div class="pk">停利/目標</div><div class="pv" style="color:var(--up)">${p.target||'—'}</div></div>`+
+          `<div><div class="pk">紀律</div><div class="pv">${p.note||'—'}</div></div>`+
+          `</div></td></tr>`; }
+      return row; }).join('');
+    t.innerHTML=thead+`<tbody>${body}</tbody>`;
+  }
+  // 事件：風格切換 / setup 篩選 / 欄位排序 / 展開手把手 / 點名稱開詳情
+  document.querySelectorAll('.zTab').forEach(t=>t.addEventListener('click',()=>{
+    zStyle=t.dataset.z; zSetup=null; zSort={key:'zscore',dir:-1}; zExpanded.clear(); renderZones(); }));
+  document.getElementById('zChips')?.addEventListener('click',e=>{
+    const c=e.target.closest('.zChip'); if(!c)return; zSetup=c.dataset.s||null; renderZoneTable();
+    document.querySelectorAll('#zChips .zChip').forEach(x=>x.classList.toggle('on',(x.dataset.s||null)===zSetup)); });
+  document.getElementById('zTable')?.addEventListener('click',e=>{
+    const th=e.target.closest('th[data-sk]');
+    if(th){ const k=th.dataset.sk; zSort.dir=(zSort.key===k)?-zSort.dir:-1; zSort.key=k; renderZoneTable(); return; }
+    const ex=e.target.closest('[data-exp]');
+    if(ex){ const cd=ex.dataset.exp; zExpanded.has(cd)?zExpanded.delete(cd):zExpanded.add(cd); renderZoneTable(); return; }
+    const op=e.target.closest('[data-open]');
+    if(op){ pick(op.dataset.open); } });
+
   // 這些看板 widget 定義在本 IIFE，但主資料輪詢 render(d) 在另一個 script → 掛 window 供其呼叫
   Object.assign(window, {renderIndices, renderMStats, renderInstTop, renderRanks,
-    renderWatchStrip, checkAlerts});
+    renderWatchStrip, checkAlerts, renderZones, fetchZones});
 
   // ── 四師深度分析（/api/analyst）：綜合策略卡 + 操作區間卡 + 四師卡×4 ──────────
   const TEAM_COLORS={'朱家泓':'var(--acc)','阿斯匹靈':'var(--gold)','權證小哥':'var(--up)','張捷':'var(--dn)'};
