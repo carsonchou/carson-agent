@@ -620,6 +620,9 @@ def _analyse_core(code: str, df_raw: pd.DataFrame, drop_last: bool) -> dict | No
 
     # ── 個股強弱分 0-100：正交四維(各 0-25)，去除 RSI 與 mom5 雙重計動能 ──
     #   趨勢(ST方向 + ADX 強度)、位置(布林 %B)、動能(RSI)、波動(relVol 參與度)
+    # 【定位】此為排行榜/訊號用的「快速純技術動能排名」(全市場逐檔要快)；個股詳情的
+    #   多面向「個股健診」(技術+籌碼+基本面+估值、連續計分)在 health.py，兩者分工不同：
+    #   強弱分=掃全場找相對強勢，健診=單檔深度體檢。刻意分開，非重複。
     st_up = (st_today == "UP")
     adx_norm = min((adx or 0) / 40.0, 1.0)
     trend_s = (12.5 if st_up else 0.0) + 12.5 * adx_norm

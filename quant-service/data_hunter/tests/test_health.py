@@ -76,6 +76,13 @@ class TestComputeHealth(unittest.TestCase):
         self.assertLess(h["overall"], 40)
         self.assertIn(h["grade"], ("D", "E"))
 
+    def test_roe_derived_from_eps_pb_price(self):
+        # ROE ≈ EPS_ttm × PB / price：74.39×11.03/2465 ≈ 33.3%
+        self.assertAlmostEqual(health._roe_est(
+            {"eps_ttm": 74.39, "pb": 11.03, "price": 2465}), 33.3, delta=0.5)
+        self.assertIsNone(health._roe_est({"eps_ttm": 5, "pb": None, "price": 100}))
+        self.assertIsNone(health._roe_est({"eps_ttm": None, "pb": 2, "price": 100}))
+
     def test_all_missing_returns_none_overall(self):
         h = health.compute_health({})
         # 技術面全缺 → 各面向無資料 → overall None、grade —

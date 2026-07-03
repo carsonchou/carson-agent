@@ -14,8 +14,23 @@
 - **法人資金流向**：外資/投信買超榜 + 連買榜 + 融資融券/當沖熱榜 + 集保散戶流出（主力吸籌）榜
 - **實盤戰績**：已推訊號的真實勝率/平均R/成績單（track.py 用快取價事後評估，非回測美化）
 - **歷史訊號**：當日訊號時間軸
+- **自選股條**（★ 加入的個股快速報價）、**多元排行**（漲幅/跌幅/成交值/振幅）
 
-點任一個股 → popover 迷你**日K線圖**（蠟燭+MA20）+ RSI/SuperTrend/法人連買/融資券/集保等下鑽。
+點任一個股 → popover 迷你日K；**搜尋代號/名稱 → 個股深度頁（對齊三竹個股頁）**：
+
+## 個股深度頁（搜尋任一上市櫃/ETF）
+機構級金融終端風格（IBM Plex 字體、去發光、紅漲綠跌）。由上而下：
+- **即時五檔 ORDER BOOK**（證交所 MIS，免費約20秒延遲）：委買委賣五檔價量條 + 成交/漲跌 + **今日分時走勢線**（yfinance 1分K）
+- **個股健診六宮格**：四面向連續計分（技術/籌碼/**基本面**/**估值**）+ 等級 A–E + 信心度（`health.py`，取代舊拍板式評分）
+- **K線 日/週/月** 切換（蠟燭+MA20）
+- **13 技術指標**：RSI/MA/SuperTrend/MACD/ADX/%B/ATR + **OBV/DMI/威廉%R/CCI/寶塔線**
+- **基本面財報**：EPS(近四季/單季)/年增、營收年增YoY/月增、毛利率/營益率、**PE/PB/殖利率/股利/除權息日**、ROE(推估)
+- **四維籌碼**：三大法人/融資券/當沖/集保
+- **四師手把手教學**：朱家泓/阿斯匹靈/權證小哥/張捷 四維度深度判讀 + 綜合操作區間（買在哪賣在哪停損目標風報比）+ 逐步操作
+- **個股新聞**（Google News RSS）
+- 頂部 **★自選股 + 到價提醒**（漲抵/跌破，localStorage，盤中刷新推播）
+
+> 做不到（誠實）：即時逐筆真 tick（MIS 是~20秒快照）、券商分點（TWSE 分點報表有 captcha）——需付費行情源。
 
 ## 怎麼用
 
@@ -30,7 +45,7 @@
 | 跟市場同步（證交所即時價，盤中秒級） | `scan.py --realtime` |
 | 刷快取／只讀快取不連網 | `scan.py --freshen`／`scan.py --cache` |
 | 訊號參數校準（研究用，不回寫除非 --apply） | `python calibrate.py [--full]` |
-| 跑單元測試（61 個，全綠） | `python -m unittest discover -s tests` |
+| 跑單元測試（~100 個，全綠） | `python -m unittest discover -s tests` |
 
 看板網址：<http://127.0.0.1:8899/>；快照海報：`?snapshot=1|chips|track|flow`（IG 直式 1080×1350）。
 
@@ -45,26 +60,35 @@
 一個 GET 抓全市場當日（非逐檔），成本極低；本地快取 `twdata/{chips,margin,tdcc}/`（gitignore）。**籌碼只當顯示/confluence，不硬 gate 砍訊號。**
 
 ## 資料來源
-- 價量：yfinance（日線，`auto_adjust=False` 與快取/即時同基準）、**twstock.realtime**（證交所即時撮合價，盤中秒級，勝過 yfinance 延遲15-20分）、`twdata/cache/`（1900+檔）
+- 價量：**twstock 官方日線**（證交所/櫃買，上市櫃皆正確；yfinance 抓台股不可靠已停用日線）、**twstock.realtime**＋**證交所 MIS**（即時撮合價/五檔，盤中約20秒延遲）、yfinance（僅分時1分K）、`twdata/cache/`
 - 籌碼：TWSE/TPEX/TDCC open data（見上表）
-- 跑在 `D:\ClawWork\.venv`（yfinance/pandas/numpy/twstock）；推播 `../notify.py`（ntfy topic 從 `../.env`）
+- **基本面**：證交所 **BWIBBU_ALL**（PE/PB/殖利率，全市場當日、免 token）＋ **FinMind**（EPS/毛利/月營收/股利/除權息；`FINMIND_TOKEN` env 選配，免 token 300/hr）→ `fundamentals.py`
+- **新聞**：Google News RSS → `news.py`
+- 跑在 `D:\ClawWork\.venv`（pandas/numpy/twstock/yfinance）；推播 `../notify.py`（ntfy topic 從 `../.env`）
 
 ## 檔案
 ```
 data_hunter/
 ├─ universe.py     精選~125檔/18產業 + load_full_universe(全市場~1900/34產業)
-├─ scan.py         掃描引擎(指標→強弱分→籌碼合併→訊號→state.json→推播)
+├─ scan.py         掃描引擎(指標→強弱分→籌碼合併→訊號→排行→state.json→推播)
 ├─ chips.py/margin.py/tdcc.py   三大法人 / 融資券當沖 / 集保 籌碼
+├─ fundamentals.py 基本面/估值(BWIBBU + FinMind：EPS/營收/毛利/PE/PB/殖利率/股利/除權息)
+├─ health.py       個股健診引擎(四面向連續計分+等級A–E+信心度)
+├─ realtime_quote.py  即時五檔/報價(證交所 MIS) + 分時走勢(yfinance 1分K)
+├─ news.py         個股新聞(Google News RSS)
+├─ analyst.py      四師深度分析 + 綜合操作區間 + 手把手教學
+├─ query.py        個股查詢(代號/名稱→完整分析，含健診/基本面/擴充指標)
+├─ ../indicators.py  指標庫(MA/RSI/MACD/SuperTrend/BBand + OBV/DMI/威廉/CCI/寶塔/週月K resample)
 ├─ calibrate.py    自寫對齊單一ST的輕量回測(train/test偶奇、無look-ahead、研究用)
 ├─ track.py        訊號命中率回灌(事後評估真實勝率/R)
 ├─ daily_post.py   一鍵今日貼文(模板文案+主題海報，免LLM)
-├─ eod.py          盤後一鍵管線(刷快取→籌碼→掃描→貼文)
-├─ loop.py/app.py/server.py   背景迴圈 / 桌面app / 看板伺服器
-├─ dashboard.html  深色HUD看板(5分頁+反應爐+K線popover+主題快照)
-├─ tests/          61個單元測試(標準庫unittest、零依賴、不連網)
+├─ eod.py          盤後一鍵管線(刷快取→籌碼→基本面預抓→掃描→貼文)
+├─ loop.py/app.py/server.py   背景迴圈 / 桌面app / 看板伺服器(/api/stock,analyst,news,quote)
+├─ dashboard.html  機構級金融終端看板(5分頁+個股深度頁+主題快照)
+├─ tests/          ~100個單元測試(標準庫unittest、零依賴、不連網)
 └─ *.bat           開啟看板 / 背景掃描 / 全市場掃描 / app_launch
 ```
-執行期產物（state.json/history.json/signals_book.json/posts/、twdata/{chips,margin,tdcc}/、calibrate_result.md）皆 gitignore。
+執行期產物（state.json/history.json/signals_book.json/posts/、twdata/{cache,chips,margin,tdcc,fundamentals,news}/、calibrate_result.md）皆 gitignore。
 
 ## 要擴充
 - **加股票**：往 `universe.py` 的 `INDUSTRIES` 塞 `(代號, 名稱)`

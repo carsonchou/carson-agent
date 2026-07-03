@@ -46,10 +46,13 @@ def _fake_finmind(dataset, data_id, start_date):
 class TestValuation(unittest.TestCase):
     def setUp(self):
         self._g = fd._get
+        self._w = fd._atomic_write_json
         fd._get = lambda url, timeout=25: FAKE_BWIBBU
+        fd._atomic_write_json = lambda *a, **k: None   # 測試不得寫真快取(隔離)
 
     def tearDown(self):
         fd._get = self._g
+        fd._atomic_write_json = self._w
 
     def test_bwibbu_parse(self):
         v = fd.fetch_valuation_all()
@@ -66,10 +69,13 @@ class TestValuation(unittest.TestCase):
 class TestStockFundamentals(unittest.TestCase):
     def setUp(self):
         self._f = fd._finmind
+        self._w = fd._atomic_write_json
         fd._finmind = _fake_finmind
+        fd._atomic_write_json = lambda *a, **k: None   # 測試不得寫真快取(隔離)
 
     def tearDown(self):
         fd._finmind = self._f
+        fd._atomic_write_json = self._w
 
     def test_eps_ttm_and_yoy(self):
         d = fd.fetch_stock_fundamentals("2330")

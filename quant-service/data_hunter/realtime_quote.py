@@ -106,8 +106,16 @@ def fetch_quote(code: str, timeout: int = 8) -> dict | None:
     return _parse(valid[0])
 
 
+_INTRA_CACHE: dict = {}          # code → (monotonic_ts, closes)；分時 yfinance 較慢，60 秒快取省重抓
+
+
 def fetch_intraday(code: str) -> list | None:
-    """今日分時走勢：yfinance 1 分K 收盤序列(約延遲15分，給分時線)。上市→.TW 上櫃→.TWO 自動試。"""
+    """今日分時走勢：yfinance 1 分K 收盤序列(約延遲15分，給分時線)。上市→.TW 上櫃→.TWO 自動試。
+    60 秒快取：分時本就延遲，重開同檔不必重抓。"""
+    import time as _t
+    hit = _INTRA_CACHE.get(code)
+    if hit and (_t.monotonic() - hit[0]) < 60:
+        return hit[1]
     try:
         import warnings
         warnings.filterwarnings("ignore")
@@ -119,6 +127,7 @@ def fetch_intraday(code: str) -> list | None:
             h = yf.Ticker(code + suf).history(period="1d", interval="1m")
             closes = [round(float(x), 2) for x in h["Close"].dropna().tolist()]
             if len(closes) >= 2:
+                _INTRA_CACHE[code] = (_t.monotonic(), closes)
                 return closes
         except Exception:
             continue

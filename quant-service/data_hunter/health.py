@@ -128,8 +128,17 @@ def _pillar_chip(d):
     return (round(score01 * 100, 1) if score01 is not None else None), items, has
 
 
+def _roe_est(d):
+    """ROE 免額外抓取推估：BVPS=price/PB → ROE≈EPS_ttm/BVPS=EPS_ttm×PB/price(%)。
+    2330 實測 74.39×11.03/2465≈33% 對得上官方。缺任一→None。"""
+    eps, pb, px = d.get("eps_ttm"), d.get("pb"), d.get("price")
+    if eps is None or not pb or not px or px <= 0:
+        return None
+    return round(eps * pb / px * 100, 1)
+
+
 def _pillar_fund(d):
-    """基本面：EPS 獲利/成長 + 營收 YoY + 毛利率。"""
+    """基本面：EPS 獲利/成長 + 營收 YoY + 毛利率 + ROE(推估)。"""
     eps_ttm = d.get("eps_ttm")
     eps_pos = None if eps_ttm is None else (1.0 if eps_ttm > 0 else 0.0)
     eps_g = _squash(d.get("eps_yoy"), -10, 50)
@@ -137,13 +146,16 @@ def _pillar_fund(d):
 
     rev = _squash(d.get("rev_yoy"), -10, 40)
     margin = _squash(d.get("gross_margin"), 5, 40)
+    roe = _roe_est(d)
+    roe_s = _squash(roe, 5, 25)                       # ROE 5%→0, 25%→1(台股績優門檻)
 
-    score01 = _avg([(0.4, profit), (0.35, rev), (0.25, margin)])
-    has = any(v is not None for v in (profit, rev, margin))
+    score01 = _avg([(0.32, profit), (0.28, rev), (0.20, margin), (0.20, roe_s)])
+    has = any(v is not None for v in (profit, rev, margin, roe_s))
     items = [
         _item("EPS(近四季)", _fmt_num(eps_ttm, "", " 元"), profit),
         _item("營收年增 YoY", _fmt_pct(d.get("rev_yoy")), rev),
         _item("毛利率", _fmt_pct(d.get("gross_margin")), margin),
+        _item("ROE(推估)", _fmt_pct(roe), roe_s),
     ]
     return (round(score01 * 100, 1) if score01 is not None else None), items, has
 
