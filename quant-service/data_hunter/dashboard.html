@@ -553,6 +553,11 @@
   .hz-item .hz-iv{color:var(--txt);font-variant-numeric:tabular-nums}
   .hz-item.hz-na{color:var(--faint);font-style:italic}
   .smKwrap{margin-top:14px;border:1px solid var(--line);border-radius:var(--r-md);padding:10px 12px 7px;background:rgba(4,8,16,.28)}
+  .smKtabs{display:flex;gap:5px;margin-bottom:7px}
+  .smKtab{font-family:var(--mono);font-size:11px;padding:2px 10px;border-radius:var(--r-xs);cursor:pointer;
+    border:1px solid var(--line);color:var(--dim);background:rgba(255,255,255,.02);transition:all .15s}
+  .smKtab:hover{color:var(--acc2);border-color:var(--line2)}
+  .smKtab.on{color:var(--acc2);border-color:var(--line2);background:rgba(90,147,189,.12)}
   .smKline{width:100%;height:150px;display:block}
   .smKlegend{font-family:var(--mono);font-size:10px;color:var(--faint);margin-top:4px;display:flex;gap:10px}
   .smKlegend .ma{color:var(--gold)}
@@ -1845,6 +1850,26 @@ if(SNAP){ loadHistory(); }
     </div>`;
   }
 
+  // 基本面區塊（EPS/營收/毛利/估值/股利，對齊三竹財務指標；缺資料整區不顯示）
+  function buildFundGrid(s){
+    const c=[];
+    const numCell=(k,v,dec,suf)=>{ if(v!=null) c.push(statCell(k, fx(v,dec)+(suf||''))); };
+    const pctCell=(k,v)=>{ if(v!=null) c.push(statCell(k, sign(v)+'%', chgColor(v))); };
+    numCell('EPS(近四季)', s.eps_ttm, 2, ' 元');
+    numCell('EPS(單季)', s.eps_q, 2, ' 元');
+    pctCell('EPS 年增', s.eps_yoy);
+    pctCell('營收 年增', s.rev_yoy);
+    pctCell('營收 月增', s.rev_mom);
+    numCell('毛利率', s.gross_margin, 1, '%');
+    numCell('營益率', s.op_margin, 1, '%');
+    numCell('本益比 PE', s.pe, 2);
+    numCell('股價淨值比 PB', s.pb, 2);
+    numCell('殖利率', s.dividend_yield, 2, '%');
+    numCell('現金股利', s.cash_div, 2, ' 元');
+    if(!c.length) return '';
+    return `<div class="smSubhd">基本面 · FUNDAMENTALS</div><div class="smGrid">${c.join('')}</div>`;
+  }
+
   function openModal(s){
     // ETF／指數商品：常無個股籌碼(法人/融資券/集保)，那些欄要優雅隱藏、面板仍以價/指標/K線撐場不空洞
     const isETF=s.is_etf===true||s.type==='etf'||s.kind==='etf'||(typeof s.code==='string'&&/^00/.test(s.code));
@@ -1876,7 +1901,15 @@ if(SNAP){ loadHistory(); }
       statCell('ADX',fx(s.adx,1), s.adx!=null?(s.adx>=25?'var(--gold)':'var(--dim)'):null),
       statCell('%B',fx(pctB,2)),
       statCell('ATR',fx(s.atr,2)),
+      // 擴充指標(對齊三竹多指標)：OBV/DMI/威廉%R/CCI/寶塔線
+      (s.obv_trend?statCell('OBV 量能',s.obv_trend==='up'?'量增':'量縮',s.obv_trend==='up'?'var(--up)':'var(--dn)'):''),
+      (s.dmi_signal?statCell('DMI 動向',`${s.dmi_signal} ${s.plus_di}/${s.minus_di}`,s.dmi_signal==='多'?'var(--up)':'var(--dn)'):''),
+      (s.williams_r!=null?statCell('威廉%R',`${fx(s.williams_r,0)} ${s.williams_zone||''}`,s.williams_zone==='超買'?'var(--up)':(s.williams_zone==='超賣'?'var(--dn)':null)):''),
+      (s.cci!=null?statCell('CCI',`${fx(s.cci,0)} ${s.cci_zone||''}`,s.cci_zone==='超買'?'var(--up)':(s.cci_zone==='超賣'?'var(--dn)':null)):''),
+      (s.tower_signal?statCell('寶塔線',s.tower_signal,/紅|多/.test(s.tower_signal)?'var(--up)':'var(--dn)'):''),
     ].filter(Boolean).join('');
+    // 基本面區塊(EPS/營收/毛利/估值/股利，對齊三竹財務指標；缺資料整區不顯示)
+    const fund=buildFundGrid(s);
     const chips=chipPopRows(s);
 
     mBody.innerHTML=
@@ -1889,9 +1922,14 @@ if(SNAP){ loadHistory(); }
       `<div class="smSig">${sidePill}${lv}</div>`+
       (s.reason?`<div class="smReason">${s.reason}</div>`:'')+
       buildHealthCard(s.health)+
-      (hasK?`<div class="smKwrap"><canvas class="smKline"></canvas><div class="smKlegend"><span class="ma">— MA20</span><span>近 ${s.ohlc.length} 根日K · 紅漲綠跌</span></div></div>`:'')+
+      (hasK?`<div class="smKwrap"><div class="smKtabs">`+
+        `<span class="smKtab on" data-k="d">日K</span>`+
+        (Array.isArray(s.ohlc_w)&&s.ohlc_w.length>=2?`<span class="smKtab" data-k="w">週K</span>`:'')+
+        (Array.isArray(s.ohlc_m)&&s.ohlc_m.length>=2?`<span class="smKtab" data-k="m">月K</span>`:'')+
+        `</div><canvas class="smKline"></canvas><div class="smKlegend"><span class="ma">— MA20</span><span class="smKcap">近 ${s.ohlc.length} 根日K · 紅漲綠跌</span></div></div>`:'')+
       `<div class="smSubhd">技術指標 · INDICATORS</div>`+
       `<div class="smGrid">${stats||'<div class="acHint" style="grid-column:1/-1">指標明細需連後端（非 mock）</div>'}</div>`+
+      fund+
       (chips
         ? `<div class="smSubhd">四維籌碼 · CHIPS</div><div class="smChips">${chips}</div>`
         : (isETF
@@ -1900,7 +1938,18 @@ if(SNAP){ loadHistory(); }
 
     lastFocus=document.activeElement;
     modal.classList.add('show');
-    if(hasK) drawKline(mBody.querySelector('.smKline'), s.ohlc); // innerHTML 落定後才取 canvas
+    if(hasK){
+      const cv=mBody.querySelector('.smKline'); drawKline(cv, s.ohlc); // innerHTML 落定後才取 canvas
+      // 日/週/月 K 切換
+      const arrs={d:s.ohlc, w:s.ohlc_w, m:s.ohlc_m}, caps={d:'日K',w:'週K',m:'月K'};
+      const cap=mBody.querySelector('.smKcap');
+      mBody.querySelectorAll('.smKtab').forEach(t=>t.addEventListener('click',()=>{
+        const k=t.dataset.k, a=arrs[k]; if(!Array.isArray(a)||a.length<2) return;
+        mBody.querySelectorAll('.smKtab').forEach(x=>x.classList.remove('on'));
+        t.classList.add('on'); drawKline(cv,a);
+        if(cap) cap.textContent=`近 ${a.length} 根${caps[k]} · 紅漲綠跌`;
+      }));
+    }
     try{ mClose.focus(); }catch(e){}
   }
   function closeModal(){ modal.classList.remove('show'); mBody.innerHTML='';

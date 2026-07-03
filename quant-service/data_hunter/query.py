@@ -297,6 +297,37 @@ def _full_indicators(df, live: bool) -> dict:
     }
 
 
+def _extended_indicators(df, live: bool) -> dict:
+    """擴充指標(OBV/DMI/威廉/CCI/寶塔線) + 週K/月K，對齊三竹多指標。缺→None 不阻塞。"""
+    out = {"obv_trend": None, "plus_di": None, "minus_di": None, "dmi_signal": None,
+           "williams_r": None, "williams_zone": None, "cci": None, "cci_zone": None,
+           "tower": None, "tower_signal": None, "ohlc_w": None, "ohlc_m": None}
+    try:
+        import indicators as _ind
+    except Exception:
+        return out
+    d = df.copy()
+    if live and len(d) > 22:
+        d = d.iloc[:-1]          # 盤中丟未收盤 forming K
+    d = d.tail(300)
+    try:
+        out["obv_trend"] = _ind.calc_obv(d).get("trend")
+        dmi = _ind.calc_dmi(d)
+        out.update({"plus_di": dmi.get("plus_di"), "minus_di": dmi.get("minus_di"),
+                    "dmi_signal": dmi.get("signal")})
+        wr = _ind.calc_williams_r(d)
+        out.update({"williams_r": wr.get("williams_r"), "williams_zone": wr.get("zone")})
+        cci = _ind.calc_cci(d)
+        out.update({"cci": cci.get("cci"), "cci_zone": cci.get("zone")})
+        tw = _ind.calc_tower(d)
+        out.update({"tower": tw.get("tower"), "tower_signal": tw.get("signal")})
+        out["ohlc_w"] = _ind.resample_ohlc(df, "W", 40) or None
+        out["ohlc_m"] = _ind.resample_ohlc(df, "M", 40) or None
+    except Exception:
+        pass
+    return out
+
+
 # ── 對外主函式 ───────────────────────────────────────────────────────────────
 def analyze_stock(code: str, live: bool = False) -> dict:
     """單一個股完整分析。成功回 {ok:True, ...卡片欄位..., 籌碼, 完整指標}；失敗回 {ok:False, error}。
@@ -324,6 +355,7 @@ def analyze_stock(code: str, live: bool = False) -> dict:
     tdcc = _merge_tdcc(resolved)
     fund = _merge_fundamentals(resolved)
     ind = _full_indicators(df, live)
+    ext = _extended_indicators(df, live)
 
     result = {
         "ok": True,
@@ -342,7 +374,7 @@ def analyze_stock(code: str, live: bool = False) -> dict:
         **chips, **margin, **tdcc,
         # ── 完整指標(pct_b 為前端契約鍵名，percent_b 保留為別名) ──
         "adx": core["adx"], "pct_b": core["percent_b"], "percent_b": core["percent_b"],
-        **ind,
+        **ind, **ext,
         # 額外參考(不破壞卡片；前端可忽略)
         "mom5": core.get("mom5"), "relvol": core.get("relvol"),
         "above20": core.get("above20"), "above60": core.get("above60"),
