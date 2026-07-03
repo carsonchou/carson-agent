@@ -91,7 +91,13 @@ def evaluate(trade: dict) -> dict:
         return t
 
     df = df.rename(columns={c: c.lower() for c in df.columns})
-    df.index = pd.to_datetime(df.index).normalize()
+    # errors="coerce"：快取偶有壞日期列(如 index="8")，一列壞不可拖垮整個回灌 → 該列丟棄
+    df.index = pd.to_datetime(df.index, errors="coerce").normalize()
+    df = df[df.index.notna()]
+    if df.empty:
+        t["status"] = "open"; t["result"] = "open"; t["exit_reason"] = "open"
+        t["exit_date"] = t["entry_date"]; t["exit"] = entry; t["ret_pct"] = 0.0; t["r"] = 0.0
+        return t
     after = df[df.index > pd.Timestamp(t["entry_date"]).normalize()]
 
     def _ret(exit_px: float) -> tuple[float, float]:

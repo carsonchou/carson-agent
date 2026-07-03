@@ -172,7 +172,10 @@ def _read_cache(code: str) -> pd.DataFrame | None:
     if not p:
         return None
     try:
-        df = pd.read_csv(p, index_col=0, parse_dates=True)
+        df = pd.read_csv(p, index_col=0)
+        # 壞日期列(如 index="8")一律 coerce 丟棄，避免下游 pd.to_datetime 整組拋(污染 track/指標)
+        df.index = pd.to_datetime(df.index, errors="coerce")
+        df = df[df.index.notna()]
         if len(df) >= 22:
             return df[["Open", "High", "Low", "Close", "Volume"]].copy()
     except Exception:

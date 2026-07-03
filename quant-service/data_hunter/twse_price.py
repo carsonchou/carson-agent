@@ -155,6 +155,45 @@ def fetch_twstock_daily(code: str, months_back: int = 9) -> pd.DataFrame | None:
     return df[~df.index.duplicated(keep="last")].sort_index()
 
 
+def clean_corrupt_caches(dry_run: bool = True) -> dict:
+    """就地清 twdata/cache/*.csv 的『孤立垃圾列』(不依賴網路)：
+      - 非日期 index(coerce→NaT) / Close 缺 / Close≤0
+      - Close 相對『鄰近 21 日局部中位數』>5 倍或 <1/5(抓 822283、0.004 那種單列爆衝，
+        但**不誤刪**長期上漲/下跌造成的合理價格區間，因局部中位數會跟著趨勢走)
+    dry_run=True 只回報不寫檔(務必先 dry-run 確認每檔只刪 1-2 列再實做)。回統計。"""
+    import glob
+    scanned = flagged = 0
+    details = []
+    for f in glob.glob(str(CACHE_DIR / "*.csv")):
+        scanned += 1
+        try:
+            df = pd.read_csv(f, index_col=0)
+            idx = pd.to_datetime(df.index, errors="coerce")
+            c = pd.to_numeric(df.get("Close"), errors="coerce")
+            local = c.rolling(21, center=True, min_periods=5).median()
+            local = local.fillna(c.median())
+            bad = idx.isna().values | c.isna().values | (c <= 0).values
+            with pd.option_context("mode.use_inf_as_na", True):
+                spike = ((c > local * 5) | (c < local / 5)).fillna(False).values
+            bad = bad | spike
+            n_bad = int(bad.sum())
+            if n_bad == 0:
+                continue
+            flagged += 1
+            details.append((Path(f).stem, n_bad))
+            if not dry_run:
+                clean = df[~bad]
+                clean.index = idx[~bad]
+                if len(clean) < 20:
+                    continue
+                clean.index.name = "Date"
+                clean[_COLS].to_csv(CACHE_DIR / Path(f).name)
+                print(f"[twse] 清壞快取 {Path(f).stem}：刪 {n_bad} 孤立壞列，剩 {len(clean)} 筆", flush=True)
+        except Exception:
+            continue
+    return {"scanned": scanned, "flagged": flagged, "details": details}
+
+
 def rebuild_otc_cache(codes: list[str], months: int = 9, sleep: float = 0.5) -> int:
     """用 twstock 官方重建上櫃(.TWO)快取，覆蓋 yfinance 的錯誤資料。回傳成功檔數。"""
     ok = 0
@@ -291,6 +330,15 @@ if __name__ == "__main__":
     if "--latest" in sys.argv:
         print("[twse] 刷新當日官方 K …")
         print("[twse] 更新", refresh_latest(), "檔")
+    elif "--clean" in sys.argv:
+        apply = "--apply" in sys.argv       # 預設 dry-run，加 --apply 才真的寫檔
+        print(f"[twse] {'實做' if apply else 'DRY-RUN'} 掃壞快取(孤立垃圾列)…")
+        r = clean_corrupt_caches(dry_run=not apply)
+        print(f"[twse] 掃 {r['scanned']} 檔，標記 {r['flagged']} 檔有孤立壞列")
+        for name, n in r["details"][:40]:
+            print(f"   {name}: {n} 列")
+        if not apply:
+            print("[twse] （dry-run，未寫檔；確認後加 --apply）")
     else:
         day = fetch_twse_day_all()
         print("STOCK_DAY_ALL 筆數", len(day))

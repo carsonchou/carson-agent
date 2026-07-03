@@ -69,9 +69,12 @@ def fetch_news(name: str, code: str = "", limit: int = 8) -> list[dict]:
         pub = _clean(item.findtext("pubDate"))
         src_el = item.find("source")
         source = _clean(src_el.text) if src_el is not None else ""
-        # Google News 標題常是「標題 - 來源」，拆出來源
-        if not source and " - " in title:
-            title, source = title.rsplit(" - ", 1)
+        # Google News 標題常是「標題 - 來源」：一律去掉尾綴(來源另欄顯示)，缺 source 時補用
+        if " - " in title:
+            head, tail = title.rsplit(" - ", 1)
+            if not source:
+                source = tail
+            title = head
         out.append({"title": _clean(title), "source": source,
                     "time": _fmt_time(pub), "link": link})
         if len(out) >= limit:
