@@ -150,6 +150,17 @@ def run_eod(no_post: bool = False, as_of: date | None = None, push: bool = False
         return f"state 非正常：{st.get('error')}"
     step("5/6 掃描出 state", _scan)
 
+    # ── 5b. 交易專區(全市場當沖/短線/長線選股) ───────────────────────────
+    def _zones():
+        try:
+            import zones as _z
+            z = _z.build_zones(full=True, use_cache_only=True)
+            return (f"全市場 {z['universe_n']} 檔｜當沖{len(z['daytrade']['cands'])}"
+                    f"/短線{len(z['swing']['cands'])}/長線{len(z['longterm']['cands'])}")
+        except Exception as e:
+            return f"略過（{type(e).__name__}: {e}）"
+    step("5b/6 交易專區", _zones)
+
     # ── 6. 產貼文 ───────────────────────────────────────────────────────
     post_dir = None
     if no_post:

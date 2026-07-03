@@ -45,6 +45,9 @@ __pycache__/
 # ============================================================
 node_modules/
 
+# 制度檔本機備份(docs/ops/maintenance.md 第 2 節:.bak 不進 git)
+*.bak-*
+
 # ============================================================
 #  Agent / 工具暫存（不屬於專案程式碼）
 # ============================================================
@@ -127,8 +130,12 @@ jarvis/livekit/agent-starter-python/
 
 # 數據獵手執行期產物(不進版控)
 quant-service/data_hunter/state.json
+quant-service/data_hunter/state_zones.json
 quant-service/data_hunter/signals_log.json
 quant-service/data_hunter/signals_book.json
 quant-service/data_hunter/history.json
 quant-service/data_hunter/snapshots/
 quant-service/data_hunter/*.log
+twdata/zones.json
+twdata/fundamentals/
+twdata/news/
