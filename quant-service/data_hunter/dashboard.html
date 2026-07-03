@@ -2346,9 +2346,18 @@ if(SNAP){ loadHistory(); }
 
   async function fetchZones(){
     try{ const r=await fetch('/api/zones',{cache:'no-store'}); const j=await r.json();
-      if(j&&j.daytrade){ zonesData=j; renderZones(); } }catch(e){}
+      if(j&&j.daytrade){ zonesData=j; } else { zonesData='none'; }
+    }catch(e){ zonesData='none'; }
+    renderZones();
   }
   function renderZones(){
+    if(zonesData==='none'){
+      const t=document.getElementById('zTable');
+      if(t) t.innerHTML='<tbody><tr><td class="zEmpty">交易專區尚未產生<br>桌面 app 每日盤後自動產生，或手動跑 <b>python zones.py --full</b>（全市場約 30 秒）</td></tr></tbody>';
+      const dc=document.getElementById('zDesc'); if(dc) dc.textContent='';
+      const cb=document.getElementById('zChips'); if(cb) cb.innerHTML='';
+      return;
+    }
     if(!zonesData){ fetchZones(); return; }
     document.querySelectorAll('.zTab').forEach(t=>t.classList.toggle('on',t.dataset.z===zStyle));
     const meta=document.getElementById('zMeta');

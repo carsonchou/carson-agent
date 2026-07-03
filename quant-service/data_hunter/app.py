@@ -41,9 +41,10 @@ def _market_hours() -> bool:
 
 
 def worker():
-    """背景掃描迴圈：每天刷快取 + 即時同步掃描 + 推播。"""
+    """背景掃描迴圈：每天刷快取 + 即時同步掃描 + 推播 + 每日全市場交易專區。"""
     rows = scan.all_codes()              # 精選宇宙(快、可即時同步)
     last_fresh: date | None = None
+    zones_day: date | None = None
     print(f"[app] 背景掃描啟動（精選 {len(rows)} 檔，跟市場同步）")
     while True:
         mh = _market_hours()
@@ -55,6 +56,15 @@ def worker():
                 print(f"[app] 快取已更新 {n} 檔")
                 last_fresh = today
             scan.run_once(push=True, realtime=True)   # 證交所即時價覆蓋最後一根
+            # 交易專區(當沖/短線/長線 全市場選股)：每日建一次(選股非 tick 敏感，~30s 不卡看板)
+            if zones_day != today:
+                try:
+                    import zones
+                    z = zones.build_zones(full=True, use_cache_only=True)
+                    print(f"[app] 交易專區已產生（全市場 {z['universe_n']} 檔）")
+                    zones_day = today
+                except Exception as e:
+                    print(f"[app] 交易專區產生略過：{type(e).__name__}: {e}")
         except Exception as e:
             print(f"[app] 本輪錯誤（續跑）：{type(e).__name__}: {e}")
         wait = 2 if mh else 30
