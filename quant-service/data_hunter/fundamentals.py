@@ -160,7 +160,7 @@ def fetch_stock_fundamentals(code: str) -> dict:
            "eps_q": None, "eps_ttm": None, "eps_yoy": None,
            "gross_margin": None, "op_margin": None,
            "rev": None, "rev_yoy": None, "rev_mom": None,
-           "cash_div": None, "stock_div": None, "div_year": None}
+           "cash_div": None, "stock_div": None, "div_year": None, "ex_date": None}
 
     # 財報：EPS + 毛利率 + 營益率
     fs = _finmind("TaiwanStockFinancialStatements", code, two_years_ago)
@@ -203,6 +203,10 @@ def fetch_stock_fundamentals(code: str) -> dict:
         out["cash_div"] = cash
         out["stock_div"] = stock
         out["div_year"] = (dv2[0].get("date") or "")[:4] if dv2 else None
+        # 除權息交易日(現金優先，缺則股票除權日)；'0'/空視為無
+        if dv2:
+            ex = dv2[0].get("CashExDividendTradingDate") or dv2[0].get("StockExDividendTradingDate")
+            out["ex_date"] = ex if (ex and str(ex) not in ("0", "", "None")) else None
 
     _atomic_write_json(FUND_DIR / f"stock_{code}.json", out)
     return out
@@ -246,7 +250,7 @@ def load_fundamentals(code: str, offline: bool = True) -> dict:
            "eps_q": None, "eps_ttm": None, "eps_yoy": None,
            "gross_margin": None, "op_margin": None,
            "rev": None, "rev_yoy": None, "rev_mom": None,
-           "cash_div": None, "stock_div": None, "div_year": None,
+           "cash_div": None, "stock_div": None, "div_year": None, "ex_date": None,
            "has_valuation": False, "has_financials": False}
     val = load_valuation(offline=offline).get(code)
     if val:

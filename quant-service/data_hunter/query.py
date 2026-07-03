@@ -243,7 +243,7 @@ def _merge_fundamentals(code: str) -> dict:
            "eps_q": None, "eps_ttm": None, "eps_yoy": None,
            "gross_margin": None, "op_margin": None,
            "rev_yoy": None, "rev_mom": None,
-           "cash_div": None, "stock_div": None}
+           "cash_div": None, "stock_div": None, "ex_date": None}
     try:
         import fundamentals as _fd
     except Exception:

@@ -38,7 +38,7 @@ class Handler(SimpleHTTPRequestHandler):
     def _handle_api(self, path: str, qs: dict) -> bool:
         """動態 API：/api/stock、/api/search、/api/analyst。命中回 True(已回應)，否則 False(交還靜態服務)。
         query/analyst 在 handler 內 import(而非模組頂層)，讓查價/分析失敗絕不拖垮靜態看板服務。"""
-        if path not in ("/api/stock", "/api/search", "/api/analyst"):
+        if path not in ("/api/stock", "/api/search", "/api/analyst", "/api/news"):
             return False
         try:
             import query
@@ -55,6 +55,26 @@ class Handler(SimpleHTTPRequestHandler):
                 # 前端契約：直接回 JSON 陣列 [{code,name,industry}]；空 q 或出錯回 []（前端好迭代）
                 q = _first("q")
                 self._send_json(query.search_stocks(q) if q else [])
+                return True
+
+            if path == "/api/news":
+                # 個股新聞(Google News RSS)：?code=&name=；有界抓取、短快取，抓不到回空陣列
+                from concurrent.futures import ThreadPoolExecutor
+                raw = _first("code") or _first("q")
+                name = _first("name")
+                code = query._resolve_code(raw) or raw
+                if not name:
+                    try:
+                        name = query._meta(code)[0]
+                    except Exception:
+                        name = ""
+                try:
+                    import news
+                    with ThreadPoolExecutor(max_workers=1) as ex:
+                        items = ex.submit(news.load_news, name, code, False, 8).result(timeout=8.0)
+                except Exception:
+                    items = []
+                self._send_json({"ok": True, "items": items or []})
                 return True
 
             if path == "/api/analyst":

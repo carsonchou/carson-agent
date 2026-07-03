@@ -124,7 +124,20 @@ def _atomic_write_text(path: Path, text: str) -> None:
 
 
 def _atomic_write_json(path: Path, obj) -> None:
-    _atomic_write_text(path, json.dumps(obj, ensure_ascii=False, indent=2))
+    # allow_nan=False + 遞迴清 NaN/Inf → null：NaN 是非法 JSON，會讓前端 JSON.parse 整包失敗
+    _atomic_write_text(path, json.dumps(_json_safe(obj), ensure_ascii=False, indent=2))
+
+
+def _json_safe(o):
+    """把 NaN/Inf 換成 None，確保輸出為合法 JSON(前端才 parse 得動)。"""
+    import math
+    if isinstance(o, float):
+        return o if math.isfinite(o) else None
+    if isinstance(o, dict):
+        return {k: _json_safe(v) for k, v in o.items()}
+    if isinstance(o, (list, tuple)):
+        return [_json_safe(v) for v in o]
+    return o
 
 
 def _market_open_now() -> bool:
@@ -657,7 +670,8 @@ def _analyse_core(code: str, df_raw: pd.DataFrame, drop_last: bool) -> dict | No
         "score": score, "signal": signal, "reason": reason, "firm": firm,
         "stop": stop, "tp1": tp1, "tp2": tp2, "spark": spark, "ohlc": ohlc,
         "trend_frac": trend_frac, "turnover_60d": turnover60, "pool_pass": pool_pass,
-        "vol_lots": int(round(cur_vol / 1000)),   # 當根成交張(給當沖比分母用)
+        # 當根成交張(給當沖比分母用)；快取偶有 NaN 量 → 防 int(NaN) 崩潰
+        "vol_lots": int(round(cur_vol / 1000)) if (cur_vol == cur_vol and cur_vol is not None) else 0,
     }
     _ANALYSE_MEMO[code] = (key, result)
     return result
@@ -847,10 +861,33 @@ def build_state(data: dict[str, pd.DataFrame], rows: list[tuple[str, str, str]],
         })
     sectors.sort(key=lambda s: s["score"], reverse=True)
 
+    # 濾掉快取壞列(漲跌停 ±10%，|chg|>15% 視為未還原分割等壞資料，免污染榜單/排行)
+    sane = [s for s in stocks if s.get("chg") is not None and abs(s["chg"]) <= 15]
     # 強弱榜
-    by_score = sorted(stocks, key=lambda s: s["score"], reverse=True)
+    by_score = sorted(sane, key=lambda s: s["score"], reverse=True)
     strong = [_card(s) for s in by_score[:8]]
     weak = [_card(s) for s in by_score[-8:][::-1]]
+
+    # 排行榜擴充：漲幅/跌幅/成交值/振幅（對齊三竹多種排行）
+    def _amount(s):   # 成交值(NT$)≈ 收盤 × 當根張 × 1000
+        vl = s.get("vol_lots"); return (s["price"] * vl * 1000) if (vl and s.get("price")) else 0
+    def _amplitude(s):  # 當日振幅% = (高-低)/前收
+        oh = s.get("ohlc");
+        if not oh or len(oh) < 2: return 0
+        o, h, l, c = oh[-1]; pc = oh[-2][3]
+        return round((h - l) / pc * 100, 2) if pc else 0
+    def _rc(s, extra=None):
+        d = _card(s)
+        if extra: d.update(extra)
+        return d
+    movers_up = [_rc(s) for s in sorted(sane, key=lambda s: s["chg"], reverse=True)[:8]]
+    movers_down = [_rc(s) for s in sorted(sane, key=lambda s: s["chg"])[:8]]
+    by_amount = [_rc(s, {"amount": round(_amount(s) / 1e8, 2)})  # 億元
+                 for s in sorted(sane, key=_amount, reverse=True)[:8]]
+    by_amplitude = [_rc(s, {"amplitude": _amplitude(s)})
+                    for s in sorted([s for s in sane if _amplitude(s) <= 25],
+                                    key=_amplitude, reverse=True)[:8]]
+    ranks = {"up": movers_up, "down": movers_down, "amount": by_amount, "amplitude": by_amplitude}
 
     # ── 訊號分流：firm 做多 + 做空警示；大盤偏空/量能不足的做多 → 降級為 watch ──
     longs_firm: list[dict] = []
@@ -1014,6 +1051,7 @@ def build_state(data: dict[str, pd.DataFrame], rows: list[tuple[str, str, str]],
         "sectors": sectors,
         "strong": strong,
         "weak": weak,
+        "ranks": ranks,
         "signals": {"long": longs, "short": shorts,
                     "long_total": n_long_all, "short_total": n_short_all, "cap": SIG_CAP},
         "watch_long": watch_long,
