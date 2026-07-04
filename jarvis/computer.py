@@ -67,6 +67,37 @@ def _pg():
     return pyautogui
 
 
+# ── 插件熱載入（自我優化寫入的 apps_*.json 在這裡動態吃進來）──────
+_plugin_mtime: float = 0.0
+_plugin_apps: dict = {}
+_plugin_sites: dict = {}
+
+def _refresh_plugin_apps() -> None:
+    global _plugin_mtime, _plugin_apps, _plugin_sites
+    try:
+        plugin_dir = Path(__file__).resolve().parent / "plugins" / "loaded"
+        if not plugin_dir.exists():
+            return
+        mtimes = [f.stat().st_mtime for f in plugin_dir.glob("apps_*.json")]
+        latest = max(mtimes) if mtimes else 0.0
+        if latest <= _plugin_mtime:
+            return
+        _plugin_mtime = latest
+        apps, sites = {}, {}
+        for f in sorted(plugin_dir.glob("apps_*.json")):
+            import json as _json
+            for e in _json.loads(f.read_text(encoding="utf-8")):
+                if "url" in e:
+                    sites[e.get("alias", "").lower()] = e["url"]
+                elif "target" in e:
+                    apps[e.get("alias", "").lower()] = e["target"]
+        _plugin_apps, _plugin_sites = apps, sites
+    except Exception:
+        pass
+
+_refresh_plugin_apps()
+
+
 def _run(cmd: list[str], timeout: int = 20) -> subprocess.CompletedProcess:
     return subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8",
                           errors="replace", timeout=timeout)
@@ -85,22 +116,33 @@ def open_app(name: str) -> str:
     name = (name or "").strip()
     if not name:
         return "你要我開什麼？"
+    _refresh_plugin_apps()  # 熱載入插件新增的別名
     key = name.lower()
-    # 先看是不是網站
+    # 插件網站別名（優先）
+    for k, url in _plugin_sites.items():
+        if k in key:
+            webbrowser.open(url)
+            return f"好，幫你開{name}了。"
+    # 內建網站別名
     for k, url in _SITES.items():
         if k in key:
             webbrowser.open(url)
             return f"好，幫你開{name}了。"
-    # 程式別名
+    # 插件程式別名
     target = None
-    for k, v in _APPS.items():
+    for k, v in _plugin_apps.items():
         if k in key:
-            target = v if v is not None else None
-            if v is not None:
-                target = v
-                break
+            target = v
+            break
+    # 內建程式別名
     if target is None:
-        target = name  # 直接拿原字串丟給 start，碰運氣（很多程式名 = 執行檔名）
+        for k, v in _APPS.items():
+            if k in key:
+                if v is not None:
+                    target = v
+                    break
+    if target is None:
+        target = name
     try:
         subprocess.Popen(["cmd", "/c", "start", "", target], shell=False)
         return f"好，開{name}。"
@@ -378,8 +420,17 @@ def run_ps(script: str) -> str:
 # ════════════════════════════════════════════════════════════
 # 語音意圖路由：把一句中文指令直接對應到上面的動作（命中→秒做，沒命中→回 None）
 # ════════════════════════════════════════════════════════════
-_OPEN = re.compile(r"^(?:幫我|麻煩|請|可以)?\s*(?:打開|開啟|開一?下|啟動|執行|開)\s*(.+)$")
-_SEARCH = re.compile(r"^(?:幫我|請)?\s*(?:google|谷歌|上網)?\s*(?:搜尋|搜一?下|查一?下|查詢|查)\s*(.+)$")
+_OPEN = re.compile(
+    r"^(?:(?:嘿|你好?|ok|好|那)[，,、]?)?\s*"
+    r"(?:幫我|麻煩你?|請|可以|能不能|能幫我?|幫我一?下|你可以)?\s*"
+    r"(?:打開|開啟|打開一?下|開一?下|啟動|執行|幫我開|開)\s*"
+    r"(.+?)(?:\s*(?:一下|給我))?$", re.I)
+_OPEN_OBJ_FIRST = re.compile(
+    r"^(.+?)\s*(?:打開|開啟|幫我開|開一?下|啟動)\s*(?:一下)?$", re.I)
+_SEARCH = re.compile(
+    r"^(?:(?:嘿|你好?|ok|好)[，,、]?)?\s*(?:幫我|請)?\s*"
+    r"(?:google|谷歌|上網)?\s*(?:一下)?\s*"
+    r"(?:搜尋|搜一?下|查一?下|查詢|查|google一?下)\s*(.+)$", re.I)
 _YTSEARCH = re.compile(r"(?:youtube|油管|yt).*(?:找|搜|看)\s*(.+)$|(?:找|搜)\s*(.+)\s*的?影片")
 _TYPE = re.compile(r"^(?:幫我)?(?:打字|打入|輸入文字|輸入|key\s*in)[：:，,\s]*[「\"']?(.+?)[」\"']?$")
 _VOL_SET = re.compile(r"音量.*?(\d+)\s*(?:趴|%|％|分)")
@@ -392,6 +443,12 @@ def route(text: str):
 
     只命中『明確的操作指令』；一般問答/聊天/要查資料做事的複雜任務一律放給大腦。"""
     t = (text or "").strip().rstrip("。.！!？?～~ ")
+    if not t:
+        return None
+    # 剝掉喚醒詞（賈維斯/Jarvis/嘿...）讓後面的 regex 更好命中
+    t = re.sub(r'^(?:嘿|hi|hey)\s*(?:賈維斯|jarvis)[，,、！!]?\s*', '', t, flags=re.I)
+    t = re.sub(r'^賈維斯[，,、！!]?\s*', '', t, flags=re.I)
+    t = t.strip()
     if not t:
         return None
     low = t.lower()
@@ -496,11 +553,11 @@ def route(text: str):
         return (web_search(m.group(1)), True)
 
     # 打開程式 / 網站（放最後，因為 _OPEN 很廣）
-    m = _OPEN.match(t)
+    m = _OPEN.match(t) or _OPEN_OBJ_FIRST.match(t)
     if m:
         what = m.group(1).strip().rstrip("。.，, ")
         # 別把「打開話匣子/打開天窗」之類誤判——太短或含明顯非程式詞就放給大腦
-        if 1 <= len(what) <= 24 and not re.search(r"來說|來看|天窗|心房|話", what):
+        if 1 <= len(what) <= 24 and not re.search(r"來說|來看|天窗|心房|話|記憶|功能", what):
             return (open_app(what), True)
 
     return None  # 沒命中 → 交給大腦

@@ -39,7 +39,7 @@ STUDIO = ROOT / "STUDIO"
 SEEN = STUDIO / "hotspot_seen.json"
 TW = timezone(timedelta(hours=8))
 API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
-MODEL = "claude-sonnet-4-6"
+MODEL = "claude-haiku-4-5-20251001"
 
 try:
     from ops import log_ops

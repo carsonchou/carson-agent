@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 OUT = ROOT / "output"
 API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
-MODEL = "claude-sonnet-4-6"
+MODEL = "claude-haiku-4-5-20251001"
 ACCENT = {"yellow": (255, 210, 63), "green": (88, 224, 140), "red": (255, 96, 96), "blue": (90, 184, 255)}
 
 

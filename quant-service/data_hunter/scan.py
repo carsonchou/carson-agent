@@ -1205,7 +1205,7 @@ def push_new_signals(state: dict) -> int:
 
 # ── 主程式 ────────────────────────────────────────────────────────────────
 def run_once(push: bool = True, cache_only: bool = False, intraday: bool = False,
-             full: bool = False, realtime: bool = False) -> dict:
+             full: bool = True, realtime: bool = False) -> dict:
     t0 = time.time()
     if full and intraday:
         print("[hunter] 全市場(~1900檔)盤中分時不切實際→自動改日線")

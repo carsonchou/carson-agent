@@ -41,12 +41,42 @@ THUMBS = PROJECT_ROOT / "assets" / "thumbnails"
 LEDGER = PROJECT_ROOT / "STUDIO" / "uploaded_ledger.json"
 REPORTS = PROJECT_ROOT / "STUDIO" / "REPORTS"
 QSCORES = PROJECT_ROOT / "STUDIO" / "quality_scores.json"
+IG_LEDGER = PROJECT_ROOT / "STUDIO" / "ig_ledger.json"
+SHORT_TO_LONG = PROJECT_ROOT / "STUDIO" / "short_to_long.json"  # 選填：slug→長片slug或youtu.be，短→長導流
+
+
+def _long_link_for(slug: str, cfg: dict, ledger: dict) -> str:
+    """Shorts 導流連結：優先 short_to_long.json 指定的對應長片，否則退回頻道連結（軟導流）。"""
+    try:
+        if SHORT_TO_LONG.exists():
+            m = json.loads(SHORT_TO_LONG.read_text(encoding="utf-8"))
+            tgt = (m.get(slug) or "").strip()
+            if tgt.startswith("http"):
+                return tgt
+            if tgt and ledger.get(tgt):  # tgt 是已上架長片 slug
+                return f"https://youtu.be/{ledger[tgt]}"
+    except Exception:  # noqa: BLE001
+        pass
+    handle = (cfg.get("channel_handle") or "").lstrip("@")
+    return f"https://www.youtube.com/@{handle}" if handle else ""
 
 
 _ENGAGE_QS = [
+    # 互動型（讓人分享自己的設定/數據）
     "你的網格參數都怎麼設？留言區聊聊你的設定 👇",
+    "想要完整回測數據？留言『數據』我私你 👇",
+    "想看完整實測表？留言『表』我發你 👇",
+    "同意的留言『+1』，不同意的說說你怎麼看 👇",
+    "你現在的策略最大回撤是多少？留下數字，我看有沒有辦法壓低",
+    "說說你踩過最貴的坑，讓大家參考，一起少虧點 💀",
+    "這招你知道幾分？0-10 分留個數字，我統計結果下支公布",
+    # 引戰型（製造討論、拉留言數）
     "這題你站哪邊？同意的 +1，有不同看法的留言戰起來 👇",
     "你踩過這個坑嗎？分享一下慘痛經驗，我看能不能幫你拆 👇",
+    "你覺得網格最大的風險是什麼？A 爆倉 / B 套牢 / C 手續費吃光，留字母",
+    "有沒有人靠這個真的賺到的？說說你的參數，不說數字沒人信 👇",
+    # 懸念型（轉換成訂閱者）
+    "下支我要公開一個 90% 人都設錯的參數——先追蹤，不然找不回來 👇",
     "想看完整實測數據的留言『+1』，夠多我就出深度版 👇",
     "你會怎麼做？留言告訴我，下支可能就拍你的問題 👇",
     "猜猜最後是賺還是賠？留言你的答案，揭曉在置頂 👇",
@@ -108,44 +138,119 @@ def save_ledger(d: dict) -> None:
     LEDGER.write_text(json.dumps(d, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def _norm(slug: str) -> str:
+    import re as _re
+    s = _re.sub(r"^[SL]_", "", slug)
+    return _re.sub(r"\d{3,5}$", "", s)
+
+
+def _char_sim(a: str, b: str) -> float:
+    sa, sb = set(_norm(a)), set(_norm(b))
+    if not sa or not sb:
+        return 0.0
+    return len(sa & sb) / max(len(sa), len(sb))
+
+
 def find_candidates(ledger: dict) -> list:
-    # Shorts(S_) 優先，其次長片(L_)；過濾已上傳與壞檔
-    mp4s = sorted(OUTPUT.glob("S_*.mp4")) + sorted(OUTPUT.glob("L_*.mp4"))
-    out = []
-    for f in mp4s:
+    # 高分先發：Shorts(衝YPP)優先，組內依品質分數由高到低；其次長片同理。
+    qmap, _ = load_quality()
+    shorts, longs = [], []
+    for f in list(OUTPUT.glob("S_*.mp4")) + list(OUTPUT.glob("L_*.mp4")):
         slug = f.stem
         if slug in ledger:
             continue
-        if f.stat().st_size < 100 * 1024:  # 壞檔/空檔跳過
+        if f.stat().st_size < 100 * 1024:
             continue
-        out.append(slug)
-    return out
+        (shorts if slug.startswith("S_") else longs).append(slug)
+    shorts.sort(key=lambda s: -(qmap.get(s, 0) or 0))
+    longs.sort(key=lambda s: -(qmap.get(s, 0) or 0))
+    return shorts + longs
+
+
+def _ig_crosspost(slug: str) -> None:
+    """把一支 Short 跨發到 IG Reels(非致命;獨立台帳防重發)。"""
+    import os
+    if not (os.environ.get("IG_USER_ID") and os.environ.get("IG_ACCESS_TOKEN") and os.environ.get("IG_VIDEO_BASE")):
+        return
+    try:
+        led = json.loads(IG_LEDGER.read_text(encoding="utf-8")) if IG_LEDGER.exists() else {}
+    except Exception:
+        led = {}
+    if slug in led:
+        return
+    try:
+        import ig_reels_upload as _ig
+        mid = _ig.publish(slug)
+        if mid:
+            led[slug] = mid
+            IG_LEDGER.parent.mkdir(parents=True, exist_ok=True)
+            IG_LEDGER.write_text(json.dumps(led, ensure_ascii=False, indent=2), encoding="utf-8")
+            print(f"[ig] Reels 已發布 {slug} -> {mid}")
+    except Exception as _e:  # noqa: BLE001
+        print(f"[warn] IG 跨發失敗 {slug}: {_e}", file=sys.stderr)
 
 
 def upload_one(yt, slug: str, privacy: str) -> str:
     cfg = up.load_channel_config()
     meta = up.assemble_metadata(slug=slug, md_path=OUTPUT / f"{slug}.md", channel_config=cfg, append_affiliate=True)
     meta = up.enforce_youtube_limits(meta)
+    is_short = slug.startswith("S_")
+
+    # Shorts 必須有 #Shorts 才能進 Shorts shelf（YouTube 分類依據）
+    if is_short and "#shorts" not in meta["description"].lower():
+        meta["description"] = (meta["description"] + _SHORTS_HASHTAGS)[:5000]
+
+    # 短→長導流：Shorts 描述頂端掛長片/頻道連結（建立連看閉環、把 Shorts 流量沉澱）
+    if is_short:
+        _link = _long_link_for(slug, cfg, load_ledger())
+        if _link and _link not in meta["description"]:
+            meta["description"] = (f"📺 完整策略拆解看這裡 👉 {_link}\n\n" + meta["description"])[:5000]
+
+    # Shorts 用 #Shorts 加進標題尾端（字數允許時）；長片 categoryId 用教育(27)
+    title = meta["title"]
+    if is_short and "#shorts" not in title.lower() and len(title) <= 90:
+        title = title + " #Shorts"
+    category_id = "28" if is_short else "27"  # Shorts=科技(28), Long=教育(27)
+
     body = {
         "snippet": {
-            "title": meta["title"],
+            "title": title,
             "description": meta["description"],
             "tags": meta.get("tags", []),
-            "categoryId": "28",
+            "categoryId": category_id,
             "defaultLanguage": "zh-Hant",
         },
-        # Shorts 隱藏設定：不是兒童內容(保留留言/廣告/推薦) + 允許嵌入(站外流量是演算法加分訊號)
+        # 不是兒童內容(保留留言/廣告/推薦) + 允許嵌入(站外流量是演算法加分訊號)
         "status": {"privacyStatus": privacy, "selfDeclaredMadeForKids": False, "embeddable": True},
     }
     media = MediaFileUpload(str(OUTPUT / f"{slug}.mp4"), resumable=True, chunksize=4 * 1024 * 1024)
-    # Shorts 關鍵：notifySubscribers=False —— Shorts 是冷啟動給陌生人測試，通知訂閱者(衝長片來的)
-    # 會讓他們划走→完播率低→演算法判定沒人看→掐死推薦。
+    # Shorts 冷啟動給陌生人測試：notifySubscribers=False（通知訂閱者會拉高划走率→掐死推薦）
+    # 長片 notifySubscribers=True：訂閱者觀看可累積觀看時數 + 訂閱信號
     req = yt.videos().insert(part="snippet,status", body=body, media_body=media,
-                             notifySubscribers=False)
+                             notifySubscribers=not is_short)
     resp = None
     while resp is None:
         _status, resp = req.next_chunk()
     vid = resp["id"]
+    # 精準 SRT 字幕（演算法判主題＋中文金融術語正確；非致命）
+    try:
+        import make_video as _mv
+        _srt = _mv.write_srt_for_slug(slug)
+        if _srt and Path(_srt).exists():
+            up.upload_captions(yt, vid, _srt)
+    except Exception as _e:  # noqa: BLE001
+        print(f"[caption] 字幕步驟略過（{str(_e)[:60]}）", file=sys.stderr)
+    if slug.startswith(("L_", "S_")) and not (THUMBS / f"{slug}.jpg").exists():
+        try:  # 高質感封面：科技機器人/真人手機(依主題自動選)+AI生圖+金字鉤子，失敗退回設計卡
+            import make_cover as _mc
+            _mc.make_cover(slug, meta.get("title", slug))
+        except Exception as _e:
+            print(f"[warn] make_cover 失敗，退回 make_thumbnails：{_e}", file=sys.stderr)
+            try:
+                import make_thumbnails as _mt
+                _mt.make_auto(slug, meta.get("title", slug))
+            except Exception as _e2:
+                print(f"[warn] 自動生縮圖失敗 {slug}: {_e2}", file=sys.stderr)
     thumb = THUMBS / f"{slug}.jpg"
     if thumb.exists():
         try:
@@ -199,9 +304,11 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--max", type=int, default=6, help="今日最多上傳幾支(配額約6)")
     ap.add_argument("--privacy", default="public", choices=["public", "unlisted", "private"])
+    ap.add_argument("--ig-max", type=int, default=8, help="每輪最多跨發幾支到 IG Reels")
+    ap.add_argument("--no-ig", action="store_true", help="本輪不跨發 IG")
     args = ap.parse_args()
 
-    # 老闆控制台指令（暫停 / 隱私）
+    # 老闆控制台指令（暫停 / 隱私 / 發布時段）
     bpath = PROJECT_ROOT / "STUDIO" / "boss_directives.json"
     if bpath.exists():
         try:
@@ -211,6 +318,15 @@ def main() -> int:
                 return 0
             if boss.get("privacy") in ("public", "unlisted", "private"):
                 args.privacy = boss["privacy"]
+            # 黃金時段控制：publish_hours 設哪些小時（台灣時間）才允許發布
+            # 建議設 [12,13,20,21,22]，對應午休 + 晚間高峰；未設則不限制
+            allowed_hours = boss.get("publish_hours")
+            if allowed_hours and not getattr(args, "force", False):
+                tw_hour = datetime.now(timezone(timedelta(hours=8))).hour
+                if tw_hour not in allowed_hours:
+                    print(f"[info] 現在台灣時間 {tw_hour} 時，不在發布時段 {allowed_hours}，跳過。")
+                    log_ops("上架部門", f"非發布時段（{tw_hour}時），跳過")
+                    return 0
         except Exception:
             pass
 
@@ -245,6 +361,7 @@ def main() -> int:
     yt = get_service()
     results = []
     quota_hit = False
+    ig_done = 0
     for slug in todo:
         try:
             vid = upload_one(yt, slug, args.privacy)
@@ -253,6 +370,9 @@ def main() -> int:
             print(f"[ok] {slug} -> https://youtu.be/{vid}")
             _post_engage_comment(yt, vid, slug)  # 首小時互動：自動發一則引戰提問(置頂需你在Studio點)
             results.append((slug, vid, "ok"))
+            if slug.startswith("S_") and not args.no_ig and ig_done < args.ig_max:
+                _ig_crosspost(slug)
+                ig_done += 1
         except HttpError as exc:
             msg = str(exc)
             print(f"[FAIL] {slug}: {msg[:160]}", file=sys.stderr)

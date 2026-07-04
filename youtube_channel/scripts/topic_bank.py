@@ -34,7 +34,7 @@ STUDIO = ROOT / "STUDIO"
 OUT = ROOT / "output"
 BANK = STUDIO / "topic_bank.json"
 API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
-MODEL = "claude-sonnet-4-6"   # 擴題庫一次性、要創意與廣度，用較強模型
+MODEL = "claude-haiku-4-5-20251001"   # 擴題庫一次性、要創意與廣度，用較強模型
 
 try:
     from ops import log_ops
@@ -140,7 +140,8 @@ def gen_topics(need, avoid_titles):
 
 要求：
 - 每題一個**獨特切入點**（反直覺結論／痛點場景／數字實測／破除迷思／比較懸念），不要同一觀念換句話說。
-- 標題要有點擊慾但不誇大、不保證收益、不喊單。
+- 標題要有點擊慾但不誇大、不保證收益、不喊單；理財誇大詞（躺賺／穩賺／一天賺X）一律不用。
+- **至少 1/3 題目用「可搜尋長尾」措辭**（繞過低權重的搜尋流量入口）：用觀眾真的會搜的關鍵字、放標題開頭，對齊三類有搜尋量題型——①回答問題（「派網網格機器人怎麼設」）②教具體技能（「Pionex 第一次設定」）③評測比較（「Pionex vs 幣安 新手選哪個」）。long（長片）尤其優先給可搜尋題。
 - 多數給 short（Shorts），約 1/4 給 long（深度長片）。
 - **避免重複以下既有題目**：{avoid}
 

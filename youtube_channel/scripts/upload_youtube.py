@@ -369,6 +369,30 @@ def build_request_body(
     }
 
 
+def upload_captions(youtube, video_id: str, srt_path, *,
+                    language: str = "zh-Hant", name: str = "中文（精準字幕）") -> bool:
+    """上傳 SRT 字幕軌到指定影片（captions.insert）。
+
+    需 youtube.force-ssl scope（本產線 token 已含）。提供「人工精準」字幕軌，
+    幫演算法判定主題、且中文金融術語(夏普/回撤/網格)正確，勝過自動字幕。
+    非致命：任何錯誤回 False、不中斷上架流程。
+    """
+    try:
+        from googleapiclient.http import MediaFileUpload
+    except ImportError:
+        return False
+    try:
+        body = {"snippet": {
+            "videoId": video_id, "language": language, "name": name, "isDraft": False}}
+        media = MediaFileUpload(str(srt_path), mimetype="application/octet-stream", resumable=False)
+        youtube.captions().insert(part="snippet", body=body, media_body=media).execute()
+        print(f"[caption] 已上傳精準字幕軌 {video_id}（{language}）")
+        return True
+    except Exception as exc:  # noqa: BLE001
+        print(f"[caption] 字幕上傳略過：{str(exc)[:80]}", file=sys.stderr)
+        return False
+
+
 # --------------------------------------------------------------------------- #
 # ISO8601 / publishAt 正規化
 # --------------------------------------------------------------------------- #

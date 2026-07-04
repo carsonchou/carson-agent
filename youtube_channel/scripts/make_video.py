@@ -343,6 +343,74 @@ def build_subtitle_cues(units: List[str], total_duration: float) -> List[Subtitl
     return cues
 
 
+def _srt_ts(sec: float) -> str:
+    """秒 → SRT 時間碼 HH:MM:SS,mmm。"""
+    if sec < 0:
+        sec = 0.0
+    h = int(sec // 3600)
+    m = int((sec % 3600) // 60)
+    s = int(sec % 60)
+    ms = int(round((sec - int(sec)) * 1000))
+    if ms >= 1000:
+        s += 1
+        ms = 0
+    return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
+
+
+def write_srt_for_slug(slug: str, out_dir=None):
+    """為 output/<slug> 產生 .srt 字幕軌（上傳 YouTube 用，非燒錄）。
+
+    重用既有 split_subtitle_units()+build_subtitle_cues()（估算時間軸）。
+    來源：<slug>.voice.txt（優先）或 <slug>.md 的「**旁白：**」行；時長取自 <slug>.mp4（ffprobe）。
+    價值＝中文金融術語(夏普/回撤/網格)字幕 100% 正確，勝過 YouTube 自動字幕亂猜。
+    成功回傳 srt 路徑，失敗回 None（非致命）。
+    """
+    import subprocess
+    base = Path(out_dir) if out_dir else (Path(__file__).resolve().parent.parent / "output")
+    mp4 = base / f"{slug}.mp4"
+    if not mp4.exists():
+        return None
+    voice = ""
+    vt = base / f"{slug}.voice.txt"
+    if vt.exists():
+        try:
+            voice = vt.read_text(encoding="utf-8-sig").strip()
+        except OSError:
+            voice = ""
+    if not voice:
+        md = base / f"{slug}.md"
+        if md.exists():
+            try:
+                txt = md.read_text(encoding="utf-8", errors="ignore")
+                voice = " ".join(re.findall(r"\*\*旁白：\*\*\s*(.+)", txt)).strip()
+            except OSError:
+                voice = ""
+    if not voice:
+        return None
+    try:
+        out = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+             "-of", "default=nw=1:nk=1", str(mp4)],
+            capture_output=True, text=True, timeout=30)
+        dur = float((out.stdout or "").strip())
+    except Exception:  # noqa: BLE001
+        return None
+    if dur <= 0:
+        return None
+    cues = build_subtitle_cues(split_subtitle_units(voice), dur)
+    if not cues:
+        return None
+    blocks = []
+    for i, c in enumerate(cues, 1):
+        blocks.append(f"{i}\n{_srt_ts(c.start)} --> {_srt_ts(c.end)}\n{c.text}\n")
+    srt = base / f"{slug}.srt"
+    try:
+        srt.write_text("\n".join(blocks), encoding="utf-8")
+    except OSError:
+        return None
+    return srt
+
+
 # --------------------------------------------------------------------------- #
 # Pexels 影片素材抓取（選用，包 try/except）
 # --------------------------------------------------------------------------- #
@@ -440,13 +508,38 @@ def fetch_pexels_clip(
 # --------------------------------------------------------------------------- #
 
 
+_DESIGN_CACHE = None
+
+
+def _design_system() -> dict:
+    """美編部門的品牌設計系統（字體/配色）。讀 STUDIO/design_system.json，失敗回空 dict。"""
+    global _DESIGN_CACHE
+    if _DESIGN_CACHE is None:
+        try:
+            _DESIGN_CACHE = json.loads((PROJECT_ROOT / "STUDIO" / "design_system.json").read_text(encoding="utf-8"))
+        except Exception:
+            _DESIGN_CACHE = {}
+    return _DESIGN_CACHE
+
+
+def _brand_font_paths(bold: bool):
+    """美編部門指定的品牌字體（優先於系統預設字，擺脫 AI 預設感）。"""
+    ds = _design_system()
+    out = []
+    for k in (["font_bold", "font"] if bold else ["font"]):
+        v = ds.get(k)
+        if v:
+            out.append(v if Path(v).is_absolute() else str(PROJECT_ROOT / v))
+    return out
+
+
 def _load_font(size: int, bold: bool = False):
     """盡量載入一個支援中文的 TrueType 字型；可選粗體；失敗則回傳預設點陣字型。"""
     from PIL import ImageFont
 
     bold_first = [r"C:\Windows\Fonts\msjhbd.ttc", r"C:\Windows\Fonts\msyhbd.ttc",
                   "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc"]  # Linux 粗體
-    candidates = (bold_first if bold else []) + [
+    candidates = _brand_font_paths(bold) + (bold_first if bold else []) + [
         r"C:\Windows\Fonts\msjh.ttc",     # 微軟正黑體
         r"C:\Windows\Fonts\msyh.ttc",     # 微軟雅黑
         r"C:\Windows\Fonts\mingliu.ttc",
@@ -475,6 +568,13 @@ ACCENT_PALETTE = [
     (190, 150, 255),  # 紫
     (255, 165, 80),   # 橙
 ]
+# 美編部門可由 design_system.json 覆寫品牌配色
+try:
+    _ds_pal = _design_system().get("accent_palette")
+    if _ds_pal:
+        ACCENT_PALETTE = [tuple(c) for c in _ds_pal if isinstance(c, (list, tuple)) and len(c) == 3] or ACCENT_PALETTE
+except Exception:
+    pass
 
 
 def pick_accent(seed: str):
@@ -625,6 +725,24 @@ def _render_candles_strip(strip_w: int, height: int, accent, seed: str = "x"):
         if y2 - y1 < 3:
             y2 = y1 + 3
         draw.rectangle([cx - body_w // 2, y1, cx + body_w // 2, y2], fill=(*color, 235))
+
+    # ── 發光霓虹趨勢線 + 線下漸層面積填充 + 末端脈動亮點（讓畫面像「活的盤面」、最抓眼）──
+    pts = [(int(i * spacing + spacing * 0.5), int(centers[i])) for i in range(ncandle)]
+    if len(pts) >= 2:
+        # 面積填充：線下到底部，accent 半透明（疊兩層做上深下淡漸層感）
+        base_y = int(height * 0.97)
+        draw.polygon(pts + [(pts[-1][0], base_y), (pts[0][0], base_y)], fill=(*ac, 30))
+        midcut = [(x, y) for (x, y) in pts]
+        draw.polygon(midcut + [(pts[-1][0], pts[-1][1] + int(height * 0.10)),
+                               (pts[0][0], pts[0][1] + int(height * 0.10))], fill=(*ac, 34))
+        # 多層描線做霓虹發光（外寬淡→內細亮）
+        for w_, a_ in ((18, 38), (11, 72), (6, 140)):
+            draw.line(pts, fill=(*ac, a_), width=w_, joint="curve")
+        draw.line(pts, fill=(238, 255, 250, 255), width=3, joint="curve")  # 亮核
+        # 末端脈動亮點
+        ex, ey = pts[-1]
+        draw.ellipse([ex - 20, ey - 20, ex + 20, ey + 20], fill=(*ac, 70))
+        draw.ellipse([ex - 9, ey - 9, ex + 9, ey + 9], fill=(245, 255, 252, 255), outline=(*ac, 255), width=2)
     return img
 
 
@@ -668,7 +786,11 @@ def render_text_overlay(width: int, height: int, *, big_text: str, watermark: st
             return (len(s) * 10, 16)
 
     lines = _wrap_to_width(draw, big_text, big_font, max_w) if big_font else [big_text]
-    line_h = int(tsize("測", big_font)[1] * 1.42) or int(md * 0.11)
+    try:
+        _asc, _desc = big_font.getmetrics()
+        line_h = int((_asc + _desc) * 1.2)  # 用字體真實行高，避免不同字體行距被低估、行疊在一起
+    except Exception:  # noqa: BLE001
+        line_h = int(tsize("測", big_font)[1] * 1.55) or int(md * 0.12)
     block_h = line_h * len(lines)
     bw = min(max((tsize(ln, big_font)[0] for ln in lines), default=10), max_w)
     # 半透明深色面板襯底（讓字在繁忙 K 線上仍清楚）
@@ -710,7 +832,7 @@ def render_candle_card(width: int, height: int, *, big_text: str, watermark: str
     img = _render_candles_strip(width, height, accent, seed).convert("RGB")  # 滿版 K 線
     draw = ImageDraw.Draw(img, "RGBA")
     md = min(width, height)
-    big_font = _load_font(int(md * 0.086), bold=True)
+    big_font = _load_font(int(md * 0.094), bold=True)
     wm_font = _load_font(int(md * 0.026), bold=True)
     max_w = width - int(width * 0.14)
     ac = (int(accent[0]), int(accent[1]), int(accent[2]))
@@ -723,13 +845,23 @@ def render_candle_card(width: int, height: int, *, big_text: str, watermark: str
             return (len(s) * 10, 16)
 
     lines = _wrap_to_width(draw, big_text, big_font, max_w) if big_font else [big_text]
-    line_h = int(tsize("測", big_font)[1] * 1.42) or int(md * 0.11)
+    try:
+        _asc, _desc = big_font.getmetrics()
+        line_h = int((_asc + _desc) * 1.2)  # 用字體真實行高，避免不同字體行距被低估、行疊在一起
+    except Exception:  # noqa: BLE001
+        line_h = int(tsize("測", big_font)[1] * 1.55) or int(md * 0.12)
     block_h = line_h * len(lines)
     bw = min(max((tsize(ln, big_font)[0] for ln in lines), default=10), max_w)
     px = (width - bw) // 2 - int(md * 0.05)
     py = (height - block_h) // 2 - int(md * 0.05)
-    draw.rounded_rectangle([px, py, width - px, py + block_h + int(md * 0.10)],
-                           radius=int(md * 0.03), fill=(8, 12, 24, 180))
+    pyb = py + block_h + int(md * 0.10)
+    # 標題後方強調色光暈（吸睛磁鐵：軟性放射狀 halo）
+    gcx, gcy = width // 2, (py + pyb) // 2
+    for rr_, a_ in ((int(md * 0.50), 14), (int(md * 0.38), 20), (int(md * 0.27), 28)):
+        draw.ellipse([gcx - rr_, gcy - int(rr_ * 0.62), gcx + rr_, gcy + int(rr_ * 0.62)], fill=(*ac, a_))
+    # 深色玻璃面板 + accent 細邊框
+    draw.rounded_rectangle([px, py, width - px, pyb], radius=int(md * 0.03),
+                           fill=(9, 13, 26, 205), outline=(*ac, 140), width=2)
     y = (height - block_h) // 2 - int(md * 0.01)
     last_w = 0
     for ln in lines:
@@ -740,9 +872,13 @@ def render_candle_card(width: int, height: int, *, big_text: str, watermark: str
             draw.text((x + dx, y + dy), ln, fill=(0, 0, 0, 235), font=big_font)
         draw.text((x, y), ln, fill=(248, 250, 255), font=big_font)
         y += line_h
-    uw = min(int(width * 0.32), max(last_w // 2, int(width * 0.12)))
+    # 發光強調底線（外暈 + 亮核）
+    uw = min(int(width * 0.34), max(last_w // 2, int(width * 0.14)))
     ux = (width - uw) // 2
-    draw.rectangle([ux, y + int(md * 0.012), ux + uw, y + int(md * 0.012) + max(4, int(md * 0.013))], fill=accent)
+    uy = y + int(md * 0.014)
+    uh = max(5, int(md * 0.016))
+    draw.rounded_rectangle([ux - 6, uy - 4, ux + uw + 6, uy + uh + 4], radius=uh, fill=(*ac, 70))
+    draw.rounded_rectangle([ux, uy, ux + uw, uy + uh], radius=uh // 2, fill=accent)
 
     if watermark:
         w, h = tsize(watermark, wm_font)
@@ -1059,8 +1195,10 @@ def build_video(
             video_concept = None
 
     body_clips = []
+    seg_cards = []  # 每段靜態卡 PNG 路徑(broll 段=None)，供靜態切片快路徑
     for i, seg in enumerate(segments):
         clip = None
+        card_png = None
         # 1) 嘗試 Pexels B-roll
         if pexels_key and seg.broll:
             local = fetch_pexels_clip(
@@ -1111,6 +1249,7 @@ def build_video(
                 clip = ImageClip(str(card_png)).set_duration(per_seg)
             stats["card_used"] += 1
 
+        seg_cards.append(str(card_png) if card_png else None)
         body_clips.append(clip)
 
     # intro / outro 字卡
@@ -1126,31 +1265,102 @@ def build_video(
             return ImageClip(str(cardp)).set_duration(dur)
 
     intro_clip = _candle_segment(title, "intro", INTRO_DURATION)
+    # Shorts 開場改用高質感封面（取代 K 線標題卡；同一張供縮圖重用，失敗則沿用 K 線卡不影響渲染）
+    _slug = str(getattr(slug_paths, "slug", "") or "")
+    if _slug.startswith("S_"):
+        try:
+            import make_cover as _mc
+            _cp = _mc.OUT / f"{_slug}.jpg"
+            if not _cp.exists():
+                _mc.make_cover(_slug, title)
+            if _cp.exists():
+                intro_clip = ImageClip(str(_cp)).set_duration(INTRO_DURATION)
+        except Exception as _e:  # noqa: BLE001
+            print(f"[warn] 封面開場略過，沿用 K 線卡：{str(_e)[:70]}", file=sys.stderr)
     outro_clip = _candle_segment(branding.get("watermark_text", "感謝收看"), "outro", OUTRO_DURATION)
+    # 輕量動態(不爆 2vCPU、不破壞佈局):開場/結尾淡入
+    try:
+        intro_clip = intro_clip.crossfadein(min(0.6, INTRO_DURATION / 2))
+        outro_clip = outro_clip.crossfadein(min(0.5, OUTRO_DURATION / 2))
+    except Exception:  # noqa: BLE001
+        pass
 
-    # 主體拼接（覆蓋配音總長）
-    body = concatenate_videoclips(body_clips, method="compose")
-
-    # 字幕：燒在 body 上（body 時間軸 = 配音時間軸）
+    # 字幕 cue 先算（兩條路徑共用）
+    cues = []
     if not no_subtitles:
         voice_text = read_voice_text(slug_paths)
         if not voice_text:
             voice_text = " ".join(s.narration for s in segments if s.narration).strip()
-        units = split_subtitle_units(voice_text)
-        cues = build_subtitle_cues(units, audio_duration)
+        cues = build_subtitle_cues(split_subtitle_units(voice_text), audio_duration)
         stats["subtitle_count"] = len(cues)
+
+    _all_static = bool(seg_cards) and all(p is not None for p in seg_cards) and len(seg_cards) == len(segments)
+    if _all_static and cues:
+        # ── 靜態切片快路徑（純字卡無 b-roll）：每時段把卡＋當下字幕燒成一張靜圖，
+        #    用 ImageClip 拼接，徹底免逐幀合成 → 弱 CPU(2vCPU) 也能快數倍 ──
+        from PIL import Image as _PILImg
+        marks = {0.0, float(audio_duration)}
+        for k in range(len(seg_cards) + 1):
+            marks.add(min(max(k * per_seg, 0.0), audio_duration))
+        for cu in cues:
+            marks.add(min(max(cu.start, 0.0), audio_duration))
+            marks.add(min(max(cu.end, 0.0), audio_duration))
+        bounds = sorted(marks)
+        sub_cache = {}
+        slices = []
+        for a, b in zip(bounds, bounds[1:]):
+            dur = b - a
+            if dur < 0.04:
+                continue
+            mid = (a + b) / 2.0
+            seg_idx = min(int(mid / per_seg) if per_seg else 0, len(seg_cards) - 1)
+            base_png = seg_cards[seg_idx]
+            cue = next((c for c in cues if c.start <= mid < c.end), None)
+            png_path = base_png
+            if cue is not None:
+                key = (seg_idx, cue.text)
+                if key not in sub_cache:
+                    composed = base_png
+                    sub_png = _render_subtitle_image(width, height, cue.text, tmp_dir, accent=accent)
+                    if sub_png is not None:
+                        try:
+                            base = _PILImg.open(base_png).convert("RGBA")
+                            sub = _PILImg.open(str(sub_png)).convert("RGBA")
+                            x = max(0, (width - sub.width) // 2)
+                            y = max(0, int(height * 0.78) - sub.height)
+                            base.alpha_composite(sub, (x, y))
+                            outp = tmp_dir / f"slice_{seg_idx:02d}_{len(sub_cache):03d}.jpg"
+                            base.convert("RGB").save(str(outp), "JPEG", quality=90)
+                            composed = str(outp)
+                        except Exception:  # noqa: BLE001
+                            composed = base_png
+                    sub_cache[key] = composed
+                png_path = sub_cache[key]
+            slices.append(ImageClip(png_path).set_duration(dur))
+        body = concatenate_videoclips(slices, method="compose") if slices \
+            else concatenate_videoclips(body_clips, method="compose")
+    else:
+        # ── 原逐幀路徑（有 b-roll 或無字幕時保留，確保正確性）──
+        body = concatenate_videoclips(body_clips, method="compose")
         if cues:
             sub_overlays = []
             for cue in cues:
                 sub_png = _render_subtitle_image(width, height, cue.text, tmp_dir, accent=accent)
                 if sub_png is None:
                     continue
+                _sd = max(cue.end - cue.start, 0.1)
+                _ovc = ImageClip(str(sub_png))
+                _yp = max(0, int(height * 0.78) - int(_ovc.h))
                 ov = (
-                    ImageClip(str(sub_png))
+                    _ovc
                     .set_start(cue.start)
-                    .set_duration(max(cue.end - cue.start, 0.1))
-                    .set_position(("center", int(height * 0.80)))
+                    .set_duration(_sd)
+                    .set_position(("center", _yp))
                 )
+                try:
+                    ov = ov.crossfadein(min(0.22, _sd / 2))
+                except Exception:  # noqa: BLE001
+                    pass
                 sub_overlays.append(ov)
             if sub_overlays:
                 body = CompositeVideoClip([body, *sub_overlays], size=(width, height))
@@ -1164,20 +1374,52 @@ def build_video(
 
     slug_paths.out_mp4.parent.mkdir(parents=True, exist_ok=True)
 
-    # 寫出 H.264 mp4
-    try:
+    # 選編碼器:MV_CODEC 環境變數優先 → 自動偵測 GPU NVENC(本機有 GPU 就用) → 退 CPU libx264(雲端無 GPU)
+    _codec, _preset, _extra = "libx264", "ultrafast", []
+    _forced = os.environ.get("MV_CODEC", "").strip()
+    if _forced:
+        _codec = _forced
+        if "nvenc" in _forced:
+            _preset, _extra = "p4", ["-rc", "vbr", "-cq", "23"]
+    elif not os.environ.get("MV_NO_GPU"):
+        try:
+            import subprocess as _sp, imageio_ffmpeg as _iio
+            _ff = _iio.get_ffmpeg_exe()
+            _has = "h264_nvenc" in _sp.run([_ff, "-hide_banner", "-encoders"],
+                                           capture_output=True, text=True, timeout=12).stdout
+            if _has and _sp.run([_ff, "-hide_banner", "-loglevel", "error", "-f", "lavfi",
+                                 "-i", "color=c=black:s=128x128:d=0.1", "-c:v", "h264_nvenc",
+                                 "-f", "null", "-"], capture_output=True, text=True, timeout=20).returncode == 0:
+                _codec, _preset, _extra = "h264_nvenc", "p4", ["-rc", "vbr", "-cq", "23"]
+        except Exception:  # noqa: BLE001
+            pass
+    print(f"[編碼] 使用 {_codec}（preset={_preset}）", file=sys.stderr)
+
+    def _write(cv, pr, extra):
         final.write_videofile(
             str(slug_paths.out_mp4),
             fps=fps,
-            codec="libx264",
+            codec=cv,
             audio_codec="aac",
-            preset="veryfast",
+            preset=pr,
             threads=os.cpu_count() or 4,
             bitrate="3500k",
+            ffmpeg_params=(extra or None),
             temp_audiofile=str(tmp_dir / "temp_audio.m4a"),
             remove_temp=True,
             logger=None,
         )
+
+    # 寫出 mp4（GPU 編碼失敗自動退 CPU，確保一定出片）
+    try:
+        try:
+            _write(_codec, _preset, _extra)
+        except Exception as _enc_exc:  # noqa: BLE001
+            if _codec != "libx264":
+                print(f"[warn] {_codec} 編碼失敗（{_enc_exc}），退回 CPU libx264。", file=sys.stderr)
+                _write("libx264", "ultrafast", [])
+            else:
+                raise
     finally:
         # 釋放資源
         for c in body_clips:
@@ -1222,7 +1464,7 @@ def _render_subtitle_image(width: int, height: int, text: str, tmp_dir: Path, ac
     except Exception:  # noqa: BLE001
         return None
 
-    fsize = max(30, min(int(height * 0.042), int(width * 0.060)))
+    fsize = max(40, min(int(height * 0.052), int(width * 0.072)))
     font = _load_font(fsize, bold=True)
     side = int(width * 0.045)
     max_w = width - 2 * side
@@ -1256,7 +1498,8 @@ def _render_subtitle_image(width: int, height: int, text: str, tmp_dir: Path, ac
     y = pad_y
     for ln, (lw, _lh) in zip(lines, sizes):
         tx = (iw - lw) // 2
-        for dx, dy in ((-3, 0), (3, 0), (0, -3), (0, 3), (2, 2), (-2, -2)):
+        _e = max(3, int(fsize * 0.06))
+        for dx, dy in ((-_e, 0), (_e, 0), (0, -_e), (0, _e), (_e, _e), (-_e, -_e), (_e, -_e), (-_e, _e)):
             draw.text((tx + dx, y + dy), ln, fill=(0, 0, 0, 255), font=font)
         draw.text((tx, y), ln, fill=(255, 255, 255, 255), font=font)
         y += line_h + line_gap
@@ -1426,6 +1669,24 @@ def run(args: argparse.Namespace) -> int:
     # 手動建暫存夾，改用「容忍 Windows 檔案鎖」的清理，避免 moviepy/ffmpeg 尚未釋放
     # 的 B-roll 檔 handle 在自動清理時拋 PermissionError，連帶把已產出的 mp4 也判成失敗。
     # 自我修復：渲染失敗自動重試一次（吸收 ffmpeg/網路抖動等暫時性錯誤）
+    # ── 純 ffmpeg 後端優先(本機/雲端都快 ~10x):純字卡 + b-roll 都走它;
+    #    任何失敗自動回 moviepy 備案(Phase 2:b-roll 已支援) ──
+    if not os.environ.get("MV_FORCE_MOVIEPY"):
+        try:
+            import render_ffmpeg
+            if render_ffmpeg.render(slug_paths, branding, width=width, height=height,
+                                    fps=fps, no_subtitles=args.no_subtitles):
+                size_mb = slug_paths.out_mp4.stat().st_size / (1024 * 1024) if slug_paths.out_mp4.exists() else 0
+                print("=" * 64)
+                print("[OK] 影片完成（ffmpeg 後端·快）！")
+                print(f"  檔案     : {slug_paths.out_mp4}")
+                print(f"  大小     : {size_mb:.1f} MB")
+                print("=" * 64)
+                return 0
+            print("[info] ffmpeg 後端不適用此片，改用 moviepy 備案。", file=sys.stderr)
+        except Exception as _ff_exc:  # noqa: BLE001
+            print(f"[warn] ffmpeg 後端失敗（{_ff_exc}），改用 moviepy 備案。", file=sys.stderr)
+
     stats = None
     last_exc = None
     for _attempt in range(2):

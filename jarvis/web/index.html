@@ -26,6 +26,16 @@
     text-shadow:0 0 22px rgba(76,168,232,.35); transition:opacity .3s; }
   .hint{ position:absolute; bottom:34px; left:50%; transform:translateX(-50%);
     font-size:12.5px; color:var(--dim); opacity:.55; letter-spacing:.05em; }
+  /* 診斷條 */
+  #diag{ position:fixed; bottom:0; left:0; right:0; background:rgba(4,10,24,.92);
+    border-top:1px solid rgba(76,168,232,.15); padding:6px 16px;
+    font:10px/1.6 "Share Tech Mono",monospace; color:rgba(76,168,232,.5);
+    display:flex; gap:18px; align-items:center; z-index:50 }
+  #diag-mode{ color:rgba(76,168,232,.6); letter-spacing:.1em }
+  #diag-err{ color:#eb6b6b; flex:1 }
+  #vol-wrap{ display:flex; align-items:center; gap:6px }
+  #vol-bar{ width:80px; height:5px; background:rgba(255,255,255,.08); border-radius:3px; overflow:hidden }
+  #vol-fill{ height:100%; width:0%; background:#4ca8e8; border-radius:3px; transition:width .05s }
   /* 起始遮罩：瀏覽器規定要先有使用者手勢才能開麥克風/放音 */
   #gate{ position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
     gap:22px; background:radial-gradient(circle at 50% 45%,rgba(76,168,232,.06),#050508 70%); cursor:pointer; z-index:10; }
@@ -39,6 +49,23 @@
     width:8px; height:8px; border-radius:50%; background:#2a3a48; transition:all .25s; }
   .mic.on{ background:#5ad27a; box-shadow:0 0 14px #5ad27a; }
   .err{ color:#eb6b6b !important; }
+  #btip{ position:fixed; padding:7px 13px; background:rgba(4,12,30,.93);
+    border:1px solid rgba(76,168,232,.28); border-radius:6px;
+    color:rgba(200,230,255,.95); font:400 12px/1.4 "Share Tech Mono",monospace;
+    pointer-events:none; display:none; white-space:nowrap; z-index:20;
+    box-shadow:0 0 14px rgba(40,100,255,.2); backdrop-filter:blur(10px); }
+  #btip .bc{ font-size:9px; letter-spacing:2px; opacity:.6; margin-bottom:4px; }
+  #btip .bt{ font-size:12px; font-weight:700; }
+  #brain-btn{
+    position:absolute; top:26px; left:26px; pointer-events:auto;
+    font-family:"Share Tech Mono",monospace; font-size:11px; letter-spacing:.22em;
+    color:rgba(76,168,232,.55); background:rgba(76,168,232,.07);
+    border:1px solid rgba(76,168,232,.2); border-radius:4px;
+    padding:7px 13px; cursor:pointer; text-decoration:none;
+    transition:all .2s; display:inline-block; }
+  #brain-btn:hover{
+    color:rgba(120,200,255,.95); background:rgba(76,168,232,.16);
+    border-color:rgba(76,168,232,.5); text-shadow:0 0 10px rgba(76,168,232,.5); }
 </style>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
@@ -47,6 +74,7 @@
 <body>
 <canvas id="orb"></canvas>
 <div class="hud">
+  <a href="/brain" id="brain-btn">⬡ 大腦</a>
   <div class="brand">J . A . R . V . I . S</div>
   <div class="status" id="status">待命</div>
   <div class="mic" id="mic"></div>
@@ -54,9 +82,15 @@
     <div class="you" id="you"></div>
     <div class="jarvis" id="jarvis"></div>
   </div>
-  <div class="hint" id="hint">點一下畫面喚醒，然後直接對它說話</div>
+  <div class="hint" id="hint" style="display:none"></div>
 </div>
-<div id="gate"><div class="ring">啟動</div><p>點一下進入 — 賈維斯待命</p></div>
+<div id="gate"><div class="ring">啟動</div><p>點一下進入 — Jarvis 待命</p></div>
+<div id="diag" style="display:none">
+  <span id="diag-mode">—</span>
+  <div id="vol-wrap">MIC <div id="vol-bar"><div id="vol-fill"></div></div></div>
+  <span id="diag-err"></span>
+</div>
+<div id="btip"><div class="bc" id="btip-c"></div><div class="bt" id="btip-t"></div></div>
 
 <script type="module">
 import * as THREE from "three";
@@ -102,6 +136,7 @@ function createOrb(canvas){
   let spinX=0,spinY=0,spinZ=0,trans=0, cloudZ=0,cloudZVel=0;
   let analyser=null, freq=new Uint8Array(64), bass=0, mid=0;
   const clock=new THREE.Clock();
+
 
   function animate(){
     requestAnimationFrame(animate);
@@ -172,12 +207,16 @@ function createOrb(canvas){
   return { setState:s=>{state=s;}, setAnalyser:a=>{ analyser=a; if(a)freq=new Uint8Array(a.frequencyBinCount); } };
 }
 
-/* ════════════ 語音迴圈：Chrome Web Speech 聽 → 後端動腦/操控 → edge 嗓音念回，orb 跟著動 ════════════ */
+/* ════════════ 語音迴圈：Deepgram nova-3 zh-TW 聽 → 後端動腦/操控 → edge 嗓音念回，orb 跟著動 ════════════ */
 const orb=createOrb(document.getElementById("orb"));
 const $=id=>document.getElementById(id);
 const setStatus=(txt,st)=>{ $("status").textContent=txt; orb.setState(st); };
 
-let audioCtx, analyser, recog, shouldListen=false, speaking=false, started=false;
+let audioCtx, analyser, micAnalyser, micStream, processedStream, recorder, dgWs;
+let shouldListen=false, speaking=false, started=false, dgKey="";
+let currentSrc=null, vadStart=null, interruptAbort=null;
+const VAD_THRESHOLD=0.06, VAD_SUSTAIN=300;
+const SENT_RE=/[。！？\n]/;
 
 function setMic(on){ $("mic").classList.toggle("on",on); }
 
@@ -187,22 +226,135 @@ function initAudio(){
   analyser.connect(audioCtx.destination);
 }
 
-function buildRecog(){
-  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!SR){ $("jarvis").textContent="這個瀏覽器不支援語音辨識，請用 Chrome。"; $("jarvis").classList.add("err"); return null; }
-  const r=new SR(); r.continuous=true; r.interimResults=true; r.lang="zh-TW";
-  r.onresult=ev=>{
-    let interim="";
-    for(let i=ev.resultIndex;i<ev.results.length;i++){
-      const tr=ev.results[i][0].transcript;
-      if(ev.results[i].isFinal){ const text=tr.trim(); if(text&&!speaking) handle(text); }
-      else interim+=tr;
+function vadLoop(){
+  if(!speaking||!micAnalyser){ vadStart=null; return; }
+  const d=new Uint8Array(micAnalyser.fftSize);
+  micAnalyser.getByteTimeDomainData(d);
+  let sum=0; for(let i=0;i<d.length;i++){ const v=(d[i]-128)/128; sum+=v*v; }
+  const rms=Math.sqrt(sum/d.length);
+  if(rms>VAD_THRESHOLD){
+    if(!vadStart) vadStart=performance.now();
+    if(performance.now()-vadStart>VAD_SUSTAIN&&currentSrc){
+      if(interruptAbort) interruptAbort();  // 終止串流佇列
+      try{ currentSrc.stop(); }catch(_){} currentSrc=null;
+      return;
     }
-    if(interim&&!speaking){ $("you").textContent=interim; }
+  } else { vadStart=null; }
+  requestAnimationFrame(vadLoop);
+}
+
+function setDiag(mode, err=""){
+  const d=$("diag"); if(d) d.style.display="flex";
+  const m=$("diag-mode"); if(m) m.textContent=mode;
+  const e=$("diag-err"); if(e) e.textContent=err;
+}
+function buildWebSpeech(){
+  // VAD 錄音 → POST /stt (Groq Whisper)
+  // gain 4x 已在 analyser 前加，所以這裡的 rms 是放大後的值，門檻也用放大後的值
+  // 固定切片 2.5s → Whisper → 喚醒詞偵測
+  const SLICE_MS = 5000;  // 12 req/min，低於 Groq 20 RPM 限制
+  const RMS_MIN  = 0.20;  // RMS 低於此視為靜音，跳過 Groq
+  let _sending=false;
+
+  setDiag("GROQ WHISPER  ● 聆聽中");
+
+  function _nextSlice(){
+    if(!shouldListen) return;
+    const chunks=[];
+    let _peakRms=0;
+    const _rmsTimer=setInterval(()=>{
+      if(!micAnalyser) return;
+      const buf=new Uint8Array(micAnalyser.fftSize);
+      micAnalyser.getByteTimeDomainData(buf);
+      const rms=Math.sqrt(buf.reduce((s,v)=>s+(v-128)**2,0)/buf.length)/128;
+      if(rms>_peakRms) _peakRms=rms;
+    },200);
+    const mr=new MediaRecorder(processedStream,{mimeType:"audio/webm;codecs=opus"});
+    mr.ondataavailable=e=>{ if(e.data.size>0) chunks.push(e.data); };
+    mr.start(100);
+    setTimeout(()=>{
+      clearInterval(_rmsTimer);
+      mr.stop();
+      mr.onstop=()=>{
+        if(shouldListen&&!speaking) _sendChunks(chunks,_peakRms);
+        if(shouldListen) _nextSlice();
+      };
+    }, SLICE_MS);
+  }
+  _nextSlice();
+
+  async function _sendChunks(chunks, peakRms=1){
+    if(!chunks.length||_sending) return;
+    _sending=true;
+    try{
+      const blob=new Blob(chunks,{type:"audio/webm;codecs=opus"});
+      if(blob.size<1200||peakRms<RMS_MIN){ _sending=false; return; }
+      const r=await fetch("/stt",{method:"POST",headers:{"Content-Type":"audio/webm"},body:blob});
+      const d=await r.json();
+      if(!r.ok){
+        const msg=d.error||"";
+        if(msg.includes("429")){ setDiag("GROQ WHISPER  ⚠ 超流量，稍後重試"); }
+        else { console.error("[STT ERR]", r.status, msg); }
+        _sending=false; return;
+      }
+      const t=(d.text||"").trim();
+      console.log("[STT]", JSON.stringify(t), `blob=${blob.size}B rms=${peakRms.toFixed(3)}`);
+      if(!t){ _sending=false; return; }
+      setDiag("GROQ WHISPER  ✔ "+t.slice(0,20));
+      handle(t);
+    }catch(e){
+      setDiag("GROQ WHISPER","❌ "+e.message);
+      console.error("[STT]",e);
+    }
+    _sending=false;
+  }
+
+  window._wsRestart=()=>{ setDiag("GROQ WHISPER  ● 聆聽中"); };
+  _vadTick();
+  setStatus("聆聽中","listening");
+  $("jarvis").textContent="Jarvis 待命中，老闆。";
+}
+
+async function buildDeepgram(){
+  if(!dgKey){ try{ const c=await fetch("/config").then(r=>r.json()); dgKey=c.deepgram_key||""; }catch(_){} }
+  if(!dgKey){ buildWebSpeech(); return; }
+
+  let _dgConnected=false;
+  const ws=new WebSocket(
+    "wss://api.deepgram.com/v1/listen?model=nova-3&language=zh-TW&interim_results=true&endpointing=5000&smart_format=true&utterance_end_ms=5500",
+    ["token", dgKey]
+  );
+  dgWs=ws;
+
+  ws.onopen=()=>{
+    _dgConnected=true;
+    recorder=new MediaRecorder(micStream);
+    recorder.ondataavailable=e=>{ if(ws.readyState===1&&e.data.size>0) ws.send(e.data); };
+    recorder.start(150);
+    setMic(true);
+    setDiag("DEEPGRAM  nova-3  zh-TW  ▶");
   };
-  r.onend=()=>{ setMic(false); if(shouldListen&&!speaking){ try{ r.start(); setMic(true);}catch(e){} } };
-  r.onerror=ev=>{ if(ev.error==="not-allowed"){ $("jarvis").textContent="麥克風被擋了，請允許存取。"; $("jarvis").classList.add("err"); shouldListen=false; } };
-  return r;
+
+  ws.onmessage=e=>{
+    try{
+      const msg=JSON.parse(e.data);
+      if(msg.type!=="Results") return;
+      const text=(msg.channel?.alternatives?.[0]?.transcript||"").trim();
+      if(!text||speaking) return;
+      if(msg.is_final) handle(text);
+      else $("you").textContent=text;
+    }catch(_){}
+  };
+
+  ws.onerror=()=>{
+    if(!_dgConnected){
+      // 金鑰失效或連不到 → 清掉 key，改用 Web Speech
+      console.warn("[DG] 連線失敗，fallback → Web Speech");
+      dgKey=""; ws.close(); buildWebSpeech(); return;
+    }
+    ws.close();
+  };
+  ws.onclose=()=>{ setMic(false); if(_dgConnected&&shouldListen) setTimeout(buildDeepgram,1500); };
 }
 
 async function handle(text){
@@ -210,23 +362,33 @@ async function handle(text){
   $("you").textContent=text;
   $("jarvis").textContent="";
   setStatus("思考中","thinking");
-  speaking=true;                 // 暫停聽，避免收到自己的聲音
-  try{ recog && recog.stop(); }catch(e){}
+  speaking=true;
+  if(recorder?.state==="recording") recorder.pause();
+  setMic(false);
+  vadStart=null; requestAnimationFrame(vadLoop);
+
   let res;
   try{
     const r=await fetch("/ask",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text})});
     res=await r.json();
   }catch(e){ res={reply:"後端連不上，伺服器還在嗎？",kind:"error"}; }
+
   const reply=(res.reply||"").trim();
   $("jarvis").textContent=reply;
-  if(reply){ setStatus("說話中","speaking"); await speak(reply); }
+  if(reply&&!interruptAbort){ setStatus("說話中","speaking"); await speak(reply); }
+
+  interruptAbort=null;
   speaking=false;
   setStatus("聆聽中","listening");
-  if(shouldListen){ try{ recog.start(); setMic(true);}catch(e){} }
+  if(shouldListen&&recorder){
+    if(recorder.state==="paused") recorder.resume();
+    setMic(true);
+  } else if(shouldListen&&window._wsRestart){
+    window._wsRestart();
+  }
 }
 
 async function speak(text){
-  // 先用後端 edge 磁性男聲；失敗退瀏覽器內建語音
   try{
     if(audioCtx.state==="suspended") await audioCtx.resume();
     const r=await fetch("/tts?text="+encodeURIComponent(text));
@@ -234,9 +396,9 @@ async function speak(text){
     const buf=await r.arrayBuffer();
     const ab=await audioCtx.decodeAudioData(buf);
     const src=audioCtx.createBufferSource(); src.buffer=ab; src.connect(analyser);
-    orb.setAnalyser(analyser);
+    currentSrc=src; orb.setAnalyser(analyser);
     await new Promise(res=>{ src.onended=res; src.start(); });
-    orb.setAnalyser(null);
+    currentSrc=null; orb.setAnalyser(null);
   }catch(e){
     await new Promise(res=>{ try{
       const u=new SpeechSynthesisUtterance(text); u.lang="zh-TW"; u.onend=res; u.onerror=res;
@@ -245,18 +407,47 @@ async function speak(text){
   }
 }
 
-function start(){
+async function start(){
   if(started) return; started=true;
   $("gate").style.display="none";
   initAudio();
-  recog=buildRecog();
-  if(!recog) return;
+  setStatus("連線中","thinking");
+  micStream=await navigator.mediaDevices.getUserMedia({audio:{
+    noiseSuppression:true, echoCancellation:true, autoGainControl:false
+  }}).catch(()=>{
+    $("jarvis").textContent="麥克風被擋了，請允許存取。"; $("jarvis").classList.add("err"); return null;
+  });
+  if(!micStream) return;
+  // 音訊處理鏈：原始 → 高通(濾低頻雜音) → 壓縮器(拉高人聲) → 增益 → analyser + processedStream
+  const micSrc=audioCtx.createMediaStreamSource(micStream);
+  const hpFilter=audioCtx.createBiquadFilter();
+  hpFilter.type="highpass"; hpFilter.frequency.value=100; // 濾掉 100Hz 以下低頻雜音
+  const compressor=audioCtx.createDynamicsCompressor();
+  compressor.threshold.value=-30; compressor.knee.value=10;
+  compressor.ratio.value=4; compressor.attack.value=0.003; compressor.release.value=0.1;
+  const micGain=audioCtx.createGain(); micGain.gain.value=3;
+  micAnalyser=audioCtx.createAnalyser(); micAnalyser.fftSize=512; micAnalyser.smoothingTimeConstant=0.3;
+  const streamDest=audioCtx.createMediaStreamDestination();
+  micSrc.connect(hpFilter);
+  hpFilter.connect(compressor);
+  compressor.connect(micGain);
+  micGain.connect(micAnalyser);
+  micGain.connect(streamDest);
+  processedStream=streamDest.stream;
   shouldListen=true;
+  // 音量條更新 loop（高靈敏度）
+  (function volLoop(){
+    if(!micAnalyser) return requestAnimationFrame(volLoop);
+    const d=new Uint8Array(micAnalyser.fftSize);
+    micAnalyser.getByteTimeDomainData(d);
+    let sum=0; for(let i=0;i<d.length;i++){const v=(d[i]-128)/128;sum+=v*v;}
+    const rms=Math.sqrt(sum/d.length);
+    const fill=$("vol-fill"); if(fill) fill.style.width=Math.min(100,rms*1200)+'%';
+    requestAnimationFrame(volLoop);
+  })();
+  await buildDeepgram();
   setStatus("聆聽中","listening");
-  $("hint").textContent="直接說話即可 — 例如「現在幾點」「打開記事本」「看一下螢幕」";
-  try{ recog.start(); setMic(true); }catch(e){}
-  // 開場招呼
-  setTimeout(()=>{ if(!speaking){ $("jarvis").textContent="賈維斯待命中，老闆。"; } },300);
+  setTimeout(()=>{ if(!speaking){ $("jarvis").textContent="Jarvis 待命中，老闆。"; } },300);
 }
 $("gate").addEventListener("click",start);
 addEventListener("keydown",e=>{ if(e.key===" "||e.key==="Enter") start(); });

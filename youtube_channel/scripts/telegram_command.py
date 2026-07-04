@@ -63,7 +63,30 @@ def _send(chat_id, text):
     _api("sendMessage", chat_id=chat_id, text=text[:3900])
 
 
+def _bind():
+    """從最近傳給 bot 的訊息抓 chat_id，寫進 design_system 鎖定為主人。"""
+    if not TOKEN:
+        print("[FATAL] 未設 TELEGRAM_BOT_TOKEN"); return 2
+    res = _api("getUpdates", timeout=0)
+    chats = [(u.get("message") or {}).get("chat", {}).get("id") for u in res.get("result", [])]
+    chats = [c for c in chats if c]
+    if not chats:
+        print("[FATAL] 還沒收到你傳給 bot 的訊息——請先在 Telegram 對 bot 傳一句話再跑 --bind。"); return 3
+    cid = str(chats[-1])
+    try:
+        d = json.loads(DESIGN.read_text(encoding="utf-8")) if DESIGN.exists() else {}
+    except Exception:
+        d = {}
+    d["telegram_chat_id"] = cid
+    DESIGN.write_text(json.dumps(d, ensure_ascii=False, indent=2), encoding="utf-8")
+    _send(cid, "✅ 已綁定！你現在可以遙控整個工作室了。傳「幫助」看指令清單。")
+    print(f"[ok] 已綁定 chat_id={cid} 並通知。")
+    return 0
+
+
 def main() -> int:
+    if "--bind" in sys.argv:
+        return _bind()
     if not TOKEN:
         print("[info] 未設 TELEGRAM_BOT_TOKEN，Telegram 指令未啟用。"); return 0
     allowed = _allowed_chat()

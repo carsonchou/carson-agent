@@ -2,7 +2,7 @@
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # 金融時事優先：每 2 小時掃即時財經/加密新聞，有大事立刻產片（繞過排程，每日上限 3 支）
-0 */3 * * * /root/yt/run.sh scripts/news_dept.py >> /root/yt/logs/cron.log 2>&1
+0 * * * * /root/yt/run.sh scripts/news_dept.py >> /root/yt/logs/cron.log 2>&1
 # 05:30 情報 → 05:37 決策 → 06:07 製作(渲染) → 09:07 發布 → 09:3x~09:5x 後處理各部門
 # 競品深度學習(看100支/天)改在本機跑(雲端IP會被YouTube 429限流)，本機 QuantArsen_IntelLearn 學完SFTP推playbook回來；雲端這支只做輕量情報報告。
 30 5 * * * /root/yt/run.sh scripts/intel_dept.py --no-learn >> /root/yt/logs/cron.log 2>&1
@@ -14,7 +14,9 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 45 5 * * * /root/yt/run.sh scripts/hotspot_dept.py --max 5 >> /root/yt/logs/cron.log 2>&1
 50 5 * * * /root/yt/run.sh scripts/parasite_titles.py --count 6 >> /root/yt/logs/cron.log 2>&1
 55 5 * * * /root/yt/run.sh scripts/shorts_funnel.py --max 1 --per 4 >> /root/yt/logs/cron.log 2>&1
-7 6 * * * /root/yt/run.sh scripts/produce_batch.py --shorts 13 --long 0 --target 300 >> /root/yt/logs/cron.log 2>&1
+7 6 * * * /root/yt/run.sh scripts/produce_batch.py --manual --shorts 7 --long 1 --target 99999 --no-render >> /root/yt/logs/cron.log 2>&1
+# 安全雙模式：雲端每15分渲染待辦(PC開著時平行加速,鎖防雙渲染)
+*/15 * * * * flock -n /tmp/hr_cloud.lock /root/yt/run.sh scripts/hybrid_render.py --cloud --max 20 >> /root/yt/logs/cron.log 2>&1
 # 片庫品管評分（produce 後跑，供決策中心『🎬 片庫評分』分頁檢視＋退件重做）
 40 6 * * * /root/yt/run.sh scripts/quality_score.py >> /root/yt/logs/cron.log 2>&1
 # 自動記帳·固定成本（每天跑、同月只記一筆，冪等）
@@ -27,7 +29,12 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 45 9 * * * /root/yt/run.sh scripts/organize_dept.py >> /root/yt/logs/cron.log 2>&1
 48 9 * * * /root/yt/run.sh scripts/promo_dept.py >> /root/yt/logs/cron.log 2>&1
 51 9 * * * /root/yt/run.sh scripts/thumbnail_dept.py >> /root/yt/logs/cron.log 2>&1
-54 9 * * * /root/yt/run.sh scripts/comment_dept.py >> /root/yt/logs/cron.log 2>&1
+# 留言部門：安全模板自動回覆(白名單句型,去重) + 仍產草稿
+54 9 * * * /root/yt/run.sh scripts/comment_dept.py --auto-reply-safe --max 10 >> /root/yt/logs/cron.log 2>&1
+# 完播率週報→回寫 completion_signals.json 餵決策(雲端現役:週一 00:30)
+30 0 * * 1 /root/yt/run.sh scripts/analytics_weekly.py >> /root/yt/logs/cron.log 2>&1
+# 舊片封面批次重生(make_cover 高質感封面):每天 02:00 補 60 支直到清空(配額安全)
+0 2 * * * /root/yt/run.sh scripts/cover_backfill.py --max 60 >> /root/yt/logs/cron.log 2>&1
 57 9 * * * /root/yt/run.sh scripts/finance_dept.py >> /root/yt/logs/cron.log 2>&1
 5 10 * * * /root/yt/run.sh scripts/multipost_dept.py --max 50 >> /root/yt/logs/cron.log 2>&1
 # 跨平台真上傳(TikTok/IG via upload-post)：無 UPLOAD_POST_API_KEY 會優雅跳過，金鑰一到即生效
@@ -43,3 +50,6 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # 爆款獵手：每天輕量盯爆款(出現破門檻就即時全押)，每週日完整拆解贏點回寫心法(贏點要週數據才準)
 45 10 * * * /root/yt/run.sh scripts/breakout_hunter.py --watch >> /root/yt/logs/cron.log 2>&1
 0 11 * * 0 /root/yt/run.sh scripts/breakout_hunter.py >> /root/yt/logs/cron.log 2>&1
+20 6 * * * /root/yt/run.sh scripts/ep_teaser.py --count 2 >> /root/yt/logs/cron.log 2>&1
+*/3 * * * * /bin/bash /root/yt/fileserver.sh >/dev/null 2>&1
+10 5 * * 1 /root/yt/run.sh scripts/ig_token_refresh.py

@@ -52,6 +52,21 @@ def run(cmd: str) -> int:
     return rc
 
 
+def run_detached(cmd: str) -> None:
+    """Fire-and-forget：不開 PTY，不等待背景程序結束。
+    cmd 應自帶 setsid nohup ... </dev/null >>log 2>&1 &，
+    使背景程序在 channel 關閉後不被 SIGHUP 殺掉。
+    """
+    c = _client()
+    # 不呼叫 get_pty()，避免 channel 關閉時 SIGHUP 殺掉 nohup 子程序
+    _stdin, stdout, _stderr = c.exec_command(cmd, timeout=15)
+    try:
+        stdout.read()   # 讀完 & 前景輸出（含 "triggered"），確認啟動訊號
+    except Exception:
+        pass
+    c.close()
+
+
 def put(local: str, remote: str):
     c = _client(); sf = c.open_sftp()
     # 確保遠端目錄存在
@@ -114,6 +129,8 @@ if __name__ == "__main__":
         print(__doc__); sys.exit(1)
     if a[0] == "run":
         sys.exit(run(a[1]))
+    elif a[0] == "detached":
+        run_detached(a[1])
     elif a[0] == "get":
         get(a[1], a[2])
     elif a[0] == "put":

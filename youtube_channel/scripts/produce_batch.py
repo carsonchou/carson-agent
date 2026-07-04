@@ -145,10 +145,26 @@ def load_training() -> str:
 
 def existing_titles():
     out = []
-    for f in OUT.glob("*.md"):
+    # 按修改時間倒序：最近生成的在前面，讓 avoid[:N] 優先涵蓋近期題材
+    for f in sorted(OUT.glob("*.md"), key=lambda x: x.stat().st_mtime, reverse=True):
         try:
             first = f.read_text(encoding="utf-8").splitlines()[0]
-            out.append(first.replace("# 🎬", "").strip())
+            t = first.replace("# 🎬", "").strip()
+            if t:
+                out.append(t)
+        except Exception:
+            pass
+    # 從已上架 ledger 讀標題，防止每日重複生成近似題材
+    ledger_path = ROOT / "STUDIO" / "uploaded_ledger.json"
+    if ledger_path.exists():
+        try:
+            import re as _re
+            ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
+            for slug_key in ledger:
+                title = _re.sub(r"^[SL]_", "", slug_key)
+                title = _re.sub(r"\d{3,5}$", "", title)
+                if title:
+                    out.append(title)
         except Exception:
             pass
     return out
@@ -194,15 +210,66 @@ def pull_topic(kind):
         bank = json.loads(bank_path.read_text(encoding="utf-8"))
     except Exception:
         return None
-    for t in bank:
-        if not t.get("used") and t.get("format", "short") == kind:
-            t["used"] = True
-            try:
-                bank_path.write_text(json.dumps(bank, ensure_ascii=False, indent=2), encoding="utf-8")
-            except Exception:
-                pass
-            return t
+    # 2026-06-27 真實完播率校正:定投生活化痛點(完播66-73%)優先,硬核公式(破產/勝率/夏普,完播10-31%)不在此列
+    _NUM_KW = ("定投", "做錯", "無腦", "買在高點", "停利", "微笑", "複利", "72法則", "連輸",
+               "停損", "10年", "終值", "實測", "差幾", "虧多少", "幾倍", "回測")
+    cand = [t for t in bank if not t.get("used") and t.get("format", "short") == kind]
+    # 治本:優先抽「數字戳破直覺」會紅題(完播高);工具教學/純新聞題排後、自然餓死
+    cand.sort(key=lambda t: 0 if any(k in (t.get("title", "") + t.get("angle", "")) for k in _NUM_KW) else 1)
+    if cand:
+        t = cand[0]
+        t["used"] = True
+        try:
+            bank_path.write_text(json.dumps(bank, ensure_ascii=False, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+        return t
     return None
+
+
+HOOK_RULES = """
+【完播率＝唯一KPI·鐵律（直接決定流量，逐條遵守）】
+0. ★黃金 30 秒三段式開場骨架（這支片的脊椎，務必照走，蒸餾自 179 萬觀看爆款公式）：
+   ①前 3 秒「恐懼/痛點」——丟一個『陌生人也立刻懂』的具體損失或反直覺真相，要帶精確數字。範例：「靠感覺進出的散戶，九成在賠錢。」
+   ②中段「希望」——點出有個『可回測驗證』的方法能避開，但先不給全部答案，留好奇缺口。
+   ③後段「解法」——這時才給做法；工具(派網/參數/設定)只當『解法的執行步驟』帶出，絕不是開頭主題。
+1. 第一句(前1秒)就砸出最驚人的「具體數字＋直覺衝突」，0 開場白、0 自我介紹。已驗證爆款範例：
+   ·「停損設百分之二，連輸十次，帳戶只剩六成一，你猜多少？」
+   ·「同一個策略，切點不同，夏普值差一倍。」
+   ·「勝率八成七，帳戶卻還在虧。」
+2. 製造「好奇缺口」：開頭丟反直覺結論或數字謎題，**答案留到最後一句才揭曉**，逼觀眾看到底。
+3. 全程快節奏、每句一個衝擊點、不鋪陳不繞圈；寧可短(二十到三十秒)也不稀釋。
+4. 結尾用一句反轉或重磅數字收（不要平淡總結），**接一句『留言鉤』CTA**(「你的設定是哪種?留言告訴我」或「想要完整回測數據?留言『數據』我私你」)——留言在 Shorts 演算法權重比訂閱高,別只喊訂閱。
+5. 用具體數字戳破直覺錯誤——但**務必包進「你的__設錯了／你以為X其實Y」的個人具體情境**，不是抽象公式說教(實測:「停損連輸只剩61%,你猜多少」372%重看 vs 抽象「破產機率公式」只10%、看6秒就劃走)。
+★陌生人優先（演算法肯不肯推給陌生人的關鍵）：開頭嚴禁丟派網設定／參數細節／小眾術語——沒追蹤過你的人根本不在乎參數，先用『痛點或反直覺結論』把他勾進來，工具一律延後到後段「怎麼做」才出現。
+【★完播率實測·爆款 DNA（用你頻道真實 analytics 驗證 2026-06-27，每支至少中兩個開關）】
+① 懸念缺口：開頭丟數字謎題／反直覺結論，**答案壓到最後一秒才揭曉**——誘導重看(你最高完播的片都被重看到 200~372%，loop 就是流量)。
+② 第二人稱互動：「你的」「你猜」「你以為」「你是不是」把觀眾拉進故事，不是站著講知識。
+③ 具體可想像情境：用「一萬元／連輸10次／10年／差3倍」這種有畫面的數字，禁抽象術語與公式名。
+④ ★loop 結尾(2026演算法:重看=流量,你最高完播片就是被重看到372%):最後一句呼應/接回開頭第一句,讓結尾自然循環回開頭,觀眾不知不覺重看。例:開頭「連輸十次剩多少?你猜」→結尾「…六成一,回去看你猜對沒」。
+★ 目標長度 30-45 秒(2026 演算法實證甜蜜點):15秒以下已死(要 100% 完播才過關),30-45秒只要 65% 完播就被推廣。但每 3-4 秒要有新衝擊點/轉折,否則像 EP.0 那樣 47秒只剩 26% 完播。**完播率門檻:30秒內要 65%、30-60秒要 50%,過不了演算法直接停推**。
+★ 首選題材(實測高完播)：定投生活化(做錯/無腦買/買在高點/停利/微笑曲線)、停損連敗、複利終值、真金白銀實測進度。
+★ 死亡題材(實測低完播,別碰)：抽象公式說教(破產機率/勝率/夏普「比率」)、純蹭新聞、工具設定教學、選擇指南。
+★ 5大鉤子結構(2026 faceless 實證·Paddy Galloway 33億Shorts研究,擇一開場):①大膽斷言「九成人定投都做錯,因為一個沒人講的步驟」②好奇缺口「有個定投陷阱,連十年老手都中」③微故事「我把一萬丟進機器人,三十天後我傻了」④視覺衝擊(開場第一幀就是最大數字/前後對比)⑤直接提問「你是不是也以為定投買在高點一定虧?」。
+★ 標題=可搜尋關鍵字(2026 Shorts 搜尋輪播回歸):用觀眾真的會搜的詞(「定投買在高點會虧嗎」勝過「POV:定投時」)。
+★ 鐵律目標 VVSA(看完vs滑走)≥70%:前 3 秒滑走率 >40% 這支就死,所以第一句必須是最強的那句,別鋪陳。
+6. 誠信不變：不編造損益、不保證收益、不喊單。
+"""
+
+
+LONG_RULES = """
+【長片成長鐵律（8-10 分鐘長片專用，蒸餾自 MrBeast／DecodingYT／Greyson 等成長頻道實證）】
+★ Intro 三步框架（前 30 秒決定留存，務必照走）：
+   ①目標：一句話講「看完你能拿走什麼」，帶具體數字承諾（例「這條網格參數讓回撤少一半」）。
+   ②障礙：點出多數人卡在哪、為什麼直覺會做錯（製造好奇缺口）。
+   ③解法預告：暗示我有可回測驗證的解法，但先不全給——留到正文逐步揭曉。
+★ end reward 防跳出：開頭就預告「最後會給一個 ◯◯（checklist／反直覺數字／完整回測）」，把人拉到最後一刻。
+★ 標題＝可搜尋長尾（長片靠搜尋流量起家、不吃帳號權重）：用觀眾真的會搜的詞、關鍵字放開頭。三類有搜尋量題型：
+   ①回答問題（「派網網格機器人怎麼設」）②教具體技能（「Pionex 第一次設定教學」）③評測比較（「Pionex vs 幣安 新手選哪個」）。
+★ 相對留存：每個段落轉折都要給「繼續看下去的理由」，不鋪陳不繞圈；先秀成品（回測曲線／結果畫面）再回頭教。
+★ 主題一致：緊扣單一受眾（想自動化又怕被割的上班族散戶），別離題到不同客群，否則演算法會重置對你的辨識、燒掉累積。
+6. 誠信不變：不編造損益、不保證收益、不喊單；理財誇大詞（躺賺／穩賺／一天賺X）一律不用（會被演算法限流）。
+"""
 
 
 def call_claude(kind, avoid, topic_override=None):
@@ -225,24 +292,29 @@ def call_claude(kind, avoid, topic_override=None):
         if pk or pm:
             bias = f"\n【決策部門指令】優先方向：{pm}。偏好關鍵字：{pk}。" + (f"避免題材：{av}。" if av else "")
     if kind == "short":
-        spec = ("一支 15–45 秒直式 Shorts。voice_text 90–160 字、前 2 秒就是鉤子、講清一個觀念、"
-                "結尾一句『想看完整版？追蹤量化阿森』。segments 給 1–2 段。")
+        spec = ("一支 30–45 秒直式 Shorts(2026 演算法甜蜜點;15秒以下已死,因為要 100% 完播才過得了門檻)。"
+                "voice_text 150–220 字、前 2 秒就是鉤子、講清一個觀念但每 3-4 秒一個新衝擊點/轉折維持完播、"
+                "結尾用留言鉤『你是哪種?留言告訴我』或『想要完整回測數據?留言「數據」我私你』(留言權重比訂閱高)。segments 給 2 段。")
     else:
         spec = ("一支 8–10 分鐘長片。voice_text 1300–1700 字（HOOK→正文 4–5 段→軟性 CTA 訂閱+派網→下集預告）。"
                 "segments 給 4–5 段。")
     playbook = load_playbook()  # 每支腳本都即時讀最新競品 playbook
     training = load_training()  # 每週進修部門的資料驅動洞察
+    avoid_block = "\n".join(f"  · {t}" for t in (avoid or [])[:60]) if avoid else "  （無）"
+    hook_rules = HOOK_RULES if kind == "short" else LONG_RULES
     prompt = f"""你是量化阿森頻道的專業腳本寫手。{GUARD}
 {QUANT_STANDARD}
 {playbook}{training}
 請產生{spec}{assign}{bias}
+{hook_rules}
 【配音友善·務必遵守（影響聽感與留存）】voice_text 要口語、**短句為主（每句約 15-25 字就用句號斷開）**；
 少用括號/破折號/冒號/刪節號；數字盡量寫成口語念法（如「百分之八」別寫「8%」、「一萬元」別寫「$10000」、「零點五」別寫「0.5」）；
 一句話別塞太多數據（最多一個數字），讓人聽得清、TTS 念得順、斷點自然。
-【高點擊標題框架，擇一套用且自然】：①「如何…」具體承諾（含時間/數字，如「3 分鐘看懂…」）②「你一直做錯」揭錯（如「網格參數你設錯了…」）③「祕密/真相揭露」（如「高手不講的…」）④反直覺結論。標題要有好奇缺口但不誇大、不保證收益。
-請避免重複這些既有題目：{avoid[:50]}
+【高點擊標題框架，擇一套用且自然】：①★精確數字＋懸念（最強·首選，數字越精確越可信，非整數小數點更殺，如「網格回測勝率 87.3%，但有個代價」遠勝「網格大概能賺」）②「如何…」具體承諾（含時間/數字）③「你一直做錯」揭錯（如「網格參數你設錯了…」）④「祕密/真相揭露」（如「高手不講的…」）⑤反直覺結論。能放具體數字就放、越精確越好；標題要有好奇缺口但不誇大、不保證收益。★長尾可搜尋（繞過低權重的搜尋流量入口）：盡量用觀眾真的會搜的關鍵字並放在標題開頭（如「派網網格 怎麼設」「Pionex vs 幣安」「定投買在高點會虧嗎」）——長片尤其要走這種可搜尋寫法；理財誇大詞（躺賺／穩賺／一天賺X）一律不用，會被限流。
+請避免重複以下已有題目（換切角可以，換字重說同主題不行）：
+{avoid_block}
 只輸出 JSON（不要任何其他文字、不要 markdown 圍欄），格式：
-{{"title":"有點擊慾的標題","voice_text":"完整旁白逐字稿(口語、適合中文TTS)","segments":[{{"heading":"段落小標","broll":["english keyword","english keyword"]}}],"description":"SEO 描述（1-2 句精簡、含關鍵字，結尾含風險聲明『投資有風險，不構成投資建議』）","hashtags":["#Shorts","#量化交易","#..."]}}
+{{"title":"有點擊慾的標題","voice_text":"完整旁白逐字稿(口語、適合中文TTS)","segments":[{{"heading":"段落小標","broll":["english keyword","english keyword"]}}],"description":"YouTube 說明欄：前 3 行＝①核心可搜尋關鍵字短語②一句鉤子摘要③價值承諾(看完能拿走什麼)；再接 1-2 句補充、自然含關鍵字與同義詞(別硬塞)；結尾含風險聲明『投資有風險，不構成投資建議』","hashtags":["#Shorts","#量化交易","#..."]}}
 hashtags 規則：給 4-6 個「精準且利基相關」的標籤(第一個必為 #Shorts)，不要硬塞 20 個——精準勝過熱門，乾淨又利於演算法分類。"""
     body = {"model": MODEL, "max_tokens": 3500, "messages": [{"role": "user", "content": prompt}]}
     r = requests.post("https://api.anthropic.com/v1/messages",
@@ -288,6 +360,11 @@ def _run_tts(slug):
     """配音：依 design_system 選引擎；MiniMax(付費自然音)失敗自動退回免費 edge，不中斷生產。"""
     vp = f"output/{slug}.voice.txt"
     mp3 = OUT / f"{slug}.mp3"
+    if _tts_engine() == "kokoro":
+        subprocess.run(["/root/yt/_ttsenv/bin/python", "scripts/tts_kokoro.py", vp], cwd=str(ROOT))
+        if mp3.exists() and mp3.stat().st_size > 0:
+            return
+        log_ops("配音", f"⚠️ Kokoro 配音失敗，退回 edge：{slug}")
     if _tts_engine() == "minimax":
         subprocess.run([str(PY), "scripts/tts_minimax.py", vp], cwd=str(ROOT))
         if mp3.exists() and mp3.stat().st_size > 0:
@@ -320,9 +397,55 @@ def _run_render(args, env, timeout=720):
             pass
 
 
+def _norm_title_dup(t):
+    import re as _r
+    return _r.sub(r"[0-9\uff10-\uff19%/\u3001\uff0c\u3002\uff01\uff1f!?\u2026\s\-_]+", "", t or "")
+
+
+def _too_similar(title, existing, thr=0.82):
+    """標題與既有任一過於近似(去數字/標點後相似度>=thr)＝重複，硬擋。"""
+    from difflib import SequenceMatcher
+    nt = _norm_title_dup(title)
+    if not nt:
+        return False
+    for e in existing:
+        if SequenceMatcher(None, nt, _norm_title_dup(e)).ratio() >= thr:
+            return True
+    return False
+
+
+def _weak_hook(voice_text):
+    """第一句(前1秒)是否為弱鉤子：沒有數字、也沒有直覺衝突詞＝弱，需重生。"""
+    import re as _r
+    head = (voice_text or "").replace("\n", " ").split("\u3002")[0]
+    if not head:
+        return True
+    has_num = bool(_r.search(r"[0-9\uff10-\uff19]|[\u4e00\u4e8c\u4e09\u56db\u4e94\u516d\u4e03\u516b\u4e5d\u5341\u767e\u5343\u842c\u5169\u534a\u500d\u6210]", head))
+    conflict = ["\u537b","\u9084","\u7adf","\u5c45\u7136","\u5dee","\u8667","\u5269","\u7206","\u7834","\u6c92\u60f3\u5230",
+                "\u5176\u5be6","\u771f\u76f8","\u70ba\u4ec0\u9ebc","\u932f","\u9676\u6c70","\u8b8a\u6210","\u96e3\u9053"]
+    has_conf = any(w in head for w in conflict)
+    return not (has_num or has_conf)
+
+
 def make_one(kind, no_render=False, topic_override=None):
-    d = call_claude(kind, existing_titles(), topic_override)
+    _ex = existing_titles()
+    d = call_claude(kind, _ex, topic_override)
+    # 硬防近似重複：標題與既有太像就重生(時事 topic_override 不擋)；連續 3 次都重複則跳過
+    if not topic_override:
+        _tries = 0
+        while _too_similar(d.get("title", ""), _ex) and _tries < 3:
+            _tries += 1
+            d = call_claude(kind, _ex, topic_override)
+        if _too_similar(d.get("title", ""), _ex):
+            log_ops("補產部門", f"\u26a0\ufe0f 近似重複連3次,跳過:{d.get('title','')[:28]}")
+            return None
     prefix = "S" if kind == "short" else "L"
+    # 硬擋弱鉤子(只對 Shorts；時事 topic_override 不擋)：前1秒沒數字/衝突就重生
+    if kind == "short" and not topic_override:
+        _hk = 0
+        while _weak_hook(d.get("voice_text", "")) and _hk < 2:
+            _hk += 1
+            d = call_claude(kind, _ex, topic_override)
     slug = slugify(d["title"], prefix)
     if (OUT / f"{slug}.voice.txt").exists() or (OUT / f"{slug}.mp4").exists():
         slug = f"{slug}{int(time.time()) % 10000}"
@@ -340,8 +463,8 @@ def make_one(kind, no_render=False, topic_override=None):
 
     env = os.environ.copy()
     if kind == "short":
-        env.pop("PEXELS_API_KEY", None)  # Shorts 走乾淨字卡
-        _run_render(["scripts/make_video.py", "--slug", slug, "--width", "1080", "--height", "1920"], env, timeout=720)
+        # Shorts 保留 PEXELS → render_ffmpeg 走混合(數據段圖表卡 + 情境段 b-roll 動態影片)
+        _run_render(["scripts/make_video.py", "--slug", slug, "--width", "1080", "--height", "1920", "--fps", "15"], env, timeout=1200)
     else:
         _run_render(["scripts/make_video.py", "--slug", slug], env, timeout=2400)  # 長片渲染久，給 40 分鐘
     ok = (OUT / f"{slug}.mp4").exists() and (OUT / f"{slug}.mp4").stat().st_size > 100 * 1024
@@ -349,6 +472,28 @@ def make_one(kind, no_render=False, topic_override=None):
         passed, reasons = audit_video.audit(slug)
         if not passed:
             log_ops("補產·審核", f"⚠️ {slug} 審核未過：{'；'.join(reasons)[:60]}")
+            _FATAL = ("片長過短", "無視訊軌", "無音軌", "檔案過小")
+            if any(any(tag in r for tag in _FATAL) for r in reasons):
+                # 結構性壞片（0s/無影音軌）：清除佔位檔案，讓 queue_size 正確，觸發重試
+                for ext in (".mp4", ".mp3", ".voice.txt"):
+                    try:
+                        (OUT / f"{slug}{ext}").unlink(missing_ok=True)
+                    except Exception:
+                        pass
+                log_ops("補產·品管", f"結構性壞片已清除：{slug}")
+                ok = False
+            elif "缺風險聲明" in " ".join(reasons):
+                # 唯一缺失：在 md 末尾補聲明即可，不需退件
+                try:
+                    md_path = OUT / f"{slug}.md"
+                    md_text = md_path.read_text(encoding="utf-8")
+                    if "風險" not in md_text and "不構成投資建議" not in md_text:
+                        md_path.write_text(md_text.rstrip() + "\n\n投資有風險，不構成投資建議。", encoding="utf-8")
+                    passed, reasons = audit_video.audit(slug)
+                    if not passed:
+                        log_ops("補產·合規", f"自動補風險聲明後仍未過：{slug}")
+                except Exception:
+                    pass
     print(f"[{'ok' if ok else 'FAIL'}] {kind} {slug}")
     return slug if ok else None
 

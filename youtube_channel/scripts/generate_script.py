@@ -12,7 +12,7 @@
 設計重點
 --------
 * 可串接 LLM：``build_prompt()`` 產生給 LLM 的提示，``call_llm()`` 是
-  可被 stub 的 Anthropic API 介面（模型預設 ``claude-opus-4-8``，金鑰讀
+  可被 stub 的 Anthropic API 介面（模型預設 ``claude-haiku-4-5-20251001``，金鑰讀
   環境變數 ``ANTHROPIC_API_KEY``）。
 * 無 API key 或呼叫失敗時，自動 fallback 用內建模板產生骨架腳本，讓使
   用者手動填內容。
@@ -49,7 +49,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG_PATH = PROJECT_ROOT / "channel_config.json"
 DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "output"
 
-DEFAULT_MODEL = "claude-opus-4-8"
+DEFAULT_MODEL = "claude-haiku-4-5-20251001"
 DEFAULT_MAX_TOKENS = 16000
 DEFAULT_EFFORT = "high"
 
@@ -237,7 +237,7 @@ def build_prompt(topic: str, channel_config: dict[str, Any]) -> str:
 
 # 腳本結構要求（faceless YouTube 標準）
 1. HOOK（0-5 秒）：用一句強力的鉤子抓住觀眾，製造懸念或反差，禁止平淡開場。
-2. INTRO：簡短介紹今天要講什麼、為什麼值得看下去。
+2. INTRO（三步框架，前 30 秒決定留存）：①目標——一句話講「看完能拿走什麼」，帶具體數字承諾；②障礙——點出多數人卡在哪、為什麼直覺會做錯（製造好奇缺口）；③解法預告——暗示有可回測驗證的解法，但先不全給，留到正文。並預告「最後會給一個 ◯◯」當 end reward 把人拉到最後。
 3. 主體：分成 3-6 個段落，每段聚焦一個重點。**每段都要有旁白文字，以及該段建議的畫面 / B-roll 關鍵字**（給找素材用，英文或中文皆可，3-6 個關鍵字）。
 4. CTA：自然帶出訂閱、點讚、留言（聯盟連結由程式另外插入，你不需要寫連結）。
 5. 結尾（OUTRO）：收束主題、呼應開頭，留下記憶點。

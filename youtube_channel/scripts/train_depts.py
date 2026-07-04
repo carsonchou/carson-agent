@@ -1,20 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""train_depts.py — 【📚 部門進修】每週日 04:30 自動執行。
+"""train_depts.py — 進修部門（每週）：用真實成效數據訓練各部門，越跑越強。
 
-讓 AI 員工「週末充電」：
-  1) 彙整本週產量/觀看/錯誤/指令 → 產出週績效摘要
-  2) 用 Claude 分析本週執行品質 → 更新各部門作業要點（boss_directives 的【部門進修】條目）
-  3) 清理過期/衝突指令（保留最新 N 條）
-  4) 為 decision_dept 預備「本週學到什麼」備忘
+每週分析本週真實成效（流量訊號＋Analytics＋本週報告），用 Claude 產出**各部門可落地的進修洞察**，
+寫成 STUDIO/training_insights.md（製作/決策部門會讀它當補充心法）＋ 部門進修報告。
 
-誠實前提：
-  - 訓練只是「更新指令字串」，AI 部門下次執行即套用新指令（不存在模型微調）。
-  - 無 Anthropic key → 只跑規則式清理，仍有效（去除 30 天前舊指令）。
-
-輸出：
-  STUDIO/boss_directives.json          → 加入【部門進修】更新條目
-  STUDIO/REPORTS/{date}_部門進修.md    → 週績效 + 更新清單
+安全設計：只寫「進修洞察」補充層，**不覆蓋**人工手調的 competitor_playbook.md 核心。
+誠信鐵則：不編造損益、不保證收益；數據太少就說「累積中」，不硬掰。
 """
 from __future__ import annotations
 
@@ -22,267 +14,128 @@ import json
 import os
 import re
 import sys
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-try:
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-except Exception:
-    pass
-
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(ROOT / "scripts"))
+
 STUDIO = ROOT / "STUDIO"
 REPORTS = STUDIO / "REPORTS"
-OUT = ROOT / "output"
-LOGS = ROOT / "logs"
-LEDGER = STUDIO / "uploaded_ledger.json"
-ORDERS = STUDIO / "production_orders.json"
-DIRECTIVES = STUDIO / "boss_directives.json"
-HISTORY = STUDIO / "metrics_history.json"
+INSIGHTS = STUDIO / "training_insights.md"
+SIGNALS = STUDIO / "traffic_signals.json"
+PLAYBOOK = STUDIO / "competitor_playbook.md"
 TW = timezone(timedelta(hours=8))
 
-API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
-MODEL = "claude-haiku-4-5-20251001"
-TRAIN_TAG = "【部門進修】"
-MAX_TRAIN_ITEMS = 5   # 保留最新 N 條進修指令，避免無限膨脹
-DIRECTIVE_MAX_AGE_DAYS = 30   # 超過 N 天的非固定指令自動清理
+import requests  # noqa: E402
 
-
-def tw_today():
-    return datetime.now(TW).strftime("%Y-%m-%d")
-
-
-def tw_now():
-    return datetime.now(TW)
-
-
-def _load(p, default):
-    try:
-        return json.loads(Path(p).read_text(encoding="utf-8")) if Path(p).exists() else default
-    except Exception:
-        return default
-
-
+try:
+    import yt_analytics as ya
+except Exception:  # noqa: BLE001
+    ya = None
 try:
     from ops import log_ops
 except Exception:  # noqa: BLE001
-    def log_ops(d, m): pass
+    def log_ops(stage, msg):
+        pass
+
+API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+MODEL = "claude-haiku-4-5-20251001"  # 一週一次，用較強模型成本低
 
 
-# ── 週績效彙整 ──
-def collect_week_stats() -> dict:
-    """彙整本週（近 7 天）的生產/上架/錯誤統計。"""
-    now = tw_now()
-    week_start = (now - timedelta(days=7)).strftime("%Y-%m-%d")
-    stats = {
-        "period": f"{week_start} ～ {tw_today()}",
-        "produced": 0, "published": 0,
-        "errors": 0, "fatal": 0,
-        "active_days": 0,
-    }
-
-    # 從 mp4 數量算已產
-    if OUT.exists():
-        for p in OUT.glob("*.mp4"):
-            try:
-                mtime = datetime.fromtimestamp(p.stat().st_mtime, TW)
-                if mtime >= (now - timedelta(days=7)):
-                    stats["produced"] += 1
-            except Exception:
-                pass
-
-    # 從 ledger 算已上架（近 7 天有 publish_time 的）
-    ledger = _load(LEDGER, {})
-    stats["published"] = len(ledger)  # 累計，非週數（週數據需 Analytics，用累計代替）
-
-    # 從 cron.log 算錯誤/活躍天數
-    cron_log = LOGS / "cron.log"
-    if cron_log.exists():
-        try:
-            lines = cron_log.read_text(encoding="utf-8", errors="replace").splitlines()
-            active_dates = set()
-            for ln in lines[-500:]:  # 只看最近 500 行
-                if any(k in ln for k in ("Traceback", "FATAL", "Error", "⚠️")):
-                    stats["errors"] += 1
-                if "FATAL" in ln:
-                    stats["fatal"] += 1
-                # 從行首提取日期（格式 [MM-DD ...）
-                m = re.search(r"\[(\d{2}-\d{2})", ln)
-                if m:
-                    active_dates.add(m.group(1))
-            stats["active_days"] = len(active_dates)
-        except Exception:
-            pass
-
-    return stats
-
-
-# ── 規則式指令清理 ──
-def clean_directives(d: dict) -> tuple[dict, list[str]]:
-    """清理過期/重複的進修指令，回傳 (更新後 dict, 清理記錄)。"""
-    items = d.get("directives", [])
-    if not isinstance(items, list):
-        return d, []
-
-    cleaned = []
-    now = tw_now()
-    cutoff = now - timedelta(days=DIRECTIVE_MAX_AGE_DAYS)
-    log = []
-
-    # 保留：固定指令（不含日期標記） + 近 N 天的進修條目
-    train_kept = []
-    other = []
-    for it in items:
-        text = it if isinstance(it, str) else str(it)
-        if TRAIN_TAG in text:
-            # 進修條目找時間戳
-            m = re.search(r"(\d{4}-\d{2}-\d{2})", text)
-            if m:
-                try:
-                    ts = datetime.strptime(m.group(1), "%Y-%m-%d").replace(tzinfo=TW)
-                    if ts >= cutoff:
-                        train_kept.append(text)
-                    else:
-                        log.append(f"清理過期進修指令（{m.group(1)}）")
-                except Exception:
-                    train_kept.append(text)
-            else:
-                train_kept.append(text)
-        else:
-            other.append(text)
-
-    # 只保留最新 MAX_TRAIN_ITEMS 條進修
-    if len(train_kept) > MAX_TRAIN_ITEMS:
-        removed = len(train_kept) - MAX_TRAIN_ITEMS
-        train_kept = train_kept[-MAX_TRAIN_ITEMS:]
-        log.append(f"裁剪舊進修指令 {removed} 條（超過上限 {MAX_TRAIN_ITEMS}）")
-
-    d["directives"] = other + train_kept
-    return d, log
-
-
-# ── AI 分析 + 新進修指令 ──
-def ai_train(stats: dict) -> str:
-    """用 Claude 根據本週數據產出進修建議。"""
-    if not API_KEY:
-        return ""
-
-    # 讀最近決策報告摘要
-    recent_reports = []
-    if REPORTS.exists():
-        for p in sorted(REPORTS.glob("*_決策.md"), reverse=True)[:3]:
-            try:
-                txt = p.read_text(encoding="utf-8")
-                m = re.search(r"\*\*戰略判斷\*\*：(.+)", txt)
-                if m:
-                    recent_reports.append(f"{p.stem[:10]}：{m.group(1).strip()}")
-            except Exception:
-                pass
-
-    reports_txt = "\n".join(f"  - {r}" for r in recent_reports) or "  （無近期決策報告）"
-    orders = _load(ORDERS, {})
-    preferred = orders.get("preferred_keywords", [])[:5]
-
-    prompt = f"""你是量化阿森頻道（網格/定投/Pionex/量化）的AI部門進修教練。
-
-本週（{stats['period']}）執行數據：
-  - 產片數：{stats['produced']}
-  - 累計已上架：{stats['published']}
-  - cron 活躍天數：{stats['active_days']}/7
-  - 日誌錯誤次數：{stats['errors']}（其中 FATAL：{stats['fatal']}）
-
-近期 decision_dept 戰略方向：
-{reports_txt}
-
-當前優先關鍵詞：{', '.join(preferred) if preferred else '無'}
-
-請用**繁體中文**輸出：
-1) 本週執行評分（優/良/待改進）和一句話說明
-2) 下週各部門應特別注意的 2-3 條具體改善要點（可操作的，不是口號）
-3) 是否需要調整任何排程或腳本參數？
-
-格式：條列式，每條不超過 60 字，直接可加入指令系統。"""
-
+def _gather() -> str:
+    """蒐集本週真實成效素材。"""
+    parts = []
+    # 流量訊號
     try:
-        import requests
-        r = requests.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={"x-api-key": API_KEY, "anthropic-version": "2023-06-01",
-                     "content-type": "application/json"},
-            json={"model": MODEL, "max_tokens": 500,
-                  "messages": [{"role": "user", "content": prompt}]},
-            timeout=30,
-        )
-        r.raise_for_status()
-        return r.json()["content"][0]["text"].strip()
-    except Exception as e:
-        log_ops("部門進修", f"Claude 分析失敗：{e}")
-        return ""
+        if SIGNALS.exists():
+            sig = json.loads(SIGNALS.read_text(encoding="utf-8"))
+            tv = "；".join(f"{v['slug'][:28]}({v['views']}觀看/{v['avg_pct']}%看完)"
+                           for v in sig.get("top_videos", [])[:8])
+            parts.append(f"[流量訊號] 贏家題材={sig.get('win_keywords')}；弱題材={sig.get('weak_keywords')}；"
+                         f"高流量影片={tv or '累積中'}；近28天 觀看{sig.get('channel_28d',{}).get('views',0)}、"
+                         f"看完率{sig.get('channel_28d',{}).get('avg_pct',0)}%")
+    except Exception:
+        pass
+    # Analytics 補充
+    try:
+        if ya and ya.available():
+            cs = ya.channel_summary(28) or {}
+            ic = ya.impressions_ctr(28) or {}
+            parts.append(f"[Analytics] 觀看{cs.get('views',0)}、看完率{round(cs.get('avg_pct',0) or 0,1)}%、"
+                         f"新增訂閱{cs.get('subs_gained',0)}、曝光{ic.get('impressions',0)}、CTR{round(ic.get('ctr',0) or 0,2)}%")
+    except Exception:
+        pass
+    # 本週決策/回顧報告（摘要）
+    try:
+        wk = [(REPORTS / f).name for f in []]  # placeholder
+        recent = sorted(REPORTS.glob("*_決策.md"), reverse=True)[:1] + sorted(REPORTS.glob("*_回顧檢討.md"), reverse=True)[:1]
+        for p in recent:
+            parts.append(f"[{p.stem}] " + " ".join(p.read_text(encoding="utf-8").split())[:400])
+    except Exception:
+        pass
+    return "\n".join(parts) or "（本週數據仍在累積）"
 
 
-def update_directives(new_item: str, clean_log: list[str]) -> None:
-    """把新的進修指令和清理記錄寫入 boss_directives.json。"""
-    d = _load(DIRECTIVES, {"directives": [], "format_override": "auto",
-                           "privacy": "public", "paused": False})
-    d, _ = clean_directives(d)  # 先清理
-    if new_item:
-        entry = f"{TRAIN_TAG}{tw_today()}：{new_item[:300]}"
-        d["directives"].append(entry)
-    DIRECTIVES.parent.mkdir(parents=True, exist_ok=True)
-    DIRECTIVES.write_text(json.dumps(d, ensure_ascii=False, indent=2), encoding="utf-8")
-    if new_item:
-        log_ops("部門進修", "更新 boss_directives 進修條目")
+def _ask_claude(material: str) -> dict:
+    prompt = f"""你是量化阿森 YouTube 工作室的【進修部門】教練。頻道=量化/自動交易教學(網格/定投/派網Pionex/回測/風控)，繁中，主攻 Shorts 衝 YPP。
+誠信鐵則：不編造損益、不保證收益、不喊單。數據太少時就給「保持多元測試、衝量累積數據」這類務實方向，不硬掰假洞察。
+
+以下是本週真實成效數據：
+{material}
+
+請基於**真實數據**，產出各部門「下週可落地的進修重點」，只輸出 JSON（不要其他字）：
+{{
+ "summary":"本週成效一句話總結",
+ "production":["製作/腳本進修：從高留存影片的共通鉤子/結構/比喻歸納出可複製的點(2-4條)"],
+ "selection":["選題進修：哪些題材/角度該加碼、哪些該捨(2-4條,具體)"],
+ "thumbnail":["縮圖CTR進修(1-3條)"],
+ "seo":["標題/標籤/描述進修(1-3條)"],
+ "comment":["留言互動進修(1-2條)"],
+ "promo":["跨平台宣傳進修(1-2條)"]
+}}"""
+    body = {"model": MODEL, "max_tokens": 2000, "messages": [{"role": "user", "content": prompt}]}
+    r = requests.post("https://api.anthropic.com/v1/messages",
+                      headers={"x-api-key": API_KEY, "anthropic-version": "2023-06-01",
+                               "content-type": "application/json"}, json=body, timeout=120)
+    r.raise_for_status()
+    txt = r.json()["content"][0]["text"]
+    return json.loads(re.search(r"\{.*\}", txt, re.S).group(0))
 
 
-def write_report(stats: dict, ai_txt: str, clean_log: list[str]) -> None:
+def _write(date: str, d: dict):
+    def sec(title, key):
+        items = d.get(key) or []
+        return [f"## {title}"] + ([f"- {x}" for x in items] if items else ["-（本週數據不足，保持多元測試）"]) + [""]
+    md = [f"# 部門進修洞察（每週・資料驅動）｜{date}", "",
+          f"> 本週總結：{d.get('summary','')}", "",
+          "（製作/決策部門製作時會自動讀本檔當補充心法；其餘部門供參考。不覆蓋人工 playbook 核心。）", ""]
+    md += sec("🎬 製作/腳本進修", "production")
+    md += sec("🎯 選題進修", "selection")
+    md += sec("🖼 縮圖CTR進修", "thumbnail")
+    md += sec("🔎 SEO進修", "seo")
+    md += sec("💬 留言互動進修", "comment")
+    md += sec("📣 宣傳進修", "promo")
+    INSIGHTS.write_text("\n".join(md), encoding="utf-8")
     REPORTS.mkdir(parents=True, exist_ok=True)
-    today = tw_today()
-
-    ai_section = f"\n## 🤖 AI 進修分析\n{ai_txt}" if ai_txt else \
-        "\n## 🤖 AI 進修分析\n（無 ANTHROPIC_API_KEY，略過 AI 分析，已完成規則式清理）"
-
-    clean_section = ""
-    if clean_log:
-        clean_section = "\n## 🧹 指令清理記錄\n" + "\n".join(f"- {l}" for l in clean_log)
-
-    md = (
-        f"# 部門進修週報 {today}\n"
-        f"_{datetime.now(TW).strftime('%H:%M')} 週日自動產出_\n\n"
-        f"## 📊 本週執行績效\n"
-        f"- 週期：{stats['period']}\n"
-        f"- 產片數：{stats['produced']} 支\n"
-        f"- 累計已上架：{stats['published']} 支\n"
-        f"- Cron 活躍天數：{stats['active_days']}/7 天\n"
-        f"- 日誌錯誤：{stats['errors']} 次（FATAL：{stats['fatal']}）\n"
-        + ai_section
-        + clean_section
-    )
-    path = REPORTS / f"{today}_部門進修.md"
-    path.write_text(md, encoding="utf-8")
-    log_ops("部門進修", f"週報寫入 {path.name}")
+    (REPORTS / f"{date}_部門進修.md").write_text("\n".join(md), encoding="utf-8")
 
 
 def main() -> int:
-    log_ops("部門進修", "週日進修開始")
+    date = datetime.now(TW).strftime("%Y-%m-%d")
+    if not API_KEY:
+        print("[FATAL] 無 ANTHROPIC_API_KEY", file=sys.stderr)
+        return 2
+    material = _gather()
     try:
-        stats = collect_week_stats()
-        log_ops("部門進修", f"本週數據：產 {stats['produced']} 支，活躍 {stats['active_days']} 天")
-
-        ai_txt = ai_train(stats)
-
-        # 清理舊指令
-        d = _load(DIRECTIVES, {"directives": [], "format_override": "auto",
-                               "privacy": "public", "paused": False})
-        _, clean_log = clean_directives(d)
-
-        update_directives(ai_txt, clean_log)
-        write_report(stats, ai_txt, clean_log)
-        log_ops("部門進修", "完成")
-    except Exception as e:
-        log_ops("部門進修", f"FATAL: {e}")
-        return 1
+        d = _ask_claude(material)
+    except Exception as exc:  # noqa: BLE001
+        log_ops("進修部門", f"⚠️ 訓練失敗：{str(exc)[:80]}")
+        print(f"[FATAL] 訓練失敗：{exc}", file=sys.stderr)
+        return 3
+    _write(date, d)
+    log_ops("進修部門", f"完成每週進修：{d.get('summary','')[:40]}")
+    print(f"[進修部門] 已產出各部門進修洞察 → {INSIGHTS.name}")
     return 0
 
 

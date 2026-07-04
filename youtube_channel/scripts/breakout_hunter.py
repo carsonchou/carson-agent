@@ -31,7 +31,7 @@ QSCORES = STUDIO / "quality_scores.json"
 PLAYBOOK = STUDIO / "competitor_playbook.md"
 TW = timezone(timedelta(hours=8))
 API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
-MODEL = "claude-sonnet-4-6"  # 一週一次、直接形塑全產線的贏點，用較強模型值得
+MODEL = "claude-haiku-4-5-20251001"  # 一週一次、直接形塑全產線的贏點，用較強模型值得
 WIN_MARK = "P. ★本頻道實證贏點"
 
 try:

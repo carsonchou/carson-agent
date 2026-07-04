@@ -37,7 +37,7 @@ STUDIO = ROOT / "STUDIO"
 LEDGER = STUDIO / "uploaded_ledger.json"
 TW = timezone(timedelta(hours=8))
 API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
-MODEL = "claude-sonnet-4-6"  # 改標題要懂公式與分寸，用較強模型
+MODEL = "claude-haiku-4-5-20251001"  # 改標題要懂公式與分寸，用較強模型
 
 try:
     from ops import log_ops

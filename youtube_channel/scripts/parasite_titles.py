@@ -32,7 +32,7 @@ INTEL = STUDIO / "intel.json"
 OUTLIERS = STUDIO / "outliers.json"
 ANALYSIS = ROOT / "competitor_analysis.md"
 API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
-MODEL = "claude-sonnet-4-6"   # 要創意＋懂寄生分寸，用較強模型
+MODEL = "claude-haiku-4-5-20251001"   # 要創意＋懂寄生分寸，用較強模型
 
 try:
     from ops import log_ops
@@ -154,7 +154,8 @@ def main() -> int:
         return 0
 
     from topic_bank import add_topics
-    added = add_topics(picks, source="parasite", front=False)
+    # front=True：outlier 驗證過的寄生題搶首發（這些是已被市場證明會爆的題型，優先做）
+    added = add_topics(picks, source="parasite", front=True)
     log_ops("寄生標題", f"寄生競品爆款 → 題庫新增 {added} 題")
     print(f"[ok] 寄生標題：{added} 個蹭流量題目已進題庫，produce_batch 之後自動做成片。")
     for p in picks:

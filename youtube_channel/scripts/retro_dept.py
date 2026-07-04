@@ -37,9 +37,10 @@ LEDGER = STUDIO / "uploaded_ledger.json"
 ORDERS = STUDIO / "production_orders.json"
 DIRECTIVES = STUDIO / "boss_directives.json"
 HISTORY = STUDIO / "metrics_history.json"
+DAILY = STUDIO / "metrics_daily.json"   # 乾淨每日快照（不被 GUI 每分鐘汙染）
 OPS = STUDIO / "ops_log.txt"
 API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
-MODEL = "claude-sonnet-4-6"
+MODEL = "claude-haiku-4-5-20251001"
 RETRO_TAG = "【自省優化】"
 
 try:
@@ -139,8 +140,9 @@ def collect():
     except Exception:
         pass
 
-    hist = _load(HISTORY, [])
-    prev = hist[-1] if hist else None
+    # 從 metrics_daily.json 讀昨日快照（不用被 GUI 每分鐘汙染的 HISTORY）
+    _daily = _load(DAILY, [])
+    prev = _daily[-1] if isinstance(_daily, list) and _daily else None
     if stats and prev and prev.get("total_views") is not None:
         sig["dview"] = stats["total_views"] - prev["total_views"]
         sig["ddays"] = 1
@@ -316,17 +318,37 @@ def apply_optimizations(sig, rule_opt, ai):
         orders["retro_updated"] = sig["date"]
         ORDERS.write_text(json.dumps(orders, ensure_ascii=False, indent=2), encoding="utf-8")
 
+    # 4c) 訊號注入題庫：把 produce_more 推進 topic_bank（優先製作）
+    try:
+        from topic_bank import add_topics
+        pm_items = (ai.get("produce_more") or []) if ai else []
+        if pm_items:
+            tb_items = [{"title": t, "angle": "", "category": "市場觀念",
+                         "format": "short", "priority": "retro"} for t in pm_items]
+            add_topics(tb_items, source="retro", front=True)
+    except Exception:
+        pass
+
 
 def save_snapshot(sig):
+    st = sig.get("stats") or {}
+    entry = {"date": sig["date"], "total_views": st.get("total_views"),
+             "n_videos": st.get("n_videos"), "uploaded": sig["total_uploaded"],
+             "shorts_today": len(sig["shorts_today"]), "longs_today": len(sig["longs_today"]),
+             "audit_fail": len(sig["audit_fail"])}
+    # 保留 HISTORY 供其他工具（GUI 等）向下相容
     hist = _load(HISTORY, [])
     if not isinstance(hist, list):
         hist = []
-    st = sig.get("stats") or {}
-    hist.append({"date": sig["date"], "total_views": st.get("total_views"),
-                 "n_videos": st.get("n_videos"), "uploaded": sig["total_uploaded"],
-                 "shorts_today": len(sig["shorts_today"]), "longs_today": len(sig["longs_today"]),
-                 "audit_fail": len(sig["audit_fail"])})
+    hist.append(entry)
     HISTORY.write_text(json.dumps(hist[-120:], ensure_ascii=False, indent=2), encoding="utf-8")
+    # 新：寫乾淨的每日快照（retro 優先讀這份算 delta，不被 GUI 汙染）
+    daily = _load(DAILY, [])
+    if not isinstance(daily, list):
+        daily = []
+    daily = [x for x in daily if x.get("date") != sig["date"]]  # 去重同日
+    daily.append(entry)
+    DAILY.write_text(json.dumps(daily[-120:], ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def main() -> int:

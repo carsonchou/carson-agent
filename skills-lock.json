@@ -49,6 +49,12 @@
       "skillPath": "skills/code-review-expert/SKILL.md",
       "computedHash": "b5edc4ff0ed653de93d4a2b18d2d7cd6b914f6fff981e2e3b2a099497fbd57d1"
     },
+    "copywriting": {
+      "source": "coreyhaines31/marketingskills",
+      "sourceType": "github",
+      "skillPath": "skills/copywriting/SKILL.md",
+      "computedHash": "20663e361c3b6767e1318de69111b75edc1fb19ded6369cffca677b8bd0c8696"
+    },
     "durable-objects": {
       "source": "cloudflare/skills",
       "sourceType": "github",
@@ -90,6 +96,12 @@
       "sourceType": "github",
       "skillPath": "skills/iris-development/SKILL.md",
       "computedHash": "c342f9a2a797070feb7731fbe316f0b3cd49d62f44cb82b86f7fbbe48d9ec6a4"
+    },
+    "marketing-psychology": {
+      "source": "coreyhaines31/marketingskills",
+      "sourceType": "github",
+      "skillPath": "skills/marketing-psychology/SKILL.md",
+      "computedHash": "d057044710ce7b7f9b90b84b3ab64e9359aaf47982b922ec10daca3822185ede"
     },
     "pdf": {
       "source": "anthropics/skills",
@@ -228,6 +240,18 @@
       "sourceType": "github",
       "skillPath": "skills/wrangler/SKILL.md",
       "computedHash": "d2094f7a5a76414fc0cd365fd8ddba3258c2135a1d468b78213c0fa02c309b9b"
+    },
+    "youtube-clipper": {
+      "source": "op7418/youtube-clipper-skill",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "5820f4df5c54165dc5b2d1635cc65d9df4cb7afaafcdd00744d5ebb75847fa6f"
+    },
+    "youtube-thumbnail-design": {
+      "source": "inference-sh/skills",
+      "sourceType": "github",
+      "skillPath": "guides/design/youtube-thumbnail-design/SKILL.md",
+      "computedHash": "b86486d3ec9d51ec296cc93a2ffbd06821d6a0c5eeb1a1a820e045229ced03dd"
     }
   }
 }

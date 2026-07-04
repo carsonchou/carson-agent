@@ -6,6 +6,7 @@
 """
 from __future__ import annotations
 
+import hashlib
 import sys
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
@@ -13,11 +14,20 @@ from PIL import Image, ImageDraw, ImageFont
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 OUT = PROJECT_ROOT / "assets" / "thumbnails"
 OUT.mkdir(parents=True, exist_ok=True)
+# 真實 Pionex 截圖素材夾：Carson 丟後台/回測截圖進來，縮圖卡就自動改用真截圖+紅框（信任貨幣）；空則退回示意設計卡
+SHOTS = PROJECT_ROOT / "assets" / "pionex_shots"
+# 多幣真實回測卡（backtest_cards.py 產，trading_bot 直連 Pionex 真K棒跑出來的真數字）
+CARDS_JSON = PROJECT_ROOT / "STUDIO" / "backtest_cards.json"
 
 W, H = 1280, 720
 
-FONT_CANDIDATES_BOLD = [r"C:\Windows\Fonts\msjhbd.ttc", r"C:\Windows\Fonts\msyhbd.ttc", r"C:\Windows\Fonts\msjh.ttc"]
-FONT_CANDIDATES_REG = [r"C:\Windows\Fonts\msjh.ttc", r"C:\Windows\Fonts\msyh.ttc"]
+FONT_CANDIDATES_BOLD = [r"C:\Windows\Fonts\msjhbd.ttc", r"C:\Windows\Fonts\msyhbd.ttc", r"C:\Windows\Fonts\msjh.ttc",
+                        "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc",
+                        "/usr/share/fonts/opentype/noto/NotoSerifCJK-Bold.ttc",
+                        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"]
+FONT_CANDIDATES_REG = [r"C:\Windows\Fonts\msjh.ttc", r"C:\Windows\Fonts\msyh.ttc",
+                       "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+                       "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc"]
 
 
 def font(size: int, bold: bool = True):
@@ -73,105 +83,356 @@ def gradient_bg(c_top, c_bot):
     return Image.composite(top, base, mask)
 
 
+BASE_BG = (9, 12, 20)            # 近黑深色終端底
+CARD_BOX = (W - 580, 150, W - 54, 568)  # 右側數據面板區（卡與真截圖共用）
+
+
+def _seed_vals(seed, n, lo, hi):
+    """由 seed 生 n 個 [lo,hi) 穩定偽隨機值（同 slug 永遠同走勢，不靠全域 random）。"""
+    out = []
+    val = int.from_bytes(hashlib.md5((seed or "x").encode("utf-8")).digest()[:8], "big")
+    for _ in range(n):
+        val = (val * 6364136223846793005 + 1442695040888963407) & ((1 << 64) - 1)
+        out.append(lo + (val >> 11) / float(1 << 53) * (hi - lo))
+    return out
+
+
+def terminal_bg(accent, seed="x"):
+    """深色『交易終端』背景：細網格 + 種子穩定的 K 線 + accent 指標線 + 左側暗化(保文字可讀)。"""
+    img = Image.new("RGB", (W, H), BASE_BG)
+    d = ImageDraw.Draw(img, "RGBA")
+    for x in range(0, W, 64):
+        d.line([(x, 0), (x, H)], fill=(255, 255, 255, 9), width=1)
+    for y in range(0, H, 64):
+        d.line([(0, y), (W, y)], fill=(255, 255, 255, 9), width=1)
+    n = 48
+    step = W / n
+    r = _seed_vals(seed, n, -1.0, 1.0)
+    prices, p = [], 0.5
+    for v in r:
+        p = min(0.92, max(0.08, p + v * 0.09))
+        prices.append(p)
+    top, bot = H * 0.26, H * 0.95
+    span = bot - top
+    up, dn, cw = (34, 200, 128), (228, 78, 90), step * 0.5
+    pts, prev = [], prices[0]
+    for i, p in enumerate(prices):
+        cx = step * i + step / 2
+        mid = bot - p * span
+        col = up if p >= prev else dn
+        prev = p
+        body = 18 + abs(r[i]) * 26
+        wick = body / 2 + 10 + abs(r[i]) * 16
+        d.line([(cx, mid - wick), (cx, mid + wick)], fill=(*col, 72), width=2)
+        d.rectangle([cx - cw / 2, mid - body / 2, cx + cw / 2, mid + body / 2], fill=(*col, 72))
+        pts.append((cx, mid))
+    if len(pts) > 1:
+        d.line(pts, fill=(*accent, 85), width=3, joint="curve")
+    # 左濃右淡暗化（用 1px 寬漸層拉伸，快）
+    grad = Image.new("L", (W, 1))
+    gp = grad.load()
+    for x in range(W):
+        gp[x, 0] = int(232 * max(0.0, 1 - x / (W * 0.60)))
+    return Image.composite(Image.new("RGB", (W, H), BASE_BG), img, grad.resize((W, H)))
+
+
+def fit_font(text, max_w, start=156, min_size=66):
+    """自動縮字級讓 text 寬度 ≤ max_w（避免長標題溢出/壓到右側面板）。"""
+    probe = ImageDraw.Draw(Image.new("RGB", (10, 10)))
+    s = start
+    while s > min_size:
+        f = font(s, True)
+        b = probe.textbbox((0, 0), text, font=f, stroke_width=3)
+        if b[2] - b[0] <= max_w:
+            return f
+        s -= 6
+    return font(min_size, True)
+
+
 def draw_text_stroke(d, xy, text, fnt, fill, stroke=(0, 0, 0), sw=6, anchor=None):
     d.text(xy, text, font=fnt, fill=fill, stroke_width=sw, stroke_fill=stroke, anchor=anchor)
 
 
-def draw_backtest_card(d, card: dict):
-    """右側畫一張『派網 AI 策略·示意回測卡』——抄競品最有效的可信度元素（大數字%＋紅框），
-    但守誠實鐵則：數字是含回撤的示意值、明標『示意非保證』。
-    card 欄位：strat（策略名）、pct（主數字%，可正可負）、pct_color（green/red，預設依正負判）、
-              mdd / range（兩列副資料，任一可放『實盤 -X%』做對比）、note（誠實註）。"""
-    GREEN = (22, 170, 90)
-    RED = (230, 60, 60)
-    INK = (30, 36, 52)
-    GREY = (120, 130, 150)
+def draw_backtest_card(d, card: dict, accent):
+    """右側畫一張『深色交易終端·回測面板』(像 TradingView/Bloomberg)：視窗點 + 大數字%(正綠負紅)
+    + 細分隔線 + 兩列數據 + 誠實註。守誠實鐵則：明標回測非保證。"""
+    PANEL = (16, 21, 33)
+    BORDER = (46, 56, 80)
+    INK = (233, 239, 249)
+    GREY = (138, 150, 174)
+    GREEN = (38, 214, 134)
+    RED = (240, 86, 96)
     pct = card.get("pct", "+82.4%")
     pc = (card.get("pct_color") or ("red" if str(pct).strip().startswith("-") else "green")).lower()
     PCT_COL = RED if pc == "red" else GREEN
-    x0, y0, x1, y1 = W - 588, 168, W - 48, 588
-    # 白卡 + 陰影
-    d.rounded_rectangle([x0 + 8, y0 + 10, x1 + 8, y1 + 10], radius=24, fill=(0, 0, 0, 70))
-    d.rounded_rectangle([x0, y0, x1, y1], radius=24, fill=(255, 255, 255))
-    px = x0 + 36
-    # header：派網橘點 + 標題
-    d.ellipse([px, y0 + 34, px + 30, y0 + 64], fill=(255, 140, 40))
-    d.text((px + 44, y0 + 36), "派網 AI策略", font=font(34, bold=True), fill=INK)
-    # 策略名 + 示意標籤
-    d.text((px, y0 + 92), card.get("strat", "網格·看漲區間"), font=font(32, bold=True), fill=INK)
-    lbl = "示意回測"
-    lf = font(24, bold=True)
+    x0, y0, x1, y1 = CARD_BOX
+    d.rounded_rectangle([x0 + 6, y0 + 12, x1 + 6, y1 + 12], radius=20, fill=(0, 0, 0, 110))  # 陰影
+    d.rounded_rectangle([x0, y0, x1, y1], radius=20, fill=PANEL, outline=BORDER, width=2)
+    px = x0 + 34
+    # 終端視窗紅黃綠點
+    for i, cc in enumerate([(240, 86, 96), (255, 184, 40), (38, 214, 134)]):
+        d.ellipse([px + i * 26, y0 + 26, px + i * 26 + 14, y0 + 26 + 14], fill=cc)
+    # 策略名 + 標籤(真回測/示意)
+    d.text((px, y0 + 60), card.get("strat", "BTC 1H·SuperTrend"), font=font(30, bold=True), fill=INK)
+    lbl = card.get("label", "回測")
+    lf = font(22, bold=True)
     lb = d.textbbox((0, 0), lbl, font=lf)
-    d.rounded_rectangle([x1 - 150, y0 + 92, x1 - 36, y0 + 92 + (lb[3] - lb[1]) + 16], radius=10,
-                        fill=(235, 238, 245))
-    d.text((x1 - 150 + 18, y0 + 100), lbl, font=lf, fill=GREY)
-    # 大字主數字% + 紅框（競品最強記憶點；正綠負紅，切合該片角度）
-    d.text((px, y0 + 150), card.get("metric", "回測年化(示意)"), font=font(26, bold=True), fill=GREY)
-    pf = font(92, bold=True)
-    d.text((px, y0 + 184), pct, font=pf, fill=PCT_COL)
-    pb = d.textbbox((px, y0 + 184), pct, font=pf)
-    d.rounded_rectangle([px - 12, y0 + 178, pb[2] + 16, pb[3] + 14], radius=10, outline=RED, width=5)
-    # 下方資料列
-    ry = y0 + 292
-    for label in (card.get("mdd", "最大回撤  -15.3%"), card.get("range", "區間  1774 – 2028")):
-        d.text((px, ry), label, font=font(28, bold=True), fill=INK)
-        ry += 42
-    # 誠實註
-    d.text((px, y1 - 38), card.get("note", "※示意數據，非真實獲利保證"), font=font(22, bold=False), fill=GREY)
+    lw = lb[2] - lb[0]
+    d.rounded_rectangle([x1 - lw - 58, y0 + 60, x1 - 30, y0 + 60 + (lb[3] - lb[1]) + 14],
+                        radius=8, fill=(*accent, 38), outline=(*accent, 190), width=1)
+    d.text((x1 - lw - 58 + 14, y0 + 66), lbl, font=lf, fill=accent)
+    # 指標名 + 大字主數字%（正綠負紅，靠色彩不靠紅框）
+    d.text((px, y0 + 112), card.get("metric", "回測總報酬（含回撤）"), font=font(24, bold=True), fill=GREY)
+    pf = font(104, bold=True)
+    d.text((px + 2, y0 + 150), pct, font=pf, fill=(0, 0, 0, 120))  # 數字輕陰影
+    d.text((px, y0 + 148), pct, font=pf, fill=PCT_COL)
+    # 細分隔線
+    d.line([(px, y0 + 290), (x1 - 34, y0 + 290)], fill=BORDER, width=2)
+    ry = y0 + 304
+    for label in (card.get("mdd", "最大回撤  -15.3%"), card.get("range", "夏普 4.8｜勝率 54%")):
+        d.text((px, ry), label, font=font(27, bold=True), fill=INK)
+        ry += 40
+    d.text((px, y1 - 36), card.get("note", "※歷史回測，非未來獲利保證"), font=font(20, bold=False), fill=GREY)
+
+
+def _pick_pionex_shot(slug: str):
+    """從 assets/pionex_shots/ 挑一張真實截圖（依 slug 輪替）。空資料夾或無圖回 None。"""
+    try:
+        if not SHOTS.exists():
+            return None
+        shots = sorted(p for p in SHOTS.iterdir()
+                       if p.suffix.lower() in (".jpg", ".jpeg", ".png", ".webp"))
+        if not shots:
+            return None
+        idx = sum(ord(c) for c in (slug or "x")) % len(shots)
+        return shots[idx]
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _paste_shot_card(img, d, shot_path, accent) -> bool:
+    """把真實 Pionex 截圖貼到右側面板區（cover 裁切）＋accent 框＋誠實標籤。成功回 True。"""
+    RED = accent
+    x0, y0, x1, y1 = CARD_BOX
+    rw, rh = x1 - x0, y1 - y0
+    try:
+        shot = Image.open(shot_path).convert("RGB")
+    except Exception:  # noqa: BLE001
+        return False
+    iw, ih = shot.size
+    scale = max(rw / iw, rh / ih)
+    nw, nh = max(1, int(iw * scale)), max(1, int(ih * scale))
+    resample = getattr(getattr(Image, "Resampling", Image), "LANCZOS", Image.BICUBIC)
+    shot = shot.resize((nw, nh), resample)
+    left, top = (nw - rw) // 2, (nh - rh) // 2
+    shot = shot.crop((left, top, left + rw, top + rh))
+    mask = Image.new("L", (rw, rh), 0)
+    ImageDraw.Draw(mask).rounded_rectangle([0, 0, rw - 1, rh - 1], radius=24, fill=255)
+    img.paste(shot, (x0, y0), mask)
+    d.rounded_rectangle([x0, y0, x1, y1], radius=24, outline=RED, width=6)
+    lf = font(24, bold=True)
+    lb = d.textbbox((0, 0), "派網實盤", font=lf)
+    d.rounded_rectangle([x0 + 16, y0 + 16, x0 + 16 + (lb[2] - lb[0]) + 28,
+                         y0 + 16 + (lb[3] - lb[1]) + 16], radius=10, fill=(230, 60, 60))
+    d.text((x0 + 16 + 14, y0 + 16 + 8), "派網實盤", font=lf, fill=(255, 255, 255))
+    return True
+
+
+_COIN_ALIASES = {
+    "BTC": ["btc", "比特幣", "bitcoin"], "ETH": ["eth", "以太", "ethereum"],
+    "SOL": ["sol", "solana"], "BNB": ["bnb", "幣安幣"],
+    "XRP": ["xrp", "瑞波"], "DOGE": ["doge", "狗狗"],
+}
+_STRAT_KW = ["回測", "策略", "supertrend", "超級趨勢", "趨勢", "夏普", "勝率", "backtest", "停損", "做多", "做空"]
+_NON_STRAT = ["定投", "dca", "網格", "grid"]  # 這些是別的策略，不該套 SuperTrend 回測（誠實·避免主題不符）
+
+
+def _real_card(slug: str, title: str):
+    """依影片主題，從多幣真實回測(backtest_cards.json)挑一張誠實的真數據卡。
+    主題對不上(如純定投/網格)或無資料 → 回 None(交給示意卡或無卡)。"""
+    try:
+        data = _json.loads(CARDS_JSON.read_text(encoding="utf-8"))
+        cards = {c["coin"]: c for c in data.get("cards", []) if "coin" in c}
+    except Exception:  # noqa: BLE001
+        return None
+    if not cards:
+        return None
+    low = f"{title or ''} {slug or ''}".lower()
+    is_strat = any(k in low for k in _STRAT_KW)
+    # 純定投/網格題材且非策略回測 → 不套（SuperTrend 回測與其主題不符，硬套=誤導）
+    if any(k in low for k in _NON_STRAT) and not is_strat:
+        return None
+    # 1) 標題點名某幣 → 用那個幣的真實結果（即使是負的也誠實呈現）
+    chosen = None
+    for coin, aliases in _COIN_ALIASES.items():
+        if coin in cards and any(a in low for a in aliases):
+            chosen = cards[coin]
+            break
+    # 2) 否則只在「策略/回測」題材才套，挑夏普最高的正報酬幣
+    if chosen is None:
+        if not is_strat:
+            return None
+        pos = [c for c in cards.values() if c.get("total_return", 0) > 0]
+        if not pos:
+            return None
+        chosen = max(pos, key=lambda c: c.get("sharpe", -99))
+    ret = chosen["total_return"] * 100
+    mdd = chosen["max_drawdown"] * 100
+    return {
+        "label": "真回測",
+        "strat": f'{chosen["coin"]} {chosen["interval"]}·SuperTrend',
+        "metric": "回測總報酬（含回撤）",
+        "pct": f'{"+" if ret >= 0 else ""}{ret:.1f}%',
+        "pct_color": "green" if ret >= 0 else "red",
+        "mdd": f'最大回撤  -{mdd:.1f}%',
+        "range": f'夏普 {chosen["sharpe"]:.1f}｜勝率 {chosen["win_rate"]*100:.0f}%',
+        "note": "※歷史回測，非未來獲利保證",
+    }
 
 
 def make_one(cfg: dict):
-    img = gradient_bg((14, 22, 46), (28, 44, 86))
-    d = ImageDraw.Draw(img, "RGBA")
     accent = cfg["accent"]
+    img = terminal_bg(accent, seed=cfg.get("slug", "x"))
+    d = ImageDraw.Draw(img, "RGBA")
 
-    # 右側：有回測卡就畫卡（抄競品可信度元素），否則畫大型半透明裝飾符號
+    # 右側：有回測卡就畫深色終端面板（真截圖優先），否則留 K 線背景填白
+    has_card = False
     if cfg.get("card"):
-        draw_backtest_card(d, cfg["card"])
-    else:
-        mark_font = font(460, bold=True)
-        d.text((W - 360, H // 2), cfg["mark"], font=mark_font, fill=(*accent, 46),
-               anchor="mm", stroke_width=0)
+        _shot = _pick_pionex_shot(cfg.get("slug", ""))
+        if _shot and _paste_shot_card(img, d, _shot, accent):
+            has_card = True
+        else:
+            draw_backtest_card(d, cfg["card"], accent)
+            has_card = True
 
-    # 左側強調色直條
-    d.rectangle([0, 0, 18, H], fill=accent)
+    # 左側強調色直條（細）
+    d.rectangle([0, 0, 12, H], fill=accent)
 
-    # 頻道標（左上 pill）
-    tagf = font(38, bold=True)
+    # 頻道標（左上 pill：深色玻璃 + accent 圓點）
+    tagf = font(32, bold=True)
     ct = CHANNEL
     tb = d.textbbox((0, 0), ct, font=tagf)
-    pad = 18
-    d.rounded_rectangle([60, 48, 60 + (tb[2] - tb[0]) + pad * 2, 48 + (tb[3] - tb[1]) + pad * 2],
-                        radius=14, fill=(255, 255, 255, 28))
-    d.text((60 + pad, 48 + pad - tb[1]), ct, font=tagf, fill=(220, 230, 245))
+    th = tb[3] - tb[1]
+    ph = th + 26
+    pw = (tb[2] - tb[0]) + 70
+    d.rounded_rectangle([54, 42, 54 + pw, 42 + ph], radius=12, fill=(8, 11, 18, 205),
+                        outline=(*accent, 110), width=1)
+    cyd = 42 + ph // 2
+    d.ellipse([74, cyd - 7, 88, cyd + 7], fill=accent)
+    d.text((104, 42 + ph // 2 - th // 2 - tb[1]), ct, font=tagf, fill=(224, 231, 244))
 
-    # 主文兩行
-    f1 = font(150, bold=True)
-    f2 = font(150, bold=True)
-    y = 200
-    draw_text_stroke(d, (66, y), cfg["l1"], f1, fill=accent, sw=7)
-    # 強調線
-    b1 = d.textbbox((66, y), cfg["l1"], font=f1, stroke_width=7)
-    d.rectangle([70, b1[3] + 6, 70 + min(620, b1[2] - 66), b1[3] + 20], fill=accent)
-    y2 = b1[3] + 40
-    draw_text_stroke(d, (66, y2), cfg["l2"], f2, fill=(245, 248, 255), sw=7)
+    # 主文兩行（自動縮字級不溢出；陰影 + 細描邊，premium 不刺眼）
+    max_w = 640 if has_card else 1040
 
-    # 底部 tag 條
-    tf = font(54, bold=True)
-    bar_h = 96
-    d.rectangle([0, H - bar_h, W, H], fill=(*accent, 235))
-    tbb = d.textbbox((0, 0), cfg["tag"], font=tf)
-    d.text((66, H - bar_h // 2 - (tbb[3] - tbb[1]) // 2 - tbb[1]), cfg["tag"],
-           font=tf, fill=(12, 18, 38))
+    def big(xy, text, fnt, fill):
+        d.text((xy[0] + 4, xy[1] + 6), text, font=fnt, fill=(0, 0, 0, 165))
+        d.text(xy, text, font=fnt, fill=fill, stroke_width=3, stroke_fill=(6, 9, 15))
+
+    y = 214
+    f1 = fit_font(cfg["l1"], max_w, start=156)
+    big((58, y), cfg["l1"], f1, accent)
+    b1 = d.textbbox((58, y), cfg["l1"], font=f1, stroke_width=3)
+    d.rectangle([62, b1[3] + 10, 62 + min(max_w, b1[2] - 58), b1[3] + 20], fill=accent)
+    y2 = b1[3] + 38
+    f2 = fit_font(cfg["l2"], max_w, start=156)
+    big((58, y2), cfg["l2"], f2, (238, 244, 253))
+
+    # 底部低調暗帶（取代整條螢光）：深色 + accent 左緣 + accent 細上線 + 白字
+    bar_h = 84
+    d.rectangle([0, H - bar_h, W, H], fill=(8, 11, 18, 215))
+    d.rectangle([0, H - bar_h, 10, H], fill=accent)
+    d.line([(0, H - bar_h), (W, H - bar_h)], fill=(*accent, 150), width=2)
+    d.text((42, H - bar_h // 2), cfg["tag"], font=font(44, bold=True),
+           fill=(234, 240, 250), anchor="lm")
 
     out = OUT / f"{cfg['slug']}.jpg"
-    img.save(out, "JPEG", quality=90)
+    img.save(out, "JPEG", quality=92)
     kb = out.stat().st_size / 1024
     print(f"[ok] {out.name}  ({kb:.0f} KB)")
     return out
 
 
+import os as _os
+import re as _re
+import json as _json
+
+ACCENTS = {"yellow": (255, 210, 63), "green": (88, 224, 140), "red": (255, 96, 96), "blue": (90, 184, 255)}
+
+
+def _heuristic(slug: str, title: str) -> dict:
+    """無 LLM 時的保底：把標題切成兩行 + 底條。"""
+    t = _re.sub(r"[（(].*?[)）]", "", title or slug).strip()
+    cut = 6
+    for i, ch in enumerate(t[:10]):
+        if ch in "？?！!，,。、 ":
+            cut = i or cut
+            break
+    l1 = t[:cut] or t[:6]
+    rest = t[cut:].lstrip("？?！!，,。、 ")
+    l2 = rest[:8] or "看完秒懂"
+    tag = (rest[8:] or t)[:14]
+    return {"slug": slug, "l1": l1[:8], "l2": l2[:10], "tag": tag, "accent": ACCENTS["yellow"], "mark": "?"}
+
+
+def derive_cfg(slug: str, title: str) -> dict:
+    """從標題自動生縮圖鉤子。優先用 haiku(便宜)，失敗退保底啟發式。"""
+    fb = _heuristic(slug, title)
+    key = _os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    if not key:
+        return fb
+    try:
+        import requests
+        prompt = (f"影片標題：{title}\n"
+                  "為這支量化交易教學影片產生吸睛 YouTube 縮圖文字，只輸出 JSON：\n"
+                  '{"l1":"第一行鉤子(2-6字,最吸睛的詞/數字)","l2":"第二行(3-8字)",'
+                  '"tag":"底部說明條(6-14字)","accent":"yellow|green|red|blue","mark":"?或!或$或VS"}\n'
+                  "繁體中文。誠信鐵則：不用『穩賺/保證/必賺』。配色：紅=警示/虧損，綠=獲利/實測，黃=疑問/教學，藍=工具/平台。")
+        r = requests.post("https://api.anthropic.com/v1/messages",
+                          headers={"x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
+                          json={"model": "claude-haiku-4-5-20251001", "max_tokens": 300,
+                                "messages": [{"role": "user", "content": prompt}]}, timeout=40)
+        t = r.json()["content"][0]["text"]
+        d = _json.loads(_re.search(r"\{.*\}", t, _re.S).group(0))
+        return {"slug": slug, "l1": (d.get("l1") or fb["l1"])[:8], "l2": (d.get("l2") or fb["l2"])[:10],
+                "tag": (d.get("tag") or fb["tag"])[:16],
+                "accent": ACCENTS.get((d.get("accent") or "yellow").lower(), ACCENTS["yellow"]),
+                "mark": (d.get("mark") or "?")[:2]}
+    except Exception as e:
+        print(f"[warn] haiku 生鉤子失敗，用保底：{str(e)[:80]}", file=sys.stderr)
+        return fb
+
+
+def make_auto(slug: str, title: str, force: bool = False):
+    """自動：標題→鉤子→縮圖。已存在且非 force 則跳過。"""
+    out = OUT / f"{slug}.jpg"
+    if out.exists() and not force:
+        print(f"[skip] 已有縮圖：{slug}")
+        return out
+    cfg = derive_cfg(slug, title)
+    # 策略/幣種題材 → 自動掛真實多幣回測卡（真數字、含回撤、誠實）；主題不符則不掛
+    if not cfg.get("card"):
+        rc = _real_card(slug, title)
+        if rc:
+            cfg["card"] = rc
+    return make_one(cfg)
+
+
 def main() -> int:
+    # --batch <json: [{slug,title}]> 批量；--auto <slug> <title> 單支；無參數＝原 6 支示範
+    if len(sys.argv) >= 2 and sys.argv[1] == "--batch":
+        data = _json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+        n = 0
+        for it in data:
+            try:
+                make_auto(it["slug"], it.get("title", it["slug"]), force=("--force" in sys.argv))
+                n += 1
+            except Exception as e:
+                print(f"[fail] {it.get('slug','')[:30]}: {str(e)[:80]}", file=sys.stderr)
+        print(f"完成批量 {n}/{len(data)}。")
+        return 0
+    if len(sys.argv) >= 3 and sys.argv[1] == "--auto":
+        make_auto(sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else sys.argv[2], force=("--force" in sys.argv))
+        return 0
     only = sys.argv[1] if len(sys.argv) > 1 else None
     for cfg in THUMBS:
         if only and only not in cfg["slug"]:
