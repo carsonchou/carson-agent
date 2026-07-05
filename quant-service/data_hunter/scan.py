@@ -1116,6 +1116,11 @@ def build_state(data: dict[str, pd.DataFrame], rows: list[tuple[str, str, str]],
         "chips": chips_block,
         "pool": {"active": pool_active, "n_pass": n_pool, "min_pool": MIN_POOL,
                  "trend_min": POOL_TREND_MIN, "turnover_min": POOL_TURNOVER_MIN},
+        "wave_top": sorted(
+            [_card(s) for s in stocks if (s.get("wave_score") or 0) >= 60],
+            key=lambda x: ((x.get("wave_score") or 0), (x.get("score") or 0)),
+            reverse=True,
+        ),
     }
 
 

@@ -2420,19 +2420,27 @@ if(SNAP){ loadHistory(); }
     const t=document.getElementById('zTable'); if(!t) return;
     // ── Dcard 週模型全滿候選（wave_score=100，直接從 strong 讀） ─────────────
     if(zStyle==='wave100'){
-      const top=(lastData&&lastData.strong||[]).filter(s=>s.wave_score===100);
+      const wt=lastData&&lastData.wave_top||[];
+      const top100=wt.filter(s=>s.wave_score===100);
+      const top60=wt.filter(s=>(s.wave_score||0)>=60&&s.wave_score<100);
       document.querySelectorAll('.zTab').forEach(el=>el.classList.toggle('on',el.dataset.z==='wave100'));
-      const dc=document.getElementById('zDesc'); if(dc) dc.textContent='五項條件全滿：流動性≥1億 + 年線上方 + 法人連買 + RSI安全區(40-65) + ST多頭';
+      const dc=document.getElementById('zDesc');
+      if(dc) dc.textContent=`全市場掃描 · 五項全滿 ${top100.length} 檔 / 60分以上共 ${wt.length} 檔`;
       const cb=document.getElementById('zChips'); if(cb) cb.innerHTML='';
-      t.innerHTML=top.length?
-        `<thead><tr><th class="tleft">#</th><th class="tleft">個股</th><th>波段分</th><th>漲跌</th><th>強弱分</th></tr></thead><tbody>`+
-        top.map((s,i)=>{regDrill&&regDrill(s);return `<tr class="zrow" data-code="${s.code}"><td class="zrank tleft">${i+1}</td>`+
-          `<td class="znm tleft" data-open="${s.code}"><span class="rcode">${s.code}</span><b>${s.name}</b>${chipBadges(s)}</td>`+
-          `<td style="color:var(--acc2)">100/100</td>`+
+      const mkRow=(s,i)=>{regDrill&&regDrill(s);
+        return `<tr class="zrow" data-code="${s.code}"><td class="zrank tleft">${i+1}</td>`+
+          `<td class="znm tleft" data-open="${s.code}"><span class="rcode">${s.code}</span>`+
+          `<b>${s.name}</b>${chipBadges(s)}</td>`+
+          `<td style="color:${waveCol(s.wave_score)}">${s.wave_score}/100</td>`+
           `<td style="color:${chgColor(s.chg)}">${sign(s.chg)}%</td>`+
-          `<td style="color:${scoreColor(s.score)}">${s.score}</td></tr>`;}).join('')+
-        `</tbody>`:
-        `<tbody><tr><td colspan="5" class="zEmpty">今日無五項全滿個股</td></tr></tbody>`;
+          `<td style="color:${scoreColor(s.score)}">${s.score}</td></tr>`;};
+      const sep=top60.length
+        ?`<tr><td colspan="5" style="padding:4px 10px;font-size:10px;color:var(--faint);border-top:1px solid var(--line)">── 60–80 分候選 ──</td></tr>`:'';
+      t.innerHTML=
+        `<thead><tr><th class="tleft">#</th><th class="tleft">個股</th>`+
+        `<th>波段分</th><th>漲跌</th><th>強弱分</th></tr></thead><tbody>`+
+        (top100.length?top100.map(mkRow).join(''):`<tr><td colspan="5" class="zEmpty">今日無五項全滿個股</td></tr>`)+
+        sep+top60.map(mkRow).join('')+`</tbody>`;
       return;
     }
     let cands=((zonesData[zStyle]||{}).cands||[]).slice();
