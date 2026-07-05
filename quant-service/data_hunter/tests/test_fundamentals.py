@@ -105,5 +105,42 @@ class TestStockFundamentals(unittest.TestCase):
         self.assertIsNone(d["rev_yoy"])
 
 
+class TestDividendTTM(unittest.TestCase):
+    """近一年配息合計(ETF 季配)：加總 cash>0 的近 366 天筆、跳過 0.0 占位與逾一年舊筆。"""
+    def setUp(self):
+        self._f = fd._finmind
+        self._w = fd._atomic_write_json
+        fd._atomic_write_json = lambda *a, **k: None
+
+    def tearDown(self):
+        fd._finmind = self._f
+        fd._atomic_write_json = self._w
+
+    def test_etf_quarterly_ttm(self):
+        from datetime import date as _d, timedelta as _td
+        today = _d.today()
+        rows = [
+            {"date": (today + _td(days=20)).isoformat(),  "CashEarningsDistribution": "0.0"},   # 未來占位→跳過
+            {"date": (today - _td(days=30)).isoformat(),  "CashEarningsDistribution": "1.0"},   # 最近一筆 cash>0
+            {"date": (today - _td(days=120)).isoformat(), "CashEarningsDistribution": "0.9"},
+            {"date": (today - _td(days=210)).isoformat(), "CashEarningsDistribution": "0.8"},
+            {"date": (today - _td(days=300)).isoformat(), "CashEarningsDistribution": "0.7"},
+            {"date": (today - _td(days=400)).isoformat(), "CashEarningsDistribution": "0.6"},   # 逾一年→排除
+        ]
+        fd._finmind = lambda ds, di, sd: rows if ds == "TaiwanStockDividend" else []
+        d = fd.fetch_stock_fundamentals("0056")
+        self.assertEqual(d["cash_div_ttm"], 3.4)   # 1.0+0.9+0.8+0.7，跳過 0.0 與 0.6(逾一年)
+        self.assertEqual(d["div_freq"], 4)          # 季配四筆
+        self.assertEqual(d["cash_div"], 1.0)        # 最近一筆 cash>0(非 0.0 占位)
+
+    def test_no_positive_dividend(self):
+        from datetime import date as _d, timedelta as _td
+        rows = [{"date": (_d.today() + _td(days=10)).isoformat(), "CashEarningsDistribution": "0.0"}]
+        fd._finmind = lambda ds, di, sd: rows if ds == "TaiwanStockDividend" else []
+        d = fd.fetch_stock_fundamentals("1111")
+        self.assertIsNone(d["cash_div_ttm"])        # 無 cash>0 → None
+        self.assertIsNone(d["div_freq"])
+
+
 if __name__ == "__main__":
     unittest.main()

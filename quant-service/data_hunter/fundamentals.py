@@ -29,7 +29,7 @@ import sys
 import time
 import urllib.parse
 import urllib.request
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -160,7 +160,8 @@ def fetch_stock_fundamentals(code: str) -> dict:
            "eps_q": None, "eps_ttm": None, "eps_yoy": None,
            "gross_margin": None, "op_margin": None,
            "rev": None, "rev_yoy": None, "rev_mom": None,
-           "cash_div": None, "stock_div": None, "div_year": None, "ex_date": None}
+           "cash_div": None, "stock_div": None, "div_year": None, "ex_date": None,
+           "cash_div_ttm": None, "div_freq": None}
 
     # 財報：EPS + 毛利率 + 營益率
     fs = _finmind("TaiwanStockFinancialStatements", code, two_years_ago)
@@ -194,18 +195,26 @@ def fetch_stock_fundamentals(code: str) -> dict:
             if len(seq) >= 2 and seq[1][1]:
                 out["rev_mom"] = round((seq[0][1] - seq[1][1]) / abs(seq[1][1]) * 100, 1)
 
-    # 股利政策(最近一年)
+    # 股利政策：近一年真實現金配息合計(季配→多筆加總、年配→一筆)，個股與 ETF 一致可用。
+    # FinMind 常含未來占位記錄(cash=0.0)與零股利年，故只算 cash>0 的筆；ttm 用近 366 天窗。
     dv = _finmind("TaiwanStockDividend", code, two_years_ago)
     if dv:
         dv2 = sorted(dv, key=lambda r: r.get("date") or "", reverse=True)
-        cash = _num(dv2[0].get("CashEarningsDistribution")) if dv2 else None
-        stock = _num(dv2[0].get("StockEarningsDistribution")) if dv2 else None
-        out["cash_div"] = cash
-        out["stock_div"] = stock
-        out["div_year"] = (dv2[0].get("date") or "")[:4] if dv2 else None
-        # 除權息交易日(現金優先，缺則股票除權日)；'0'/空視為無
-        if dv2:
-            ex = dv2[0].get("CashExDividendTradingDate") or dv2[0].get("StockExDividendTradingDate")
+        cutoff = (date.today() - timedelta(days=366)).isoformat()
+        ttm = [r for r in dv2 if (r.get("date") or "") >= cutoff
+               and (_num(r.get("CashEarningsDistribution")) or 0) > 0]
+        if ttm:
+            out["cash_div_ttm"] = round(sum(_num(r.get("CashEarningsDistribution")) for r in ttm), 4)
+            out["div_freq"] = len(ttm)
+        # 最近一筆 cash>0(供顯示每股股利，避開 0.0 占位)；沒有就退回最近一筆
+        nonzero = next((r for r in dv2 if (_num(r.get("CashEarningsDistribution")) or 0) > 0), None)
+        ref = nonzero or (dv2[0] if dv2 else None)
+        if ref:
+            out["cash_div"] = _num(ref.get("CashEarningsDistribution"))
+            out["stock_div"] = _num(ref.get("StockEarningsDistribution"))
+            out["div_year"] = (ref.get("date") or "")[:4]
+            # 除權息交易日(現金優先，缺則股票除權日)；'0'/空視為無
+            ex = ref.get("CashExDividendTradingDate") or ref.get("StockExDividendTradingDate")
             out["ex_date"] = ex if (ex and str(ex) not in ("0", "", "None")) else None
 
     _atomic_write_json(FUND_DIR / f"stock_{code}.json", out)
@@ -251,7 +260,8 @@ def load_fundamentals(code: str, offline: bool = True) -> dict:
            "gross_margin": None, "op_margin": None,
            "rev": None, "rev_yoy": None, "rev_mom": None,
            "cash_div": None, "stock_div": None, "div_year": None, "ex_date": None,
-           "has_valuation": False, "has_financials": False}
+           "cash_div_ttm": None, "div_freq": None,
+           "has_valuation": False, "has_financials": False, "has_dividend": False}
     val = load_valuation(offline=offline).get(code)
     if val:
         out.update({"pe": val.get("pe"), "pb": val.get("pb"),
@@ -260,10 +270,12 @@ def load_fundamentals(code: str, offline: bool = True) -> dict:
     fs = load_stock_fundamentals(code, offline=offline)
     if fs:
         for k in ("eps_q", "eps_ttm", "eps_yoy", "gross_margin", "op_margin",
-                  "rev", "rev_yoy", "rev_mom", "cash_div", "stock_div", "div_year"):
+                  "rev", "rev_yoy", "rev_mom", "cash_div", "stock_div", "div_year",
+                  "cash_div_ttm", "div_freq"):
             out[k] = fs.get(k)
         out["has_financials"] = any(fs.get(k) is not None
                                     for k in ("eps_q", "eps_ttm", "rev_yoy", "gross_margin"))
+        out["has_dividend"] = fs.get("cash_div_ttm") is not None
     return out
 
 

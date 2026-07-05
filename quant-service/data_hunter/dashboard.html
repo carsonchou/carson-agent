@@ -3404,13 +3404,29 @@ if(SNAP){ loadHistory(); }
     savePF(pf); pfDivModal.classList.remove('show'); renderPortfolio();
   }
   async function estDiv(){
-    const code=document.getElementById('pdCode').value.trim(); if(!code){document.getElementById('pdHint').textContent='先填代號';return;}
+    const hint=document.getElementById('pdHint');
+    const code=document.getElementById('pdCode').value.trim(); if(!code){hint.textContent='先填代號';return;}
+    hint.textContent='估算中…';
     const q=await pfQuote(code); const der=derivePositions(getPF().txns);
     const pos=der.positions.find(p=>p.code===code);
-    if(!q||q.dividend_yield==null||!pos){ document.getElementById('pdHint').textContent='無殖利率或未持有此股，無法估算'; return; }
-    const est=Math.round(pos.avg_cost*pos.shares*q.dividend_yield/100);
-    document.getElementById('pdAmount').value=est;
-    document.getElementById('pdHint').textContent=`依殖利率 ${q.dividend_yield}% × 成本額 ${_pfInt(pos.avg_cost*pos.shares)} 估 ${_pfInt(est)}`;
+    if(!pos){ hint.textContent='未持有此股，無法估算（可手動輸入金額）'; return; }
+    const cb=pos.avg_cost*pos.shares;
+    // 優先：近一年真實現金配息合計 × 股數（個股與 ETF 一致可用）
+    if(q&&q.cash_div_ttm>0){
+      const est=Math.round(q.cash_div_ttm*pos.shares);
+      document.getElementById('pdAmount').value=est;
+      const freq=q.div_freq?`（${q.div_freq>=4?'季配':q.div_freq===2?'半年配':'年配'}×${q.div_freq}）`:'';
+      hint.textContent=`近一年配息 ${q.cash_div_ttm}/股${freq} × ${_pfInt(pos.shares)} 股 ≈ ${_pfInt(est)}`;
+      return;
+    }
+    // 降級：殖利率 × 成本額（個股 BWIBBU 才有殖利率）
+    if(q&&q.dividend_yield>0){
+      const est=Math.round(cb*q.dividend_yield/100);
+      document.getElementById('pdAmount').value=est;
+      hint.textContent=`殖利率估：${q.dividend_yield}% × 成本額 ${_pfInt(cb)} ≈ ${_pfInt(est)}`;
+      return;
+    }
+    hint.textContent='查無配息資料，請手動輸入金額';
   }
   // 匯出/匯入
   function pfExport(){ const blob=new Blob([JSON.stringify(getPF(),null,2)],{type:'application/json'});

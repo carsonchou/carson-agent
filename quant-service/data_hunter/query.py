@@ -260,14 +260,16 @@ def _merge_fundamentals(code: str) -> dict:
            "eps_q": None, "eps_ttm": None, "eps_yoy": None,
            "gross_margin": None, "op_margin": None,
            "rev_yoy": None, "rev_mom": None,
-           "cash_div": None, "stock_div": None, "ex_date": None}
+           "cash_div": None, "stock_div": None, "ex_date": None,
+           "cash_div_ttm": None, "div_freq": None}
     try:
         import fundamentals as _fd
     except Exception:
         return out
     f = _fd.load_fundamentals(code, offline=True)
-    # 首次查詢該股：本地無財報快取 → 有界線上抓一次(≤7s)，之後快取秒回；抓不到就降級
-    if not f.get("has_financials"):
+    # 首次查詢該股：本地無財報快取 → 有界線上抓一次(≤7s)，之後快取秒回；抓不到就降級。
+    # ETF 無財報(has_financials 恆 False)但有配息→用 has_dividend 一起判斷，避免每次重抓。
+    if not f.get("has_financials") and not f.get("has_dividend"):
         _run_bounded(lambda: _fd.fetch_stock_fundamentals(code), timeout=7.0, default=None)
         f = _fd.load_fundamentals(code, offline=True)
     for k in out:
