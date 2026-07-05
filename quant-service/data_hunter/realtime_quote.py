@@ -18,6 +18,7 @@ import ssl
 import sys
 import urllib.request
 from datetime import datetime
+from pathlib import Path
 
 _CTX = ssl.create_default_context()
 _CTX.check_hostname = False
@@ -107,6 +108,24 @@ def fetch_quote(code: str, timeout: int = 8) -> dict | None:
 
 
 _INTRA_CACHE: dict = {}          # code → (monotonic_ts, closes)；分時 yfinance 較慢，60 秒快取省重抓
+# 國際指數 last-good 持久化：yfinance rate-limit 時回上次成功值，指數列不空白
+_INTL_FILE = Path(__file__).resolve().parent.parent.parent / "twdata" / "intl_indices.json"
+
+
+def _save_intl(data: list) -> None:
+    try:
+        _INTL_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _INTL_FILE.write_text(json.dumps({"ts": datetime.now().isoformat(timespec="seconds"),
+                                          "data": data}, ensure_ascii=False), encoding="utf-8")
+    except Exception:
+        pass
+
+
+def _load_intl() -> list:
+    try:
+        return json.loads(_INTL_FILE.read_text(encoding="utf-8")).get("data", [])
+    except Exception:
+        return []
 
 
 def fetch_intraday(code: str) -> list | None:
@@ -176,7 +195,7 @@ def fetch_international(timeout: int = 10) -> list[dict]:
         warnings.filterwarnings("ignore")
         import yfinance as yf
     except Exception:
-        return []
+        return _load_intl()
     out = []
     for tk, name in _INTL:
         try:
@@ -187,7 +206,12 @@ def fetch_international(timeout: int = 10) -> list[dict]:
                             "chg_pct": round((px / prev - 1) * 100, 2)})
         except Exception:
             continue
-    return out
+    # yfinance 常被 Yahoo rate-limit(全市場掃描+分時都吃 yf)→ 抓不到就回上次成功值，
+    # 指數列永不空白；抓到就更新快取。
+    if out:
+        _save_intl(out)
+        return out
+    return _load_intl()
 
 
 if __name__ == "__main__":

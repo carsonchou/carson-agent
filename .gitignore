@@ -139,3 +139,4 @@ quant-service/data_hunter/*.log
 twdata/zones.json
 twdata/fundamentals/
 twdata/news/
+twdata/intl_indices.json
