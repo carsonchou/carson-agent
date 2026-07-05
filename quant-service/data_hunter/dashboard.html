@@ -858,6 +858,7 @@
 </style>
 </head>
 <body>
+<div id="bearBanner" style="display:none;background:rgba(255,60,60,.12);border-bottom:1px solid rgba(255,70,70,.25);padding:7px 20px;font-size:12px;font-family:monospace;color:#ffaaaa;align-items:center;gap:10px">⚠ 大盤 0050 SuperTrend 翻空 — 空頭環境：Dcard 週模型歷史失能，建議降倉觀望</div>
 <canvas id="bg"></canvas>
 <!-- HUD 氛圍層 -->
 <div id="scan"></div><div id="vig"></div><div id="grain"></div>
@@ -954,6 +955,16 @@
           </div>
           <div class="segbar" id="segbar"></div>
         </div>
+        <!-- Dcard 倉位計算器：每筆止損 < 總資產 2% -->
+        <div style="margin-top:12px;padding:10px 14px;background:rgba(255,255,255,.03);border-radius:5px;border:1px solid rgba(255,255,255,.07)">
+          <div style="font-size:10px;color:var(--dim);font-family:var(--mono);margin-bottom:6px">倉位計算 — 每筆止損 &lt; 總資產 2%</div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <input id="pcAsset" type="number" placeholder="總資產(萬)" min="1" style="width:90px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:var(--txt);padding:4px 7px;border-radius:3px;font-size:12px">
+            <input id="pcStop" type="number" placeholder="停損%" value="7" min="0.1" max="50" style="width:60px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:var(--txt);padding:4px 7px;border-radius:3px;font-size:12px">
+            <button onclick="calcPos()" style="background:rgba(0,212,170,.15);border:1px solid rgba(0,212,170,.3);color:var(--acc2);padding:4px 10px;border-radius:3px;font-size:12px;cursor:pointer">算</button>
+          </div>
+          <div id="pcResult" style="font-family:var(--mono);font-size:11px;color:var(--acc2);margin-top:5px"></div>
+        </div>
       </section>
 
       <!-- 市場統計卡 -->
@@ -1022,6 +1033,7 @@
         <span class="zTab on" data-z="daytrade">當沖 · DAY TRADE</span>
         <span class="zTab" data-z="swing">短線 · SWING</span>
         <span class="zTab" data-z="longterm">長線 · POSITION</span>
+        <span class="zTab" data-z="wave100">🎯 週模型候選</span>
       </div>
       <div class="zDesc" id="zDesc"></div>
       <div class="zChips" id="zChips"></div>
@@ -1387,6 +1399,12 @@ function showPop(s,anchor){
     `<div class="prow"><span>SuperTrend</span><b>${stStatus(s.st)}</b></div>`+
     `<div class="prow"><span>站上20MA</span><b>${ma20Status(s)}</b></div>`+
     `<div class="prow"><span>強弱分</span><b style="color:var(--acc)">${s.score??'—'}</b></div>`+
+    (s.adr_pct!=null?`<div class="prow"><span>ADR% 日均振幅</span><b>${s.adr_pct}%</b></div>`:'')+
+    (s.liq_ok?`<div class="prow"><span>法人級流動性</span><b style="color:var(--acc2)">≥1億 ✓</b></div>`:'')+
+    `<div class="prow"><span>波段潛力分</span><b style="color:${waveCol(s.wave_score)}">${s.wave_score??0}/100</b></div>`+
+    (s.smart_money>0?`<div class="prow"><span>聰明錢評分</span><b style="color:var(--acc)">${s.smart_money}/100</b></div>`:'')+
+    (s.drawdown_60!=null?`<div class="prow"><span>距60日高點</span><b style="color:var(--dim)">${s.drawdown_60>0?'+':''}${s.drawdown_60}%</b></div>`:'')+
+    (s.dual_frame?`<div class="prow"><span>雙框共振</span><b style="color:var(--acc2)">日K+週K ✓</b></div>`:'')+
     chipPopRows(s);
   pop.style.display='block';
   if(hasK) drawKline(pop.querySelector('.pkline'), s.ohlc); // innerHTML 設定後才能取 canvas 畫
@@ -1407,6 +1425,18 @@ function regDrill(s){ drillMap.set(s.code,s); }
 
 // 分數強度分色：高分亮青、中分青、低分轉灰（一眼看強弱層次）
 function scoreColor(v){ return v>=75?'var(--acc2)':(v>=55?'var(--acc)':(v>=35?'var(--dim)':'var(--faint)')); }
+// Dcard 波段潛力分色（0/20/40/60/80/100）
+function waveCol(v){ return (v||0)>=80?'var(--acc2)':(v||0)>=60?'var(--acc)':(v||0)>=40?'var(--dim)':'var(--faint)'; }
+// Dcard 倉位計算器（每筆最大虧損 = 總資產 × 2%）
+function calcPos(){
+  const asset=parseFloat(document.getElementById('pcAsset').value)*10000;
+  const stop=parseFloat(document.getElementById('pcStop').value)/100;
+  if(!asset||!stop||stop<=0)return;
+  const maxLoss=asset*0.02;
+  const maxPos=Math.floor(maxLoss/stop/1000)*1000;
+  document.getElementById('pcResult').textContent=
+    `最大下注 ${(maxPos/10000).toFixed(1)} 萬 → 止損觸發最多虧 ${(Math.min(maxPos*stop,maxLoss)/10000).toFixed(1)} 萬（佔資產 2%）`;
+}
 function rowHTML(s,i){
   regDrill(s);
   const rank=(typeof i==='number')?i+1:'';
@@ -1415,11 +1445,16 @@ function rowHTML(s,i){
     `<div class="rscore" style="color:${scoreColor(s.score)}">${s.score}</div>`+
     `<div class="rchg" style="color:${chgColor(s.chg)}">${sign(s.chg)}%</div></div>`;
 }
-// 籌碼徽章（過池 / 籌碼確認）— 欄位缺則不顯示
+// 籌碼徽章（過池 / 籌碼確認 / Dcard 洞見徽章）— 欄位缺則不顯示
 function chipBadges(s){
   let b='';
-  if(s.pool_pass) b+='<span class="cbadge pass">過池</span>';
-  if(s.chip_confirm) b+='<span class="cbadge chip">籌碼✓</span>';
+  if(s.pool_pass)     b+='<span class="cbadge pass">過池</span>';
+  if(s.chip_confirm)  b+='<span class="cbadge chip">籌碼✓</span>';
+  if(s.liq_ok)        b+='<span class="cbadge" style="background:rgba(0,212,170,.1);color:var(--acc2);border-color:rgba(0,212,170,.3)">≥1億</span>';
+  if((s.wave_score||0)>=60) b+=`<span class="cbadge" style="background:rgba(0,212,170,.08);color:var(--acc2)">波段${s.wave_score}</span>`;
+  if(s.vol_lead)      b+='<span class="cbadge" style="background:rgba(0,180,255,.08);color:#00b4ff;border-color:rgba(0,180,255,.25)">量先✓</span>';
+  if(s.dual_frame)    b+='<span class="cbadge" style="background:rgba(255,200,50,.08);color:#ffc832;border-color:rgba(255,200,50,.25)">雙框✓</span>';
+  if((s.smart_money||0)>=50) b+=`<span class="cbadge" style="background:rgba(255,200,50,.08);color:#ffc832">聰明錢${s.smart_money}</span>`;
   return b;
 }
 // 訊號卡籌碼補充行：外資+投信連買N日、法人淨買X張（買紅賣綠）；無籌碼欄→不顯示不破版
@@ -1690,7 +1725,14 @@ function renderTrack(tk){
       `<span style="color:var(--dn)">空 <b>${swr!=null?swr.toFixed(0)+'%':'—'}</b></span></div></div>`+
     `<div class="tk r"><div class="tkl">平均 R</div><div class="tkv">${tk.avg_r>=0?'+':''}${(tk.avg_r||0).toFixed(2)}</div><div class="tks">報酬／停損風險倍數</div></div>`+
     `<div class="tk"><div class="tkl">平均報酬</div><div class="tkv" style="color:${ar>=0?'var(--up)':'var(--dn)'}">${ar>=0?'+':''}${(ar||0).toFixed(1)}%</div><div class="tks">每筆平均損益</div></div>`+
-    `<div class="tk"><div class="tkl">樣本 SAMPLE</div><div class="tkv" style="color:var(--txt)">${tk.n_closed}</div><div class="tks">已平倉 · 進行中 ${tk.n_open}</div></div>`;
+    `<div class="tk"><div class="tkl">樣本 SAMPLE</div><div class="tkv" style="color:var(--txt)">${tk.n_closed}</div><div class="tks">已平倉 · 進行中 ${tk.n_open}</div></div>`+
+    (tk.n_closed>=3?(()=>{
+      const ev=((tk.win_rate||0)*Math.abs(tk.avg_r||0)-(1-(tk.win_rate||0))*1.0).toFixed(2);
+      const evCol=parseFloat(ev)>=0?'var(--up)':'var(--dn)';
+      return `<div class="tk"><div class="tkl">期望值 EV</div>`+
+        `<div class="tkv" style="color:${evCol}">${parseFloat(ev)>=0?'+':''}${ev} R</div>`+
+        `<div class="tks">勝率×R − 敗率×1R</div></div>`;
+    })():'');
   const recent=tk.recent||[];
   const head=`<div class="th"><span>個股</span><span>方向</span><span>進→出</span><span>報酬%</span><span>R</span><span>結果</span></div>`;
   list.innerHTML=head+(recent.length?recent.map(r=>{
@@ -1830,7 +1872,8 @@ async function load(){
       return `<div class="sector"><div class="sname">${s.name}</div>`+
         `<div class="sbar"><div class="sfill ${dir}" style="width:${w}%;background:${col}"></div></div>`+
         `<div class="schg" style="color:${chgColor(s.avg_chg)}">${sign(s.avg_chg)}%</div>`+
-        `<div class="sleader">領漲 <b style="color:var(--txt)">${s.leader}</b><span class="chip">站上20MA ${s.bull_pct}%</span></div></div>`;
+        `<div class="sleader">領漲 <b style="color:var(--txt)">${s.leader}</b><span class="chip">站上20MA ${s.bull_pct}%</span>${s.inst_count?`<span class="chip" style="color:var(--acc2)">法人連買 ${s.inst_count}檔</span>`:''}
+</div></div>`;
     }).join('');
 
     drillMap.clear();
@@ -1880,6 +1923,8 @@ async function load(){
 
     // 存最新資料，並刷新目前開著的分頁
     lastData=d;
+    const bb=document.getElementById('bearBanner');
+    if(bb) bb.style.display=(d.index&&d.index.trend!=='UP')?'flex':'none';
     // 看板 widget 渲染函式定義在下方 modal IIFE，掛在 window 上供這裡(另一 script)呼叫
     window.renderWatchStrip&&window.renderWatchStrip();   // 自選股快速報價
     window.checkAlerts&&window.checkAlerts();             // 到價警示檢查
@@ -2373,6 +2418,23 @@ if(SNAP){ loadHistory(); }
   }
   function renderZoneTable(){
     const t=document.getElementById('zTable'); if(!t) return;
+    // ── Dcard 週模型全滿候選（wave_score=100，直接從 strong 讀） ─────────────
+    if(zStyle==='wave100'){
+      const top=(lastData&&lastData.strong||[]).filter(s=>s.wave_score===100);
+      document.querySelectorAll('.zTab').forEach(el=>el.classList.toggle('on',el.dataset.z==='wave100'));
+      const dc=document.getElementById('zDesc'); if(dc) dc.textContent='五項條件全滿：流動性≥1億 + 年線上方 + 法人連買 + RSI安全區(40-65) + ST多頭';
+      const cb=document.getElementById('zChips'); if(cb) cb.innerHTML='';
+      t.innerHTML=top.length?
+        `<thead><tr><th class="tleft">#</th><th class="tleft">個股</th><th>波段分</th><th>漲跌</th><th>強弱分</th></tr></thead><tbody>`+
+        top.map((s,i)=>{regDrill&&regDrill(s);return `<tr class="zrow" data-code="${s.code}"><td class="zrank tleft">${i+1}</td>`+
+          `<td class="znm tleft" data-open="${s.code}"><span class="rcode">${s.code}</span><b>${s.name}</b>${chipBadges(s)}</td>`+
+          `<td style="color:var(--acc2)">100/100</td>`+
+          `<td style="color:${chgColor(s.chg)}">${sign(s.chg)}%</td>`+
+          `<td style="color:${scoreColor(s.score)}">${s.score}</td></tr>`;}).join('')+
+        `</tbody>`:
+        `<tbody><tr><td colspan="5" class="zEmpty">今日無五項全滿個股</td></tr></tbody>`;
+      return;
+    }
     let cands=((zonesData[zStyle]||{}).cands||[]).slice();
     if(zSetup) cands=cands.filter(c=>(c.setups||[]).includes(zSetup));
     const cols=ZCOLS[zStyle];
@@ -2396,6 +2458,8 @@ if(SNAP){ loadHistory(); }
           `<div><div class="pk">停損</div><div class="pv" style="color:var(--dn)">${p.stop||'—'}</div></div>`+
           `<div><div class="pk">停利/目標</div><div class="pv" style="color:var(--up)">${p.target||'—'}</div></div>`+
           `<div><div class="pk">紀律</div><div class="pv">${p.note||'—'}</div></div>`+
+          `<div><div class="pk">TimeStop <span style="color:var(--faint);font-size:9px">Dcard 週模型最優出場</span></div>`+
+          `<div class="pv" style="font-size:11px;color:var(--dim)">第 1 週未漲 ≥5% → 出場<br>第 2 週未漲 ≥10% → 出場<br>預計持倉 7–14 日，超期移動出場</div></div>`+
           `</div></td></tr>`; }
       return row; }).join('');
     t.innerHTML=thead+`<tbody>${body}</tbody>`;

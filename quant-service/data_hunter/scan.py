@@ -192,7 +192,8 @@ def _bulk_yf(codes: list[str], suffix: str, intraday: bool = False,
     out: dict[str, pd.DataFrame] = {}
     # 日線一律走 twstock 官方(證交所/櫃買)：yfinance 抓台股不可靠——上櫃全錯(環球晶6488 786vs官方1105)、
     # 部分上市也錯/過時。twstock 是官方源、上市上櫃皆正確。intraday 仍走 yfinance(twstock 無分時；即時另有 realtime 覆蓋)。
-    if not intraday:
+    # 精選宇宙(<=50檔)走 twstock 官方逐檔(正確)；全市場(120檔/批)走 yfinance 批量(快)
+    if not intraday and len(codes) <= 50:
         try:
             import twse_price as _tp
             for c in codes:
@@ -618,6 +619,26 @@ def _analyse_core(code: str, df_raw: pd.DataFrame, drop_last: bool) -> dict | No
     pool_pass = (trend_frac is not None and trend_frac >= POOL_TREND_MIN
                  and turnover60 is not None and turnover60 >= POOL_TURNOVER_MIN)
 
+    # ── Dcard 週模型洞見：ADR% / 回撤 / 雙框共振 ────────────────────────────
+    adr_pct = round(atr22 / price * 100, 1) if (atr22 and price) else None
+    _hi60_val = float(tail60.max()) if len(tail60) >= 20 else None
+    drawdown_60 = round((sig_price - _hi60_val) / _hi60_val * 100, 1) if _hi60_val else None
+    dual_frame = False
+    if st_today == "UP":
+        try:
+            _wi = df_raw.copy()
+            _wi.index = pd.to_datetime(_wi.index, errors="coerce")
+            _wi = _wi[~_wi.index.isna()]
+            _wk = _lower(_wi.resample("W-FRI").agg(
+                {"open": "first", "high": "max", "low": "min",
+                 "close": "last", "volume": "sum"}
+            ).dropna().tail(60))
+            if len(_wk) >= 22:
+                _wst, _ = _st_dirs(_wk)
+                dual_frame = bool(_wst == "UP")
+        except Exception:
+            dual_frame = False
+
     # ── 個股強弱分 0-100：正交四維(各 0-25)，去除 RSI 與 mom5 雙重計動能 ──
     #   趨勢(ST方向 + ADX 強度)、位置(布林 %B)、動能(RSI)、波動(relVol 參與度)
     # 【定位】此為排行榜/訊號用的「快速純技術動能排名」(全市場逐檔要快)；個股詳情的
@@ -678,6 +699,11 @@ def _analyse_core(code: str, df_raw: pd.DataFrame, drop_last: bool) -> dict | No
         "trend_frac": trend_frac, "turnover_60d": turnover60, "pool_pass": pool_pass,
         # 當根成交張(給當沖比分母用)；快取偶有 NaN 量 → 防 int(NaN) 崩潰
         "vol_lots": int(round(cur_vol / 1000)) if (cur_vol == cur_vol and cur_vol is not None) else 0,
+        # ── Dcard 洞見：ADR% / 流動性達標 / 回撤 / 雙框共振 ─────────────────
+        "adr_pct": adr_pct,
+        "liq_ok": bool((turnover60 or 0) >= 1e8),
+        "drawdown_60": drawdown_60,
+        "dual_frame": dual_frame,
     }
     _ANALYSE_MEMO[code] = (key, result)
     return result
@@ -808,6 +834,21 @@ def build_state(data: dict[str, pd.DataFrame], rows: list[tuple[str, str, str]],
                       "short_margin_ratio": m["short_margin_ratio"], "day_trade_pct": dtp,
                       "margin_t_minus": margin_t_minus})
 
+    # ── Dcard 洞見 ③⑫：波段潛力分 + 量先確認 ──────────────────────────────
+    for s in stocks:
+        wf = 0
+        if (s.get("turnover_60d") or 0) >= 1e8:      wf += 20  # 法人級流動性
+        if s.get("above60"):                           wf += 20  # 年線上方
+        if (s.get("consec_buy_days") or 0) >= 1:      wf += 20  # 法人連買 ≥1日
+        _r = s.get("rsi")
+        if _r is not None and 40 <= _r <= 65:         wf += 20  # RSI 安全多方區
+        if s.get("st") == "UP":                       wf += 20  # ST 多頭
+        s["wave_score"] = wf
+        s["vol_lead"] = bool(
+            s.get("signal") in ("long", "short") and
+            (s.get("relvol") or 0) >= 1.5
+        )
+
     # ── Track B：池濾網『不再 gate firm 訊號』(calibrate 證實單一ST訊號上無 edge)；
     #   n_pool/pool_active 與個股 pool_pass 仍算給看板顯示/confluence 參考用，不排除任何訊號。
     n_pool = sum(1 for s in stocks if s.get("pool_pass"))
@@ -860,10 +901,12 @@ def build_state(data: dict[str, pd.DataFrame], rows: list[tuple[str, str, str]],
         bull = round(sum(1 for s in members if s["above20"]) / len(members) * 100, 0)
         avg_score = round(sum(s["score"] for s in members) / len(members), 1)
         leader = max(members, key=lambda s: s["chg"])
+        inst_count = sum(1 for m in members if (m.get("consec_buy_days") or 0) >= 1)
         sectors.append({
             "name": ind, "avg_chg": avg_chg, "bull_pct": bull,
             "score": avg_score, "count": len(members), "hue": industry_hue(ind),
             "leader": f"{leader['name']} {leader['chg']:+.1f}%",
+            "inst_count": inst_count,
         })
     sectors.sort(key=lambda s: s["score"], reverse=True)
 
@@ -1013,6 +1056,15 @@ def build_state(data: dict[str, pd.DataFrame], rows: list[tuple[str, str, str]],
                 "retail_surge": rec.get("retail_surge"),
             })
 
+    # ── Dcard 洞見 ⑪：聰明錢評分（散戶流出 + 法人連買） ─────────────────────
+    for s in stocks:
+        sm = 0
+        consec = s.get("consec_buy_days") or 0
+        if consec >= 1:          sm += 25
+        if consec >= 3:          sm += 25
+        if s.get("retail_exit"): sm += 50
+        s["smart_money"] = sm
+
     # 集保戶數散戶流出榜(retail_exit=True 且有確認訊號)
     TDCC_TOP = 8
     with_tdcc = [s for s in stocks if s.get("small_chg_pct") is not None]
@@ -1083,7 +1135,15 @@ def _card(s: dict) -> dict:
             # 集保戶數(TDCC 週更新；缺資料 None)
             "small_count": s.get("small_count"), "small_count_chg": s.get("small_count_chg"),
             "small_chg_pct": s.get("small_chg_pct"),
-            "retail_exit": s.get("retail_exit"), "retail_surge": s.get("retail_surge")}
+            "retail_exit": s.get("retail_exit"), "retail_surge": s.get("retail_surge"),
+            # ── Dcard 洞見 ─────────────────────────────────────────────────────
+            "adr_pct": s.get("adr_pct"),
+            "liq_ok": s.get("liq_ok", False),
+            "wave_score": s.get("wave_score", 0),
+            "smart_money": s.get("smart_money", 0),
+            "vol_lead": s.get("vol_lead", False),
+            "drawdown_60": s.get("drawdown_60"),
+            "dual_frame": s.get("dual_frame", False)}
 
 
 def _sig(s: dict, confirmed_mode: bool) -> dict:
