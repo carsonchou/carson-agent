@@ -4,6 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>量化阿森 · 台股數據獵手</title>
+<!-- PWA：可裝成手機 App(加到主畫面)、全螢幕、離線開殼 -->
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#0a0e15">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="數據獵手">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<link rel="icon" type="image/png" href="/icon-192.png">
 <!-- 專業金融終端字體：IBM Plex Sans(標題/數字) / IBM Plex Mono(等寬 tabular) / Noto Sans TC(中文) -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2291,6 +2299,8 @@ load();
 // 輪詢當 SSE 的安全網：盤中 15 秒、盤後 30 秒；每輪順便拉 prefs
 setInterval(()=>{ load(); pullPrefs(); }, (lastData&&lastData.market_open)?15000:30000);
 initSSE();
+// PWA：註冊 service worker（可裝成手機 App、離線開殼）
+if('serviceWorker' in navigator){ try{ navigator.serviceWorker.register('/sw.js').catch(()=>{}); }catch(e){} }
 // 立即更新（給頂部 ⟳ 鈕用）
 window.forceRefresh=function(){ load(); pullPrefs();
   const av=document.querySelector('.tab.active')?.dataset.v;
