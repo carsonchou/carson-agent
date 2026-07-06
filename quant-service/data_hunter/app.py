@@ -47,6 +47,8 @@ def worker():
     zones_day: date | None = None
     dt_pool_day: date | None = None
     dt_pool: list = []
+    pre_day: date | None = None
+    post_day: date | None = None
     print(f"[app] 背景掃描啟動（全市場 {len(rows)} 檔）")
     while True:
         mh = _market_hours()
@@ -81,6 +83,26 @@ def worker():
                     print(f"[app] 當沖 regime={o['regime']['label']} 訊號{len(o['signals'])} 擋{len(o['filtered'])}")
                 except Exception as e:
                     print(f"[app] 當沖掃描略過：{type(e).__name__}: {e}")
+            # 盤前準備(08:40-08:55) / 盤後總結(13:31-13:50) 各每日一次
+            hm_now = datetime.now().hour * 60 + datetime.now().minute
+            if datetime.now().weekday() < 5:
+                try:
+                    import daytrade_live
+                    if pre_day != today and 8 * 60 + 40 <= hm_now <= 8 * 60 + 55:
+                        if not dt_pool:
+                            import daytrade_eligibility
+                            daytrade_eligibility.refresh()
+                            dt_pool = daytrade_live.build_pool(full=True, use_cache_only=True)
+                            dt_pool_day = today
+                        daytrade_live.premarket_report(dt_pool)
+                        pre_day = today
+                        print("[app] 盤前當沖準備已推播")
+                    if post_day != today and 13 * 60 + 31 <= hm_now <= 13 * 60 + 50:
+                        daytrade_live.postmarket_report()
+                        post_day = today
+                        print("[app] 盤後當沖總結已推播")
+                except Exception as e:
+                    print(f"[app] 盤前/盤後報告略過：{type(e).__name__}: {e}")
         except Exception as e:
             print(f"[app] 本輪錯誤（續跑）：{type(e).__name__}: {e}")
         wait = 2 if mh else 30

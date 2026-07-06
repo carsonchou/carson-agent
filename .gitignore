@@ -144,6 +144,7 @@ twdata/intl_indices.json
 quant-service/data_hunter/state_daytrade.json
 quant-service/data_hunter/daytrade_book.json
 quant-service/data_hunter/daytrade_pushed.json
+quant-service/data_hunter/daytrade_reports.json
 twdata/daytrade.json
 twdata/daytrade_intraday.json
 twdata/daytrade_eligibility_*.json

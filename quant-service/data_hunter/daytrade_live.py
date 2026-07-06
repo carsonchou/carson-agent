@@ -354,7 +354,7 @@ def detect_signals(pool: list[dict], acc: dict, regime: dict, quotes: dict, now:
                 "ts": now.strftime("%H:%M"), "price": price, "chg": chg,
                 "entry": entry, "entry_type": entry_type, "stop": stop, "targets": targets,
                 "risk": round(risk, 2), "room_R": room_R, "next_level": nr,
-                "vwap_dev": feat["vwap_dev"], "vol_ratio": feat["vol_ratio"], "ob_ratio": feat["ob_ratio"],
+                "vwap": vwap, "vwap_dev": feat["vwap_dev"], "vol_ratio": feat["vol_ratio"], "ob_ratio": feat["ob_ratio"],
                 "vol_type": feat["vol_type"], "pull_order": feat["pull_order"], "divergence": feat["divergence"],
                 "confirmed": confirmed, "orb_break": setup.startswith("開盤"),
                 "break_atr": round(abs(price - p["recent_high20" if long else "recent_low20"]) / atr, 2),
@@ -416,6 +416,8 @@ def scan_live(pool: list[dict], push: bool = True, now: datetime | None = None,
     tod = _tod(now)
     minutes_to_close = SESSION_END - _now_min(now)
 
+    bstats = book_stats if book_stats is not None else _book_stats()
+    wts = weights if weights is not None else _fit_weights()
     cands = detect_signals(pool, acc, regime, quotes, now)
     signals, filtered = [], []
     for c in cands:
@@ -426,7 +428,7 @@ def scan_live(pool: list[dict], push: bool = True, now: datetime | None = None,
         m["exec_ok"] = _exec_ok(quotes.get(c["code"]), c["dir"], cfg)
         ctx = {"regime": regime["label"], "tod": tod, "streak": _streak(),
                "minutes_to_close": minutes_to_close}
-        v = brain.verdict(m, c["dir"], c["setup"], ctx, book_stats, cfg, weights)
+        v = brain.verdict(m, c["dir"], c["setup"], ctx, bstats, cfg, wts)
         c["brain"] = {"p": v["p"], "conf": v["conf"], "ev_R": v["ev_R"], "ev_net_R": v["ev_net_R"],
                       "ev_net_twd": v["ev_net_twd"], "breakeven": v["breakeven"], "grade": v["grade"],
                       "size_lots": v["size"].get("lots"), "size_note": v["size"].get("note"),
@@ -451,9 +453,16 @@ def scan_live(pool: list[dict], push: bool = True, now: datetime | None = None,
             if key in pushed:
                 continue
             _emit_push(c, regime)
-            _record_book(c, today)            # 前向追蹤(批2 評估出場)
+            _record_book(c, today, regime["label"], tod)   # 前向追蹤
             pushed.add(key)
         _save_pushed(today, pushed)
+
+    # 前向追蹤：更新未平倉出場、記錄被擋單(A/B 驗證)
+    try:
+        _update_book_outcomes(quotes, today, out_market_open := scan._market_open_now())
+        _record_blocked(filtered, today)
+    except Exception:
+        pass
 
     ranks = _build_ranks(pool, acc, quotes)
     out = {
@@ -509,22 +518,31 @@ def _circuit_breaker(cfg) -> dict:
     return {"tripped": day_R <= limit, "day_pnl_R": round(day_R, 2), "limit_R": limit}
 
 
-def _record_book(c, today):
-    try:
-        b = json.loads(BOOK.read_text(encoding="utf-8")) if BOOK.exists() else {"trades": []}
-    except Exception:
-        b = {"trades": []}
+def _record_book(c, today, regime="中性", tod="盤中"):
+    b = _load_book()
     b["updated"] = today
     if any(t.get("code") == c["code"] and t.get("dir") == c["dir"]
-           and t.get("date") == today for t in b["trades"]):
+           and t.get("date") == today and t.get("status") != "blocked" for t in b.get("trades", [])):
         return
-    b["trades"].append({
+    b.setdefault("trades", []).append({
         "date": today, "code": c["code"], "name": c["name"], "dir": c["dir"], "setup": c["setup"],
+        "regime": regime, "tod": tod,
         "entry": c["entry"], "stop": c["stop"], "tp": c["targets"], "ts": today + "T" + c["ts"],
         "pred_p": c["brain"]["p"], "pred_ev": c["brain"]["ev_net_R"], "grade": c["grade"],
         "factors": c["brain"].get("factors") or {}, "status": "open", "result": None,
         "post_h": c["price"], "post_l": c["price"],
     })
+    _save_book(b)
+
+
+def _load_book() -> dict:
+    try:
+        return json.loads(BOOK.read_text(encoding="utf-8"))
+    except Exception:
+        return {"trades": []}
+
+
+def _save_book(b: dict) -> None:
     try:
         tmp = BOOK.with_suffix(".tmp")
         tmp.write_text(json.dumps(b, ensure_ascii=False), encoding="utf-8")
@@ -533,16 +551,113 @@ def _record_book(c, today):
         pass
 
 
-def _book_summary() -> dict:
+def _update_book_outcomes(quotes: dict, today: str, market_open: bool) -> None:
+    """前向追蹤：更新未平倉訊號的訊號後高低，判先碰停損=loss/先碰tp1=win；收盤未達→收盤平倉結算 R。
+    停損優先(當沖 whipsaw 保守假設)。blocked(被擋)單同法評估供 A/B 驗證。"""
+    b = _load_book()
+    changed = False
+    for t in b.get("trades", []):
+        if t.get("result") or t.get("date") != today:
+            continue
+        long = t["dir"] == "long"
+        entry, stop = t["entry"], t["stop"]
+        tp1 = t["tp"][0] if isinstance(t.get("tp"), list) else t.get("tp")
+        risk = abs(entry - stop) or (entry * 0.01)
+        q = quotes.get(t["code"]); px = q.get("price") if q else None
+        if px is not None:
+            t["post_h"] = max(t.get("post_h", px), px)
+            t["post_l"] = min(t.get("post_l", px), px)
+            changed = True
+        ph, pl = t.get("post_h", entry), t.get("post_l", entry)
+        if long:
+            if pl <= stop:
+                t.update(result="loss", ret_R=-1.0, exit=stop, exit_reason="停損"); changed = True
+            elif tp1 and ph >= tp1:
+                t.update(result="win", ret_R=round((tp1 - entry) / risk, 2), exit=tp1, exit_reason="停利tp1"); changed = True
+        else:
+            if ph >= stop:
+                t.update(result="loss", ret_R=-1.0, exit=stop, exit_reason="停損"); changed = True
+            elif tp1 and pl <= tp1:
+                t.update(result="win", ret_R=round((entry - tp1) / risk, 2), exit=tp1, exit_reason="停利tp1"); changed = True
+        if not t.get("result") and not market_open and px is not None:
+            won = (px > entry) if long else (px < entry)
+            t.update(result="win" if won else "loss",
+                     ret_R=round(((px - entry) if long else (entry - px)) / risk, 2),
+                     exit=px, exit_reason="收盤平倉"); changed = True
+    if changed:
+        _save_book(b)
+
+
+def _record_blocked(filtered: list, today: str) -> None:
+    """記錄被大腦擋下的單(A/B 追蹤)：事後同法評估，證明擋對了。"""
+    if not filtered:
+        return
+    b = _load_book()
+    have = {(t["code"], t["dir"]) for t in b.get("trades", []) if t.get("date") == today}
+    for c in filtered[:5]:
+        if (c["code"], c["dir"]) in have:
+            continue
+        b.setdefault("trades", []).append({
+            "date": today, "code": c["code"], "name": c["name"], "dir": c["dir"], "setup": c.get("setup"),
+            "entry": c["entry"], "stop": c["stop"], "tp": c["targets"], "ts": today + "T" + c.get("ts", ""),
+            "status": "blocked", "result": None, "post_h": c["price"], "post_l": c["price"],
+            "pred_p": c["brain"].get("p"),
+        })
+        have.add((c["code"], c["dir"]))
+    b["updated"] = today
+    _save_book(b)
+
+
+def _book_stats() -> dict:
+    """給大腦 win_prob 的分層經驗勝率：setup 與 setup|regime|tod 兩層 + 各 setup 平均賺R。"""
+    b = _load_book()
+    fin = [t for t in b.get("trades", []) if t.get("status") != "blocked" and t.get("result") in ("win", "loss")]
+    agg = {}
+    def _acc(key, t):
+        r = agg.setdefault(key, {"n": 0, "win": 0, "winR": []})
+        r["n"] += 1
+        if t["result"] == "win":
+            r["win"] += 1; r["winR"].append(t.get("ret_R", 1) or 1)
+    for t in fin:
+        _acc(t.get("setup", "?"), t)
+        _acc(f"{t.get('setup','?')}|{t.get('regime','中性')}|{t.get('tod','盤中')}", t)
+    out = {}
+    for k, r in agg.items():
+        out[k] = {"n": r["n"], "winrate": round(r["win"] / r["n"], 3),
+                  "avg_win_R": round(sum(r["winR"]) / len(r["winR"]), 2) if r["winR"] else 1.5}
+    return out
+
+
+def _fit_weights():
     try:
-        b = json.loads(BOOK.read_text(encoding="utf-8"))
-        fin = [t for t in b.get("trades", []) if t.get("result") in ("win", "loss")]
-        n = len(fin)
-        wr = round(sum(1 for t in fin if t["result"] == "win") / n, 3) if n else None
-        avgR = round(sum(t.get("ret_R", 0) or 0 for t in fin) / n, 2) if n else None
-        return {"n": n, "winrate": wr, "avg_R": avgR, "learning": "累積中" if n < brain.LOGISTIC_MIN_N else "logistic"}
+        return brain.fit_logistic(_load_book().get("trades", []))
     except Exception:
-        return {"n": 0, "winrate": None, "avg_R": None, "learning": "累積中"}
+        return None
+
+
+def _book_summary() -> dict:
+    b = _load_book()
+    trades = b.get("trades", [])
+    fin = [t for t in trades if t.get("status") != "blocked" and t.get("result") in ("win", "loss")]
+    blocked = [t for t in trades if t.get("status") == "blocked" and t.get("result") in ("win", "loss")]
+    n = len(fin)
+    wr = round(sum(1 for t in fin if t["result"] == "win") / n, 3) if n else None
+    avgR = round(sum(t.get("ret_R", 0) or 0 for t in fin) / n, 2) if n else None
+    preds = [t.get("pred_p") for t in fin if t.get("pred_p") is not None]
+    avg_pred = round(sum(preds) / len(preds), 3) if preds else None
+    # 各 setup
+    by = {}
+    for t in fin:
+        s = t.get("setup", "?"); r = by.setdefault(s, {"n": 0, "win": 0})
+        r["n"] += 1; r["win"] += 1 if t["result"] == "win" else 0
+    by_setup = {s: {"n": r["n"], "winrate": round(r["win"] / r["n"], 2)} for s, r in by.items()}
+    # A/B：被擋單事後沒賺的比例
+    blk_noprofit = sum(1 for t in blocked if (t.get("ret_R") or 0) <= 0)
+    learning = _fit_weights()
+    return {"n": n, "winrate": wr, "avg_R": avgR, "avg_pred_p": avg_pred,
+            "brain_hit": wr, "calib_gap": round((avg_pred - wr), 3) if (avg_pred and wr is not None) else None,
+            "by_setup": by_setup, "blocked_n": len(blocked), "blocked_noprofit": blk_noprofit,
+            "learning": ("logistic(n=%d)" % n) if learning else "累積中(啟發式)"}
 
 
 def _build_ranks(pool, acc, quotes) -> dict:
@@ -583,8 +698,71 @@ def _emit_push(c, regime):
         pass
 
 
-def _load_reports(today):
-    return {"pre": None, "post": None}
+REPORTS = HERE / "daytrade_reports.json"
+
+
+def _load_reports(today: str) -> dict:
+    try:
+        r = json.loads(REPORTS.read_text(encoding="utf-8"))
+        return {"pre": r.get("pre"), "post": r.get("post")} if r.get("date") == today else {"pre": None, "post": None}
+    except Exception:
+        return {"pre": None, "post": None}
+
+
+def _save_reports(today: str, **kw) -> None:
+    r = {"date": today}
+    try:
+        old = json.loads(REPORTS.read_text(encoding="utf-8"))
+        if old.get("date") == today:
+            r.update({k: old.get(k) for k in ("pre", "post")})
+    except Exception:
+        pass
+    r.update(kw)
+    try:
+        tmp = REPORTS.with_suffix(".tmp")
+        tmp.write_text(json.dumps(r, ensure_ascii=False), encoding="utf-8")
+        os.replace(tmp, REPORTS)
+    except Exception:
+        pass
+
+
+def premarket_report(pool: list[dict], push: bool = True) -> str:
+    """盤前(08:45)：今日當沖池 top10 + 重點位階 + 預期環境。"""
+    today = date.today().isoformat()
+    top = pool[:10]
+    lines = ["📋 今日當沖池 top10（依活躍度）："]
+    for p in top:
+        lines.append(f"  {p['code']} {p['name'][:6]} · ADR{p.get('adr_pct')}% · 昨高{p.get('recent_high20')} 昨低{p.get('recent_low20')}")
+    lines.append("重點：突破昨高爆量做多、跌破昨低爆量做空；開盤15分ORB定區間。當日平倉、嚴設停損。")
+    txt = "\n".join(lines)
+    _save_reports(today, pre=txt)
+    if push:
+        try:
+            import notify
+            notify.broadcast(txt, title="盤前當沖準備", priority="default")
+        except Exception:
+            pass
+    return txt
+
+
+def postmarket_report(push: bool = True) -> str:
+    """盤後(13:35)：今日戰績總結 + 大腦命中率 + A/B 擋單驗證。"""
+    today = date.today().isoformat()
+    # 收盤先把未平倉的用最後結果結算(無 quote → 略過，靠盤中最後一輪已結)
+    s = _book_summary()
+    wr = f"{s['winrate']*100:.0f}%" if s.get("winrate") is not None else "—"
+    txt = (f"📊 今日當沖總結：{s.get('n',0)} 單結算 · 勝率 {wr} · 平均 {s.get('avg_R')}R\n"
+           f"大腦命中 {wr} · 自學 {s.get('learning')}\n"
+           f"擋掉 {s.get('blocked_n',0)} 單，{s.get('blocked_noprofit',0)} 單事後確實沒賺（擋對了）\n"
+           f"明日再戰，嚴守紀律。")
+    _save_reports(today, post=txt)
+    if push:
+        try:
+            import notify
+            notify.broadcast(txt, title="盤後當沖總結", priority="default")
+        except Exception:
+            pass
+    return txt
 
 
 def _write(out: dict) -> None:

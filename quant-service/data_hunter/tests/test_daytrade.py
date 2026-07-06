@@ -219,6 +219,60 @@ class TestEngine(unittest.TestCase):
             notify.broadcast = _b
 
 
+# ── 實盤戰績前向追蹤 / 自學統計(批2) ─────────────────────────────────────────
+class TestBook(unittest.TestCase):
+    def setUp(self):
+        self._store = {"trades": []}
+        self._lb, self._sb = dl._load_book, dl._save_book
+        dl._load_book = lambda: self._store
+        dl._save_book = lambda b: self._store.update(b)
+
+    def tearDown(self):
+        dl._load_book, dl._save_book = self._lb, self._sb
+
+    def _mktrade(self, **kw):
+        t = {"date": "2026-07-06", "code": "2330", "dir": "long", "setup": "爆量突破多日高",
+             "regime": "趨勢多日", "tod": "盤中", "entry": 100, "stop": 98, "tp": [102, 104, "移動"],
+             "status": "open", "result": None, "post_h": 100, "post_l": 100, "pred_p": 0.6}
+        t.update(kw); return t
+
+    def test_outcome_win_on_tp(self):
+        self._store["trades"] = [self._mktrade()]
+        dl._update_book_outcomes({"2330": {"price": 103}}, "2026-07-06", market_open=True)
+        t = self._store["trades"][0]
+        self.assertEqual(t["result"], "win")
+        self.assertEqual(t["ret_R"], 1.0)                 # tp1=102=entry+1R
+
+    def test_outcome_loss_on_stop(self):
+        self._store["trades"] = [self._mktrade()]
+        dl._update_book_outcomes({"2330": {"price": 97}}, "2026-07-06", market_open=True)
+        self.assertEqual(self._store["trades"][0]["result"], "loss")
+        self.assertEqual(self._store["trades"][0]["ret_R"], -1.0)
+
+    def test_outcome_close_flat(self):
+        self._store["trades"] = [self._mktrade()]
+        dl._update_book_outcomes({"2330": {"price": 101}}, "2026-07-06", market_open=False)
+        t = self._store["trades"][0]
+        self.assertEqual(t["result"], "win")              # 收盤 101>進場 → 小賺
+        self.assertEqual(t["exit_reason"], "收盤平倉")
+
+    def test_book_stats_and_summary(self):
+        self._store["trades"] = [
+            self._mktrade(result="win", ret_R=1.5, status="open"),
+            self._mktrade(code="2317", result="loss", ret_R=-1.0),
+            {"date": "2026-07-06", "code": "3661", "dir": "long", "setup": "x", "status": "blocked",
+             "result": "loss", "ret_R": -1.0, "pred_p": 0.4},
+        ]
+        st = dl._book_stats()
+        self.assertIn("爆量突破多日高", st)
+        self.assertEqual(st["爆量突破多日高"]["n"], 2)
+        self.assertAlmostEqual(st["爆量突破多日高"]["winrate"], 0.5, places=2)
+        summ = dl._book_summary()
+        self.assertEqual(summ["n"], 2)
+        self.assertEqual(summ["blocked_n"], 1)
+        self.assertEqual(summ["blocked_noprofit"], 1)      # 被擋單事後沒賺→擋對了
+
+
 # ── 可當沖過濾 ───────────────────────────────────────────────────────────────
 class TestEligibility(unittest.TestCase):
     def test_status(self):
