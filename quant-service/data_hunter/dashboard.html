@@ -1070,6 +1070,7 @@
       <span id="upd">連線中…</span>
       <span class="streamLed" id="streamLed" title="串流狀態"></span>
       <button class="dhRefresh" id="dhRefreshBtn" title="立即更新">⟳</button>
+      <button class="dhRefresh" id="dhPhoneBtn" title="手機開（掃 QR）">📱</button>
       <!-- 下次更新倒數環 -->
       <svg class="ring" id="ring" viewBox="0 0 36 36">
         <circle class="track" cx="18" cy="18" r="15" fill="none" stroke-width="3"></circle>
@@ -1928,6 +1929,23 @@ $('#togNotify').addEventListener('click',async()=>{
   localStorage.setItem('dh_notify',notifyOn?'1':'0'); paintTogs(); window.pushPrefs&&window.pushPrefs();
 });
 $('#dhRefreshBtn')&&$('#dhRefreshBtn').addEventListener('click',()=>window.forceRefresh&&window.forceRefresh());
+$('#dhPhoneBtn')&&$('#dhPhoneBtn').addEventListener('click',showQR);
+async function showQR(){
+  let info={}; try{ const r=await fetch('/api/netinfo',{cache:'no-store'}); info=await r.json(); }catch(e){}
+  const lan=info.lan_ip?`http://${info.lan_ip}:${info.port||8899}/`:'';
+  const pub=info.tunnel_url||'';
+  const qr=u=>`/api/qr?data=${encodeURIComponent(u)}`;
+  let m=document.getElementById('qrModal');
+  if(!m){ m=document.createElement('div'); m.id='qrModal'; m.className='pfModal'; document.body.appendChild(m);
+    m.addEventListener('click',e=>{ if(e.target===m||e.target.classList.contains('qrClose')) m.classList.remove('show'); }); }
+  const keyNote=info.needs_key?'<div style="color:var(--gold);font-size:11px;margin-top:6px">手機開啟後需輸入通行碼</div>':'';
+  m.innerHTML=`<div class="pfmCard" style="width:min(420px,94vw);text-align:center">`+
+    `<button class="smClose qrClose">×</button><div class="pfmTitle">📱 手機開</div>`+
+    (lan?`<div style="margin:6px 0 4px;color:var(--dim);font-size:12px">同 wifi（手機掃描）</div><img src="${qr(lan)}" style="width:196px;height:196px" alt="LAN QR"><div style="font-family:var(--mono);font-size:11px;color:var(--faint);word-break:break-all">${lan}</div>`:'')+
+    (pub?`<div style="margin:14px 0 4px;color:var(--gold);font-size:12px">在外面（公網）</div><img src="${qr(pub)}" style="width:196px;height:196px" alt="Public QR"><div style="font-family:var(--mono);font-size:11px;color:var(--faint);word-break:break-all">${pub}</div>`:`<div style="margin-top:14px;color:var(--faint);font-size:11px">在外面用：先跑「手機遠端」腳本起 tunnel，這裡會出公網 QR</div>`)+
+    keyNote+`<div style="margin-top:12px;color:var(--faint);font-size:10.5px">開啟後「加到主畫面」即成手機 App</div></div>`;
+  m.classList.add('show');
+}
 paintTogs();
 function fireNewSignals(fresh){ // fresh: 本輪新確認訊號物件陣列
   if(!fresh.length||SNAP)return;

@@ -48,6 +48,25 @@ def _load_prefs() -> dict:
         return {"data": {}, "ts": 0}
 
 
+def _lan_ip() -> str:
+    import socket
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80)); ip = s.getsockname()[0]; s.close()
+        return ip
+    except Exception:
+        return "127.0.0.1"
+
+
+_LOGIN_HTML = """<!doctype html><meta name=viewport content="width=device-width,initial-scale=1">
+<title>量化阿森 · 需要通行碼</title>
+<body style="background:#0a0e15;color:#d3dae6;font-family:system-ui;display:flex;height:90vh;align-items:center;justify-content:center">
+<form style="text-align:center"><div style="font-size:18px;margin-bottom:14px">量化阿森 · 數據獵手</div>
+<input name=key type=password placeholder="通行碼" autofocus style="padding:10px 14px;border-radius:8px;border:1px solid #5a6678;background:#111823;color:#d3dae6;font-size:15px">
+<button style="margin-left:8px;padding:10px 16px;border-radius:8px;border:1px solid #5a93bd;background:#5a93bd;color:#0a0e15;font-size:15px">進入</button>
+<div style="color:#5a6678;font-size:12px;margin-top:14px">此看板含個人財務資料，需通行碼</div></form></body>"""
+
+
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *a, **k):
         super().__init__(*a, directory=str(HERE), **k)
@@ -67,6 +86,37 @@ class Handler(SimpleHTTPRequestHandler):
         if path == "/api/prefs":
             # 全狀態跨裝置同步：讀 prefs.json（庫存/自選/警示/設定…）
             self._send_json({"ok": True, **_load_prefs()})
+            return True
+        if path == "/api/netinfo":
+            # 給前端 QR：區網 IP、埠、是否需要 key、tunnel 公網 URL
+            key = os.getenv("DH_ACCESS_KEY", "").strip()
+            tun = ""
+            try:
+                tf = HERE / "tunnel_url.txt"
+                if tf.exists():
+                    tun = tf.read_text(encoding="utf-8").strip()
+            except Exception:
+                tun = ""
+            self._send_json({"ok": True, "lan_ip": _lan_ip(), "port": self.server.server_address[1],
+                             "needs_key": bool(key), "tunnel_url": tun})
+            return True
+        if path == "/api/qr":
+            # 伺服器端產 QR（segno 純 python，離線可跑；缺 segno → 降級回文字）
+            data = (qs.get("data", [""])[0]).strip()
+            try:
+                import segno
+                import io
+                buf = io.BytesIO()
+                segno.make(data, error="m").save(buf, kind="svg", scale=5, dark="#0a0e15", light="#d3dae6", border=2)
+                body = buf.getvalue()
+                self.send_response(200)
+                self.send_header("Content-Type", "image/svg+xml; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                self.wfile.write(body)
+            except Exception as e:
+                self._send_json({"ok": False, "error": f"QR 產生失敗（可能未裝 segno）：{e}", "data": data}, status=500)
             return True
         if path not in ("/api/stock", "/api/search", "/api/analyst", "/api/news",
                         "/api/quote", "/api/indices", "/api/zones", "/api/daytrade"):
@@ -235,7 +285,41 @@ class Handler(SimpleHTTPRequestHandler):
         except (BrokenPipeError, ConnectionResetError, OSError):
             return
 
+    def _authed(self):
+        """回 True(放行)/False(擋)/'set'(query 帶對的 key → 種 cookie)。未設 DH_ACCESS_KEY→全放行。"""
+        key = os.getenv("DH_ACCESS_KEY", "").strip()
+        if not key:
+            return True
+        if f"dhkey={key}" in (self.headers.get("Cookie", "") or ""):
+            return True
+        qs = parse_qs(urlsplit(self.path).query)
+        if qs.get("key", [""])[0] == key:
+            return "set"
+        return False
+
+    def _auth_gate(self) -> bool:
+        """擋則回 True(已回應)。放行/需種cookie 由呼叫端續處理。"""
+        au = self._authed()
+        if au is True:
+            return False
+        key = os.getenv("DH_ACCESS_KEY", "").strip()
+        if au == "set":
+            self.send_response(302)
+            self.send_header("Set-Cookie", f"dhkey={key}; Path=/; Max-Age=2592000; SameSite=Lax")
+            self.send_header("Location", urlsplit(self.path).path or "/")
+            self.end_headers()
+            return True
+        body = _LOGIN_HTML.encode("utf-8")
+        self.send_response(401)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+        return True
+
     def do_GET(self):
+        if self._auth_gate():
+            return
         split = urlsplit(self.path)
         if split.path == "/api/stream":
             return self._handle_stream()
@@ -246,6 +330,8 @@ class Handler(SimpleHTTPRequestHandler):
         return super().do_GET()
 
     def do_POST(self):
+        if self._auth_gate():
+            return
         split = urlsplit(self.path)
         if split.path == "/api/prefs":
             try:
