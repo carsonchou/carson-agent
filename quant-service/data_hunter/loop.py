@@ -62,7 +62,7 @@ def main():
                     if dt_pool_day != _date.today() or not dt_pool:
                         import daytrade_eligibility
                         daytrade_eligibility.refresh()
-                        dt_pool = daytrade_live.build_pool(full=True, use_cache_only=True)
+                        dt_pool = daytrade_live.build_universe(full=True, use_cache_only=True)
                         dt_pool_day = _date.today()
                     daytrade_live.scan_live(dt_pool, push=not args.no_push)
                 except Exception as e:

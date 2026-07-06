@@ -37,7 +37,13 @@ import daytrade_brain as brain
 import daytrade_eligibility as elig
 from health import _squash
 
-POOL_MAX = 150
+POOL_MAX = int(os.getenv("DT_POOL_MAX", 2500))          # 安全上限(>全市場，實務全收；分層輪掃管理載)
+TIER1_SEED = int(os.getenv("DT_TIER1_SEED", 400))       # 核心種子(pool_score top-N，每輪都掃)
+TIER2_SLICES = int(os.getenv("DT_TIER2_SLICES", 3))     # 長尾分幾片(=全市場幾輪掃完)
+HOT_VR = float(os.getenv("DT_HOT_VR", 2.0))             # 動態熱股：量能投影倍數門檻
+HOT_CHG = float(os.getenv("DT_HOT_CHG", 4.0))           # 動態熱股：|漲跌%| 門檻
+HOT_NEAR_LIMIT = 1.0                                    # 距漲跌停 <1% = 敲門
+HOT_MAX = int(os.getenv("DT_HOT_MAX", 200))             # 熱股集上限(滿了汰換最弱)
 SESSION_START = 9 * 60          # 09:00
 SESSION_END = 13 * 60 + 30      # 13:30
 ORB_END = 9 * 60 + 15           # 09:15
@@ -86,14 +92,15 @@ def _next_round(p: float, up: bool) -> float:
     return math.ceil(p / step) * step if up else math.floor(p / step) * step
 
 
-# ── 1. 當沖池 ────────────────────────────────────────────────────────────────
-def build_pool(full: bool = True, use_cache_only: bool = True) -> list[dict]:
+# ── 1. 全市場基準宇宙（不預先淘汰；分層輪掃在 scan_live） ─────────────────────
+def build_universe(full: bool = True, use_cache_only: bool = True) -> list[dict]:
+    """每日建全市場基準(~1925檔)。只要有足夠日線資料就收(不用 turnover/adr 門檻淘汰、
+    處置股只標旗標不剔除)——讓大腦在決策層擋，而非掃描層漏掉昨冷今熱的飆股。依 pool_score 排序。"""
     rows = universe.load_full_universe() if full else universe.all_codes()
     name_of = {c: n for c, n, _ in rows}
     ind_of = {c: i for c, _, i in rows}
     data = scan.load_universe_data(rows, use_cache_only=use_cache_only, intraday=False)
     eligd = elig.load()
-    # 籌碼/當沖比
     codes_all = list(data.keys())
     try:
         mm = scan.margin_mod.load_margin(codes_all, offline=True) if scan.margin_mod else {}
@@ -103,7 +110,7 @@ def build_pool(full: bool = True, use_cache_only: bool = True) -> list[dict]:
         cm = scan.chips.load_chips(codes_all, days=scan.CHIP_DAYS, offline=True) if scan.chips else {}
     except Exception:
         cm = {}
-    pool = []
+    uni = []
     for code, df in data.items():
         try:
             core = scan._analyse_core(code, df, drop_last=False)
@@ -112,29 +119,22 @@ def build_pool(full: bool = True, use_cache_only: bool = True) -> list[dict]:
             d = scan._lower(df.tail(70).reset_index(drop=True))
             high, low, close = d["high"].astype(float), d["low"].astype(float), d["close"].astype(float)
             vol = d["volume"].astype(float)
-            if len(close) < 20:
+            if len(close) < 20:                       # 唯一淘汰：資料不足
                 continue
             adr = core.get("adr_pct")
             turn = core.get("turnover_60d")
-            if adr is None or adr < 2.5 or not turn:
-                continue
-            big = turn >= 3e8
-            small_hot = turn >= 5e7 and adr >= 4
-            if not (big or small_hot):
-                continue
             atr22 = scan._atr_last(scan._lower(df.tail(180).reset_index(drop=True)), scan.CHAND_LEN)
             avg_vol20 = float(vol.tail(20).mean())            # 股數
             vl = core.get("vol_lots") or 0
             m = mm.get(code, {}); lots = m.get("day_trade_lots")
             dtp = (round(lots / vl * 100, 1) if (lots and vl > 0 and lots / vl * 100 <= 100) else None)
-            pscore = (_sq(adr, 3, 8) * .4 + _sq(dtp, 10, 40) * .35 + _sq(turn / 1e8, 1, 20) * .25)
+            pscore = (_sq(adr, 3, 8) * .4 + _sq(dtp, 10, 40) * .35 + _sq((turn or 0) / 1e8, 1, 20) * .25)
             st = elig.status(code, eligd)
-            if st["disposition"]:            # 處置分盤 → 剔除(不能現沖)
-                continue
             crec = cm.get(code, {}) if isinstance(cm.get(code), dict) else {}
-            pool.append({
+            pc = round(float(close.iloc[-1]), 2)
+            uni.append({
                 "code": code, "name": name_of.get(code, code), "industry": ind_of.get(code, ""),
-                "prev_close": round(float(close.iloc[-1]), 2),
+                "prev_close": pc,
                 "prev_high": round(float(high.iloc[-1]), 2), "prev_low": round(float(low.iloc[-1]), 2),
                 "recent_high20": round(float(high.tail(20).max()), 2),
                 "recent_low20": round(float(low.tail(20).min()), 2),
@@ -142,14 +142,57 @@ def build_pool(full: bool = True, use_cache_only: bool = True) -> list[dict]:
                 "recent_low60": round(float(low.tail(60).min()), 2),
                 "atr22": _r(atr22), "adr_pct": adr, "avg_vol20": avg_vol20,
                 "day_trade_pct": dtp, "turnover_60d": turn,
+                "limit_up": round(pc * 1.1, 2), "limit_down": round(pc * 0.9, 2),
                 "consec_buy_days": crec.get("consec_buy_days") or 0,
                 "attention": st["attention"], "can_daytrade": st["can_daytrade"],
                 "pscore": round(pscore, 3),
             })
         except Exception:
             continue
-    pool.sort(key=lambda x: x["pscore"], reverse=True)
-    return pool[:POOL_MAX]
+    uni.sort(key=lambda x: x["pscore"], reverse=True)
+    return uni[:POOL_MAX]
+
+
+build_pool = build_universe          # 向後相容別名
+
+
+# ── 分層輪掃選取 ＋ 動態熱股 ─────────────────────────────────────────────────
+def _select_scan_codes(universe: list[dict], acc: dict):
+    """核心(pool_score top-N ∪ 動態熱股)每輪掃；長尾跨步切片，TIER2_SLICES 輪掃完全市場。"""
+    seed = [u["code"] for u in universe[:TIER1_SEED]]
+    hot = list(acc.get("hot", {}).keys())
+    tier1 = list(dict.fromkeys(seed + hot))
+    rest = [u["code"] for u in universe[TIER1_SEED:]]
+    slices = max(1, TIER2_SLICES)
+    rot = acc.get("rot", 0) % slices
+    tier2 = rest[rot::slices]                          # 跨步切片：slices 輪內每檔剛好一次
+    acc["rot"] = (rot + 1) % slices
+    codes = list(dict.fromkeys(tier1 + tier2))
+    return codes, {"universe_n": len(universe), "tier1_n": len(tier1), "hot_n": len(hot),
+                   "swept": len(codes), "rot": rot, "slices": slices}
+
+
+def _update_hot(acc: dict, ubycode: dict, feats: dict, now: datetime) -> None:
+    """盤中動態抓新熱股：爆量/大漲跌/漲跌停敲門 → 進 hot 集(當日高頻盯)，滿 HOT_MAX 留最強。"""
+    hot = acc.setdefault("hot", {})
+    for code, f in feats.items():
+        u = ubycode.get(code)
+        vr = f.get("vol_ratio") or 0
+        chg = abs(f.get("chg_pct") or 0)
+        px = f.get("price")
+        near = False
+        if u and px and u.get("limit_up") and u.get("limit_down"):
+            near = (abs(px - u["limit_up"]) / u["limit_up"] * 100 < HOT_NEAR_LIMIT
+                    or abs(px - u["limit_down"]) / u["limit_down"] * 100 < HOT_NEAR_LIMIT)
+        if vr >= HOT_VR or chg >= HOT_CHG or near:
+            strength = round(max(vr / HOT_VR, chg / HOT_CHG, 1.2 if near else 0), 2)
+            if code not in hot:
+                hot[code] = {"since": now.strftime("%H:%M"), "score": strength}
+            else:
+                hot[code]["score"] = max(hot[code]["score"], strength)
+    if len(hot) > HOT_MAX:
+        keep = sorted(hot.items(), key=lambda kv: kv[1]["score"], reverse=True)[:HOT_MAX]
+        acc["hot"] = dict(keep)
 
 
 # ── 2. 盤中累積器(持久化) ────────────────────────────────────────────────────
@@ -291,8 +334,10 @@ def _targets(entry, risk, direction, p):
     return [tp1, tp2, "移動"], min(room_R, 3.0), nr
 
 
-def detect_signals(pool: list[dict], acc: dict, regime: dict, quotes: dict, now: datetime) -> list[dict]:
+def detect_signals(pool: list[dict], acc: dict, regime: dict, quotes: dict, now: datetime):
+    """回 (cands, feats)：feats[code]=本輪盤中特徵，供動態熱股判定不重算。"""
     cands = []
+    feats = {}
     pool_by = {p["code"]: p for p in pool}
     reg = regime["label"]
     for code, q in quotes.items():
@@ -301,6 +346,7 @@ def detect_signals(pool: list[dict], acc: dict, regime: dict, quotes: dict, now:
             continue
         a = acc["per_code"].setdefault(code, {})
         feat = _update_acc(a, q, now, p.get("avg_vol20") or 0)
+        feats[code] = feat
         price, chg = feat["price"], feat["chg_pct"] or 0
         vwap = feat["vwap"]
         for direction in ("long", "short"):
@@ -362,7 +408,7 @@ def detect_signals(pool: list[dict], acc: dict, regime: dict, quotes: dict, now:
                 "attention": p.get("attention"), "can_daytrade": p.get("can_daytrade"),
                 "is_etf": code.startswith("00"),
             })
-    return cands
+    return cands, feats
 
 
 # ── 5. 主編排 ────────────────────────────────────────────────────────────────
@@ -395,7 +441,8 @@ def scan_live(pool: list[dict], push: bool = True, now: datetime | None = None,
     now = now or datetime.now()
     today = now.strftime("%Y-%m-%d")
     cfg = cfg or {}
-    codes = [p["code"] for p in pool]
+    acc = _load_intraday(today)
+    codes, tier_meta = _select_scan_codes(pool, acc)          # 分層輪掃：核心∪熱股 + 當前長尾片
     if quotes is None:
         quotes = rq.fetch_quotes_batch(codes)
     if index_quote is None:
@@ -406,7 +453,6 @@ def scan_live(pool: list[dict], push: bool = True, now: datetime | None = None,
                 index_quote = {"price": index_quote.get("price"), "chg_pct": index_quote.get("chg_pct")}
         except Exception:
             index_quote = None
-    acc = _load_intraday(today)
     # index VWAP 累積(粗略：以指數價×1 當量)
     if index_quote and index_quote.get("price"):
         acc["index"]["vwap_num"] = acc["index"].get("vwap_num", 0.0) + index_quote["price"]
@@ -418,7 +464,8 @@ def scan_live(pool: list[dict], push: bool = True, now: datetime | None = None,
 
     bstats = book_stats if book_stats is not None else _book_stats()
     wts = weights if weights is not None else _fit_weights()
-    cands = detect_signals(pool, acc, regime, quotes, now)
+    cands, feats = detect_signals(pool, acc, regime, quotes, now)
+    _update_hot(acc, {u["code"]: u for u in pool}, feats, now)   # 動態抓盤中新熱股
     signals, filtered = [], []
     for c in cands:
         c["rs"] = _r((c["chg"] or 0) - idx_chg)
@@ -465,11 +512,22 @@ def scan_live(pool: list[dict], push: bool = True, now: datetime | None = None,
         pass
 
     ranks = _build_ranks(pool, acc, quotes)
+    # 🔥 盤中新熱股列（hot 集 ∩ 本輪有報價者，附現況）
+    ubycode = {u["code"]: u for u in pool}
+    hot_list = []
+    for code, h in (acc.get("hot") or {}).items():
+        q = quotes.get(code); u = ubycode.get(code)
+        hot_list.append({"code": code, "name": (u or {}).get("name", code),
+                         "since": h.get("since"), "score": h.get("score"),
+                         "chg": (q or {}).get("chg_pct"),
+                         "vol_ratio": (feats.get(code) or {}).get("vol_ratio")})
+    hot_list.sort(key=lambda x: x.get("score") or 0, reverse=True)
     out = {
         "generated_at": now.isoformat(timespec="seconds"), "market_open": scan._market_open_now(),
-        "pool_n": len(pool), "regime": regime, "circuit_breaker": cb,
-        "signals": signals, "filtered": filtered, "ranks": ranks,
+        "pool_n": tier_meta["swept"], "regime": regime, "circuit_breaker": cb,
+        "signals": signals, "filtered": filtered, "ranks": ranks, "hot_list": hot_list,
         "book_summary": _book_summary(), "daily_report": _load_reports(today), "tod": tod,
+        **tier_meta,
     }
     _write(out)
     _save_intraday(acc)
@@ -662,9 +720,10 @@ def _book_summary() -> dict:
 
 def _build_ranks(pool, acc, quotes) -> dict:
     rows = []
+    pby = {x["code"]: x for x in pool}
     for code, q in quotes.items():
         a = acc["per_code"].get(code, {})
-        p = next((x for x in pool if x["code"] == code), None)
+        p = pby.get(code)
         vr = None
         if p and p.get("avg_vol20"):
             frac = _elapsed_frac(datetime.now())
@@ -789,15 +848,16 @@ def load_daytrade() -> dict | None:
 if __name__ == "__main__":
     import warnings
     warnings.filterwarnings("ignore")
-    if "--pool" in sys.argv:
-        pl = build_pool()
-        print(f"[daytrade] 當沖池 {len(pl)} 檔；前10：")
+    if "--pool" in sys.argv or "--universe" in sys.argv:
+        pl = build_universe()
+        print(f"[daytrade] 全市場基準 {len(pl)} 檔；核心前10：")
         for p in pl[:10]:
             print(f"  {p['code']} {p['name'][:6]:6} adr{p['adr_pct']} 當沖比{p['day_trade_pct']} {p['pscore']}")
         raise SystemExit(0)
-    pool = build_pool()
+    pool = build_universe()
     out = scan_live(pool, push=("--push" in sys.argv))
-    print(f"[daytrade] regime={out['regime']['label']} 訊號{len(out['signals'])} 擋{len(out['filtered'])}")
+    print(f"[daytrade] 全市場{out.get('universe_n')} 本輪掃{out.get('swept')} 核心{out.get('tier1_n')}(熱{out.get('hot_n')}) "
+          f"regime={out['regime']['label']} 訊號{len(out['signals'])} 擋{len(out['filtered'])}")
     for s in out["signals"][:8]:
         b = s["brain"]
         print(f"  [{s['grade']}] {s['dir']} {s['code']} {s['name'][:6]} 進{s['entry']} 損{s['stop']} "

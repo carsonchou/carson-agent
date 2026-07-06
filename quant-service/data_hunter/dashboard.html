@@ -3592,7 +3592,7 @@ if(SNAP){ loadHistory(); }
       return;
     }
     const d=dlData;
-    if(meta) meta.textContent=`池 ${d.pool_n||'—'} 檔 · ${(d.generated_at||'').replace('T',' ').slice(5,16)}`;
+    if(meta) meta.textContent=(d.universe_n?`全市場 ${d.universe_n} · 核心 ${d.tier1_n||0}(🔥${d.hot_n||0}) · 本輪掃 ${d.swept||d.pool_n||'—'} · 輪掃第${(d.rot!=null?d.rot+1:'?')}/${d.slices||3}`:`池 ${d.pool_n||'—'} 檔`)+` · ${(d.generated_at||'').replace('T',' ').slice(5,16)}`;
     const reg=d.regime||{}, cb=d.circuit_breaker||{};
     if(head) head.innerHTML=
       `<span class="dlReg" style="color:${dlRegCol(reg.label)};border-color:${dlRegCol(reg.label)}">${reg.label||'—'}</span>`+
@@ -3715,7 +3715,15 @@ if(SNAP){ loadHistory(); }
     const R=d.ranks||{}; const col=(rows,fmt)=>rows&&rows.length?rows.map((r,i)=>
       `<div class="dlFiltRow"><span class="fr-nm">${i+1}. ${r.code} ${r.name||''}</span><span>${fmt(r)}</span></div>`).join(''):'<div class="dlFiltRow"><span class="fr-why">—</span></div>';
     const board=(title,rows,fmt)=>`<div class="pfDiagCard"><div class="dh">${title}</div>${col(rows,fmt)}</div>`;
-    body.innerHTML=`<div class="pfDiag">`+
+    // 🔥 盤中新熱股（動態升級進核心高頻盯的股：昨冷今熱的飆股）
+    const hot=d.hot_list||[];
+    let hotCard='';
+    if(hot.length){
+      hotCard=`<div class="pfDiagCard" style="grid-column:1/-1;border-color:var(--gold)"><div class="dh" style="color:var(--gold)">🔥 盤中新熱股 · EMERGING（升級高頻盯）</div>`+
+        hot.slice(0,15).map((h,i)=>`<div class="dlFiltRow"><span class="fr-nm" data-open="${h.code}" style="cursor:pointer">${i+1}. ${h.code} ${h.name||''} <span style="color:var(--faint);font-size:10px">${h.since||''}起</span></span>`+
+          `<span>量能 <b style="color:var(--acc2)">${h.vol_ratio!=null?h.vol_ratio+'x':'—'}</b> · <b style="color:${chgColor(h.chg)}">${h.chg!=null?sign(h.chg)+'%':'—'}</b></span></div>`).join('')+`</div>`;
+    }
+    body.innerHTML=`<div class="pfDiag">`+hotCard+
       board('漲幅榜 · UP',R.up,r=>`<span style="color:${chgColor(r.chg)}">${sign(r.chg)}%</span>`)+
       board('跌幅榜 · DOWN',R.down,r=>`<span style="color:${chgColor(r.chg)}">${sign(r.chg)}%</span>`)+
       board('爆量榜 · VOLUME',R.vol,r=>`<b>${r.vol_ratio}x</b>`)+

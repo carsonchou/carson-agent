@@ -162,9 +162,10 @@ class TestEngine(unittest.TestCase):
     def test_detect_long_breakout(self):
         acc = {"per_code": {}}
         regime = {"label": "趨勢多日"}
-        cands = dl.detect_signals(self._pool(), acc, regime,
-                                  {"2330": self._q(1001, 45000, 1001, 986)}, datetime(2026, 7, 6, 10, 30))
+        cands, feats = dl.detect_signals(self._pool(), acc, regime,
+                                         {"2330": self._q(1001, 45000, 1001, 986)}, datetime(2026, 7, 6, 10, 30))
         self.assertEqual(len(cands), 1)
+        self.assertIn("2330", feats)
         c = cands[0]
         self.assertEqual(c["dir"], "long")
         self.assertEqual(c["setup"], "爆量突破多日高")
@@ -173,20 +174,20 @@ class TestEngine(unittest.TestCase):
 
     def test_detect_no_trigger_low_volume(self):
         acc = {"per_code": {}}
-        cands = dl.detect_signals(self._pool(), acc, {"label": "趨勢多日"},
-                                  {"2330": self._q(1001, 3000, 1001, 986)}, datetime(2026, 7, 6, 10, 30))
+        cands, _ = dl.detect_signals(self._pool(), acc, {"label": "趨勢多日"},
+                                     {"2330": self._q(1001, 3000, 1001, 986)}, datetime(2026, 7, 6, 10, 30))
         self.assertEqual(len(cands), 0)                       # 量能不足不觸發
 
     def test_second_confirmation_on_choppy_day(self):
         # 震盪日：需二次確認(下一輪仍守)。第一輪 armed 不發、第二輪確認才發。
         acc = {"per_code": {}}
         pool = self._pool()
-        c1 = dl.detect_signals(pool, acc, {"label": "震盪日"},
-                               {"2330": self._q(1001, 60000, 1001, 986)}, datetime(2026, 7, 6, 10, 30))
+        c1, _ = dl.detect_signals(pool, acc, {"label": "震盪日"},
+                                  {"2330": self._q(1001, 60000, 1001, 986)}, datetime(2026, 7, 6, 10, 30))
         self.assertEqual(len(c1), 0)                          # 第一輪只 arm
         self.assertIn("armed", acc["per_code"]["2330"])
-        c2 = dl.detect_signals(pool, acc, {"label": "震盪日"},
-                               {"2330": self._q(1003, 90000, 1003, 986)}, datetime(2026, 7, 6, 10, 32))
+        c2, _ = dl.detect_signals(pool, acc, {"label": "震盪日"},
+                                  {"2330": self._q(1003, 90000, 1003, 986)}, datetime(2026, 7, 6, 10, 32))
         self.assertEqual(len(c2), 1)
         self.assertTrue(c2[0]["confirmed"])
 
@@ -271,6 +272,62 @@ class TestBook(unittest.TestCase):
         self.assertEqual(summ["n"], 2)
         self.assertEqual(summ["blocked_n"], 1)
         self.assertEqual(summ["blocked_noprofit"], 1)      # 被擋單事後沒賺→擋對了
+
+
+# ── 全市場分層輪掃 ＋ 動態熱股 ───────────────────────────────────────────────
+class TestTiering(unittest.TestCase):
+    def setUp(self):
+        self._s, self._sl = dl.TIER1_SEED, dl.TIER2_SLICES
+        dl.TIER1_SEED, dl.TIER2_SLICES = 2, 3
+
+    def tearDown(self):
+        dl.TIER1_SEED, dl.TIER2_SLICES = self._s, self._sl
+
+    def _uni(self, n=11):
+        return [{"code": f"{1000+i}", "name": f"s{i}", "pscore": 1 - i * 0.05} for i in range(n)]
+
+    def test_rotation_covers_all(self):
+        uni = self._uni(11)
+        acc = {"hot": {}}
+        seen = set()
+        rots = []
+        for _ in range(3):
+            codes, meta = dl._select_scan_codes(uni, acc)
+            seen |= set(codes)
+            rots.append(meta["rot"])
+            # Tier-1 種子恆在
+            self.assertIn("1000", codes); self.assertIn("1001", codes)
+        self.assertEqual(seen, {u["code"] for u in uni})     # 三輪掃完全部
+        self.assertEqual(rots, [0, 1, 2])
+        self.assertEqual(acc["rot"], 0)                       # 循環回 0
+
+    def test_hot_promotion_and_tier1(self):
+        uni = self._uni(11)
+        acc = {"hot": {}}
+        ub = {u["code"]: {**u, "limit_up": 110, "limit_down": 90} for u in uni}
+        feats = {"1005": {"vol_ratio": 2.5, "chg_pct": 1.0, "price": 50},   # 爆量
+                 "1006": {"vol_ratio": 1.0, "chg_pct": -5.0, "price": 50},  # 大跌
+                 "1007": {"vol_ratio": 1.0, "chg_pct": 1.0, "price": 109.5},  # 漲停敲門
+                 "1008": {"vol_ratio": 1.0, "chg_pct": 1.0, "price": 50}}    # 普通
+        dl._update_hot(acc, ub, feats, datetime(2026, 7, 6, 10, 30))
+        self.assertEqual(set(acc["hot"]), {"1005", "1006", "1007"})
+        self.assertNotIn("1008", acc["hot"])
+        _, meta = dl._select_scan_codes(uni, acc)
+        self.assertEqual(meta["hot_n"], 3)
+        self.assertEqual(meta["tier1_n"], 5)                  # 2 種子 + 3 熱股
+
+    def test_hot_max_eviction(self):
+        acc = {"hot": {}}
+        ub = {}
+        feats = {f"{2000+i}": {"vol_ratio": 2.0 + i * 0.1, "chg_pct": 0, "price": 50} for i in range(10)}
+        self._m = dl.HOT_MAX
+        dl.HOT_MAX = 3
+        try:
+            dl._update_hot(acc, ub, feats, datetime(2026, 7, 6, 10, 30))
+        finally:
+            dl.HOT_MAX = self._m
+        self.assertEqual(len(acc["hot"]), 3)                  # 留最強 3 檔
+        self.assertIn("2009", acc["hot"])                     # 最強(vr2.9)留下
 
 
 # ── 可當沖過濾 ───────────────────────────────────────────────────────────────

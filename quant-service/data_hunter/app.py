@@ -76,9 +76,9 @@ def worker():
                     if dt_pool_day != today or not dt_pool:
                         import daytrade_eligibility
                         daytrade_eligibility.refresh()
-                        dt_pool = daytrade_live.build_pool(full=True, use_cache_only=True)
+                        dt_pool = daytrade_live.build_universe(full=True, use_cache_only=True)
                         dt_pool_day = today
-                        print(f"[app] 當沖池已建（{len(dt_pool)} 檔）")
+                        print(f"[app] 全市場基準已建（{len(dt_pool)} 檔）")
                     o = daytrade_live.scan_live(dt_pool, push=True)
                     print(f"[app] 當沖 regime={o['regime']['label']} 訊號{len(o['signals'])} 擋{len(o['filtered'])}")
                 except Exception as e:
@@ -92,7 +92,7 @@ def worker():
                         if not dt_pool:
                             import daytrade_eligibility
                             daytrade_eligibility.refresh()
-                            dt_pool = daytrade_live.build_pool(full=True, use_cache_only=True)
+                            dt_pool = daytrade_live.build_universe(full=True, use_cache_only=True)
                             dt_pool_day = today
                         daytrade_live.premarket_report(dt_pool)
                         pre_day = today
