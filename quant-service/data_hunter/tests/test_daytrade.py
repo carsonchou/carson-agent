@@ -366,5 +366,32 @@ class TestBatchQuote(unittest.TestCase):
         self.assertEqual(out["2317"]["prev_close"], 200.0)
 
 
+# ── 伺服器端到價警示監控 → ntfy（鎖屏也收，批2/G）────────────────────────────
+class TestAlertsMonitor(unittest.TestCase):
+    def test_triggered_alert_pushes_and_marks_done(self):
+        import alerts_monitor as am
+        import realtime_quote as rq
+        import notify
+        store = {"data": {"dh_alerts": json.dumps([
+            {"code": "2330", "name": "台積電", "op": "above", "price": 1000, "done": False},
+            {"code": "2317", "name": "鴻海", "op": "below", "price": 100, "done": False},
+        ])}, "ts": 1}
+        sent = []
+        _lp, _sp, _fb, _bc = am._load_prefs, am._save_prefs, rq.fetch_quotes_batch, notify.broadcast
+        am._load_prefs = lambda: store
+        am._save_prefs = lambda o: store.update(o)
+        rq.fetch_quotes_batch = lambda codes, **k: {"2330": {"price": 1050}, "2317": {"price": 105}}
+        notify.broadcast = lambda msg, title="", priority="default": sent.append(title) or {}
+        try:
+            n = am.check_and_push()
+        finally:
+            am._load_prefs, am._save_prefs, rq.fetch_quotes_batch, notify.broadcast = _lp, _sp, _fb, _bc
+        self.assertEqual(n, 1)                                   # 只有 2330 觸價(≥1000)
+        alerts = json.loads(store["data"]["dh_alerts"])
+        self.assertTrue(alerts[0]["done"])                       # 2330 標 done
+        self.assertFalse(alerts[1]["done"])                      # 2317 未觸(105 未跌破100)
+        self.assertEqual(len(sent), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

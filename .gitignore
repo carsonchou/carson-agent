@@ -148,3 +148,6 @@ quant-service/data_hunter/daytrade_reports.json
 twdata/daytrade.json
 twdata/daytrade_intraday.json
 twdata/daytrade_eligibility_*.json
+# 跨裝置同步 prefs（庫存/自選/警示…）＋ tunnel URL(執行期)
+quant-service/data_hunter/prefs.json
+quant-service/data_hunter/tunnel_url.txt

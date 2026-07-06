@@ -420,6 +420,18 @@
   .dlCfg label{display:flex;flex-direction:column;gap:5px;font-family:var(--mono);font-size:10.5px;color:var(--dim)}
   .dlCfg input{background:var(--bg2);border:1px solid var(--line2);border-radius:7px;color:var(--txt);padding:8px 10px;font-size:13px;font-family:var(--mono)}
   .dlEmpty{color:var(--dim);font-size:13px;padding:34px 20px;text-align:center;font-family:var(--mono);line-height:1.9}
+  /* 到價警示清單 + 立即刷新 + 串流燈 */
+  .al-items{display:flex;flex-wrap:wrap;gap:8px;padding:4px 2px}
+  .al-item{display:flex;align-items:center;gap:8px;border:1px solid var(--line2);border-radius:8px;padding:5px 10px;font-size:12.5px}
+  .al-item.done{opacity:.55}
+  .al-item .rcode{font-family:var(--mono);color:var(--dim);font-size:11px}
+  .al-cond{font-family:var(--mono);font-weight:700}
+  .al-st{font-family:var(--mono);font-size:10px;color:var(--faint)}
+  .al-x{cursor:pointer;color:var(--faint);font-size:15px;line-height:1}.al-x:hover{color:var(--up)}
+  .dhRefresh{cursor:pointer;background:rgba(90,147,189,.12);border:1px solid var(--line2);border-radius:8px;
+    color:var(--acc2);padding:5px 10px;font-size:13px;display:inline-flex;align-items:center;gap:6px}
+  .dhRefresh:hover{background:rgba(90,147,189,.22)}
+  .streamLed{width:8px;height:8px;border-radius:50%;background:#5a6678;display:inline-block}
 
   /* ════ signals ════ */
   .sigs{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
@@ -1056,6 +1068,8 @@
     <div class="upd">
       <span class="hb" id="hb"></span>
       <span id="upd">連線中…</span>
+      <span class="streamLed" id="streamLed" title="串流狀態"></span>
+      <button class="dhRefresh" id="dhRefreshBtn" title="立即更新">⟳</button>
       <!-- 下次更新倒數環 -->
       <svg class="ring" id="ring" viewBox="0 0 36 36">
         <circle class="track" cx="18" cy="18" r="15" fill="none" stroke-width="3"></circle>
@@ -1093,6 +1107,7 @@
     <!-- 大盤主要指數 + 國際指數 列 -->
     <div id="idxStrip" class="idxStrip"></div>
     <div id="watchStrip" class="watchStrip" style="display:none"></div>
+    <div id="alertsPanel" class="watchStrip" style="display:none"></div>
     <div class="grid">
       <!-- 左欄：溫度計 + 市場統計 + 三大法人買超（堆疊，填滿不留白） -->
       <div class="col-left">
@@ -1903,15 +1918,16 @@ function paintTogs(){
   const s=$('#togSound'); s.classList.toggle('on',soundOn);s.classList.toggle('off',!soundOn);s.textContent=soundOn?'🔔':'🔕';
   const n=$('#togNotify'); n.classList.toggle('on',notifyOn);n.classList.toggle('off',!notifyOn);
 }
-$('#togSound').addEventListener('click',()=>{soundOn=!soundOn;localStorage.setItem('dh_sound',soundOn?'1':'0');paintTogs();if(soundOn)beep();});
+$('#togSound').addEventListener('click',()=>{soundOn=!soundOn;localStorage.setItem('dh_sound',soundOn?'1':'0');paintTogs();window.pushPrefs&&window.pushPrefs();if(soundOn)beep();});
 $('#togNotify').addEventListener('click',async()=>{
   if(!notifyOn){
     if(!('Notification' in window)){alert('此瀏覽器不支援桌面通知');return;}
     let p=Notification.permission; if(p==='default')p=await Notification.requestPermission();
     if(p==='granted')notifyOn=true; else {notifyOn=false;alert('通知被瀏覽器封鎖，請在網址列權限手動開啟');}
   } else notifyOn=false;
-  localStorage.setItem('dh_notify',notifyOn?'1':'0'); paintTogs();
+  localStorage.setItem('dh_notify',notifyOn?'1':'0'); paintTogs(); window.pushPrefs&&window.pushPrefs();
 });
+$('#dhRefreshBtn')&&$('#dhRefreshBtn').addEventListener('click',()=>window.forceRefresh&&window.forceRefresh());
 paintTogs();
 function fireNewSignals(fresh){ // fresh: 本輪新確認訊號物件陣列
   if(!fresh.length||SNAP)return;
@@ -2214,7 +2230,56 @@ async function load(){
     $('#hb').style.background='#ff7d83';
   }
 }
-load(); setInterval(load,30000);
+// ── 全狀態跨裝置同步（prefs）＋ SSE 真即時推播 ──
+const SYNC_KEYS=['dh_portfolio','dh_watch','dh_alerts','dh_daytrade_cfg','dh_sound','dh_notify','dh_speak'];
+let _prefsTs=+(localStorage.getItem('dh_prefs_ts')||0), _pushT=null;
+function pushPrefs(){ clearTimeout(_pushT); _pushT=setTimeout(async()=>{
+  const data={}; SYNC_KEYS.forEach(k=>{ const v=localStorage.getItem(k); if(v!=null) data[k]=v; });
+  try{ const r=await fetch('/api/prefs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data,ts:Date.now()})});
+    const j=await r.json(); if(j&&j.ok){ _prefsTs=j.ts; localStorage.setItem('dh_prefs_ts',_prefsTs); } }catch(e){}
+},500); }
+function _rerenderSynced(){ try{
+  const av=document.querySelector('.tab.active')?.dataset.v;
+  window.renderWatchStrip&&window.renderWatchStrip();
+  window.renderAlerts&&window.renderAlerts();
+  if(av==='portfolio') window.renderPortfolio&&window.renderPortfolio();
+  if(av==='daylive') window.fetchDaytrade&&window.fetchDaytrade();
+}catch(e){} }
+async function pullPrefs(){ try{ const r=await fetch('/api/prefs',{cache:'no-store'}); const j=await r.json();
+  if(!j||!j.ok) return; const sTs=+j.ts||0;
+  if(sTs>_prefsTs && j.data){ Object.entries(j.data).forEach(([k,v])=>{ if(SYNC_KEYS.includes(k)&&typeof v==='string') localStorage.setItem(k,v); });
+      _prefsTs=sTs; localStorage.setItem('dh_prefs_ts',_prefsTs); _rerenderSynced(); }
+  else if(sTs===0 && SYNC_KEYS.some(k=>localStorage.getItem(k))){ pushPrefs(); }   // server 空→遷移本機
+}catch(e){} }
+window.pushPrefs=pushPrefs; window.pullPrefs=pullPrefs;
+// 跨分頁即時同步（同瀏覽器不同分頁）
+window.addEventListener('storage',e=>{ if(e.key&&SYNC_KEYS.includes(e.key)){ _rerenderSynced(); } });
+
+// SSE：伺服器主動推，state/prefs/daytrade/zones 一變 ~1 秒內畫面動（不用等輪詢）
+let _sseOk=false;
+function setStreamLed(on){ _sseOk=on; const el=document.getElementById('streamLed'); if(el){ el.style.background=on?'#2bab82':'#5a6678'; el.title=on?'即時串流·連線中':'串流斷·退輪詢'; } }
+function initSSE(){ try{
+  const es=new EventSource('/api/stream');
+  es.addEventListener('state',()=>load());
+  es.addEventListener('prefs',()=>pullPrefs());
+  es.addEventListener('daytrade',()=>{ if(document.querySelector('.tab.active')?.dataset.v==='daylive') window.fetchDaytrade&&window.fetchDaytrade(); });
+  es.addEventListener('zones',()=>{ if(document.querySelector('.tab.active')?.dataset.v==='zones') window.fetchZones&&window.fetchZones(); });
+  es.onopen=()=>setStreamLed(true);
+  es.onerror=()=>setStreamLed(false);
+}catch(e){ setStreamLed(false); } }
+
+pullPrefs();
+load();
+// 輪詢當 SSE 的安全網：盤中 15 秒、盤後 30 秒；每輪順便拉 prefs
+setInterval(()=>{ load(); pullPrefs(); }, (lastData&&lastData.market_open)?15000:30000);
+initSSE();
+// 立即更新（給頂部 ⟳ 鈕用）
+window.forceRefresh=function(){ load(); pullPrefs();
+  const av=document.querySelector('.tab.active')?.dataset.v;
+  if(av==='daylive') window.fetchDaytrade&&window.fetchDaytrade();
+  if(av==='zones') window.fetchZones&&window.fetchZones();
+  if(av==='portfolio') window.renderPortfolio&&window.renderPortfolio();
+  if(typeof resetCountdown==='function') resetCountdown(); };
 
 // 快照模式：歷史也先抓一次，確保 watermark 日期填上
 if(SNAP){ loadHistory(); }
@@ -2523,7 +2588,7 @@ if(SNAP){ loadHistory(); }
   function toggleWatch(code,name){
     let w=getWatch(); const i=w.findIndex(x=>x.code===code);
     if(i>=0) w.splice(i,1); else w.push({code,name:name||''});
-    localStorage.setItem('dh_watch',JSON.stringify(w)); renderWatchStrip();
+    localStorage.setItem('dh_watch',JSON.stringify(w)); renderWatchStrip(); window.pushPrefs&&window.pushPrefs();
     const btn=document.getElementById('smStar'); if(btn){ const on=isWatched(code); btn.classList.toggle('on',on); btn.textContent=on?'★ 已加自選':'☆ 加入自選'; }
   }
   async function renderWatchStrip(){
@@ -2543,15 +2608,28 @@ if(SNAP){ loadHistory(); }
   const getAlerts=()=>{ try{return JSON.parse(localStorage.getItem('dh_alerts')||'[]');}catch(e){return [];} };
   function addAlert(code,name,op,price){
     const a=getAlerts(); a.push({code,name:name||'',op,price:+price,done:false});
-    localStorage.setItem('dh_alerts',JSON.stringify(a));
+    localStorage.setItem('dh_alerts',JSON.stringify(a)); window.pushPrefs&&window.pushPrefs(); renderAlerts();
   }
-  function removeAlert(idx){ const a=getAlerts(); a.splice(idx,1); localStorage.setItem('dh_alerts',JSON.stringify(a)); }
+  function removeAlert(idx){ const a=getAlerts(); a.splice(idx,1); localStorage.setItem('dh_alerts',JSON.stringify(a)); window.pushPrefs&&window.pushPrefs(); renderAlerts(); }
   function checkAlerts(){
     const a=getAlerts(); if(!a.length) return; let changed=false;
     a.forEach(al=>{ if(al.done) return; const d=drillMap.get(al.code); if(!d||d.price==null) return;
       const hit=(al.op==='above'&&d.price>=al.price)||(al.op==='below'&&d.price<=al.price);
       if(hit){ al.done=true; changed=true; fireAlert(al,d.price); } });
-    if(changed) localStorage.setItem('dh_alerts',JSON.stringify(a));
+    if(changed){ localStorage.setItem('dh_alerts',JSON.stringify(a)); window.pushPrefs&&window.pushPrefs(); renderAlerts(); }
+  }
+  // 到價警示清單面板（修：以前設了警示看不到、也沒地方刪）
+  function renderAlerts(){
+    const box=document.getElementById('alertsPanel'); if(!box) return;
+    const a=getAlerts();
+    if(!a.length){ box.style.display='none'; box.innerHTML=''; return; }
+    box.style.display='';
+    box.innerHTML='<div class="ws-hd">到價警示 · ALERTS</div><div class="al-items">'+
+      a.map((al,i)=>`<div class="al-item${al.done?' done':''}"><span class="al-nm"><b>${al.name||al.code}</b> <span class="rcode">${al.code}</span></span>`+
+        `<span class="al-cond" style="color:${al.op==='above'?'var(--up)':'var(--dn)'}">${al.op==='above'?'≥':'≤'} ${al.price}</span>`+
+        `<span class="al-st">${al.done?'✓ 已觸發':'監控中'}</span>`+
+        `<span class="al-x" data-delalert="${i}" title="移除">×</span></div>`).join('')+'</div>';
+    box.querySelectorAll('[data-delalert]').forEach(el=>el.addEventListener('click',()=>removeAlert(+el.dataset.delalert)));
   }
   function fireAlert(al,px){
     const msg=`${al.name||al.code} ${al.code} 已${al.op==='above'?'漲抵':'跌破'} ${al.price}（現價 ${px}）`;
@@ -2748,7 +2826,8 @@ if(SNAP){ loadHistory(); }
 
   // 這些看板 widget 定義在本 IIFE，但主資料輪詢 render(d) 在另一個 script → 掛 window 供其呼叫
   Object.assign(window, {renderIndices, renderMStats, renderInstTop, renderRanks,
-    renderWatchStrip, checkAlerts, renderZones, fetchZones});
+    renderWatchStrip, checkAlerts, renderAlerts, renderZones, fetchZones});
+  try{ renderAlerts(); }catch(e){}
 
   // ── 四師深度分析（/api/analyst）：綜合策略卡 + 操作區間卡 + 四師卡×4 ──────────
   const TEAM_COLORS={'朱家泓':'var(--acc)','阿斯匹靈':'var(--gold)','權證小哥':'var(--up)','張捷':'var(--dn)'};
@@ -3031,7 +3110,7 @@ if(SNAP){ loadHistory(); }
               dividends:Array.isArray(o.dividends)?o.dividends:[],
               snapshots:Array.isArray(o.snapshots)?o.snapshots:[]}; }
     catch(e){ return {cash:0,txns:[],dividends:[],snapshots:[]}; } }
-  function savePF(o){ try{ localStorage.setItem(PF_KEY,JSON.stringify(o)); }catch(e){} }
+  function savePF(o){ try{ localStorage.setItem(PF_KEY,JSON.stringify(o)); window.pushPrefs&&window.pushPrefs(); }catch(e){} }
   const pfId=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
   const _pfInt=v=>(v==null||isNaN(v))?'—':Math.round(v).toLocaleString();
   const _pfSgn=v=>(v==null||isNaN(v))?'—':(v>0?'+':'')+Math.round(v).toLocaleString();
@@ -3516,7 +3595,8 @@ if(SNAP){ loadHistory(); }
       if(pv) pv.textContent=_pfInt(mvSum+pf.cash);
       if(ps) ps.textContent=`股票市值 ${_pfInt(mvSum)} · 現金 ${_pfInt(pf.cash)}`; } });
   document.getElementById('pfHead')?.addEventListener('change',e=>{
-    if(e.target.id==='pfBrokerSel'){ pfBroker=e.target.value; renderPortfolio(); } });
+    if(e.target.id==='pfBrokerSel'){ pfBroker=e.target.value; renderPortfolio(); }
+    if(e.target.id==='pfCashIn'){ renderPortfolio(); } });   // 改現金 blur/Enter → 衍生數字重算
   document.getElementById('pfHead')?.addEventListener('click',e=>{
     if(e.target.id==='pfAddTx') openTxModal();
     else if(e.target.id==='pfExport') pfExport();
@@ -3774,7 +3854,7 @@ if(SNAP){ loadHistory(); }
   // 事件委派
   document.getElementById('dlHead')?.addEventListener('click',e=>{
     if(e.target.id==='dlSpeakTog'){ const on=localStorage.getItem('dh_speak')==='1';
-      localStorage.setItem('dh_speak',on?'0':'1'); e.target.classList.toggle('on',!on);
+      localStorage.setItem('dh_speak',on?'0':'1'); e.target.classList.toggle('on',!on); window.pushPrefs&&window.pushPrefs();
       if(!on){ try{ const u=new SpeechSynthesisUtterance('當沖語音已開啟'); u.lang='zh-TW'; window.speechSynthesis.speak(u);}catch(x){} } }
   });
   document.querySelectorAll('.pTab[data-dl]').forEach(t=>t.addEventListener('click',()=>{ dlSub=t.dataset.dl; renderDaytrade(); }));
@@ -3784,7 +3864,7 @@ if(SNAP){ loadHistory(); }
       const cfg={capital:+document.getElementById('dlcCap').value||0,risk_pct:+document.getElementById('dlcRisk').value||1,
         fee_disc:+document.getElementById('dlcFee').value||0.3,max_day_loss_R:+document.getElementById('dlcLoss').value||-3,
         streak_cut_n:+document.getElementById('dlcStreak').value||3,ev_lots:+document.getElementById('dlcLots').value||2};
-      localStorage.setItem(DL_CFG_KEY,JSON.stringify(cfg));
+      localStorage.setItem(DL_CFG_KEY,JSON.stringify(cfg)); window.pushPrefs&&window.pushPrefs();
       const b=e.target; const t=b.textContent; b.textContent='✓ 已儲存'; setTimeout(()=>b.textContent=t,1200); return;
     }
     const op=e.target.closest('[data-open]'); if(op){ pick(op.dataset.open); }

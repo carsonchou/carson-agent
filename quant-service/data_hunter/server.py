@@ -13,14 +13,39 @@ server.py — 數據獵手看板伺服器（純標準庫，無相依）
 from __future__ import annotations
 
 import json
+import os
 import sys
+import time
 import webbrowser
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit, parse_qs
 
 HERE = Path(__file__).resolve().parent
+ROOT = HERE.parent.parent
 _INDICES_CACHE: dict = {}          # /api/indices 60 秒 module 快取
+
+# SSE 監看的檔案（mtime 一變就推事件給所有連線的裝置）
+_SSE_WATCH = {
+    "state": HERE / "state.json",
+    "prefs": HERE / "prefs.json",
+    "daytrade": HERE / "state_daytrade.json",
+    "zones": HERE / "state_zones.json",
+}
+PREFS_FILE = HERE / "prefs.json"
+
+
+def _atomic_write(path: Path, text: str) -> None:
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(text, encoding="utf-8")
+    os.replace(tmp, path)
+
+
+def _load_prefs() -> dict:
+    try:
+        return json.loads(PREFS_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return {"data": {}, "ts": 0}
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -39,6 +64,10 @@ class Handler(SimpleHTTPRequestHandler):
     def _handle_api(self, path: str, qs: dict) -> bool:
         """動態 API：/api/stock、/api/search、/api/analyst。命中回 True(已回應)，否則 False(交還靜態服務)。
         query/analyst 在 handler 內 import(而非模組頂層)，讓查價/分析失敗絕不拖垮靜態看板服務。"""
+        if path == "/api/prefs":
+            # 全狀態跨裝置同步：讀 prefs.json（庫存/自選/警示/設定…）
+            self._send_json({"ok": True, **_load_prefs()})
+            return True
         if path not in ("/api/stock", "/api/search", "/api/analyst", "/api/news",
                         "/api/quote", "/api/indices", "/api/zones", "/api/daytrade"):
             return False
@@ -177,17 +206,66 @@ class Handler(SimpleHTTPRequestHandler):
             self._send_json({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
         return True
 
+    def _handle_stream(self) -> None:
+        """SSE 真即時推播：監看 state/prefs/daytrade/zones 的 mtime，一變就推事件。"""
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Connection", "keep-alive")
+        self.end_headers()
+        last: dict = {}
+        hb = 0
+        try:
+            while True:
+                for name, p in _SSE_WATCH.items():
+                    try:
+                        m = int(p.stat().st_mtime) if p.exists() else 0
+                    except Exception:
+                        m = 0
+                    if last.get(name) != m:
+                        last[name] = m
+                        self.wfile.write(f"event: {name}\ndata: {m}\n\n".encode("utf-8"))
+                        self.wfile.flush()
+                hb += 1
+                if hb >= 15:                       # 心跳防 proxy/tunnel 斷線
+                    hb = 0
+                    self.wfile.write(b": ping\n\n")
+                    self.wfile.flush()
+                time.sleep(1)
+        except (BrokenPipeError, ConnectionResetError, OSError):
+            return
+
     def do_GET(self):
         split = urlsplit(self.path)
+        if split.path == "/api/stream":
+            return self._handle_stream()
         if self._handle_api(split.path, parse_qs(split.query)):
             return
         if self.path in ("/", "/index.html", ""):
             self.path = "/dashboard.html"
         return super().do_GET()
 
+    def do_POST(self):
+        split = urlsplit(self.path)
+        if split.path == "/api/prefs":
+            try:
+                n = int(self.headers.get("Content-Length", 0))
+                body = json.loads(self.rfile.read(n).decode("utf-8")) if n else {}
+                cur = _load_prefs()
+                data = cur.get("data", {})
+                data.update(body.get("data", {}))            # 合併各 dh_* key
+                ts = max(int(body.get("ts", 0)), int(cur.get("ts", 0)) + 1)
+                _atomic_write(PREFS_FILE, json.dumps({"data": data, "ts": ts}, ensure_ascii=False))
+                self._send_json({"ok": True, "ts": ts})
+            except Exception as e:
+                self._send_json({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=400)
+            return
+        self._send_json({"ok": False, "error": "not found"}, status=404)
+
     def end_headers(self):
-        # state.json 不要被快取
-        if self.path.startswith("/state.json"):
+        # state.json 與所有 .html 不要被快取(否則瀏覽器吃到舊版看板)
+        p = self.path.split("?", 1)[0]
+        if p.startswith("/state.json") or p.endswith(".html") or p in ("/", "/index.html", ""):
             self.send_header("Cache-Control", "no-store, max-age=0")
         super().end_headers()
 
