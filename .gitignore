@@ -140,3 +140,10 @@ twdata/zones.json
 twdata/fundamentals/
 twdata/news/
 twdata/intl_indices.json
+# 盤中即時當沖引擎執行期產物
+quant-service/data_hunter/state_daytrade.json
+quant-service/data_hunter/daytrade_book.json
+quant-service/data_hunter/daytrade_pushed.json
+twdata/daytrade.json
+twdata/daytrade_intraday.json
+twdata/daytrade_eligibility_*.json

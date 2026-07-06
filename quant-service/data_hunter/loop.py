@@ -42,6 +42,8 @@ def main():
     print("[loop] 數據獵手背景掃描啟動（Ctrl+C 停止）")
     from datetime import date as _date
     zones_day = None
+    dt_pool_day = None
+    dt_pool = []
     while True:
         mh = _is_market_hours()
         try:
@@ -54,6 +56,17 @@ def main():
                     zones_day = _date.today()
                 except Exception as e:
                     print(f"[loop] 交易專區略過：{type(e).__name__}: {e}")
+            if mh:                                    # 盤中即時當沖
+                try:
+                    import daytrade_live
+                    if dt_pool_day != _date.today() or not dt_pool:
+                        import daytrade_eligibility
+                        daytrade_eligibility.refresh()
+                        dt_pool = daytrade_live.build_pool(full=True, use_cache_only=True)
+                        dt_pool_day = _date.today()
+                    daytrade_live.scan_live(dt_pool, push=not args.no_push)
+                except Exception as e:
+                    print(f"[loop] 當沖掃描略過：{type(e).__name__}: {e}")
         except Exception as e:
             print(f"[loop] 本輪錯誤（續跑）：{type(e).__name__}: {e}")
         wait = args.interval if args.interval > 0 else (5 if mh else 30)

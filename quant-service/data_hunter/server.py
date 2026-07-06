@@ -40,7 +40,7 @@ class Handler(SimpleHTTPRequestHandler):
         """動態 API：/api/stock、/api/search、/api/analyst。命中回 True(已回應)，否則 False(交還靜態服務)。
         query/analyst 在 handler 內 import(而非模組頂層)，讓查價/分析失敗絕不拖垮靜態看板服務。"""
         if path not in ("/api/stock", "/api/search", "/api/analyst", "/api/news",
-                        "/api/quote", "/api/indices", "/api/zones"):
+                        "/api/quote", "/api/indices", "/api/zones", "/api/daytrade"):
             return False
         try:
             import query
@@ -67,6 +67,16 @@ class Handler(SimpleHTTPRequestHandler):
                 except Exception:
                     z = None
                 self._send_json({"ok": bool(z), **(z or {})})
+                return True
+
+            if path == "/api/daytrade":
+                # 盤中即時當沖決策：讀背景引擎產生的 state_daytrade.json（純讀檔不即時運算）
+                try:
+                    import daytrade_live
+                    d = daytrade_live.load_daytrade()
+                except Exception:
+                    d = None
+                self._send_json({"ok": bool(d), **(d or {})})
                 return True
 
             if path == "/api/indices":

@@ -42,10 +42,12 @@ def _market_hours() -> bool:
 
 def worker():
     """背景掃描迴圈：每天刷快取 + 即時同步掃描 + 推播 + 每日全市場交易專區。"""
-    rows = scan.all_codes()              # 精選宇宙(快、可即時同步)
+    rows = scan.load_full_universe()     # 全市場(~1900 檔上市櫃)
     last_fresh: date | None = None
     zones_day: date | None = None
-    print(f"[app] 背景掃描啟動（精選 {len(rows)} 檔，跟市場同步）")
+    dt_pool_day: date | None = None
+    dt_pool: list = []
+    print(f"[app] 背景掃描啟動（全市場 {len(rows)} 檔）")
     while True:
         mh = _market_hours()
         try:
@@ -65,6 +67,20 @@ def worker():
                     zones_day = today
                 except Exception as e:
                     print(f"[app] 交易專區產生略過：{type(e).__name__}: {e}")
+            # 盤中即時當沖：每日開盤建一次池(＋可當沖清單)，盤中每輪掃描推播
+            if mh:
+                try:
+                    import daytrade_live
+                    if dt_pool_day != today or not dt_pool:
+                        import daytrade_eligibility
+                        daytrade_eligibility.refresh()
+                        dt_pool = daytrade_live.build_pool(full=True, use_cache_only=True)
+                        dt_pool_day = today
+                        print(f"[app] 當沖池已建（{len(dt_pool)} 檔）")
+                    o = daytrade_live.scan_live(dt_pool, push=True)
+                    print(f"[app] 當沖 regime={o['regime']['label']} 訊號{len(o['signals'])} 擋{len(o['filtered'])}")
+                except Exception as e:
+                    print(f"[app] 當沖掃描略過：{type(e).__name__}: {e}")
         except Exception as e:
             print(f"[app] 本輪錯誤（續跑）：{type(e).__name__}: {e}")
         wait = 2 if mh else 30

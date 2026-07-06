@@ -379,6 +379,45 @@
     padding:9px 18px;font-size:13px;cursor:pointer;transition:background .15s}
   .pfmSave:hover{background:rgba(230,74,94,.28)}
 
+  /* ════ 當沖即時 · LIVE ════ */
+  .dlHead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 14px;margin:2px 0 14px;
+    border:1px solid var(--line);border-radius:12px;background:linear-gradient(180deg,rgba(90,147,189,.05),rgba(255,255,255,.01))}
+  .dlBadge{font-family:var(--mono);font-size:11px;padding:3px 9px;border-radius:6px;border:1px solid var(--line2);color:var(--dim)}
+  .dlBadge b{color:var(--txt)}
+  .dlReg{font-family:var(--ttl);font-weight:600;font-size:13px;padding:3px 11px;border-radius:6px;border:1px solid}
+  .dlCB{margin-left:auto;font-family:var(--mono);font-size:11px}
+  .dlCards{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px}
+  .dlCard{border:1px solid var(--line2);border-radius:12px;padding:13px 15px;background:rgba(255,255,255,.02);position:relative;
+    animation:pop .5s cubic-bezier(.2,.9,.2,1)}
+  .dlCard.long{border-left:3px solid var(--up)} .dlCard.short{border-left:3px solid var(--dn)}
+  .dlCard.fresh{box-shadow:0 0 0 1px var(--acc),0 0 18px rgba(131,181,214,.25)}
+  .dlTop{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+  .dlDir{font-family:var(--ttl);font-weight:700;font-size:13px}
+  .dlGrade{font-family:var(--ttl);font-weight:700;font-size:12px;min-width:20px;text-align:center;border:1px solid;border-radius:5px;padding:0 5px}
+  .dlNm{font-weight:600;cursor:pointer} .dlNm .rc{font-family:var(--mono);color:var(--dim);font-size:11px;margin-right:4px}
+  .dlTs{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--faint)}
+  .dlBrain{display:flex;gap:12px;flex-wrap:wrap;padding:7px 9px;margin-bottom:9px;border-radius:8px;
+    background:rgba(90,147,189,.06);font-family:var(--mono);font-size:11.5px}
+  .dlBrain .bk{color:var(--dim)} .dlBrain .bv{color:var(--txt);font-weight:600}
+  .dlPx{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:9px;text-align:center}
+  .dlPx .pxk{font-family:var(--mono);font-size:9.5px;color:var(--dim)}
+  .dlPx .pxv{font-family:var(--ttl);font-weight:700;font-size:15px;font-variant-numeric:tabular-nums}
+  .dlPx .sub{font-size:9px;color:var(--faint);font-family:var(--mono)}
+  .dlReview{font-size:12.5px;line-height:1.5;color:var(--txt);margin-bottom:9px;padding-left:8px;border-left:2px solid var(--line2)}
+  .dlChips{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px}
+  .dlChip{font-family:var(--mono);font-size:10px;padding:2px 7px;border-radius:4px;border:1px solid var(--line2);color:var(--dim)}
+  .dlChip b{color:var(--acc2)}
+  .dlExecRow{font-family:var(--mono);font-size:10.5px;color:var(--faint);display:flex;gap:8px;align-items:center}
+  .dlWarn{color:var(--gold)}
+  .dlFilterWrap{margin-top:16px}
+  .dlFilterHd{font-family:var(--mono);font-size:11px;color:var(--dim);cursor:pointer;padding:6px 0;border-top:1px solid var(--hair)}
+  .dlFiltRow{display:flex;justify-content:space-between;gap:10px;font-size:12px;padding:5px 4px;border-bottom:1px solid var(--hair);color:var(--dim)}
+  .dlFiltRow .fr-nm{color:var(--txt)} .dlFiltRow .fr-why{color:var(--faint);font-size:11px}
+  .dlCfg{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px;max-width:560px}
+  .dlCfg label{display:flex;flex-direction:column;gap:5px;font-family:var(--mono);font-size:10.5px;color:var(--dim)}
+  .dlCfg input{background:var(--bg2);border:1px solid var(--line2);border-radius:7px;color:var(--txt);padding:8px 10px;font-size:13px;font-family:var(--mono)}
+  .dlEmpty{color:var(--dim);font-size:13px;padding:34px 20px;text-align:center;font-family:var(--mono);line-height:1.9}
+
   /* ════ signals ════ */
   .sigs{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
   @media(max-width:620px){.sigs{grid-template-columns:1fr}}
@@ -1040,6 +1079,7 @@
     <div class="tab" data-v="heat">板塊熱流 · FLOW MAP</div>
     <div class="tab" data-v="chips">法人資金流向 · INSTITUTIONS</div>
     <div class="tab" data-v="zones">交易專區 · TRADE ZONES</div>
+    <div class="tab" data-v="daylive">當沖即時 · LIVE</div>
     <div class="tab" data-v="track">實盤戰績 · TRACK RECORD</div>
     <div class="tab" data-v="portfolio">庫存 · PORTFOLIO</div>
     <div class="tab" data-v="history">歷史訊號 · TIMELINE</div>
@@ -1226,6 +1266,25 @@
       <div style="font-family:var(--mono);font-size:11px;color:var(--faint);margin-top:10px;text-align:center">
         戰績由系統用快取真實價對「已觸發訊號」事後評估，非回測美化 · R＝報酬／停損風險倍數
       </div>
+    </section>
+  </div>
+
+  <!-- ════ 當沖即時 · LIVE view（盤中即時當沖決策：大腦逐單檢討＋進出場） ════ -->
+  <div class="view" data-view="daylive">
+    <section class="panel">
+      <span class="corner tl"></span><span class="corner br"></span>
+      <h2>當沖即時 · LIVE DAY-TRADE　<span style="color:var(--faint);font-size:11px">量化淨EV大腦逐單檢討 · 精選高勝率</span>
+        <span id="dlMeta" class="hd-x" style="margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--faint)"></span></h2>
+      <div class="dlHead" id="dlHead"></div>
+      <div class="pTabs">
+        <span class="pTab on" data-dl="signals">即時訊號</span>
+        <span class="pTab" data-dl="ranks">盤中排行</span>
+        <span class="pTab" data-dl="record">當沖戰績</span>
+        <span class="pTab" data-dl="report">盤前盤後</span>
+        <span class="pTab" data-dl="cfg">⚙ 設定</span>
+      </div>
+      <div id="dlBody"></div>
+      <div class="zNote">~20秒延遲(MIS免費) · VWAP/五檔/ORB為輪詢近似 · 勝率為模型估計 · 當沖高風險 · 機械訊號非投資建議</div>
     </section>
   </div>
 
@@ -1795,6 +1854,7 @@ document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
   if(v==='chips'&&lastData)renderChips(lastData.chips);
   if(v==='zones')window.fetchZones&&window.fetchZones();
   if(v==='portfolio')window.renderPortfolio&&window.renderPortfolio();
+  if(v==='daylive')window.fetchDaytrade&&window.fetchDaytrade();
 }));
 
 // ── 歷史訊號時間軸 ──
@@ -2133,6 +2193,7 @@ async function load(){
     if(av==='track') renderTrack(d.track);
     if(av==='chips') renderChips(d.chips);
     if(av==='portfolio') window.renderPortfolio&&window.renderPortfolio();
+    if(av==='daylive') window.fetchDaytrade&&window.fetchDaytrade();
 
     // 主題單圖快照：切到目標 view、填海報標題、渲染該 view
     if(SNAP_THEMED){
@@ -3503,6 +3564,140 @@ if(SNAP){ loadHistory(); }
   pfDivModal?.addEventListener('click',e=>{ if(e.target===pfDivModal) pfDivModal.classList.remove('show'); });
 
   window.renderPortfolio=renderPortfolio;
+
+  /* ════════════ 當沖即時 · LIVE DAY-TRADE ════════════ */
+  let dlData=null, dlSub='signals', dlSeen=new Set();
+  const DL_CFG_KEY='dh_daytrade_cfg';
+  const getDlCfg=()=>{ try{ return JSON.parse(localStorage.getItem(DL_CFG_KEY)||'{}'); }catch(e){ return {}; } };
+  const dlGradeCol=g=>({S:'var(--up)',A:'var(--acc2)',B:'var(--gold)'})[g]||'var(--dim)';
+  const dlRegCol=l=>l==='趨勢多日'?'var(--up)':(l==='趨勢空日'||l==='弱勢日')?'var(--dn)':'var(--gold)';
+
+  async function fetchDaytrade(){
+    try{ const r=await fetch('/api/daytrade',{cache:'no-store'}); const j=await r.json();
+      dlData=(j&&j.ok)?j:'none';
+    }catch(e){ dlData='none'; }
+    renderDaytrade();
+  }
+  function renderDaytrade(){
+    document.querySelectorAll('.pTab[data-dl]').forEach(t=>t.classList.toggle('on',t.dataset.dl===dlSub));
+    const head=document.getElementById('dlHead'), body=document.getElementById('dlBody'), meta=document.getElementById('dlMeta');
+    if(!body) return;
+    if(dlData==='none'||!dlData){
+      if(head) head.innerHTML='';
+      if(meta) meta.textContent='';
+      body.innerHTML=`<div class="dlEmpty">當沖引擎尚未產生資料<br>盤中桌面 app 每 2 分自動掃描推播，或手動跑 <b>python daytrade_live.py --once</b>（需盤中）<br><span style="color:var(--faint)">盤前/收盤後顯示今日最後結果</span></div>`;
+      return;
+    }
+    const d=dlData;
+    if(meta) meta.textContent=`池 ${d.pool_n||'—'} 檔 · ${(d.generated_at||'').replace('T',' ').slice(5,16)}`;
+    const reg=d.regime||{}, cb=d.circuit_breaker||{};
+    if(head) head.innerHTML=
+      `<span class="dlReg" style="color:${dlRegCol(reg.label)};border-color:${dlRegCol(reg.label)}">${reg.label||'—'}</span>`+
+      `<span class="dlBadge">大盤 <b style="color:${chgColor(reg.index_chg)}">${reg.index_chg!=null?sign(reg.index_chg)+'%':'—'}</b></span>`+
+      `<span class="dlBadge">值得做 <b>${(d.signals||[]).length}</b> · 已擋 <b>${(d.filtered||[]).length}</b></span>`+
+      `<span class="dlBadge">${d.market_open?'🟢 盤中即時(每2分)':'⚪ 已收盤·今日最後'}</span>`+
+      `<span class="dlCB" style="color:${cb.tripped?'var(--up)':'var(--faint)'}">${cb.tripped?'🛑 熔斷·停手':'風控 '+(cb.day_pnl_R!=null?cb.day_pnl_R+'R':'')}</span>`;
+    if(dlSub==='signals') dlRenderSignals(body,d);
+    else if(dlSub==='ranks') dlRenderRanks(body,d);
+    else if(dlSub==='cfg') dlRenderCfg(body);
+    else body.innerHTML=`<div class="dlEmpty">${dlSub==='record'?'當沖戰績':'盤前盤後報告'}　批次開發中（批2/批3）</div>`;
+  }
+
+  function dlRenderSignals(body,d){
+    const sigs=d.signals||[], filt=d.filtered||[];
+    if(!sigs.length && !filt.length){ body.innerHTML=`<div class="dlEmpty">目前無當沖訊號<br>大腦嚴選中——寧缺勿濫，等值得做的單</div>`; return; }
+    const card=s=>{
+      const b=s.brain||{}, long=s.dir==='long';
+      const fresh=dlSeen.size&&!dlSeen.has(s.code+s.dir)?' fresh':'';
+      const conf=b.conf?`${Math.round(b.conf[0]*100)}-${Math.round(b.conf[1]*100)}`:'';
+      const tps=(s.targets||[]).join(' / ');
+      const chips=[
+        s.factors_disp&&s.factors_disp.vwap_dev!=null?`<span class="dlChip">VWAP乖離 <b>${sign(s.factors_disp.vwap_dev)}%</b></span>`:'',
+        s.rs!=null?`<span class="dlChip">RS <b>${sign(s.rs)}</b></span>`:'',
+        s.ob_ratio!=null?`<span class="dlChip">五檔力道 <b>${s.ob_ratio}</b></span>`:'',
+        s.vol_ratio!=null?`<span class="dlChip">量能 <b>${s.vol_ratio}x</b></span>`:'',
+        s.vol_type?`<span class="dlChip">${s.vol_type}</span>`:'',
+        s.setup?`<span class="dlChip"><b>${s.setup}</b></span>`:'',
+        s.confirmed?`<span class="dlChip">✓二次確認</span>`:''
+      ].filter(Boolean).join('');
+      const warn=[!s.elig?.can_daytrade?'⚠不可現沖':'',s.elig?.attention?'⚠注意股':''].filter(Boolean).join(' ');
+      const ex=s.exec||{};
+      return `<div class="dlCard ${s.dir}${fresh}">`+
+        `<div class="dlTop"><span class="dlDir" style="color:${long?'var(--up)':'var(--dn)'}">${long?'🔴 做多':'🟢 做空'}</span>`+
+        `<span class="dlGrade" style="color:${dlGradeCol(s.grade)};border-color:${dlGradeCol(s.grade)}">${s.grade}</span>`+
+        `<span class="dlNm" data-open="${s.code}"><span class="rc">${s.code}</span>${s.name}</span>`+
+        (warn?`<span class="dlWarn" style="font-size:10px">${warn}</span>`:'')+
+        `<span class="dlTs">${s.ts||''}</span></div>`+
+        `<div class="dlBrain"><span><span class="bk">勝率</span> <span class="bv" style="color:${hzColor(b.p*100)}">${Math.round(b.p*100)}%</span>${conf?`<span class="bk">(${conf})</span>`:''}</span>`+
+        `<span><span class="bk">淨期望</span> <span class="bv" style="color:${chgColor(b.ev_net_R)}">${sign(b.ev_net_R)}R</span></span>`+
+        (b.size_lots?`<span><span class="bk">建議</span> <span class="bv">${b.size_lots}張</span></span>`:'')+
+        (b.breakeven?`<span><span class="bk">損平</span> <span class="bv">${b.breakeven}</span></span>`:'')+`</div>`+
+        `<div class="dlPx">`+
+        `<div><div class="pxk">進場 ENTRY</div><div class="pxv" style="color:var(--txt)">${s.entry}</div><div class="sub">${s.entry_type||''}</div></div>`+
+        `<div><div class="pxk">停損 STOP</div><div class="pxv" style="color:var(--dn)">${s.stop}</div><div class="sub">動態</div></div>`+
+        `<div><div class="pxk">停利 TARGET</div><div class="pxv" style="color:var(--up)">${(s.targets||[])[0]||'—'}</div><div class="sub">${tps}</div></div>`+
+        `</div>`+
+        `<div class="dlReview">${b.review||''}</div>`+
+        `<div class="dlChips">${chips}</div>`+
+        `<div class="dlExecRow"><span>${ex.ok?'✓ 五檔量足':'⚠ 流動性不足'}</span>·<span>${ex.suggest||''}</span>·<span>空間 ${s.room_R||'—'}R</span></div>`+
+        `</div>`;
+    };
+    let html=sigs.length?`<div class="dlCards">${sigs.map(card).join('')}</div>`
+      :`<div class="dlEmpty">目前無「值得做」訊號 · 大腦嚴選中</div>`;
+    if(filt.length){
+      html+=`<div class="dlFilterWrap"><div class="dlFilterHd" id="dlFiltToggle">🧠 大腦已擋 ${filt.length} 單（點開看原因）▾</div>`+
+        `<div id="dlFiltList" style="display:none">`+filt.map(f=>{const b=f.brain||{};
+          return `<div class="dlFiltRow"><span class="fr-nm">${f.dir==='long'?'做多':'做空'} ${f.code} ${f.name}</span>`+
+          `<span class="fr-why">${b.review||(b.flags||[]).join('·')}</span></div>`;}).join('')+`</div></div>`;
+    }
+    body.innerHTML=html;
+    // 更新已見集合（新訊號提示）
+    const nowSet=new Set(sigs.map(s=>s.code+s.dir));
+    if(dlSeen.size){ const fresh=[...nowSet].filter(k=>!dlSeen.has(k)); if(fresh.length){ try{beep&&beep();}catch(e){} } }
+    dlSeen=nowSet;
+  }
+
+  function dlRenderRanks(body,d){
+    const R=d.ranks||{}; const col=(rows,fmt)=>rows&&rows.length?rows.map((r,i)=>
+      `<div class="dlFiltRow"><span class="fr-nm">${i+1}. ${r.code} ${r.name||''}</span><span>${fmt(r)}</span></div>`).join(''):'<div class="dlFiltRow"><span class="fr-why">—</span></div>';
+    const board=(title,rows,fmt)=>`<div class="pfDiagCard"><div class="dh">${title}</div>${col(rows,fmt)}</div>`;
+    body.innerHTML=`<div class="pfDiag">`+
+      board('漲幅榜 · UP',R.up,r=>`<span style="color:${chgColor(r.chg)}">${sign(r.chg)}%</span>`)+
+      board('跌幅榜 · DOWN',R.down,r=>`<span style="color:${chgColor(r.chg)}">${sign(r.chg)}%</span>`)+
+      board('爆量榜 · VOLUME',R.vol,r=>`<b>${r.vol_ratio}x</b>`)+
+      board('振幅榜 · RANGE',R.amp,r=>`<b>${r.amp}%</b>`)+
+      board('委買力道 · BID',R.orderbook,r=>`<b>${r.ob}</b>`)+
+      `</div>`;
+  }
+
+  function dlRenderCfg(body){
+    const c=getDlCfg();
+    body.innerHTML=`<div class="dlCfg">`+
+      `<label>本金（元）<input type="number" id="dlcCap" value="${c.capital||''}" placeholder="1000000"></label>`+
+      `<label>單筆風險%<input type="number" id="dlcRisk" value="${c.risk_pct||1}" step="0.1"></label>`+
+      `<label>手續費折數（0.3=3折）<input type="number" id="dlcFee" value="${c.fee_disc||0.3}" step="0.05"></label>`+
+      `<label>日內最大虧損(R)<input type="number" id="dlcLoss" value="${c.max_day_loss_R||-3}" step="1"></label>`+
+      `<label>連敗暫停(N筆)<input type="number" id="dlcStreak" value="${c.streak_cut_n||3}" step="1"></label>`+
+      `<label>單次估算張數<input type="number" id="dlcLots" value="${c.ev_lots||2}" step="1"></label>`+
+      `</div><div style="margin-top:14px"><button class="pfBtn pfPrimary" id="dlcSave">儲存設定</button>`+
+      `<span style="font-family:var(--mono);font-size:10.5px;color:var(--faint);margin-left:10px">設定供部位建議／淨EV成本／熔斷（本機儲存）</span></div>`;
+  }
+
+  // 事件委派
+  document.querySelectorAll('.pTab[data-dl]').forEach(t=>t.addEventListener('click',()=>{ dlSub=t.dataset.dl; renderDaytrade(); }));
+  document.getElementById('dlBody')?.addEventListener('click',e=>{
+    if(e.target.id==='dlFiltToggle'){ const l=document.getElementById('dlFiltList'); if(l) l.style.display=l.style.display==='none'?'block':'none'; return; }
+    if(e.target.id==='dlcSave'){
+      const cfg={capital:+document.getElementById('dlcCap').value||0,risk_pct:+document.getElementById('dlcRisk').value||1,
+        fee_disc:+document.getElementById('dlcFee').value||0.3,max_day_loss_R:+document.getElementById('dlcLoss').value||-3,
+        streak_cut_n:+document.getElementById('dlcStreak').value||3,ev_lots:+document.getElementById('dlcLots').value||2};
+      localStorage.setItem(DL_CFG_KEY,JSON.stringify(cfg));
+      const b=e.target; const t=b.textContent; b.textContent='✓ 已儲存'; setTimeout(()=>b.textContent=t,1200); return;
+    }
+    const op=e.target.closest('[data-open]'); if(op){ pick(op.dataset.open); }
+  });
+
+  window.fetchDaytrade=fetchDaytrade;
 })();
 </script>
 </body>

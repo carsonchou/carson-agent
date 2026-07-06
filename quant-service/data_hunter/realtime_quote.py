@@ -107,6 +107,37 @@ def fetch_quote(code: str, timeout: int = 8) -> dict | None:
     return _parse(valid[0])
 
 
+def fetch_quotes_batch(codes: list[str], chunk: int = 50, timeout: int = 8) -> dict[str, dict]:
+    """批次抓多檔即時報價＋五檔（給盤中當沖掃描池）。MIS ex_ch 用 '|' 串接多檔。
+    先全試 tse_，缺的(多為上櫃)再試 otc_；回 {code: _parse(...)}（含五檔/成交/開高低昨收/量）。
+    抓不到的 code 不在回傳裡（呼叫端自行降級）。"""
+    out: dict[str, dict] = {}
+    remaining = list(dict.fromkeys(c for c in codes if c))
+    for prefix in ("tse_", "otc_"):
+        if not remaining:
+            break
+        for i in range(0, len(remaining), chunk):
+            batch = remaining[i:i + chunk]
+            ex = "|".join(f"{prefix}{c}.tw" for c in batch)
+            url = f"{_MIS}?ex_ch={ex}&json=1&delay=0&_={int(datetime.now().timestamp())}"
+            try:
+                req = urllib.request.Request(url, headers=_HDR)
+                d = json.loads(urllib.request.urlopen(req, timeout=timeout, context=_CTX)
+                               .read().decode("utf-8", "replace"))
+            except Exception:
+                continue
+            if d.get("rtcode") != "0000":
+                continue
+            by = {m.get("c"): m for m in (d.get("msgArray") or [])
+                  if _num(m.get("y")) is not None}
+            for c in batch:
+                m = by.get(c)
+                if m is not None:
+                    out[c] = _parse(m)
+        remaining = [c for c in remaining if c not in out]
+    return out
+
+
 _INTRA_CACHE: dict = {}          # code → (monotonic_ts, closes)；分時 yfinance 較慢，60 秒快取省重抓
 # 國際指數 last-good 持久化：yfinance rate-limit 時回上次成功值，指數列不空白
 _INTL_FILE = Path(__file__).resolve().parent.parent.parent / "twdata" / "intl_indices.json"
