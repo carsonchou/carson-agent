@@ -354,5 +354,132 @@ def _build_context(date_str, gauge, strong, weak, sectors, twse_idx, intl_idx, p
     return "\n".join(lines)
 
 
+# ── 批2：財報/法說 AI 解讀 ────────────────────────────────────────────────────
+FILING_TEXT_MAX = 12000
+
+
+def _build_filing_auto_text(code: str, name: str, fnd: dict, rat: dict) -> str:
+    """自動模式（只給代號、沒貼文）：用真實基本面/財務比率組一段數據摘要當 LLM 輸入。"""
+    lines = [f"股票：{name or code}（{code}）— 以下為最新財務數據摘要（非逐字稿，供你解讀走勢）："]
+    lines.append(
+        f"EPS(近四季)={fnd.get('eps_ttm')} 營收年增YoY={fnd.get('rev_yoy')}% "
+        f"毛利率={fnd.get('gross_margin')}% 營益率={fnd.get('op_margin')}%"
+    )
+    lines.append(
+        f"流動比={rat.get('current_ratio')} 速動比={rat.get('quick_ratio')} 負債比={rat.get('debt_ratio')}% "
+        f"利息保障倍數={rat.get('interest_cover')} 營運現金流={rat.get('op_cf')} 自由現金流FCF={rat.get('fcf')} "
+        f"ROE(推估)={rat.get('roe')}%"
+    )
+    lines.append(
+        f"本益比={fnd.get('pe')} 股價淨值比={fnd.get('pb')} 殖利率={fnd.get('dividend_yield')}%"
+    )
+    return "\n".join(lines)
+
+
+def filing_agent(code: str = "", text: str = "") -> dict:
+    """財報/法說 AI 解讀（Anthropic 金融 agent 範例的台股版第2支）。
+
+    模式判定：text 非空 → 貼文模式(text 為主，貼上的財報/法說逐字稿)；
+             text 空且有 code → 自動模式(用 fundamentals 的真實數據摘要當 text)。
+    抓：①管理層真正想強調什麼 ②3個利多 ③3個警訊(最重要在前) ④對持有這檔的人的實質影響。
+    financials 一律用 fundamentals/ratios 的真值填(不靠 LLM 編)；LLM 缺欄位用 .get 補空。
+    全路徑 try/except 不炸；LLM/fundamentals/query 任一失敗都優雅降級，不阻塞。
+    """
+    code = (code or "").strip()
+    text = (text or "").strip()
+    ts = int(time.time())
+
+    name = ""
+    if code:
+        try:
+            import query
+            resolved = query._resolve_code(code) or code
+            code = resolved
+            a = query.analyze_stock(code)
+            if a and a.get("ok"):
+                name = a.get("name") or ""
+        except Exception:
+            pass
+
+    try:
+        import fundamentals
+    except Exception:
+        fundamentals = None
+
+    fin = {"eps_ttm": None, "rev_yoy": None, "gross_margin": None, "op_margin": None,
+           "current_ratio": None, "debt_ratio": None, "fcf": None, "roe": None,
+           "ratios_grade": {}}
+
+    mode_auto = (not text) and bool(code)
+    if fundamentals is not None and code:
+        try:
+            fnd = fundamentals.load_fundamentals(code, offline=True) or {}
+        except Exception:
+            fnd = {}
+        try:
+            # 自動模式（無貼文，靠這份數據當 LLM 輸入）值得多花一次網路抓最新；
+            # 貼文模式只是要真值填 financials 顯示，讀快取即可，別為了顯示逼一次額外抓取。
+            rat = fundamentals.load_financial_ratios(code, offline=not mode_auto) or {}
+        except Exception:
+            rat = {}
+        fin.update({
+            "eps_ttm": fnd.get("eps_ttm"), "rev_yoy": fnd.get("rev_yoy"),
+            "gross_margin": fnd.get("gross_margin"), "op_margin": fnd.get("op_margin"),
+            "current_ratio": rat.get("current_ratio"), "debt_ratio": rat.get("debt_ratio"),
+            "fcf": rat.get("fcf"), "roe": rat.get("roe"),
+            "ratios_grade": rat.get("grade") or {},
+        })
+        if mode_auto:
+            text = _build_filing_auto_text(code, name, fnd, rat)
+
+    if not text:
+        out = {"code": code, "name": name, "ts": ts,
+               "summary": "", "positives": [], "warnings": [],
+               "holder_impact": "", "verdict_line": "缺財報內容，無法分析（請貼文字或給股票代號）",
+               "financials": fin}
+        save_state(f"filing_{code or 'adhoc'}", out)
+        return out
+
+    if len(text) > FILING_TEXT_MAX:
+        text = text[:FILING_TEXT_MAX]
+
+    system = (
+        PERSONA
+        + "你在讀一份財報/法說。抓：①管理層真正想強調什麼 ②3個利多 ③3個警訊(最重要在前) "
+        + "④對持有這檔的人的實質影響。用白話，禁喊單、禁目標價。只輸出 JSON。"
+    )
+    schema_hint = (
+        "請只輸出合格 JSON（不要加任何說明文字/markdown code fence），schema：\n"
+        '{"summary":"3-4句管理層重點","positives":["利多1","利多2","利多3"],'
+        '"warnings":["警訊1","警訊2","警訊3"],"holder_impact":"對持有這檔的人的實質影響(中性敘述)",'
+        '"verdict_line":"一句話結論(不含買賣建議/目標價)"}'
+    )
+    prompt = f"股票：{name or code or '(未指定代號)'}\n\n財報/法說內容：\n{text}\n\n{schema_hint}"
+
+    try:
+        llm_out = ask(prompt, system=system, json_mode=True, temperature=0.2, max_tokens=2500)
+    except Exception as e:
+        llm_out = {"_raw": "", "_error": f"llm failed: {type(e).__name__}: {e}"}
+    if not isinstance(llm_out, dict):
+        llm_out = {}
+
+    def _list3(key):
+        v = llm_out.get(key)
+        return [str(x) for x in v][:3] if isinstance(v, list) else []
+
+    out = {
+        "code": code, "name": name, "ts": ts,
+        "summary": llm_out.get("summary") or "",
+        "positives": _list3("positives"),
+        "warnings": _list3("warnings"),
+        "holder_impact": llm_out.get("holder_impact") or "",
+        "verdict_line": llm_out.get("verdict_line") or "",
+        "financials": fin,
+    }
+
+    save_state(f"filing_{code or 'adhoc'}", out)
+    return out
+
+
 if __name__ == "__main__":
     print(json.dumps(research_agent(), ensure_ascii=False, indent=2))

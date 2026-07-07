@@ -15,10 +15,15 @@ fundamentals.py — 數據獵手「基本面/估值」資料層（對齊三竹�
 設計原則：離線(offline=True)只讀快取、秒回不卡；缺資料一律優雅降級成 None，
 不阻塞健診/查詢。FinMind 免 token 300 req/hr、有 FINMIND_TOKEN env 則 600/hr。
 
+批2 新增：財報透視 agent 用的財務比率（流動比/速動比/負債比/利息保障倍數/FCF/ROE），
+新接 FinMind TaiwanStockBalanceSheet + TaiwanStockCashFlowsStatement 兩個 dataset。
+type 字串已於 2026-07-07 對 2330 線上 probe 驗證（見 fetch_financial_ratios 內註解），非憑猜。
+
 用法
   python fundamentals.py 2330            # 顯示單檔基本面(缺快取會即時抓一次)
   python fundamentals.py --valuation     # 刷新全市場估值(PE/PB/殖利率)
   python fundamentals.py --refresh 2330 2317 2454   # 批次刷新指定檔財報/營收/股利
+  python fundamentals.py --ratios 2330   # 顯示單檔財務比率(流動比/負債比/FCF/ROE…)
 """
 from __future__ import annotations
 
@@ -279,6 +284,143 @@ def load_fundamentals(code: str, offline: bool = True) -> dict:
     return out
 
 
+# ── 財務比率：流動比/速動比/負債比/利息保障倍數/FCF/ROE ─────────────────────────
+# FinMind type 字串已於 2026-07-07 用 _finmind 直接 probe TaiwanStockBalanceSheet /
+# TaiwanStockCashFlowsStatement(2330, 近兩年)線上確認，非憑猜：
+#   資產負債表：CurrentAssets / CurrentLiabilities / Inventories / TotalAssets / Liabilities / Equity
+#   現金流量表：CashFlowsFromOperatingActivities / PropertyAndPlantAndEquipment(資本支出,負值=流出) /
+#              InterestExpense（正值，適合當利息保障倍數分母）
+# 注意：FinMind 現金流量表數值疑似為「會計年度內累計」(Q1 為當季、Q2~Q4 可能是年初至今累計，
+# 觀察 2330 2025-12-31 遠大於單季規模即為佐證)；本函式只取「最近一筆可得日期」的原始值，
+# 不做累計拆分(與既有 _latest_quarters 對 EPS/Revenue 的取法一致)，fcf/op_cf 屬近似值，非精算。
+def _latest_price(code: str):
+    """給 ROE 推估用的參考價：優先即時報價，抓不到退用本機日線快取最後收盤。抓不到回 None，不阻塞。"""
+    try:
+        import realtime_quote
+        q = realtime_quote.fetch_quote(code)
+        if q and q.get("price") is not None:
+            return q["price"]
+    except Exception:
+        pass
+    try:
+        import scan
+        df = scan._read_cache(code)
+        if df is not None and len(df):
+            return float(df["Close"].iloc[-1])
+    except Exception:
+        pass
+    return None
+
+
+def _grade_tier(x, good, bad, higher_is_better: bool = True):
+    """依門檻分「好/普/差」；x=None→None。higher_is_better=False 時方向反轉(如負債比)。"""
+    if x is None:
+        return None
+    if higher_is_better:
+        if x > good:
+            return "好"
+        if x < bad:
+            return "差"
+        return "普"
+    else:
+        if x < good:
+            return "好"
+        if x > bad:
+            return "差"
+        return "普"
+
+
+def fetch_financial_ratios(code: str) -> dict:
+    """抓單檔財務比率：流動比/速動比/負債比/利息保障倍數/FCF/營運現金流/ROE(推估)，
+    落快取 stock_ratios_<code>.json。任何子項缺資料 → None，不阻塞；grade 只對可判級比率給好/普/差。"""
+    two_years_ago = f"{date.today().year - 2}-01-01"
+    out = {"code": code, "fetched_at": datetime.now().isoformat(timespec="seconds"),
+           "current_ratio": None, "quick_ratio": None, "debt_ratio": None,
+           "interest_cover": None, "fcf": None, "op_cf": None, "roe": None,
+           "grade": {}}
+
+    bs = _finmind("TaiwanStockBalanceSheet", code, two_years_ago)
+    ca_q = _latest_quarters(bs, "CurrentAssets", 1)
+    cl_q = _latest_quarters(bs, "CurrentLiabilities", 1)
+    inv_q = _latest_quarters(bs, "Inventories", 1)
+    ta_q = _latest_quarters(bs, "TotalAssets", 1)
+    tl_q = _latest_quarters(bs, "Liabilities", 1)
+
+    ca = ca_q[0][1] if ca_q else None
+    cl = cl_q[0][1] if cl_q else None
+    invv = inv_q[0][1] if inv_q else None
+    ta = ta_q[0][1] if ta_q else None
+    tl = tl_q[0][1] if tl_q else None
+
+    if ca is not None and cl:
+        out["current_ratio"] = round(ca / cl, 2)
+        if invv is not None:
+            out["quick_ratio"] = round((ca - invv) / cl, 2)
+    if tl is not None and ta:
+        out["debt_ratio"] = round(tl / ta * 100, 1)
+
+    cf = _finmind("TaiwanStockCashFlowsStatement", code, two_years_ago)
+    op_cf_q = _latest_quarters(cf, "CashFlowsFromOperatingActivities", 1)
+    capex_q = _latest_quarters(cf, "PropertyAndPlantAndEquipment", 1)
+    int_exp_q = _latest_quarters(cf, "InterestExpense", 1)
+
+    op_cf = op_cf_q[0][1] if op_cf_q else None
+    if op_cf is not None:
+        out["op_cf"] = op_cf
+        if capex_q:
+            out["fcf"] = round(op_cf - abs(capex_q[0][1]), 0)
+
+    # 利息保障倍數：營業利益(TaiwanStockFinancialStatements) / 利息費用(現金流量表)
+    fs = _finmind("TaiwanStockFinancialStatements", code, two_years_ago)
+    oi_q = _latest_quarters(fs, "OperatingIncome", 1)
+    oi = oi_q[0][1] if oi_q else None
+    int_exp = int_exp_q[0][1] if int_exp_q else None
+    if oi is not None and int_exp:
+        out["interest_cover"] = round(oi / int_exp, 2)
+
+    # ROE(推估)：重用 health._roe_est(eps_ttm/pb/price)；eps_ttm 走 load_stock_fundamentals(offline，
+    # 讀快取不多打網路)，pb 走 load_valuation(offline，避免為了單檔又觸發全市場 BWIBBU 抓取)，
+    # price 走 _latest_price(即時或本機日線快取)。
+    try:
+        import health
+        fnd = load_stock_fundamentals(code, offline=True) or {}
+        pb = (load_valuation(offline=True).get(code) or {}).get("pb")
+        price = _latest_price(code)
+        out["roe"] = health._roe_est({"eps_ttm": fnd.get("eps_ttm"), "pb": pb, "price": price})
+    except Exception:
+        out["roe"] = None
+
+    out["grade"] = {
+        "current_ratio": _grade_tier(out["current_ratio"], 1.5, 1),
+        "debt_ratio": _grade_tier(out["debt_ratio"], 40, 60, higher_is_better=False),
+        "fcf": _grade_tier(out["fcf"], 0, 0),
+        "interest_cover": _grade_tier(out["interest_cover"], 5, 1),
+        "roe": _grade_tier(out["roe"], 15, 5),
+    }
+
+    _atomic_write_json(FUND_DIR / f"stock_ratios_{code}.json", out)
+    return out
+
+
+def load_financial_ratios(code: str, offline: bool = True,
+                          max_age_days: int = STOCK_TTL_DAYS) -> dict | None:
+    """讀單檔財務比率快取；offline 只讀(缺/過期仍回舊資料，完全沒有才 None)，非 offline 過期會抓一次。"""
+    path = FUND_DIR / f"stock_ratios_{code}.json"
+    if _cache_fresh(path, max_age_days):
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    if not offline:
+        return fetch_financial_ratios(code)
+    if path.exists():
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            return None
+    return None
+
+
 # ── 批次刷新(給每日/每週排程或 CLI) ──────────────────────────────────────────
 def prefetch(codes: list[str], max_financials: int = 30, sleep: float = 1.0) -> dict:
     """盤後背景預抓：估值(BWIBBU 全市場 1 次，免費) + 輪替刷新最舊/缺的財報(FinMind)。
@@ -328,6 +470,13 @@ if __name__ == "__main__":
         codes = [a for a in args if a.isdigit()]
         print(f"[fund] 批次刷新 {len(codes)} 檔財報/營收/股利 …")
         print("[fund] 成功", refresh_stocks(codes), "檔")
+    elif "--ratios" in args:
+        digits = [a for a in args if a.isdigit()]
+        code = digits[0] if digits else "2330"
+        r = fetch_financial_ratios(code)
+        print(f"=== {code} 財務比率 ===")
+        for k, v in r.items():
+            print(f"  {k:16} {v}")
     elif args and args[0].isdigit():
         code = args[0]
         # 缺快取就即時抓一次(非 offline)

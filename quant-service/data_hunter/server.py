@@ -32,6 +32,7 @@ _SSE_WATCH = {
     "daytrade": HERE / "state_daytrade.json",
     "zones": HERE / "state_zones.json",
     "research": HERE / "state_research.json",
+    "filing": HERE / "state_filing_adhoc.json",
 }
 PREFS_FILE = HERE / "prefs.json"
 
@@ -124,6 +125,17 @@ class Handler(SimpleHTTPRequestHandler):
             try:
                 import ai_agents
                 r = ai_agents.load_state("research")
+            except Exception as e:
+                self._send_json({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
+                return True
+            self._send_json({"ok": bool(r), **(r or {})})
+            return True
+        if path == "/api/fin_analyze":
+            # 財報透視：讀最近一次 AI 解讀(state_filing_<code or adhoc>.json)；?code= 選填
+            code = (qs.get("code", [""])[0] or "").strip()
+            try:
+                import ai_agents
+                r = ai_agents.load_state(f"filing_{code or 'adhoc'}")
             except Exception as e:
                 self._send_json({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
                 return True
@@ -353,6 +365,23 @@ class Handler(SimpleHTTPRequestHandler):
                 from concurrent.futures import ThreadPoolExecutor
                 with ThreadPoolExecutor(max_workers=1) as ex:
                     res = ex.submit(ai_agents.research_agent).result(timeout=60.0)
+                self._send_json({"ok": True, **res})
+            except Exception as e:
+                self._send_json({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
+            return
+        if split.path == "/api/fin_analyze":
+            # 財報透視：body {code?, text?}。有界執行(60s，貼文可能很長)；
+            # ai_agents.filing_agent 內部已把 LLM/fundamentals/query 失敗都收斂成合法 JSON，
+            # 這裡再包一層防意外例外，絕不因缺 LLM key 或壞輸入而 500。
+            try:
+                n = int(self.headers.get("Content-Length", 0))
+                body = json.loads(self.rfile.read(n).decode("utf-8")) if n else {}
+                code = str(body.get("code") or "").strip()
+                text = str(body.get("text") or "")
+                import ai_agents
+                from concurrent.futures import ThreadPoolExecutor
+                with ThreadPoolExecutor(max_workers=1) as ex:
+                    res = ex.submit(ai_agents.filing_agent, code, text).result(timeout=60.0)
                 self._send_json({"ok": True, **res})
             except Exception as e:
                 self._send_json({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)

@@ -20,6 +20,7 @@ import llm  # noqa: E402
 import query  # noqa: E402
 import news  # noqa: E402
 import realtime_quote  # noqa: E402
+import fundamentals  # noqa: E402
 
 
 FAKE_LLM_JSON = json.dumps({
@@ -237,6 +238,148 @@ class TestResearchAgent(_TmpHereMixin, unittest.TestCase):
         out = ai_agents.research_agent(codes=["2330"])
         self.assertEqual(len(out["holdings"]), 1)
         self.assertIsNone(out["holdings"][0]["price"])   # 抓不到價 → None，不是亂編
+
+
+FAKE_FILING_LLM_JSON = json.dumps({
+    "summary": "管理層強調毛利率改善與AI需求續強。",
+    "positives": ["毛利率季增", "AI相關營收占比提升", "資本支出紀律"],
+    "warnings": ["傳產淡季壓力", "匯率波動風險", "客戶集中度偏高"],
+    "holder_impact": "獲利動能維持，但需留意匯率與淡季波動。",
+    "verdict_line": "基本面穩健，短期波動仍在，自行評估風險。",
+}, ensure_ascii=False)
+
+
+def _fake_resolve_code(q):
+    return {"台積電": "2330"}.get(q, q if q.isdigit() else None)
+
+
+def _fake_analyze_stock_for_filing(code, live=False):
+    if code == "2330":
+        return {"ok": True, "code": "2330", "name": "台積電"}
+    return {"ok": False}
+
+
+class TestFilingAgent(_TmpHereMixin, unittest.TestCase):
+    def setUp(self):
+        super().setUp()
+        self._orig_complete = llm.complete
+        self._orig_resolve = query._resolve_code
+        self._orig_analyze = query.analyze_stock
+        self._orig_load_fund = fundamentals.load_fundamentals
+        self._orig_load_ratios = fundamentals.load_financial_ratios
+        llm.complete = lambda prompt, max_tokens=3500, json_mode=False, temperature=None: FAKE_FILING_LLM_JSON
+        query._resolve_code = _fake_resolve_code
+        query.analyze_stock = _fake_analyze_stock_for_filing
+        fundamentals.load_fundamentals = lambda code, offline=True: {
+            "eps_ttm": 34.5, "rev_yoy": 25.6, "gross_margin": 58.2, "op_margin": 47.1,
+            "pe": 22.0, "pb": 6.5, "dividend_yield": 1.8,
+        }
+        fundamentals.load_financial_ratios = lambda code, offline=True: {
+            "current_ratio": 2.3, "quick_ratio": 2.1, "debt_ratio": 32.0,
+            "interest_cover": 88.0, "fcf": 123456.0, "op_cf": 234567.0, "roe": 30.5,
+            "grade": {"current_ratio": "好", "debt_ratio": "好", "fcf": "好",
+                      "interest_cover": "好", "roe": "好"},
+        }
+
+    def tearDown(self):
+        llm.complete = self._orig_complete
+        query._resolve_code = self._orig_resolve
+        query.analyze_stock = self._orig_analyze
+        fundamentals.load_fundamentals = self._orig_load_fund
+        fundamentals.load_financial_ratios = self._orig_load_ratios
+        super().tearDown()
+
+    def test_paste_mode_uses_text_and_real_financials(self):
+        out = ai_agents.filing_agent(code="2330", text="這是一段假的法說逐字稿內容。" * 10)
+        self.assertEqual(out["code"], "2330")
+        self.assertEqual(out["name"], "台積電")
+        self.assertEqual(out["summary"], "管理層強調毛利率改善與AI需求續強。")
+        self.assertEqual(len(out["positives"]), 3)
+        self.assertEqual(len(out["warnings"]), 3)
+        self.assertTrue(out["holder_impact"])
+        self.assertTrue(out["verdict_line"])
+        # financials 一律真值，不是 LLM 編的
+        self.assertEqual(out["financials"]["eps_ttm"], 34.5)
+        self.assertEqual(out["financials"]["current_ratio"], 2.3)
+        self.assertEqual(out["financials"]["ratios_grade"]["roe"], "好")
+
+    def test_auto_mode_no_text_builds_summary_from_fundamentals(self):
+        out = ai_agents.filing_agent(code="2330", text="")
+        self.assertEqual(out["code"], "2330")
+        self.assertEqual(out["financials"]["rev_yoy"], 25.6)
+        self.assertEqual(out["financials"]["fcf"], 123456.0)
+        self.assertTrue(out["summary"])
+
+    def test_text_only_no_code_still_works(self):
+        out = ai_agents.filing_agent(code="", text="純貼文沒給代號的財報內容。" * 5)
+        self.assertEqual(out["code"], "")
+        self.assertEqual(out["name"], "")
+        self.assertTrue(out["summary"])
+        # 沒代號 → 無法查 fundamentals，financials 全 None
+        self.assertIsNone(out["financials"]["eps_ttm"])
+
+    def test_no_code_no_text_returns_graceful_empty_not_exception(self):
+        out = ai_agents.filing_agent(code="", text="")
+        self.assertEqual(out["summary"], "")
+        self.assertEqual(out["positives"], [])
+        self.assertEqual(out["warnings"], [])
+        self.assertIn("缺財報內容", out["verdict_line"])
+
+    def test_llm_failure_does_not_crash_and_yields_valid_schema(self):
+        def _boom(prompt, max_tokens=3500, json_mode=False, temperature=None):
+            raise RuntimeError("所有 LLM 供應商都失敗")
+        llm.complete = _boom
+        out = ai_agents.filing_agent(code="2330", text="一段財報內容" * 20)
+        self.assertEqual(out["summary"], "")
+        self.assertEqual(out["positives"], [])
+        self.assertEqual(out["warnings"], [])
+        # financials 真值不受 LLM 失敗影響
+        self.assertEqual(out["financials"]["eps_ttm"], 34.5)
+
+    def test_llm_malformed_json_does_not_crash(self):
+        llm.complete = lambda prompt, max_tokens=3500, json_mode=False, temperature=None: "not json"
+        out = ai_agents.filing_agent(code="2330", text="一段財報內容" * 20)
+        self.assertEqual(out["summary"], "")
+
+    def test_fundamentals_lookup_failure_does_not_crash(self):
+        def _boom(code, offline=True):
+            raise RuntimeError("network down")
+        fundamentals.load_fundamentals = _boom
+        out = ai_agents.filing_agent(code="2330", text="一段財報內容" * 20)
+        self.assertIsNone(out["financials"]["eps_ttm"])
+        self.assertTrue(out["summary"])   # LLM 部分仍正常運作
+
+    def test_long_text_gets_truncated(self):
+        long_text = "字" * 20000
+        captured = {}
+        orig_ask = ai_agents.ask
+        def _spy_ask(prompt, **kw):
+            captured["prompt_len"] = len(prompt)
+            return orig_ask(prompt, **kw)
+        ai_agents.ask = _spy_ask
+        try:
+            ai_agents.filing_agent(code="2330", text=long_text)
+        finally:
+            ai_agents.ask = orig_ask
+        self.assertLessEqual(captured["prompt_len"], 20000 + 2000)   # 遠小於原文20000+schema
+
+    def test_persisted_to_state_filing_code(self):
+        out = ai_agents.filing_agent(code="2330", text="測試內容" * 10)
+        got = ai_agents.load_state("filing_2330")
+        self.assertEqual(got, out)
+
+    def test_persisted_to_state_filing_adhoc_when_no_code(self):
+        out = ai_agents.filing_agent(code="", text="測試內容" * 10)
+        got = ai_agents.load_state("filing_adhoc")
+        self.assertEqual(got, out)
+
+    def test_query_failure_still_produces_valid_output(self):
+        def _boom(code, live=False):
+            raise RuntimeError("network down")
+        query.analyze_stock = _boom
+        out = ai_agents.filing_agent(code="2330", text="測試內容" * 10)
+        self.assertEqual(out["code"], "2330")
+        self.assertEqual(out["name"], "")   # 查不到名稱 → 空字串,不炸
 
 
 if __name__ == "__main__":

@@ -286,6 +286,38 @@
     border-radius:8px;background:rgba(198,154,76,.06)}
   .rsEmpty{color:var(--dim);font-size:13px;padding:20px;text-align:center;font-family:var(--mono)}
 
+  /* ════ 財報透視 · FILING ════ */
+  .flInput{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
+  .flInput input,.flInput textarea{background:rgba(255,255,255,.04);border:1px solid var(--line);color:var(--txt);
+    padding:8px 10px;border-radius:6px;font-size:12.5px;font-family:inherit;resize:vertical}
+  .flInput input{width:180px}
+  .flInput textarea{min-height:110px}
+  .flInput button{align-self:flex-start;background:rgba(90,147,189,.15);border:1px solid rgba(90,147,189,.35);
+    color:var(--acc);padding:6px 16px;border-radius:4px;font-size:12px;cursor:pointer;font-family:var(--mono)}
+  .flInput button:disabled{opacity:.5;cursor:default}
+  .flResult{display:flex;flex-direction:column;gap:10px}
+  .flSummary{font-size:13px;line-height:1.7;color:var(--txt);padding:12px 14px;border:1px solid var(--line);
+    border-radius:10px;background:rgba(255,255,255,.015)}
+  .flCols{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  @media(max-width:620px){.flCols{grid-template-columns:1fr}}
+  .flPos,.flWarn{border-radius:10px;padding:10px 14px;font-size:12.5px;line-height:1.6}
+  .flPos{border:1px solid rgba(0,212,170,.25);background:rgba(0,212,170,.05)}
+  .flWarn{border:1px solid rgba(230,74,94,.25);background:rgba(230,74,94,.05)}
+  .flPos h3,.flWarn h3{font-size:11px;margin-bottom:6px;font-family:var(--mono)}
+  .flPos h3{color:var(--acc2)}
+  .flWarn h3{color:var(--up)}
+  .flPos ul,.flWarn ul{padding-left:16px;margin:0}
+  .flPos li{color:var(--acc2)}
+  .flWarn li{color:var(--up)}
+  .flRow{font-size:12.5px;line-height:1.6;padding:10px 14px;border:1px solid var(--line2);border-radius:8px}
+  .flVerdict{font-size:12.5px;color:var(--gold);padding:10px 14px;border:1px solid rgba(198,154,76,.25);
+    border-radius:8px;background:rgba(198,154,76,.06)}
+  .flRatios{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}
+  .flRatio{border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:11.5px}
+  .flRatio .frLbl{color:var(--dim);font-family:var(--mono);font-size:10px}
+  .flRatio .frVal{font-family:var(--mono);font-weight:700;margin-top:2px;display:flex;align-items:center;gap:5px}
+  .flRatio .frDot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+
   /* ════ 庫存 · PORTFOLIO ════ */
   .pfHead{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:12px 14px;margin:2px 0 14px;
     border:1px solid var(--line);border-radius:12px;background:linear-gradient(180deg,rgba(90,147,189,.05),rgba(255,255,255,.01))}
@@ -1125,6 +1157,7 @@
     <div class="tab" data-v="chips">法人資金流向 · INSTITUTIONS</div>
     <div class="tab" data-v="zones">交易專區 · TRADE ZONES</div>
     <div class="tab" data-v="research">每日研究 · RESEARCH</div>
+    <div class="tab" data-v="filing">財報透視 · FILING</div>
     <div class="tab" data-v="daylive">當沖即時 · LIVE</div>
     <div class="tab" data-v="track">實盤戰績 · TRACK RECORD</div>
     <div class="tab" data-v="portfolio">庫存 · PORTFOLIO</div>
@@ -1261,6 +1294,21 @@
       <div id="rsHoldings" class="rsHoldings"></div>
       <div id="rsNote" class="rsNote"></div>
       <div class="zNote">AI 研究摘要僅供參考 · 非投資建議 · 資料來源含 LLM 生成內容</div>
+    </section>
+  </div>
+
+  <!-- ════ 財報透視 view（貼財報/法說逐字稿或給代號 → AI 白話解讀） ════ -->
+  <div class="view" data-view="filing">
+    <section class="panel">
+      <span class="corner tl"></span><span class="corner br"></span>
+      <h2>財報透視 · FILING INSIGHT　<span style="color:var(--faint);font-size:11px">貼財報/法說逐字稿或給代號 · 誠實避雷 · 不喊買賣不喊目標價</span></h2>
+      <div class="flInput">
+        <input id="flCode" type="text" placeholder="股票代號(選填，如 2330)">
+        <textarea id="flText" placeholder="貼上財報/法說逐字稿(選填；留空且有代號則用最新財務數據自動分析)" rows="8"></textarea>
+        <button id="flRunBtn">▶ 分析</button>
+      </div>
+      <div id="flResult" class="flResult"></div>
+      <div class="zNote">AI 財報解讀僅供參考 · 非投資建議 · 資料來源含 LLM 生成內容</div>
     </section>
   </div>
 
@@ -1915,6 +1963,7 @@ document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
   if(v==='chips'&&lastData)renderChips(lastData.chips);
   if(v==='zones')window.fetchZones&&window.fetchZones();
   if(v==='research')window.fetchResearch&&window.fetchResearch();
+  if(v==='filing')window.fetchFiling&&window.fetchFiling();
   if(v==='portfolio')window.renderPortfolio&&window.renderPortfolio();
   if(v==='daylive')window.fetchDaytrade&&window.fetchDaytrade();
 }));
@@ -2326,6 +2375,7 @@ function initSSE(){ try{
   es.addEventListener('daytrade',()=>{ if(document.querySelector('.tab.active')?.dataset.v==='daylive') window.fetchDaytrade&&window.fetchDaytrade(); });
   es.addEventListener('zones',()=>{ if(document.querySelector('.tab.active')?.dataset.v==='zones') window.fetchZones&&window.fetchZones(); });
   es.addEventListener('research',()=>window.fetchResearch&&window.fetchResearch());
+  es.addEventListener('filing',()=>{ if(document.querySelector('.tab.active')?.dataset.v==='filing') window.fetchFiling&&window.fetchFiling(); });
   es.onopen=()=>setStreamLed(true);
   es.onerror=()=>setStreamLed(false);
 }catch(e){ setStreamLed(false); } }
@@ -2950,6 +3000,69 @@ if(SNAP){ loadHistory(); }
     }catch(e){}
     btn.textContent=orig; btn.disabled=false;
   });
+
+  /* ════════════ 財報透視 · FILING（貼財報/法說 AI 白話解讀） ════════════ */
+  let filingData=null;
+  const FL_GRADE_COLOR={'好':'var(--acc2)','普':'var(--dim)','差':'var(--up)'};
+  const FL_RATIO_LABELS={current_ratio:'流動比',debt_ratio:'負債比%',fcf:'FCF',roe:'ROE%(推估)'};
+  async function fetchFiling(code){
+    try{
+      const q=code?`?code=${encodeURIComponent(code)}`:'';
+      const r=await fetch('/api/fin_analyze'+q,{cache:'no-store'}); const j=await r.json();
+      filingData=(j&&j.ok!==false&&(j.summary||(j.positives&&j.positives.length)||(j.warnings&&j.warnings.length)))?j:null;
+    }catch(e){ filingData=null; }
+    renderFiling();
+  }
+  function renderFiling(){
+    const box=document.getElementById('flResult'); if(!box) return;
+    if(!filingData){
+      box.innerHTML='<div class="rsEmpty">尚無財報解讀 · 輸入股票代號或貼上財報/法說內容後按「▶ 分析」</div>';
+      return;
+    }
+    const f=filingData;
+    const pos=(f.positives||[]).map(p=>`<li>${p}</li>`).join('');
+    const warn=(f.warnings||[]).map(w=>`<li>${w}</li>`).join('');
+    const fin=f.financials||{};
+    const grades=fin.ratios_grade||{};
+    const ratioCards=[
+      ['eps_ttm','EPS(近四季)',fin.eps_ttm],
+      ['rev_yoy','營收年增%',fin.rev_yoy],
+      ['gross_margin','毛利率%',fin.gross_margin],
+      ['op_margin','營益率%',fin.op_margin],
+    ].map(([k,lbl,v])=>`<div class="flRatio"><div class="frLbl">${lbl}</div><div class="frVal">${v!=null?v:'—'}</div></div>`).join('')
+    +Object.keys(FL_RATIO_LABELS).map(k=>{
+      const v=fin[k]; const g=grades[k]; const dotColor=g?(FL_GRADE_COLOR[g]||'var(--faint)'):'var(--faint)';
+      return `<div class="flRatio"><div class="frLbl">${FL_RATIO_LABELS[k]}</div>`+
+        `<div class="frVal"><span class="frDot" style="background:${dotColor}"></span>${v!=null?v:'—'}${g?`（${g}）`:''}</div></div>`;
+    }).join('');
+    box.innerHTML=
+      (f.summary?`<div class="flSummary">${f.summary}</div>`:'')+
+      `<div class="flCols">`+
+        `<div class="flPos"><h3>▲ 利多</h3><ul>${pos||'<li style="color:var(--dim)">無</li>'}</ul></div>`+
+        `<div class="flWarn"><h3>▼ 警訊</h3><ul>${warn||'<li style="color:var(--dim)">無</li>'}</ul></div>`+
+      `</div>`+
+      (f.holder_impact?`<div class="flRow"><b style="color:var(--dim)">對持股者的實質影響：</b>${f.holder_impact}</div>`:'')+
+      (f.verdict_line?`<div class="flVerdict">${f.verdict_line}</div>`:'')+
+      `<div class="flRatios">${ratioCards}</div>`;
+  }
+  async function runFiling(){
+    const btn=document.getElementById('flRunBtn'); if(!btn) return;
+    const orig=btn.textContent;
+    const code=(document.getElementById('flCode')?.value||'').trim();
+    const text=(document.getElementById('flText')?.value||'').trim();
+    if(!code&&!text){ alert('請輸入股票代號或貼上財報/法說內容'); return; }
+    btn.textContent='分析中…'; btn.disabled=true;
+    try{
+      const r=await fetch('/api/fin_analyze',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({code,text})});
+      const j=await r.json();
+      if(j&&j.ok!==false){ filingData=j; renderFiling(); }
+      else{ alert('分析失敗：'+((j&&j.error)||'未知錯誤')); }
+    }catch(e){ alert('分析失敗：'+e); }
+    btn.textContent=orig; btn.disabled=false;
+  }
+  document.getElementById('flRunBtn')?.addEventListener('click', runFiling);
+  window.fetchFiling=fetchFiling; window.runFiling=runFiling;
 
   // 這些看板 widget 定義在本 IIFE，但主資料輪詢 render(d) 在另一個 script → 掛 window 供其呼叫
   Object.assign(window, {renderIndices, renderMStats, renderInstTop, renderRanks,

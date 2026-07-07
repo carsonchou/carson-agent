@@ -173,6 +173,17 @@ def daily_research(codes: list = None) -> dict:
     return ai_agents.research_agent(codes)
 
 
+# ── Tool 8：財報/法說 AI 解讀 ────────────────────────────────────────────────
+
+@mcp.tool()
+def analyze_financials(code: str = "", text: str = "") -> dict:
+    """財報/法說 AI 解讀（Anthropic 金融 agent 範例的台股版第2支）：抓管理層真正想強調什麼、
+    3個利多、3個警訊(最重要在前)、對持有這檔的人的實質影響（誠實避雷，不喊買賣不喊目標價）。
+    text 有內容時走「貼文模式」(貼財報/法說逐字稿優先分析)；text 空只給 code 時走「自動模式」
+    (用最新財報數據自動組摘要分析)。financials 欄位一律為真實數據，非 LLM 生成。"""
+    return ai_agents.filing_agent(code, text)
+
+
 # ── Entry point ────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
