@@ -267,6 +267,25 @@
   .zEmpty{color:var(--dim);font-size:13px;padding:20px;text-align:center;font-family:var(--mono)}
   .rchg{font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:700;min-width:54px;text-align:right}
 
+  /* ════ 每日研究 · RESEARCH ════ */
+  .rsMarket{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 14px;margin:2px 0 14px;
+    border:1px solid var(--line);border-radius:12px;background:linear-gradient(180deg,rgba(90,147,189,.05),rgba(255,255,255,.01))}
+  .rsMarket .rsDot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+  .rsMarket .rsTone{font-family:var(--ttl);font-weight:700;font-size:15px}
+  .rsMarket .rsLine{color:var(--txt);font-size:13px;flex:1;min-width:200px}
+  .rsMarket .rsIntl{font-family:var(--mono);font-size:11px;color:var(--faint);width:100%}
+  .rsHoldings{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px}
+  .rsCard{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:rgba(255,255,255,.015)}
+  .rsCard .rsHd{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+  .rsCard .rsHd b{font-weight:600;font-size:13.5px}
+  .rsCard .rsHd .rcode{font-family:var(--mono);color:var(--dim);font-size:11px}
+  .rsCard .rsHd .rsPx{margin-left:auto;font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:700;text-align:right}
+  .rsCard .rsRow{font-size:12.5px;line-height:1.6;margin-top:3px}
+  .rsCard .rsRow b{color:var(--dim);font-weight:500;margin-right:4px}
+  .rsNote{font-size:12.5px;color:var(--txt);margin-top:14px;padding:10px 14px;border:1px solid var(--line2);
+    border-radius:8px;background:rgba(198,154,76,.06)}
+  .rsEmpty{color:var(--dim);font-size:13px;padding:20px;text-align:center;font-family:var(--mono)}
+
   /* ════ 庫存 · PORTFOLIO ════ */
   .pfHead{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:12px 14px;margin:2px 0 14px;
     border:1px solid var(--line);border-radius:12px;background:linear-gradient(180deg,rgba(90,147,189,.05),rgba(255,255,255,.01))}
@@ -1105,6 +1124,7 @@
     <div class="tab" data-v="heat">板塊熱流 · FLOW MAP</div>
     <div class="tab" data-v="chips">法人資金流向 · INSTITUTIONS</div>
     <div class="tab" data-v="zones">交易專區 · TRADE ZONES</div>
+    <div class="tab" data-v="research">每日研究 · RESEARCH</div>
     <div class="tab" data-v="daylive">當沖即時 · LIVE</div>
     <div class="tab" data-v="track">實盤戰績 · TRACK RECORD</div>
     <div class="tab" data-v="portfolio">庫存 · PORTFOLIO</div>
@@ -1227,6 +1247,20 @@
       <div class="zChips" id="zChips"></div>
       <div class="zTableWrap"><table class="zTable" id="zTable"></table></div>
       <div class="zNote">多因子選股參考 · 非投資建議 · 據此進出風險自負</div>
+    </section>
+  </div>
+
+  <!-- ════ 每日研究 view（持股每日白話摘要：今天發生什麼／好壞／該注意什麼） ════ -->
+  <div class="view" data-view="research">
+    <section class="panel">
+      <span class="corner tl"></span><span class="corner br"></span>
+      <h2>每日研究 · DAILY RESEARCH　<span style="color:var(--faint);font-size:11px">持股白話摘要 · 誠實避雷 · 不喊買賣不喊目標價</span>
+        <button id="rsRunBtn" style="margin-left:auto;background:rgba(90,147,189,.15);border:1px solid rgba(90,147,189,.35);color:var(--acc);padding:5px 12px;border-radius:4px;font-size:12px;cursor:pointer;font-family:var(--mono)">▶ 立即產生</button>
+      </h2>
+      <div id="rsMarket" class="rsMarket"></div>
+      <div id="rsHoldings" class="rsHoldings"></div>
+      <div id="rsNote" class="rsNote"></div>
+      <div class="zNote">AI 研究摘要僅供參考 · 非投資建議 · 資料來源含 LLM 生成內容</div>
     </section>
   </div>
 
@@ -1880,6 +1914,7 @@ document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
   if(v==='track'&&lastData)renderTrack(lastData.track);
   if(v==='chips'&&lastData)renderChips(lastData.chips);
   if(v==='zones')window.fetchZones&&window.fetchZones();
+  if(v==='research')window.fetchResearch&&window.fetchResearch();
   if(v==='portfolio')window.renderPortfolio&&window.renderPortfolio();
   if(v==='daylive')window.fetchDaytrade&&window.fetchDaytrade();
 }));
@@ -2290,6 +2325,7 @@ function initSSE(){ try{
   es.addEventListener('prefs',()=>pullPrefs());
   es.addEventListener('daytrade',()=>{ if(document.querySelector('.tab.active')?.dataset.v==='daylive') window.fetchDaytrade&&window.fetchDaytrade(); });
   es.addEventListener('zones',()=>{ if(document.querySelector('.tab.active')?.dataset.v==='zones') window.fetchZones&&window.fetchZones(); });
+  es.addEventListener('research',()=>window.fetchResearch&&window.fetchResearch());
   es.onopen=()=>setStreamLed(true);
   es.onerror=()=>setStreamLed(false);
 }catch(e){ setStreamLed(false); } }
@@ -2852,9 +2888,73 @@ if(SNAP){ loadHistory(); }
     const op=e.target.closest('[data-open]');
     if(op){ pick(op.dataset.open); } });
 
+  /* ════════════ 每日研究 · RESEARCH（持股白話摘要） ════════════ */
+  let researchData=null;
+  const RS_TONE_COLOR={'偏多':'var(--up)','偏空':'var(--dn)','中性':'var(--dim)'};
+  const rsImpactColor=t=>{ if(!t) return 'var(--dim)';
+    if(/好|多|買|強|優|升|增/.test(t)&&!/不佳|轉差|轉弱/.test(t)) return 'var(--acc2)';
+    if(/差|空|賣|弱|警|降|減|風險/.test(t)) return 'var(--dn)';
+    return 'var(--dim)'; };
+  async function fetchResearch(){
+    try{ const r=await fetch('/api/research',{cache:'no-store'}); const j=await r.json();
+      researchData=(j&&j.ok!==false&&(j.holdings||j.error))?j:null;
+    }catch(e){ researchData=null; }
+    renderResearch();
+  }
+  function renderResearch(){
+    const mktBox=document.getElementById('rsMarket'), holdBox=document.getElementById('rsHoldings'), noteBox=document.getElementById('rsNote');
+    if(!mktBox||!holdBox) return;
+    if(!researchData){
+      mktBox.innerHTML=''; noteBox.innerHTML='';
+      holdBox.innerHTML='<div class="rsEmpty">尚無研究摘要 · 桌面 app 每日盤前(08:30-08:45)自動產生，或按右上「▶ 立即產生」手動跑一次</div>';
+      return;
+    }
+    if(researchData.error){
+      mktBox.innerHTML=''; noteBox.innerHTML='';
+      holdBox.innerHTML=`<div class="rsEmpty">${researchData.error}（先在「庫存」分頁記一筆持股，或在「看板」加自選股）</div>`;
+      return;
+    }
+    const mkt=researchData.market||{};
+    mktBox.innerHTML=`<span class="rsDot" style="background:${RS_TONE_COLOR[mkt.tone]||'var(--dim)'}"></span>`+
+      `<span class="rsTone" style="color:${RS_TONE_COLOR[mkt.tone]||'var(--dim)'}">${mkt.tone||'中性'}</span>`+
+      `<span class="rsLine">${mkt.one_line||''}</span>`+
+      (mkt.international?`<span class="rsIntl">國際盤：${mkt.international}</span>`:'');
+    const holdings=researchData.holdings||[];
+    if(!holdings.length){
+      holdBox.innerHTML='<div class="rsEmpty">今日尚無持股資料</div>';
+    }else{
+      holdBox.innerHTML=holdings.map(h=>{
+        const px=h.price!=null?h.price:'—';
+        const chg=h.chg_pct!=null?`<span style="color:${chgColor(h.chg_pct)}">${sign(h.chg_pct)}%</span>`:'—';
+        const grade=h.grade?`<span class="pfGrade" style="color:${gradeColor(h.grade)};border-color:${gradeColor(h.grade)}">${h.grade}</span>`:'';
+        return `<div class="rsCard" data-drill data-code="${h.code}">`+
+          `<div class="rsHd">${grade}<b>${h.name||h.code}</b><span class="rcode">${h.code}</span>`+
+          `<span class="rsPx">${px} ${chg}</span></div>`+
+          (h.today?`<div class="rsRow"><b>今天：</b>${h.today}</div>`:'')+
+          (h.impact?`<div class="rsRow" style="color:${rsImpactColor(h.impact)}"><b>影響：</b>${h.impact}</div>`:'')+
+          (h.watch?`<div class="rsRow"><b>注意：</b>${h.watch}</div>`:'')+
+          `</div>`;
+      }).join('');
+    }
+    noteBox.innerHTML=researchData.actions_note?`整體提醒：${researchData.actions_note}`:'';
+  }
+  document.getElementById('rsHoldings')?.addEventListener('click',e=>{
+    const c=e.target.closest('[data-drill][data-code]'); if(c) pick(c.dataset.code); });
+  document.getElementById('rsRunBtn')?.addEventListener('click',async e=>{
+    const btn=e.target; const orig=btn.textContent;
+    btn.textContent='產生中…'; btn.disabled=true;
+    try{
+      const r=await fetch('/api/research/run',{method:'POST'});
+      const j=await r.json();
+      if(j&&j.ok!==false){ researchData=j; renderResearch(); }
+    }catch(e){}
+    btn.textContent=orig; btn.disabled=false;
+  });
+
   // 這些看板 widget 定義在本 IIFE，但主資料輪詢 render(d) 在另一個 script → 掛 window 供其呼叫
   Object.assign(window, {renderIndices, renderMStats, renderInstTop, renderRanks,
-    renderWatchStrip, checkAlerts, renderAlerts, renderZones, fetchZones});
+    renderWatchStrip, checkAlerts, renderAlerts, renderZones, fetchZones, fetchResearch});
+  window.fetchResearch=fetchResearch;
   try{ renderAlerts(); }catch(e){}
 
   // ── 四師深度分析（/api/analyst）：綜合策略卡 + 操作區間卡 + 四師卡×4 ──────────

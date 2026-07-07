@@ -26,6 +26,7 @@ from fastmcp import FastMCP
 import query
 import realtime_quote
 import news as news_mod
+import ai_agents
 
 STATE_FILE = ROOT / "state.json"
 ZONES_FILE = ROOT / "state_zones.json"
@@ -159,6 +160,17 @@ def get_news(code: str) -> list:
         ]
     except Exception as e:
         return [{"error": str(e)}]
+
+
+# ── Tool 7：每日持股研究摘要 ─────────────────────────────────────────────────
+
+@mcp.tool()
+def daily_research(codes: list = None) -> dict:
+    """每日持股研究摘要（Anthropic 金融 agent 範例的台股版）：對每檔持股講今天發生什麼、
+    對它是好是壞、該注意什麼（誠實避雷，不喊買賣不喊目標價）。
+    codes 不傳時讀 Carson 的看板持股(dh_portfolio)+自選(dh_watch)；傳 list 則只分析這些代號。
+    回傳 {date, ts, market:{tone,one_line,international}, holdings:[...], actions_note}。"""
+    return ai_agents.research_agent(codes)
 
 
 # ── Entry point ────────────────────────────────────────────────────────────

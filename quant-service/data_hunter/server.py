@@ -31,6 +31,7 @@ _SSE_WATCH = {
     "prefs": HERE / "prefs.json",
     "daytrade": HERE / "state_daytrade.json",
     "zones": HERE / "state_zones.json",
+    "research": HERE / "state_research.json",
 }
 PREFS_FILE = HERE / "prefs.json"
 
@@ -118,6 +119,17 @@ class Handler(SimpleHTTPRequestHandler):
             except Exception as e:
                 self._send_json({"ok": False, "error": f"QR 產生失敗（可能未裝 segno）：{e}", "data": data}, status=500)
             return True
+        if path == "/api/research":
+            # 每日持股研究摘要：讀背景 worker（app.py research_worker）或手動觸發產生的 state_research.json
+            try:
+                import ai_agents
+                r = ai_agents.load_state("research")
+            except Exception as e:
+                self._send_json({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
+                return True
+            self._send_json({"ok": bool(r), **(r or {})})
+            return True
+
         if path not in ("/api/stock", "/api/search", "/api/analyst", "/api/news",
                         "/api/quote", "/api/indices", "/api/zones", "/api/daytrade"):
             return False
@@ -333,6 +345,18 @@ class Handler(SimpleHTTPRequestHandler):
         if self._auth_gate():
             return
         split = urlsplit(self.path)
+        if split.path == "/api/research/run":
+            # 立即跑一次每日持股研究摘要（LLM 有界執行；research_agent 內部已把 LLM/query/news
+            # 失敗都收斂成合法 JSON，這裡只再包一層防意外例外，絕不因缺 LLM key 而 500）
+            try:
+                import ai_agents
+                from concurrent.futures import ThreadPoolExecutor
+                with ThreadPoolExecutor(max_workers=1) as ex:
+                    res = ex.submit(ai_agents.research_agent).result(timeout=60.0)
+                self._send_json({"ok": True, **res})
+            except Exception as e:
+                self._send_json({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
+            return
         if split.path == "/api/prefs":
             try:
                 n = int(self.headers.get("Content-Length", 0))

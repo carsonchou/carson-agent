@@ -121,6 +121,44 @@ def daytrade_worker():
         time.sleep((2 if mh else 30) * 60)
 
 
+def research_worker():
+    """每日持股研究摘要：獨立 daemon thread，盤前(08:30-08:45)跑一次 ai_agents.research_agent()，
+    成功後推播白話摘要。用「今天是否已推過」的日期旗標防重複推（純記憶體變數，重開程式會忘記
+    今天推過與否，重開後最壞情況多推一次，不會漏推——比寫檔案旗標更簡單且無需清理）。"""
+    pushed_day: date | None = None
+    while True:
+        try:
+            now = datetime.now()
+            today = date.today()
+            hm_now = now.hour * 60 + now.minute
+            if now.weekday() < 5 and pushed_day != today and 8 * 60 + 30 <= hm_now <= 8 * 60 + 45:
+                import ai_agents
+                res = ai_agents.research_agent()
+                pushed_day = today   # 不管有無持股都算今天處理過，避免無持股時每輪重跑
+                if not res.get("error") and res.get("holdings"):
+                    try:
+                        import notify
+                        mkt = res.get("market", {}) or {}
+                        lines = [f"{mkt.get('tone', '中性')}｜{mkt.get('one_line', '')}"]
+                        for h in res.get("holdings", []):
+                            chg = h.get("chg_pct")
+                            chg_s = f"{chg:+.1f}%" if isinstance(chg, (int, float)) else "—"
+                            lines.append(f"• {h.get('name')} {chg_s} [{h.get('grade') or '—'}] {h.get('impact') or ''}")
+                        note = res.get("actions_note") or ""
+                        if note:
+                            lines.append(f"\n注意：{note}")
+                        body = "\n".join(lines)
+                        notify.broadcast(body, title=f"📊 今日持股研究 {res.get('date', '')}", priority="default")
+                        print(f"[research] 已推播（{len(res.get('holdings', []))} 檔）")
+                    except Exception as e:
+                        print(f"[research] 推播失敗（略過）：{type(e).__name__}: {e}")
+                else:
+                    print(f"[research] 本輪無持股或無結果，略過推播：{res.get('error', '')}")
+        except Exception as e:
+            print(f"[research] 本輪錯誤（續跑）：{type(e).__name__}: {e}")
+        time.sleep(5 * 60)   # 5 分鐘檢查一次是否進盤前窗口
+
+
 def _lan_ip() -> str:
     import socket
     try:
@@ -134,6 +172,7 @@ def _lan_ip() -> str:
 def main():
     threading.Thread(target=worker, daemon=True).start()
     threading.Thread(target=daytrade_worker, daemon=True).start()   # 當沖獨立 thread，不卡看板
+    threading.Thread(target=research_worker, daemon=True).start()   # 盤前每日持股研究摘要，獨立 thread
     # 綁定位址：預設 0.0.0.0(手機同區網可連)；env DH_BIND=127.0.0.1 鎖回純本機
     bind = os.getenv("DH_BIND", "0.0.0.0")
     httpd = None

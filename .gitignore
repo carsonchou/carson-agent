@@ -151,3 +151,8 @@ twdata/daytrade_eligibility_*.json
 # 跨裝置同步 prefs（庫存/自選/警示…）＋ tunnel URL(執行期)
 quant-service/data_hunter/prefs.json
 quant-service/data_hunter/tunnel_url.txt
+# AI agent 每日研究/申報/估值批次執行期產物（ai_agents.py save_state 產出，可重跑重生）
+quant-service/data_hunter/state_research.json
+quant-service/data_hunter/state_filing_*.json
+quant-service/data_hunter/state_valuation_*.json
+quant-service/data_hunter/stock_ratios_*.json
