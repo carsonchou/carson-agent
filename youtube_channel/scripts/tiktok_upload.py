@@ -39,6 +39,27 @@ import studio_common as sc
 UPLOAD_URLS = ["https://www.tiktok.com/tiktokstudio/upload", "https://www.tiktok.com/upload"]
 
 
+def _reachable(host: str = "www.tiktok.com", port: int = 443, timeout: float = 6.0):
+    """TikTok 只有 IPv4(無 AAAA/IPv6)。本機 IPv4 出口若斷,goto 會空等到 timeout。
+    先做一次快速 IPv4 連線探測,回 (ok, msg),讓失敗即時給出明確診斷而非乾等。"""
+    import socket
+    try:
+        ip = socket.gethostbyname(host)  # IPv4
+    except Exception as e:  # noqa: BLE001
+        return False, f"DNS 解析失敗:{e}"
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.settimeout(timeout)
+    try:
+        s.connect((ip, port))
+        return True, f"IPv4 可達 {ip}"
+    except Exception as e:  # noqa: BLE001
+        return False, (f"IPv4 連不上 TikTok({ip}:{port}, {type(e).__name__})。"
+                       "TikTok 是 IPv4-only(無 IPv6),本機 IPv4 出口疑似中斷。"
+                       "確認網路/開 VPN 後重試。")
+    finally:
+        s.close()
+
+
 def _caption(slug: str) -> str:
     """從 <slug>.md 取標題+hashtags 組 caption(TikTok 上限約 2200 字元、標籤吃 #)。"""
     md = OUT / f"{slug}.md"
@@ -69,6 +90,12 @@ def _upload_one(slug: str, dry: bool = False) -> bool:
     if dry:
         print("[tiktok][dry] 不實傳。")
         return True
+    # 網路預檢:TikTok 無 IPv6,IPv4 出口斷時直接明確報錯(避免兩輪 45s 空等)
+    okr, msg = _reachable()
+    if not okr:
+        print(f"[tiktok] 網路預檢失敗:{msg}", file=sys.stderr)
+        return False
+    print(f"[tiktok] 網路預檢:{msg}")
     import os
     headless = os.environ.get("TIKTOK_HEADLESS") == "1"
     try:
@@ -86,18 +113,36 @@ def _upload_one(slug: str, dry: bool = False) -> bool:
         try:
             for url in UPLOAD_URLS:
                 try:
-                    page.goto(url, timeout=45000, wait_until="domcontentloaded")
-                    page.wait_for_timeout(4000)
+                    # 導頁:commit 即可(SPA 之後自己載),對 IPv4 抖動較耐;失敗重試一次
+                    nav_ok = False
+                    for attempt in range(2):
+                        try:
+                            page.goto(url, timeout=60000, wait_until="commit")
+                            nav_ok = True
+                            break
+                        except Exception as ne:  # noqa: BLE001
+                            print(f"[tiktok] 導頁重試 {attempt+1}/2 失敗:{str(ne)[:80]}", file=sys.stderr)
+                            page.wait_for_timeout(3000)
+                    if not nav_ok:
+                        continue
                     if "login" in page.url:
                         print("[tiktok] session 過期→被導回登入。請重新開瀏覽器登入存 session。", file=sys.stderr)
                         break
-                    # 檔案上傳:找 input[type=file](常在 iframe 內)
-                    fi = page.query_selector("input[type=file]")
-                    if not fi:
-                        for fr in page.frames:
-                            fi = fr.query_selector("input[type=file]")
-                            if fi:
-                                break
+                    # 檔案上傳:等 input[type=file] 出現(SPA 需時間;常在 iframe 內)最多 ~40s
+                    fi = None
+                    for _ in range(20):
+                        fi = page.query_selector("input[type=file]")
+                        if not fi:
+                            for fr in page.frames:
+                                fi = fr.query_selector("input[type=file]")
+                                if fi:
+                                    break
+                        if fi:
+                            break
+                        if "login" in page.url:
+                            print("[tiktok] session 過期→被導回登入。", file=sys.stderr)
+                            break
+                        page.wait_for_timeout(2000)
                     if not fi:
                         continue  # 換下一個 upload URL
                     fi.set_input_files(str(mp4))
@@ -116,31 +161,42 @@ def _upload_one(slug: str, dry: bool = False) -> bool:
                                 pass
                             break
                     page.wait_for_timeout(3000)
-                    # 發佈按鈕:①先等影片處理完(Post 鈕才 enable),輪詢最多 ~75s ②多重選擇器(data-e2e/role/文字)
+                    # 發佈按鈕:①先等影片處理完(Post 鈕才 enable) ②關掉版權檢查彈窗(TUXModal「知道了」會攔截點擊·根因)
+                    # ③post_video_button 選擇器 ④force 繞殘餘 overlay。輪詢最多 ~90s。
                     posted = False
 
-                    def _find_post_btn():
-                        b = page.query_selector('[data-e2e="post_video_button"]')
-                        if b:
-                            return b
-                        for name in ["發佈", "發布", "Post", "发布"]:
-                            b = page.query_selector(f"button:has-text('{name}')")
+                    def _dismiss_modals():
+                        for t in ["知道了", "我知道了", "確定", "關閉", "Got it", "OK"]:
+                            b = page.query_selector(f"button:has-text('{t}')")
                             if b:
-                                return b
-                        return None
-                    for _ in range(15):  # 15×5s = 75s 等處理完+鈕可按
-                        b = _find_post_btn()
+                                try:
+                                    b.click(timeout=3000)
+                                    page.wait_for_timeout(1200)
+                                except Exception:  # noqa: BLE001
+                                    pass
+                    for _ in range(18):  # 18×5s = 90s
+                        _dismiss_modals()  # 每輪先清彈窗(版權檢查窗會反覆冒)
+                        b = page.query_selector('[data-e2e="post_video_button"]') \
+                            or page.query_selector("button:has-text('發佈')")
                         if b:
                             try:
                                 if b.is_enabled():
                                     b.scroll_into_view_if_needed(timeout=3000)
-                                    b.click(timeout=8000)
-                                    posted = True
-                                    break
+                                    try:
+                                        b.click(timeout=6000)
+                                    except Exception:  # noqa: BLE001
+                                        b.click(force=True, timeout=5000)
+                                    page.wait_for_timeout(5000)
+                                    # 驗證:離開 compose 或出現成功字樣=發佈成功
+                                    body = (page.inner_text("body") or "")[:800]
+                                    if any(k in body for k in ("發佈成功", "已發佈", "管理你的貼文", "上傳成功")) \
+                                       or "upload" not in page.url:
+                                        posted = True
+                                        break
                             except Exception:  # noqa: BLE001
                                 pass
                         page.wait_for_timeout(5000)
-                    page.wait_for_timeout(6000)
+                    page.wait_for_timeout(4000)
                     ok = posted
                     if posted:
                         print(f"[tiktok] ✓ 已點發佈 {slug}(TikTok 端仍會審核)")
