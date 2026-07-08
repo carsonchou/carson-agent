@@ -19,7 +19,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # TradingView 全攻略課程:--next 依序餵下2個課程EP(由淺入深)、--review 挖2支熱門腳本拆穿(永動題源);都在製作前餵
 52 5 * * * /root/yt/run.sh scripts/tv_curriculum.py --next 2 >> /root/yt/logs/cron.log 2>&1
 54 5 * * * /root/yt/run.sh scripts/tv_curriculum.py --review 2 >> /root/yt/logs/cron.log 2>&1
-7 6 * * * /root/yt/run.sh scripts/produce_batch.py --manual --shorts 9 --long 3 --target 99999 --no-render >> /root/yt/logs/cron.log 2>&1
+7 6 * * * /root/yt/run.sh scripts/produce_batch.py --manual --format-focus --shorts 9 --long 3 --target 99999 --no-render >> /root/yt/logs/cron.log 2>&1
 # Short→長片精準連看:建 short_to_long.json(bigram題材相似度對應已發布短→長),發布前跑
 50 6 * * * /root/yt/run.sh scripts/build_short_to_long.py >> /root/yt/logs/cron.log 2>&1
 # 台股火力:真回測數據引擎(每天更新真數字)+ 四軌台股系列連載(產片前餵)
@@ -95,6 +95,11 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 0 9 * * * /root/yt/run.sh scripts/daily_health.py --notify >> /root/yt/logs/cron.log 2>&1
 # 北極星整合(每天 09:05:訂閱/觀看/各源收入/YPP缺口/飛輪贏家 → northstar.json + ntfy)
 5 9 * * * /root/yt/run.sh scripts/northstar.py --notify >> /root/yt/logs/cron.log 2>&1
+# D1 趨勢劫持(每4h:抓競品爆款題型→改寫成誠實同型片,騎演算法)
+25 */4 * * * /root/yt/run.sh scripts/trend_hijack.py >> /root/yt/logs/cron.log 2>&1
+# D3 pre-YPP 贊助觸發(每天 09:10:達觸及門檻才提醒可接贊助)+ 媒體包週更(週一)
+10 9 * * * /root/yt/run.sh scripts/sponsor_trigger.py --notify >> /root/yt/logs/cron.log 2>&1
+30 4 * * 1 /root/yt/run.sh scripts/gen_media_kit.py >> /root/yt/logs/cron.log 2>&1
 # 數位產品 upsell(每天 11:00:對領檢核表滿24h的名單送低價試算表;未設 WORKSHEET_URL 只 dry 不實送)
 0 11 * * * /root/yt/run.sh scripts/tg_magnet.py --upsell >> /root/yt/logs/cron.log 2>&1
 # YPP 進度追蹤(每週一 00:50 誠實顯示四門檻距離 + ntfy)

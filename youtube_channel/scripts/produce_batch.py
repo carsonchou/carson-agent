@@ -586,6 +586,9 @@ def call_claude(kind, avoid, topic_override=None):
     if is_flagship:
         hook_rules = hook_rules + AI_COMPANY_RULES
         assign += _system_facts()
+    # D2 格式 All-in:FORMAT_FOCUS=1 時,短片(非旗艦/非時事)強制走最強格式模板
+    if os.environ.get("FORMAT_FOCUS") == "1" and kind == "short" and not is_flagship and not topic_override:
+        hook_rules = hook_rules + WINNING_FORMAT
     prompt = f"""你是量化阿森頻道的專業腳本寫手。{GUARD}
 {QUANT_STANDARD}
 {playbook}{training}
@@ -767,6 +770,17 @@ def _seo_hit(text: str):
     """回傳標題/角度命中的 SEO 詞(供 tags 併入與選題加權)。"""
     t = text or ""
     return [k for k in SEO_TERMS if k in t]
+
+
+WINNING_FORMAT = """
+【★格式 All-in(FORMAT_FOCUS·30天只磨這個最強格式,務必嚴格照走)】
+這是本頻道數據回歸出的最強爆發格式(實證:十萬vs三千676v、複利虧光476v/68%、丟十萬30天454v/68%):
+- 骨架:①開頭丟兩個具體金額/數字做對比(如「一次丟十萬 vs 每月三千」「套在1000元 vs 停損」)
+  ②中段用損失框架講後果(剩多少/虧光/差多少/少賺幾成),不是講賺多少
+  ③答案(那個嚇人的數字)壓到最後一句才揭曉,逼看到底
+- 台股或回測題材優先;30-45秒;voice 150-200字;segments 給 2 段;每3-4秒一個衝擊點
+- 標題必含具體數字+對比詞(vs/差多少)+懸念,絕不用洗版套語
+"""
 
 
 def title_formula_score(title: str) -> int:
@@ -1038,6 +1052,8 @@ def _load_env():
 def main() -> int:
     _load_env()
     ap = argparse.ArgumentParser()
+    ap.add_argument("--format-focus", action="store_true",
+                    help="D2:短片強制走最強格式模板(金額對比+損失框架),30天衝流量用")
     ap.add_argument("--shorts", type=int, default=4)
     ap.add_argument("--long", type=int, default=1)
     ap.add_argument("--target", type=int, default=15)
@@ -1048,6 +1064,8 @@ def main() -> int:
     ap.add_argument("--publish", action="store_true", help="產完立刻發布（時事片用：消息面要即時上架，不等排程）")
     ap.add_argument("--manual", action="store_true", help="手動補產：照 --shorts/--long 數量，不被人事部員額覆蓋")
     args = ap.parse_args()
+    if getattr(args, "format_focus", False):
+        os.environ["FORMAT_FOCUS"] = "1"  # D2:本批短片走最強格式模板
 
     # 🔥 金融時事優先：給了 --topic 就立刻產 1 支相關 Short，不管排程/片庫上限。
     if args.topic:
