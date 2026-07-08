@@ -152,6 +152,37 @@ def feed_back(a):
     sc.save_json_atomic(STUDIO / "traffic_signals.json", ts)
 
 
+def _auto_seed(a):
+    """A5 飛輪自動行動:①用本週贏家詞主動增產 8 題(過 topic_gate 才入庫)②把題庫中含輸家詞的未用題標降權。"""
+    try:
+        import topic_bank as tb
+    except Exception:  # noqa: BLE001
+        return
+    # ① 增產贏家題
+    try:
+        recent = sc.recent_titles(80)
+        items = tb.gen_topics(8, recent, bias_keywords=a.get("win_kw"))
+        n = tb.add_topics(items, source="flywheel") if items else 0  # add_topics 內建 topic_gate
+        print(f"[flywheel] 自動增產贏家題:入庫 {n} 題(偏 {a.get('win_kw', [])[:5]})")
+    except Exception as e:  # noqa: BLE001
+        print(f"[flywheel] 增產略過:{str(e)[:70]}", file=sys.stderr)
+    # ② 降權輸家題(題庫中未用、標題含輸家詞→deprioritized,pull_topic 排最後)
+    try:
+        weak = a.get("weak_kw") or []
+        if weak:
+            bank = tb.load_bank()
+            changed = 0
+            for t in bank:
+                if not t.get("used") and not t.get("deprioritized") and any(w in t.get("title", "") for w in weak):
+                    t["deprioritized"] = True
+                    changed += 1
+            if changed:
+                tb.save_bank(bank)
+                print(f"[flywheel] 降權輸家題 {changed} 筆(含 {weak[:4]})")
+    except Exception as e:  # noqa: BLE001
+        print(f"[flywheel] 降權略過:{str(e)[:70]}", file=sys.stderr)
+
+
 def main() -> int:
     rows = _load_video_stats()
     a = analyze(rows)
@@ -160,6 +191,8 @@ def main() -> int:
         return 0
     path = write_report(a)
     feed_back(a)
+    if "--no-seed" not in sys.argv:
+        _auto_seed(a)
     # 洗版洩漏基準線:首跑記住現有數(多為 gate 上線前的舊片,Carson 不碰);只有「超過基準」才是新洩漏、才報警
     st = sc.load_json_safe(STUDIO / "weekly_winners_state.json", {}) or {}
     baseline = st.get("leak_baseline")

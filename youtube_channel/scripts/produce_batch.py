@@ -232,10 +232,13 @@ def pull_topic(kind):
     # 治本:①乾淨題優先於新聞旁路來源題(修「回測/你的」讓幣圈恐慌題誤命中 _NUM_KW 插隊贏過乾淨題的 bug)
     #       ②同組內再靠「數字戳破直覺」會紅題(完播高)優先;工具教學/純新聞題排後、自然餓死
     def _rank(t):
+        _ta = (t.get("title", "") or "") + (t.get("angle", "") or "")
         src = str(t.get("source", "")).lower()
         news_src = 1 if src in ("news", "hotspot", "breakout", "intel") else 0
-        num = 0 if any(k in (t.get("title", "") + t.get("angle", "")) for k in _NUM_KW) else 1
-        return (news_src, num)
+        depri = 1 if t.get("deprioritized") else 0  # A5:含輸家詞的題被降權排最後
+        seo = 0 if _seo_hit(_ta) else 1             # A2:含高意圖搜尋詞的題優先
+        num = 0 if any(k in _ta for k in _NUM_KW) else 1
+        return (news_src, depri, seo, num)
     cand.sort(key=_rank)
     if cand:
         t = cand[0]
@@ -363,6 +366,48 @@ AI_SAVINGS_RULES = """
 - ★誠信鐵律：**絕不說「快去買、最划算快搶、穩賺、一定能用」**；共享帳號一律標「第三方·非官方·可能被停用·自負」。角度=拆穿/實測/幫你試/避雷,守住避雷品牌。你賣的是資訊價值,不是騙小白。
 - 收尾：給「要穩就走官方、要省又能扛風險就自己評估」的中性建議＋訂閱鉤＋導 TG「打省AI領便宜用AI全攻略」。
 """
+
+FLAGSHIP_CATS = {"AI公司揭密"}
+
+AI_COMPANY_RULES = """
+【★「AI 公司揭密」旗艦揭密格式(獨家護城河·逐條照走)】
+- 定位:量化阿森本人真的用 Claude Code 開了一整間全自動 AI 公司(多個 AI 部門+量化+決策中心+自我優化飛輪)經營這個頻道。全世界幾乎沒人有這種真實系統,揭密它的運作與翻車=天然高分享性。
+- 開場前 3 秒:丟本系統一個真實反直覺數字(從【本系統真實數據】拿),例:「我讓 AI 開的公司自己跑,產出上百支片,但真正紅的沒幾支——為什麼?」
+- 核心:誠實揭運作(部門怎麼分工、飛輪怎麼自己選題)+誠實揭限制/翻車(AI 會擺爛/選錯/想洗版被我擋)。**反造神**:不吹「AI 全自動躺賺」,講真實的難。
+- 誠信鐵律:不喊單、不報明牌、不保證收益、不誇大頻道規模;講的都是可查證的真實數字。護城河=我真的在跑這套,不是空談概念。
+- 收尾:訂閱鉤(想看這套 AI 公司下一步/翻車實錄先追蹤)。
+"""
+
+
+def _system_facts():
+    """組『本系統真實數據』一段注入旗艦 prompt(真憑實據不虛構;缺檔靜默略過)。"""
+    facts = []
+    S = ROOT / "STUDIO"
+    try:
+        q = json.loads((S / "quality_scores.json").read_text(encoding="utf-8"))
+        pub = len(q.get("published", []) or [])
+        if pub:
+            facts.append(f"這套 AI 系統至今已產出並發布約 {pub} 支影片")
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        ts = json.loads((S / "traffic_signals.json").read_text(encoding="utf-8"))
+        win = ts.get("win_keywords") or []
+        if win:
+            facts.append("飛輪自動分析出目前高流量的題材關鍵字:" + "、".join(map(str, win[:6])))
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        yp = json.loads((S / "ypp_progress.json").read_text(encoding="utf-8"))
+        e = (yp.get("early") or {}).get("subs") or {}
+        if e.get("cur") is not None:
+            facts.append(f"目前訂閱 {e['cur']}、離 YPP 提前解鎖級還差 {e.get('gap')}(誠實現況,不美化)")
+    except Exception:  # noqa: BLE001
+        pass
+    if not facts:
+        return ""
+    return "\n【本系統真實數據(旗艦片用真憑實據,絕不虛構;講不出來的就別編)】\n- " + "\n- ".join(facts)
+
 
 CHCFG = ROOT / "channel_config.json"
 
@@ -536,11 +581,17 @@ def call_claude(kind, avoid, topic_override=None):
     is_ai_savings = _is_ai_savings_topic(topic)
     if is_ai_savings:
         hook_rules = hook_rules + AI_SAVINGS_RULES
+    # A1 旗艦:AI公司揭密 franchise → 疊揭密格式 + 注入本系統真實數字(獨家護城河、反造神、真憑實據)
+    is_flagship = bool(topic) and str(topic.get("category", "")) in FLAGSHIP_CATS
+    if is_flagship:
+        hook_rules = hook_rules + AI_COMPANY_RULES
+        assign += _system_facts()
     prompt = f"""你是量化阿森頻道的專業腳本寫手。{GUARD}
 {QUANT_STANDARD}
 {playbook}{training}
 請產生{spec}{assign}{bias}
 {TITLE_FORMULA}
+【SEO 長尾(能自然融入就融入,別硬塞犧牲鉤子)】標題或說明前段盡量含 1 個觀眾真的會搜的詞,例如:{"、".join(SEO_TERMS[:12])}。
 {hook_rules}
 【配音友善·務必遵守（影響聽感與留存）】voice_text 要口語、**短句為主（每句約 15-25 字就用句號斷開）**；
 少用括號/破折號/冒號/刪節號；數字盡量寫成口語念法（如「百分之八」別寫「8%」、「一萬元」別寫「$10000」、「零點五」別寫「0.5」）；
@@ -565,6 +616,15 @@ hashtags 規則：給 4-6 個「精準且利基相關」的標籤(第一個必�
         _blk = _ai_savings_desc_block()
         if _blk:
             result["description"] = (result.get("description", "") or "").rstrip() + "\n" + _blk
+    # A2 SEO:把標題/角度命中的高意圖搜尋詞併進 tags(去重,助搜尋分類;上限由 assemble_metadata 守 500 字元)
+    _seo = _seo_hit((result.get("title", "") or "") + (topic.get("angle", "") if topic else ""))
+    if _seo:
+        _tags = result.get("hashtags") or []
+        _have = {str(x).lstrip("#") for x in _tags}
+        for k in _seo:
+            if k not in _have:
+                _tags.append(k)
+        result["hashtags"] = _tags
     return result
 
 
@@ -694,6 +754,19 @@ TITLE_FORMULA = (
     "③ 加『對比或懸念』(vs、差多少、差在哪、你猜、幾倍);④ 能綁生活比喻更好(一台賓士、一杯手搖);"
     "⑤ 嚴禁玩爛的洗版套語(『XX億爆倉…網格為什麼還活著』『勝率9X卻虧光…破產機率公式一秒戳破』)。"
 )
+
+# A2 SEO 搜尋霸權:高意圖台股/量化搜尋詞;標題自然含≥1 個(放前段)吃長尾搜尋流量(長期複利、不靠爆推)。
+SEO_TERMS = [
+    "0050定投", "0056", "00878", "00929", "006208", "定期定額", "除權息", "填息", "存股",
+    "網格機器人", "派網網格", "回測", "台股ETF", "大盤", "當沖", "停損停利", "夏普比率",
+    "比特幣定投", "定投回測", "ETF怎麼選", "台積電",
+]
+
+
+def _seo_hit(text: str):
+    """回傳標題/角度命中的 SEO 詞(供 tags 併入與選題加權)。"""
+    t = text or ""
+    return [k for k in SEO_TERMS if k in t]
 
 
 def title_formula_score(title: str) -> int:

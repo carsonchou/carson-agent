@@ -171,11 +171,16 @@ def add_topics(items, source="", front=False):
     return len(new_recs)
 
 
-def gen_topics(need, avoid_titles):
+def gen_topics(need, avoid_titles, bias_keywords=None):
     if not sc.has_llm_key():
         raise RuntimeError("無任何 LLM 供應商 API key")
     cats = "\n".join(f"  - {c}" for c in CATEGORIES)
     avoid = "、".join(list(avoid_titles)[:80])
+    # A5 飛輪:把每週贏家分析出的高流量關鍵字塞進偏好,主動多產贏家型別題
+    bias_line = ""
+    if bias_keywords:
+        bias_line = ("\n- **本週實證贏家關鍵字(優先靠向、多產這幾味的題)**："
+                     + "、".join(str(k) for k in list(bias_keywords)[:10]))
     prompt = f"""{sc.PERSONA}
 
 你是量化阿森頻道的選題總監（量化/自動交易教學，繁中）。{GUARD}
@@ -186,7 +191,7 @@ def gen_topics(need, avoid_titles):
 請產出 {need} 個**彼此角度不同、不重複**的影片題目，平均分布在這些子領域：
 {cats}
 
-要求：
+要求：{bias_line}
 - **靠向上面『本頻道實證數據』已驗證會爆/高完播的題材與關鍵字**（尤其「數字戳破直覺」「我幫你試」「怕被割避雷」這類已被證明有效的角度），別憑空發想。
 - 每題一個**獨特切入點**（反直覺結論／痛點場景／數字實測／破除迷思／比較懸念），不要同一觀念換句話說。
 - 標題要有點擊慾但不誇大、不保證收益、不喊單；理財誇大詞（躺賺／穩賺／一天賺X）一律不用。

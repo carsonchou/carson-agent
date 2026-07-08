@@ -121,7 +121,19 @@ def send_smtp(to, subject, body):
         return False
 
 
+def _load_env():
+    """把專案根 .env 併進 os.environ(標準腳本直跑時 .env 不會自動載入)。"""
+    envf = ROOT / ".env"
+    if envf.exists():
+        for ln in envf.read_text(encoding="utf-8", errors="replace").splitlines():
+            s = ln.strip()
+            if s and not s.startswith("#") and "=" in s:
+                k, v = s.split("=", 1)
+                os.environ.setdefault(k.strip(), v.strip())
+
+
 def main() -> int:
+    _load_env()
     dry = "--send" not in sys.argv
     verified = "--verified" in sys.argv
     stats = _media_stats()

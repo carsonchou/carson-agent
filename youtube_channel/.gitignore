@@ -8,6 +8,8 @@ token_*.json
 .env
 *.key
 tunnel_url.json
+payment_info.json
+STUDIO/payment_info.json
 
 # ===== 備份/暫存檔(regenerable，別進版控；含 STUDIO 原子寫 .bak)=====
 *.bak

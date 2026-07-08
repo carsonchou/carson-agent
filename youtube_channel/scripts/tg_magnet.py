@@ -71,16 +71,32 @@ _AI_KW = ("省ai", "省 ai", "便宜", "共享", "合租", "拼車", "claude", "
 # 數位產品 upsell(item12):免費檢核表送出滿 24h 的名單,追加一則低價試算表 upsell(收款連結 Carson 自填 env WORKSHEET_URL)。
 # 誠信:只賣真有內容的東西、不誇大不保證收益;價格對得起內容量(NT$149-249 一杯手搖等級破冰價)。
 _WORKSHEET_URL = os.environ.get("WORKSHEET_URL", "").strip()
+_PAYINFO = STUDIO / "payment_info.json"
 _UPSELL_DELAY_SEC = 24 * 3600  # 領檢核表滿 24h 才送,避免第一次接觸就推銷感太重
 _UPSELL = (
-    "📊 那份免費檢核表你收到了吧？\n\n"
-    "如果想「自己動手算」——我把檢核表 6 關做成了可填的試算表：\n"
-    "輸入你的手續費%、滑價%、交易頻率、槓桿，直接算出這些隱藏成本吃掉你多少報酬，\n"
-    "再附 3-5 支我實際回測案例的完整數字拆解（不是影片裡濃縮的 30 秒版）。\n\n"
-    "一次性 NT$149，一杯手搖的錢，幫你上真錢前先看清楚自己的策略會不會漏財。\n"
-    "{link}\n"
+    "📊 那份免費檢核表你收到了嗎？\n\n"
+    "想「自己動手算」的話——我把 6 關做成可填試算表：輸入你的手續費%、滑價%、交易頻率、槓桿，\n"
+    "直接算出這些隱藏成本一年吃掉你多少報酬，再附我實際回測案例的完整數字拆解。\n\n"
+    "一次性 NT$149，一杯手搖的錢，上真錢前先看清楚自己的策略會不會漏財。\n\n"
+    "{pay}\n"
     "（想清楚再買，這是工具不是明牌；投資有風險，不構成投資建議。）"
 )
+
+
+def _pay_instructions():
+    """組付款指示:優先讀 STUDIO/payment_info.json(銀行匯款);沒有則退回 WORKSHEET_URL 連結。"""
+    try:
+        import json as _j
+        info = _j.loads(_PAYINFO.read_text(encoding="utf-8")) if _PAYINFO.exists() else {}
+    except Exception:  # noqa: BLE001
+        info = {}
+    if info.get("method") == "bank_transfer" and info.get("account"):
+        return (f"匯款 NT$149 到：{info.get('bank_name','')}（{info.get('bank_code','')}）"
+                f"{info.get('account')} 戶名 {info.get('account_name','')}\n"
+                "匯款後私訊我「已匯款＋帳號末五碼」，我對帳後把試算表發給你。")
+    if _WORKSHEET_URL:
+        return _WORKSHEET_URL
+    return ""
 
 
 def run_upsell(dry=False) -> int:
@@ -90,11 +106,12 @@ def run_upsell(dry=False) -> int:
     if not leads:
         print("[upsell] 名單為空,略過。")
         return 0
-    if not _WORKSHEET_URL:
-        print("[upsell] 未設 WORKSHEET_URL(收款/交付連結),先不實送。設好後這批就會自動寄。")
+    pay = _pay_instructions()
+    if not pay:
+        print("[upsell] 無收款方式(payment_info.json/WORKSHEET_URL 皆空),先不實送。")
         dry = True
     now = int(time.time())
-    text = _UPSELL.replace("{link}", _WORKSHEET_URL or "（連結待設定）")
+    text = _UPSELL.replace("{pay}", pay or "（收款方式待設定）")
     sent = 0
     for chat_id, info in list(leads.items()):
         if not isinstance(info, dict):
