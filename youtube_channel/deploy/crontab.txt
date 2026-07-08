@@ -100,6 +100,8 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # D3 pre-YPP 贊助觸發(每天 09:10:達觸及門檻才提醒可接贊助)+ 媒體包週更(週一)
 10 9 * * * /root/yt/run.sh scripts/sponsor_trigger.py --notify >> /root/yt/logs/cron.log 2>&1
 30 4 * * 1 /root/yt/run.sh scripts/gen_media_kit.py >> /root/yt/logs/cron.log 2>&1
+# 捏造史實守門(每天 11:30·發佈前:掃產片有無編個股價位/史實→旗標+ntfy人工複查)
+30 11 * * * /root/yt/run.sh scripts/fact_guard.py --notify >> /root/yt/logs/cron.log 2>&1
 # 數位產品 upsell(每天 11:00:對領檢核表滿24h的名單送低價試算表;未設 WORKSHEET_URL 只 dry 不實送)
 0 11 * * * /root/yt/run.sh scripts/tg_magnet.py --upsell >> /root/yt/logs/cron.log 2>&1
 # YPP 進度追蹤(每週一 00:50 誠實顯示四門檻距離 + ntfy)
