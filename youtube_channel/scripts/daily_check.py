@@ -146,12 +146,35 @@ def check_errors():
 
 def check_keys():
     issues = []
-    if not os.environ.get("ANTHROPIC_API_KEY", "").strip():
-        issues.append("ANTHROPIC_API_KEY 未設（產線會停）")
+    # LLM 實際走 OpenRouter(見 llm.py)→探餘額(最大靜默故障:餘額用完全產線默默降級)
+    ork = os.environ.get("OPENROUTER_API_KEY", "").strip()
+    if not ork and not any(os.environ.get(k, "").strip() for k in ("GROQ_API_KEY", "DEEPSEEK_API_KEY", "ANTHROPIC_API_KEY")):
+        issues.append("無任何 LLM 供應商 key（產線會停）")
+    elif ork:
+        try:
+            import requests
+            r = requests.get("https://openrouter.ai/api/v1/credits",
+                             headers={"Authorization": f"Bearer {ork}"}, timeout=15)
+            if r.status_code == 200:
+                j = r.json().get("data", {}) or {}
+                remain = float(j.get("total_credits") or 0) - float(j.get("total_usage") or 0)
+                if remain <= 0.5:
+                    issues.append(f"OpenRouter 餘額僅 ${remain:.2f}（即將停產，快儲值）")
+            elif r.status_code in (401, 403):
+                issues.append("OpenRouter key 失效（401/403，產線會停）")
+        except Exception as e:  # noqa: BLE001
+            issues.append(f"OpenRouter 餘額查不到：{str(e)[:40]}")
     for name, p in [("YouTube token", STUDIO.parent / "token_manage.json"),
                     ("Analytics token", STUDIO.parent / "token_analytics.json")]:
         if not p.exists():
             issues.append(f"{name} 不存在（{p.name}）")
+    # Analytics token 實際能否 refresh(被撤銷時檔案還在但 refresh 會失敗→數據靜默斷線)
+    try:
+        import yt_analytics
+        if yt_analytics.available() and yt_analytics._service() is None:
+            issues.append("Analytics token 無法 refresh（可能被撤銷，成效數據會斷）")
+    except Exception:  # noqa: BLE001
+        pass
     return ("✅" if not issues else "⚠️", "金鑰/憑證" + ("齊全" if not issues else "有缺"), issues)
 
 

@@ -46,7 +46,7 @@ THUMBS = [
      "l1": "網格機器人", "l2": "真的能賺嗎？", "tag": "原理 × 風險 × 誰適合",
      "accent": (255, 210, 63), "mark": "?"},
     {"slug": "自動交易機器人實測企劃_規則先講死_EP0",
-     "l1": "10萬 實測", "l2": "自動交易機器人", "tag": "規則先講死 ｜ EP.0",
+     "l1": "10萬 回測", "l2": "自動交易機器人", "tag": "規則先講死 ｜ EP.0",
      "accent": (88, 224, 140), "mark": "$"},
     {"slug": "玩網格90趴賠錢的關鍵參數_區間設定",
      "l1": "90% 玩網格", "l2": "都在賠錢", "tag": "問題出在這「1 個參數」",
@@ -291,6 +291,8 @@ def _real_card(slug: str, title: str):
 
 
 def make_one(cfg: dict):
+    if cfg.get("debunk"):
+        return _make_debunk(cfg)
     accent = cfg["accent"]
     img = terminal_bg(accent, seed=cfg.get("slug", "x"))
     d = ImageDraw.Draw(img, "RGBA")
@@ -304,6 +306,11 @@ def make_one(cfg: dict):
         else:
             draw_backtest_card(d, cfg["card"], accent)
             has_card = True
+
+    # 標準片也貼吉祥物（品牌一致）：無回測卡時右下貼戰友，主文讓出右側避開
+    show_mascot = not has_card
+    if show_mascot:
+        _paste_mascot(img, mood=cfg.get("mascot_mood", "neutral"), target_h=260)
 
     # 左側強調色直條（細）
     d.rectangle([0, 0, 12, H], fill=accent)
@@ -322,7 +329,7 @@ def make_one(cfg: dict):
     d.text((104, 42 + ph // 2 - th // 2 - tb[1]), ct, font=tagf, fill=(224, 231, 244))
 
     # 主文兩行（自動縮字級不溢出；陰影 + 細描邊，premium 不刺眼）
-    max_w = 640 if has_card else 1040
+    max_w = 640 if has_card else (760 if show_mascot else 1040)
 
     def big(xy, text, fnt, fill):
         d.text((xy[0] + 4, xy[1] + 6), text, font=fnt, fill=(0, 0, 0, 165))
@@ -358,6 +365,131 @@ import json as _json
 
 ACCENTS = {"yellow": (255, 210, 63), "green": (88, 224, 140), "red": (255, 96, 96), "blue": (90, 184, 255)}
 
+# ── 《拆穿》debunk 縮圖公式：神話數字(金)被紅刀切開 + ≤6大字 + 吉祥物戰友 ──
+MASCOT = PROJECT_ROOT / "assets" / "mascot"
+_DEBUNK_KW = ("拆穿", "揭穿", "揭露", "打臉", "打假", "真相", "騙局", "智商稅", "翻車", "崩")
+_MYTH_NUM_RE = _re.compile(r"\d[\d,\.]*\s*[%倍]?")
+_GOLD = (255, 205, 66)      # 神話數字＝金(對手宣稱的漂亮數字)
+_KNIFE = (236, 44, 44)      # 紅刀＝把神話一刀切開
+
+
+def is_debunk(text: str) -> bool:
+    """標題含拆穿/真相/打臉/揭穿…等打假關鍵字 → 走《拆穿》縮圖公式。"""
+    return any(k in (text or "") for k in _DEBUNK_KW)
+
+
+def _myth_number(cfg: dict):
+    """抓出被拆穿的『神話數字』(如 812%、88.89%、236倍)。優先 cfg['myth']，否則掃 l1/l2/標題。無則 None。"""
+    m = (cfg.get("myth") or "").strip()
+    if m:
+        return m[:8]
+    for src in (cfg.get("l1"), cfg.get("l2"), cfg.get("title"), cfg.get("tag")):
+        if not src:
+            continue
+        found = [f.replace(" ", "") for f in _MYTH_NUM_RE.findall(str(src)) if any(c.isdigit() for c in f)]
+        if found:
+            pref = [f for f in found if "%" in f or "倍" in f]
+            return (pref[0] if pref else max(found, key=len))[:8]
+    return None
+
+
+def _paste_mascot(img, mood="smug", target_h=300):
+    """右下角貼吉祥物(戰友)。裁掉透明邊只留角色。成功回左緣 x，失敗回 None。"""
+    try:
+        cand = [MASCOT / f"{mood}.png", MASCOT / "smug.png", MASCOT / "neutral.png"]
+        path = next((p for p in cand if p.exists()), None)
+        if not path:
+            return None
+        m = Image.open(path).convert("RGBA")
+        bb = m.getchannel("A").getbbox()   # 裁掉 1024 透明留白，角色才不會縮成一點
+        if bb:
+            m = m.crop(bb)
+        scale = target_h / m.height
+        nw = max(1, int(m.width * scale))
+        resample = getattr(getattr(Image, "Resampling", Image), "LANCZOS", Image.BICUBIC)
+        m = m.resize((nw, target_h), resample)
+        x = W - nw - 20
+        y = H - target_h - 64          # 坐在底條之上
+        img.paste(m, (x, y), m)
+        return x
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _make_debunk(cfg: dict):
+    """《拆穿》系列縮圖：紅色警示終端底 + 金色神話數字被紅刀切開 + ≤6大字 + 吉祥物 + 拆穿印章。"""
+    accent = ACCENTS["red"]
+    img = terminal_bg(accent, seed=cfg.get("slug", "x"))
+    d = ImageDraw.Draw(img, "RGBA")
+    d.rectangle([0, 0, 12, H], fill=accent)
+
+    # 頻道標 pill(左上)
+    tagf = font(32, bold=True)
+    ct = CHANNEL
+    tb = d.textbbox((0, 0), ct, font=tagf)
+    th = tb[3] - tb[1]
+    ph, pw = th + 26, (tb[2] - tb[0]) + 70
+    d.rounded_rectangle([54, 42, 54 + pw, 42 + ph], radius=12, fill=(8, 11, 18, 205),
+                        outline=(*accent, 130), width=1)
+    cyd = 42 + ph // 2
+    d.ellipse([74, cyd - 7, 88, cyd + 7], fill=accent)
+    d.text((104, 42 + ph // 2 - th // 2 - tb[1]), ct, font=tagf, fill=(224, 231, 244))
+
+    # 吉祥物(戰友)先貼右下,神話數字避開它
+    mascot_left = _paste_mascot(img, mood="smug")
+    right_limit = (mascot_left - 30) if mascot_left else (W - 70)
+
+    # 神話數字(金)被紅刀切開
+    myth = _myth_number(cfg)
+    if myth:
+        avail = max(240, right_limit - 600)
+        mf = fit_font(myth, avail, start=184, min_size=92)
+        mb = d.textbbox((0, 0), myth, font=mf, stroke_width=6)
+        mw, mh = mb[2] - mb[0], mb[3] - mb[1]
+        mx, my = right_limit - mw, 150
+        d.text((mx, my - 42), "他吹的神話", font=font(30, bold=True), fill=(150, 160, 182))
+        d.text((mx + 4, my + 8), myth, font=mf, fill=(0, 0, 0, 150))            # 陰影
+        d.text((mx, my), myth, font=mf, fill=_GOLD, stroke_width=6, stroke_fill=(70, 48, 0))
+        d.line([(mx - 40, my + mh + 62), (mx + mw + 40, my - 22)], fill=_KNIFE, width=24)  # 紅刀
+        d.line([(mx - 40, my + mh + 62), (mx + mw + 40, my - 22)], fill=(255, 255, 255, 205), width=4)  # 刀光
+
+    # ≤6 大字headline(左欄)
+    l1 = (cfg.get("l1") or "拆穿")[:6]
+    l2 = (cfg.get("l2") or "")[:6]
+    hy = 250 if myth else 296
+    f1 = fit_font(l1, 500, start=150)
+    d.text((62, hy + 6), l1, font=f1, fill=(0, 0, 0, 165))
+    d.text((58, hy), l1, font=f1, fill=(238, 244, 253), stroke_width=3, stroke_fill=(6, 9, 15))
+    b1 = d.textbbox((58, hy), l1, font=f1, stroke_width=3)
+    if l2:
+        f2 = fit_font(l2, 500, start=138)
+        y2 = b1[3] + 26
+        d.text((62, y2 + 6), l2, font=f2, fill=(0, 0, 0, 165))
+        d.text((58, y2), l2, font=f2, fill=_GOLD, stroke_width=3, stroke_fill=(6, 9, 15))
+
+    # 「拆穿」紅印章(標題上方)
+    sf = font(40, bold=True)
+    sb = d.textbbox((0, 0), "拆穿", font=sf)
+    sw, sh = sb[2] - sb[0], sb[3] - sb[1]
+    sx, sy = 58, 152
+    d.rounded_rectangle([sx, sy, sx + sw + 46, sy + sh + 30], radius=10,
+                        fill=(*accent, 235), outline=(255, 255, 255), width=3)
+    d.text((sx + 23, sy + 15 - sb[1]), "拆穿", font=sf, fill=(255, 255, 255))
+
+    # 底部低調暗帶 + 招牌簽名
+    bar_h = 84
+    d.rectangle([0, H - bar_h, W, H], fill=(8, 11, 18, 220))
+    d.rectangle([0, H - bar_h, 10, H], fill=accent)
+    d.line([(0, H - bar_h), (W, H - bar_h)], fill=(*accent, 150), width=2)
+    d.text((42, H - bar_h // 2), (cfg.get("tag") or "我幫你避雷，不賣你夢"),
+           font=font(42, bold=True), fill=(234, 240, 250), anchor="lm")
+
+    out = OUT / f"{cfg['slug']}.jpg"
+    img.save(out, "JPEG", quality=92)
+    kb = out.stat().st_size / 1024
+    print(f"[ok] {out.name}  (拆穿樣式, {kb:.0f} KB)")
+    return out
+
 
 def _heuristic(slug: str, title: str) -> dict:
     """無 LLM 時的保底：把標題切成兩行 + 底條。"""
@@ -374,18 +506,43 @@ def _heuristic(slug: str, title: str) -> dict:
     return {"slug": slug, "l1": l1[:8], "l2": l2[:10], "tag": tag, "accent": ACCENTS["yellow"], "mark": "?"}
 
 
+def _decorate_debunk(cfg: dict, title: str) -> dict:
+    """若標題屬《拆穿》打假題 → 打上 debunk 旗標、抽神話數字、鎖紅色警示配色，交給 _make_debunk 走招牌公式。"""
+    if not is_debunk(title):
+        return cfg
+    cfg["debunk"] = True
+    cfg["accent"] = ACCENTS["red"]
+    cfg.setdefault("title", title)
+    if not cfg.get("myth"):
+        m = _myth_number({"title": title, "l1": cfg.get("l1"), "l2": cfg.get("l2")})
+        if m:
+            cfg["myth"] = m
+    # 保底啟發式會把「《拆穿》｜…」原標題硬切成 l1/l2(醜且和金數字重複)；偵測到切片痕跡就換乾淨的打假標語
+    _slice_marks = ("拆穿", "｜", "|", "「", "」", "《", "》")
+    if any(ch in (cfg.get("l1") or "") for ch in _slice_marks) or (cfg.get("myth") and cfg.get("myth") in (cfg.get("l2") or "")):
+        cfg["l1"] = "他說能賺"
+        cfg["l2"] = "我拆給你看"
+        cfg["tag"] = "我幫你避雷，不賣你夢"   # 底條也一併換招牌簽名(蓋掉切片痕跡)
+    return cfg
+
+
 def derive_cfg(slug: str, title: str) -> dict:
-    """從標題自動生縮圖鉤子。優先用 haiku(便宜)，失敗退保底啟發式。"""
-    fb = _heuristic(slug, title)
+    """從標題自動生縮圖鉤子。優先用 haiku(便宜)，失敗退保底啟發式。《拆穿》題自動套打假公式。"""
+    deb = is_debunk(title)
+    fb = _decorate_debunk(_heuristic(slug, title), title)
     key = _os.environ.get("ANTHROPIC_API_KEY", "").strip()
     if not key:
         return fb
     try:
         import requests
+        myth_line = ('這是「拆穿神話」打假片：l1/l2 用打假語氣(如「他說812%」「我回測給你看」)，'
+                     '另給 "myth" 欄＝對手宣稱、要被一刀切開的神話數字(如「812%」「88.89%」「236倍」，抓標題裡的；沒有就給空字串)，'
+                     'accent 固定 red。\n') if deb else ""
         prompt = (f"影片標題：{title}\n"
                   "為這支量化交易教學影片產生吸睛 YouTube 縮圖文字，只輸出 JSON：\n"
                   '{"l1":"第一行鉤子(2-6字,最吸睛的詞/數字)","l2":"第二行(3-8字)",'
-                  '"tag":"底部說明條(6-14字)","accent":"yellow|green|red|blue","mark":"?或!或$或VS"}\n'
+                  '"tag":"底部說明條(6-14字)","accent":"yellow|green|red|blue","mark":"?或!或$或VS","myth":"被拆穿的神話數字或空字串"}\n'
+                  + myth_line +
                   "繁體中文。誠信鐵則：不用『穩賺/保證/必賺』。配色：紅=警示/虧損，綠=獲利/實測，黃=疑問/教學，藍=工具/平台。")
         r = requests.post("https://api.anthropic.com/v1/messages",
                           headers={"x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
@@ -393,10 +550,13 @@ def derive_cfg(slug: str, title: str) -> dict:
                                 "messages": [{"role": "user", "content": prompt}]}, timeout=40)
         t = r.json()["content"][0]["text"]
         d = _json.loads(_re.search(r"\{.*\}", t, _re.S).group(0))
-        return {"slug": slug, "l1": (d.get("l1") or fb["l1"])[:8], "l2": (d.get("l2") or fb["l2"])[:10],
-                "tag": (d.get("tag") or fb["tag"])[:16],
-                "accent": ACCENTS.get((d.get("accent") or "yellow").lower(), ACCENTS["yellow"]),
-                "mark": (d.get("mark") or "?")[:2]}
+        cfg = {"slug": slug, "l1": (d.get("l1") or fb["l1"])[:8], "l2": (d.get("l2") or fb["l2"])[:10],
+               "tag": (d.get("tag") or fb["tag"])[:16],
+               "accent": ACCENTS.get((d.get("accent") or "yellow").lower(), ACCENTS["yellow"]),
+               "mark": (d.get("mark") or "?")[:2]}
+        if d.get("myth"):
+            cfg["myth"] = str(d["myth"])[:8]
+        return _decorate_debunk(cfg, title)
     except Exception as e:
         print(f"[warn] haiku 生鉤子失敗，用保底：{str(e)[:80]}", file=sys.stderr)
         return fb
@@ -409,8 +569,8 @@ def make_auto(slug: str, title: str, force: bool = False):
         print(f"[skip] 已有縮圖：{slug}")
         return out
     cfg = derive_cfg(slug, title)
-    # 策略/幣種題材 → 自動掛真實多幣回測卡（真數字、含回撤、誠實）；主題不符則不掛
-    if not cfg.get("card"):
+    # 策略/幣種題材 → 自動掛真實多幣回測卡（真數字、含回撤、誠實）；主題不符或《拆穿》題則不掛
+    if not cfg.get("debunk") and not cfg.get("card"):
         rc = _real_card(slug, title)
         if rc:
             cfg["card"] = rc

@@ -18,6 +18,7 @@ import argparse
 import json
 import shutil
 import sys
+import time
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
@@ -38,6 +39,10 @@ BANK = STUDIO / "topic_bank.json"
 DIRECTIVES = STUDIO / "boss_directives.json"
 TW = timezone(timedelta(hours=8))
 DEFAULT_MIN = 70
+# ── 不可調降的硬地板：任何情況分數低於 FLOOR 一律不得發布。 ──
+# min_score（boss_directives.json）可往上調嚴，但 FLOOR 是紅線底線；
+# 語意上永遠 FLOOR <= 生效門檻。發布端(daily_publish)以此做 fail-closed 攔截。
+FLOOR = 60
 
 try:
     from ops import log_ops
@@ -45,11 +50,8 @@ except Exception:  # noqa: BLE001
     def log_ops(stage, msg): pass
 
 import audit_video
-import os
 import re
-
-API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
-AI_MODEL = "claude-haiku-4-5-20251001"  # 便宜，評分夠用
+import studio_common as sc  # 共用地基：PERSONA / has_llm_key（路由已走 llm.complete）
 
 # audit reason 關鍵字 → 硬扣分（技術/誠信硬傷，AI 分數之上再扣）
 DEDUCT = [
@@ -68,31 +70,35 @@ def _read_script(slug):
 
 def ai_score(slug):
     """Claude 真讀腳本，依四面向各 0–25 評分（鉤子/標題CTR/內容/誠信），回 dict 或 None。"""
-    if not API_KEY:
+    if not sc.has_llm_key():
         return None
-    import requests
     title, voice = _read_script(slug)
     if len(voice) < 40:
         return None
     prompt = (
+        sc.PERSONA + "\n\n"
         "你是量化阿森（量化/網格/派網/回測/風控，繁中 faceless 短影音）的品管評審。"
         "依下列四面向評分，每項 0–25，**務必拉開分數**（多數片落在 12–20，只有真的強才 22+，嚴禁全給高分）：\n"
         "①hook 前2秒：第一句有具體數字或尖銳衝突才高分；平淡/慢熱開場 ≤10。\n"
         "②title 標題：有點擊公式（數字／反直覺／可搜尋長尾如『派網怎麼設』）才高分；空泛抽象名詞 ≤12。\n"
         "③content 內容：紮實正確清晰，且有『loop／二刷誘導』或結尾 reward 才接近滿分；純說教無記憶點 ≤15；"
         "通篇沒有對觀眾說「你」（缺第二人稱代入）再 −3。\n"
+        "　新手友善(加分方向,非硬性):白話、小白聽得懂、走「我先幫你試/避雷」角度的**多加 1-2 分**;硬核術語沒翻人話**小扣 1-2 分**(但內容紮實正確仍可拿高分,別因題材硬核就打死)。\n"
         "④honesty 誠信：不誇大不喊單、有風險意識；出現躺賺／穩賺／保證／一天賺X／包賺 之類一律 ≤8。\n"
+        # ── 校準:描述判準區間,不給單一死板數字(避免 AI 照抄同一分,分數才拉得開)──
+        "【給分原則】每面向 0-25 分，務必**大膽用滿全距、把好壞拉開**；別怕給低分或給高分，"
+        "也**別所有面向都給 18-22 的安全值**。同一批片彼此要有明顯高低差,平庸片就該落到中低段。\n"
+        "・頂標區(22-25)：hook 首句就砸具體數字+反差(如『我丟10萬給機器人跑30天,結果賠了?』)、"
+        "title 有點擊公式又可搜尋(如『派網網格怎麼設才不會賠?新手3步』)、content 紮實又有 loop/二刷鉤+對『你』說話+白話避雷、honesty 主動講風險與不保證。\n"
+        "・中段區(13-19)：有到位但不出色——hook 有帶到主題卻不夠尖、title 有關鍵字但平、content 正確清楚卻沒 loop/記憶點、honesty 沒踩雷但也沒特別點風險。\n"
+        "・不合格區(0-12)：平淡慢熱開場、空泛抽象標題、純說教無記憶點、或出現誇大用語(躺賺/穩賺/保證/包賺→honesty ≤8)。\n"
         f"標題：{title}\n旁白逐字稿：{voice}\n\n"
         '只輸出 JSON（不要其他字）：{"hook":N,"title":N,"content":N,"honesty":N,"note":"一句最該改的具體建議"}'
     )
     try:
-        r = requests.post("https://api.anthropic.com/v1/messages",
-                          headers={"x-api-key": API_KEY, "anthropic-version": "2023-06-01",
-                                   "content-type": "application/json"},
-                          json={"model": AI_MODEL, "max_tokens": 400, "temperature": 0,
-                                "messages": [{"role": "user", "content": prompt}]}, timeout=60)
-        r.raise_for_status()
-        m = re.search(r"\{.*\}", r.json()["content"][0]["text"], re.S)
+        import llm  # 走共用路由(OpenRouter DeepSeek)，不再打死掉的 Anthropic
+        txt = llm.complete(prompt, 400, json_mode=True, temperature=0.1)  # 評分要穩、近決定性,不能用預設高溫亂漂
+        m = re.search(r"\{.*\}", txt, re.S)
         if not m:
             return None
         d = json.loads(m.group(0))
@@ -123,10 +129,50 @@ def get_min():
         return DEFAULT_MIN
 
 
+def _score_of_slug(slug):
+    """從 quality_scores.json 找該 slug 的分數；查不到／壞檔回 None（防呆，不拋例外）。"""
+    try:
+        data = _load(SCORES, {})
+        if not isinstance(data, dict):
+            return None
+        for key in ("pending", "published", "items"):
+            for it in (data.get(key) or []):
+                if isinstance(it, dict) and it.get("slug") == slug:
+                    return it.get("score")
+    except Exception:  # noqa: BLE001
+        return None
+    return None
+
+
+def passes_floor(slug_or_score) -> bool:
+    """硬地板判定：分數 >= FLOOR 才回 True。
+    參數可為分數(int/float) 或 slug(str，會去 quality_scores.json 查該片分數)。
+    未評分(None)／查不到／型別意外一律回 False（fail-closed，寧可擋不可漏）。"""
+    try:
+        # 布林是 int 子類，先排除以免 True 被當 1 誤判
+        if isinstance(slug_or_score, bool):
+            return False
+        if isinstance(slug_or_score, (int, float)):
+            return slug_or_score >= FLOOR
+        if isinstance(slug_or_score, str):
+            s = slug_or_score.strip()
+            if not s:
+                return False
+            try:  # 純數字字串直接當分數
+                return float(s) >= FLOOR
+            except ValueError:
+                pass
+            score = _score_of_slug(s)  # 否則當 slug 去查快取分數
+            return isinstance(score, (int, float)) and not isinstance(score, bool) and score >= FLOOR
+    except Exception:  # noqa: BLE001
+        return False
+    return False
+
+
 def set_min(n):
     d = _load(DIRECTIVES, {})
     d["min_score"] = int(n)
-    DIRECTIVES.write_text(json.dumps(d, ensure_ascii=False, indent=2), encoding="utf-8")
+    sc.save_json_atomic(DIRECTIVES, d)
     log_ops("倉庫評分", f"退件門檻設為 {n} 分")
     print(f"[ok] 退件門檻 → {n} 分，重新評定 pass/退件…")
     scan(rescore_ai=False)  # 用快取分數依新門檻重判 pass/退件（快、不重跑 AI）
@@ -150,7 +196,7 @@ def score_one(slug, ai):
     if ai:
         score = max(0, min(100, ai["total"] - ded))
     else:
-        score = max(0, 100 - ded)
+        score = None  # 無法AI評分(缺腳本/限流失敗)→標「未評分」，不退回假100；UI顯示「—」、排最底、下輪自動重評
     return score, reasons
 
 
@@ -202,14 +248,21 @@ def scan(rescore_ai=False):
     new_ai = 0
     for slug in all_slugs():
         was = prev.get(slug, {})
-        if rescore_ai or "ai" not in was:
+        # 只要沒有『有效 ai 分數』就重評(含上次評分失敗存成 ai=None 的)——
+        # 否則失敗一次就永久卡假 100(ai 是 None 但 key 存在 → 舊邏輯不再重評)。
+        if rescore_ai or not was.get("ai"):
             ai = ai_score(slug)
             if ai:
                 new_ai += 1
+            else:
+                time.sleep(6); ai = ai_score(slug)  # 疑似限流→退避後再試一次
+                if ai:
+                    new_ai += 1
+            time.sleep(1.5)  # 節流,避免大批量連打被 OpenRouter 限流(這才是假100真兇)
         else:
             ai = was.get("ai")
-        sc, reasons = score_one(slug, ai)
-        scored[slug] = {"slug": slug, "title": title_of(slug), "score": sc,
+        score_val, reasons = score_one(slug, ai)  # 別用 sc(=import studio_common as sc 的模組別名,會被覆蓋成int)
+        scored[slug] = {"slug": slug, "title": title_of(slug), "score": score_val,
                         "reasons": reasons, "ai": ai, "ai_note": (ai or {}).get("note", "")}
     # 2) 未發布 queue ＝ 有 mp4 但不在 ledger（退件對象）
     pending = []
@@ -217,10 +270,27 @@ def scan(rescore_ai=False):
         if slug in ledger:
             continue
         was = prev.get(slug, {})
-        st = "rejected_manual" if was.get("status") == "rejected_manual" else \
-             ("reject" if it["score"] < min_score else "pass")
+        # 防退化「新版不得低於舊版」：未發布片新版分數 < 歷史舊版 → 隔離（重做只准升不准降）。
+        # 用現成 prev 快照比對，不新造儲存；隔離失敗也不可中斷評分。
+        _pv, _nv = was.get("score"), it["score"]
+        if (isinstance(_pv, (int, float)) and not isinstance(_pv, bool)
+                and isinstance(_nv, (int, float)) and not isinstance(_nv, bool)
+                and _nv < _pv):
+            try:
+                _quarantine(slug)
+            except Exception:  # noqa: BLE001
+                pass
+            pending.append(dict(it, status="degraded", published=False, videoId="", prev_score=_pv))
+            log_ops("倉庫評分", f"防退化隔離：{slug} 新版 {_nv} < 舊版 {_pv}")
+            continue
+        if was.get("status") == "rejected_manual":
+            st = "rejected_manual"
+        elif it["score"] is None:
+            st = "unrated"  # 未評分(下輪自動重評),不當 pass 也不當 reject
+        else:
+            st = "reject" if it["score"] < min_score else "pass"
         pending.append(dict(it, status=st, published=False, videoId=""))
-    pending.sort(key=lambda x: x["score"])
+    pending.sort(key=lambda x: (x["score"] is None, x["score"] or 0))  # None 排最底
     # 3) 已發布 ＝ 真實頻道 uploads（完整含長片）；抓不到才退回 ledger
     yt = None
     try:
@@ -256,7 +326,8 @@ def scan(rescore_ai=False):
         st = stats.get(p["videoId"])
         if st:
             p["views"] = st.get("views")
-            p["retention"] = round(st.get("retention"), 1) if st.get("retention") is not None else None
+            _ret = st.get("retention")
+            p["retention"] = min(100.0, round(_ret, 1)) if _ret is not None else None  # loop重播Shorts原生會>100%,夾回合理上限
             p["avg_dur"] = round(st.get("avg_dur")) if st.get("avg_dur") is not None else None
             p["subs"] = st.get("subs")
     if stats:  # 有成效資料就按觀看高→低排（一眼看哪支最紅）；無資料維持頻道時間序
@@ -267,7 +338,7 @@ def scan(rescore_ai=False):
                            "reject": sum(1 for i in pending if i["status"].startswith("reject"))},
                "pending": pending, "published": published}
     STUDIO.mkdir(parents=True, exist_ok=True)
-    SCORES.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    sc.save_json_atomic(SCORES, payload)
     s = payload["summary"]
     log_ops("倉庫評分", f"未發布 {s['pending']}(pass{s['pass']}/退{s['reject']})、已發布 {s['published']}（門檻{min_score}、新評AI{new_ai}）")
     print(f"[ok] 倉庫評分：未發布 {s['pending']} 支(pass {s['pass']}／退件 {s['reject']})、已發布 {s['published']} 支，"
@@ -370,6 +441,30 @@ def reject(slug, manual=True, remake=False):
     return 0
 
 
+def remake_all():
+    """把目前所有未發布囤片逐支退件＋立即重做（同主題、走現行昇華管線），含高於門檻的。
+    給「全倉昇華」用：老闆要把昇華前的舊片全部用新品質重產一遍。"""
+    scan(rescore_ai=False)  # 先刷新拿到最新 pending 快照
+    data = _load(SCORES, {})
+    pend = [it for it in (data.get("pending") or []) if it.get("slug")]
+    total = len(pend)
+    print(f"[remake-all] 倉庫未發布共 {total} 支，全部逐支重做（含高於門檻的）…")
+    log_ops("倉庫評分", f"全倉昇華重做啟動：{total} 支逐支重產")
+    done = 0
+    for i, it in enumerate(pend, 1):
+        slug, title, sc = it["slug"], it.get("title", it["slug"]), it.get("score")
+        print(f"[remake-all] ({i}/{total}) 重做：{title[:24]}（原分 {sc}）")
+        try:
+            reject(slug, manual=False, remake=True)
+            done += 1
+        except Exception as e:  # noqa: BLE001
+            print(f"[warn] {slug} 重做失敗：{e}")
+    scan(rescore_ai=False)
+    print(f"[remake-all] 完成：{done}/{total} 支已重做")
+    log_ops("倉庫評分", f"全倉昇華重做完成：{done}/{total} 支")
+    return 0
+
+
 def _norm(t):
     return re.sub(r"[\s，。！？、：；…·\-—()（）%？?]+", "", (t or "")).lower()
 
@@ -402,12 +497,17 @@ def tidy():
 
 
 def auto_reject():
-    """排程用：把『未發布且低於門檻』的自動退件重做。"""
+    """排程用：把『未發布且低於門檻』的自動退件並『立即重做到過關』。
+    remake=True → 走已存在的 produce_until_pass（隔離舊片＋重產到 >= 門檻），
+    讓「低於地板→自動重做」真的發生，而非只隔離。"""
     data = scan()
     n = 0
     for i in data["pending"]:
         if i["status"] == "reject":
-            reject(i["slug"], manual=False); n += 1
+            try:
+                reject(i["slug"], manual=False, remake=True); n += 1
+            except Exception as e:  # noqa: BLE001  單支重做失敗不可中斷整批
+                print(f"[warn] {i['slug']} 自動重做失敗：{str(e)[:70]}", file=sys.stderr)
     if n:
         scan(rescore_ai=False)
     log_ops("倉庫評分", f"自動退件 {n} 支未發布低分片")
@@ -421,6 +521,7 @@ def main() -> int:
     ap.add_argument("--reject", default=None)
     ap.add_argument("--remake", action="store_true", help="配合 --reject：退件後立刻重產同主題新片")
     ap.add_argument("--auto-reject", action="store_true")
+    ap.add_argument("--remake-all", action="store_true", help="把所有未發布囤片逐支退件+重做(昇華後品質),含高於門檻的")
     ap.add_argument("--tidy", action="store_true", help="整理佇列：同主題去重留最高分、不足門檻者重產到過")
     ap.add_argument("--rescore-ai", action="store_true", help="強制全部重跑 AI 內容評分（平常用快取）")
     args = ap.parse_args()
@@ -428,6 +529,8 @@ def main() -> int:
         set_min(args.set_min); return 0
     if args.reject:
         return reject(args.reject, remake=args.remake)
+    if args.remake_all:
+        return remake_all()
     if args.tidy:
         return tidy()
     if args.auto_reject:

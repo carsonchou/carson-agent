@@ -34,6 +34,7 @@ except Exception:
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from studio_common import save_json_atomic
 STUDIO = ROOT / "STUDIO"
 OUT = ROOT / "output"
 CFG = ROOT / "channel_config.json"
@@ -89,7 +90,7 @@ def load_ledger():
 
 def save_ledger(s):
     LEDGER.parent.mkdir(parents=True, exist_ok=True)
-    LEDGER.write_text(json.dumps(sorted(s), ensure_ascii=False, indent=2), encoding="utf-8")
+    save_json_atomic(LEDGER, sorted(s))
 
 
 def post_one(mp4: Path, title: str, desc: str, platforms) -> bool:

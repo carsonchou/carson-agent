@@ -108,10 +108,17 @@ def main() -> int:
         slug = it["slug"]
         mp4 = OUT / f"{slug}.mp4"
         data = [("user", user), ("title", _caption(it))] + [("platform[]", p) for p in plats]
+        # 檔名 SEO：送 TikTok/IG 的檔名用關鍵字名(非內部 slug)。multipart 檔名可直接覆寫,免硬連結;失敗回原名。
+        try:
+            import upload_youtube as _up
+            _md = _up.parse_markdown_metadata(OUT / f"{slug}.md")
+            _seoname = _up.seo_asset_name(_md.get("title", slug), _md.get("tags"), "mp4", slug)
+        except Exception:  # noqa: BLE001
+            _seoname = mp4.name
         try:
             with open(mp4, "rb") as fh:
                 r = requests.post(API, headers={"Authorization": f"Apikey {KEY}"},
-                                  data=data, files={"video": (mp4.name, fh, "video/mp4")}, timeout=300)
+                                  data=data, files={"video": (_seoname, fh, "video/mp4")}, timeout=300)
             if r.status_code in (200, 201) and (r.json().get("success") if r.headers.get("content-type", "").startswith("application/json") else True):
                 ok += 1
                 seen.add(slug)

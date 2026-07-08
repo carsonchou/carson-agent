@@ -2,6 +2,9 @@
 # -*- coding: utf-8 -*-
 """control_center.py — 量化阿森 決策中心（桌面 GUI，升級版）。
 
+⚠️ 已退役：操作走 web_center/server.py（已改本機執行）；本 tkinter 版仍綁雲端 cloud.json（已刪除），
+未同步改造成本機版，僅存查閱／備援，別再靠它下操作。
+
 分頁：🏠總覽儀表板 / 📋每日匯報 / 🧠我的決策 / 🎛控制台。
 老闆雙擊桌面捷徑打開：一眼看達標進度與工廠狀態、下決策、控制。
 決策寫入 STUDIO/boss_directives.json，由決策/補產/上架部門讀取遵循。
@@ -36,6 +39,9 @@ def _popen(*a, **k):
     return _orig_popen(*a, **k)
 
 ROOT = Path(__file__).resolve().parent.parent
+import sys
+sys.path.insert(0, str(ROOT / "scripts"))
+from studio_common import save_json_atomic, load_json_safe
 PY = ROOT / ".venv" / "Scripts" / "python.exe"
 STUDIO = ROOT / "STUDIO"
 REPORTS = STUDIO / "REPORTS"
@@ -188,34 +194,28 @@ HEADCOUNT = STUDIO / "headcount.json"
 def load_headcount():
     """員額表 {tag: 數}。缺檔/缺項用 DEPT_HEAD_DEFAULT 補。"""
     hc = dict(DEPT_HEAD_DEFAULT)
-    if HEADCOUNT.exists():
-        try:
-            saved = json.loads(HEADCOUNT.read_text(encoding="utf-8"))
-            for k, v in (saved.items() if isinstance(saved, dict) else []):
-                if k in hc and isinstance(v, int) and v >= 0:
-                    hc[k] = v
-        except Exception:
-            pass
+    saved = load_json_safe(HEADCOUNT)
+    for k, v in (saved.items() if isinstance(saved, dict) else []):
+        if k in hc and isinstance(v, int) and v >= 0:
+            hc[k] = v
     return hc
 
 
 def save_headcount(hc):
     HEADCOUNT.parent.mkdir(parents=True, exist_ok=True)
-    HEADCOUNT.write_text(json.dumps(hc, ensure_ascii=False, indent=2), encoding="utf-8")
+    save_json_atomic(HEADCOUNT, hc)
 
 
 def load_directives():
-    if DIRECTIVES.exists():
-        try:
-            return json.loads(DIRECTIVES.read_text(encoding="utf-8"))
-        except Exception:
-            pass
+    d = load_json_safe(DIRECTIVES)
+    if isinstance(d, dict):
+        return d
     return {"directives": [], "format_override": "auto", "privacy": "public", "paused": False}
 
 
 def save_directives(d):
     DIRECTIVES.parent.mkdir(parents=True, exist_ok=True)
-    DIRECTIVES.write_text(json.dumps(d, ensure_ascii=False, indent=2), encoding="utf-8")
+    save_json_atomic(DIRECTIVES, d)
 
 
 def read_ops_tail(n=12):
@@ -1330,13 +1330,9 @@ class App(tk.Tk):
             # 跨重開也有效 —— 答過的決策不會再被拉回來叫你重決。
             answered = set(getattr(self, "_answered", set()))
             answered |= set((data.get("boss_decisions") or {}).keys())  # 雲端已答（即時）
-            try:
-                if BOSS_DEC.exists():
-                    answered |= set(json.loads(BOSS_DEC.read_text(encoding="utf-8")).keys())  # 本機已答（持久）
-            except Exception:
-                pass
+            answered |= set((load_json_safe(BOSS_DEC, default={}) or {}).keys())  # 本機已答（持久）
             pend = [p for p in data.get("pending", []) if p.get("id") not in answered]
-            PENDING.write_text(json.dumps(pend, ensure_ascii=False, indent=2), encoding="utf-8")
+            save_json_atomic(PENDING, pend)
         except Exception:
             pass
         # 財務以雲端為準寫回本機（記帳記在雲端，這裡同步顯示，避免支出顯示不到/遺失）
@@ -1357,7 +1353,7 @@ class App(tk.Tk):
                     save_headcount(hc)
                 bd = data.get("boss_decisions")
                 if isinstance(bd, dict):
-                    BOSS_DEC.write_text(json.dumps(bd, ensure_ascii=False, indent=2), encoding="utf-8")
+                    save_json_atomic(BOSS_DEC, bd)
                 self._cloud_baseline = True
             except Exception:
                 pass
@@ -2517,18 +2513,13 @@ class App(tk.Tk):
 
     def choose_option(self, p, opt):
         from datetime import datetime, timedelta, timezone
-        bd = {}
-        if BOSS_DEC.exists():
-            try:
-                bd = json.loads(BOSS_DEC.read_text(encoding="utf-8"))
-            except Exception:
-                bd = {}
+        bd = load_json_safe(BOSS_DEC, default={})
         ts = datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m-%d %H:%M")
         bd[p["id"]] = {"question": p.get("question", ""), "choice": opt, "ts": ts}
         BOSS_DEC.parent.mkdir(parents=True, exist_ok=True)
-        BOSS_DEC.write_text(json.dumps(bd, ensure_ascii=False, indent=2), encoding="utf-8")
+        save_json_atomic(BOSS_DEC, bd)
         pend = [x for x in self._load_pending() if x.get("id") != p["id"]]
-        PENDING.write_text(json.dumps(pend, ensure_ascii=False, indent=2), encoding="utf-8")
+        save_json_atomic(PENDING, pend)
         # 記入本次已答，避免雲端尚未重算前又被拉回顯示
         if not hasattr(self, "_answered"):
             self._answered = set()

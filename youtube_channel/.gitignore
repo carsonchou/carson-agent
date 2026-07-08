@@ -1,8 +1,20 @@
 # ===== 機密憑證／金鑰：絕對不要進版控 =====
 client_secrets.json
 token.json
+token_manage.json
+token_manage.json.bak
+token_analytics.json
+token_*.json
 .env
 *.key
+tunnel_url.json
+
+# ===== 備份/暫存檔(regenerable，別進版控；含 STUDIO 原子寫 .bak)=====
+*.bak
+_cover_tmp/
+_thumb_preview/
+assets/_cover_tmp/
+assets/thumbnails/ab/
 
 # ===== Python =====
 .venv/

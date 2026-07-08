@@ -25,6 +25,7 @@ import requests
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import studio_common as sc  # noqa: E402  共用地基：PERSONA、has_llm_key、evidence_block
 STUDIO = ROOT / "STUDIO"; REPORTS = STUDIO / "REPORTS"; ORDERS = STUDIO / "production_orders.json"
 PLAYBOOK = STUDIO / "competitor_playbook.md"
 SEED_FILE = ROOT / "scripts" / "competitor_playbook_seed.md"  # tracked 完整 A–L 種子，雲端建檔用
@@ -36,11 +37,19 @@ except Exception:
     def log_ops(d, m): pass
 
 # 大量供給用：核心競品題材 + 鄰近題材（理財/ETF/被動收入/AI），確保每天能撈到足量未看過的新片。
-DEFAULT_KW = ["網格交易", "Pionex 教學", "派網 機器人", "定投策略", "DCA 定期定額", "量化交易",
+# ── 新增小白/避雷/防詐關鍵字（對齊 sc.PERSONA 軟性新定位），撈到「怕被割小白」向的競品角度。
+DEFAULT_KW = ["Vibe Coding 交易", "手搓 量化", "Python 自動交易", "用 AI 寫 交易程式",
+              "Cursor 寫 策略", "ChatGPT 寫 量化", "程式交易 新手",
+              "網格交易", "Pionex 教學", "派網 機器人", "定投策略", "DCA 定期定額", "量化交易",
               "加密貨幣 被動收入", "網格機器人", "資金費率 套利", "交易機器人 實測", "幣安 合約 教學",
               "ChatGPT 交易", "AI 量化 交易", "Python 量化", "回測 策略", "TradingView 策略",
               "加密貨幣 投資", "ETF 定投", "被動收入 投資", "技術分析 教學", "波段 當沖 教學",
-              "穩定幣 理財", "套利 教學", "交易策略 回測"]
+              "穩定幣 理財", "套利 教學", "交易策略 回測",
+              # 小白 × 避雷 × 防詐（新定位語彙）
+              "交易機器人 詐騙", "自動交易 被割", "投資 避雷", "新手 投資 教學",
+              "加密貨幣 詐騙 避雷", "量化 韭菜", "機器人 交易 該不該碰", "投資 新手 踩雷",
+              # 台股搜尋詞（打通 outlier_scan→parasite_titles 台股寄生鏈；niche 已含「股/etf」放行，只缺搜尋詞）
+              "台股 當沖", "0050 定期定額", "大盤 回測", "除權息 存股", "高股息 ETF", "台積電 回測"]
 GROQ_ENV = Path.home() / ".config" / "watch" / ".env"
 ANTH_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
 ANTH_MODEL = "claude-haiku-4-5-20251001"
@@ -168,15 +177,11 @@ def transcribe(vid):
         shutil.rmtree(tmp, ignore_errors=True)
 
 
-# ───────────────────────── Claude：拆解 + playbook 智慧合併 ─────────────────────────
+# ───────────────────────── LLM：拆解 + playbook 智慧合併 ─────────────────────────
 def _claude(prompt, max_tokens=1600):
-    r = requests.post("https://api.anthropic.com/v1/messages",
-                      headers={"x-api-key": ANTH_KEY, "anthropic-version": "2023-06-01",
-                               "content-type": "application/json"},
-                      json={"model": ANTH_MODEL, "max_tokens": max_tokens,
-                            "messages": [{"role": "user", "content": prompt}]}, timeout=150)
-    r.raise_for_status()
-    return r.json()["content"][0]["text"]
+    # 共用路由（主供應商→失敗退回 fallback，換模型只改 env），不再直打 api.anthropic.com。
+    import llm
+    return llm.complete(prompt, max_tokens, json_mode=True)
 
 
 def _json_from(txt):
@@ -191,8 +196,11 @@ def analyze(video, transcript):
         cur_pb = PLAYBOOK.read_text(encoding="utf-8")[:2600]
     except Exception:
         pass
+    ev = sc.evidence_block()
     prompt = (
-        "你是『量化阿森｜Carson Quant』(繁中 faceless AI 量化交易教學頻道，靠 Pionex 派網聯盟返佣變現)的競品分析師。\n"
+        sc.PERSONA + "\n以上是頻道人設(含軟性新定位:照顧怕被割的小白)。\n"
+        + (ev + "\n\n" if ev else "")
+        + "你是這個頻道的競品分析師。\n"
         f"分析這支競品影片的逐字稿，拆解可借鏡之處。\n標題：{video['title']}\n頻道：{video['channel']}\n觀看：{video.get('views',0)}\n"
         f"逐字稿(可能簡繁混/有錯字，照語意)：\n{transcript[:TRANSCRIPT_CAP]}\n\n"
         "我們現有的爆款心法 playbook(避免重複，只抓『它有但這裡沒有』的新招)：\n"
@@ -200,6 +208,7 @@ def analyze(video, transcript):
         "只輸出 JSON(不要其他文字、不要 markdown 圍欄)：\n"
         '{"is_competitor":true/false,'
         '"breakdown":"繁中 markdown 拆解：開場鉤子/結構/變現是否Pionex/可借鏡/弱點，約120-200字",'
+        '"newbie_verdict":"這支對新手是『幫助』還是『收割』？一句話判斷+理由(有沒有誇大收益/喊單/引導開槓桿高風險)",'
         '"new_tactics":["可折進 playbook 的全新招式一句話(繁中，具體可操作)，最多3條；若無全新招給空陣列"]}'
     )
     try:
@@ -271,8 +280,8 @@ def append_analysis(date, entries):
 def deep_learn(pool, max_learn, pace=2.0):
     """B 段：對沒看過的競品逐支轉錄+拆解，更新 analysis 與 playbook。
     pace=每支之間的間隔秒數（避 YouTube 429 限流，衝量必備）。"""
-    if not ANTH_KEY:
-        print("[info] 無 ANTHROPIC_API_KEY，跳過深度學習。"); return
+    if not sc.has_llm_key():
+        print("[info] 無任何 LLM 供應商 key，跳過深度學習。"); return
     seen = _load_seen()
     todo = [v for v in pool if v["id"] not in seen][:max_learn]
     if not todo:
@@ -292,7 +301,11 @@ def deep_learn(pool, max_learn, pace=2.0):
         if not res.get("is_competitor", True):  # 非同類題材不汙染 playbook，但已記 seen 不重撞
             print(f"[skip] {v['id']} 非競品題材"); continue
         learned += 1
-        entries.append((v, res.get("breakdown", "").strip()))
+        br = res.get("breakdown", "").strip()
+        verdict = (res.get("newbie_verdict") or "").strip()
+        if verdict:  # 對新手是幫助還是收割——併進拆解，供選題避開收割型角度、學習幫助型角度
+            br = (br + f"\n\n**對新手：{verdict}**").strip()
+        entries.append((v, br))
         tactics += res.get("new_tactics", []) or []
         print(f"[learn] {v['channel']}｜{v['title'][:30]}（{src}，新招 {len(res.get('new_tactics',[]) or [])}）")
         if learned % 10 == 0:

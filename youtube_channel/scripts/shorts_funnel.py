@@ -33,14 +33,13 @@ except Exception:
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
+import studio_common as sc  # noqa: E402  共用地基：PERSONA、has_llm_key、evidence_block
 STUDIO = ROOT / "STUDIO"
 OUT = ROOT / "output"
 REPORTS = STUDIO / "REPORTS"
 BANK = STUDIO / "topic_bank.json"
 SEEN = STUDIO / "funnel_seen.json"
 TW = timezone(timedelta(hours=8))
-API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
-MODEL = "claude-haiku-4-5-20251001"
 
 try:
     from ops import log_ops
@@ -110,12 +109,16 @@ def _pull_long_topic(consume=True):
 
 
 def plan(per, title, body):
-    """請 Claude 把一份長內容/主題規劃成 per 支 Shorts 的切點＋導流文案。"""
-    import requests
-    prompt = f"""你是量化阿森頻道（量化/自動交易/網格/定投/派網Pionex/風控，繁中 faceless）的【切片漏斗規劃師】。{GUARD}
-
+    """請 LLM 把一份長內容/主題規劃成 per 支 Shorts 的切點＋導流文案。"""
+    ev = sc.evidence_block()
+    prompt = f"""{sc.PERSONA}
+以上是頻道人設(含軟性新定位:照顧怕被割的小白)。你現在是這個頻道的【切片漏斗規劃師】。{GUARD}
+{(ev + chr(10)) if ev else ""}
 把下面這支『長片/長主題』，裂變成 {per} 支獨立 Shorts，組成一個互相導流的叢集。原則：
-- 每支 Short 抓長內容裡『一個最有鉤子的點』（反直覺結論／一個數字／一個常見錯誤／一個比喻），各自能獨立看懂。
+- 每支 Short 對齊小白：抓『一個新手最容易踩的雷 / 最常見的誤解 / 一個會害人被割的錯做法』當切點，
+  用「我先幫你試、別自己送死」的口吻拆給小白聽，各自能獨立看懂。
+- 也可用反直覺結論／一個數字／一個比喻當鉤子，但落點都要回到「小白怎麼避雷、怎麼不被割」。
+- 優先靠向上面【本頻道實證數據】裡已驗證高完播的角度(有的話)，別憑空發想。
 - 每支結尾一句『導流文案』：自然引導去看完整長片或追蹤主頻道（不誇大、不喊單、不保證收益）。
 - {per} 支彼此角度不同，不要同一句話換句話說。
 
@@ -124,14 +127,9 @@ def plan(per, title, body):
 {body[:4000]}
 
 只輸出 JSON 陣列（不要其他字、不要 markdown 圍欄）：
-[{{"title":"這支Short的標題","angle":"切哪個點＋鉤子","cta":"片尾導流文案一句"}}]"""
-    r = requests.post("https://api.anthropic.com/v1/messages",
-                      headers={"x-api-key": API_KEY, "anthropic-version": "2023-06-01",
-                               "content-type": "application/json"},
-                      json={"model": MODEL, "max_tokens": 1800,
-                            "messages": [{"role": "user", "content": prompt}]}, timeout=150)
-    r.raise_for_status()
-    txt = r.json()["content"][0]["text"]
+[{{"title":"這支Short的標題","angle":"切哪個新手雷/誤解＋鉤子","cta":"片尾導流文案一句"}}]"""
+    import llm  # 共用路由：主供應商→失敗退回 fallback，換模型只改 env
+    txt = llm.complete(prompt, 1800, json_mode=True)
     m = re.search(r"\[.*\]", txt, re.S)
     if m:
         try:
@@ -165,8 +163,8 @@ def main() -> int:
     ap.add_argument("--per", type=int, default=4, help="每支長片裂變成幾支 Shorts")
     ap.add_argument("--dry", action="store_true", help="只規劃、印出，不寫題庫/SOP")
     args = ap.parse_args()
-    if not API_KEY:
-        print("[FATAL] 無 ANTHROPIC_API_KEY", file=sys.stderr); return 2
+    if not sc.has_llm_key():
+        print("[FATAL] 無任何 LLM 供應商 API key", file=sys.stderr); return 2
 
     seen = _load_seen()
     jobs = []  # [(slug, title, body, is_real_long)]

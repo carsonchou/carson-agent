@@ -35,10 +35,65 @@ FALLBACK_VOICES = ["zh-TW-HsiaoChenNeural", "zh-TW-HsiaoYuNeural",
                    "zh-CN-YunyangNeural", "zh-CN-YunxiNeural"]
 MAX_ATTEMPTS = 12
 
+# 關鍵情緒詞加重（標點停頓法）：Edge TTS 對中文 SSML emphasis/prosody 實測「不支援」——
+# 標籤會被當字面念出來（<emphasis level='strong'>賠光…</> 音檔比純文字長 2.4 倍），故不走 SSML。
+# 改在關鍵詞前補一個頓號，製造「頓一下、再砸重點」的語氣停頓＝聽感上的重音。
+# 預設保守：可用環境變數 TTS_EMPHASIS=0 關閉；只加前側一個頓號、只處理每詞首次出現、全篇最多 4 處，
+# 且前一字已是標點就不加、任何例外一律回原文——絕不讓這增強弄壞或拖長配音。
+_EMPHASIS_WORDS = ("賠光", "歸零", "爆倉", "血本無歸", "割韭菜", "韭菜", "被割",
+                   "假的", "詐騙", "騙局", "慘賠", "一無所有", "全賠")
+_PAUSE = "、"
+_NO_PAUSE_BEFORE = "。！？，、；：「」『』（）…、 \n\t"
 
-async def _synth(text: str, voice: str, rate: str, out_path: Path) -> None:
-    communicate = edge_tts.Communicate(text, voice, rate=rate)
-    await communicate.save(str(out_path))
+
+def _emphasize(text: str) -> str:
+    """關鍵情緒詞前補頓號製造重音停頓（保守·可 TTS_EMPHASIS=0 關）。任何狀況出錯都回原文，絕不弄壞配音。"""
+    import os
+    if os.environ.get("TTS_EMPHASIS", "1").strip() == "0" or not text:
+        return text
+    try:
+        out = text
+        used = 0
+        for w in _EMPHASIS_WORDS:
+            if used >= 4:
+                break
+            idx = out.find(w)
+            if idx <= 0:  # 找不到(-1)或就在開頭(前面沒東西可頓)都跳過
+                continue
+            if out[idx - 1] in _NO_PAUSE_BEFORE:
+                continue  # 前面已有標點/停頓，不重複加
+            out = out[:idx] + _PAUSE + out[idx:]
+            used += 1
+        return out
+    except Exception:
+        return text
+
+
+async def _synth(text: str, voice: str, rate: str, out_path: Path) -> list:
+    """串流合成:一邊寫音檔,一邊擷取 WordBoundary 真實時間戳(供字幕精準同步)。
+    回傳 [{"t":秒,"d":秒,"text":詞}]。串流失敗則退回 .save(無時間戳,回 [])——絕不讓字幕同步需求弄壞配音。"""
+    marks = []
+    try:
+        communicate = edge_tts.Communicate(text, voice, rate=rate)
+        with open(out_path, "wb") as f:
+            async for chunk in communicate.stream():
+                ct = chunk.get("type")
+                if ct == "audio" and chunk.get("data"):
+                    f.write(chunk["data"])
+                elif ct in ("SentenceBoundary", "WordBoundary"):
+                    # offset/duration 單位為 100 奈秒(1e7=1 秒)。zh-TW 實測吐 SentenceBoundary(句級);
+                    # 也一併收 WordBoundary(若該語音有吐)。供字幕真實對齊。
+                    marks.append({"t": round(chunk.get("offset", 0) / 1e7, 3),
+                                  "d": round(chunk.get("duration", 0) / 1e7, 3),
+                                  "text": chunk.get("text", ""), "type": ct})
+        if out_path.exists() and out_path.stat().st_size > 0:
+            return marks
+        raise RuntimeError("串流輸出為空")
+    except Exception:
+        # 退回最穩的 save(可能因串流被節流),此時無逐字時間戳
+        communicate = edge_tts.Communicate(text, voice, rate=rate)
+        await communicate.save(str(out_path))
+        return []
 
 
 def main() -> int:
@@ -66,6 +121,8 @@ def main() -> int:
     except Exception:
         pass
 
+    text = _emphasize(text)  # 關鍵情緒詞前補頓號＝聽感重音（保守·出錯回原文·TTS_EMPHASIS=0 可關）
+
     if args.out:
         out = Path(args.out)
     else:
@@ -80,9 +137,17 @@ def main() -> int:
     for attempt in range(MAX_ATTEMPTS):
         voice = voices[(attempt // 3) % len(voices)]  # 每 3 次換一個聲音
         try:
-            asyncio.run(_synth(text, voice, args.rate, out))
+            words = asyncio.run(_synth(text, voice, args.rate, out))
             if out.exists() and out.stat().st_size > 0:
-                print(f"[ok] 配音完成：{out}（{out.stat().st_size/1024:.0f} KB）voice={voice} chars={len(text)} 第{attempt+1}次")
+                # 寫逐字時間戳 sidecar(供 make_video 精準字幕);串流被節流退回 .save 時 words 為空,靜默略過。
+                if words:
+                    try:
+                        import json as _json
+                        wt = out.parent / f"{out.stem}.wordtimes.json"
+                        wt.write_text(_json.dumps(words, ensure_ascii=False), encoding="utf-8")
+                    except Exception:  # noqa: BLE001
+                        pass
+                print(f"[ok] 配音完成：{out}（{out.stat().st_size/1024:.0f} KB）voice={voice} chars={len(text)} 詞時戳={len(words)} 第{attempt+1}次")
                 return 0
             raise RuntimeError("輸出檔為空")
         except Exception as exc:  # noqa: BLE001

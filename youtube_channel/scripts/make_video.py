@@ -107,9 +107,11 @@ SUBTITLE_MAX_SECONDS = 6.0
 PEXELS_VIDEO_SEARCH = "https://api.pexels.com/videos/search"
 PEXELS_TIMEOUT = 30
 
-# 預設背景漸層色盤（深色科技風，符合量化頻道調性）。RGB。
-GRADIENT_TOP = (12, 18, 32)      # 深藍黑
-GRADIENT_BOTTOM = (28, 44, 78)   # 靛藍
+# 預設背景漸層色盤（暗金 cinematic：近黑深藍底，壓暗低調高級）。RGB。
+GRADIENT_TOP = (7, 10, 18)       # 近黑深藍（電影感頂部，比舊 (12,18,32) 更沉）
+GRADIENT_BOTTOM = (18, 28, 50)   # 深靛藍（壓暗，發光克制）
+# 暗金 cinematic 暖色（光暈/網格的金調來源；紅=警示/虧、綠=獲利 等語意色不受此影響）
+GOLD = (255, 209, 102)
 
 # 概念圖引擎（每段依旁白主題畫對應數據圖）；缺套件時優雅降級回 K 線卡。
 try:
@@ -343,6 +345,74 @@ def build_subtitle_cues(units: List[str], total_duration: float) -> List[Subtitl
     return cues
 
 
+_SUB_PUNCT = set("。！？!?…，、；,;：:「」『』（）()「」《》\"' 　\n\t.")
+
+
+def load_word_cues(slug_paths: "SlugPaths", vt: str, total_duration: float):
+    """用 TTS 真實時間戳(<slug>.wordtimes.json)精準對齊字幕，解決「按字數估算、假設語速恆定」造成的漂移。
+    文字取原始 voice.txt(乾淨標點)、時間取 SentenceBoundary 句級真實時戳(按句序對齊，句內依字數分配)。
+    無 sidecar / 句數對不上太多 / 任何例外 → 回 None(呼叫端退回 build_subtitle_cues 估算法)。"""
+    try:
+        wt_path = slug_paths.audio.parent / f"{slug_paths.audio.stem}.wordtimes.json"
+        if not wt_path.exists():
+            return None
+        import json as _json
+        marks = _json.loads(wt_path.read_text(encoding="utf-8"))
+        if not marks or total_duration <= 0:
+            return None
+        sents = [m for m in marks if m.get("type") == "SentenceBoundary" and float(m.get("d", 0)) > 0]
+        if not sents:
+            return None
+        # 原始 voice.txt 依句末標點切句(保留原文/標點)，按順序對齊到 TTS 的句級時戳
+        orig = [s.strip() for s in re.split(r"(?<=[。！？!?])", vt) if s.strip()]
+        if not orig:
+            return None
+        cues: List[SubtitleCue] = []
+        m = min(len(orig), len(sents))
+        for i in range(m):
+            ts = float(sents[i]["t"])
+            te = ts + float(sents[i]["d"])
+            if te <= ts:
+                continue
+            units = split_subtitle_units(orig[i])
+            if not units:
+                continue
+            weights = [max(len(u), 1) for u in units]
+            tw = sum(weights)
+            t = ts
+            for u, w in zip(units, weights):
+                d = (te - ts) * (w / tw)
+                cues.append(SubtitleCue(start=round(t, 3), end=round(t + d, 3), text=u))
+                t += d
+        # 原文句數 > TTS 句數(罕見)→ 剩餘句用「末句尾→總長」估時補上，不漏字幕
+        if len(orig) > len(sents) and cues:
+            rest = []
+            for s in orig[len(sents):]:
+                rest += split_subtitle_units(s)
+            if rest:
+                t0 = cues[-1].end
+                span = max(0.6, total_duration - t0)
+                weights = [max(len(u), 1) for u in rest]
+                tw = sum(weights)
+                t = t0
+                for u, w in zip(rest, weights):
+                    d = span * (w / tw)
+                    cues.append(SubtitleCue(start=round(t, 3), end=round(t + d, 3), text=u))
+                    t += d
+        if not cues:
+            return None
+        # 單調化 + 末句對齊總長
+        for i in range(1, len(cues)):
+            if cues[i].start < cues[i - 1].end:
+                cues[i].start = cues[i - 1].end
+            if cues[i].end <= cues[i].start:
+                cues[i].end = cues[i].start + 0.4
+        cues[-1].end = max(cues[-1].end, min(total_duration, cues[-1].start + 0.4))
+        return cues
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def _srt_ts(sec: float) -> str:
     """秒 → SRT 時間碼 HH:MM:SS,mmm。"""
     if sec < 0:
@@ -440,6 +510,19 @@ def fetch_pexels_clip(
 
     query = " ".join(keywords[:3])
     orientation = "landscape" if width >= height else "portrait"
+    # ── b-roll 快取:跨影片相同情境詞(trading/market/bitcoin…)免重抓 API+重下載,省配額/頻寬/時間 ──
+    import hashlib as _hl
+    _cache_dir = PROJECT_ROOT / "assets" / "broll_cache"
+    _ck = _hl.md5(f"{query.lower()}|{orientation}|{width}x{height}".encode("utf-8")).hexdigest()[:16]
+    _cf = _cache_dir / f"{_ck}.mp4"
+    dest = dest_dir / f"broll_{index:02d}.mp4"
+    if _cf.exists() and _cf.stat().st_size > 0 and not os.environ.get("BROLL_NO_CACHE"):
+        try:
+            import shutil as _sh
+            _sh.copy2(_cf, dest)
+            return dest
+        except Exception:  # noqa: BLE001
+            pass
     params = {
         "query": query,
         "per_page": 5,
@@ -484,7 +567,6 @@ def fetch_pexels_clip(
     best = sorted(mp4s, key=score)[0]
     link = best["link"]
 
-    dest = dest_dir / f"broll_{index:02d}.mp4"
     try:
         with requests.get(link, stream=True, timeout=PEXELS_TIMEOUT) as r:
             if r.status_code != 200:
@@ -500,6 +582,12 @@ def fetch_pexels_clip(
 
     if not dest.exists() or dest.stat().st_size == 0:
         return None
+    try:  # 存進快取供之後相同情境詞的影片直接複用
+        _cache_dir.mkdir(parents=True, exist_ok=True)
+        import shutil as _sh
+        _sh.copy2(dest, _cf)
+    except Exception:  # noqa: BLE001
+        pass
     return dest
 
 
@@ -577,10 +665,20 @@ except Exception:
     pass
 
 
+# 語意警示詞：命中則 accent 鎖珊瑚紅（虧損/爆倉/風險調性），否則鎖暗金 cinematic
+_WARN_ACCENT_RE = re.compile(r"虧|賠|崩|爆倉|暴跌|套牢|歸零|腰斬|割|韭菜|翻車|騙|風險|警示|畢業")
+
+
 def pick_accent(seed: str):
-    import hashlib
-    h = int(hashlib.md5((seed or "x").encode("utf-8")).hexdigest(), 16)
-    return ACCENT_PALETTE[h % len(ACCENT_PALETTE)]
+    """暗金 cinematic 鎖色：中性/預設一律鎖金（全片色調一致、電影感），
+    只有 seed 命中語意警示詞才切珊瑚紅。紅綠語意色由各圖表(K線/概念圖)自行處理、不受此影響。"""
+    s = seed or "x"
+    try:
+        if _WARN_ACCENT_RE.search(s):
+            return (239, 113, 122)     # 珊瑚紅（警示/虧損調性）
+        return tuple(ACCENT_PALETTE[0])  # 鎖金（design_system 首色＝品牌金 (255,209,102)）
+    except Exception:  # noqa: BLE001
+        return (255, 209, 102)
 
 
 def _ken_burns(clip, width: int, height: int, zoom: float = 0.06):
@@ -605,6 +703,9 @@ def _card_background(width: int, height: int, accent, seed: str = "x"):
     r = np.sqrt(((xx - cx) / (width * 0.62)) ** 2 + ((yy - cy) / (height * 0.42)) ** 2)
     glow = np.clip(1.0 - r, 0.0, 1.0) ** 2.2
     acc = np.array(accent, dtype=np.float32)
+    # 暗金 cinematic：先鋪一層極淡金色暖光暈（克制），即使 accent 是警示紅、底仍帶電影金調
+    gold = np.array(GOLD, dtype=np.float32)
+    bg = bg + glow[:, :, None] * (gold - bg) * 0.06
     bg = bg + glow[:, :, None] * (acc - bg) * 0.15
     img = Image.fromarray(np.clip(bg, 0, 255).astype("uint8"), mode="RGB")
     draw = ImageDraw.Draw(img, "RGBA")
@@ -685,6 +786,10 @@ def _render_candles_strip(strip_w: int, height: int, accent, seed: str = "x"):
     bot = np.array(GRADIENT_BOTTOM, dtype=np.float32)
     ratios = np.linspace(0, 1, height, dtype=np.float32)[:, None]
     col = top[None, :] * (1 - ratios) + bot[None, :] * ratios
+    # 暗金 cinematic：頂端極淡金色暖化（僅最頂、克制），與字卡底同調
+    gold = np.array(GOLD, dtype=np.float32)
+    warm = (1.0 - ratios) ** 3 * 0.05
+    col = col + warm * (gold[None, :] - col)
     img = Image.fromarray(np.repeat(col[:, None, :], strip_w, axis=1).astype("uint8"), "RGB")
     draw = ImageDraw.Draw(img, "RGBA")
     ac = (int(accent[0]), int(accent[1]), int(accent[2]))
@@ -817,12 +922,33 @@ def render_text_overlay(width: int, height: int, *, big_text: str, watermark: st
         pad = int(md * 0.012)
         bx2 = width - int(width * 0.03)
         by2 = height - int(height * 0.03)
-        draw.rounded_rectangle([bx2 - w - pad * 2, by2 - h - pad * 2, bx2, by2], radius=int(md * 0.012), fill=(255, 255, 255, 30))
+        _safe_round_rect(draw, [bx2 - w - pad * 2, by2 - h - pad * 2, bx2, by2], int(md * 0.012), fill=(255, 255, 255, 30))
         draw.text((bx2 - w - pad, by2 - h - pad - 2), watermark, fill=(228, 234, 247, 240), font=wm_font)
 
     dest.parent.mkdir(parents=True, exist_ok=True)
     img.save(dest, format="PNG")
     return dest
+
+
+def _safe_round_rect(draw, box, radius, **kw):
+    """Pillow 9.5 的 rounded_rectangle 對 radius 接近框高/寬會拋 y1>=y0；此包裝 clamp 半徑，
+    再失敗就退回普通矩形，確保雲端(Pillow 9.5)不因圓角崩掉整張卡。"""
+    x0, y0, x1, y1 = box
+    if x1 < x0:
+        x0, x1 = x1, x0
+    if y1 < y0:
+        y0, y1 = y1, y0
+    r = max(0, min(int(radius), (x1 - x0) // 2 - 1, (y1 - y0) // 2 - 1))
+    try:
+        if r >= 2:
+            draw.rounded_rectangle([x0, y0, x1, y1], radius=r, **kw)
+        else:
+            draw.rectangle([x0, y0, x1, y1], **kw)
+    except Exception:  # noqa: BLE001
+        try:
+            draw.rectangle([x0, y0, x1, y1], **kw)
+        except Exception:  # noqa: BLE001
+            pass
 
 
 def render_candle_card(width: int, height: int, *, big_text: str, watermark: str, accent, seed: str, dest: Path) -> Path:
@@ -860,8 +986,8 @@ def render_candle_card(width: int, height: int, *, big_text: str, watermark: str
     for rr_, a_ in ((int(md * 0.50), 14), (int(md * 0.38), 20), (int(md * 0.27), 28)):
         draw.ellipse([gcx - rr_, gcy - int(rr_ * 0.62), gcx + rr_, gcy + int(rr_ * 0.62)], fill=(*ac, a_))
     # 深色玻璃面板 + accent 細邊框
-    draw.rounded_rectangle([px, py, width - px, pyb], radius=int(md * 0.03),
-                           fill=(9, 13, 26, 205), outline=(*ac, 140), width=2)
+    _safe_round_rect(draw, [px, py, width - px, pyb], int(md * 0.03),
+                     fill=(9, 13, 26, 205), outline=(*ac, 140), width=2)
     y = (height - block_h) // 2 - int(md * 0.01)
     last_w = 0
     for ln in lines:
@@ -877,15 +1003,16 @@ def render_candle_card(width: int, height: int, *, big_text: str, watermark: str
     ux = (width - uw) // 2
     uy = y + int(md * 0.014)
     uh = max(5, int(md * 0.016))
-    draw.rounded_rectangle([ux - 6, uy - 4, ux + uw + 6, uy + uh + 4], radius=uh, fill=(*ac, 70))
-    draw.rounded_rectangle([ux, uy, ux + uw, uy + uh], radius=uh // 2, fill=accent)
+    # _safe_round_rect：雲端 Pillow 9.5 對 radius 接近框高會崩（K 線卡失敗退字卡的元兇）
+    _safe_round_rect(draw, [ux - 6, uy - 4, ux + uw + 6, uy + uh + 4], uh, fill=(*ac, 70))
+    _safe_round_rect(draw, [ux, uy, ux + uw, uy + uh], uh // 2, fill=accent)
 
     if watermark:
         w, h = tsize(watermark, wm_font)
         pad = int(md * 0.012)
         bx2 = width - int(width * 0.03)
         by2 = height - int(height * 0.03)
-        draw.rounded_rectangle([bx2 - w - pad * 2, by2 - h - pad * 2, bx2, by2], radius=int(md * 0.012), fill=(255, 255, 255, 30))
+        _safe_round_rect(draw, [bx2 - w - pad * 2, by2 - h - pad * 2, bx2, by2], int(md * 0.012), fill=(255, 255, 255, 30))
         draw.text((bx2 - w - pad, by2 - h - pad - 2), watermark, fill=(228, 234, 247, 240), font=wm_font)
 
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -895,15 +1022,17 @@ def render_candle_card(width: int, height: int, *, big_text: str, watermark: str
 
 def render_concept_card(width: int, height: int, *, heading: str, narration: str,
                         watermark: str, accent, seed: str, dest: Path,
-                        default_key: Optional[str] = None) -> Optional[Path]:
+                        default_key: Optional[str] = None,
+                        force_key: Optional[str] = None) -> Optional[Path]:
     """主題數據圖卡：依旁白選一張對得上的圖（網格/複利/回撤…），
     標題放頂部小條（不蓋圖），下方留給字幕。
-    段落判不到主題時，改用 default_key（整支影片主題）；仍為 None 才回 None（退回 K 線卡）。"""
+    force_key 有值＝硬指定該圖（用於強制回測對比 beat，不管旁白分類）；
+    否則段落判不到主題時改用 default_key（整支影片主題）；仍為 None 才回 None（退回 K 線卡）。"""
     if _concept is None:
         return None
     from PIL import ImageDraw
     text = f"{heading} {narration}"
-    key = _concept.classify(text) or default_key
+    key = force_key or _concept.classify(text) or default_key
     if key is None:
         return None
     img = _concept.render_concept_chart(width, height, text, accent, seed, dest=None, force=key)
@@ -1143,6 +1272,425 @@ def _fit_clip(clip, width: int, height: int, duration: float):
     return clip.set_duration(duration)
 
 
+def _fmt_money(v) -> str:
+    """金額口語化：>=1萬顯示『X.X萬』，否則千分位。"""
+    try:
+        v = float(v)
+    except Exception:  # noqa: BLE001
+        return str(v)
+    if abs(v) >= 10000:
+        s = f"{v/10000:.1f}".rstrip("0").rstrip(".")
+        return s + "萬"
+    return f"{int(round(v)):,}"
+
+
+_CN_DIGIT = {"零": 0, "〇": 0, "一": 1, "二": 2, "兩": 2, "三": 3, "四": 4,
+             "五": 5, "六": 6, "七": 7, "八": 8, "九": 9}
+
+
+def _cn_int(s: str) -> int:
+    """中文整數→int（支援到百，如 六十一、一百、三十）。"""
+    s = s.strip()
+    if not s:
+        return 0
+    if "百" in s:
+        a, _, b = s.partition("百")
+        h = (_CN_DIGIT.get(a, 1) if a else 1) * 100
+        if b.startswith("十"):
+            b = "一" + b
+        return h + _cn_int(b) if b else h
+    if "十" in s:
+        a, _, b = s.partition("十")
+        return (_CN_DIGIT.get(a, 1) if a else 1) * 10 + (_CN_DIGIT.get(b, 0) if b else 0)
+    v = 0
+    for ch in s:
+        if ch in _CN_DIGIT:
+            v = v * 10 + _CN_DIGIT[ch]
+        else:
+            return _CN_DIGIT.get(s, 0)
+    return v
+
+
+def _cn_num(s: str) -> float:
+    """中文數字（含『點』小數）→ float，如 八點二→8.2、三點三四→3.34。"""
+    if re.match(r"^[0-9]+(?:\.[0-9]+)?$", s):
+        return float(s)
+    if "點" in s:
+        a, _, b = s.partition("點")
+        ip = _cn_int(a) if a else 0
+        frac = "".join(str(_CN_DIGIT[ch]) for ch in b if ch in _CN_DIGIT)
+        try:
+            return float(f"{ip}.{frac}") if frac else float(ip)
+        except Exception:  # noqa: BLE001
+            return float(ip)
+    return float(_cn_int(s))
+
+
+def _parse_experiment_numbers(text: str) -> dict:
+    """從旁白抓實測數字：本金/餘額/報酬%/天數。相容口語念法（百分之八點二、本金十萬、三十天）。
+    抓不到的留空 → HUD 不顯示該欄（不硬湊、守誠實紅線）。"""
+    out: dict = {}
+    if not text:
+        return out
+    t = text
+    _num = r"[0-9]+(?:\.[0-9]+)?"
+    _cn = r"[零〇一二兩三四五六七八九十百點]+"
+    _gap = r"[^萬0-9零〇一二兩三四五六七八九十百]{0,3}"  # 填充但不吞數字
+    # 本金：X萬（阿拉伯或中文）
+    m = re.search(rf"(?:本金|丟|投入|拿|押){_gap}({_num})\s*萬", t)
+    if m:
+        out["principal"] = int(float(m.group(1)) * 10000)
+    else:
+        m = re.search(rf"(?:本金|丟|投入|拿|押){_gap}({_cn})\s*萬", t)
+        if m:
+            out["principal"] = int(_cn_num(m.group(1)) * 10000)
+    # 報酬%（口語『百分之X』優先；退回『X%』）取最後一個（通常是結果），含正負語意
+    pcs = list(re.finditer(rf"(正|負|賺|獲利|報酬|漲|虧|賠|跌|少)?\s*百分之\s*({_num}|{_cn})", t))
+    if not pcs:
+        pcs = list(re.finditer(rf"(正|負|賺|漲|虧|賠|跌)?\s*({_num})\s*%", t))
+    if pcs:
+        g = pcs[-1]
+        try:
+            val = _cn_num(g.group(2))
+            if g.group(1) in ("負", "虧", "賠", "跌", "少"):
+                val = -val
+            out["pct"] = val
+        except Exception:  # noqa: BLE001
+            pass
+    # 天數：第X天 / Day X / X天（阿拉伯或中文）；取最大值（結局天數，避免「第一天」蓋過「第三十天」）
+    _days = [int(float(x)) for x in re.findall(rf"(?:第|[Dd]ay)\s*({_num})", t)]
+    _days += [int(float(x)) for x in re.findall(rf"({_num})\s*天", t)]
+    for x in re.findall(rf"(?:第)?({_cn})\s*天", t):
+        try:
+            _days.append(int(_cn_num(x)))
+        except Exception:  # noqa: BLE001
+            pass
+    if _days:
+        out["days"] = max(_days)
+    # 餘額：剩[下]X萬（阿拉伯或中文）
+    m = re.search(rf"剩[下]?{_gap}({_num})\s*萬", t)
+    if m:
+        out["balance"] = int(float(m.group(1)) * 10000)
+    else:
+        m = re.search(rf"剩[下]?{_gap}({_cn})\s*萬", t)
+        if m:
+            out["balance"] = int(_cn_num(m.group(1)) * 10000)
+    return out
+
+
+def _ep_data_numbers() -> dict:
+    """讀 STUDIO/ep_data.json 的實測真數字（EP 引擎/真實帳戶權威來源），映射成 HUD 欄位。
+    優先於旁白 regex：ep_data 是引擎狀態，比口播順口提及可信。抓不到檔或欄位就回空 dict。"""
+    out: dict = {}
+    try:
+        data = json.loads((PROJECT_ROOT / "STUDIO" / "ep_data.json").read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return out
+    if not isinstance(data, dict):
+        return out
+
+    def _pick(*keys):
+        for k in keys:
+            v = data.get(k)
+            if v is not None:
+                return v
+        return None
+
+    _pr = _pick("investment", "principal")
+    _bal = _pick("account_value", "balance")
+    _pct = _pick("return_pct", "pct")
+    _days = _pick("day", "days")
+    try:
+        if _pr is not None:
+            out["principal"] = float(_pr)
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        if _bal is not None:
+            out["balance"] = float(_bal)
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        if _pct is not None:
+            out["pct"] = float(_pct)
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        if _days is not None:
+            out["days"] = int(float(_days))
+    except Exception:  # noqa: BLE001
+        pass
+    return out
+
+
+def _mascot_enabled() -> bool:
+    """吉祥物總開關（design_system.mascot_enabled，預設 False）。False 時完全不改變渲染輸出。"""
+    try:
+        return bool(_design_system().get("mascot_enabled", False))
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _mascot_path_for(pct, *, closing: bool = False) -> Optional[str]:
+    """依報酬正負/收官選吉祥物表情檔（正→happy／負→panic／收官→smug／中性→neutral）。不存在回 None。"""
+    if closing:
+        name = "smug"
+    elif pct is None:
+        name = "neutral"
+    elif pct > 0:
+        name = "happy"
+    elif pct < 0:
+        name = "panic"
+    else:
+        name = "neutral"
+    p = PROJECT_ROOT / "assets" / "mascot" / f"{name}.png"
+    return str(p) if p.exists() else None
+
+
+# 逐段旁白情緒 → 吉祥物表情關鍵字（比整片單一 pct 更貼合當下畫面）
+_MASCOT_PANIC_RE = re.compile(r"虧|賠|崩|爆倉|套牢|歸零|腰斬|畢業")
+_MASCOT_HAPPY_RE = re.compile(r"賺|贏|獲利|暴賺|賺爛|翻倍|回本")
+_MASCOT_SMUG_RE = re.compile(r"拆穿|識破|避雷|看穿|揭穿|戳破")
+
+
+def _mascot_expr_for_text(text: str) -> Optional[str]:
+    """依單段旁白情緒選吉祥物表情檔（smug/panic/happy/neutral）。
+    smug(拆穿/戳破…) > panic(虧/爆倉…) > happy(賺/翻倍…) > neutral。
+    找不到對應圖退回 neutral；neutral 也不存在回 None。任何情況不拋例外。"""
+    t = text or ""
+    try:
+        if _MASCOT_SMUG_RE.search(t):
+            name = "smug"
+        elif _MASCOT_PANIC_RE.search(t):
+            name = "panic"
+        elif _MASCOT_HAPPY_RE.search(t):
+            name = "happy"
+        else:
+            name = "neutral"
+        p = PROJECT_ROOT / "assets" / "mascot" / f"{name}.png"
+        if p.exists():
+            return str(p)
+        neu = PROJECT_ROOT / "assets" / "mascot" / "neutral.png"
+        return str(neu) if neu.exists() else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def paste_mascot(base_png, mascot_path, position: str = "br", scale: float = 0.18):
+    """把吉祥物 PNG 以 alpha_composite 貼到 base 的指定角落。
+    base_png 可為 PNG 路徑或 PIL Image；回傳合成後的 RGBA PIL Image（不落檔，由呼叫端存）。
+    position: br/bl/tr/tl；scale: 吉祥物寬佔畫面寬比例。任何失敗回原輸入（不炸渲染）。"""
+    try:
+        from PIL import Image
+    except Exception:  # noqa: BLE001
+        return base_png
+    try:
+        base = base_png if hasattr(base_png, "alpha_composite") else Image.open(base_png)
+        base = base.convert("RGBA")
+    except Exception:  # noqa: BLE001
+        return base_png
+    try:
+        m = Image.open(mascot_path).convert("RGBA")
+    except Exception:  # noqa: BLE001
+        return base
+    W, H = base.size
+    mw = max(1, int(W * float(scale)))
+    mh = max(1, int(m.height * mw / max(1, m.width)))
+    m = m.resize((mw, mh))
+    pad = int(min(W, H) * 0.03)
+    pos = {
+        "br": (W - mw - pad, H - mh - pad),
+        "bl": (pad, H - mh - pad),
+        "tr": (W - mw - pad, pad),
+        "tl": (pad, pad),
+    }.get(position, (W - mw - pad, H - mh - pad))
+    try:
+        base.alpha_composite(m, pos)
+    except Exception:  # noqa: BLE001
+        pass
+    return base
+
+
+def render_brand_intro(width, height, *, title, dest: Path, tagline=None,
+                       logo_path=None, mascot_path=None) -> Optional[str]:
+    """品牌固定片頭：讀 assets/brand/intro_template.png 當底（不存在則用 _card_background 生），
+    _load_font 壓標題（+選配標語），Image.alpha_composite 貼 logo（右上）/吉祥物（右下），存 PNG。
+    回傳 PNG 路徑；當無任何品牌素材（template 不存在且無 logo/mascot）時回 None
+    → 呼叫端退回既有片頭降級鏈，確保沒鋪品牌素材時輸出完全不變。"""
+    try:
+        from PIL import Image, ImageDraw
+    except Exception:  # noqa: BLE001
+        return None
+    tmpl = PROJECT_ROOT / "assets" / "brand" / "intro_template.png"
+    has_tmpl = tmpl.exists()
+    has_logo = bool(logo_path) and Path(logo_path).exists()
+    has_mascot = bool(mascot_path) and Path(mascot_path).exists()
+    if not (has_tmpl or has_logo or has_mascot):
+        return None  # 無品牌素材：不改變現有輸出
+    accent = pick_accent(title or "x")
+    ac = (int(accent[0]), int(accent[1]), int(accent[2]))
+    try:
+        if has_tmpl:
+            base = Image.open(tmpl).convert("RGBA")
+            if base.size != (width, height):
+                base = base.resize((width, height))
+        else:
+            base = _card_background(width, height, accent, seed=title or "intro").convert("RGBA")
+    except Exception:  # noqa: BLE001
+        try:
+            base = _card_background(width, height, accent, seed=title or "intro").convert("RGBA")
+        except Exception:  # noqa: BLE001
+            return None
+    draw = ImageDraw.Draw(base, "RGBA")
+    md = min(width, height)
+    tfont = _load_font(int(md * 0.088), bold=True)
+    max_w = width - int(width * 0.14)
+    lines = _wrap_to_width(draw, (title or "").strip(), tfont, max_w) if tfont else [title or ""]
+    try:
+        _a, _d = tfont.getmetrics()
+        lh = int((_a + _d) * 1.2)
+    except Exception:  # noqa: BLE001
+        lh = int(md * 0.12)
+    block_h = lh * len(lines)
+    y = (height - block_h) // 2 - int(height * 0.04)
+    last_w = 0
+    for ln in lines:
+        try:
+            w = int(draw.textlength(ln, font=tfont))
+        except Exception:  # noqa: BLE001
+            w = len(ln) * 12
+        x = (width - w) // 2
+        last_w = w
+        for dx, dy in ((-2, 0), (2, 0), (0, -2), (0, 2), (2, 2)):
+            draw.text((x + dx, y + dy), ln, fill=(0, 0, 0, 235), font=tfont)
+        draw.text((x, y), ln, fill=(245, 248, 255, 255), font=tfont)
+        y += lh
+    uw = min(int(width * 0.34), max(last_w // 2, int(width * 0.14)))
+    ux = (width - uw) // 2
+    draw.rectangle([ux, y + int(md * 0.012), ux + uw, y + int(md * 0.012) + max(4, int(md * 0.013))], fill=ac)
+    if tagline:
+        sf = _load_font(int(md * 0.034), bold=False)
+        try:
+            tw = int(draw.textlength(tagline, font=sf))
+        except Exception:  # noqa: BLE001
+            tw = len(tagline) * 10
+        sx = (width - tw) // 2
+        sy = y + int(md * 0.06)
+        for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+            draw.text((sx + dx, sy + dy), tagline, fill=(0, 0, 0, 200), font=sf)
+        draw.text((sx, sy), tagline, fill=(198, 212, 234, 240), font=sf)
+    if has_logo:
+        try:
+            logo = Image.open(logo_path).convert("RGBA")
+            lw = int(width * 0.13)
+            logo = logo.resize((lw, max(1, int(logo.height * lw / max(1, logo.width)))))
+            base.alpha_composite(logo, (width - lw - int(width * 0.04), int(height * 0.05)))
+        except Exception:  # noqa: BLE001
+            pass
+    if has_mascot:
+        try:
+            base = paste_mascot(base, mascot_path, position="br", scale=0.20)
+        except Exception:  # noqa: BLE001
+            pass
+    try:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        base.convert("RGB").save(str(dest), format="PNG")
+    except Exception:  # noqa: BLE001
+        return None
+    return str(dest)
+
+
+def render_hud_strip(width, height, *, dest: Path, day=None, principal=None,
+                     balance=None, pct=None, accent=(255, 210, 63)):
+    """實測 EP 招牌 HUD：頂部深色條顯示 DAY／餘額／報酬%（透明底全幀 PNG，供合成）。"""
+    try:
+        from PIL import Image, ImageDraw
+    except Exception:  # noqa: BLE001
+        return None
+    f_lbl = _load_font(int(min(width, height) * 0.026), bold=True)
+    f_val = _load_font(int(min(width, height) * 0.042), bold=True)
+    if not f_val:
+        return None
+    md = min(width, height)
+    img = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img, "RGBA")
+
+    def _txt(x, y, s, font, fill, anchor):
+        for dx, dy in ((-2, 0), (2, 0), (0, -2), (0, 2)):
+            d.text((x + dx, y + dy), s, font=font, fill=(0, 0, 0, 220), anchor=anchor)
+        d.text((x, y), s, font=font, fill=fill, anchor=anchor)
+
+    barh = int(height * 0.072)
+    bary = int(height * 0.185)  # 避開概念卡頂部標題條(0~0.165)
+    bx1, bx2 = int(width * 0.05), width - int(width * 0.05)
+    d.rounded_rectangle([bx1, bary, bx2, bary + barh], radius=int(barh * 0.28),
+                        fill=(10, 14, 26, 205),
+                        outline=(accent[0], accent[1], accent[2], 150), width=max(2, int(md * 0.004)))
+    cy = bary + barh // 2
+    up, dn = cy - int(md * 0.026), cy + int(md * 0.004)
+    # 依有值欄位動態均分排版（DAY／本金／餘額／報酬），置中不重疊；本金欄仿 DAY 欄補上。
+    cols = []
+    if day is not None:
+        cols.append(("DAY", str(day), (accent[0], accent[1], accent[2], 255), (245, 248, 255, 255)))
+    if principal is not None:
+        cols.append(("本金", _fmt_money(principal), (180, 196, 222, 255), (245, 248, 255, 255)))
+    if balance is not None:
+        cols.append(("餘額", _fmt_money(balance), (180, 196, 222, 255), (245, 248, 255, 255)))
+    if pct is not None:
+        _pcol = (46, 204, 113, 255) if pct >= 0 else (231, 76, 60, 255)
+        _sign = "+" if pct >= 0 else ""
+        cols.append(("報酬", f"{_sign}{pct:g}%", (180, 196, 222, 255), _pcol))
+    if cols:
+        inner_x1 = bx1 + int(width * 0.035)
+        inner_x2 = bx2 - int(width * 0.035)
+        span = inner_x2 - inner_x1
+        for ci, (lbl, val, lbl_col, val_col) in enumerate(cols):
+            cxp = inner_x1 + int(span * (ci + 0.5) / len(cols))
+            _txt(cxp, up, lbl, f_lbl, lbl_col, "mm")
+            _txt(cxp, dn, val, f_val, val_col, "mm")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    img.save(str(dest), format="PNG")
+    return dest
+
+
+def render_race_split(width, height, *, dest: Path, labelA="A", labelB="B",
+                      progA=0.5, progB=0.5, accent=(255, 210, 63)):
+    """A vs B 賽跑對比：頂部自帶深色面板的計分板（兩條並排進度條），不侵入中央標題/字幕區。"""
+    try:
+        from PIL import Image, ImageDraw
+    except Exception:  # noqa: BLE001
+        return None
+    md = min(width, height)
+    f_lbl = _load_font(int(md * 0.030), bold=True)
+    if not f_lbl:
+        return None
+    img = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img, "RGBA")
+    # 面板（頂部 HUD 區，避開中央）
+    px1, px2 = int(width * 0.05), width - int(width * 0.05)
+    py1, py2 = int(height * 0.185), int(height * 0.365)  # 避開概念卡頂部標題條
+    d.rounded_rectangle([px1, py1, px2, py2], radius=int(md * 0.03),
+                        fill=(10, 14, 26, 205),
+                        outline=(accent[0], accent[1], accent[2], 150), width=max(2, int(md * 0.004)))
+    tx1, tx2 = px1 + int(width * 0.05), px2 - int(width * 0.05)
+    tw = tx2 - tx1
+    barh = int(height * 0.030)
+    rad = max(2, barh // 3)  # Pillow 9.5 嚴格：radius 必須 << 高/寬，避免 y1<y0
+    rows = ((py1 + int(height * 0.052), labelA, max(0.0, min(1.0, progA)), (46, 204, 113)),
+            (py1 + int(height * 0.115), labelB, max(0.0, min(1.0, progB)), (52, 152, 219)))
+    for yy, lbl, prog, col in rows:
+        for dx, dy in ((-2, 0), (2, 0), (0, -2), (0, 2)):
+            d.text((tx1 + dx, yy - int(md * 0.042) + dy), lbl[:10], font=f_lbl, fill=(0, 0, 0, 220))
+        d.text((tx1, yy - int(md * 0.042)), lbl[:10], font=f_lbl, fill=(245, 248, 255, 255))
+        d.rounded_rectangle([tx1, yy, tx2, yy + barh], radius=rad, fill=(20, 26, 40, 220))
+        fw = int(tw * prog)
+        if fw >= 2 * rad + 2:
+            d.rounded_rectangle([tx1, yy, tx1 + fw, yy + barh], radius=rad, fill=(col[0], col[1], col[2], 240))
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    img.save(str(dest), format="PNG")
+    return dest
+
+
 def build_video(
     slug_paths: SlugPaths,
     branding: dict,
@@ -1252,6 +1800,90 @@ def build_video(
         seg_cards.append(str(card_png) if card_png else None)
         body_clips.append(clip)
 
+    # ── 實測EP招牌HUD / A vs B 賽跑對比：靜態逐段推進；非實測/非對比片零影響 ──
+    hud_overlays = []
+    _title = title or ""
+    _is_exp = bool(re.search(r"EP|實測|實驗", _title))
+    _is_race = bool(re.search(r"vs|VS|對決|對打|賽跑", _title))
+    if _is_exp or _is_race:
+        try:
+            _vt = read_voice_text(slug_paths) or " ".join(s.narration for s in segments if s.narration)
+            _nums = _parse_experiment_numbers(_vt)
+        except Exception:  # noqa: BLE001
+            _nums = {}
+        # ep_data.json 是 EP 引擎/真實帳戶的權威數字，優先於旁白 regex（有值才蓋）→ HUD 與 EP 引擎同一真相
+        try:
+            _nums.update(_ep_data_numbers())
+        except Exception:  # noqa: BLE001
+            pass
+        _pr, _pct = _nums.get("principal"), _nums.get("pct")
+        _bal, _dtot = _nums.get("balance"), _nums.get("days")
+        if _bal is None and _pr is not None and _pct is not None:
+            _bal = int(_pr * (1 + _pct / 100.0))
+        _has_data = any(v is not None for v in (_pr, _pct, _bal, _dtot))
+        _n = max(1, len(seg_cards) or len(segments))
+        if _has_data or _is_race:
+            from PIL import Image as _PIH
+            for i in range(_n):
+                frac = (i + 1) / _n
+                hud_png = None
+                try:
+                    if _is_race and not _is_exp:
+                        _parts = re.split(r"vs|VS|對決|對打|賽跑", _title)
+                        _la = (_parts[0].strip()[-10:] or "A")
+                        _lb = (_parts[1].strip()[:10] if len(_parts) > 1 and _parts[1].strip() else "B")
+                        hud_png = render_race_split(width, height, dest=tmp_dir / f"hud_{i:02d}.png",
+                                                    labelA=_la, labelB=_lb, progA=frac, progB=frac * 0.82, accent=accent)
+                    else:
+                        _day = int(round((_dtot or _n) * frac)) if (_dtot or _is_exp) else None
+                        _bal_i = int(_pr + (_bal - _pr) * frac) if (_pr is not None and _bal is not None) else _bal
+                        _pct_i = round(_pct * frac, 2) if _pct is not None else None
+                        hud_png = render_hud_strip(width, height, dest=tmp_dir / f"hud_{i:02d}.png",
+                                                   day=_day, principal=_pr, balance=_bal_i, pct=_pct_i, accent=accent)
+                except Exception:  # noqa: BLE001
+                    hud_png = None
+                if hud_png is None:
+                    continue
+                # 靜態路徑：把 HUD 烤進該段卡（存新檔，不覆蓋原檔）
+                if i < len(seg_cards) and seg_cards[i]:
+                    try:
+                        _b = _PIH.open(seg_cards[i]).convert("RGBA")
+                        _h = _PIH.open(str(hud_png)).convert("RGBA")
+                        _b.alpha_composite(_h)
+                        _outp = tmp_dir / f"cardhud_{i:02d}.png"
+                        _b.convert("RGB").save(str(_outp))
+                        seg_cards[i] = str(_outp)
+                    except Exception:  # noqa: BLE001
+                        pass
+                # 逐幀路徑：備一份 overlay
+                try:
+                    hud_overlays.append(ImageClip(str(hud_png)).set_start(i * per_seg)
+                                        .set_duration(per_seg).set_position((0, 0)))
+                except Exception:  # noqa: BLE001
+                    pass
+
+    # ── 吉祥物 IP（預設關閉：design_system.mascot_enabled=true 才貼；false 時此區完全跳過、輸出不變）──
+    #    依整支實測報酬正負選表情，收官段用 smug；比照 HUD 烤卡手法貼進段卡角落（僅靜態切片路徑）。
+    if _mascot_enabled():
+        try:
+            _mpct = _ep_data_numbers().get("pct")
+            _mn = len(seg_cards)
+            for i in range(_mn):
+                if not seg_cards[i]:
+                    continue
+                _mp = _mascot_path_for(_mpct, closing=(i == _mn - 1))
+                if not _mp:
+                    continue
+                try:
+                    _mimg = paste_mascot(seg_cards[i], _mp, position="br", scale=0.16)
+                    _mout = tmp_dir / f"cardmas_{i:02d}.png"
+                    _mimg.convert("RGB").save(str(_mout))
+                    seg_cards[i] = str(_mout)
+                except Exception:  # noqa: BLE001
+                    pass
+        except Exception:  # noqa: BLE001
+            pass
+
     # intro / outro 字卡
     def _candle_segment(big_text_, suffix, dur):
         try:
@@ -1264,7 +1896,18 @@ def build_video(
                                       watermark=watermark, dest=tmp_dir / f"card_{suffix}.png", accent=accent)
             return ImageClip(str(cardp)).set_duration(dur)
 
-    intro_clip = _candle_segment(title, "intro", INTRO_DURATION)
+    # 品牌固定片頭：有品牌素材（intro_template/logo/mascot）才啟用；否則 None→退回既有 K 線標題卡降級鏈
+    intro_clip = None
+    try:
+        _mpath_i = _mascot_path_for(_ep_data_numbers().get("pct")) if _mascot_enabled() else None
+        _bi = render_brand_intro(width, height, title=title, dest=tmp_dir / "brand_intro.png",
+                                 tagline=branding.get("intro_tagline"), mascot_path=_mpath_i)
+        if _bi:
+            intro_clip = ImageClip(str(_bi)).set_duration(INTRO_DURATION)
+    except Exception as _bie:  # noqa: BLE001
+        print(f"[warn] 品牌片頭略過，退回 K 線卡：{str(_bie)[:70]}", file=sys.stderr)
+    if intro_clip is None:
+        intro_clip = _candle_segment(title, "intro", INTRO_DURATION)
     # Shorts 開場改用高質感封面（取代 K 線標題卡；同一張供縮圖重用，失敗則沿用 K 線卡不影響渲染）
     _slug = str(getattr(slug_paths, "slug", "") or "")
     if _slug.startswith("S_"):
@@ -1291,7 +1934,8 @@ def build_video(
         voice_text = read_voice_text(slug_paths)
         if not voice_text:
             voice_text = " ".join(s.narration for s in segments if s.narration).strip()
-        cues = build_subtitle_cues(split_subtitle_units(voice_text), audio_duration)
+        cues = (load_word_cues(slug_paths, voice_text, audio_duration)
+                or build_subtitle_cues(split_subtitle_units(voice_text), audio_duration))
         stats["subtitle_count"] = len(cues)
 
     _all_static = bool(seg_cards) and all(p is not None for p in seg_cards) and len(seg_cards) == len(segments)
@@ -1362,14 +2006,25 @@ def build_video(
                 except Exception:  # noqa: BLE001
                     pass
                 sub_overlays.append(ov)
-            if sub_overlays:
-                body = CompositeVideoClip([body, *sub_overlays], size=(width, height))
+            if sub_overlays or hud_overlays:
+                body = CompositeVideoClip([body, *hud_overlays, *sub_overlays], size=(width, height))
 
     # 配上音訊（只在 body 段落，intro/outro 無聲）
     audio = AudioFileClip(str(slug_paths.audio))
     body = body.set_audio(audio).set_duration(audio_duration)
 
-    final = concatenate_videoclips([intro_clip, body, outro_clip], method="compose")
+    # 無縫 loop 尾(item9):片尾淡回片頭首幀(Shorts 開場=封面),讓重播無縫→拉高 loop 完播
+    # (2026 演算法:結尾 2 秒內重看算部分新觀看)。純加法+try 防呆:失敗只是不加尾,concat 照跑,絕不弄壞產線。
+    # MV_NO_LOOP_TAIL=1 可一鍵關。
+    _clips = [intro_clip, body, outro_clip]
+    if os.environ.get("MV_NO_LOOP_TAIL") != "1":
+        try:
+            _loop_dur = 0.6
+            _tail = intro_clip.to_ImageClip(0).set_duration(_loop_dur).crossfadein(min(0.4, _loop_dur))
+            _clips.append(_tail)
+        except Exception as _lte:  # noqa: BLE001
+            print(f"[warn] loop 尾略過,用標準結尾:{str(_lte)[:60]}", file=sys.stderr)
+    final = concatenate_videoclips(_clips, method="compose")
     final = final.set_fps(fps)
 
     slug_paths.out_mp4.parent.mkdir(parents=True, exist_ok=True)
@@ -1464,7 +2119,7 @@ def _render_subtitle_image(width: int, height: int, text: str, tmp_dir: Path, ac
     except Exception:  # noqa: BLE001
         return None
 
-    fsize = max(40, min(int(height * 0.052), int(width * 0.072)))
+    fsize = max(44, min(int(height * 0.060), int(width * 0.082)))
     font = _load_font(fsize, bold=True)
     side = int(width * 0.045)
     max_w = width - 2 * side

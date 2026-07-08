@@ -1,0 +1,1 @@
+import sys, os; [sys.path.insert(0, d) for d in ('/root/yt/scripts', os.path.join(os.getcwd(), 'scripts')) if os.path.isdir(d) and d not in sys.path]; __import__('_llm_shim')

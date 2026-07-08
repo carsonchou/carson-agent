@@ -1,0 +1,1136 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1600">
+<title>量化阿森 · 決策中心 // BLADE RUNNER EDITION</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+<style>
+/* ====== TOKENS ====== */
+:root {
+  --pink:       #ff2e88;
+  --cyan:       #00e5ff;
+  --yellow:     #ffe800;
+  --green:      #00ff88;
+  --red:        #ff3355;
+  --bg:         #04000b;
+  --bg-card:    rgba(6, 0, 18, 0.88);
+  --text:       #b8e0f0;
+  --text-dim:   rgba(184, 224, 240, 0.42);
+  --border-c:   rgba(0, 229, 255, 0.22);
+  --border-p:   rgba(255, 46, 136, 0.28);
+  --glow-pink:  0 0 12px rgba(255,46,136,.55), 0 0 30px rgba(255,46,136,.25);
+  --glow-cyan:  0 0 12px rgba(0,229,255,.55), 0 0 30px rgba(0,229,255,.25);
+}
+
+/* ====== RESET ====== */
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+html, body { width:100%; height:100vh; overflow:hidden; }
+body {
+  background: var(--bg);
+  font-family: 'Share Tech Mono', 'Courier New', monospace;
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* ====== BG LAYERS ====== */
+#three-cv {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+}
+#rain-cv {
+  position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: .10;
+}
+/* CRT scanlines */
+#crt {
+  position: fixed; inset: 0; z-index: 2; pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg, transparent, transparent 1px,
+    rgba(0,0,0,.045) 1px, rgba(0,0,0,.045) 2px
+  );
+  animation: crtFlick 12s infinite;
+}
+@keyframes crtFlick {
+  0%,96%,100% { opacity: 1; }
+  97%          { opacity: .88; }
+  98%          { opacity: .95; }
+}
+/* moving scan-beam */
+#scanbeam {
+  position: fixed; left: 0; right: 0; height: 2px; z-index: 3;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(0,229,255,.18), transparent);
+  animation: scanBeam 7s linear infinite;
+}
+@keyframes scanBeam { from { top: -2px; } to { top: 100vh; } }
+/* vignette */
+#vignette {
+  position: fixed; inset: 0; z-index: 2; pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,.72) 100%);
+}
+
+/* ====== APP SHELL ====== */
+#app {
+  position: relative; z-index: 10;
+  display: grid;
+  grid-template-rows: 56px 1fr 86px;
+  height: 100vh; width: 100vw;
+}
+
+/* ====== HEADER ====== */
+#hdr {
+  display: flex; align-items: center; gap: 14px;
+  padding: 0 18px;
+  border-bottom: 1px solid rgba(0,229,255,.25);
+  background: rgba(4,0,11,.94);
+  backdrop-filter: blur(6px);
+  overflow: hidden;
+}
+.brand {
+  flex-shrink: 0;
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 900;
+  font-size: 17px;
+  letter-spacing: 3px;
+  color: var(--pink);
+  text-shadow: var(--glow-pink);
+  position: relative;
+  cursor: default;
+  user-select: none;
+}
+.brand-sub {
+  font-size: 8px;
+  letter-spacing: 4px;
+  color: var(--cyan);
+  text-shadow: 0 0 8px var(--cyan);
+  margin-top: 1px;
+}
+.hdr-pill {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--border-c);
+  background: rgba(0,229,255,.04);
+  font-size: 9px; color: var(--cyan);
+  letter-spacing: 2px; white-space: nowrap;
+}
+.pulse-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green);
+  flex-shrink: 0;
+  animation: blink 2.2s infinite;
+}
+@keyframes blink {
+  0%,100% { opacity:1; transform:scale(1); }
+  50%      { opacity:.5; transform:scale(.75); }
+}
+.run-badge {
+  display: flex; align-items: center; gap: 5px;
+  padding: 3px 9px;
+  border: 1px solid rgba(0,255,136,.28);
+  background: rgba(0,255,136,.05);
+  font-size: 9px; color: var(--green);
+  letter-spacing: 2px; white-space: nowrap;
+}
+.run-badge b {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 13px;
+}
+.ops-ticker {
+  flex: 1; min-width: 0;
+  font-size: 9px; color: var(--text-dim);
+  white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis;
+  transition: opacity .3s;
+  letter-spacing: 1px;
+}
+.focus-txt {
+  flex-shrink: 0;
+  padding: 0 14px;
+  border-left: 2px solid var(--yellow);
+  font-size: 10px;
+  color: var(--yellow);
+  text-shadow: 0 0 10px var(--yellow);
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+.hdr-clock {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 15px; font-weight: 700;
+  color: var(--cyan);
+  text-shadow: var(--glow-cyan);
+  letter-spacing: 2px;
+  flex-shrink: 0;
+}
+
+/* ====== MAIN GRID ====== */
+#main {
+  display: grid;
+  grid-template-columns: 356px 1fr 364px;
+  overflow: hidden;
+}
+
+/* ====== SHARED PANEL ====== */
+.panel-title {
+  font-size: 8px; letter-spacing: 3px;
+  color: var(--cyan); text-shadow: 0 0 8px var(--cyan);
+  text-transform: uppercase;
+  margin-bottom: 7px;
+}
+
+/* ====== LEFT PANEL ====== */
+#left {
+  display: flex; flex-direction: column; gap: 7px;
+  padding: 10px 10px 10px 13px;
+  border-right: 1px solid var(--border-c);
+  overflow-y: auto; overflow-x: hidden;
+}
+/* scrollbar */
+#left::-webkit-scrollbar, #center::-webkit-scrollbar, #right::-webkit-scrollbar { width:3px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(0,229,255,.25); border-radius:2px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0,229,255,.5); }
+
+/* KPI */
+.kpi-grid { display:grid; grid-template-columns:1fr 1fr; gap:7px; }
+.kpi-card {
+  padding: 10px 11px;
+  border: 1px solid var(--border-p);
+  background: var(--bg-card);
+  position: relative; overflow: hidden;
+  cursor: default;
+  transition: border-color .2s, box-shadow .2s, transform .15s;
+}
+.kpi-card::after {
+  content:'';
+  position: absolute; top:0; left:0; right:0; height:1px;
+  background: linear-gradient(90deg,transparent,var(--pink),transparent);
+}
+.kpi-card:hover {
+  border-color: var(--pink);
+  box-shadow: var(--glow-pink), inset 0 0 18px rgba(255,46,136,.04);
+  transform: translateY(-1px);
+}
+.kpi-card.c {
+  border-color: var(--border-c);
+}
+.kpi-card.c::after {
+  background: linear-gradient(90deg,transparent,var(--cyan),transparent);
+}
+.kpi-card.c:hover {
+  border-color: var(--cyan);
+  box-shadow: var(--glow-cyan), inset 0 0 18px rgba(0,229,255,.04);
+}
+.kpi-lbl {
+  font-size: 8px; letter-spacing: 2px;
+  color: var(--text-dim); text-transform: uppercase;
+  margin-bottom: 5px;
+}
+.kpi-val {
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 900; font-size: 27px; line-height: 1;
+  color: var(--pink);
+  text-shadow: var(--glow-pink);
+}
+.kpi-card.c .kpi-val {
+  color: var(--cyan);
+  text-shadow: var(--glow-cyan);
+}
+.kpi-meta {
+  font-size: 8px; color: var(--text-dim); margin-top: 4px;
+}
+.badge {
+  display:inline-block; padding:1px 5px; border-radius:2px; font-size:8px;
+}
+.pos { color:var(--green); background:rgba(0,255,136,.1); }
+.neg { color:var(--red);   background:rgba(255,51,85,.1); }
+.warn{ color:var(--yellow);background:rgba(255,232,0,.09); }
+
+/* Chart */
+.chart-wrap {
+  border: 1px solid var(--border-c);
+  background: var(--bg-card);
+  padding: 9px 10px 7px;
+  flex-shrink: 0;
+}
+#chart-svg { width:100%; height:112px; display:block; }
+
+/* Cloud */
+.cloud-wrap {
+  border: 1px solid var(--border-p);
+  background: var(--bg-card);
+  padding: 9px 10px;
+  flex-shrink: 0;
+}
+.cloud-row {
+  display:grid; grid-template-columns:repeat(4,1fr); gap:6px;
+  margin-top: 6px;
+}
+.c-stat { text-align:center; }
+.c-val {
+  font-family:'Orbitron',sans-serif; font-size:18px; font-weight:700;
+  color:var(--cyan); text-shadow:var(--glow-cyan);
+}
+.c-lbl { font-size:8px; color:var(--text-dim); letter-spacing:1px; margin-top:2px; }
+
+/* ====== CENTER ====== */
+#center {
+  padding: 10px 10px;
+  overflow-y: auto;
+  border-right: 1px solid var(--border-c);
+}
+.dept-grid {
+  display: grid;
+  grid-template-columns: repeat(3,1fr);
+  gap: 6px;
+}
+.dept-card {
+  padding: 8px 10px;
+  border: 1px solid rgba(0,229,255,.12);
+  background: rgba(5,0,14,.72);
+  position: relative;
+  cursor: pointer;
+  transition: border-color .15s, background .15s, transform .12s;
+}
+.dept-card::before {
+  content:''; position:absolute; left:0;top:0;bottom:0; width:2px;
+}
+.dept-card.running::before { background:var(--green); box-shadow:0 0 6px var(--green); }
+.dept-card.idle::before    { background:rgba(184,224,240,.25); }
+.dept-card.warn::before    { background:var(--yellow); box-shadow:0 0 6px var(--yellow); }
+.dept-card:hover {
+  border-color: rgba(0,229,255,.38);
+  background: rgba(0,229,255,.04);
+  transform: translateY(-1px);
+}
+.dept-hdr {
+  display:flex; justify-content:space-between; align-items:center;
+  margin-bottom:3px;
+}
+.dept-tag { font-size:7px; color:var(--text-dim); letter-spacing:2px; }
+.dept-badge {
+  font-size:7px; padding:1px 5px; border-radius:2px; letter-spacing:1px;
+}
+.running .dept-badge { color:var(--green); background:rgba(0,255,136,.12); border:1px solid rgba(0,255,136,.3); }
+.idle    .dept-badge { color:var(--text-dim); background:rgba(184,224,240,.07); border:1px solid rgba(184,224,240,.15); }
+.warn    .dept-badge { color:var(--yellow); background:rgba(255,232,0,.09); border:1px solid rgba(255,232,0,.3); }
+.dept-name { font-size:11px; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.dept-head { font-size:8px; color:var(--text-dim); margin-top:2px; }
+.dept-lvl { display:flex; gap:2px; margin-top:4px; }
+.lv-dot { width:4px; height:4px; border-radius:50%; background:rgba(0,229,255,.15); }
+.lv-dot.on { background:var(--cyan); box-shadow:0 0 4px var(--cyan); }
+
+/* ====== RIGHT ====== */
+#right {
+  display:flex; flex-direction:column; gap:7px;
+  padding: 10px 13px 10px 10px;
+  overflow-y:auto;
+}
+.pending-card {
+  border: 1px solid var(--border-p);
+  background: var(--bg-card);
+  padding: 10px;
+  position: relative;
+  animation: fadeUp .3s ease both;
+}
+.pending-card::after {
+  content:''; position:absolute;
+  bottom:0;left:0;right:0; height:1px;
+  background:linear-gradient(90deg,transparent,var(--pink),transparent);
+  opacity:.3;
+}
+@keyframes fadeUp {
+  from { opacity:0; transform:translateY(-6px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+.pnd-id {
+  font-size:8px; color:var(--pink); letter-spacing:3px;
+  text-shadow:0 0 8px var(--pink); margin-bottom:5px;
+}
+.pnd-q { font-size:11px; color:var(--text); line-height:1.55; margin-bottom:6px; }
+.pnd-rec {
+  font-size:9px; color:var(--yellow);
+  background:rgba(255,232,0,.06);
+  border-left:2px solid var(--yellow);
+  padding:3px 7px; margin-bottom:7px;
+  line-height:1.5;
+}
+.pnd-opts { display:flex; gap:5px; flex-wrap:wrap; }
+.opt {
+  padding:4px 11px;
+  font-family:'Share Tech Mono',monospace; font-size:10px;
+  background:transparent;
+  border:1px solid rgba(0,229,255,.38);
+  color:var(--cyan);
+  cursor:pointer;
+  transition: all .14s;
+  letter-spacing:1px;
+}
+.opt:hover {
+  background:rgba(0,229,255,.1);
+  border-color:var(--cyan);
+  box-shadow:var(--glow-cyan);
+  text-shadow:0 0 8px var(--cyan);
+}
+.opt.pri {
+  border-color:rgba(255,46,136,.42);
+  color:var(--pink);
+}
+.opt.pri:hover {
+  background:rgba(255,46,136,.1);
+  border-color:var(--pink);
+  box-shadow:var(--glow-pink);
+  text-shadow:0 0 8px var(--pink);
+}
+
+/* Warehouse */
+.wh-wrap {
+  border:1px solid var(--border-c);
+  background:var(--bg-card);
+  padding:9px 10px;
+  flex-shrink:0;
+}
+.wh-bar-track {
+  height:4px; background:rgba(0,229,255,.1); border-radius:2px;
+  margin:7px 0; overflow:hidden;
+}
+.wh-bar-fill {
+  height:100%;
+  background:linear-gradient(90deg,var(--cyan),var(--pink));
+  box-shadow:0 0 8px rgba(0,229,255,.5);
+  transition:width 1.2s ease;
+  border-radius:2px;
+}
+.wh-stats {
+  display:flex; justify-content:space-between;
+  font-size:9px; color:var(--text-dim);
+}
+
+/* ====== FOOTER ====== */
+#ftr {
+  display:flex; align-items:center; gap:7px;
+  padding:0 16px;
+  border-top:1px solid rgba(255,46,136,.3);
+  background:rgba(4,0,11,.96);
+  backdrop-filter:blur(6px);
+  overflow:hidden;
+}
+.cmd {
+  padding:6px 13px;
+  font-family:'Share Tech Mono',monospace; font-size:10px;
+  background:rgba(255,46,136,.07);
+  border:1px solid rgba(255,46,136,.36);
+  color:var(--pink);
+  cursor:pointer;
+  transition:all .14s;
+  white-space:nowrap; letter-spacing:1px;
+  flex-shrink:0;
+}
+.cmd:hover {
+  background:rgba(255,46,136,.15);
+  border-color:var(--pink);
+  box-shadow:var(--glow-pink);
+  text-shadow:0 0 8px var(--pink);
+}
+.cmd.cy {
+  background:rgba(0,229,255,.05);
+  border-color:rgba(0,229,255,.32);
+  color:var(--cyan);
+}
+.cmd.cy:hover {
+  background:rgba(0,229,255,.1);
+  border-color:var(--cyan);
+  box-shadow:var(--glow-cyan);
+  text-shadow:0 0 8px var(--cyan);
+}
+.ftr-div { width:1px; height:26px; background:rgba(0,229,255,.18); flex-shrink:0; }
+.input-wrap {
+  display:flex; align-items:center; gap:6px;
+  border:1px solid rgba(0,229,255,.28);
+  background:rgba(0,229,255,.03);
+  padding:0 9px;
+  flex:1; max-width:330px;
+  transition:border-color .2s, box-shadow .2s;
+}
+.input-wrap:focus-within {
+  border-color:var(--cyan);
+  box-shadow:0 0 10px rgba(0,229,255,.2);
+}
+.input-pfx {
+  color:var(--pink); font-size:13px;
+  text-shadow:0 0 8px var(--pink); flex-shrink:0;
+}
+.cmd-in {
+  flex:1; background:transparent; border:none; outline:none;
+  font-family:'Share Tech Mono',monospace; font-size:11px;
+  color:var(--text); padding:6px 0;
+}
+.cmd-in::placeholder { color:var(--text-dim); }
+.send-btn {
+  padding:5px 13px;
+  background:var(--pink); border:none;
+  color:#04000b; font-family:'Share Tech Mono',monospace;
+  font-size:10px; font-weight:bold;
+  cursor:pointer; letter-spacing:1px;
+  transition:all .14s; flex-shrink:0;
+}
+.send-btn:hover {
+  background:#ff5599;
+  box-shadow:0 0 16px rgba(255,46,136,.5);
+}
+
+/* ====== TOAST ====== */
+.toast {
+  position:fixed; top:50%; left:50%;
+  transform:translate(-50%,-50%);
+  padding:14px 28px;
+  background:rgba(4,0,11,.96);
+  border:1px solid var(--pink);
+  color:var(--pink);
+  font-family:'Orbitron',sans-serif; font-size:13px; letter-spacing:2px;
+  text-shadow:var(--glow-pink);
+  box-shadow:0 0 40px rgba(255,46,136,.3);
+  z-index:9999; pointer-events:none;
+  animation:toastIn .15s ease, toastOut .3s ease 1.5s both;
+}
+@keyframes toastIn  { from{opacity:0;transform:translate(-50%,-55%)} to{opacity:1;transform:translate(-50%,-50%)} }
+@keyframes toastOut { to{opacity:0;transform:translate(-50%,-45%)} }
+
+/* ====== GLITCH on brand ====== */
+@keyframes glitchA {
+  0%{clip-path:inset(0 0 98% 0)}
+  20%{clip-path:inset(15% 0 50% 0);transform:translate(-3px,1px)}
+  40%{clip-path:inset(55% 0 20% 0);transform:translate(2px,-1px)}
+  60%{clip-path:inset(80% 0 5% 0);transform:translate(-2px,2px)}
+  80%{clip-path:inset(30% 0 60% 0);transform:translate(3px,-2px)}
+  100%{clip-path:inset(0 0 98% 0)}
+}
+@keyframes glitchB {
+  0%{clip-path:inset(98% 0 0% 0)}
+  20%{clip-path:inset(50% 0 30% 0);transform:translate(3px,-1px)}
+  40%{clip-path:inset(10% 0 70% 0);transform:translate(-2px,2px)}
+  60%{clip-path:inset(70% 0 10% 0);transform:translate(2px,-2px)}
+  80%{clip-path:inset(40% 0 45% 0);transform:translate(-3px,1px)}
+  100%{clip-path:inset(98% 0 0% 0)}
+}
+.brand.glitching::before,
+.brand.glitching::after {
+  content:attr(data-text);
+  position:absolute; top:0;left:0; width:100%; height:100%;
+  font-family:inherit; font-weight:inherit; font-size:inherit;
+  letter-spacing:inherit;
+}
+.brand.glitching::before {
+  color:var(--cyan);
+  text-shadow:2px 0 var(--cyan);
+  animation:glitchA .15s steps(2) 3;
+}
+.brand.glitching::after {
+  color:var(--pink);
+  text-shadow:-2px 0 var(--pink);
+  animation:glitchB .15s steps(2) 3 .05s;
+}
+</style>
+</head>
+<body>
+
+<!-- Background -->
+<canvas id="three-cv"></canvas>
+<canvas id="rain-cv"></canvas>
+<div id="crt"></div>
+<div id="scanbeam"></div>
+<div id="vignette"></div>
+
+<!-- App -->
+<div id="app">
+
+  <!-- HEADER -->
+  <header id="hdr">
+    <div style="flex-shrink:0">
+      <div class="brand" id="brand" data-text="量化阿森 · 決策中心">量化阿森 · 決策中心</div>
+      <div class="brand-sub">CARSON QUANT COMMAND CENTER</div>
+    </div>
+
+    <div class="hdr-pill" id="cloud-pill">
+      <div class="pulse-dot" id="cloud-dot"></div>
+      <span id="cloud-st">ONLINE</span>
+    </div>
+
+    <div class="run-badge">
+      運行 <b id="run-count">8</b> 部門
+    </div>
+
+    <div class="ops-ticker" id="ops-ticker">— 系統就緒 —</div>
+
+    <div class="focus-txt" id="focus-txt"></div>
+    <div class="hdr-clock" id="clock">00:00:00</div>
+  </header>
+
+  <!-- MAIN -->
+  <main id="main">
+
+    <!-- LEFT -->
+    <div id="left">
+      <div class="panel-title">▶ 核心指標</div>
+      <div class="kpi-grid" id="kpi-grid"></div>
+
+      <div class="chart-wrap">
+        <div class="panel-title">▶ 觀看走勢（近12日）</div>
+        <svg id="chart-svg" viewBox="0 0 330 112" preserveAspectRatio="none"></svg>
+      </div>
+
+      <div class="cloud-wrap">
+        <div class="panel-title">▶ 雲端工廠</div>
+        <div class="cloud-row" id="cloud-row"></div>
+      </div>
+    </div>
+
+    <!-- CENTER -->
+    <div id="center">
+      <div class="panel-title" style="margin-bottom:8px">▶ 18 部門戰情板</div>
+      <div class="dept-grid" id="dept-grid"></div>
+    </div>
+
+    <!-- RIGHT -->
+    <div id="right">
+      <div class="panel-title">▶ 待拍板決策</div>
+      <div id="pnd-list"></div>
+      <div class="wh-wrap">
+        <div class="panel-title">▶ 彈藥庫</div>
+        <div id="wh-body"></div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer id="ftr">
+    <button class="cmd"    onclick="fire('補產')">⚡ 補產</button>
+    <button class="cmd"    onclick="fire('上架')">↑ 上架</button>
+    <button class="cmd cy" onclick="fire('跑一輪')">▶ 跑一輪</button>
+    <button class="cmd cy" onclick="fire('壓榨')">◉ 壓榨</button>
+    <button class="cmd"    onclick="fire('重新評分')">↺ 重評分</button>
+    <button class="cmd"    onclick="fire('大檢查')">⊕ 大檢查</button>
+    <div class="ftr-div"></div>
+    <div class="input-wrap">
+      <span class="input-pfx">▶</span>
+      <input class="cmd-in" id="cmd-in" type="text" placeholder="跟小祕說...">
+      <button class="send-btn" onclick="sendMsg()">發送</button>
+    </div>
+  </footer>
+
+</div>
+
+<script>
+/* ============================================================
+   SAMPLE STATE  (swap this for fetch('/api/state'))
+   ============================================================ */
+window.__STATE__ = {
+  kpi: {
+    subs: 25, subs_gained: 24,
+    views: 6204, views_28: 5482,
+    retention: 40.1, minutes_28: 1035,
+    net: -4696, sub_gap: 975
+  },
+  series: [
+    { date:"06-18", views:210 }, { date:"06-19", views:380 },
+    { date:"06-20", views:290 }, { date:"06-21", views:450 },
+    { date:"06-22", views:520 }, { date:"06-23", views:680 },
+    { date:"06-24", views:410 }, { date:"06-25", views:590 },
+    { date:"06-26", views:730 }, { date:"06-27", views:620 },
+    { date:"06-28", views:810 }, { date:"06-29", views:515 }
+  ],
+  departments: [
+    { tag:"VID", name:"影片長片",   head:"導演-AI",  status:"running", level:4 },
+    { tag:"SHT", name:"Shorts製作", head:"剪接-AI",  status:"running", level:3 },
+    { tag:"IDR", name:"創作靈感",   head:"腦洞-AI",  status:"running", level:5 },
+    { tag:"CHN", name:"頻道整理",   head:"整理-AI",  status:"idle",    level:2 },
+    { tag:"TRF", name:"流量分析",   head:"SEO-AI",   status:"running", level:4 },
+    { tag:"PRM", name:"宣傳推廣",   head:"推廣-AI",  status:"warn",    level:2 },
+    { tag:"DAT", name:"數據分析",   head:"數據-AI",  status:"running", level:5 },
+    { tag:"CMT", name:"社群留言",   head:"留言-AI",  status:"idle",    level:2 },
+    { tag:"REV", name:"審核上架",   head:"審核-AI",  status:"running", level:3 },
+    { tag:"SUP", name:"總監管",     head:"老闆-AI",  status:"running", level:5 },
+    { tag:"DCS", name:"決策支援",   head:"謀士-AI",  status:"running", level:4 },
+    { tag:"REC", name:"定期回顧",   head:"回顧-AI",  status:"idle",    level:3 },
+    { tag:"HRM", name:"人事管理",   head:"HR-AI",    status:"idle",    level:2 },
+    { tag:"FIN", name:"財務收益",   head:"會計-AI",  status:"warn",    level:3 },
+    { tag:"CTR", name:"縮圖CTR",    head:"美術-AI",  status:"running", level:4 },
+    { tag:"SPY", name:"競品情報",   head:"情報-AI",  status:"running", level:4 },
+    { tag:"DSG", name:"視覺美編",   head:"設計-AI",  status:"idle",    level:3 },
+    { tag:"NWS", name:"市場消息",   head:"消息-AI",  status:"warn",    level:2 }
+  ],
+  pending: [
+    {
+      id:"DCS-001",
+      question:"新影片主題：「散戶必敗的3個思維陷阱」vs「AI選股勝率實測」哪個先做？",
+      options:["思維陷阱","AI選股","都先排"],
+      recommendation:"建議：先做 AI選股（熱詞+量化關聯高）"
+    },
+    {
+      id:"FIN-002",
+      question:"本月 API 費用已 $48，是否關閉 auto-reload 改手動充值控制成本？",
+      options:["關 auto-reload","維持現狀","設上限 $30"],
+      recommendation:"建議：設上限 $30（平衡自動化與成本）"
+    },
+    {
+      id:"PRM-003",
+      question:"宣傳方案：加入 PTT 量化板 vs 在 IG Reels 投流 NT$500？",
+      options:["加入 PTT","IG 投流","都暫緩"],
+      recommendation:"建議：加入 PTT（零成本高精準）"
+    },
+    {
+      id:"CTR-004",
+      question:"A/B 測試：霓虹風 CTR 4.2% vs 極簡白底 CTR 3.1%，全面換霓虹？",
+      options:["全面換霓虹","保留兩種","再測一輪"],
+      recommendation:"建議：全面換霓虹（差距統計顯著）"
+    },
+    {
+      id:"SPY-005",
+      question:"競品「台股阿Q」本月上5支長片，是否啟動反制選題計畫？",
+      options:["啟動反制","觀察一週","忽略"],
+      recommendation:"建議：觀察一週（避免低質量跟風）"
+    }
+  ],
+  warehouse: { pending:55, published:291, pass:55, threshold:75 },
+  cloud: { state:"online", queue:55, produced_today:7, uploaded_today:6, render:"idle" },
+  focus: "有 10 件等你拍板。",
+  ops: [
+    "14:32 — 影片長片 [EP-0291] 已產出",
+    "14:15 — Shorts [SH-0145] 上架完成",
+    "13:58 — 數據分析 完成週報",
+    "13:30 — CTR警示：本週 -0.3%",
+    "12:45 — 雲端 queue 已補至 55"
+  ],
+  paused: false,
+  running_count: 8
+};
+
+/* ============================================================
+   HELPERS
+   ============================================================ */
+const S = window.__STATE__;
+
+function toast(msg) {
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 1900);
+}
+
+function fire(cmd) { toast(`⚡ ${cmd}`); }
+function sendMsg() {
+  const inp = document.getElementById('cmd-in');
+  const v = inp.value.trim();
+  if (v) { fire(v); inp.value = ''; }
+}
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('cmd-in').addEventListener('keydown', e => {
+    if (e.key === 'Enter') sendMsg();
+  });
+});
+
+/* ============================================================
+   RENDER KPIs
+   ============================================================ */
+function renderKPIs() {
+  const cards = [
+    {
+      lbl:'訂閱數', val: S.kpi.subs.toLocaleString(),
+      meta:`本月 +${S.kpi.subs_gained}`, badge:`+${S.kpi.subs_gained}`, bt:'pos',
+      extra:'c'
+    },
+    {
+      lbl:'28日觀看', val: (S.kpi.views_28/1000).toFixed(1)+'K',
+      meta:`總計 ${S.kpi.views.toLocaleString()} 次`, badge:'+8.2%', bt:'pos',
+      extra:''
+    },
+    {
+      lbl:'完播率', val: S.kpi.retention+'%',
+      meta:`目標 65%・差 ${(65-S.kpi.retention).toFixed(1)}%`,
+      badge:'-1.2%', bt:'neg', extra:'c'
+    },
+    {
+      lbl:'淨收益 (USD)', val: S.kpi.net.toLocaleString(),
+      meta:`28日 ${S.kpi.minutes_28} 分鐘`,
+      badge:`${S.kpi.net<0?'':'+'} ${S.kpi.net}`, bt:'neg', extra:''
+    }
+  ];
+  document.getElementById('kpi-grid').innerHTML = cards.map(k => `
+    <div class="kpi-card ${k.extra}">
+      <div class="kpi-lbl">${k.lbl}</div>
+      <div class="kpi-val">${k.val}</div>
+      <div class="kpi-meta">${k.meta} <span class="badge ${k.bt}">${k.badge}</span></div>
+    </div>
+  `).join('');
+}
+
+/* ============================================================
+   RENDER CHART (SVG)
+   ============================================================ */
+function renderChart() {
+  const svg = document.getElementById('chart-svg');
+  const W=330, H=112;
+  const pt={t:12,r:8,b:20,l:32};
+  const iW=W-pt.l-pt.r, iH=H-pt.t-pt.b;
+  const data=S.series;
+  const maxV=Math.max(...data.map(d=>d.views));
+  const minV=Math.min(...data.map(d=>d.views));
+  const rng=maxV-minV||1;
+
+  const pts=data.map((d,i)=>({
+    x: pt.l + (i/(data.length-1))*iW,
+    y: pt.t + iH - ((d.views-minV)/rng)*iH,
+    date:d.date, v:d.views
+  }));
+
+  const lineD = pts.map((p,i)=>`${i?'L':'M'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join('');
+  const areaD = lineD
+    + ` L${pts[pts.length-1].x.toFixed(1)},${(pt.t+iH).toFixed(1)}`
+    + ` L${pts[0].x.toFixed(1)},${(pt.t+iH).toFixed(1)} Z`;
+
+  const gridSvg = [.25,.5,.75,1].map(f=>{
+    const y=(pt.t+iH*(1-f)).toFixed(1);
+    const v=Math.round(minV+rng*f);
+    return `<line x1="${pt.l}" y1="${y}" x2="${W-pt.r}" y2="${y}"
+                  stroke="rgba(0,229,255,.07)" stroke-width="1"/>
+            <text x="${pt.l-4}" y="${(+y+3).toFixed(1)}" text-anchor="end"
+                  fill="rgba(184,224,240,.35)" font-size="7"
+                  font-family="Share Tech Mono">${v}</text>`;
+  }).join('');
+
+  const xLabels = pts.filter((_,i)=>i%3===0).map(p=>
+    `<text x="${p.x.toFixed(1)}" y="${H-2}" text-anchor="middle"
+           fill="rgba(184,224,240,.3)" font-size="7"
+           font-family="Share Tech Mono">${p.date}</text>`
+  ).join('');
+
+  const dots = pts.map(p=>
+    `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="2.5"
+             fill="var(--cyan)" style="filter:drop-shadow(0 0 4px var(--cyan))"/>
+     <title>${p.date}: ${p.v}</title>`
+  ).join('');
+
+  svg.innerHTML = `
+    <defs>
+      <linearGradient id="cGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%"   stop-color="rgba(0,229,255,.45)"/>
+        <stop offset="100%" stop-color="rgba(0,229,255,0)"/>
+      </linearGradient>
+    </defs>
+    ${gridSvg}
+    <path d="${areaD}" fill="url(#cGrad)" opacity=".5"/>
+    <path d="${lineD}" fill="none" stroke="var(--cyan)" stroke-width="1.6"
+          style="filter:drop-shadow(0 0 5px rgba(0,229,255,.8))"/>
+    ${dots}
+    ${xLabels}`;
+}
+
+/* ============================================================
+   RENDER CLOUD
+   ============================================================ */
+function renderCloud() {
+  const c=S.cloud;
+  const dot=document.getElementById('cloud-dot');
+  dot.style.background  = c.state==='online'?'var(--green)':'var(--red)';
+  dot.style.boxShadow   = c.state==='online'?'0 0 8px var(--green)':'0 0 8px var(--red)';
+  document.getElementById('cloud-st').textContent = c.state.toUpperCase();
+
+  const renderColor = c.render==='idle'?'var(--text-dim)':'var(--yellow)';
+  document.getElementById('cloud-row').innerHTML = `
+    <div class="c-stat">
+      <div class="c-val">${c.queue}</div>
+      <div class="c-lbl">待生產</div>
+    </div>
+    <div class="c-stat">
+      <div class="c-val" style="color:var(--pink);text-shadow:var(--glow-pink)">${c.produced_today}</div>
+      <div class="c-lbl">今日產出</div>
+    </div>
+    <div class="c-stat">
+      <div class="c-val" style="color:var(--green);text-shadow:0 0 12px var(--green)">${c.uploaded_today}</div>
+      <div class="c-lbl">今日上架</div>
+    </div>
+    <div class="c-stat">
+      <div class="c-val" style="font-size:11px;font-family:'Share Tech Mono';color:${renderColor}">${c.render.toUpperCase()}</div>
+      <div class="c-lbl">渲染狀態</div>
+    </div>`;
+}
+
+/* ============================================================
+   RENDER DEPARTMENTS
+   ============================================================ */
+function renderDepts() {
+  const label={running:'運行',idle:'待機',warn:'警示'};
+  document.getElementById('dept-grid').innerHTML = S.departments.map(d=>{
+    const dots=Array.from({length:5},(_,i)=>
+      `<div class="lv-dot${i<d.level?' on':''}"></div>`
+    ).join('');
+    return `
+      <div class="dept-card ${d.status}">
+        <div class="dept-hdr">
+          <span class="dept-tag">${d.tag}</span>
+          <span class="dept-badge">${label[d.status]}</span>
+        </div>
+        <div class="dept-name">${d.name}</div>
+        <div class="dept-head">${d.head}</div>
+        <div class="dept-lvl">${dots}</div>
+      </div>`;
+  }).join('');
+}
+
+/* ============================================================
+   RENDER PENDING
+   ============================================================ */
+function renderPending() {
+  document.getElementById('pnd-list').innerHTML = S.pending.map((p,i)=>`
+    <div class="pending-card" style="animation-delay:${i*.06}s">
+      <div class="pnd-id"># ${p.id}</div>
+      <div class="pnd-q">${p.question}</div>
+      <div class="pnd-rec">${p.recommendation}</div>
+      <div class="pnd-opts">
+        ${p.options.map((o,j)=>
+          `<button class="opt${j===0?' pri':''}"
+                   onclick="fire('[${p.id}] → ${o}')">${o}</button>`
+        ).join('')}
+      </div>
+    </div>`
+  ).join('');
+}
+
+/* ============================================================
+   RENDER WAREHOUSE
+   ============================================================ */
+function renderWarehouse() {
+  const w=S.warehouse;
+  const pct=Math.min(Math.round((w.pass/w.threshold)*100),100);
+  document.getElementById('wh-body').innerHTML=`
+    <div style="display:flex;justify-content:space-between;font-size:8px;color:var(--text-dim);margin-bottom:2px">
+      <span>通過品 ${w.pass} / 門檻 ${w.threshold}</span>
+      <span class="${pct>=100?'pos':pct>=80?'':' warn'}">達標率 ${pct}%</span>
+    </div>
+    <div class="wh-bar-track">
+      <div class="wh-bar-fill" style="width:${pct}%"></div>
+    </div>
+    <div class="wh-stats">
+      <span>庫存 <b style="color:var(--cyan)">${w.pending}</b></span>
+      <span>已發布 <b style="color:var(--pink)">${w.published}</b></span>
+      <span>門檻 <b style="color:var(--yellow)">${w.threshold}</b></span>
+    </div>`;
+}
+
+/* ============================================================
+   HEADER
+   ============================================================ */
+function renderHeader() {
+  document.getElementById('focus-txt').textContent = S.focus;
+  document.getElementById('run-count').textContent = S.running_count;
+
+  // Ops ticker
+  let idx=0;
+  const ticker=document.getElementById('ops-ticker');
+  function nextOp() {
+    ticker.style.opacity='0';
+    setTimeout(()=>{
+      ticker.textContent = '▶ '+S.ops[idx%S.ops.length];
+      ticker.style.opacity='1';
+      idx++;
+    },350);
+  }
+  nextOp();
+  setInterval(nextOp,4200);
+}
+
+/* ============================================================
+   CLOCK
+   ============================================================ */
+function tick() {
+  const n=new Date();
+  document.getElementById('clock').textContent=
+    [n.getHours(),n.getMinutes(),n.getSeconds()]
+      .map(v=>String(v).padStart(2,'0')).join(':');
+}
+tick(); setInterval(tick,1000);
+
+/* ============================================================
+   THREE.JS — Retrowave 3D Grid Horizon
+   ============================================================ */
+(function initThree(){
+  const canvas=document.getElementById('three-cv');
+  const renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:false});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
+  renderer.setSize(innerWidth,innerHeight);
+  renderer.setClearColor(0x000000,0);
+
+  const scene=new THREE.Scene();
+  scene.fog=new THREE.FogExp2(0x04000b,0.018);
+
+  const camera=new THREE.PerspectiveCamera(62,innerWidth/innerHeight,0.1,220);
+  camera.position.set(0,4.5,12);
+  camera.lookAt(0,0,-30);
+
+  /* --- grid lines --- */
+  const gridGrp=new THREE.Group();
+
+  function makeMat(hex,opa){
+    return new THREE.LineBasicMaterial({color:hex,transparent:true,opacity:opa});
+  }
+  const cyanMat=makeMat(0x00e5ff,.38);
+  const pinkMat=makeMat(0xff2e88,.22);
+
+  // Longitudinal (depth) lines
+  for(let x=-14;x<=14;x+=1.4){
+    const xFar=x*0.04;
+    const geo=new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(x,0,12),
+      new THREE.Vector3(xFar,0,-120)
+    ]);
+    gridGrp.add(new THREE.Line(geo,cyanMat));
+  }
+
+  // Latitudinal (horizontal) bands
+  for(let i=0;i<55;i++){
+    const t=i/55;
+    const z=12-t*90;
+    const spread=14+(12-z)*0.14;
+    const alpha=i<8 ? .55-i*.05 : .18-i*.003;
+    const isPink=(i%6===0);
+    const mat=new THREE.LineBasicMaterial({
+      color:isPink?0xff2e88:0x00e5ff,
+      transparent:true,opacity:Math.max(alpha,.015)
+    });
+    const geo=new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(-spread,0,z),
+      new THREE.Vector3( spread,0,z)
+    ]);
+    gridGrp.add(new THREE.Line(geo,mat));
+  }
+  scene.add(gridGrp);
+
+  /* --- horizon sun glow --- */
+  const sunGeo=new THREE.PlaneGeometry(30,8);
+  const sunMat=new THREE.MeshBasicMaterial({color:0xff2e88,transparent:true,opacity:.07,depthWrite:false,side:THREE.DoubleSide});
+  const sun=new THREE.Mesh(sunGeo,sunMat);
+  sun.position.set(0,4,-80);
+  scene.add(sun);
+
+  // Horizon line
+  scene.add(new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(-30,0,-60),
+      new THREE.Vector3( 30,0,-60)
+    ]),
+    new THREE.LineBasicMaterial({color:0xff2e88,transparent:true,opacity:.7})
+  ));
+
+  /* --- neon particles --- */
+  const N=280;
+  const pos=new Float32Array(N*3);
+  const col=new Float32Array(N*3);
+  for(let i=0;i<N;i++){
+    pos[i*3]  =(Math.random()-.5)*32;
+    pos[i*3+1]=Math.random()*10;
+    pos[i*3+2]=-Math.random()*90;
+    const c=Math.random()>.45;
+    col[i*3]  =c?0:1;
+    col[i*3+1]=c?.88:.18;
+    col[i*3+2]=c?1:.53;
+  }
+  const pGeo=new THREE.BufferGeometry();
+  pGeo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  pGeo.setAttribute('color',   new THREE.BufferAttribute(col,3));
+  const pMat=new THREE.PointsMaterial({size:.11,vertexColors:true,transparent:true,opacity:.75});
+  const parts=new THREE.Points(pGeo,pMat);
+  scene.add(parts);
+
+  /* --- animate --- */
+  let scrollZ=0, t=0;
+  function loop(){
+    requestAnimationFrame(loop);
+    t+=.008;
+    scrollZ=(scrollZ+.06)%1.4;
+    gridGrp.position.z=scrollZ;
+
+    camera.position.x=Math.sin(t*.18)*.25;
+    camera.position.y=4.5+Math.sin(t*.12)*.08;
+
+    // drift particles toward camera
+    const pa=parts.geometry.attributes.position.array;
+    for(let i=0;i<N;i++){
+      pa[i*3+2]+=.04;
+      if(pa[i*3+2]>14) pa[i*3+2]=-90;
+    }
+    parts.geometry.attributes.position.needsUpdate=true;
+
+    renderer.render(scene,camera);
+  }
+  loop();
+
+  addEventListener('resize',()=>{
+    camera.aspect=innerWidth/innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth,innerHeight);
+  });
+})();
+
+/* ============================================================
+   DIGITAL RAIN (2D canvas)
+   ============================================================ */
+(function initRain(){
+  const cv=document.getElementById('rain-cv');
+  const ctx=cv.getContext('2d');
+  const resize=()=>{cv.width=innerWidth;cv.height=innerHeight;};
+  resize(); addEventListener('resize',resize);
+
+  const cols=Math.floor(innerWidth/14);
+  const drops=Array.from({length:cols},()=>-Math.random()*innerHeight/14|0);
+  const chars='アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホ0123456789ABCDEF+-=><{}';
+
+  function draw(){
+    ctx.fillStyle='rgba(4,0,11,.07)';
+    ctx.fillRect(0,0,cv.width,cv.height);
+    ctx.font='12px Share Tech Mono';
+    for(let i=0;i<cols;i++){
+      const ch=chars[Math.random()*chars.length|0];
+      const x=i*14, y=drops[i]*14;
+      if(Math.random()>.96){
+        ctx.fillStyle=`rgba(255,46,136,${.4+Math.random()*.6})`;
+      } else {
+        ctx.fillStyle=`rgba(0,229,255,${.25+Math.random()*.35})`;
+      }
+      ctx.fillText(ch,x,y);
+      drops[i]++;
+      if(y>cv.height&&Math.random()>.978) drops[i]=0;
+    }
+  }
+  setInterval(draw,65);
+})();
+
+/* ============================================================
+   RANDOM GLITCH on brand
+   ============================================================ */
+(function initGlitch(){
+  const brand=document.getElementById('brand');
+  function doGlitch(){
+    brand.classList.add('glitching');
+    setTimeout(()=>brand.classList.remove('glitching'),500);
+    setTimeout(doGlitch, 4000+Math.random()*8000);
+  }
+  setTimeout(doGlitch, 2000+Math.random()*3000);
+})();
+
+/* ============================================================
+   BOOT SEQUENCE
+   ============================================================ */
+renderKPIs();
+renderChart();
+renderCloud();
+renderDepts();
+renderPending();
+renderWarehouse();
+renderHeader();
+</script>
+</body>
+</html>

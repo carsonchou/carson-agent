@@ -21,7 +21,7 @@ except Exception:
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
-API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+import studio_common as sc   # 共用地基：PERSONA / has_llm_key / evidence_block
 MODEL = "claude-haiku-4-5-20251001"
 
 try:
@@ -35,25 +35,33 @@ except Exception:  # noqa: BLE001
 
 
 def gen(count):
-    import requests
-    prompt = f"""你是量化阿森（量化/網格/定投/派網Pionex/回測/風控，繁中 faceless Shorts）的招牌系列選題官。{GUARD}
+    prompt = f"""{sc.PERSONA}
+
+你是量化阿森（量化/網格/定投/派網Pionex/回測/風控，繁中 faceless Shorts）的招牌系列選題官。{GUARD}
+
+{sc.evidence_block()}
 
 請產 {count} 個『實驗格式』題目——這是本 niche 最穩的爆款骨架，務必照骨架：
-- 骨架A「實測」：我給 [機器人/某策略] [具體金額] 跑 [時間框架]，[條件/限制]，結果是…（懸念）
-  例：我給派網網格機器人 1 萬元跑 30 天，全程沒看盤，結果賺賠出乎意料
-- 骨架B「對決」：[A] vs [B]，30 天誰先賺到 X%／誰先爆倉？
-  例：網格機器人 vs 定投，同樣 1 萬本金，誰先賺 10%？
-要求：金額/時間/數字要具體；結尾留懸念但不誇大、不保證、不喊單；用『含回撤的真回測』口吻；
+- 骨架A「回測·我幫你試」：我用回測『丟 [具體金額] 給 [機器人/某策略]』跑 [時間框架]，[條件/限制]，會不會被割/虧光？結果是…（是回測、不假稱真錢；先戳恐懼再給安心的懸念）
+  例：我回測『丟 1 萬給這網格機器人』跑 30 天，全程不動它，會不會被割？結果出乎意料
+- 骨架B「對決」：[A] vs [B]，30 天誰先賺到 X%／誰先爆倉/被套？
+  例：網格機器人 vs 定投，同樣 1 萬本金，新手該選哪個才不會送死？
+- 骨架C「AI×交易實測」：我用 [Claude Code/ChatGPT/Cursor] 手搓一個交易 bot，跑 [X 天]，
+  帳戶從 [具體金額] 到 [結果]；或 AI 選股 vs 人工選股回測打臉；或照抄某支瘋傳 AI 策略樣本外會怎樣。
+  這是本頻道最大外部爆款池（競品「用 Vibe Coding 手搓量化」「AI 選股 30 秒」單支 6.6～30 萬觀看），
+  Carson 真的用 Claude Code 寫過交易 bot＝對手抄不出的誠實護城河，角度只准數據/回測/拆穿/避雷/教學：
+  例：我用 Claude Code 手搓一個量化交易 bot，$1 萬跑 30 天，帳戶從 1 萬到多少？
+  例：AI 選股 30 秒 vs 人工選股一小時，誰準？回測打臉給你看
+  例：照抄那支瘋傳「勝率 812%」的 AI 策略，樣本外會怎樣？
+  **絕不喊單、不報明牌、不喊目標價、不保證會漲會賺**——文字要體現「我先幫你試/樣本外打臉」，不是「這樣做會賺」。
+要求：金額/時間/數字要具體；用「小白怕被割→我先幫你試→這樣才安全」的情緒鉤子；
+結尾留懸念但不誇大、不保證、不喊單；用『含回撤的真回測』口吻；
+**優先靠向上面『本頻道實證數據』已驗證會爆的實驗題材**；
 主題涵蓋網格/定投/合約網格/資金費率/AI交易/不同參數對比等，彼此不重複。
 
 只輸出 JSON 陣列：[{{"title":"標題","angle":"一句話：實驗設定＋要驗證什麼＋誠實揭露點","format":"short"}}]"""
-    r = requests.post("https://api.anthropic.com/v1/messages",
-                      headers={"x-api-key": API_KEY, "anthropic-version": "2023-06-01",
-                               "content-type": "application/json"},
-                      json={"model": MODEL, "max_tokens": 2000, "temperature": 0.6,
-                            "messages": [{"role": "user", "content": prompt}]}, timeout=150)
-    r.raise_for_status()
-    txt = r.json()["content"][0]["text"]
+    import llm  # 共用路由：主供應商→失敗退回 fallback，換模型只改 env
+    txt = llm.complete(prompt, 2000, json_mode=True)
     m = re.search(r"\[.*\]", txt, re.S)
     if m:
         try:
@@ -74,8 +82,8 @@ def main() -> int:
     ap.add_argument("--count", type=int, default=6)
     ap.add_argument("--dry", action="store_true")
     args = ap.parse_args()
-    if not API_KEY:
-        print("[FATAL] 無 ANTHROPIC_API_KEY", file=sys.stderr); return 2
+    if not sc.has_llm_key():
+        print("[FATAL] 無任何 LLM 供應商 API key", file=sys.stderr); return 2
     picks = [p for p in gen(args.count) if (p.get("title") or "").strip()][:args.count]
     if not picks:
         print("[experiment] 沒產出題目。"); return 0

@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>量化阿森 決策中心</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;500;700&family=Noto+Sans+TC:wght@300;400;700&display=swap" rel="stylesheet">
+<script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js"}}</script>
+<style>
+:root{
+  --G:#ffcf4a;--C:#4ca8e8;--BG:#030b14;
+  --P:rgba(6,18,38,.88);--BR:rgba(76,168,232,.22);--BRG:rgba(255,207,74,.25);
+  --T:#d4ecf8;--TD:#4a7a9b;--RUN:#00ff88;--ERR:#ff4488;--IDLE:#243550;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;overflow:hidden}
+body{
+  font-family:'Noto Sans TC',sans-serif;
+  background:var(--BG);color:var(--T);
+  display:grid;grid-template-rows:60px 1fr 78px;
+  background-image:
+    radial-gradient(ellipse 80% 40% at 50% -10%,rgba(76,168,232,.13) 0%,transparent 70%),
+    radial-gradient(ellipse 60% 50% at 100% 100%,rgba(255,207,74,.07) 0%,transparent 60%),
+    radial-gradient(ellipse 40% 60% at 0% 60%,rgba(76,168,232,.05) 0%,transparent 50%);
+}
+
+/* ── HEADER ── */
+#hdr{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 22px;
+  border-bottom:1px solid var(--BR);
+  background:linear-gradient(90deg,rgba(76,168,232,.08),rgba(255,207,74,.05) 50%,rgba(76,168,232,.08));
+  position:relative;overflow:hidden;
+}
+#hdr::after{
+  content:'';position:absolute;bottom:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,var(--C) 30%,var(--G) 50%,var(--C) 70%,transparent);
+  animation:scanx 5s ease-in-out infinite;
+}
+.hdr-brand{display:flex;flex-direction:column;gap:2px}
+.brand-logo{
+  font-family:'Orbitron',sans-serif;font-size:17px;font-weight:900;
+  color:var(--G);letter-spacing:3px;
+  text-shadow:0 0 18px rgba(255,207,74,.9),0 0 40px rgba(255,207,74,.4);
+}
+.brand-sub{font-size:9px;color:var(--TD);letter-spacing:4px;font-family:'Rajdhani',sans-serif}
+.hdr-center{display:flex;align-items:center;gap:10px}
+.status-dot{width:8px;height:8px;border-radius:50%;background:var(--RUN);
+  animation:blink 2s ease-in-out infinite;box-shadow:0 0 8px var(--RUN)}
+.status-txt{font-size:11px;color:var(--RUN);font-family:'Rajdhani',sans-serif;letter-spacing:2px}
+.hdr-right{text-align:right}
+#clock{font-family:'Orbitron',sans-serif;font-size:20px;font-weight:700;
+  color:var(--C);text-shadow:0 0 15px rgba(76,168,232,.8)}
+.hdr-date{font-size:9px;color:var(--TD);letter-spacing:2px;margin-top:2px}
+
+/* ── MAIN ── */
+#main{display:flex;overflow:hidden}
+
+/* ── PANELS ── */
+.panel{
+  background:var(--P);border:1px solid var(--BR);border-radius:6px;
+  position:relative;overflow:hidden;
+}
+.panel::before{
+  content:'';position:absolute;top:0;left:-100%;width:100%;height:1px;
+  background:linear-gradient(90deg,transparent,var(--C),transparent);
+  animation:scanx 7s ease-in-out infinite;
+}
+.panel-hdr{
+  display:flex;align-items:center;gap:8px;
+  padding:7px 12px;border-bottom:1px solid var(--BR);
+  font-family:'Rajdhani',sans-serif;font-weight:700;font-size:11px;
+  letter-spacing:3px;color:var(--C);
+}
+.panel-hdr::before{
+  content:'';width:4px;height:4px;border-radius:50%;
+  background:var(--C);box-shadow:0 0 6px var(--C);flex-shrink:0;
+}
+
+/* ── LEFT COLUMN ── */
+#left{width:295px;flex-shrink:0;display:flex;flex-direction:column;gap:6px;padding:8px 0 8px 8px;overflow:hidden}
+
+#dept-panel{flex:1;overflow:hidden;display:flex;flex-direction:column}
+.dept-grid{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:4px;
+  padding:6px;overflow-y:auto;flex:1;
+}
+.dept-grid::-webkit-scrollbar{width:3px}
+.dept-grid::-webkit-scrollbar-thumb{background:var(--BR);border-radius:3px}
+
+.dept-item{
+  padding:6px 5px;border-radius:4px;border:1px solid transparent;
+  background:rgba(10,25,50,.6);cursor:pointer;transition:all .22s ease;
+}
+.dept-item:hover{border-color:var(--C);background:rgba(76,168,232,.1);
+  transform:translateY(-1px);box-shadow:0 4px 12px rgba(76,168,232,.2)}
+.dept-item.running{border-color:rgba(0,255,136,.15)}
+.dept-item.warn{border-color:rgba(255,207,74,.25)}
+.dept-top{display:flex;align-items:center;gap:4px;margin-bottom:3px}
+.dept-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.dept-dot.running{background:var(--RUN);box-shadow:0 0 5px var(--RUN);animation:blink 1.6s ease-in-out infinite}
+.dept-dot.idle{background:var(--IDLE)}
+.dept-dot.warn{background:var(--G);box-shadow:0 0 5px var(--G);animation:blink .8s ease-in-out infinite}
+.dept-tag{font-size:8px;color:var(--TD)}
+.dept-name{font-size:9px;color:var(--T);line-height:1.3;word-break:break-all}
+.dept-level{display:flex;gap:1px;margin-top:4px}
+.dept-lv{height:2px;border-radius:1px;flex:1;background:rgba(76,168,232,.12)}
+.dept-lv.on{background:var(--C);box-shadow:0 0 3px var(--C)}
+.dept-lv.on.wn{background:var(--G);box-shadow:0 0 3px var(--G)}
+
+#ops-panel{height:155px;flex-shrink:0}
+.ops-list{padding:5px 10px;overflow-y:auto;height:calc(100% - 34px)}
+.ops-list::-webkit-scrollbar{width:3px}
+.ops-list::-webkit-scrollbar-thumb{background:var(--BR)}
+.ops-item{
+  font-size:10px;color:var(--TD);padding:4px 0;
+  border-bottom:1px solid rgba(76,168,232,.07);line-height:1.45;transition:color .2s;
+}
+.ops-item:hover{color:var(--T)}
+.ops-item:first-child{color:rgba(212,236,248,.85)}
+.ops-time{color:var(--G);font-family:'Rajdhani',sans-serif;font-size:9px}
+
+/* ── CENTER COLUMN ── */
+#center{flex:1;display:flex;flex-direction:column;padding:8px;gap:6px;overflow:hidden;min-width:0}
+
+#reactor-wrap{
+  height:255px;flex-shrink:0;border:1px solid var(--BR);border-radius:8px;
+  background:radial-gradient(ellipse at 50% 50%,rgba(76,168,232,.09) 0%,rgba(3,11,20,.95) 75%);
+  position:relative;overflow:hidden;
+}
+#reactor-wrap::after{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse 60% 80% at 50% 50%,rgba(76,168,232,.05) 0%,transparent 70%);
+}
+#reactor-canvas{display:block;width:100%;height:calc(100% - 28px)}
+.rlabel{
+  position:absolute;font-family:'Orbitron',sans-serif;font-size:8px;
+  color:var(--C);letter-spacing:2px;opacity:.65;
+}
+.rlabel.tl{top:10px;left:14px}
+.rlabel.tr{top:10px;right:14px}
+.rlabel.bl{bottom:30px;left:14px;color:rgba(255,207,74,.7)}
+.rlabel.br{bottom:30px;right:14px}
+.focus-banner{
+  position:absolute;bottom:0;left:0;right:0;height:28px;
+  display:flex;align-items:center;padding:0 14px;
+  background:linear-gradient(90deg,rgba(255,207,74,.14),rgba(76,168,232,.1) 60%,rgba(255,207,74,.14));
+  border-top:1px solid rgba(255,207,74,.3);
+  font-size:11px;color:var(--G);letter-spacing:1px;
+}
+
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;flex-shrink:0}
+.kpi-card{
+  padding:11px 13px;border-radius:6px;border:1px solid var(--BR);
+  background:var(--P);cursor:pointer;transition:all .22s ease;
+  position:relative;overflow:hidden;
+}
+.kpi-card::after{
+  content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,var(--C),transparent);opacity:.5;
+}
+.kpi-card.gc::after{background:linear-gradient(90deg,transparent,var(--G),transparent)}
+.kpi-card:hover{border-color:var(--C);box-shadow:0 0 20px rgba(76,168,232,.2);transform:translateY(-2px)}
+.kpi-card.gc:hover{border-color:var(--G);box-shadow:0 0 20px rgba(255,207,74,.2)}
+.kpi-lbl{font-size:9px;color:var(--TD);letter-spacing:2px;font-family:'Rajdhani',sans-serif;margin-bottom:3px}
+.kpi-val{font-family:'Orbitron',sans-serif;font-size:26px;font-weight:900;line-height:1}
+.kpi-val.c{color:var(--C);animation:glowC 3s ease-in-out infinite}
+.kpi-val.g{color:var(--G);animation:glowG 3s ease-in-out infinite}
+.kpi-val.r{color:var(--ERR);text-shadow:0 0 16px rgba(255,68,136,.6)}
+.kpi-sub{font-size:9px;color:var(--TD);margin-top:4px;line-height:1.4}
+.kpi-bar-wrap{margin-top:5px;height:3px;background:rgba(76,168,232,.12);border-radius:2px;overflow:hidden}
+.kpi-bar{height:100%;border-radius:2px;transition:width 1.2s ease}
+
+#trend-panel{flex:1;display:flex;flex-direction:column;min-height:0}
+#trend-canvas{width:100%;flex:1;display:block;min-height:0}
+
+/* ── RIGHT COLUMN ── */
+#right{width:365px;flex-shrink:0;display:flex;flex-direction:column;gap:6px;padding:8px 8px 8px 0;overflow:hidden}
+
+#decisions-panel{flex:1;overflow:hidden;display:flex;flex-direction:column}
+.dec-list{overflow-y:auto;flex:1;padding:5px;display:flex;flex-direction:column;gap:5px}
+.dec-list::-webkit-scrollbar{width:3px}
+.dec-list::-webkit-scrollbar-thumb{background:rgba(255,207,74,.3);border-radius:3px}
+.dec-card{
+  background:rgba(255,207,74,.04);border:1px solid rgba(255,207,74,.2);
+  border-radius:5px;padding:8px 10px;transition:all .2s;
+}
+.dec-card:hover{border-color:rgba(255,207,74,.5);background:rgba(255,207,74,.07)}
+.dec-id{font-size:9px;color:var(--TD);font-family:'Rajdhani',sans-serif;letter-spacing:2px;margin-bottom:4px}
+.dec-q{font-size:10px;color:var(--T);line-height:1.5;margin-bottom:7px}
+.dec-opts{display:flex;flex-direction:column;gap:3px}
+.dec-btn{
+  padding:5px 8px;border-radius:3px;border:1px solid var(--BR);background:transparent;
+  color:var(--TD);font-size:10px;cursor:pointer;text-align:left;
+  transition:all .18s;font-family:'Noto Sans TC',sans-serif;
+}
+.dec-btn:hover{background:rgba(76,168,232,.14);border-color:var(--C);color:var(--T)}
+.dec-btn.rec{border-color:rgba(0,255,136,.4);color:var(--RUN);background:rgba(0,255,136,.05)}
+.dec-btn.rec::before{content:'★ '}
+.dec-btn.sel{background:rgba(76,168,232,.22);border-color:var(--C);color:var(--C)}
+
+#warehouse-panel,#cloud-panel{flex-shrink:0}
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:8px 12px}
+.stat-item{display:flex;flex-direction:column;gap:2px}
+.stat-lbl{font-size:9px;color:var(--TD);letter-spacing:2px;font-family:'Rajdhani',sans-serif}
+.stat-val{font-family:'Orbitron',sans-serif;font-size:18px;color:var(--C);
+  text-shadow:0 0 10px rgba(76,168,232,.5)}
+.stat-val.g{color:var(--G);text-shadow:0 0 10px rgba(255,207,74,.5)}
+.cloud-row{display:flex;align-items:center;gap:8px;padding:4px 12px 3px}
+.cloud-dot{width:6px;height:6px;border-radius:50%;background:var(--RUN);
+  box-shadow:0 0 6px var(--RUN);animation:blink 2s ease-in-out infinite}
+.cloud-lbl{font-size:10px;color:var(--TD)}
+.cloud-v{font-family:'Rajdhani',sans-serif;color:var(--T);font-weight:700;font-size:11px}
+
+/* ── COMMAND BAR ── */
+#cmd-bar{
+  display:flex;align-items:center;gap:8px;padding:0 14px;
+  border-top:1px solid var(--BR);
+  background:linear-gradient(90deg,rgba(255,207,74,.05),rgba(76,168,232,.05) 50%,rgba(255,207,74,.05));
+  position:relative;
+}
+#cmd-bar::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,var(--G) 30%,var(--C) 50%,var(--G) 70%,transparent);
+}
+.cmd-focus{font-size:11px;color:var(--G);letter-spacing:1px;flex-shrink:0;
+  text-shadow:0 0 10px rgba(255,207,74,.5);max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cmd-btns{display:flex;gap:5px;flex-shrink:0}
+.cmd-btn{
+  padding:6px 11px;border-radius:4px;border:1px solid var(--BR);
+  background:rgba(76,168,232,.08);color:var(--C);font-size:10px;cursor:pointer;
+  font-family:'Rajdhani',sans-serif;font-weight:700;letter-spacing:1px;
+  transition:all .18s;white-space:nowrap;
+}
+.cmd-btn:hover{background:rgba(76,168,232,.22);border-color:var(--C);
+  box-shadow:0 0 12px rgba(76,168,232,.3);transform:translateY(-1px)}
+.cmd-btn:active{transform:translateY(0)}
+.cmd-btn.gd{border-color:var(--BRG);background:rgba(255,207,74,.08);color:var(--G)}
+.cmd-btn.gd:hover{background:rgba(255,207,74,.2);border-color:var(--G);box-shadow:0 0 12px rgba(255,207,74,.3)}
+.cmd-input-wrap{display:flex;gap:5px;flex:1;max-width:300px}
+.cmd-input{
+  flex:1;padding:6px 12px;border-radius:4px;border:1px solid var(--BR);
+  background:rgba(3,11,20,.8);color:var(--T);font-size:11px;outline:none;
+  font-family:'Noto Sans TC',sans-serif;transition:border-color .2s;
+}
+.cmd-input:focus{border-color:var(--C);box-shadow:0 0 8px rgba(76,168,232,.2)}
+.cmd-input::placeholder{color:var(--IDLE)}
+.cmd-send{
+  padding:6px 12px;border-radius:4px;border:1px solid rgba(0,255,136,.4);
+  background:rgba(0,255,136,.07);color:var(--RUN);font-size:11px;cursor:pointer;
+  font-family:'Rajdhani',sans-serif;font-weight:700;transition:all .18s;
+}
+.cmd-send:hover{background:rgba(0,255,136,.2);box-shadow:0 0 10px rgba(0,255,136,.3)}
+
+/* ── ANIMATIONS ── */
+@keyframes scanx{0%,100%{transform:translateX(-100%)}50%{transform:translateX(100%)}}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+@keyframes glowC{
+  0%,100%{text-shadow:0 0 18px rgba(76,168,232,.9),0 0 36px rgba(76,168,232,.4)}
+  50%{text-shadow:0 0 28px rgba(76,168,232,1),0 0 55px rgba(76,168,232,.6),0 0 80px rgba(76,168,232,.2)}
+}
+@keyframes glowG{
+  0%,100%{text-shadow:0 0 18px rgba(255,207,74,.9),0 0 36px rgba(255,207,74,.4)}
+  50%{text-shadow:0 0 28px rgba(255,207,74,1),0 0 55px rgba(255,207,74,.6)}
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header id="hdr">
+  <div class="hdr-brand">
+    <div class="brand-logo">量化阿森 決策中心</div>
+    <div class="brand-sub">CARSON QUANT · AUTONOMOUS STUDIO · COMMAND HQ</div>
+  </div>
+  <div class="hdr-center">
+    <div class="status-dot"></div>
+    <div class="status-txt" id="run-status">SYSTEM ONLINE · 8 AGENTS ACTIVE</div>
+  </div>
+  <div class="hdr-right">
+    <div id="clock">--:--:--</div>
+    <div class="hdr-date" id="hdr-date">---</div>
+  </div>
+</header>
+
+<!-- MAIN -->
+<main id="main">
+
+  <!-- LEFT -->
+  <aside id="left">
+    <section class="panel" id="dept-panel">
+      <div class="panel-hdr">部門戰情</div>
+      <div class="dept-grid" id="dept-grid"></div>
+    </section>
+    <section class="panel" id="ops-panel">
+      <div class="panel-hdr">近期動作</div>
+      <div class="ops-list" id="ops-list"></div>
+    </section>
+  </aside>
+
+  <!-- CENTER -->
+  <section id="center">
+    <div id="reactor-wrap">
+      <canvas id="reactor-canvas"></canvas>
+      <div class="rlabel tl">CORE v2.4</div>
+      <div class="rlabel tr" id="agent-count">8 / 18 ACTIVE</div>
+      <div class="rlabel bl">ARC REACTOR</div>
+      <div class="rlabel br" id="queue-lbl">QUEUE 55</div>
+      <div class="focus-banner" id="focus-banner"></div>
+    </div>
+    <div class="kpi-row" id="kpi-row"></div>
+    <section class="panel" id="trend-panel">
+      <div class="panel-hdr">
+        28日觀看走勢
+        <span style="margin-left:auto;font-size:9px;color:var(--TD);font-weight:400;letter-spacing:1px">— 觀看 &nbsp;· 訂閱</span>
+      </div>
+      <canvas id="trend-canvas"></canvas>
+    </section>
+  </section>
+
+  <!-- RIGHT -->
+  <aside id="right">
+    <section class="panel" id="decisions-panel">
+      <div class="panel-hdr">
+        待拍板決策
+        <span id="pending-badge" style="margin-left:auto;color:var(--G);font-size:10px"></span>
+      </div>
+      <div class="dec-list" id="dec-list"></div>
+    </section>
+    <section class="panel" id="warehouse-panel">
+      <div class="panel-hdr">倉庫狀態</div>
+      <div class="stat-grid" id="wh-grid"></div>
+    </section>
+    <section class="panel" id="cloud-panel">
+      <div class="panel-hdr">雲端工作室</div>
+      <div id="cloud-body"></div>
+    </section>
+  </aside>
+
+</main>
+
+<!-- COMMAND BAR -->
+<footer id="cmd-bar">
+  <div class="cmd-focus" id="cmd-focus"></div>
+  <div class="cmd-btns" id="cmd-btns"></div>
+  <div class="cmd-input-wrap">
+    <input class="cmd-input" id="cmd-input" type="text" placeholder="跟小祕說…">
+    <button class="cmd-send" id="cmd-send">發送</button>
+  </div>
+</footer>
+
+<!-- STATE -->
+<script>
+window.__STATE__ = {
+  kpi:{subs:25,subs_gained:24,views:6204,views_28:5482,retention:40.1,minutes_28:1035,net:-4696,sub_gap:975},
+  series:[
+    {date:'06/18',views:180,subs:1},{date:'06/19',views:210,subs:2},
+    {date:'06/20',views:195,subs:0},{date:'06/21',views:320,subs:3},
+    {date:'06/22',views:280,subs:2},{date:'06/23',views:190,subs:1},
+    {date:'06/24',views:410,subs:4},{date:'06/25',views:350,subs:2},
+    {date:'06/26',views:490,subs:5},{date:'06/27',views:380,subs:3},
+    {date:'06/28',views:620,subs:4},{date:'06/29',views:580,subs:3}
+  ],
+  departments:[
+    {tag:'①',name:'影片部門(長)',head:2,status:'running',level:5},
+    {tag:'②',name:'Shorts部門',head:3,status:'running',level:5},
+    {tag:'③',name:'創作靈感',head:1,status:'idle',level:3},
+    {tag:'④',name:'頻道整理',head:1,status:'idle',level:2},
+    {tag:'⑤',name:'流量分析',head:2,status:'running',level:4},
+    {tag:'⑥',name:'宣傳部門',head:2,status:'warn',level:3},
+    {tag:'⑦',name:'數據分析',head:2,status:'running',level:5},
+    {tag:'⑧',name:'社群留言',head:1,status:'idle',level:2},
+    {tag:'⑨',name:'審核上架',head:1,status:'running',level:4},
+    {tag:'⑩',name:'總監管',head:1,status:'running',level:5},
+    {tag:'⑪',name:'決策中心',head:1,status:'running',level:5},
+    {tag:'⑫',name:'回顧分析',head:1,status:'idle',level:3},
+    {tag:'⑬',name:'人事管理',head:1,status:'idle',level:2},
+    {tag:'⑭',name:'財務管理',head:1,status:'running',level:4},
+    {tag:'⑮',name:'縮圖CTR',head:2,status:'warn',level:3},
+    {tag:'⑯',name:'競品情報',head:2,status:'running',level:4},
+    {tag:'⑰',name:'美編部門',head:2,status:'running',level:4},
+    {tag:'⑱',name:'消息追蹤',head:1,status:'idle',level:3}
+  ],
+  pending:[
+    {id:'P001',question:'下週Shorts方向：量化基礎教學 vs 幣圈熱話題跟風？',options:['A. 量化基礎教學（低競爭長尾）','B. 幣圈熱話題（高流量短效）'],recommendation:'A'},
+    {id:'P002',question:'完播率40.1%已達優化門檻，是否調整片長至35-45秒？',options:['A. 是，立即調整','B. 否，繼續觀察'],recommendation:'A'},
+    {id:'P003',question:'聯盟連結點擊率偏低，是否在前10秒加強CTA？',options:['A. 加強CTA（可能影響完播）','B. 維持現狀（優先留住觀眾）'],recommendation:'B'},
+    {id:'P004',question:'訂閱缺口975人，是否啟動「衝刺模式」加密發片？',options:['A. 啟動（每天2支）','B. 維持節奏（每天1支）'],recommendation:'B'},
+    {id:'P005',question:'競品本週發7支相似題材，是否差異化應對？',options:['A. 差異化策略（換題材）','B. 正面競爭（品質取勝）'],recommendation:'A'},
+    {id:'P006',question:'雲端佇列積壓55支，是否啟用壓榨模式？',options:['A. 啟用壓榨（加速消耗）','B. 維持穩速'],recommendation:'A'}
+  ],
+  warehouse:{pending:55,published:291,pass:55,threshold:75},
+  cloud:{state:'online',queue:55,produced_today:7,uploaded_today:6,render:'idle'},
+  focus:'有 6 件等你拍板，其餘我顧著。',
+  ops:[
+    '14:32 — 影片部門完成「ETH波段策略」腳本',
+    '13:55 — 縮圖CTR警示：本週均值降至 3.2%',
+    '13:21 — 流量分析發現關鍵字「質押借貸」爆量',
+    '12:08 — 上架審核通過 3 支，佇列清至 52',
+    '11:45 — 競品情報：派網研究所新增 2.1k 訂閱',
+    '10:30 — 財務管理：本月淨損 NT$4,696 待核算'
+  ],
+  paused:false,
+  running_count:8
+};
+</script>
+
+<!-- APP -->
+<script type="module">
+import * as THREE from 'three';
+const S = window.__STATE__;
+
+/* ── CLOCK ── */
+function tick(){
+  const n=new Date();
+  const pad=v=>String(v).padStart(2,'0');
+  document.getElementById('clock').textContent=`${pad(n.getHours())}:${pad(n.getMinutes())}:${pad(n.getSeconds())}`;
+  document.getElementById('hdr-date').textContent=
+    `${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())} · TAIPEI`;
+}
+tick(); setInterval(tick,1000);
+
+/* ── FOCUS ── */
+document.getElementById('focus-banner').textContent=S.focus;
+document.getElementById('cmd-focus').textContent=S.focus;
+document.getElementById('pending-badge').textContent=`${S.pending.length} 件待決`;
+
+/* ── THREE.JS REACTOR ── */
+(function(){
+  const wrap=document.getElementById('reactor-wrap');
+  const cv=document.getElementById('reactor-canvas');
+  const W=wrap.clientWidth, H=wrap.clientHeight-28;
+  cv.width=W; cv.height=H;
+
+  const renderer=new THREE.WebGLRenderer({canvas:cv,alpha:true,antialias:true});
+  renderer.setSize(W,H);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+  renderer.setClearColor(0,0);
+
+  const scene=new THREE.Scene();
+  const cam=new THREE.PerspectiveCamera(54,W/H,0.1,100);
+  cam.position.z=5.5;
+
+  // Core icosahedron
+  const coreGeo=new THREE.IcosahedronGeometry(0.72,2);
+  const coreMat=new THREE.MeshPhongMaterial({
+    color:0x4ca8e8,emissive:0x4ca8e8,emissiveIntensity:1.8,
+    transparent:true,opacity:0.88,shininess:120
+  });
+  const core=new THREE.Mesh(coreGeo,coreMat);
+  scene.add(core);
+
+  // Outer glow shell (backside)
+  const glowMat=new THREE.MeshBasicMaterial({color:0x4ca8e8,transparent:true,opacity:0.07,side:THREE.BackSide});
+  scene.add(new THREE.Mesh(new THREE.SphereGeometry(1.05,16,16),glowMat));
+
+  // Wire shell
+  const wireMat=new THREE.MeshBasicMaterial({color:0x4ca8e8,wireframe:true,transparent:true,opacity:0.1});
+  const wire=new THREE.Mesh(new THREE.IcosahedronGeometry(1.15,1),wireMat);
+  scene.add(wire);
+
+  // Rings
+  const RDefs=[
+    {r:1.55,tb:.026,c:0xffcf4a,rx:.3,ry:0,rz:0,   sp:{x:0,y:.009,z:.004}},
+    {r:2.0, tb:.02, c:0x4ca8e8,rx:1.2,ry:.5,rz:0,  sp:{x:.006,y:0,z:.005}},
+    {r:2.4, tb:.015,c:0xaaddff,rx:.6,ry:1.0,rz:.3, sp:{x:.004,y:.005,z:0}},
+    {r:1.25,tb:.032,c:0xffcf4a,rx:1.5,ry:.3,rz:1.1,sp:{x:.011,y:0,z:.006}},
+  ];
+  const rings=RDefs.map(d=>{
+    const m=new THREE.Mesh(
+      new THREE.TorusGeometry(d.r,d.tb,8,96),
+      new THREE.MeshPhongMaterial({color:d.c,emissive:d.c,emissiveIntensity:1.2,transparent:true,opacity:0.88})
+    );
+    m.rotation.set(d.rx,d.ry,d.rz);
+    m.userData.sp=d.sp;
+    scene.add(m); return m;
+  });
+
+  // Particles
+  const N=280, pp=new Float32Array(N*3), pc=new Float32Array(N*3);
+  for(let i=0;i<N;i++){
+    const th=Math.random()*Math.PI*2, ph=Math.acos(2*Math.random()-1);
+    const r=2.8+Math.random()*2.2;
+    pp[i*3]=r*Math.sin(ph)*Math.cos(th);
+    pp[i*3+1]=r*Math.sin(ph)*Math.sin(th);
+    pp[i*3+2]=r*Math.cos(ph);
+    const gold=Math.random()>.55;
+    pc[i*3]=gold?1:.3; pc[i*3+1]=gold?.81:.67; pc[i*3+2]=gold?.29:.91;
+  }
+  const pGeo=new THREE.BufferGeometry();
+  pGeo.setAttribute('position',new THREE.BufferAttribute(pp,3));
+  pGeo.setAttribute('color',new THREE.BufferAttribute(pc,3));
+  const pts=new THREE.Points(pGeo,new THREE.PointsMaterial({size:.055,vertexColors:true,transparent:true,opacity:.7}));
+  scene.add(pts);
+
+  // Lights
+  scene.add(new THREE.AmbientLight(0x112244,3));
+  const pl1=new THREE.PointLight(0x4ca8e8,20,15);
+  scene.add(pl1);
+  const pl2=new THREE.PointLight(0xffcf4a,8,12);
+  pl2.position.set(4,3,2);
+  scene.add(pl2);
+
+  let t=0;
+  function animate(){
+    requestAnimationFrame(animate);
+    t+=.006;
+    core.rotation.y+=.012; core.rotation.x+=.005;
+    wire.rotation.y-=.004; wire.rotation.z+=.003;
+    rings.forEach(r=>{r.rotation.x+=r.userData.sp.x;r.rotation.y+=r.userData.sp.y;r.rotation.z+=r.userData.sp.z;});
+    pts.rotation.y+=.0008;
+    const p=Math.sin(t)*.5+1;
+    coreMat.emissiveIntensity=1.4+p*.7;
+    pl1.position.set(Math.sin(t)*3,Math.cos(t*.7)*2,2);
+    pl1.intensity=15+p*8;
+    renderer.render(scene,cam);
+  }
+  animate();
+})();
+
+/* ── DEPARTMENTS ── */
+const dg=document.getElementById('dept-grid');
+S.departments.forEach(d=>{
+  const el=document.createElement('div');
+  el.className=`dept-item ${d.status}`;
+  const bars=Array.from({length:5},(_,i)=>{
+    const on=i<d.level;
+    return `<div class="dept-lv ${on?'on':''} ${on&&d.status==='warn'?'wn':''}"></div>`;
+  }).join('');
+  el.innerHTML=`
+    <div class="dept-top">
+      <div class="dept-dot ${d.status}"></div>
+      <span class="dept-tag">${d.tag}</span>
+    </div>
+    <div class="dept-name">${d.name}</div>
+    <div class="dept-level">${bars}</div>`;
+  el.addEventListener('click',()=>console.log('[DEPT]',d.name,d));
+  dg.appendChild(el);
+});
+
+/* ── OPS LOG ── */
+const ol=document.getElementById('ops-list');
+S.ops.forEach(op=>{
+  const parts=op.split(' — ');
+  const el=document.createElement('div');
+  el.className='ops-item';
+  el.innerHTML=parts.length>1
+    ?`<span class="ops-time">${parts[0]}</span> — ${parts[1]}`
+    :op;
+  ol.appendChild(el);
+});
+
+/* ── KPI CARDS ── */
+const kr=document.getElementById('kpi-row');
+const yppPct=Math.round(S.kpi.subs/1000*100);
+const retPct=Math.round(S.kpi.retention);
+[
+  {lbl:'訂閱人數',val:S.kpi.subs.toLocaleString(),vc:'c',
+   sub:`+${S.kpi.subs_gained} 近期 · YPP缺口 ${S.kpi.sub_gap}`,
+   bar:{w:yppPct,col:'var(--C)'},gc:false},
+  {lbl:'28日觀看',val:S.kpi.views_28.toLocaleString(),vc:'c',
+   sub:`累計 ${S.kpi.views.toLocaleString()} 次`,bar:null,gc:false},
+  {lbl:'平均完播率',val:S.kpi.retention+'%',vc:'g',
+   sub:`目標50% · 時長 ${S.kpi.minutes_28.toLocaleString()}分`,
+   bar:{w:retPct,col:'var(--G)'},gc:true},
+  {lbl:'本月淨利',val:'NT$'+S.kpi.net.toLocaleString(),vc:'r',
+   sub:'聯盟收入統計中',bar:null,gc:true},
+].forEach(k=>{
+  const el=document.createElement('div');
+  el.className=`kpi-card${k.gc?' gc':''}`;
+  el.innerHTML=`
+    <div class="kpi-lbl">${k.lbl}</div>
+    <div class="kpi-val ${k.vc}">${k.val}</div>
+    <div class="kpi-sub">${k.sub}</div>
+    ${k.bar?`<div class="kpi-bar-wrap"><div class="kpi-bar" style="width:${k.bar.w}%;background:${k.bar.col}"></div></div>`:''}`;
+  kr.appendChild(el);
+});
+
+/* ── TREND CHART ── */
+(function(){
+  const panel=document.getElementById('trend-panel');
+  const cv=document.getElementById('trend-canvas');
+  const W=panel.clientWidth;
+  const H=panel.clientHeight-35;
+  if(W<=0||H<=10){return;}
+  cv.width=W; cv.height=H;
+  cv.style.height=H+'px';
+
+  const ctx=cv.getContext('2d');
+  const d=S.series, n=d.length;
+  const PAD={t:14,r:18,b:26,l:44};
+  const gW=W-PAD.l-PAD.r, gH=H-PAD.t-PAD.b;
+  const maxV=Math.max(...d.map(x=>x.views))*1.18;
+  const maxS=Math.max(...d.map(x=>x.subs));
+
+  // Grid
+  ctx.strokeStyle='rgba(76,168,232,0.08)';ctx.lineWidth=1;
+  for(let i=0;i<=4;i++){
+    const y=PAD.t+gH*i/4;
+    ctx.beginPath();ctx.moveTo(PAD.l,y);ctx.lineTo(PAD.l+gW,y);ctx.stroke();
+    ctx.fillStyle='rgba(76,168,232,0.45)';
+    ctx.font='9px Rajdhani,sans-serif';ctx.textAlign='right';
+    const v=Math.round(maxV*(1-i/4));
+    ctx.fillText(v>999?Math.round(v/100)/10+'k':v,PAD.l-5,y+3);
+  }
+
+  // X labels
+  ctx.fillStyle='rgba(74,122,155,0.7)';ctx.textAlign='center';
+  d.forEach((pt,i)=>{
+    if(i%2===0) ctx.fillText(pt.date,PAD.l+i/(n-1)*gW,H-5);
+  });
+
+  // Views area
+  const vp=new Path2D();
+  d.forEach((pt,i)=>{const x=PAD.l+i/(n-1)*gW,y=PAD.t+gH*(1-pt.views/maxV);
+    i===0?vp.moveTo(x,y):vp.lineTo(x,y);});
+  const fp=new Path2D(vp);
+  fp.lineTo(PAD.l+gW,PAD.t+gH);fp.lineTo(PAD.l,PAD.t+gH);fp.closePath();
+  const gr=ctx.createLinearGradient(0,PAD.t,0,PAD.t+gH);
+  gr.addColorStop(0,'rgba(76,168,232,0.38)');gr.addColorStop(1,'rgba(76,168,232,0.01)');
+  ctx.fillStyle=gr;ctx.fill(fp);
+
+  // Views line
+  ctx.save();ctx.shadowColor='#4ca8e8';ctx.shadowBlur=10;
+  ctx.strokeStyle='#4ca8e8';ctx.lineWidth=2;ctx.lineJoin='round';
+  ctx.stroke(vp);ctx.restore();
+
+  // Subs dots + line
+  const ss=gH*.38/Math.max(maxS,1);
+  const sp=new Path2D();
+  d.forEach((pt,i)=>{
+    const x=PAD.l+i/(n-1)*gW, y=PAD.t+gH-pt.subs*ss-5;
+    i===0?sp.moveTo(x,y):sp.lineTo(x,y);
+    ctx.save();ctx.shadowColor='#ffcf4a';ctx.shadowBlur=7;
+    ctx.fillStyle='#ffcf4a';ctx.beginPath();ctx.arc(x,y,2.5,0,Math.PI*2);ctx.fill();
+    ctx.restore();
+  });
+  ctx.save();ctx.shadowColor='rgba(255,207,74,.4)';ctx.shadowBlur=5;
+  ctx.strokeStyle='rgba(255,207,74,0.55)';ctx.lineWidth=1.5;ctx.setLineDash([4,3]);
+  ctx.stroke(sp);ctx.restore();
+})();
+
+/* ── DECISIONS ── */
+const dl=document.getElementById('dec-list');
+S.pending.forEach(p=>{
+  const card=document.createElement('div');
+  card.className='dec-card';
+  card.innerHTML=`
+    <div class="dec-id">[${p.id}]</div>
+    <div class="dec-q">${p.question}</div>
+    <div class="dec-opts">${p.options.map((o,i)=>{
+      const k=i===0?'A':'B', rec=p.recommendation===k;
+      return `<button class="dec-btn${rec?' rec':''}" data-id="${p.id}" data-k="${k}">${o}</button>`;
+    }).join('')}</div>`;
+  card.querySelectorAll('.dec-btn').forEach(btn=>{
+    btn.addEventListener('click',function(){
+      card.querySelectorAll('.dec-btn').forEach(b=>b.classList.remove('sel'));
+      this.classList.add('sel');
+      console.log('[DECISION]',p.id,'→',this.dataset.k,p.options[this.dataset.k==='A'?0:1]);
+    });
+  });
+  dl.appendChild(card);
+});
+
+/* ── WAREHOUSE ── */
+const wh=document.getElementById('wh-grid');
+const w=S.warehouse;
+[
+  {lbl:'庫存待發',val:w.pending,c:''},
+  {lbl:'已上架',val:w.published,c:''},
+  {lbl:'通過審核',val:w.pass,c:w.pass>=w.threshold?'':'g'},
+  {lbl:'審核門檻',val:w.threshold,c:'g'},
+].forEach(item=>{
+  const el=document.createElement('div');
+  el.className='stat-item';
+  el.innerHTML=`<div class="stat-lbl">${item.lbl}</div><div class="stat-val ${item.c}">${item.val}</div>`;
+  wh.appendChild(el);
+});
+
+/* ── CLOUD ── */
+const cc=S.cloud;
+document.getElementById('cloud-body').innerHTML=`
+  <div class="cloud-row">
+    <div class="cloud-dot"></div>
+    <span class="cloud-lbl">狀態</span>
+    <span class="cloud-v">${cc.state.toUpperCase()}</span>
+    <span class="cloud-lbl" style="margin-left:10px">渲染</span>
+    <span class="cloud-v">${cc.render.toUpperCase()}</span>
+  </div>
+  <div class="stat-grid" style="padding-top:2px">
+    <div class="stat-item"><div class="stat-lbl">佇列</div><div class="stat-val">${cc.queue}</div></div>
+    <div class="stat-item"><div class="stat-lbl">今日產出</div><div class="stat-val">${cc.produced_today}</div></div>
+    <div class="stat-item"><div class="stat-lbl">今日上架</div><div class="stat-val g">${cc.uploaded_today}</div></div>
+    <div class="stat-item"><div class="stat-lbl">效率</div><div class="stat-val">${Math.round(cc.uploaded_today/cc.produced_today*100)}%</div></div>
+  </div>`;
+
+/* ── COMMAND BAR ── */
+[
+  {lbl:'補產',c:''},
+  {lbl:'上架',c:''},
+  {lbl:'跑一輪',c:''},
+  {lbl:'壓榨模式',c:'gd'},
+  {lbl:'重新評分',c:''},
+  {lbl:'大檢查',c:'gd'},
+].forEach(({lbl,c})=>{
+  const btn=document.createElement('button');
+  btn.className=`cmd-btn ${c}`;btn.textContent=lbl;
+  btn.addEventListener('click',()=>{
+    console.log('[CMD]',lbl);
+    btn.style.transform='scale(0.93)';
+    setTimeout(()=>btn.style.transform='',140);
+  });
+  document.getElementById('cmd-btns').appendChild(btn);
+});
+
+const ci=document.getElementById('cmd-input');
+document.getElementById('cmd-send').addEventListener('click',()=>{
+  const msg=ci.value.trim();
+  if(msg){console.log('[SECRETARY]',msg);ci.value='';}
+  ci.focus();
+});
+ci.addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('cmd-send').click();});
+
+</script>
+</body>
+</html>

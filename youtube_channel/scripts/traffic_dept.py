@@ -26,6 +26,7 @@ SIGNALS = STUDIO / "traffic_signals.json"
 TW = timezone(timedelta(hours=8))
 
 import yt_analytics as ya  # noqa: E402
+import studio_common as sc  # noqa: E402  共用地基：PERSONA(新定位對齊)、has_llm_key、evidence_block
 
 try:
     from ops import log_ops
@@ -34,10 +35,24 @@ except Exception:  # noqa: BLE001
         pass
 
 # 頻道利基題材關鍵字（用來從「高流量影片」反推哪些題材該多做）。
+# ── 對齊 sc.PERSONA 的軟性新定位：多照顧「想被動賺、但怕被割的小白」。
+#    原本只有純量化術語，會把新方向的贏家題材(被割/避雷/新手/實測…)全判成「無關鍵字」而漏掉；
+#    故換血擴充加入「小白 × 避雷 × 防詐」語彙，讓資料驅動選題抓得到真正在紅的角度。
 NICHE_KW = [
+    # 量化/機器人核心（原有，續留）
     "網格", "定投", "DCA", "派網", "Pionex", "過擬合", "回測", "Walk-Forward", "複利", "槓桿",
     "馬丁", "止損", "停利", "勝率", "回撤", "參數", "格數", "格距", "資金費率", "套利",
     "被動收入", "夏普", "蒙地卡羅", "區間", "幣價", "暴跌", "手續費", "風控", "微笑曲線",
+    # 小白 × 避雷 × 防詐（新增：新定位的贏家語彙，情緒鉤子在此）
+    "被割", "被套", "詐騙", "避雷", "新手", "我幫你試", "實測", "該不該碰",
+    "虧光", "血本無歸", "韭菜", "老實說", "踩雷", "小白", "入門", "後悔",
+    # 台股/大盤/ETF（2026-07 新增：真實數據在紅的贏家語彙，讓 kw_of() 抓得到、餵進 win_keywords）
+    "0050", "006208", "00878", "00929", "大盤", "加權", "台股", "ETF", "恐慌指數",
+    "空頭", "多頭", "定期定額", "All in", "崩盤", "抄底", "殖利率", "填息",
+    # 台股全市場（2026-07 主題全開：個股/選股/當沖/存股/財報/籌碼 的贏家語彙）
+    "個股", "選股", "當沖", "隔日沖", "存股", "財報", "除權息", "除息", "籌碼", "法人",
+    "外資", "投信", "融資", "融券", "技術分析", "台積電", "護國神山", "權值股",
+    "航運", "AI股", "高股息", "月配", "季配",
 ]
 
 
@@ -105,7 +120,7 @@ def main() -> int:
         slug = vid2slug.get(p["video_id"], "")
         if not slug:
             continue
-        avg = float(p.get("avg_pct", 0) or 0)
+        avg = min(100.0, float(p.get("avg_pct", 0) or 0))  # loop重播原生>100%,夾回
         score = float(p.get("views", 0)) * (1 + avg / 100.0)  # 觀看為主、看完率加權
         rows.append({"slug": slug, "vid": p["video_id"], "views": p.get("views", 0),
                      "avg_pct": round(avg, 1), "score": round(score, 1)})

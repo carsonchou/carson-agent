@@ -240,7 +240,7 @@ def main() -> int:
     if args.dump:
         return do_dump(args.dump)
     if args.render:
-        if not API_KEY:
+        if not any(os.environ.get(_k,"").strip() for _k in ("OPENROUTER_API_KEY","ANTHROPIC_API_KEY","DEEPSEEK_API_KEY","GEMINI_API_KEY","GROQ_API_KEY")):
             print("[FATAL] 無 ANTHROPIC_API_KEY", file=sys.stderr); return 2
         return do_render(args.render)
     if args.apply:

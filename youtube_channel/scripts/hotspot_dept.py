@@ -38,7 +38,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 STUDIO = ROOT / "STUDIO"
 SEEN = STUDIO / "hotspot_seen.json"
 TW = timezone(timedelta(hours=8))
-API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+import studio_common as sc   # 共用地基：PERSONA / has_llm_key / evidence_block
 MODEL = "claude-haiku-4-5-20251001"
 
 try:
@@ -52,6 +52,9 @@ QUERIES = [
     "Pionex 派網 新功能 OR 更新", "幣安 OR OKX OR Bybit 新功能 OR 上線",
     "交易所 機器人 OR 量化 新功能", "比特幣 OR 以太幣 走勢 OR 大漲 OR 大跌",
     "加密貨幣 ETF OR 監管 OR 政策", "AI 交易 OR 量化 工具 新",
+    "Vibe Coding OR AI寫程式 交易 OR 量化", "Python 自動交易 OR 量化 教學 新",
+    # ── 台股化：加台股時事熱點(財報季/除權息/當沖/大盤)，寄生台股搜尋紅利。
+    "台股 財報季 OR 除權息 OR 當沖", "台股 崩 OR 大盤創新高 OR 加權指數",
 ]
 FRESH_HOURS = 30   # 比 news_dept(18h)寬：題庫是緩衝、可容稍舊但仍有搜尋紅利的熱點
 
@@ -101,28 +104,30 @@ def _save_seen(seen):
 
 
 def _judge(headlines, want):
-    """請 Claude 從新聞標題挑出『可搶首發、和量化/網格/派網相關』的熱點，每則產出可立刻製作的題目。"""
-    import requests
+    """請 LLM 從新聞標題挑出『可搶首發、和量化/網格/派網相關』的熱點，每則產出可立刻製作的題目。"""
     joined = "\n".join(f"- {h}" for h in headlines[:30])
-    prompt = f"""你是量化阿森頻道（量化/自動交易/網格/定投/派網Pionex/風控，繁中，主攻 Shorts）的【搶首發選題官】。
+    prompt = f"""{sc.PERSONA}
+
+你是量化阿森頻道（量化/自動交易/網格/定投/派網Pionex/風控，繁中，主攻 Shorts）的【搶首發選題官】。
 以下是近兩天的財經/加密/交易工具新聞標題：
 {joined}
+
+{sc.evidence_block()}
 
 任務：挑出最多 {want} 則「值得搶首發做 Shorts 蹭流量」的熱點。優先順序：
 1) Pionex/交易所『新功能·新機器人·重大更新』——這類幾乎沒人做，搶首發紅利最大。
 2) 幣圈大行情、ETF/監管進展、重要量化/AI 交易工具。
+3) ★台股時事熱點：大盤重挫/創新高、財報季爆雷、除權息旺季、當沖警示——台股在地共鳴、搜尋量大。
+   台股角度一律走「大盤/ETF/當沖避雷·數據拆解」；個股(含台積電)只做數據分析，不喊買賣、不報目標價。
 每則都要把熱點**連到頻道的量化/網格/派網/風控觀點**（例：新功能怎麼用來跑網格、這行情下網格/定投會怎樣）。
+【小白避雷視角】對新功能/新工具，優先切「新功能=也可能是新割韭菜的方式」——用小白怕被割的角度：這功能真有用還是包裝話術？新手該不該碰？怎麼用才不會被割？（既戳恐懼又給安心，比純吹新功能更會爆）。
+選題時**參考上面『本頻道實證數據』的贏家題材/關鍵字**，靠向已驗證會爆的角度。
 誠信鐵則：只用標題已知事實，不誇大、不預測漲跌、不喊單、不保證收益。沒夠份量的就少給，寧缺勿濫。
 
 只輸出 JSON 陣列（不要其他字、不要 markdown 圍欄）：
-[{{"news":"觸發的新聞重點一句","title":"有點擊慾的影片標題(繁中、不誇大)","angle":"切入點：把熱點連到量化/網格/派網/風控"}}]"""
-    r = requests.post("https://api.anthropic.com/v1/messages",
-                      headers={"x-api-key": API_KEY, "anthropic-version": "2023-06-01",
-                               "content-type": "application/json"},
-                      json={"model": MODEL, "max_tokens": 1500,
-                            "messages": [{"role": "user", "content": prompt}]}, timeout=120)
-    r.raise_for_status()
-    txt = r.json()["content"][0]["text"]
+[{{"news":"觸發的新聞重點一句","title":"有點擊慾的影片標題(繁中、不誇大)","angle":"切入點：把熱點連到量化/網格/派網/風控，或小白避雷視角"}}]"""
+    import llm  # 共用路由：主供應商→失敗退回 fallback，換模型只改 env
+    txt = llm.complete(prompt, 1500, json_mode=True)
     m = re.search(r"\[.*\]", txt, re.S)
     if not m:
         return []
@@ -143,8 +148,8 @@ def main() -> int:
     ap.add_argument("--max", type=int, default=5, help="本輪最多撈幾則熱點進題庫")
     ap.add_argument("--dry", action="store_true", help="只判斷、印出，不寫題庫")
     args = ap.parse_args()
-    if not API_KEY:
-        print("[FATAL] 無 ANTHROPIC_API_KEY", file=sys.stderr); return 2
+    if not sc.has_llm_key():
+        print("[FATAL] 無任何 LLM 供應商 API key", file=sys.stderr); return 2
 
     seen = _load_seen()
     raw = []

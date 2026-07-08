@@ -9,7 +9,7 @@
 用法：python scripts/intel_sync.py [--max-learn 100] [--pace 2.5] [--no-push]
 """
 from __future__ import annotations
-import argparse, json, re, subprocess, sys, time
+import argparse, json, os, re, subprocess, sys, time
 from pathlib import Path
 
 try:
@@ -80,45 +80,42 @@ def push_to_cloud():
     cfg = ROOT / "cloud.json"
     if not cfg.exists():
         print("[sync] 無 cloud.json，略過推雲端（本機學習已保存）。"); return False
-    try:
-        import paramiko
-    except Exception:
-        print("[sync] 無 paramiko，略過推雲端。"); return False
     c = json.loads(cfg.read_text(encoding="utf-8"))
-    ip, user, pw = c["ip"], c.get("user", "root"), c["password"]
     rroot = c.get("remote_root", "/root/yt")
+    # 這台 droplet 的 SFTP 壞掉,改走已修好的 cloud_ssh(exec+base64,失敗會 raise)
+    os.environ["DROPLET_IP"] = c["ip"]
+    os.environ["DROPLET_PW"] = c["password"]
+    os.environ["DROPLET_USER"] = c.get("user", "root")
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    try:
+        import importlib
+        import cloud_ssh
+        importlib.reload(cloud_ssh)  # 確保吃到剛設的 env
+    except Exception as e:  # noqa: BLE001
+        print(f"[sync] 無法載入 cloud_ssh，略過推雲端：{e}", file=sys.stderr); return False
     files = [
         (ROOT / "STUDIO" / "competitor_playbook.md", f"{rroot}/STUDIO/competitor_playbook.md"),
         (ROOT / "competitor_analysis.md", f"{rroot}/competitor_analysis.md"),
     ]
-    last_err = None
-    for attempt in range(1, 4):  # IPv4 出口偶爾抖，最多試 3 次，每次隔 5s
-        cli = None
-        try:
-            cli = paramiko.SSHClient()
-            cli.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            cli.connect(ip, username=user, password=pw, timeout=30)
-            sf = cli.open_sftp()
-            for local, remote in files:
-                if local.exists():
-                    sf.put(str(local), remote)
-                    print(f"[sync] 推上雲端：{local.name} -> {remote}（{local.stat().st_size} B）")
-            sf.close(); cli.close()
-            tail = "" if attempt == 1 else f"（第 {attempt} 次才成功）"
-            print(f"[sync] 雲端工廠已更新，下一輪製作即吸收。{tail}")
-            return True
-        except Exception as e:
-            last_err = e
+    okall = True
+    for local, remote in files:
+        if not local.exists():
+            continue
+        for attempt in range(1, 4):  # IPv4 出口偶爾抖,最多 3 次
             try:
-                if cli is not None:
-                    cli.close()
-            except Exception:
-                pass
-            if attempt < 3:
-                print(f"[sync] 推雲端第 {attempt} 次失敗（{e}）；5s 後重試…", file=sys.stderr)
-                time.sleep(5)
-    print(f"[sync] 推雲端 3 次都失敗（本機學習已保存，不影響）：{last_err}", file=sys.stderr)
-    return False
+                cloud_ssh.put(str(local), remote)
+                print(f"[sync] 推上雲端：{local.name}（{local.stat().st_size} B）")
+                break
+            except Exception as e:  # noqa: BLE001
+                if attempt < 3:
+                    print(f"[sync] 推 {local.name} 第 {attempt} 次失敗（{e}）；5s 後重試…", file=sys.stderr)
+                    time.sleep(5)
+                else:
+                    okall = False
+                    print(f"[sync] 推 {local.name} 3 次都失敗（本機學習已保存,不影響）：{e}", file=sys.stderr)
+    if okall:
+        print("[sync] 雲端工廠已更新,下一輪製作即吸收。")
+    return okall
 
 
 def main():

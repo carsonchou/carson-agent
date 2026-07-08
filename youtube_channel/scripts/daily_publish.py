@@ -26,6 +26,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
 import upload_youtube as up  # 重用 metadata 組裝
 from ops import log_ops
+from studio_common import save_json_atomic, load_json_safe
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -42,7 +43,14 @@ LEDGER = PROJECT_ROOT / "STUDIO" / "uploaded_ledger.json"
 REPORTS = PROJECT_ROOT / "STUDIO" / "REPORTS"
 QSCORES = PROJECT_ROOT / "STUDIO" / "quality_scores.json"
 IG_LEDGER = PROJECT_ROOT / "STUDIO" / "ig_ledger.json"
+FB_LEDGER = PROJECT_ROOT / "STUDIO" / "fb_ledger.json"
+THREADS_LEDGER = PROJECT_ROOT / "STUDIO" / "threads_ledger.json"
 SHORT_TO_LONG = PROJECT_ROOT / "STUDIO" / "short_to_long.json"  # 選填：slug→長片slug或youtu.be，短→長導流
+
+# Shorts 專用 hashtag：描述不含 #shorts 時補進去，讓 YouTube 歸類進 Shorts shelf。
+# 注意：upload_one 以字串串接（description + _SHORTS_HASHTAGS），故此處必須是「字串」不可為 list，
+# 否則 str + list 會 TypeError（這正是先前 NameError／崩潰的修補）。
+_SHORTS_HASHTAGS = "\n\n" + " ".join(["#Shorts", "#量化交易", "#Pionex", "#自動交易"])
 
 
 def _long_link_for(slug: str, cfg: dict, ledger: dict) -> str:
@@ -95,16 +103,30 @@ def _post_engage_comment(yt, vid, slug):
         print(f"[engage] 留言略過（{str(exc)[:50]}）", file=sys.stderr)
 
 
-def load_quality():
-    """讀品質評分：回 ({slug:score}, min_score)。沒檔就回 ({}, 0)＝不擋(fail-open)。"""
+def load_quality(_retried: bool = False):
+    """讀品質評分：回 ({slug:score}, min_score)。
+    fail-CLOSED：讀不到檔就先『觸發一次評分』再重讀；仍拿不到回空 map（main 會據此擋下未評分片，
+    不再 fail-open 放行）。沿用『只收有效分數(score 非 None)』，未評分片本來就不會進 map。"""
     try:
+        if not QSCORES.exists():
+            raise FileNotFoundError(str(QSCORES))
         d = json.loads(QSCORES.read_text(encoding="utf-8"))
         m = {}
-        for it in d.get("pending", []) + d.get("published", []):
-            if it.get("score") is not None:
+        for it in (d.get("pending") or []) + (d.get("published") or []):
+            if isinstance(it, dict) and it.get("slug") and it.get("score") is not None:
                 m[it["slug"]] = it["score"]
-        return m, int(d.get("min_score", 0))
-    except Exception:
+        return m, int(d.get("min_score", 0) or 0)
+    except Exception as exc:  # noqa: BLE001
+        # 檔缺／壞檔：先觸發一次評分再重讀（只重試一次，避免遞迴爆掉）。
+        if not _retried:
+            try:
+                import quality_score as _qs
+                _qs.scan(rescore_ai=False)
+                log_ops("上架部門", "quality_scores 缺失／壞檔，已觸發評分後重讀")
+            except Exception as _e:  # noqa: BLE001
+                log_ops("上架部門", f"觸發評分失敗（仍 fail-closed 擋未評分片）：{str(_e)[:60]}")
+            return load_quality(_retried=True)
+        log_ops("上架部門", f"品質評分讀取失敗，fail-closed 擋下未評分片：{str(exc)[:60]}")
         return {}, 0
 
 
@@ -125,17 +147,12 @@ def get_service():
 
 
 def load_ledger() -> dict:
-    if LEDGER.exists():
-        try:
-            return json.loads(LEDGER.read_text(encoding="utf-8"))
-        except Exception:
-            return {}
-    return {}
+    return load_json_safe(LEDGER, default={})
 
 
 def save_ledger(d: dict) -> None:
     LEDGER.parent.mkdir(parents=True, exist_ok=True)
-    LEDGER.write_text(json.dumps(d, ensure_ascii=False, indent=2), encoding="utf-8")
+    save_json_atomic(LEDGER, d)
 
 
 def _norm(slug: str) -> str:
@@ -167,27 +184,43 @@ def find_candidates(ledger: dict) -> list:
     return shorts + longs
 
 
-def _ig_crosspost(slug: str) -> None:
-    """把一支 Short 跨發到 IG Reels(非致命;獨立台帳防重發)。"""
-    import os
-    if not (os.environ.get("IG_USER_ID") and os.environ.get("IG_ACCESS_TOKEN") and os.environ.get("IG_VIDEO_BASE")):
-        return
+def _crosspost_one(slug: str, ledger_path: Path, module_name: str, tag: str) -> None:
+    """跨發到單一平台(非致命;獨立台帳防重發)。IG/FB/Threads 共用此邏輯，各自失敗互不影響。"""
     try:
-        led = json.loads(IG_LEDGER.read_text(encoding="utf-8")) if IG_LEDGER.exists() else {}
+        led = json.loads(ledger_path.read_text(encoding="utf-8")) if ledger_path.exists() else {}
     except Exception:
         led = {}
     if slug in led:
         return
     try:
-        import ig_reels_upload as _ig
-        mid = _ig.publish(slug)
+        mod = __import__(module_name)
+        mid = mod.publish(slug)
         if mid:
             led[slug] = mid
-            IG_LEDGER.parent.mkdir(parents=True, exist_ok=True)
-            IG_LEDGER.write_text(json.dumps(led, ensure_ascii=False, indent=2), encoding="utf-8")
-            print(f"[ig] Reels 已發布 {slug} -> {mid}")
+            ledger_path.parent.mkdir(parents=True, exist_ok=True)
+            ledger_path.write_text(json.dumps(led, ensure_ascii=False, indent=2), encoding="utf-8")
+            print(f"[{tag}] 已發布 {slug} -> {mid}")
     except Exception as _e:  # noqa: BLE001
-        print(f"[warn] IG 跨發失敗 {slug}: {_e}", file=sys.stderr)
+        print(f"[warn] {tag} 跨發失敗 {slug}: {_e}", file=sys.stderr)
+
+
+def _ig_crosspost(slug: str) -> None:
+    """把一支 Short 跨發到 IG Reels + FB Reels + Threads(公網影片庫存有值才跨發，各平台各自缺 key 自跳，互不影響)。"""
+    import os
+    base = os.environ.get("IG_VIDEO_BASE", "").strip()
+    if not base:
+        tf = PROJECT_ROOT / "STUDIO" / "tunnel_url.json"
+        if tf.exists():
+            try:
+                base = json.loads(tf.read_text(encoding="utf-8")).get("base", "")
+            except Exception:
+                base = ""
+    if not base:
+        return
+    # IG 為主(原行為);FB/Threads 是加購，各自缺 key 自己在 publish() 裡優雅跳過
+    _crosspost_one(slug, IG_LEDGER, "ig_reels_upload", "ig")
+    _crosspost_one(slug, FB_LEDGER, "fb_reels_upload", "fb")
+    _crosspost_one(slug, THREADS_LEDGER, "threads_upload", "threads")
 
 
 def upload_one(yt, slug: str, privacy: str) -> str:
@@ -223,21 +256,28 @@ def upload_one(yt, slug: str, privacy: str) -> str:
         # 不是兒童內容(保留留言/廣告/推薦) + 允許嵌入(站外流量是演算法加分訊號)
         "status": {"privacyStatus": privacy, "selfDeclaredMadeForKids": False, "embeddable": True},
     }
-    media = MediaFileUpload(str(OUTPUT / f"{slug}.mp4"), resumable=True, chunksize=4 * 1024 * 1024)
-    # Shorts 冷啟動給陌生人測試：notifySubscribers=False（通知訂閱者會拉高划走率→掐死推薦）
-    # 長片 notifySubscribers=True：訂閱者觀看可累積觀看時數 + 訂閱信號
-    req = yt.videos().insert(part="snippet,status", body=body, media_body=media,
-                             notifySubscribers=not is_short)
+    # 檔名 SEO：送給 YouTube 的檔名用關鍵字名(非內部 slug)。零成本弱訊號優化;失敗降級回原檔,絕不擋上傳。
+    _seo_mp4 = up.seo_asset_name(meta.get("title", slug), meta.get("tags"), "mp4", slug)
+    _up_path, _cleanup_mp4 = up.link_as(OUTPUT / f"{slug}.mp4", _seo_mp4)
     resp = None
-    while resp is None:
-        _status, resp = req.next_chunk()
+    try:
+        media = MediaFileUpload(str(_up_path), resumable=True, chunksize=4 * 1024 * 1024)
+        # Shorts 冷啟動給陌生人測試：notifySubscribers=False（通知訂閱者會拉高划走率→掐死推薦）
+        # 長片 notifySubscribers=True：訂閱者觀看可累積觀看時數 + 訂閱信號
+        req = yt.videos().insert(part="snippet,status", body=body, media_body=media,
+                                 notifySubscribers=not is_short)
+        while resp is None:
+            _status, resp = req.next_chunk()
+    finally:
+        _cleanup_mp4()   # 清關鍵字名硬連結(不動原 mp4);即使 MediaFileUpload/insert 拋例外也清
     vid = resp["id"]
     # 精準 SRT 字幕（演算法判主題＋中文金融術語正確；非致命）
     try:
         import make_video as _mv
         _srt = _mv.write_srt_for_slug(slug)
         if _srt and Path(_srt).exists():
-            up.upload_captions(yt, vid, _srt)
+            up.upload_captions(yt, vid, _srt,
+                               upload_name=up.seo_asset_name(meta.get("title", slug), meta.get("tags"), "srt", slug))
     except Exception as _e:  # noqa: BLE001
         print(f"[caption] 字幕步驟略過（{str(_e)[:60]}）", file=sys.stderr)
     if slug.startswith(("L_", "S_")) and not (THUMBS / f"{slug}.jpg").exists():
@@ -253,10 +293,14 @@ def upload_one(yt, slug: str, privacy: str) -> str:
                 print(f"[warn] 自動生縮圖失敗 {slug}: {_e2}", file=sys.stderr)
     thumb = THUMBS / f"{slug}.jpg"
     if thumb.exists():
+        _seo_jpg = up.seo_asset_name(meta.get("title", slug), meta.get("tags"), "jpg", slug)
+        _tp, _cleanup_jpg = up.link_as(thumb, _seo_jpg)
         try:
-            yt.thumbnails().set(videoId=vid, media_body=MediaFileUpload(str(thumb), mimetype="image/jpeg")).execute()
+            yt.thumbnails().set(videoId=vid, media_body=MediaFileUpload(str(_tp), mimetype="image/jpeg")).execute()
         except Exception as exc:  # noqa: BLE001
             print(f"[warn] 縮圖設定失敗 {slug}: {exc}", file=sys.stderr)
+        finally:
+            _cleanup_jpg()   # 清關鍵字名硬連結(不動原 jpg)
     return vid
 
 
@@ -335,8 +379,14 @@ def main() -> int:
     ledger = load_ledger()
     cands = find_candidates(ledger)
 
-    # 【審核部門】逐支品管+誠信把關 + 品質門檻；收集 PASS 直到達每日上限
+    # 【審核部門】逐支品管+誠信把關 + 品質門檻(fail-CLOSED)；收集 PASS 直到達每日上限
     qmap, qmin = load_quality()
+    # 硬地板：任何情況低於 FLOOR 一律不發；匯入失敗也要有保底地板，絕不放行到 0。
+    try:
+        from quality_score import FLOOR as _FLOOR
+        floor = int(_FLOOR)
+    except Exception:  # noqa: BLE001
+        floor = 60
     todo, quarantined = [], []
     for slug in cands:
         ok, reasons = audit_video.audit(slug)
@@ -345,7 +395,25 @@ def main() -> int:
             print(f"[審核未過] {slug}：{'; '.join(reasons)}")
             continue
         sc = qmap.get(slug)
-        if sc is not None and qmin and sc < qmin:   # 品質低於門檻：不發布(只擋已評分的)
+        # fail-CLOSED ①：未評分(None／查無)一律不發（不再 fail-open 漏過）。
+        if sc is None:
+            quarantined.append((slug, ["未評分（無有效品質分）— fail-closed 不發，待重評"]))
+            print(f"[未評分] {slug}：無品質分，暫不發布（fail-closed）")
+            continue
+        # fail-CLOSED ②：分數型別意外也擋（防呆，不讓下面比較拋例外）。
+        try:
+            scv = float(sc)
+        except (TypeError, ValueError):
+            quarantined.append((slug, [f"品質分數異常（{sc!r}）— fail-closed 不發"]))
+            print(f"[分數異常] {slug}：{sc!r} 非數值，暫不發布")
+            continue
+        # fail-CLOSED ③：低於硬地板 FLOOR 一律不發（qmin=0 也不再等於放行）。
+        if scv < floor:
+            quarantined.append((slug, [f"品質 {sc} 分 < 硬地板 {floor}"]))
+            print(f"[低於地板] {slug}：{sc} 分 < 地板 {floor}，不發布")
+            continue
+        # 較嚴門檻：min_score 若設得比地板高，從嚴（保留原本較嚴門檻邏輯）。
+        if qmin and scv < qmin:
             quarantined.append((slug, [f"品質 {sc} 分 < 門檻 {qmin}"]))
             print(f"[品質未達門檻] {slug}：{sc} 分 < {qmin}，暫不發布")
             continue

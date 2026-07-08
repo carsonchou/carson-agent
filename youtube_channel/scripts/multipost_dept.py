@@ -31,6 +31,7 @@ except Exception:
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from studio_common import save_json_atomic
 STUDIO = ROOT / "STUDIO"
 REPORTS = STUDIO / "REPORTS"
 OUT = ROOT / "output"
@@ -43,21 +44,27 @@ except Exception:  # noqa: BLE001
     def log_ops(d, m): pass
 
 # 各平台「文案文化」不同：標籤組、語氣、長度都分開調，貼上去才像在地內容、不像機器轉貼。
+# audience 供共用 gen_captions(promo_dept) 產受眾客製文案用；tags 加了小白避雷向(#新手 #避雷 #怕被割)。
 PLATFORMS = [
     {"key": "tiktok",  "name": "TikTok",          "emoji": "🎵",
-     "tags": "#量化交易 #網格交易 #定投 #加密貨幣 #理財 #投資理財 #Pionex #派網 #fyp #foryou #幣圈",
+     "audience": "刷得快、要 3 秒抓住的年輕用戶，衝 fyp",
+     "tags": "#量化交易 #網格交易 #定投 #加密貨幣 #理財 #投資理財 #Pionex #派網 #fyp #foryou #幣圈 #新手 #避雷 #怕被割",
      "style": "punchy"},   # 鉤子優先、短、衝 fyp
     {"key": "reels",   "name": "Instagram Reels", "emoji": "📸",
-     "tags": "#量化交易 #網格交易 #定投 #被動收入 #加密貨幣 #理財 #投資理財 #Pionex #派網 #reels #投資理財筆記",
+     "audience": "視覺導向、靠標籤被發現的年輕理財新手",
+     "tags": "#量化交易 #網格交易 #定投 #被動收入 #加密貨幣 #理財 #投資理財 #Pionex #派網 #reels #投資理財筆記 #新手理財 #避雷",
      "style": "clean"},    # 主題標籤、乾淨
     {"key": "threads", "name": "Threads",         "emoji": "🧵",
-     "tags": "#網格交易 #幣圈",
+     "audience": "愛討論、口語、反感業配味",
+     "tags": "#網格交易 #幣圈 #新手",
      "style": "talk"},     # 對話感、少標籤、結尾拋問題逼互動
     {"key": "xhs",     "name": "小紅書",           "emoji": "📕",
-     "tags": "#網格交易 #量化交易 #理財筆記 #定投 #幣圈 #投資理財 #被動收入",
+     "audience": "看筆記/標題黨、怕踩雷的小白，收藏導向",
+     "tags": "#網格交易 #量化交易 #理財筆記 #定投 #幣圈 #投資理財 #被動收入 #新手必看 #避雷指南",
      "style": "notes"},    # emoji 多、筆記/標題黨語氣、話題標籤
     {"key": "fb",      "name": "Facebook",         "emoji": "👍",
-     "tags": "#量化交易 #網格交易 #Pionex #派網 #理財",
+     "audience": "偏熟齡理財族、願讀長文、愛互動",
+     "tags": "#量化交易 #網格交易 #Pionex #派網 #理財 #新手理財",
      "style": "long"},     # 較長描述、連結可點、少標籤
 ]
 
@@ -91,38 +98,40 @@ def parse_md(slug):
 
 
 def make_caption(plat, title, hook, link):
-    """依平台文化客製文案：同一支片、五種口吻，貼哪個平台都像在地內容。"""
+    """依平台文化客製文案：同一支片、五種口吻，貼哪個平台都像在地內容。
+    這是『無 LLM key / LLM 失敗』時的降級模板；語氣對齊小白避雷向(先幫你試、別自己送死)。
+    有 key 時主路徑走共用 gen_captions(promo_dept)，兩部門一套文案邏輯。"""
     style, tags = plat["style"], plat["tags"]
     hk = (hook + ("…" if len(hook) >= 60 else "")) if hook else ""
     risk = "⚠️ 投資有風險，內容為教學分享，非投資建議。"
-    pio = f"工具：Pionex 派網 👉 {link}（邀請碼 08NAcfvcWna）"
+    pio = f"想自己動手、又怕被割？我先幫你試過的工具：Pionex 派網 👉 {link}（邀請碼 08NAcfvcWna）"
 
     if style == "punchy":          # TikTok：鉤子先行、短、衝 fyp
         lines = [title]
         if hk:
             lines.append(hk)
-        lines += ["你也踩過這雷嗎👇", f"📈 {pio}", risk, tags]
+        lines += ["新手最容易踩的雷，你中了嗎👇", f"📈 {pio}", risk, tags]
     elif style == "clean":         # IG Reels：乾淨、主題標籤
         lines = [title]
         if hk:
             lines.append(hk)
-        lines += [f"📈 {pio}", risk, "", tags]
+        lines += ["怕虧的小白先看完再進場👀", f"📈 {pio}", risk, "", tags]
     elif style == "talk":          # Threads：對話感、結尾拋問題逼互動、少標籤
         lines = [title]
         if hk:
             lines.append(hk)
-        lines += ["你會停手還是加碼？留言聊聊👇", f"（{pio}）", risk, tags]
+        lines += ["你會停手還是加碼？留言聊聊，別自己悶著踩雷👇", f"（{pio}）", risk, tags]
     elif style == "notes":         # 小紅書：emoji 多、筆記/標題黨語氣
         lines = [f"💡{title}", ""]
         if hk:
             lines.append("📌 " + hk)
-        lines += ["✅ 重點我幫你整理在影片裡，3 分鐘看懂",
+        lines += ["✅ 避雷重點我幫你整理在影片裡，新手 3 分鐘看懂",
                   f"🔧 {pio}", risk, "", tags]
     else:                          # Facebook：較長描述、連結可點
         lines = [title, ""]
         if hk:
             lines.append(hk)
-        lines += ["", f"📈 想自己動手實作？{pio}", risk, "", tags]
+        lines += ["", f"📈 想自己動手、又怕送頭？{pio}", risk, "", tags]
     return "\n".join(lines)
 
 
@@ -137,7 +146,7 @@ def load_ledger():
 
 def save_ledger(s):
     LEDGER.parent.mkdir(parents=True, exist_ok=True)
-    LEDGER.write_text(json.dumps(sorted(s), ensure_ascii=False, indent=2), encoding="utf-8")
+    save_json_atomic(LEDGER, sorted(s))
 
 
 def main() -> int:
@@ -168,9 +177,17 @@ def main() -> int:
         size_mb = round(p.stat().st_size / 1e6, 1)
         L += [f"## {i}. {title}",
               f"- 🎬 影片檔（直接抓）：`{p}`（{size_mb} MB）", ""]
+        # 主路徑：呼叫共用 gen_captions(promo_dept)——餵影片實際旁白＋受眾畫像＋PERSONA，
+        # 與宣傳部同一套文案邏輯；無 key/失敗時每平台各自降級用模板 make_caption。
+        llm_caps = None
+        try:
+            from promo_dept import gen_captions
+            llm_caps = gen_captions({"slug": slug, "title": title}, PLATFORMS)
+        except Exception as e:  # noqa: BLE001
+            print(f"[warn] 共用 LLM 文案失敗，改用模板：{e}", file=sys.stderr)
         caps = {}
         for plat in PLATFORMS:
-            cap = make_caption(plat, title, hook, link)
+            cap = (llm_caps or {}).get(plat["key"]) or make_caption(plat, title, hook, link)
             caps[plat["key"]] = cap
             L += [f"**▼ {plat['emoji']} {plat['name']} 文案（複製貼上）**", "```", cap, "```"]
         L.append("")
@@ -179,9 +196,8 @@ def main() -> int:
 
     (REPORTS / f"{date}_多平台發布包.md").write_text("\n".join(L), encoding="utf-8")
     # 機器可讀佇列（給未來的自動發布器 / 決策中心讀）
-    (STUDIO / "dist_queue.json").write_text(
-        json.dumps({"date": date, "platforms": [p["key"] for p in PLATFORMS], "items": queue},
-                   ensure_ascii=False, indent=2), encoding="utf-8")
+    save_json_atomic(STUDIO / "dist_queue.json",
+                      {"date": date, "platforms": [p["key"] for p in PLATFORMS], "items": queue})
     save_ledger(packaged)
     log_ops("多平台分發", f"打包 {len(shorts)} 支 × {len(PLATFORMS)} 平台 → {date}_多平台發布包.md")
     print(f"[ok] 多平台發布包完成：{len(shorts)} 支短片 × {len(PLATFORMS)} 平台文案已備妥。")

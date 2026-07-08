@@ -60,7 +60,7 @@ def main() -> int:
             pass
     if not title:
         print("[FATAL] 請給 --title 或 --slug", file=sys.stderr); return 2
-    if not API_KEY:
+    if not any(os.environ.get(_k,"").strip() for _k in ("OPENROUTER_API_KEY","ANTHROPIC_API_KEY","DEEPSEEK_API_KEY","GEMINI_API_KEY","GROQ_API_KEY")):
         print("[FATAL] 無 ANTHROPIC_API_KEY", file=sys.stderr); return 2
 
     vs = [v for v in gen_variants(title) if v.get("title")][:3]

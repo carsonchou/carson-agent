@@ -114,6 +114,22 @@ def git(*cmd) -> bool:
         return False
 
 
+def _maybe_daily_qa():
+    """檢測部門：每天最多巡檢決策中心一次（PC 端跑到就順便測，抓壞按鈕/沒反應）。"""
+    try:
+        import time as _t
+        mark = ROOT / "STUDIO" / ".qa_last"
+        today = _t.strftime("%Y-%m-%d")
+        if mark.exists() and mark.read_text(encoding="utf-8").strip() == today:
+            return
+        print("[watcher] 執行每日決策中心巡檢（檢測部門）…")
+        subprocess.run([str(PY), "scripts/web_center/qa_check.py", "--port", "8795"],
+                       cwd=str(ROOT), timeout=120)
+        mark.write_text(today, encoding="utf-8")
+    except Exception as exc:  # noqa: BLE001
+        print(f"[watcher] 巡檢略過（{exc}）", file=sys.stderr)
+
+
 def run_once(sync: bool) -> int:
     if sync:
         git("pull", "--rebase", "--autostash")
@@ -140,6 +156,8 @@ def run_once(sync: bool) -> int:
         pass
     subprocess.run([str(PY), "scripts/daily_publish.py", "--max", "6", "--privacy", priv],
                    cwd=str(ROOT))
+
+    _maybe_daily_qa()
 
     if sync:
         git("add", "-A")

@@ -23,12 +23,10 @@ from xml.etree import ElementTree as ET
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
+import studio_common as sc  # noqa: E402  共用地基：PERSONA、has_llm_key、evidence_block
 STUDIO = ROOT / "STUDIO"
 SEEN = STUDIO / "news_seen.json"
 TW = timezone(timedelta(hours=8))
-API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
-# 省 credits：挑時事是分類工作，haiku 已足夠（影片腳本本來也是 haiku 產）。原 sonnet 一天跑12次太貴。
-MODEL = "claude-haiku-4-5-20251001"
 PY = sys.executable
 
 try:
@@ -38,7 +36,10 @@ except Exception:  # noqa: BLE001
         pass
 
 # 與頻道相關的查詢（加密/量化/總經對交易的影響）。
-QUERIES = ["比特幣 OR 以太幣 OR 加密貨幣", "美聯儲 OR 升息 OR 降息 OR CPI", "比特幣 ETF OR 加密 監管", "幣安 OR 交易所 OR 穩定幣"]
+# ── 台股化：加台股大事查詢（保留既有加密查詢，只加不刪），讓時事部也能寄生台股熱點。
+QUERIES = ["比特幣 OR 以太幣 OR 加密貨幣", "美聯儲 OR 升息 OR 降息 OR CPI", "比特幣 ETF OR 加密 監管", "幣安 OR 交易所 OR 穩定幣",
+           "台股 OR 加權指數 大跌 OR 大漲 OR 崩", "除權息 OR 當沖 OR 融資斷頭 OR 跌停",
+           "0050 OR 台股ETF OR 高股息", "台積電 OR 護國神山 財報 OR 法說"]
 FRESH_HOURS = 18
 MAX_PER_DAY = 8  # 安全上限(防爆衝/bug 洗版)，非品質限制；真正重要的事很少一天 >5 件，所以幾乎不會卡到
 
@@ -91,31 +92,43 @@ def _today_count(seen) -> int:
 def _judge(headlines: list[str]) -> dict:
     """請 Claude 從新聞標題中挑出『最值得做、且和量化/加密交易相關』的時事，產出影片角度。"""
     joined = "\n".join(f"- {h}" for h in headlines[:25])
-    prompt = f"""你是量化阿森頻道（量化/自動交易/網格/定投/派網Pionex/風控，繁中，主攻 Shorts）的【金融時事編輯】。
-以下是最近的財經/加密新聞標題：
+    ev = sc.evidence_block()
+    prompt = f"""{sc.PERSONA}
+以上是頻道人設(含軟性新定位:照顧怕被割的小白)。你現在是這個頻道的【金融時事編輯】(主攻 Shorts)。
+{(ev + chr(10) + chr(10)) if ev else ""}以下是最近的財經/加密新聞標題：
 {joined}
 
 判斷其中有沒有「**真正撼動市場、非做不可**」的大事。**門檻要很高，寧可不做也不要做小事**——
 ✅ 才算重要：比特幣單日 ±8% 以上劇烈波動、爆倉/清算規模上億、Fed 利率決議、CPI 爆表、
    現貨 ETF 重大進展(通過/大額流入流出)、頂級交易所爆雷/倒閉/被駭、國家級重大監管或禁令、Pionex 重大新功能。
-❌ 不做（回 worthy=false）：日常 1-3% 波動、分析師喊單、例行報導、小幣消息、重複舊聞、純預測性內容。
-若有夠格的大事，挑**最重大**的一則，產出影片角度（把時事連到頻道的量化/網格/風控觀點）。
+   ★台股情境同樣夠格：加權指數單日重挫/崩盤或創歷史新高、財報季爆雷(重大財報遠低於預期/財測下修)、
+   除權息旺季(大量除權息、填息貼息討論)、當沖警示(當沖佔比爆量/主管機關示警)、台積電重大財報或法說會。
+❌ 不做（回 worthy=false）：日常 1-3% 波動、分析師喊單、例行報導、小幣消息、重複舊聞、純預測性內容、個股喊進喊出。
+若有夠格的大事，挑**最重大**的一則，產出影片角度。
+【台股角度守則】台股題材一律走「大盤/ETF/當沖避雷·數據拆解」——大盤重挫講風控與定投別恐慌殺、
+除權息講填息機率的數據真相、當沖講九成賠的統計避雷；**個股(含台積電)只做數據分析，不喊買賣、不報目標價**。
+【避雷框架(核心切角)】大事發生時，正是小白最容易『追高被套、恐慌殺在低點、被詐騙盤/山寨喊單收割』的時刻——
+角度請走「這種行情下，小白最容易在此時被割/追高，我帶你怎麼避雷、機器人/網格/風控怎麼幫你不情緒化操作」，
+把時事連到頻道的量化/網格/風控觀點，情緒先戳恐懼(會不會又被割)再給安心(這樣做才穩)。
 誠信鐵則：只根據標題已知事實，不誇大、不預測漲跌、不喊單、不保證收益。**有疑慮就回 worthy=false**。
+【標題公式(務必遵守，否則會被系統退回重寫)】① 必含具體數字/金額/百分比；② 用「損失框架」或「對比/懸念」(如 剩多少、差在哪、vs、你猜)勝過平鋪；
+③ **嚴禁**下列已被玩爛的洗版套語(命中一律不採用、換角度重寫)：「(XX億)爆倉…你的網格機器人為什麼還活著/還撐得住」、「勝率9X卻虧光…破產機率公式一秒戳破」這類千篇一律的恐慌模板。要有記憶點、跟別支不重複。
 
-只輸出 JSON：{{"worthy":true/false,"news":"觸發的新聞重點一句","title":"有點擊慾的影片標題","angle":"切入點：把時事連到量化/網格/風控的觀點"}}"""
-    body = {"model": MODEL, "max_tokens": 800, "messages": [{"role": "user", "content": prompt}]}
-    import requests
-    r = requests.post("https://api.anthropic.com/v1/messages",
-                      headers={"x-api-key": API_KEY, "anthropic-version": "2023-06-01",
-                               "content-type": "application/json"}, json=body, timeout=90)
-    r.raise_for_status()
-    txt = r.json()["content"][0]["text"]
-    return json.loads(re.search(r"\{.*\}", txt, re.S).group(0))
+只輸出 JSON：{{"worthy":true/false,"news":"觸發的新聞重點一句","title":"有點擊慾的影片標題","angle":"切入點：把時事連到量化/網格/風控+小白避雷的觀點"}}"""
+    import llm  # 共用路由：主供應商→失敗退回 fallback，換模型只改 env
+    txt = llm.complete(prompt, 800, json_mode=True)
+    m = re.search(r"\{.*\}", txt or "", re.S)
+    if not m:  # LLM 沒吐 JSON(偶發)→安全默認不做,別炸(對齊 prompt「有疑慮回 false」)
+        return {"worthy": False}
+    try:
+        return json.loads(m.group(0))
+    except Exception:  # noqa: BLE001  JSON 壞掉也一樣安全收尾
+        return {"worthy": False}
 
 
 def main() -> int:
-    if not API_KEY:
-        print("[FATAL] 無 ANTHROPIC_API_KEY", file=sys.stderr)
+    if not sc.has_llm_key():
+        print("[FATAL] 無任何 LLM 供應商 API key", file=sys.stderr)
         return 2
     seen = _load_seen()
     if _today_count(seen) >= MAX_PER_DAY:
@@ -137,20 +150,40 @@ def main() -> int:
         print("[時事] 無新鮮新聞。")
         return 0
 
-    try:
-        d = _judge([h["title"] for h in uniq])
-    except Exception as exc:  # noqa: BLE001
-        log_ops("時事部", f"⚠️ 判斷失敗：{str(exc)[:70]}")
-        print(f"[FATAL] 判斷失敗：{exc}", file=sys.stderr)
-        return 3
+    # 零成本關鍵字預篩:門檻本來就極高(多數批次全 worthy=false),沒有標題含「大事」字眼就別燒 LLM
+    BIG_KW = re.compile(r"暴跌|暴漲|崩盤|爆倉|清算|閃崩|腰斬|歷史新高|跳水|重挫|飆漲|Fed|FOMC|聯準|升息|降息|CPI|通膨|ETF|SEC|監管|禁令|破產|倒閉|駭|被盜|脫鉤|清盤|Pionex|派網|除權息|當沖|加權|萬[點八九]|跌停|漲停|斷頭|融資|法說|財報|護國神山|台股|大盤|\d{2,}\s*%|\$?\d[\d,]{4,}", re.I)
+    hot = [h for h in uniq if BIG_KW.search(h["title"])]
+    if not hot:
+        seen["ids"].extend(ids_now); _save_seen(seen)
+        print(f"[時事] {len(uniq)} 則新聞無「大事」關鍵字，零成本略過(不燒 LLM)。")
+        return 0
+
+    # 產標題若命中洗版骨架/與近期語意重複→重判(最多 3 次),仍不行就不產(2026-07 止血新聞旁路洗版)
+    hot_titles = [h["title"] for h in hot]
+    recent = sc.recent_titles(80)
+    d: dict = {}
+    for attempt in range(3):
+        try:
+            d = _judge(hot_titles)
+        except Exception as exc:  # noqa: BLE001
+            log_ops("時事部", f"⚠️ 判斷失敗：{str(exc)[:70]}")
+            print(f"[FATAL] 判斷失敗：{exc}", file=sys.stderr)
+            return 3
+        _t = d.get("title") or ""
+        if not d.get("worthy") or not _t:
+            break  # 不夠份量,不必重判
+        if not sc.topic_gate(_t, recent):
+            break  # 過閘,採用
+        print(f"[時事] 標題撞洗版骨架/語意重複,重判({attempt + 1}/3)：{_t[:36]}")
+        d = {}  # 迴圈跑完仍空=放棄本次
 
     # 不論是否採用，都把這批標題記為已看（避免下次重判同批）
     seen["ids"].extend(ids_now)
 
     if not d.get("worthy") or not d.get("title"):
         _save_seen(seen)
-        log_ops("時事部", "本次無夠份量時事，未產片")
-        print("[時事] 無夠份量的大事，不產片。")
+        log_ops("時事部", "本次無夠份量時事(或標題卡洗版閘)，未產片")
+        print("[時事] 無夠份量的大事、或標題過不了洗版閘，不產片。")
         return 0
 
     title, angle = d["title"], d.get("angle", "")

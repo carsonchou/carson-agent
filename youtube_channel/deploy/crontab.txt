@@ -1,40 +1,53 @@
 # Carson Quant 全自動雲端排程（伺服器時區 Asia/Taipei，台灣時間 UTC+8）
+# ⚠️ 此檔＝雲端 `crontab -l` 的真實同步版(2026-07-04 對齊)。動 cron 前先 `crontab -l` 抓雲端 diff,
+#    絕不要 `crontab deploy/crontab.txt` 直接覆蓋(雲端可能有此檔沒有的行);改雲端請外科手術式 patch。
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-# 金融時事優先：每 2 小時掃即時財經/加密新聞，有大事立刻產片（繞過排程，每日上限 3 支）
-0 * * * * /root/yt/run.sh scripts/news_dept.py >> /root/yt/logs/cron.log 2>&1
+# 金融時事優先：每 3 小時掃即時財經/加密新聞，有大事立刻產片（繞過排程，每日上限 3 支）
+0 */2 * * * /root/yt/run.sh scripts/news_dept.py >> /root/yt/logs/cron.log 2>&1
 # 05:30 情報 → 05:37 決策 → 06:07 製作(渲染) → 09:07 發布 → 09:3x~09:5x 後處理各部門
 # 競品深度學習(看100支/天)改在本機跑(雲端IP會被YouTube 429限流)，本機 QuantArsen_IntelLearn 學完SFTP推playbook回來；雲端這支只做輕量情報報告。
-30 5 * * * /root/yt/run.sh scripts/intel_dept.py --no-learn >> /root/yt/logs/cron.log 2>&1
+30 */6 * * * /root/yt/run.sh scripts/intel_dept.py --no-learn >> /root/yt/logs/cron.log 2>&1
 35 5 * * * /root/yt/run.sh scripts/traffic_dept.py >> /root/yt/logs/cron.log 2>&1
 37 5 * * * /root/yt/run.sh scripts/decision_dept.py >> /root/yt/logs/cron.log 2>&1
 # 白帽流量四招（都在製作 06:07 前跑完，產的題目當天就做成片；錯開 5 分避免同時寫 topic_bank.json）：
 # ⓪異常爆款偵測(1of10自架,餵寄生彈藥) ①搶首發熱點(插隊題庫最前) ②寄生競品爆款 ③長片切片漏斗
-40 5 * * * /root/yt/run.sh scripts/outlier_scan.py --top 20 >> /root/yt/logs/cron.log 2>&1
-45 5 * * * /root/yt/run.sh scripts/hotspot_dept.py --max 5 >> /root/yt/logs/cron.log 2>&1
-50 5 * * * /root/yt/run.sh scripts/parasite_titles.py --count 6 >> /root/yt/logs/cron.log 2>&1
-55 5 * * * /root/yt/run.sh scripts/shorts_funnel.py --max 1 --per 4 >> /root/yt/logs/cron.log 2>&1
-7 6 * * * /root/yt/run.sh scripts/produce_batch.py --manual --shorts 7 --long 1 --target 99999 --no-render >> /root/yt/logs/cron.log 2>&1
+40 5 * * * /root/yt/run.sh scripts/outlier_scan.py --top 20 --min-views 3000 --min-ratio 3 --days 150 >> /root/yt/logs/cron.log 2>&1
+20 */3 * * * /root/yt/run.sh scripts/hotspot_dept.py --max 8 >> /root/yt/logs/cron.log 2>&1
+50 5 * * * /root/yt/run.sh scripts/parasite_titles.py --count 8 >> /root/yt/logs/cron.log 2>&1
+55 5 * * * /root/yt/run.sh scripts/shorts_funnel.py --max 1 --per 6 >> /root/yt/logs/cron.log 2>&1
+# TradingView 全攻略課程:--next 依序餵下2個課程EP(由淺入深)、--review 挖2支熱門腳本拆穿(永動題源);都在製作前餵
+52 5 * * * /root/yt/run.sh scripts/tv_curriculum.py --next 2 >> /root/yt/logs/cron.log 2>&1
+54 5 * * * /root/yt/run.sh scripts/tv_curriculum.py --review 2 >> /root/yt/logs/cron.log 2>&1
+7 6 * * * /root/yt/run.sh scripts/produce_batch.py --manual --shorts 9 --long 3 --target 99999 --no-render >> /root/yt/logs/cron.log 2>&1
+# Short→長片精準連看:建 short_to_long.json(bigram題材相似度對應已發布短→長),發布前跑
+50 6 * * * /root/yt/run.sh scripts/build_short_to_long.py >> /root/yt/logs/cron.log 2>&1
+# 台股火力:真回測數據引擎(每天更新真數字)+ 四軌台股系列連載(產片前餵)
+0 4 * * * /root/yt/run.sh scripts/tw_stock_data.py >> /root/yt/logs/cron.log 2>&1
+52 5 * * * /root/yt/run.sh scripts/tw_stock_series.py --next 3 >> /root/yt/logs/cron.log 2>&1
 # 安全雙模式：雲端每15分渲染待辦(PC開著時平行加速,鎖防雙渲染)
 */15 * * * * flock -n /tmp/hr_cloud.lock /root/yt/run.sh scripts/hybrid_render.py --cloud --max 20 >> /root/yt/logs/cron.log 2>&1
 # 片庫品管評分（produce 後跑，供決策中心『🎬 片庫評分』分頁檢視＋退件重做）
 40 6 * * * /root/yt/run.sh scripts/quality_score.py >> /root/yt/logs/cron.log 2>&1
 # 自動記帳·固定成本（每天跑、同月只記一筆，冪等）
 10 3 * * * /root/yt/run.sh scripts/auto_cost.py >> /root/yt/logs/cron.log 2>&1
-# 黃金時段發布：台灣 Shorts 互動高峰＝午餐 12:30 + 晚間 20:30（取代原 09:07/21:07）
-30 12 * * * /root/yt/run.sh scripts/daily_publish.py --max 6 >> /root/yt/logs/cron.log 2>&1
-30 20 * * * /root/yt/run.sh scripts/daily_publish.py --max 6 >> /root/yt/logs/cron.log 2>&1
+# 本機每日快照關鍵 STUDIO json → STUDIO/_snapshots/日期/(留7天;補雲端 backups 被 SKIP 的安全網)
+5 4 * * * /root/yt/run.sh scripts/snapshot_studio.py >> /root/yt/logs/cron.log 2>&1
+# 本機模式:每天發布前對帳 ledger(比對頻道實際已發布,防重複發片)
+0 12 * * * /root/yt/run.sh scripts/reconcile_ledger.py >> /root/yt/logs/cron.log 2>&1
+# 黃金時段發布：台灣 Shorts 互動高峰＝午餐 12:30 + 晚間 20:30（取代原 09:07/21:07）;台股加量後 max 6→8
+30 12 * * * /root/yt/run.sh scripts/daily_publish.py --max 8 >> /root/yt/logs/cron.log 2>&1
+30 20 * * * /root/yt/run.sh scripts/daily_publish.py --max 8 >> /root/yt/logs/cron.log 2>&1
+# 台股收盤後覆盤情緒黃金窗口(13:30 收盤後,只交易日)
+40 13 * * 1-5 /root/yt/run.sh scripts/daily_publish.py --max 4 >> /root/yt/logs/cron.log 2>&1
+# 台股盤中盯盤即時撃(交易日多掃幾次財經新聞)
+35 9,11,13 * * 1-5 /root/yt/run.sh scripts/news_dept.py >> /root/yt/logs/cron.log 2>&1
 37 9 * * * /root/yt/run.sh scripts/retro_dept.py >> /root/yt/logs/cron.log 2>&1
 42 9 * * * /root/yt/run.sh scripts/hr_dept.py >> /root/yt/logs/cron.log 2>&1
 45 9 * * * /root/yt/run.sh scripts/organize_dept.py >> /root/yt/logs/cron.log 2>&1
 48 9 * * * /root/yt/run.sh scripts/promo_dept.py >> /root/yt/logs/cron.log 2>&1
 51 9 * * * /root/yt/run.sh scripts/thumbnail_dept.py >> /root/yt/logs/cron.log 2>&1
-# 留言部門：安全模板自動回覆(白名單句型,去重) + 仍產草稿
-54 9 * * * /root/yt/run.sh scripts/comment_dept.py --auto-reply-safe --max 10 >> /root/yt/logs/cron.log 2>&1
-# 完播率週報→回寫 completion_signals.json 餵決策(雲端現役:週一 00:30)
-30 0 * * 1 /root/yt/run.sh scripts/analytics_weekly.py >> /root/yt/logs/cron.log 2>&1
-# 舊片封面批次重生(make_cover 高質感封面):每天 02:00 補 60 支直到清空(配額安全)
-0 2 * * * /root/yt/run.sh scripts/cover_backfill.py --max 60 >> /root/yt/logs/cron.log 2>&1
+54 */2 * * * /root/yt/run.sh scripts/comment_dept.py --auto-reply-safe --max 10 >> /root/yt/logs/cron.log 2>&1
 57 9 * * * /root/yt/run.sh scripts/finance_dept.py >> /root/yt/logs/cron.log 2>&1
 5 10 * * * /root/yt/run.sh scripts/multipost_dept.py --max 50 >> /root/yt/logs/cron.log 2>&1
 # 跨平台真上傳(TikTok/IG via upload-post)：無 UPLOAD_POST_API_KEY 會優雅跳過，金鑰一到即生效
@@ -43,13 +56,46 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 30 10 * * * /root/yt/run.sh scripts/daily_check.py >> /root/yt/logs/cron.log 2>&1
 # 手機遠端指令台(Telegram，只聽授權對話)：每5分鐘讀指令，老闆出國用手機指揮全工作室
 */5 * * * * /root/yt/run.sh scripts/telegram_command.py >> /root/yt/logs/cron.log 2>&1
+# 公開名單磁鐵 bot(@CarsonQuant_message_bot,獨立於指令 bot):觀眾私訊→送回測檢核表+記名單
+*/5 * * * * /root/yt/run.sh scripts/tg_magnet.py >> /root/yt/logs/cron.log 2>&1
+# 名單磁鐵週報:每週一 10:00 群發「避雷雷達」給全名單(0 名單時自動空轉;把漏斗接上)
+0 10 * * 1 /root/yt/run.sh scripts/tg_magnet.py --digest >> /root/yt/logs/cron.log 2>&1
 30 4 * * 0 /root/yt/run.sh scripts/train_depts.py >> /root/yt/logs/cron.log 2>&1
 0 5 * * 0 /root/yt/run.sh scripts/topic_bank.py >> /root/yt/logs/cron.log 2>&1
 # 實驗格式招牌系列：每週一/四補一批已驗證會爆的骨架題目（我給機器人$X跑Y天 / A vs B）
-15 5 * * 1,4 /root/yt/run.sh scripts/experiment_series.py --count 6 >> /root/yt/logs/cron.log 2>&1
-# 爆款獵手：每天輕量盯爆款(出現破門檻就即時全押)，每週日完整拆解贏點回寫心法(贏點要週數據才準)
-45 10 * * * /root/yt/run.sh scripts/breakout_hunter.py --watch >> /root/yt/logs/cron.log 2>&1
+15 5 * * 1,4 /root/yt/run.sh scripts/experiment_series.py --count 8 >> /root/yt/logs/cron.log 2>&1
+# 爆款獵手：每2小時輕量盯爆款(破動態門檻即時全押)，每週日完整拆解贏點回寫心法(贏點要週數據才準)
+45 */2 * * * /root/yt/run.sh scripts/breakout_hunter.py --watch >> /root/yt/logs/cron.log 2>&1
 0 11 * * 0 /root/yt/run.sh scripts/breakout_hunter.py >> /root/yt/logs/cron.log 2>&1
+# 自我修復守護(每5分檢查關鍵服務/程序)
+*/5 * * * * /root/yt/self_heal.sh > /dev/null 2>&1
+# EP 實測系列預告(導流正片,每天2支)
 20 6 * * * /root/yt/run.sh scripts/ep_teaser.py --count 2 >> /root/yt/logs/cron.log 2>&1
+# EP 全自動：每天抓 Pionex 真實帳戶(funded 即自動帶真數字)
+18 6 * * * /root/yt/run.sh scripts/pionex_account.py >> /root/yt/logs/cron.log 2>&1
+# 公開檔案伺服器(供 IG/多平台抓 mp4)：每3分保活
 */3 * * * * /bin/bash /root/yt/fileserver.sh >/dev/null 2>&1
+# IG token 週更(避免 60 天過期)
 10 5 * * 1 /root/yt/run.sh scripts/ig_token_refresh.py
+# IG 舊片回填(每天補15支到 IG)
+# 回填近期 on-brand 舊片到 IG(策略:新片優先,舊片小量回填避洗版;預設 RENDER_CUTOFF 只補近期渲染、只打 ig)
+30 6 * * * /root/yt/run.sh scripts/ig_backfill.py --max 8
+# 完播率週報→回寫 completion_signals.json 餵決策(週一 00:30)
+30 0 * * 1 /root/yt/run.sh scripts/analytics_weekly.py
+# IG 健康檢查(每天 08:00/21:00 探 token+發布狀態)
+0 8,21 * * * /root/yt/run.sh scripts/ig_health_check.py >> /root/yt/logs/cron.log 2>&1
+# 舊片封面批次重生(make_cover 高質感封面):每天 02:00 補 60 支直到清空(配額安全)
+0 2 * * * /root/yt/run.sh scripts/cover_backfill.py --max 60 >> /root/yt/logs/cron.log 2>&1
+# 放大飛輪：贏家全押/好問題即產/輸家汰(每3小時,只動內部可逆檔)
+30 */3 * * * /root/yt/run.sh scripts/auto_loop.py >> /root/yt/logs/cron.log 2>&1
+# A/B 建議產生器(只產建議+本地變體圖,套用 live 需決策中心一鍵;絕不自動改標題/縮圖)
+0 3 * * * /root/yt/run.sh scripts/ab_title.py >> /root/yt/logs/cron.log 2>&1
+20 3 * * * /root/yt/run.sh scripts/ab_thumbnail.py --limit 6 >> /root/yt/logs/cron.log 2>&1
+# 數位產品 upsell(每天 11:00:對領檢核表滿24h的名單送低價試算表;未設 WORKSHEET_URL 只 dry 不實送)
+0 11 * * * /root/yt/run.sh scripts/tg_magnet.py --upsell >> /root/yt/logs/cron.log 2>&1
+# YPP 進度追蹤(每週一 00:50 誠實顯示四門檻距離 + ntfy)
+50 0 * * 1 /root/yt/run.sh scripts/ypp_tracker.py --notify >> /root/yt/logs/cron.log 2>&1
+# 每週贏家自動分析(每週一 01:10:觀看×完播×標題模式→回灌 traffic_signals 餵 prompt + 洗版洩漏監控)
+10 1 * * 1 /root/yt/run.sh scripts/weekly_winners.py --notify >> /root/yt/logs/cron.log 2>&1
+# 每日備份 STUDIO/token/ledger 到 backups/日期/(留最近7天)
+15 4 * * * cd /root/yt && d=backups/$(date +\%Y\%m\%d) && mkdir -p $d && cp STUDIO/*.json token_manage.json token_analytics.json uploaded_ledger.json $d/ 2>/dev/null; ls -dt backups/*/ 2>/dev/null | tail -n +8 | xargs -r rm -rf

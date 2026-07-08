@@ -25,10 +25,10 @@ except Exception:
     pass
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import studio_common as sc          # 共用地基：PERSONA / has_llm_key
+import llm                          # 共用 LLM 路由
 STUDIO = ROOT / "STUDIO"; REPORTS = STUDIO / "REPORTS"
 REPLIED_LOG = STUDIO / "comment_replied.json"
-API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
-MODEL = "claude-haiku-4-5-20251001"
 CHANNEL_ID = "UCqP5JQXlQR5ZDLtEiBt4kLA"
 try:
     from ops import log_ops
@@ -40,18 +40,18 @@ except Exception:
 # 類別 → 模板列表（index 0 為預設，未來可輪替）
 SAFE_TEMPLATES: dict[str, list[str]] = {
     "thanks": [
-        "謝謝支持！🙏",
-        "感謝收看，有幫助記得追蹤！",
-        "謝謝你的留言！你的鼓勵是最大動力 🙏",
+        "謝謝支持！🙏 怕被割的路上有你不孤單，一起慢慢學、穩穩走。",
+        "感謝收看！新手最需要的就是先看懂再進場，記得追蹤不迷路 🙏",
+        "謝謝你的留言！你的鼓勵是最大動力，會繼續幫大家踩雷 🙏",
     ],
     "question": [
-        "好問題！建議去看頻道裡的相關教學影片，有更詳細的說明 😊",
-        "這個問題很棒！之後我會出影片詳細解答，先追蹤不漏接 🔔",
+        "好問題！這種地方新手最容易被割，建議先看頻道相關教學再動手 😊",
+        "這問題很關鍵！之後我出片幫你把雷點講清楚，先追蹤不漏接 🔔",
     ],
     "interaction": [
-        "你目前用哪種交易方式？留言告訴我 👇",
-        "你的看法呢？歡迎在下方留言分享 👇",
-        "想了解更多？留言告訴我最想學哪個主題 👇",
+        "你目前是還在觀望、還是已經進場了？留言聊聊，別自己悶著踩雷 👇",
+        "你的看法呢？歡迎在下方留言，一起避開新手常踩的坑 👇",
+        "最想先搞懂哪個主題？留言告訴我，我幫你先試過再分享 👇",
     ],
 }
 
@@ -66,18 +66,18 @@ def tw_today():
 
 # ── 草擬回覆（原有功能，只用於預設草稿模式）────────────────────────────────────
 def draft_reply(comment):
-    if not API_KEY:
-        return "（無 ANTHROPIC_API_KEY，無法草擬）"
-    import requests
-    prompt = f"""你是量化阿森頻道的小編，回覆觀眾留言。誠信鐵則：理性顧問口吻、絕不保證收益、不喊單、不亂承諾、不報明牌。
+    if not sc.has_llm_key():
+        return "（無任何 LLM 供應商 key，無法草擬）"
+    prompt = f"""{sc.PERSONA}
+
+你是量化阿森頻道的小編，用理性顧問口吻回覆觀眾留言。
+誠信鐵則：絕不保證收益、不喊單、不亂承諾、不報明牌、不編造損益。
+語氣走『怕被割小白×實測避雷』(軟性)：能白話就白話、術語翻人話，站在新手怕虧的角度，
+必要時引導去看相關教學影片；若是抱怨就誠懇回應。
 觀眾留言：「{comment}」
-請寫一則 1-3 句、友善、有幫助的繁中回覆草稿（若是問題就簡短解惑或引導看相關影片；若是抱怨就誠懇回應）。只輸出回覆內容。"""
+請寫一則 1-3 句、友善、有幫助的繁體中文(台灣用字)回覆草稿。只輸出回覆內容。"""
     try:
-        r = requests.post("https://api.anthropic.com/v1/messages",
-                          headers={"x-api-key": API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json"},
-                          json={"model": MODEL, "max_tokens": 400, "messages": [{"role": "user", "content": prompt}]}, timeout=60)
-        r.raise_for_status()
-        return r.json()["content"][0]["text"].strip()
+        return llm.complete(prompt, 400).strip()
     except Exception as e:
         return f"（草擬失敗：{e}）"
 
@@ -94,28 +94,22 @@ def classify_by_keywords(text: str) -> str:
 
 
 def classify_with_haiku(text: str) -> str:
-    """Haiku 分類輔助（關鍵字歧義時才呼叫）。只做分類，不生成回覆內容，省 token。"""
-    if not API_KEY:
+    """LLM 分類輔助（關鍵字歧義時才呼叫）。只做分類，不生成回覆內容，省 token。
+    (沿用旗標名 --use-haiku；實際走共用 llm 路由，供應商由 env 決定。)"""
+    if not sc.has_llm_key():
         return "interaction"
-    import requests
     prompt = (
         "以下是 YouTube 觀眾留言，請只回答分類標籤（thanks/question/interaction），不要其他字。\n"
         "thanks=感謝/讚美留言；question=提問/求助留言；interaction=其他互動留言。\n"
         f"留言：{text[:200]}"
     )
     try:
-        r = requests.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={"x-api-key": API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json"},
-            json={"model": MODEL, "max_tokens": 20, "messages": [{"role": "user", "content": prompt}]},
-            timeout=30,
-        )
-        r.raise_for_status()
-        tag = r.json()["content"][0]["text"].strip().lower()
-        if tag in SAFE_TEMPLATES:
-            return tag
+        tag = llm.complete(prompt, 20).strip().lower()
+        for k in SAFE_TEMPLATES:
+            if k in tag:
+                return k
     except Exception as e:
-        print(f"[warn] Haiku 分類失敗，fallback interaction：{e}", file=sys.stderr)
+        print(f"[warn] LLM 分類失敗，fallback interaction：{e}", file=sys.stderr)
     return "interaction"
 
 
@@ -242,18 +236,87 @@ def draft_mode(yt) -> int:
         L += [f"## 💬 @{c['author']}（👍{c['likes']}）", f"> {c['text']}", f"**建議回覆：** {reply}", ""]
         if any(q in c["text"] for q in ("?", "？", "怎麼", "如何", "為什麼", "可以嗎")):
             questions.append(c["text"][:60])
+    added = 0
     if questions:
         L += ["## 🎯 可變成內容的觀眾問題（餵 ③靈感）", *[f"- {q}" for q in questions]]
+        # ── 斷鏈修復：真的把觀眾好問題寫進題庫（真實小白疑問＝最貼定位的選題來源）──
+        # 之前只寫進 md、沒進 topic_bank，靈感部永遠讀不到 → 這裡補上 add_topics。
+        try:
+            from topic_bank import add_topics
+            items = [{"title": q, "angle": "直接回答觀眾實際提問，走小白避雷角度（先幫你試、別自己送死）",
+                      "category": "觀眾問題", "format": "short", "priority": "comment"}
+                     for q in questions]
+            added = add_topics(items, source="comment", front=True)
+            L += ["", f"> ✅ 已將 {added} 個觀眾問題寫入題庫（source=comment，插隊優先製作）。"]
+        except Exception as e:  # noqa: BLE001
+            print(f"[warn] 觀眾問題寫入題庫失敗：{e}", file=sys.stderr)
+            L += ["", f"> ⚠️ 觀眾問題寫入題庫失敗：{e}"]
     (REPORTS / f"{date}_留言回覆草稿.md").write_text("\n".join(L), encoding="utf-8")
-    log_ops("社群留言", f"草擬 {len(comments)} 則回覆，挑出 {len(questions)} 個可用問題")
-    print(f"[ok] 留言回覆草稿完成：{len(comments)} 則、{len(questions)} 個可變內容問題。")
+    log_ops("社群留言", f"草擬 {len(comments)} 則回覆，挑出 {len(questions)} 個問題，{added} 個寫入題庫")
+    print(f"[ok] 留言回覆草稿完成：{len(comments)} 則、{len(questions)} 個問題、{added} 個已進題庫。")
     return 0
 
 
 # ── 進入點 ────────────────────────────────────────────────────────────────────
 
+# ── 自動置頂 CTA 留言(item8:Shorts 留言權重>訂閱,頻道主留言常被排到接近頂部)──
+# 注意:YouTube Data API 沒有公開「釘選留言」端點,釘選是 Studio 手動操作;本功能只「發」CTA 留言,
+# 能見度已比說明欄高很多,但「釘選」那步誠實標為人工(不假裝自動置頂)。
+_CTA_COMMENT = (
+    "📌 想要完整回測數據＋新手避雷檢核表?私訊我的 Telegram @CarsonQuant_message_bot 打「回測」,"
+    "免費送你「上真錢前 6 關檢核表」。有量化/網格/台股的問題也直接問我,我會看。"
+    "（投資有風險,不構成投資建議）"
+)
+
+
+def _cta_posted_load():
+    try:
+        from pathlib import Path as _P
+        p = _P(__file__).resolve().parent.parent / "STUDIO" / "comment_cta_posted.json"
+        return set(json.loads(p.read_text(encoding="utf-8"))) if p.exists() else set()
+    except Exception:  # noqa: BLE001
+        return set()
+
+
+def _cta_posted_save(posted):
+    try:
+        from pathlib import Path as _P
+        p = _P(__file__).resolve().parent.parent / "STUDIO" / "comment_cta_posted.json"
+        p.write_text(json.dumps(sorted(posted), ensure_ascii=False), encoding="utf-8")
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def post_cta_comment(yt, video_id: str, dry_run: bool = False) -> bool:
+    """在指定影片發一則頂層 CTA 留言(頻道身分)。dry_run 只印不發。回傳是否成功/會發。
+    釘選 API 做不到→發完 log 提醒人工釘選,不假裝自動置頂。"""
+    posted = _cta_posted_load()
+    if video_id in posted:
+        print(f"[skip] {video_id} 已發過 CTA 留言")
+        return False
+    if dry_run:
+        print(f"[dry-run] 會在 {video_id} 發 CTA 留言:\n  「{_CTA_COMMENT}」")
+        return True
+    try:
+        yt.commentThreads().insert(
+            part="snippet",
+            body={"snippet": {"videoId": video_id,
+                              "topLevelComment": {"snippet": {"textOriginal": _CTA_COMMENT}}}},
+        ).execute()
+        posted.add(video_id)
+        _cta_posted_save(posted)
+        print(f"[ok] {video_id} 已發 CTA 留言（釘選請人工:Studio 該片留言點置頂,API 無法自動）")
+        log_ops("社群留言部", f"發置頂 CTA 留言 {video_id}（釘選待人工）")
+        return True
+    except Exception as e:  # noqa: BLE001
+        print(f"[warn] 發 CTA 留言失敗 {video_id}：{e}", file=sys.stderr)
+        return False
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="comment_dept — 社群留言部")
+    parser.add_argument("--cta", metavar="VIDEO_ID", default=None,
+                        help="在指定影片發一則頂層 CTA 留言（配 --dry-run 只預覽）")
     parser.add_argument("--auto-reply-safe", action="store_true",
                         help="安全模板自動回覆模式（白名單句型，不讓 AI 自由生成回覆）")
     parser.add_argument("--dry-run", action="store_true",
@@ -269,6 +332,10 @@ def main() -> int:
         yt = yt_service()
     except Exception as e:
         print(f"[FATAL] 無法連 YouTube：{e}", file=sys.stderr); return 2
+
+    if args.cta:
+        post_cta_comment(yt, args.cta, dry_run=args.dry_run)
+        return 0
 
     if args.auto_reply_safe:
         n = auto_reply_safe(yt, max_replies=args.max_replies, dry_run=args.dry_run, use_haiku=args.use_haiku)

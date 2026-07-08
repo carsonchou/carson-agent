@@ -58,8 +58,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import random
 import re
+import shutil
 import sys
 import time
 from pathlib import Path
@@ -86,6 +88,62 @@ DEFAULT_CONFIG_PATH = PROJECT_ROOT / "channel_config.json"
 DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "output"
 DEFAULT_CLIENT_SECRETS = PROJECT_ROOT / "client_secrets.json"
 DEFAULT_TOKEN_PATH = PROJECT_ROOT / "token.json"
+
+
+# --------------------------------------------------------------------------- #
+# 資產檔名 SEO：把上傳到平台的檔名從內部 slug(L_/S_ 前綴)改成關鍵字檔名。
+# 誠實定調:檔名是弱訊號(未經官方證實),零成本零風險的微優化;真正帶量的是標題/縮圖/完播。
+# 影片 mp4、縮圖 jpg、字幕 srt、跨平台 都共用這支。任何失敗一律降級回原檔名,絕不擋上傳。
+# --------------------------------------------------------------------------- #
+def seo_asset_name(title: str, tags=None, ext: str = "mp4", fallback_slug: str = "") -> str:
+    """標題 → 關鍵字檔名(乾淨、連字號分隔、英文小寫、去 L_/S_/#/｜/括號、結尾品牌詞)。
+    tags 目前保留供日後熱搜詞前置增強;核心版不動排序,直接沿用已 SEO 過的標題。"""
+    ext = str(ext).lstrip(".") or "mp4"
+    try:
+        s = title or fallback_slug or "video"
+        s = re.sub(r"#\S+", " ", s)                                  # 去 hashtag(如 #Shorts)
+        s = re.sub(r"[^0-9A-Za-z一-鿿]+", " ", s)           # 只留中英數,其餘(括號/標點/符號/空白)→空白
+        s = "".join(c.lower() if ("a" <= c <= "z" or "A" <= c <= "Z") else c for c in s)  # 英文轉小寫
+        s = re.sub(r"\s+", "-", s.strip())                          # 空白 runs → 連字號
+        s = re.sub(r"-{2,}", "-", s).strip("-")
+        if "量化阿森" not in s:
+            s += "-量化阿森"
+        s = re.sub(r"-{2,}", "-", s).strip("-")
+        if len(s) > 70:                                             # 長度上限,切在連字號邊界
+            s = s[:70].rsplit("-", 1)[0] or s[:70]
+        s = s.strip("-")
+        if not s:
+            s = re.sub(r"[^0-9a-z一-鿿]+", "-", (fallback_slug or "video").lower()).strip("-") or "video"
+        return f"{s}.{ext}"
+    except Exception:  # noqa: BLE001
+        return f"{fallback_slug or 'video'}.{ext}"
+
+
+def link_as(src, upload_name: str):
+    """回 (target_path, cleanup)。在 src 同目錄建 .seoname/<upload_name> 硬連結供上傳(YouTube 讀 basename);
+    硬連結失敗→copy→原檔 三層降級。零複製、上傳後 cleanup()。任何失敗都回原檔,絕不擋上傳。"""
+    src = Path(src)
+    try:
+        d = src.parent / ".seoname"
+        d.mkdir(exist_ok=True)
+        target = d / upload_name
+        try:
+            if target.exists():
+                target.unlink()
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            os.link(str(src), str(target))                  # 硬連結:零複製、瞬間、同 inode
+        except Exception:  # noqa: BLE001
+            shutil.copy2(str(src), str(target))             # 跨檔案系統/不支援 → 複製
+        def _cleanup():
+            try:
+                target.unlink()
+            except Exception:  # noqa: BLE001
+                pass
+        return target, _cleanup
+    except Exception:  # noqa: BLE001
+        return src, (lambda: None)                          # 任何失敗 → 用原檔,不擋上傳
 
 # OAuth scope：上傳需要 youtube.upload；加 readonly 方便日後查頻道資訊。
 SCOPES = [
@@ -247,6 +305,19 @@ def build_affiliate_block(channel_config: dict[str, Any]) -> tuple[str, list[str
     return "\n".join(parts), unreplaced
 
 
+def build_funnel_block() -> str:
+    """組裝確定性附加的『導流漏斗＋風險聲明』區塊（比照 build_affiliate_block 的設計）。
+
+    ① Telegram 導流 CTA（把觀眾沉澱到私域）
+    ② 風險聲明（誠信鐵則，不可移除）
+    回傳純文字；是否去重由 assemble_metadata 依描述現況判斷。
+    """
+    return (
+        "📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」領避雷檢核表\n"
+        "投資有風險，不構成投資建議"
+    )
+
+
 def assemble_metadata(
     *,
     slug: str,
@@ -294,6 +365,25 @@ def assemble_metadata(
         block, unreplaced = build_affiliate_block(channel_config)
         if block:
             description = f"{description}\n\n{block}"
+
+    # 確定性附加『導流漏斗＋風險聲明』（不受 append_affiliate 影響，誠信/導流一律要在）。
+    # 去重：描述已含該 bot 名就不重覆加 CTA、已含該聲明就不重覆加風險聲明。
+    try:
+        desc_now = description or ""
+        add_lines: list[str] = []
+        for ln in build_funnel_block().split("\n"):
+            key = ln.strip()
+            if not key:
+                continue
+            if "CarsonQuant_message_bot" in key and "CarsonQuant_message_bot" in desc_now:
+                continue  # 已有 Telegram CTA，不重覆
+            if "不構成投資建議" in key and "不構成投資建議" in desc_now:
+                continue  # 已有風險聲明，不重覆
+            add_lines.append(ln)
+        if add_lines:
+            description = f"{description}\n\n" + "\n".join(add_lines)
+    except Exception:  # noqa: BLE001  漏斗附加失敗不可影響 metadata 組裝
+        pass
 
     return {
         "title": str(title),
@@ -370,27 +460,35 @@ def build_request_body(
 
 
 def upload_captions(youtube, video_id: str, srt_path, *,
-                    language: str = "zh-Hant", name: str = "中文（精準字幕）") -> bool:
+                    language: str = "zh-Hant", name: str = "中文（精準字幕）",
+                    upload_name: str = "") -> bool:
     """上傳 SRT 字幕軌到指定影片（captions.insert）。
 
     需 youtube.force-ssl scope（本產線 token 已含）。提供「人工精準」字幕軌，
     幫演算法判定主題、且中文金融術語(夏普/回撤/網格)正確，勝過自動字幕。
     非致命：任何錯誤回 False、不中斷上架流程。
+    upload_name 有值時 → 用關鍵字檔名硬連結送檔(檔名 SEO;失敗降級回原檔)。
     """
     try:
         from googleapiclient.http import MediaFileUpload
     except ImportError:
         return False
+    _cleanup = lambda: None
     try:
+        _path = Path(srt_path)
+        if upload_name:
+            _path, _cleanup = link_as(_path, upload_name)
         body = {"snippet": {
             "videoId": video_id, "language": language, "name": name, "isDraft": False}}
-        media = MediaFileUpload(str(srt_path), mimetype="application/octet-stream", resumable=False)
+        media = MediaFileUpload(str(_path), mimetype="application/octet-stream", resumable=False)
         youtube.captions().insert(part="snippet", body=body, media_body=media).execute()
         print(f"[caption] 已上傳精準字幕軌 {video_id}（{language}）")
         return True
     except Exception as exc:  # noqa: BLE001
         print(f"[caption] 字幕上傳略過：{str(exc)[:80]}", file=sys.stderr)
         return False
+    finally:
+        _cleanup()
 
 
 # --------------------------------------------------------------------------- #
@@ -707,8 +805,14 @@ def run(args) -> int:
         print(f"[error] 認證失敗：{exc}", file=sys.stderr)
         return 3
 
-    # 上傳。
-    video_id = resumable_upload(youtube, body, video_path)
+    # 上傳（檔名 SEO：送關鍵字檔名而非內部 slug;失敗降級回原檔,絕不擋上傳）。
+    _snip = body.get("snippet", {})
+    _seo = seo_asset_name(_snip.get("title", ""), _snip.get("tags"), "mp4", video_path.stem)
+    _p, _cleanup = link_as(video_path, _seo)
+    try:
+        video_id = resumable_upload(youtube, body, _p)
+    finally:
+        _cleanup()
     if not video_id:
         print("[error] 上傳失敗。", file=sys.stderr)
         return 4
