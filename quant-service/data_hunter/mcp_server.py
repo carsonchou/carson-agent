@@ -27,6 +27,7 @@ import query
 import realtime_quote
 import news as news_mod
 import ai_agents
+import valuation
 
 STATE_FILE = ROOT / "state.json"
 ZONES_FILE = ROOT / "state_zones.json"
@@ -182,6 +183,18 @@ def analyze_financials(code: str = "", text: str = "") -> dict:
     text 有內容時走「貼文模式」(貼財報/法說逐字稿優先分析)；text 空只給 code 時走「自動模式」
     (用最新財報數據自動組摘要分析)。financials 欄位一律為真實數據，非 LLM 生成。"""
     return ai_agents.filing_agent(code, text)
+
+
+# ── Tool 9：財務估值模型 ──────────────────────────────────────────────────────
+
+@mcp.tool()
+def valuation_model(code: str) -> dict:
+    """財務估值模型（Anthropic 金融 agent 範例的台股版第3支）：算出合理價參考區間
+    (便宜/合理/昂貴)，用 PE 法／殖利率法／PB 法／成長模型(PEG+穩定配息股Gordon)四法
+    交叉推估，取各法中位數；含現價落點(便宜~昂貴5級)、財務比率、EPS歷史近8季。
+    純數據計算(不靠LLM)，定位＝估值參考區間非投資建議，不喊單一目標價。
+    code 可輸入代號（2330）或中文名稱（台積電）。"""
+    return valuation.build_valuation(code)
 
 
 # ── Entry point ────────────────────────────────────────────────────────────

@@ -141,6 +141,42 @@ class Handler(SimpleHTTPRequestHandler):
                 return True
             self._send_json({"ok": bool(r), **(r or {})})
             return True
+        if path == "/api/valuation":
+            # 財務估值模型：合理價參考區間(便宜/合理/昂貴)＋四法明細＋財務比率＋EPS歷史。有界執行(60s)。
+            code = (qs.get("code", [""])[0] or "").strip()
+            if not code:
+                self._send_json({"ok": False, "error": "缺少 code"}, status=400)
+                return True
+            try:
+                import valuation
+                from concurrent.futures import ThreadPoolExecutor
+                with ThreadPoolExecutor(max_workers=1) as ex:
+                    res = ex.submit(valuation.build_valuation, code).result(timeout=60.0)
+                self._send_json({"ok": True, **res})
+            except Exception as e:
+                self._send_json({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
+            return True
+        if path == "/api/valuation_xlsx":
+            # 估值模型 Excel 下載：4 sheet。openpyxl 未裝/失敗一律回 JSON 錯誤，絕不 500 崩。
+            code = (qs.get("code", [""])[0] or "").strip()
+            if not code:
+                self._send_json({"ok": False, "error": "缺少 code"}, status=400)
+                return True
+            try:
+                import valuation
+                from concurrent.futures import ThreadPoolExecutor
+                with ThreadPoolExecutor(max_workers=1) as ex:
+                    body = ex.submit(valuation.build_valuation_xlsx, code).result(timeout=60.0)
+                self.send_response(200)
+                self.send_header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                self.send_header("Content-Disposition", f'attachment; filename="valuation_{code}.xlsx"')
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                self.wfile.write(body)
+            except Exception as e:
+                self._send_json({"ok": False, "error": f"Excel 產生失敗：{type(e).__name__}: {e}"}, status=500)
+            return True
 
         if path not in ("/api/stock", "/api/search", "/api/analyst", "/api/news",
                         "/api/quote", "/api/indices", "/api/zones", "/api/daytrade"):

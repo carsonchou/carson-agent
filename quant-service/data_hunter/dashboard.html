@@ -318,6 +318,40 @@
   .flRatio .frVal{font-family:var(--mono);font-weight:700;margin-top:2px;display:flex;align-items:center;gap:5px}
   .flRatio .frDot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
 
+  /* ════ 估值模型 · VALUATION ════ */
+  .vlInput{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+  .vlInput input{width:140px;background:rgba(255,255,255,.04);border:1px solid var(--line);color:var(--txt);
+    border-radius:6px;padding:8px 10px;font-family:var(--mono);font-size:13px}
+  .vlInput button{background:rgba(90,147,189,.15);border:1px solid rgba(90,147,189,.35);color:var(--acc);
+    padding:8px 14px;border-radius:6px;font-size:12px;cursor:pointer;font-family:var(--mono)}
+  .vlInput button:disabled{opacity:.4;cursor:default}
+  .vlPrice{font-family:var(--mono);font-size:15px;font-weight:700;color:var(--txt)}
+  .vlEmpty{color:var(--dim);font-size:13px;padding:20px;text-align:center;font-family:var(--mono)}
+  .vlPosRow{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+  .vlPosBadge{font-family:var(--mono);font-weight:700;font-size:13px;padding:4px 12px;border-radius:20px;border:1px solid}
+  .vlGap{font-family:var(--mono);font-size:12px;color:var(--dim)}
+  .vlBarWrap{position:relative;margin:10px 0 26px}
+  .vlBar{height:14px;border-radius:7px;background:linear-gradient(90deg,var(--dn),var(--dim) 50%,var(--up));
+    border:1px solid var(--line2)}
+  .vlMarker{position:absolute;top:-5px;width:2px;height:24px;background:var(--gold);
+    box-shadow:0 0 6px var(--gold);transform:translateX(-1px)}
+  .vlMarker::after{content:'現價';position:absolute;top:-16px;left:50%;transform:translateX(-50%);
+    font-size:10px;color:var(--gold);font-family:var(--mono);white-space:nowrap}
+  .vlTicks{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;color:var(--dim);margin-top:6px}
+  .vlTicks b{color:var(--txt);font-weight:700}
+  h3.vlSubTitle{font-size:11px;color:var(--dim);font-family:var(--mono);margin:16px 0 8px;letter-spacing:.5px}
+  .vlTable{width:100%;border-collapse:collapse;font-size:12px}
+  .vlTable th{text-align:left;color:var(--dim);font-family:var(--mono);font-weight:500;font-size:10.5px;
+    padding:6px 8px;border-bottom:1px solid var(--line2)}
+  .vlTable td{padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+  .vlTable td.vlAssume{color:var(--dim);font-size:11px;line-height:1.5}
+  .vlRatios{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-top:8px}
+  .vlEpsRow{display:flex;align-items:flex-end;gap:6px;height:80px;margin-top:8px}
+  .vlEpsBar{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:4px;height:100%}
+  .vlEpsBar .bar{width:100%;background:linear-gradient(180deg,var(--acc2),var(--acc));border-radius:3px 3px 0 0;min-height:2px}
+  .vlEpsBar .lbl{font-family:var(--mono);font-size:9.5px;color:var(--dim);white-space:nowrap}
+  .vlEpsBar .val{font-family:var(--mono);font-size:10px;color:var(--txt)}
+
   /* ════ 庫存 · PORTFOLIO ════ */
   .pfHead{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:12px 14px;margin:2px 0 14px;
     border:1px solid var(--line);border-radius:12px;background:linear-gradient(180deg,rgba(90,147,189,.05),rgba(255,255,255,.01))}
@@ -1158,6 +1192,7 @@
     <div class="tab" data-v="zones">交易專區 · TRADE ZONES</div>
     <div class="tab" data-v="research">每日研究 · RESEARCH</div>
     <div class="tab" data-v="filing">財報透視 · FILING</div>
+    <div class="tab" data-v="valuation">估值模型 · VALUATION</div>
     <div class="tab" data-v="daylive">當沖即時 · LIVE</div>
     <div class="tab" data-v="track">實盤戰績 · TRACK RECORD</div>
     <div class="tab" data-v="portfolio">庫存 · PORTFOLIO</div>
@@ -1309,6 +1344,22 @@
       </div>
       <div id="flResult" class="flResult"></div>
       <div class="zNote">AI 財報解讀僅供參考 · 非投資建議 · 資料來源含 LLM 生成內容</div>
+    </section>
+  </div>
+
+  <!-- ════ 估值模型 view（PE/殖利率/PB/成長模型四法交叉推估合理價區間） ════ -->
+  <div class="view" data-view="valuation">
+    <section class="panel">
+      <span class="corner tl"></span><span class="corner br"></span>
+      <h2>估值模型 · VALUATION　<span style="color:var(--faint);font-size:11px">PE·殖利率·PB·成長模型四法交叉 · 估值參考區間非投資建議 · 不喊目標價</span></h2>
+      <div class="vlInput">
+        <input id="vlCode" type="text" placeholder="股票代號(如 2330)">
+        <button id="vlRunBtn">▶ 估值</button>
+        <span id="vlPrice" class="vlPrice"></span>
+        <button id="vlXlsxBtn" class="vlXlsxBtn" disabled>⬇ 下載 Excel</button>
+      </div>
+      <div id="vlBody"><div class="rsEmpty">輸入股票代號後按「▶ 估值」查看合理價參考區間</div></div>
+      <div class="zNote">估值參考區間，基於公開財報推估，非投資建議，不保證。</div>
     </section>
   </div>
 
@@ -1964,6 +2015,7 @@ document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
   if(v==='zones')window.fetchZones&&window.fetchZones();
   if(v==='research')window.fetchResearch&&window.fetchResearch();
   if(v==='filing')window.fetchFiling&&window.fetchFiling();
+  if(v==='valuation')window.fetchValuation&&window.fetchValuation();
   if(v==='portfolio')window.renderPortfolio&&window.renderPortfolio();
   if(v==='daylive')window.fetchDaytrade&&window.fetchDaytrade();
 }));
@@ -3063,6 +3115,100 @@ if(SNAP){ loadHistory(); }
   }
   document.getElementById('flRunBtn')?.addEventListener('click', runFiling);
   window.fetchFiling=fetchFiling; window.runFiling=runFiling;
+
+  /* ════════════ 估值模型 · VALUATION（PE/殖利率/PB/成長模型四法交叉推估合理價區間） ════════════ */
+  let valuationData=null;
+  const VL_POS_COLOR={'便宜':'var(--dn)','偏低':'var(--dn)','合理':'var(--dim)','偏高':'var(--up)','昂貴':'var(--up)','資料不足':'var(--faint)'};
+  const VL_RATIO_LABELS={current_ratio:'流動比',debt_ratio:'負債比%',fcf:'FCF',roe:'ROE%(推估)',
+    gross_margin:'毛利率%',op_margin:'營益率%',dividend_yield:'殖利率%'};
+  async function fetchValuation(){
+    const code=(document.getElementById('vlCode')?.value||'').trim();
+    if(!code){ valuationData=null; renderValuation(); return; }
+    const btn=document.getElementById('vlRunBtn'), xbtn=document.getElementById('vlXlsxBtn');
+    const orig=btn?btn.textContent:''; if(btn){ btn.textContent='估值中…'; btn.disabled=true; }
+    if(xbtn) xbtn.disabled=true;
+    try{
+      const r=await fetch('/api/valuation?code='+encodeURIComponent(code),{cache:'no-store'});
+      const j=await r.json();
+      valuationData=(j&&j.ok!==false)?j:null;
+    }catch(e){ valuationData=null; }
+    if(btn){ btn.textContent=orig; btn.disabled=false; }
+    if(xbtn) xbtn.disabled=!(valuationData&&valuationData.code);
+    renderValuation();
+  }
+  function renderValuation(){
+    const priceBox=document.getElementById('vlPrice'), body=document.getElementById('vlBody');
+    if(!body) return;
+    if(!valuationData){
+      if(priceBox) priceBox.textContent='';
+      body.innerHTML='<div class="vlEmpty">尚無估值結果 · 輸入股票代號後按「▶ 估值」查看合理價參考區間</div>';
+      return;
+    }
+    const d=valuationData;
+    if(priceBox) priceBox.textContent=(d.name||d.code||'')+'　'+(d.price!=null?d.price:'—');
+    const rng=d.range||{}, methods=d.methods||[], ratios=d.ratios||{}, grade=ratios.grade||{}, eps=d.eps_history||[];
+
+    let posHtml='';
+    if(rng.cheap!=null||rng.fair!=null||rng.expensive!=null){
+      const color=VL_POS_COLOR[d.position]||'var(--dim)';
+      const gapVal=d.gap_to_fair_pct;
+      const gap=gapVal!=null?`${gapVal>0?'+':''}${gapVal}%`:'—';
+      posHtml=`<div class="vlPosRow">`+
+        `<span class="vlPosBadge" style="color:${color};border-color:${color};background:${color}1a">${d.position||'—'}</span>`+
+        `<span class="vlGap">距合理價 ${gap}</span></div>`;
+      const cheap=rng.cheap!=null?rng.cheap:(rng.fair!=null?rng.fair*0.8:0);
+      const expensive=rng.expensive!=null?rng.expensive:(rng.fair!=null?rng.fair*1.2:(cheap*1.2||1));
+      const px=d.price!=null?d.price:(rng.fair!=null?rng.fair:cheap);
+      const lo=Math.min(cheap,px)*0.95, hi=Math.max(expensive,px)*1.05;
+      let pct=50;
+      if(hi>lo) pct=Math.max(2,Math.min(98,(px-lo)/(hi-lo)*100));
+      posHtml+=`<div class="vlBarWrap"><div class="vlBar"></div><div class="vlMarker" style="left:${pct}%"></div></div>`+
+        `<div class="vlTicks"><span>便宜 <b>${rng.cheap!=null?rng.cheap:'—'}</b></span>`+
+        `<span>合理 <b>${rng.fair!=null?rng.fair:'—'}</b></span>`+
+        `<span>昂貴 <b>${rng.expensive!=null?rng.expensive:'—'}</b></span></div>`;
+    }else{
+      posHtml='<div class="vlEmpty">資料不足，無法算出合理價區間</div>';
+    }
+
+    const methodsRows=methods.map(m=>
+      `<tr><td>${m.name||''}</td><td>${m.cheap!=null?m.cheap:'—'}</td><td>${m.fair!=null?m.fair:'—'}</td>`+
+      `<td>${m.expensive!=null?m.expensive:'—'}</td><td class="vlAssume">${m.assume||''}</td><td>${m.source||''}</td></tr>`
+    ).join('');
+    const methodsHtml=methods.length?
+      `<h3 class="vlSubTitle">估值方法明細</h3><div style="overflow-x:auto"><table class="vlTable">`+
+      `<thead><tr><th>方法</th><th>便宜</th><th>合理</th><th>昂貴</th><th>假設</th><th>來源</th></tr></thead>`+
+      `<tbody>${methodsRows}</tbody></table></div>`
+      : '<div class="vlEmpty">四法皆無法算出(資料不足)</div>';
+
+    const ratioCards=Object.keys(VL_RATIO_LABELS).map(k=>{
+      const v=ratios[k], g=grade[k];
+      const dotColor=g?(FL_GRADE_COLOR[g]||'var(--faint)'):'var(--faint)';
+      return `<div class="flRatio"><div class="frLbl">${VL_RATIO_LABELS[k]}</div>`+
+        `<div class="frVal">${g?`<span class="frDot" style="background:${dotColor}"></span>`:''}${v!=null?v:'—'}${g?`（${g}）`:''}</div></div>`;
+    }).join('');
+    const ratiosHtml=`<h3 class="vlSubTitle">財務比率</h3><div class="vlRatios">${ratioCards}</div>`;
+
+    let epsHtml='';
+    if(eps.length){
+      const vals=eps.map(e=>e.eps).filter(v=>v!=null).map(Math.abs);
+      const mx=vals.length?Math.max(...vals,0.01):1;
+      const bars=eps.map(e=>{
+        const h=e.eps!=null?Math.max(4,Math.abs(e.eps)/mx*70):2;
+        return `<div class="vlEpsBar"><div class="val">${e.eps!=null?e.eps:'—'}</div>`+
+          `<div class="bar" style="height:${h}px"></div><div class="lbl">${e.q||''}</div></div>`;
+      }).join('');
+      epsHtml=`<h3 class="vlSubTitle">EPS 歷史(近${eps.length}季)</h3><div class="vlEpsRow">${bars}</div>`;
+    }
+
+    body.innerHTML=posHtml+methodsHtml+ratiosHtml+epsHtml;
+  }
+  document.getElementById('vlRunBtn')?.addEventListener('click', fetchValuation);
+  document.getElementById('vlCode')?.addEventListener('keydown', e=>{ if(e.key==='Enter') fetchValuation(); });
+  document.getElementById('vlXlsxBtn')?.addEventListener('click', ()=>{
+    const code=valuationData&&valuationData.code; if(!code) return;
+    window.location='/api/valuation_xlsx?code='+encodeURIComponent(code);
+  });
+  window.fetchValuation=fetchValuation;
 
   // 這些看板 widget 定義在本 IIFE，但主資料輪詢 render(d) 在另一個 script → 掛 window 供其呼叫
   Object.assign(window, {renderIndices, renderMStats, renderInstTop, renderRanks,
