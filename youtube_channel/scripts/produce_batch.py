@@ -42,7 +42,10 @@ MODEL = "claude-haiku-4-5-20251001"  # 便宜、寫腳本夠用
 
 GUARD = ("誠信鐵則：不編造個人損益、不保證收益、不喊單、絕不用『保證賺/穩賺不賠/一定賺』等詞；"
          "聯盟軟推＋風險聲明；教學與觀念為主。頻道＝量化阿森｜Carson Quant，繁體中文，"
-         "主題＝量化／自動交易（網格、定投、派網 Pionex、回測、風控）。")
+         "主題＝量化／自動交易（網格、定投、派網 Pionex、回測、風控）。"
+         "★【絕不捏造史實·誠信命脈】個股具體價位/歷史高低點/特定日期漲跌若非確定為真,"
+         "一律用『假設你套在高點』『假設從某價位』這種**假設語氣**,絕不把可能錯的具體數字斷言成史實"
+         "(例:別說『台積電2023高點1000元』這類可能造假的個股史實——寧可用假設情境或不提具體數字)。")
 
 # 量化內容嚴謹標準（蒸餾自 domain-quant-trading skill）：確保用語/公式正確、避開錯誤觀念，
 # 內容紮實可信＝頻道差異化。寫到相關主題時務必正確引用，不確定就不要硬講數字。
@@ -642,9 +645,16 @@ def _to_traditional(d):
     except Exception:
         return d  # 沒裝 opencc 就靠 prompt 約束(已加語言鐵律)
 
+    # s2twp 過度在地化白名單修正:交易語境「参数」該是「參數」,s2twp 卻轉成軟體慣用的「引數」(配音聽起來怪)
+    _TW_FIX = {"引數": "參數", "引數化": "參數化"}
+
     def conv(x):
         if isinstance(x, str):
-            return cc.convert(x)
+            y = cc.convert(x)
+            for a, b in _TW_FIX.items():
+                if a in y:
+                    y = y.replace(a, b)
+            return y
         if isinstance(x, list):
             return [conv(i) for i in x]
         if isinstance(x, dict):
