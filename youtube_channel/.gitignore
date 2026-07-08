@@ -10,6 +10,8 @@ token_*.json
 tunnel_url.json
 payment_info.json
 STUDIO/payment_info.json
+tiktok_state.json
+STUDIO/tiktok_state.json
 
 # ===== 備份/暫存檔(regenerable，別進版控；含 STUDIO 原子寫 .bak)=====
 *.bak
