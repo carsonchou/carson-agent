@@ -1024,7 +1024,19 @@ def _publish_now(slug: str):
         print(f"[時事發布] 失敗：{exc}", file=sys.stderr)
 
 
+def _load_env():
+    """直跑時把專案根 .env 併進 os.environ(cron 由 local_cron 載入,直跑沒有→LLM 找不到 key)。setdefault 不覆蓋 cron 環境。"""
+    envf = ROOT / ".env"
+    if envf.exists():
+        for ln in envf.read_text(encoding="utf-8", errors="replace").splitlines():
+            s = ln.strip()
+            if s and not s.startswith("#") and "=" in s:
+                k, v = s.split("=", 1)
+                os.environ.setdefault(k.strip(), v.strip())
+
+
 def main() -> int:
+    _load_env()
     ap = argparse.ArgumentParser()
     ap.add_argument("--shorts", type=int, default=4)
     ap.add_argument("--long", type=int, default=1)
