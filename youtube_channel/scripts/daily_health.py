@@ -99,6 +99,16 @@ def main() -> int:
         if not gm:
             warn.append("Gmail 缺")
 
+    # 稽核D修:analytics/OAuth token 健康(過期會讓 northstar/ypp/retention 靜默寫 null 無告警)
+    try:
+        import yt_analytics as _ya
+        ana_ok = bool(_ya.available())
+    except Exception:  # noqa: BLE001
+        ana_ok = False
+    lines.append(f"Analytics token: {'✓' if ana_ok else '✗ 失效(northstar/ypp/留存會靜默降級,去 auth_analytics 重授權)'}")
+    if not ana_ok:
+        warn.append("Analytics token 失效")
+
     bad = _json_integrity()
     lines.append(f"STUDIO json 完整性: {'✓ 全正常' if not bad else '✗ 壞檔=' + '、'.join(bad)}")
     if bad:

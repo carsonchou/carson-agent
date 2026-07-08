@@ -193,18 +193,19 @@ def main() -> int:
     feed_back(a)
     if "--no-seed" not in sys.argv:
         _auto_seed(a)
-    # 洗版洩漏基準線:首跑記住現有數(多為 gate 上線前的舊片,Carson 不碰);只有「超過基準」才是新洩漏、才報警
+    # 洗版洩漏監控:記「洩漏片標題集合」(非計數),只有出現『集合裡沒有的新標題』才報警。
+    # 稽核D修:原本用計數,片庫長大→180天窗納入更多舊洗版片→計數頂上去誤報🔴。改比標題身分=不誤報。
     st = sc.load_json_safe(STUDIO / "weekly_winners_state.json", {}) or {}
-    baseline = st.get("leak_baseline")
-    cur_leak = len(a["leaks"])
-    new_leak = cur_leak > baseline if isinstance(baseline, int) else False
-    if not isinstance(baseline, int) or cur_leak < baseline:
-        st["leak_baseline"] = cur_leak  # 首跑設基準;舊片被刪→基準下修
-        sc.save_json_atomic(STUDIO / "weekly_winners_state.json", st)
+    known = set(st.get("leak_titles") or [])
+    cur_titles = {(t or "") for v, r, s, t in a["leaks"]}
+    new_titles = cur_titles - known
+    new_leak = bool(new_titles) and bool(known)  # 首跑(known空)只建基準不報警
+    st["leak_titles"] = sorted(known | cur_titles)
+    sc.save_json_atomic(STUDIO / "weekly_winners_state.json", st)
     print(f"[ok] 週報寫入 {path}")
     print(f"[ok] 回灌 traffic_signals.json：贏家詞 {a['win_kw']}｜弱詞 {a['weak_kw']}")
-    print(f"[i] 洗版命中 {cur_leak} 支(基準 {baseline if isinstance(baseline,int) else cur_leak}=gate上線前舊片)"
-          + ("　🔴 有新洩漏!topic_gate 有漏要查" if new_leak else "　✅ 無新洩漏"))
+    print(f"[i] 洗版命中 {len(cur_titles)} 支(舊片基準,不報);本次新增洩漏 {len(new_titles)} 支"
+          + ("　🔴 有新洩漏!topic_gate 有漏要查:" + "、".join(list(new_titles)[:3]) if new_leak else "　✅ 無新洩漏"))
     if "--notify" in sys.argv:
         try:
             import notify
