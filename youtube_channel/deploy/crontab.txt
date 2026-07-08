@@ -91,11 +91,17 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # A/B 建議產生器(只產建議+本地變體圖,套用 live 需決策中心一鍵;絕不自動改標題/縮圖)
 0 3 * * * /root/yt/run.sh scripts/ab_title.py >> /root/yt/logs/cron.log 2>&1
 20 3 * * * /root/yt/run.sh scripts/ab_thumbnail.py --limit 6 >> /root/yt/logs/cron.log 2>&1
+# 每日工作室健檢(每天 09:00:憑證/json完整性/cron失敗/名單/洗版洩漏 → ntfy)
+0 9 * * * /root/yt/run.sh scripts/daily_health.py --notify >> /root/yt/logs/cron.log 2>&1
+# 北極星整合(每天 09:05:訂閱/觀看/各源收入/YPP缺口/飛輪贏家 → northstar.json + ntfy)
+5 9 * * * /root/yt/run.sh scripts/northstar.py --notify >> /root/yt/logs/cron.log 2>&1
 # 數位產品 upsell(每天 11:00:對領檢核表滿24h的名單送低價試算表;未設 WORKSHEET_URL 只 dry 不實送)
 0 11 * * * /root/yt/run.sh scripts/tg_magnet.py --upsell >> /root/yt/logs/cron.log 2>&1
 # YPP 進度追蹤(每週一 00:50 誠實顯示四門檻距離 + ntfy)
 50 0 * * 1 /root/yt/run.sh scripts/ypp_tracker.py --notify >> /root/yt/logs/cron.log 2>&1
 # 每週贏家自動分析(每週一 01:10:觀看×完播×標題模式→回灌 traffic_signals 餵 prompt + 洗版洩漏監控)
 10 1 * * 1 /root/yt/run.sh scripts/weekly_winners.py --notify >> /root/yt/logs/cron.log 2>&1
+# 逐段留存分析(每週一 01:20:找觀眾在影片幾成處流失→鉤子還是節奏問題→retention_insights.json)
+20 1 * * 1 /root/yt/run.sh scripts/retention_dept.py --top 10 --notify >> /root/yt/logs/cron.log 2>&1
 # 每日備份 STUDIO/token/ledger 到 backups/日期/(留最近7天)
 15 4 * * * cd /root/yt && d=backups/$(date +\%Y\%m\%d) && mkdir -p $d && cp STUDIO/*.json token_manage.json token_analytics.json uploaded_ledger.json $d/ 2>/dev/null; ls -dt backups/*/ 2>/dev/null | tail -n +8 | xargs -r rm -rf
