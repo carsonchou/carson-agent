@@ -234,11 +234,12 @@ def pull_topic(kind):
     def _rank(t):
         _ta = (t.get("title", "") or "") + (t.get("angle", "") or "")
         src = str(t.get("source", "")).lower()
+        flag = 0 if str(t.get("category", "")) in FLAGSHIP_CATS else 1  # 旗艦題最優先自動產(破圈押注·稽核B修:原本被墊底餓死)
         news_src = 1 if src in ("news", "hotspot", "breakout", "intel") else 0
         depri = 1 if t.get("deprioritized") else 0  # A5:含輸家詞的題被降權排最後
         seo = 0 if _seo_hit(_ta) else 1             # A2:含高意圖搜尋詞的題優先
         num = 0 if any(k in _ta for k in _NUM_KW) else 1
-        return (news_src, depri, seo, num)
+        return (flag, news_src, depri, seo, num)
     cand.sort(key=_rank)
     if cand:
         t = cand[0]
@@ -376,6 +377,7 @@ AI_COMPANY_RULES = """
 - 核心:誠實揭運作(部門怎麼分工、飛輪怎麼自己選題)+誠實揭限制/翻車(AI 會擺爛/選錯/想洗版被我擋)。**反造神**:不吹「AI 全自動躺賺」,講真實的難。
 - 誠信鐵律:不喊單、不報明牌、不保證收益、不誇大頻道規模;講的都是可查證的真實數字。護城河=我真的在跑這套,不是空談概念。
 - 收尾:訂閱鉤(想看這套 AI 公司下一步/翻車實錄先追蹤)。
+★【本題專注·嚴禁混題/編數字(旗艦最常翻車,務必守)】:①**只講「這個題目」本身的故事**,絕不硬塞「87%勝率回測」「過度擬合」「網格機器人」這類與本題無關的通用避雷內容來湊字數——那會變成兩題混在一起的四不像。②數字**只能用【本系統真實數據】給的**(訂閱37是『訂閱數』,絕不可曲解成『507支只有37支能用』);沒給的數字寧可不講也絕不編造。
 """
 
 
@@ -1054,6 +1056,8 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--format-focus", action="store_true",
                     help="D2:短片強制走最強格式模板(金額對比+損失框架),30天衝流量用")
+    ap.add_argument("--flagship", action="store_true",
+                    help="旗艦:--topic 搭此旗標→走 AI公司揭密揭密格式+注入本系統真實數字")
     ap.add_argument("--shorts", type=int, default=4)
     ap.add_argument("--long", type=int, default=1)
     ap.add_argument("--target", type=int, default=15)
@@ -1073,10 +1077,12 @@ def main() -> int:
             print("[FATAL] 找不到 ANTHROPIC_API_KEY 環境變數。", file=sys.stderr)
             return 2
         slug_made = None
+        _tov = {"title": args.topic, "angle": args.angle or ""}
+        if getattr(args, "flagship", False):
+            _tov["category"] = "AI公司揭密"  # 觸發 is_flagship→AI_COMPANY_RULES+_system_facts 真數據注入
         for t in range(2):
             try:
-                slug_made = make_one("short", no_render=args.no_render,
-                                     topic_override={"title": args.topic, "angle": args.angle or ""})
+                slug_made = make_one("short", no_render=args.no_render, topic_override=_tov)
                 if slug_made:
                     break
             except Exception as exc:  # noqa: BLE001
