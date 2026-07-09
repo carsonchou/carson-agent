@@ -153,7 +153,9 @@ def feed_back(a):
 
 
 def _auto_seed(a):
-    """A5 飛輪自動行動:①用本週贏家詞主動增產 8 題(過 topic_gate 才入庫)②把題庫中含輸家詞的未用題標降權。"""
+    """A5 飛輪自動行動:①用本週贏家詞主動增產 8 題(過 topic_gate 才入庫;P2 破局計畫:同『濫用家族』
+    (動作詞+生活比喻詞,如『定投×賓士』)近 7 天已達週上限的候選題不回灌,堵住飛輪把單一贏家詞
+    洗成新洗版的源頭)②把題庫中含輸家詞的未用題標降權。"""
     try:
         import topic_bank as tb
     except Exception:  # noqa: BLE001
@@ -162,8 +164,22 @@ def _auto_seed(a):
     try:
         recent = sc.recent_titles(80)
         items = tb.gen_topics(8, recent, bias_keywords=a.get("win_kw"))
-        n = tb.add_topics(items, source="flywheel") if items else 0  # add_topics 內建 topic_gate
-        print(f"[flywheel] 自動增產贏家題:入庫 {n} 題(偏 {a.get('win_kw', [])[:5]})")
+        keep, capped = [], 0
+        for it in (items or []):
+            title = (it.get("title") or "").strip()
+            if title and sc.check_skeleton_frequency(title):
+                capped += 1
+                continue
+            keep.append(it)
+        n = tb.add_topics(keep, source="flywheel") if keep else 0  # add_topics 內建 topic_gate
+        for it in keep:  # 記錄本次已回灌的家族,累積週上限計數(即使該題最終被 add_topics 內部去重擋下也算嘗試回灌過)
+            title = (it.get("title") or "").strip()
+            if title:
+                sc.record_skeleton_produced(title)
+        msg = f"[flywheel] 自動增產贏家題:入庫 {n} 題(偏 {a.get('win_kw', [])[:5]})"
+        if capped:
+            msg += f"；{capped} 題同骨架家族已達週上限被擋"
+        print(msg)
     except Exception as e:  # noqa: BLE001
         print(f"[flywheel] 增產略過:{str(e)[:70]}", file=sys.stderr)
     # ② 降權輸家題(題庫中未用、標題含輸家詞→deprioritized,pull_topic 排最後)

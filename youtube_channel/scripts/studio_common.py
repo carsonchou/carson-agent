@@ -117,16 +117,47 @@ def is_banned_skeleton(title: str) -> bool:
     return any(p.search(title or "") for p in BANNED_SKELETONS)
 
 
+# ── 事件識別維度(P3 破局計畫:_norm_skeleton 抽掉幣種+血詞後,「不同事件同動作」
+#    如『BTC-ETF-上市』vs『BTC-暴跌』會塌縮成同一骨架被 topic_gate 誤判重複,連帶吃掉
+#    trend_hijack 改寫題。修法:粗分類新聞事件屬性當第二維度——兩者都有明確且不同的事件標籤
+#    時不視為重複(即使去骨架後文字相似);同一事件(標籤相同或雙方都無標籤)才繼續比骨架相似度,
+#    真正的『同事件同句式洗版』(如換血詞的爆倉還活著)仍會被擋 )──
+_EVENT_CATS = (
+    ("EVT_LISTING", r"上市|掛牌|通過|核准|批准|放行|開放交易|新增交易對|IPO"),
+    ("EVT_CRASH", r"暴跌|崩盤|崩千點|狂瀉|閃崩|重挫|急殺|插針"),
+    ("EVT_LIQUIDATION", r"爆倉|爆仓|血洗|清算|強平|歸零|归零"),
+    ("EVT_SURGE", r"暴漲|暴涨|噴出|創高|創新高|突破"),
+    ("EVT_HACK", r"駭客|盜幣|盗币|被盜|遭駭|漏洞"),
+    ("EVT_REGULATION", r"監管|管制|禁令|SEC|立法|課稅|課税"),
+    ("EVT_WHALE", r"鯨魚|大戶|機構買|機構賣|巨鯨"),
+)
+
+
+def _event_tag(t: str) -> str:
+    """粗分類新聞事件屬性(供 topic_gate 保留『事件識別』維度);無命中回空字串(視為無特定事件,
+    不因此鬆綁去重——雙方都無標籤時仍照骨架相似度判斷)。"""
+    t = t or ""
+    for tag, pat in _EVENT_CATS:
+        if _re.search(pat, t):
+            return tag
+    return ""
+
+
 def topic_gate(title: str, recent=None, thr: float = 0.72) -> bool:
-    """True = 該題應被擋下:①命中禁用骨架,或 ②與 recent 任一標題的語意骨架相似度 >= thr。
+    """True = 該題應被擋下:①命中禁用骨架,或 ②與 recent 任一標題的語意骨架相似度 >= thr
+    (且雙方事件標籤相同或至少一方無標籤——不同新聞事件不互判重複)。
     recent:近期已發布/已入庫標題清單(比對語意重複);不傳則只擋禁用骨架。"""
     if is_banned_skeleton(title):
         return True
     ns = _norm_skeleton(title)
     if not ns:
         return False
+    tag = _event_tag(title)
     for r in (recent or []):
         try:
+            r_tag = _event_tag(r)
+            if tag and r_tag and tag != r_tag:
+                continue  # P3:兩者都有明確且不同的事件標籤 → 不同新聞事件,不判重複
             if _SeqMatch(None, ns, _norm_skeleton(r)).ratio() >= thr:
                 return True
         except Exception:  # noqa: BLE001
@@ -147,6 +178,77 @@ def recent_titles(n: int = 80) -> list:
                     if t:
                         out.append(str(t))
     return out[-n:] if n else out
+
+
+# ── P2 滾動骨架頻率上限(2026-07 破局計畫:BANNED_SKELETONS 只擋舊幣圈洗版樣板;
+#    「定投×少賺一臺賓士」這類新洗版每次換不同數字/不同包裝措辭,_too_similar(0.82) 與
+#    topic_gate 的全文骨架相似度都因措辭差異攔不到,近批複製到 5+ 支。用「動作詞+生活比喻詞」
+#    抽出比全文相似度更粗的『家族指紋』,對近 7 天內同家族設每週上限,超過就要求換家族。
+#    只有命中已知濫用家族(動作/比喻詞)的標題才計入,一般標題不受影響、不誤殺贏家公式單支)──
+_SK_ACTION_WORDS = ("定投", "網格", "複利", "停損", "停利", "回測", "存股", "當沖",
+                     "馬丁格爾", "凱利", "夏普", "微笑曲線")
+_SK_LIFE_METAPHOR = ("賓士", "手搖", "便當", "一頓", "一杯", "一台", "一輛", "一年", "一個月薪")
+_SKELETON_FREQ_FILE = "skeleton_freq_state.json"
+
+
+def _skeleton_family(title: str) -> str:
+    """粗粒度『濫用家族指紋』:動作詞+生活比喻詞命中(不看數字/其餘措辭)。
+    兩者皆無命中則回空字串("" = 非已知濫用家族,不參與頻率上限,避免誤殺一般題)。"""
+    t = title or ""
+    action = next((w for w in _SK_ACTION_WORDS if w in t), "")
+    life = next((w for w in _SK_LIFE_METAPHOR if w in t), "")
+    if not action and not life:
+        return ""
+    return f"{action}|{life}"
+
+
+def check_skeleton_frequency(title: str, cap: int = 3, window_days: int = 7) -> bool:
+    """True = 該標題所屬『濫用家族』近 window_days 天已達週上限,應擋下/要求換家族。
+    只讀 STUDIO/skeleton_freq_state.json(由 record_skeleton_produced 寫入的時間戳);
+    非已知家族(_skeleton_family 回空)一律放行(不誤殺)。"""
+    fam = _skeleton_family(title)
+    if not fam:
+        return False
+    st = load_json_safe(STUDIO / _SKELETON_FREQ_FILE, {}) or {}
+    events = st.get(fam) or []
+    cutoff = time.time() - window_days * 86400
+    recent = [e for e in events if isinstance(e, (int, float)) and e >= cutoff]
+    return len(recent) >= cap
+
+
+def record_skeleton_produced(title: str) -> None:
+    """標題確定產出/入庫後呼叫,記一筆時間戳到所屬濫用家族(供 check_skeleton_frequency 計數)。
+    非已知家族(_skeleton_family 回空)不記錄。自帶清理:超過 30 天的舊紀錄丟棄,state 檔不會無限長大。"""
+    fam = _skeleton_family(title)
+    if not fam:
+        return
+    st = load_json_safe(STUDIO / _SKELETON_FREQ_FILE, {}) or {}
+    cutoff = time.time() - 30 * 86400
+    events = [e for e in (st.get(fam) or []) if isinstance(e, (int, float)) and e >= cutoff]
+    events.append(time.time())
+    st[fam] = events
+    save_json_atomic(STUDIO / _SKELETON_FREQ_FILE, st)
+
+
+def skeleton_similar(a: str, b: str, thr: float = 0.78) -> bool:
+    """P2 補強:『同模板換數字/題材名』複製偵測——用去數字+去題材名/血詞後的骨架(_norm_skeleton)
+    比對相似度(補 _too_similar 只去數字、topic_gate 只用於 crypto 來源的缺口)。
+    沿用 P3 的事件識別維度:兩者都有明確且不同的事件標籤時不視為重複。"""
+    na, nb = _norm_skeleton(a), _norm_skeleton(b)
+    if not na or not nb:
+        return False
+    ta, tb = _event_tag(a), _event_tag(b)
+    if ta and tb and ta != tb:
+        return False
+    try:
+        return _SeqMatch(None, na, nb).ratio() >= thr
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def skeleton_dup_any(title: str, existing, thr: float = 0.78) -> bool:
+    """title 是否與 existing(標題清單)中任一標題骨架相似(見 skeleton_similar)。"""
+    return any(skeleton_similar(title, e, thr) for e in (existing or []))
 
 
 # ── 共用人設(軟性新定位;各部門把這段貼進自己的 system/prompt 開頭)──
