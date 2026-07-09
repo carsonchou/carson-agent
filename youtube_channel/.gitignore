@@ -31,6 +31,8 @@ output/*.mp4
 # 保留腳本與配音稿（純文字、可進版控）
 !output/*.md
 !output/*.voice.txt
+# set_private_leaks.py 等維運腳本自動產出的報告，重生成即可，不進版控
+output/privacy_reports/
 
 # ===== 暫存 =====
 assets/cache/
