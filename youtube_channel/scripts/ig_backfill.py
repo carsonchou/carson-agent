@@ -84,12 +84,22 @@ def pending(platform: str, skip_cutoff: bool = False) -> list:
         return []
     up = _load(UP_LEDGER)
     led = _load(LEDGER_PATH[platform])
+    try:
+        import studio_common as _sc
+        _banned = _sc.is_banned_skeleton
+    except Exception:  # noqa: BLE001
+        def _banned(_t):
+            return False
     out = []
     for slug in up:
         if not slug.startswith("S_"):
             continue
+        if slug.endswith("_ytcta"):
+            continue  # 衍生片尾卡檔,非原片
         if slug in led:
             continue
+        if _banned(slug):
+            continue  # 洗版骨架舊片(爆倉還活著等),不跨發到 IG
         mp4 = OUT / f"{slug}.mp4"
         if not mp4.exists():
             continue
