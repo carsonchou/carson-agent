@@ -5,7 +5,9 @@
 暗色·手機優先·自足 HTML。讀 channel_config.affiliates 動態產(只列 url 有填的聯盟)。
 區塊:YT訂閱 / 免費檢核表(TG) / 多聯盟(誠實揭露) / 產品階梯(私訊索取·不放帳號) / 打賞 / 接案詢價 / 風險聲明。
 誠信:零保證收益、零逼單;聯盟附「不增加你成本+可能虧+抽手續費%」揭露。
-輸出 assets/landing/index.html。Carson 托管 Carrd/Netlify→設 IG/TikTok bio。
+輸出完整 HTML 文件(含 charset+viewport,手機優先)。已托管 GitHub Pages:
+https://carsonchou.github.io/carson-quant-link/(公開 repo carsonchou/carson-quant-link 只含此 index.html)。
+更新:重跑本腳本後,把 assets/landing/index.html 覆蓋到該 repo clone 再 git push 即重新部署。
 """
 from __future__ import annotations
 import json
@@ -50,16 +52,13 @@ def build() -> Path:
     if tips:
         rows.append(_btn(tips, "☕ 請我喝杯咖啡(打賞)", "", "#c9a"))
 
-    html = f"""<div class="wrap">
-  <header>
-    <div class="logo">量化阿森</div>
-    <p class="tag">不喊單 · 只認數據 · 幫你避雷</p>
-  </header>
-  <main>
-    {"".join(rows)}
-  </main>
-  <footer>投資有風險,本頁內容為教學/資訊,不構成投資建議、不保證收益。聯盟連結:透過它註冊不增加你的成本,也支持頻道做真數據內容。</footer>
-</div>
+    html = f"""<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>量化阿森｜Carson Quant · 連結中心</title>
+<meta name="description" content="量化阿森 Carson Quant：不喊單、只認數據、幫你避雷。訂閱 YouTube、免費領回測避雷檢核表、實測工具。">
 <style>
   :root{{color-scheme:dark}}
   body{{margin:0;background:#0a0c10;color:#eee;font-family:-apple-system,"Noto Sans TC",sans-serif}}
@@ -74,7 +73,21 @@ def build() -> Path:
   .btn:active{{transform:scale(.98)}}
   .btn .sub{{font-size:12.5px;color:#9a9aa0;font-weight:400}}
   footer{{margin-top:30px;text-align:center;color:#6a6a70;font-size:11.5px;line-height:1.7}}
-</style>"""
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">量化阿森</div>
+    <p class="tag">不喊單 · 只認數據 · 幫你避雷</p>
+  </header>
+  <main>
+    {"".join(rows)}
+  </main>
+  <footer>投資有風險,本頁內容為教學/資訊,不構成投資建議、不保證收益。聯盟連結:透過它註冊不增加你的成本,也支持頻道做真數據內容。</footer>
+</div>
+</body>
+</html>"""
     DEST.parent.mkdir(parents=True, exist_ok=True)
     DEST.write_text(html, encoding="utf-8")
     return DEST
