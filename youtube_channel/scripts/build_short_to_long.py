@@ -51,7 +51,16 @@ def build() -> dict:
     if not isinstance(ledger, dict):
         ledger = {}
     longs = [k for k in ledger if k.startswith("L_") and ledger.get(k)]
+    # 短片鍵集=已發布 Short + 「已渲染待上架」Short(output 有 voice.txt 但還沒進 ledger)。
+    # 只收已發布會與 _long_link_for(在 Short 即將上架、尚未進 ledger 當下查詢)鍵集互斥→連結永遠 fallback 首頁。
     shorts = [k for k in ledger if k.startswith("S_") and ledger.get(k)]
+    _seen = set(shorts)
+    for _f in (ROOT / "output").glob("S_*.voice.txt"):
+        _slug = _f.name[:-len(".voice.txt")]
+        if _slug.endswith("_ytcta") or _slug in _seen:
+            continue
+        _seen.add(_slug)
+        shorts.append(_slug)
     mapping: dict = {}
     if longs and shorts:
         long_bg = {l: _bigrams(l) for l in longs}
