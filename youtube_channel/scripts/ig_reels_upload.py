@@ -121,10 +121,15 @@ def publish(slug: str) -> str | None:
         print("[FATAL] 缺 IG_USER_ID / IG_ACCESS_TOKEN", file=sys.stderr); return None
     if not VIDEO_BASE:
         print("[FATAL] 缺 IG_VIDEO_BASE(公開影片網址)", file=sys.stderr); return None
-    mp4 = OUT / f"{slug}.mp4"
-    if not mp4.exists():
-        print(f"[FATAL] 找不到 {mp4}", file=sys.stderr); return None
-    video_url = f"{VIDEO_BASE}/{quote(slug + '.mp4')}"
+    if not (OUT / f"{slug}.mp4").exists():
+        print(f"[FATAL] 找不到 {slug}.mp4", file=sys.stderr); return None
+    # 片尾接「訂閱量化阿森 YouTube」CTA(只 IG 版,YT 原片不動);失敗退回原片
+    try:
+        import append_yt_cta
+        mp4 = append_yt_cta.append_cta(slug)
+    except Exception:  # noqa: BLE001
+        mp4 = OUT / f"{slug}.mp4"
+    video_url = f"{VIDEO_BASE}/{quote(mp4.name)}"
     if not tunnel_healthy(video_url):
         print("[skip] tunnel 不通,跳過延後(不硬打 Meta API)")
         return None

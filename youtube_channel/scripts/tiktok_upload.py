@@ -74,17 +74,23 @@ def _caption(slug: str) -> str:
             tags = re.findall(r"#\S+", h.group(1))
     if not tags:
         tags = ["#量化交易", "#台股", "#投資理財", "#回測", "#股票"]
-    return (title + "\n" + " ".join(tags[:8]))[:2100]
+    yt = "▶️ 完整版+每日更新在 YouTube 搜尋「量化阿森」訂閱 🔔"
+    return (title + "\n" + yt + "\n" + " ".join(tags[:8]))[:2100]
 
 
 def _upload_one(slug: str, dry: bool = False) -> bool:
-    mp4 = OUT / f"{slug}.mp4"
-    if not mp4.exists():
-        print(f"[tiktok] 找不到 {mp4.name}", file=sys.stderr)
+    if not (OUT / f"{slug}.mp4").exists():
+        print(f"[tiktok] 找不到 {slug}.mp4", file=sys.stderr)
         return False
     if not STATE.exists():
         print("[tiktok] 無 tiktok_state.json(尚未登入)。請開瀏覽器登入 TikTok 存 session。", file=sys.stderr)
         return False
+    # 片尾接「訂閱量化阿森 YouTube」CTA(只加在 TikTok 版,YT 原片不動);失敗自動退回原片
+    try:
+        import append_yt_cta
+        mp4 = append_yt_cta.append_cta(slug)
+    except Exception:  # noqa: BLE001
+        mp4 = OUT / f"{slug}.mp4"
     cap = _caption(slug)
     print(f"[tiktok] 準備上傳 {slug}｜caption: {cap[:40]}…")
     if dry:
