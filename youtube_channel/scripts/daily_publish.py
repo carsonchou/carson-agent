@@ -42,6 +42,8 @@ THUMBS = PROJECT_ROOT / "assets" / "thumbnails"
 LEDGER = PROJECT_ROOT / "STUDIO" / "uploaded_ledger.json"
 REPORTS = PROJECT_ROOT / "STUDIO" / "REPORTS"
 QSCORES = PROJECT_ROOT / "STUDIO" / "quality_scores.json"
+PUBLISH_PRIORITY = PROJECT_ROOT / "STUDIO" / "publish_priority.json"  # 選填：礦脈/新片優先旗標(slug清單)
+PUBLISH_SKIP = PROJECT_ROOT / "STUDIO" / "publish_skip.json"  # 選填：跳過發布清單({slug:理由})，可逆
 IG_LEDGER = PROJECT_ROOT / "STUDIO" / "ig_ledger.json"
 FB_LEDGER = PROJECT_ROOT / "STUDIO" / "fb_ledger.json"
 THREADS_LEDGER = PROJECT_ROOT / "STUDIO" / "threads_ledger.json"
@@ -192,19 +194,64 @@ def _char_sim(a: str, b: str) -> float:
     return len(sa & sb) / max(len(sa), len(sb))
 
 
+def _load_priority_set() -> set:
+    """讀『礦脈/新片優先』旗標(STUDIO/publish_priority.json，選填，查無就回空集合＝行為不變)。
+    只影響排序位置，不繞過下游品質門檻/audit——沒分數的片仍會被 main() fail-closed 隔離。"""
+    d = load_json_safe(PUBLISH_PRIORITY, default={}) or {}
+    slugs = d.get("slugs") if isinstance(d, dict) else d
+    if isinstance(slugs, dict):
+        return set(slugs.keys())
+    if isinstance(slugs, list):
+        return set(slugs)
+    return set()
+
+
+def _load_skip_set() -> set:
+    """讀『跳過發布』清單(STUDIO/publish_skip.json，選填，查無就回空集合＝行為不變)。
+    可逆：把 slug 從 json 移除即恢復候選資格，不動實際 mp4 檔案。"""
+    d = load_json_safe(PUBLISH_SKIP, default={}) or {}
+    slugs = d.get("slugs") if isinstance(d, dict) else d
+    if isinstance(slugs, dict):
+        return set(slugs.keys())
+    if isinstance(slugs, list):
+        return set(slugs)
+    return set()
+
+
 def find_candidates(ledger: dict) -> list:
     # 高分先發：Shorts(衝YPP)優先，組內依品質分數由高到低；其次長片同理。
     qmap, _ = load_quality()
-    shorts, longs = [], []
+    priority = _load_priority_set()
+    skip = _load_skip_set()
+    shorts, longs, mtimes = [], [], {}
     for f in list(OUTPUT.glob("S_*.mp4")) + list(OUTPUT.glob("L_*.mp4")):
         slug = f.stem
-        if slug in ledger:
+        if slug in ledger or slug in skip:
             continue
         if f.stat().st_size < 100 * 1024:
             continue
+        mtimes[slug] = f.stat().st_mtime
         (shorts if slug.startswith("S_") else longs).append(slug)
-    shorts.sort(key=lambda s: -(qmap.get(s, 0) or 0))
-    longs.sort(key=lambda s: -(qmap.get(s, 0) or 0))
+
+    def _key(s: str):
+        # 有分數：一律照真分數 desc 排(維持原行為，已評高分的真好片永遠排該有的位置，
+        # 優先旗標不會讓分數更低的片插隊到它前面)。
+        # 沒分數(新產片還沒被 quality_score.py 掃到，qmap 裡連 key 都沒有)：不再預設 0分
+        # (0 比任何已評分片、甚至已評的爛片都低，會被『埋』在候選清單最後)；改成獨立一群，
+        # 該群整體排在所有『已評分』片之後(功能上無差別——main() 對沒分數的片一律 fail-closed
+        # 隔離，不影響誰能實際發布)，但群內部依『優先旗標→mtime新到舊』排序，取代原本的檔案系統
+        # 隨機順序，讓 winner_vein/新片在報表與審核序中最先被看見、不被舊庫存埋沒。
+        score = qmap.get(s)
+        has_score = score is not None
+        return (
+            0 if has_score else 1,
+            -(float(score)) if has_score else 0.0,
+            0 if s in priority else 1,
+            -mtimes.get(s, 0.0),
+        )
+
+    shorts.sort(key=_key)
+    longs.sort(key=_key)
     return shorts + longs
 
 
