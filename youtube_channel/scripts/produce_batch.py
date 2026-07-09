@@ -1044,12 +1044,18 @@ def make_one(kind, no_render=False, topic_override=None):
     # 硬防近似重複：標題與既有太像就重生(時事 topic_override 不擋)；連續 3 次都重複則跳過
     if not topic_override:
         _tries = 0
-        # 近似重複 或 標題不達贏家公式(缺數字/損失框架與對比懸念皆缺/命中禁用骨架)→重生(共用上限 3)
-        while (_too_similar(d.get("title", ""), _ex) or _title_weak(d.get("title", ""))) and _tries < 3:
+        # 近似重複 或 標題不達贏家公式 或 同模板換數字複製(skeleton_dup) 或 濫用家族本週已達上限
+        # (check_skeleton_frequency)→重生(共用上限 3);強制多樣性,堵「定投×賓士」這種新洗版
+        while (_too_similar(d.get("title", ""), _ex) or _title_weak(d.get("title", ""))
+               or sc.skeleton_dup_any(d.get("title", ""), _ex)
+               or sc.check_skeleton_frequency(d.get("title", ""))) and _tries < 3:
             _tries += 1
             d = call_claude(kind, _ex, topic_override)
-        if _too_similar(d.get("title", ""), _ex):
+        if _too_similar(d.get("title", ""), _ex) or sc.skeleton_dup_any(d.get("title", ""), _ex):
             log_ops("補產部門", f"\u26a0\ufe0f 近似重複連3次,跳過:{d.get('title','')[:28]}")
+            return None
+        if sc.check_skeleton_frequency(d.get("title", "")):
+            log_ops("補產部門", "骨架家族本週已達上限,跳過避免洗版:" + d.get("title", "")[:26])
             return None
         if _title_weak(d.get("title", "")):
             log_ops("補產部門", f"標題重生3次仍弱(放行最後版·分{title_formula_score(d.get('title',''))}):{d.get('title','')[:26]}")
@@ -1077,6 +1083,7 @@ def make_one(kind, no_render=False, topic_override=None):
         slug = f"{slug}{int(time.time()) % 10000}"
     (OUT / f"{slug}.voice.txt").write_text(d["voice_text"], encoding="utf-8")
     (OUT / f"{slug}.md").write_text(build_md(d), encoding="utf-8")
+    sc.record_skeleton_produced(d["title"])  # 記骨架家族時間戳,供週上限(check_skeleton_frequency)計數
 
     _run_tts(slug)
 
