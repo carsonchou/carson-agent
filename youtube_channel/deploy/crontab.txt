@@ -97,6 +97,8 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 0 9 * * * /root/yt/run.sh scripts/daily_health.py --notify >> /root/yt/logs/cron.log 2>&1
 # 北極星整合(每天 09:05:訂閱/觀看/各源收入/YPP缺口/飛輪贏家 → northstar.json + ntfy)
 5 9 * * * /root/yt/run.sh scripts/northstar.py --notify >> /root/yt/logs/cron.log 2>&1
+# 收入儀表板(C2·每天 09:06,排北極星之後:各平台×各收入線進帳/名單來源/名單→付費轉換率 → revenue.json,併入 northstar)
+6 9 * * * /root/yt/run.sh scripts/revenue_dashboard.py >> /root/yt/logs/cron.log 2>&1
 # D1 趨勢劫持(每4h:抓競品爆款題型→改寫成誠實同型片,騎演算法)
 25 */4 * * * /root/yt/run.sh scripts/trend_hijack.py >> /root/yt/logs/cron.log 2>&1
 # D3 pre-YPP 贊助觸發(每天 09:10:達觸及門檻才提醒可接贊助)+ 媒體包週更(週一)
@@ -110,6 +112,9 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 0 11 * * * /root/yt/run.sh scripts/tg_magnet.py --upsell >> /root/yt/logs/cron.log 2>&1
 # YPP 進度追蹤(每週一 00:50 誠實顯示四門檻距離 + ntfy)
 50 0 * * 1 /root/yt/run.sh scripts/ypp_tracker.py --notify >> /root/yt/logs/cron.log 2>&1
+# 三平台原生變現門檻追蹤(E1;每週一 00:55:YouTube 重用 ypp_progress/TikTok 待人工查/IG Graph API →
+# platform_monetization.json + 新達標才 ntfy)
+55 0 * * 1 /root/yt/run.sh scripts/platform_monetization.py --notify >> /root/yt/logs/cron.log 2>&1
 # 每週贏家自動分析(每週一 01:10:觀看×完播×標題模式→回灌 traffic_signals 餵 prompt + 洗版洩漏監控)
 10 1 * * 1 /root/yt/run.sh scripts/weekly_winners.py --notify >> /root/yt/logs/cron.log 2>&1
 # 逐段留存分析(每週一 01:20:找觀眾在影片幾成處流失→鉤子還是節奏問題→retention_insights.json)

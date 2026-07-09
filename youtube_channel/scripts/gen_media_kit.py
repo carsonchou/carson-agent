@@ -69,6 +69,8 @@ def gather():
     traffic = load(STUDIO / "traffic_signals.json", {}) or {}
     quality = load(STUDIO / "quality_scores.json", {}) or {}
     finance = load(STUDIO / "finance.json", {}) or {}
+    tiktok_ledger = load(STUDIO / "tiktok_ledger.json", {}) or {}
+    ig_ledger = load(STUDIO / "ig_ledger.json", {}) or {}
 
     keys = list(ledger.keys())
     n_shorts = sum(1 for k in keys if k.startswith("S_"))
@@ -88,6 +90,15 @@ def gather():
 
     fin_summary = finance.get("summary", {}) or {}
 
+    # 跨平台觸及(A5):TikTok/IG 目前本機只有「已發布支數」(ledger 記 title→id/timestamp)，
+    # 沒有逐支觀看/曝光數快取——不硬爬各平台後台湊數字，觸及數欄位誠實留 0／待接，
+    # 不能拿發文數冒充觸及數。YouTube 那塊沿用上面已算好的 total_tracked_views(唯一有真數據的來源)。
+    tiktok_posts = len(tiktok_ledger)
+    ig_posts = len(ig_ledger)
+    tiktok_reach = None  # 待接:無官方 API/本機快取可查逐支觀看數
+    ig_reach = None  # 待接:同上(Graph API insights 需逐支呼叫，量大暫不做，避免多打)
+    cross_platform_total_reach = total_tracked_views + (tiktok_reach or 0) + (ig_reach or 0)
+
     return {
         "cfg": cfg,
         "n_videos": len(keys),
@@ -103,6 +114,11 @@ def gather():
         "avg_retention": avg_retention,
         "top": top,
         "affiliate_revenue": fin_summary.get("affiliate"),
+        "tiktok_posts": tiktok_posts,
+        "ig_posts": ig_posts,
+        "tiktok_reach": tiktok_reach,
+        "ig_reach": ig_reach,
+        "cross_platform_total_reach": cross_platform_total_reach,
     }
 
 
@@ -157,6 +173,17 @@ def build_markdown(d: dict, date_str: str) -> str:
 | 目前吃流量的關鍵字 | {kw} |
 
 **更新頻率**：近乎每日產出（Shorts + 長片並行），內容全誠實回測/實測導向，不喊單、不誇大報酬（廣告主友善的合規紅線）。
+
+---
+
+## 跨平台總觸及（誠實版——YouTube 有真數據，TikTok／IG 觸及數待接）
+
+| 平台 | 已發布支數 | 觸及數（觀看/曝光） |
+|---|---|---|
+| YouTube | {num(d['n_videos'])} | {num(d['total_tracked_views'])}（僅計已同步 analytics 的 {d['n_tracked']} 支） |
+| TikTok | {num(d['tiktok_posts'])} | 0（待接：無官方 API/本機快取可查逐支觀看數） |
+| Instagram | {num(d['ig_posts'])} | 0（待接：Graph API insights 需逐支呼叫，量大暫未做） |
+| **跨平台總觸及（目前僅 YouTube 有實數，TikTok/IG 待接前以 0 計）** | — | **{num(d['cross_platform_total_reach'])}** |
 
 ---
 
