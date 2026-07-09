@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import sys
 import time
@@ -37,6 +38,21 @@ SCORES = STUDIO / "quality_scores.json"
 LEDGER = STUDIO / "uploaded_ledger.json"
 BANK = STUDIO / "topic_bank.json"
 DIRECTIVES = STUDIO / "boss_directives.json"
+
+
+def _load_env():
+    """直跑時把專案根 .env 併進 os.environ(cron 由 local_cron 載;直跑沒有→llm.complete 拿不到
+    OPENROUTER key→AI 評分靜默失敗、所有片停在未評分被 fail-closed 隔離永遠不發)。"""
+    envf = ROOT / ".env"
+    if envf.exists():
+        for ln in envf.read_text(encoding="utf-8", errors="replace").splitlines():
+            s = ln.strip()
+            if s and not s.startswith("#") and "=" in s:
+                k, v = s.split("=", 1)
+                os.environ.setdefault(k.strip(), v.strip())
+
+
+_load_env()
 TW = timezone(timedelta(hours=8))
 DEFAULT_MIN = 70
 # ── 不可調降的硬地板：任何情況分數低於 FLOOR 一律不得發布。 ──
