@@ -733,7 +733,7 @@ body.busy,body.busy *{cursor:progress!important}
 <script>
 window.SAMPLE_STATE={
   ok:true,ts:'2026-06-30 02:00:00',paused:false,depts_total:18,running_count:11,
-  kpi:{subs:25,subs_gained:24,views:6204,views_28:5482,retention:40.1,minutes_28:1035,net:-4696,videos:226,sub_goal:1000,view_goal:4000,sub_gap:975},
+  kpi:{subs:25,subs_gained:24,views:6204,views_28:5482,retention:40.1,minutes_28:1035,net:-4696,videos:226,sub_goal:1000,view_goal:4000,sub_gap:975,trend_7d_pct:18.4,trend_28d_pct:135.0,trend_direction:'up'},
   series:[{t:'06/18',views:180,subs:1},{t:'06/19',views:210,subs:2},{t:'06/20',views:195,subs:0},{t:'06/21',views:320,subs:3},{t:'06/22',views:280,subs:2},{t:'06/23',views:190,subs:1},{t:'06/24',views:410,subs:4},{t:'06/25',views:350,subs:2},{t:'06/26',views:490,subs:5},{t:'06/27',views:380,subs:3},{t:'06/28',views:620,subs:4},{t:'06/29',views:580,subs:3}],
   departments:[
     {tag:'①',name:'影片部門(長)',head:2,status:'今日已產出',level:'on',boostable:true,boost_lv:2,act:'long'},
@@ -849,6 +849,14 @@ function segbar(pct,n=20){
   const on=Math.round((pct||0)/100*n);
   let h='';for(let i=0;i<n;i++)h+=`<i class="${i<on?'on':''}"></i>`;return h;
 }
+/* P0-a：滾動趨勢方向徽章（放最顯眼，弱化單日鋸齒誤判） */
+function trendArrow(pct,dir){
+  if(pct==null)return '';
+  const up=dir?dir==='up':pct>0,down=dir?dir==='down':pct<0;
+  const col=up?'#39d98a':down?'#ff7096':'#8fb0c4';
+  const ar=up?'▲':down?'▼':'▶';
+  return `<span style="color:${col}">${ar}近7日${pct>0?'+':''}${pct}%</span>`;
+}
 
 /* ── KPI ── */
 function renderKPI(S){
@@ -857,7 +865,7 @@ function renderKPI(S){
   const retPct=k.retention||0;
   const cards=[
     {l:'SUBSCRIBERS 訂閱',v:fmt(k.subs),s:`+${num(k.subs_gained,0)} · 缺口 ${num(k.sub_gap)}`,g:gauge(subPct,'#3fd0ff')},
-    {l:'28D VIEWS 觀看',v:fmt(k.views_28),s:`累計 ${fmt(k.views)}`,g:''},
+    {l:'28D VIEWS 觀看',v:fmt(k.views_28),s:`累計 ${fmt(k.views)} ${trendArrow(k.trend_7d_pct,k.trend_direction)}`,g:''},
     {l:'RETENTION 完播',v:k.retention!=null?k.retention+'%':'—',s:`目標 50% · ${fmt(k.minutes_28)}m`,g:gauge(retPct,retPct>=50?'#5fe0ff':'#ffb454'),warn:retPct<50},
     {l:'NET 淨利',v:k.net!=null?(k.net<0?'-':'')+'NT$'+Math.abs(k.net).toLocaleString():'—',s:'聯盟收入統計中',g:'',warn:k.net<0},
   ];
@@ -867,18 +875,27 @@ function renderKPI(S){
       <div class="krow">${c.g||''}<div class="ks">${c.s}</div></div></div>`).join('');
 }
 
-/* ── sparkline ── */
+/* ── sparkline（P0-a：近28天滾動觀看趨勢線，最顯眼；別被單日鋸齒誤導） ── */
 function renderSpark(S){
   const svg=document.getElementById('spark');const d=(S.series||[]).map(p=>p.views||0);
   const W=svg.clientWidth||260,H=26;svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
-  if(d.length<2){svg.innerHTML='';return;}
+  const tm=document.getElementById('trend-meta');
+  if(d.length<2){svg.innerHTML='';if(tm)tm.textContent='';return;}
   const mx=Math.max(...d,1),mn=Math.min(...d,0),rng=(mx-mn)||1,n=d.length;
   const X=i=>i/(n-1)*W,Y=v=>H-2-((v-mn)/rng)*(H-4);
   let pts=d.map((v,i)=>`${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(' ');
   const lx=X(n-1).toFixed(1),ly=Y(d[n-1]).toFixed(1);
-  svg.innerHTML=`<polyline points="${pts}" fill="none" stroke="#3fd0ff" stroke-width="1.2"/>
-    <circle cx="${lx}" cy="${ly}" r="1.8" fill="#7fe4ff"/>`;
-  document.getElementById('trend-meta').textContent=`PEAK ${mx}`;
+  const k=S.kpi||{};
+  const up=k.trend_direction==='up',down=k.trend_direction==='down';
+  const lineColor=up?'#39d98a':down?'#ff7096':'#3fd0ff';
+  svg.innerHTML=`<polyline points="${pts}" fill="none" stroke="${lineColor}" stroke-width="1.6"/>
+    <circle cx="${lx}" cy="${ly}" r="2.2" fill="${lineColor}"/>`;
+  if(tm){
+    if(k.trend_7d_pct!=null){
+      const ar=up?'▲':down?'▼':'▶';
+      tm.innerHTML=`<span style="color:${lineColor}">${ar} 近7日 ${k.trend_7d_pct>0?'+':''}${k.trend_7d_pct}%</span>`;
+    } else tm.textContent=`PEAK ${mx}`;
+  }
 }
 
 /* ── 數據分析 ── */

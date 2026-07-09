@@ -108,6 +108,21 @@ def main() -> int:
     lines.append(f"Analytics token: {'✓' if ana_ok else '✗ 失效(northstar/ypp/留存會靜默降級,去 auth_analytics 重授權)'}")
     if not ana_ok:
         warn.append("Analytics token 失效")
+        # P0-b：token 失效不能只是塞進一般健檢彙總裡等 Carson 自己爬文——northstar.ypp.subs_cur=null
+        # 就是「靜默降級沒人知道」的實例。這裡獨立推一則醒目告警，跟一般健檢彙總分開。
+        if "--notify" in sys.argv:
+            try:
+                import notify
+                notify.push(
+                    "量化阿森｜⚠ Analytics token 失效",
+                    "Analytics token 失效→數據降級,請重生 token。\n"
+                    "受影響:northstar.json(ypp.subs_cur)/ypp_progress/retention_insights 會靜默寫 null,"
+                    "不是真的沒訂閱/沒留存資料,是抓不到。\n"
+                    "重生:python scripts/auth_analytics.py",
+                    tag="warning",
+                )
+            except Exception as e:  # noqa: BLE001
+                print(f"[warn] token 失效告警推播失敗:{e}", file=sys.stderr)
 
     bad = _json_integrity()
     lines.append(f"STUDIO json 完整性: {'✓ 全正常' if not bad else '✗ 壞檔=' + '、'.join(bad)}")

@@ -421,6 +421,44 @@ def _today_tw():
     return datetime.now(TW).strftime("%Y-%m-%d")
 
 
+def _clean_rolling_series():
+    """P0-a：metrics_history.json 混雜兩種 schema（{date,total_views,...} 每日快照 /
+    {t,subs,views} 即時快照）——兩者其實是同一個「近28天滾動觀看」數字在不同時間點的紀錄。
+    舊 `_series()` 直接用 p.get("views",0) 撈值，date-schema 沒有 "views" 欄位會撈成 0，
+    在 sparkline 上鑿出假的骨折式驟降，正是 Carson「流量鋸齒」體感誤判的元凶之一。
+    這裡統一正規化成單一時間序列，並丟掉 0 值假點。"""
+    hist = _load(METRICS_FILE, []) or []
+    if not isinstance(hist, list) or not hist:
+        return []
+    pts = []
+    for p in hist:
+        if not isinstance(p, dict):
+            continue
+        if "views" in p and p.get("t"):
+            v, label = p.get("views"), p.get("t", "")
+        elif "total_views" in p and p.get("date"):
+            v, label = p.get("total_views"), p.get("date", "")
+        else:
+            continue
+        if not v:  # 0/None＝壞快照，不是真的觀看歸零，丟掉別畫進趨勢線
+            continue
+        pts.append({"t": label, "subs": p.get("subs"), "views": v})
+    return pts[-28:]  # 對齊「28D VIEWS TREND」標籤:只留近28個快照點,別把更早的基期拉進來算變化率
+
+
+def _view_trend(series):
+    """近7日／近28日滾動觀看趨勢方向，供前端凸顯（別只看單日增量鋸齒）。"""
+    if not series or len(series) < 2:
+        return {"trend_7d_pct": None, "trend_28d_pct": None, "trend_direction": None}
+    latest = series[-1]["views"]
+    base7 = series[max(0, len(series) - 8)]["views"]
+    base28 = series[0]["views"]
+    pct7 = round((latest - base7) / base7 * 100, 1) if base7 else None
+    pct28 = round((latest - base28) / base28 * 100, 1) if base28 else None
+    direction = "up" if (pct7 or 0) > 1 else ("down" if (pct7 or 0) < -1 else "flat")
+    return {"trend_7d_pct": pct7, "trend_28d_pct": pct28, "trend_direction": direction}
+
+
 def _kpi():
     yt = CACHE["yt"]["data"] or {}
     hist = _load(METRICS_FILE, []) or []
@@ -434,6 +472,7 @@ def _kpi():
     retention = ana.get("avg_pct")
     fin = _load(STUDIO / "finance.json") or {}
     net = (fin.get("summary") or {}).get("net")
+    trend = _view_trend(_clean_rolling_series())
     return {
         "subs": subs, "views": views,
         "videos": yt.get("videos"),
@@ -444,16 +483,12 @@ def _kpi():
         "minutes_28": ana.get("minutes"),
         "sub_goal": SUB_GOAL, "view_goal": VIEW_GOAL,
         "sub_gap": max(0, SUB_GOAL - (subs or 0)),
+        **trend,
     }
 
 
 def _series():
-    hist = _load(METRICS_FILE, []) or []
-    if not isinstance(hist, list) or not hist:
-        return []
-    step = max(1, len(hist) // 80)
-    return [{"t": p.get("t", ""), "subs": p.get("subs", 0), "views": p.get("views", 0)}
-            for p in hist[::step]]
+    return _clean_rolling_series()
 
 
 def _departments():

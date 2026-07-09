@@ -89,18 +89,62 @@ def _winners():
     return {"win": ts.get("win_keywords") or [], "weak": ts.get("weak_keywords") or []}
 
 
+def _rolling_trend():
+    """P0-a 認知校正:metrics_history.json 混雜兩種歷史快照 schema——
+    {date,total_views,...} 每日快照 / {t,subs,views} 即時快照——兩者記的其實是同一個
+    「近28天滾動觀看」數字在不同時間點的值。單看「今日單日增量」會忽高忽低(鋸齒),
+    但把這些快照連成線,滾動趨勢是向上的。這裡重建趨勢線 + 7日/28日方向,別重抓 API。
+    """
+    hist = sc.load_json_safe(STUDIO / "metrics_history.json", []) or []
+    if not isinstance(hist, list) or not hist:
+        return {"series": [], "trend_7d_pct": None, "trend_28d_pct": None,
+                "trend_direction": None, "today_delta_noisy": None}
+    by_key = {}
+    for e in hist:
+        if not isinstance(e, dict):
+            continue
+        if "views" in e and e.get("t"):
+            label, v = e.get("t"), e.get("views")
+        elif "total_views" in e and e.get("date"):
+            label, v = e.get("date"), e.get("total_views")
+        else:
+            continue
+        if not v:  # 0/None＝壞快照(非真的歸零)，別畫進趨勢線誤導
+            continue
+        by_key[label] = v  # 同 key 後者覆蓋前者，保留較新快照
+    series = [{"t": k, "views28_snapshot": v} for k, v in by_key.items()][-28:]
+    if len(series) < 2:
+        return {"series": series, "trend_7d_pct": None, "trend_28d_pct": None,
+                "trend_direction": None, "today_delta_noisy": None}
+    latest = series[-1]["views28_snapshot"]
+    base7 = series[max(0, len(series) - 8)]["views28_snapshot"]
+    base28 = series[0]["views28_snapshot"]
+    pct7 = round((latest - base7) / base7 * 100, 1) if base7 else None
+    pct28 = round((latest - base28) / base28 * 100, 1) if base28 else None
+    direction = "up" if (pct7 or 0) > 1 else ("down" if (pct7 or 0) < -1 else "flat")
+    today_delta_noisy = latest - series[-2]["views28_snapshot"]  # 單日增量:忽高忽低,僅供參考別當趨勢看
+    return {"series": series, "trend_7d_pct": pct7, "trend_28d_pct": pct28,
+            "trend_direction": direction, "today_delta_noisy": today_delta_noisy}
+
+
 def main() -> int:
     data = {
         "updated": time.strftime("%Y-%m-%d %H:%M"),
         "reach": _reach(),
+        "trend": _rolling_trend(),
         "revenue": _revenue(),
         "ypp": _ypp(),
         "winners": _winners(),
     }
     sc.save_json_atomic(STUDIO / "northstar.json", data)
 
-    r, rev, yp, w = data["reach"], data["revenue"], data["ypp"], data["winners"]
+    r, tr, rev, yp, w = data["reach"], data["trend"], data["revenue"], data["ypp"], data["winners"]
     lines = ["★ 量化阿森 北極星 · " + data["updated"], ""]
+    if tr.get("trend_direction"):
+        arrow = {"up": "📈 上升中", "down": "📉 下降中", "flat": "➡ 持平"}.get(tr["trend_direction"], "")
+        lines.append(f"【滾動趨勢 · 最重要】近7日 {tr.get('trend_7d_pct')}%｜近28日 {tr.get('trend_28d_pct')}% {arrow}")
+        lines.append(f"（單日增量僅供參考,忽高忽低不代表趨勢:今日 {tr.get('today_delta_noisy')}）")
+        lines.append("")
     lines.append(f"觸及: 近28天觀看 {r['views28']}｜新增訂閱 {r['subs28']}｜完播 {r['avg_pct']}%")
     src = "、".join(f"{k} NT${int(v)}" for k, v in rev["by_source"].items()) or "尚無進帳"
     lines.append(f"變現: 收入源[{src}]｜累計收入 NT${int(rev['total_income'])}｜成本 NT${int(rev['total_cost'])}｜淨 NT${int(rev['net'])}")
