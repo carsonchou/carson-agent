@@ -86,6 +86,10 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true",
                      help="只分群統計、印出結果，不連網、不需要 token、不呼叫任何 YouTube 寫入 API")
+    ap.add_argument("--max", type=int, default=40, dest="max_add",
+                     help="本次最多新增幾支影片進播放清單（跨三群共用額度）——playlistItems.insert 一次耗 50 quota，"
+                          "與 daily_publish 上傳共用同一組每日 10000 quota，設上限防一次跑光擋到當天上架；"
+                          "未加完的下次跑（cron 每日一次）自然接續補（items_in 會跳過已加過的，冪等）")
     args = ap.parse_args()
 
     ledger = load_ledger()
@@ -155,6 +159,8 @@ def main() -> int:
         return ids
 
     state = {}
+    budget = max(0, args.max_add)
+    quota_capped = False
     for name, items in groups.items():
         if not items:
             continue
@@ -166,19 +172,25 @@ def main() -> int:
         for slug, vid in items:
             if vid in existing:
                 continue
+            if budget <= 0:
+                quota_capped = True
+                break
             try:
                 yt.playlistItems().insert(part="snippet", body={"snippet": {
                     "playlistId": plid, "resourceId": {"kind": "youtube#video", "videoId": vid}}}).execute()
                 existing.add(vid)
                 added += 1
+                budget -= 1
             except Exception as e:  # noqa: BLE001
                 print(f"[warn] 加入清單失敗 {slug}：{e}", file=sys.stderr)
         state[name] = {"playlist_id": plid, "video_ids": sorted(existing)}
         print(f"[ok] {name}：清單 {plid}，本次新增 {added} 支，共 {len(existing)} 支。")
+        if quota_capped:
+            print(f"[info] 已達本次上限 --max {args.max_add}，其餘留待下次補（cron 每日一次會自動接續）。")
 
     PLAYLISTS_STATE.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
     summary_txt = ", ".join(f"{k}+{len(v['video_ids'])}" for k, v in state.items())
-    log_ops("播放清單", f"雙主軸分群完成：{summary_txt}")
+    log_ops("播放清單", f"雙主軸分群完成：{summary_txt}" + ("（本次額度用罄，餘量待下次）" if quota_capped else ""))
     print(f"[ok] 已寫入 {PLAYLISTS_STATE}")
     return 0
 

@@ -22,6 +22,9 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 7 6 * * * /root/yt/run.sh scripts/produce_batch.py --manual --format-focus --shorts 9 --long 3 --target 99999 --no-render >> /root/yt/logs/cron.log 2>&1
 # Short→長片精準連看:建 short_to_long.json(bigram題材相似度對應已發布短→長),發布前跑
 50 6 * * * /root/yt/run.sh scripts/build_short_to_long.py >> /root/yt/logs/cron.log 2>&1
+# Short→Short 同系列/同題材連看:建 short_to_short.json(EP實測系列接上一集、其餘bigram題材相似度
+# 對應待上架短→已發布短),發布前跑,與 short_to_long 錯開1分避免同時寫 STUDIO
+51 6 * * * /root/yt/run.sh scripts/build_short_to_short.py >> /root/yt/logs/cron.log 2>&1
 # 台股火力:真回測數據引擎(每天更新真數字)+ 四軌台股系列連載(產片前餵)
 0 4 * * * /root/yt/run.sh scripts/tw_stock_data.py >> /root/yt/logs/cron.log 2>&1
 52 5 * * * /root/yt/run.sh scripts/tw_stock_series.py --next 3 >> /root/yt/logs/cron.log 2>&1
@@ -40,6 +43,10 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 30 20 * * * /root/yt/run.sh scripts/daily_publish.py --max 8 >> /root/yt/logs/cron.log 2>&1
 # 台股收盤後覆盤情緒黃金窗口(13:30 收盤後,只交易日)
 40 13 * * 1-5 /root/yt/run.sh scripts/daily_publish.py --max 4 >> /root/yt/logs/cron.log 2>&1
+# 播放清單自動化(每日一次,排在當天最後一批上架之後,把新發布的片依三主軸建/補進 YT 播放清單):
+# --max 40 跟 daily_publish 共用同一組每日 quota,設上限防一次跑光擋到隔天上架;冪等(items_in
+# 跳過已加過的),沒加完下次自動接續
+0 22 * * * /root/yt/run.sh scripts/build_playlists.py --max 40 >> /root/yt/logs/cron.log 2>&1
 # 台股盤中盯盤即時撃(交易日多掃幾次財經新聞)
 35 9,11,13 * * 1-5 /root/yt/run.sh scripts/news_dept.py >> /root/yt/logs/cron.log 2>&1
 37 9 * * * /root/yt/run.sh scripts/retro_dept.py >> /root/yt/logs/cron.log 2>&1

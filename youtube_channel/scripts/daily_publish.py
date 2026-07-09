@@ -46,6 +46,7 @@ IG_LEDGER = PROJECT_ROOT / "STUDIO" / "ig_ledger.json"
 FB_LEDGER = PROJECT_ROOT / "STUDIO" / "fb_ledger.json"
 THREADS_LEDGER = PROJECT_ROOT / "STUDIO" / "threads_ledger.json"
 SHORT_TO_LONG = PROJECT_ROOT / "STUDIO" / "short_to_long.json"  # 選填：slug→長片slug或youtu.be，短→長導流
+SHORT_TO_SHORT = PROJECT_ROOT / "STUDIO" / "short_to_short.json"  # 選填：本機待上架短片slug→已發布短片slug，短→短同系列連看
 
 # Shorts 專用 hashtag：描述不含 #shorts 時補進去，讓 YouTube 歸類進 Shorts shelf。
 # 注意：upload_one 以字串串接（description + _SHORTS_HASHTAGS），故此處必須是「字串」不可為 list，
@@ -67,6 +68,21 @@ def _long_link_for(slug: str, cfg: dict, ledger: dict) -> str:
         pass
     handle = (cfg.get("channel_handle") or "").lstrip("@")
     return f"https://www.youtube.com/@{handle}" if handle else ""
+
+
+def _short_link_for(slug: str, ledger: dict) -> str:
+    """Short→Short 同系列/同題材連看：short_to_short.json 指定的對應「已發布」Short，
+    查無或該片尚未真的在 ledger 裡（防資料過期）就回空字串——不像 _long_link_for 有
+    頻道連結退路，因為這是加購欄位，沒有就乾脆不加這行，不製造死連結。"""
+    try:
+        if SHORT_TO_SHORT.exists():
+            m = json.loads(SHORT_TO_SHORT.read_text(encoding="utf-8"))
+            tgt = (m.get(slug) or "").strip()
+            if tgt and ledger.get(tgt):  # tgt 必須是已上架 Short slug，否則不給連結
+                return f"https://youtu.be/{ledger[tgt]}"
+    except Exception:  # noqa: BLE001
+        pass
+    return ""
 
 
 _ENGAGE_QS = [
@@ -243,9 +259,15 @@ def upload_one(yt, slug: str, privacy: str) -> str:
 
     # 短→長導流：Shorts 描述頂端掛長片/頻道連結（建立連看閉環、把 Shorts 流量沉澱）
     if is_short:
-        _link = _long_link_for(slug, cfg, load_ledger())
+        _ledger_now = load_ledger()
+        _link = _long_link_for(slug, cfg, _ledger_now)
         if _link and _link not in meta["description"]:
             meta["description"] = (f"📺 完整策略拆解看這裡 👉 {_link}\n\n" + meta["description"])[:5000]
+        # 短→短同系列/同題材連看：EP 實測系列接上一集、其餘接最像的已發布 Short（short_to_short.json，
+        # 選填，查無就跳過不加行，不破壞上面既有的短→長導流）
+        _slink = _short_link_for(slug, _ledger_now)
+        if _slink and _slink not in meta["description"]:
+            meta["description"] = (f"🔁 接續看同系列 👉 {_slink}\n\n" + meta["description"])[:5000]
 
     # Shorts 用 #Shorts 加進標題尾端（字數允許時）；長片 categoryId 用教育(27)
     title = meta["title"]
