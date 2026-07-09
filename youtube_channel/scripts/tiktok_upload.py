@@ -161,42 +161,37 @@ def _upload_one(slug: str, dry: bool = False) -> bool:
                                 pass
                             break
                     page.wait_for_timeout(3000)
-                    # 發佈按鈕:①先等影片處理完(Post 鈕才 enable) ②關掉版權檢查彈窗(TUXModal「知道了」會攔截點擊·根因)
-                    # ③post_video_button 選擇器 ④force 繞殘餘 overlay。輪詢最多 ~90s。
+                    # 發佈:核心方法=JS 原生 element.click() 繞過版權彈窗 overlay 攔截(實證有效·2026-07-09)。
+                    # Playwright 的 .click() 會被 TUXModal-overlay 攔;JS click 直接觸發 handler、擋不住。
                     posted = False
-
-                    def _dismiss_modals():
-                        for t in ["知道了", "我知道了", "確定", "關閉", "Got it", "OK"]:
-                            b = page.query_selector(f"button:has-text('{t}')")
-                            if b:
+                    # 設隱私=所有人(公開),否則預設可能「僅自己」沒觸及
+                    try:
+                        page.evaluate("() => { const c=document.querySelector('[data-e2e=\"video_visibility_container\"]');"
+                                      " if(c){const b=c.querySelector('button,[role=button]'); if(b)b.click();} }")
+                        page.wait_for_timeout(1200)
+                        for t in ["所有人", "公開", "Everyone", "Public"]:
+                            el = page.query_selector(f"[role=option]:has-text('{t}'), li:has-text('{t}')")
+                            if el:
                                 try:
-                                    b.click(timeout=3000)
-                                    page.wait_for_timeout(1200)
+                                    el.click(timeout=2000)
                                 except Exception:  # noqa: BLE001
                                     pass
-                    for _ in range(18):  # 18×5s = 90s
-                        _dismiss_modals()  # 每輪先清彈窗(版權檢查窗會反覆冒)
-                        b = page.query_selector('[data-e2e="post_video_button"]') \
-                            or page.query_selector("button:has-text('發佈')")
-                        if b:
-                            try:
-                                if b.is_enabled():
-                                    b.scroll_into_view_if_needed(timeout=3000)
-                                    try:
-                                        b.click(timeout=6000)
-                                    except Exception:  # noqa: BLE001
-                                        b.click(force=True, timeout=5000)
-                                    page.wait_for_timeout(5000)
-                                    # 驗證:離開 compose 或出現成功字樣=發佈成功
-                                    body = (page.inner_text("body") or "")[:800]
-                                    if any(k in body for k in ("發佈成功", "已發佈", "管理你的貼文", "上傳成功")) \
-                                       or "upload" not in page.url:
-                                        posted = True
-                                        break
-                            except Exception:  # noqa: BLE001
-                                pass
+                                break
+                    except Exception:  # noqa: BLE001
+                        pass
+                    # 輪詢等發佈鈕就緒(影片處理完才 enable)→ JS click
+                    for _ in range(24):  # 24×5s = 120s
+                        st = page.evaluate("() => { const b=document.querySelector('[data-e2e=\"post_video_button\"]');"
+                                           " return b?{found:true,disabled:b.disabled||b.getAttribute('aria-disabled')==='true'}:{found:false}; }")
+                        if st.get("found") and not st.get("disabled"):
+                            page.evaluate("() => { const b=document.querySelector('[data-e2e=\"post_video_button\"]');"
+                                          " if(b){b.scrollIntoView();b.click();} }")  # JS 原生 click 繞 overlay
+                            page.wait_for_timeout(8000)
+                            body = (page.inner_text("body") or "")[:800]
+                            if ("upload" not in page.url) or any(k in body for k in ("內容審查中", "發佈成功", "已發佈", "管理你的貼文")):
+                                posted = True
+                                break
                         page.wait_for_timeout(5000)
-                    page.wait_for_timeout(4000)
                     ok = posted
                     if posted:
                         print(f"[tiktok] ✓ 已點發佈 {slug}(TikTok 端仍會審核)")
