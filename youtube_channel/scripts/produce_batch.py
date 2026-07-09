@@ -669,6 +669,24 @@ def _has_llm_key():
                ("OPENROUTER_API_KEY", "ANTHROPIC_API_KEY", "DEEPSEEK_API_KEY", "GEMINI_API_KEY", "GROQ_API_KEY"))
 
 
+def _split_voice(voice, n):
+    """把完整旁白依句末標點切句、平均分成 n 段。
+    給 build_md 讓每段概念卡拿到『該段真旁白』而非只有小標——概念卡靠 heading+narration 分類要畫哪張圖
+    (網格/複利/回撤),只給小標訊號太薄常退回預設圖;分到真旁白句就能選對圖。也讓 md 字幕後備(voice.txt 缺時)是真旁白。"""
+    sents = [s for s in re.split(r"(?<=[。！？!?])", voice or "") if s.strip()]
+    if not sents or n <= 0:
+        return [""] * max(n, 0)
+    per = max(1, len(sents) // n)
+    chunks, i = [], 0
+    for k in range(n):
+        if k == n - 1:
+            chunks.append("".join(sents[i:]).strip())  # 最後一段收尾所有餘句
+        else:
+            chunks.append("".join(sents[i:i + per]).strip())
+            i += per
+    return chunks
+
+
 def build_md(d):
     title = d["title"]
     voice = d.get("voice_text", "")
@@ -676,10 +694,12 @@ def build_md(d):
              "## ⚡ HOOK（0-5 秒）", "", f"**旁白：** {voice[:55]}", "",
              "**建議畫面：** stock market chart、trading screen", "", "## 📦 主體", ""]
     segs = d.get("segments") or [{"heading": "重點", "broll": ["finance", "chart"]}]
+    seg_narr = _split_voice(voice, len(segs))  # 完整旁白平均分到各段(給概念卡選對圖)
     for i, seg in enumerate(segs, 1):
         kws = "、".join(seg.get("broll") or ["finance", "data"])
+        narr = (seg_narr[i - 1] if i - 1 < len(seg_narr) else "") or seg.get("heading", "")
         lines += [f"### 段落 {i}：{seg.get('heading', '重點')}", "",
-                  f"**旁白：** {seg.get('heading', '')}", "",
+                  f"**旁白：** {narr}", "",
                   f"**建議畫面 / B-roll：** {kws}", ""]
     lines += ["## 🏁 結尾（OUTRO）", "", "**旁白：** 追蹤量化阿森，我們下支見。", "", "---", "",
               "## 📝 YouTube 影片描述", "",
