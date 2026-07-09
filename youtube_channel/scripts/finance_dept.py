@@ -7,7 +7,10 @@
   - 成本面可估：目前產線是全免費棧（edge-tts 配音、Pexels 素材、YouTube 免費配額）→ 基線成本≈NT$0。
     唯一潛在成本＝Anthropic API（決策/補產/檢討用），無逐筆帳單故以「次數×粗估」標示，不假裝精準。
 
-資料：STUDIO/finance.json（entries: [{date,type,amount,note}]；type=affiliate/adsense/cost）
+資料：STUDIO/finance.json（entries: [{date,type,amount,note,platform,stream}]；
+  type=affiliate/adsense/product/newsletter/vip/tips/sponsor/cost（cost 以外皆計入收入）；
+  platform=youtube/tiktok/instagram/general（預設 youtube，供 C2 revenue_dashboard.py 按平台拆帳）；
+  stream=收入線識別（預設等於 type，供 revenue_dashboard.py 讀取，向下相容舊資料無此欄位）。
 輸出：STUDIO/REPORTS/{date}_財務.md ＋ 回寫 finance.json 的 summary
 """
 from __future__ import annotations
@@ -41,7 +44,11 @@ except Exception:  # noqa: BLE001
         except Exception:
             pass
 
-TYPE_LABEL = {"affiliate": "Pionex 返佣", "adsense": "YouTube 廣告", "cost": "支出"}
+TYPE_LABEL = {
+    "affiliate": "Pionex 返佣", "adsense": "YouTube 廣告", "cost": "支出",
+    "product": "數位產品(worksheet)", "newsletter": "電子報訂閱", "vip": "VIP會員",
+    "tips": "贊助抖內", "sponsor": "業配贊助",
+}
 
 
 def tw_today():
@@ -64,21 +71,28 @@ def save_finance(d):
     FINANCE.write_text(json.dumps(d, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def add_entry(etype, amount, note=""):
-    """記一筆帳；etype in {affiliate, adsense, cost}。amount 正數。"""
+def add_entry(etype, amount, note="", platform="youtube", stream=None):
+    """記一筆帳；etype in TYPE_LABEL(affiliate/adsense/product/newsletter/vip/tips/sponsor/cost)。amount 正數。
+    platform：所屬平台(youtube/tiktok/instagram/general，預設 youtube，向下相容舊呼叫)。
+    stream：收入線識別，預設同 etype(供 C2 revenue_dashboard.py 用；cost 不算收入線但仍記錄方便追蹤)。"""
     d = load_finance()
-    d["entries"].append({"date": tw_today(), "type": etype, "amount": round(float(amount), 2), "note": note})
+    d["entries"].append({
+        "date": tw_today(), "type": etype, "amount": round(float(amount), 2), "note": note,
+        "platform": platform or "youtube", "stream": stream or etype,
+    })
     save_finance(d)
     return d
 
 
 def summarize(d):
-    rev = sum(e["amount"] for e in d["entries"] if e["type"] in ("affiliate", "adsense"))
+    # 收入＝所有非 cost 的類型(向下相容:舊資料僅 affiliate/adsense，加總結果與舊版邏輯完全相同；
+    # 新類型 product/newsletter/vip/tips/sponsor 自動計入，免每加一種收入線就要回來改這裡)。
+    rev = sum(e["amount"] for e in d["entries"] if e["type"] != "cost")
     cost = sum(e["amount"] for e in d["entries"] if e["type"] == "cost")
     aff = sum(e["amount"] for e in d["entries"] if e["type"] == "affiliate")
     ads = sum(e["amount"] for e in d["entries"] if e["type"] == "adsense")
     month = tw_today()[:7]
-    m_rev = sum(e["amount"] for e in d["entries"] if e["type"] in ("affiliate", "adsense") and e["date"].startswith(month))
+    m_rev = sum(e["amount"] for e in d["entries"] if e["type"] != "cost" and e["date"].startswith(month))
     m_cost = sum(e["amount"] for e in d["entries"] if e["type"] == "cost" and e["date"].startswith(month))
     return {"revenue": rev, "cost": cost, "net": rev - cost, "affiliate": aff, "adsense": ads,
             "month": month, "m_revenue": m_rev, "m_cost": m_cost, "m_net": m_rev - m_cost,
@@ -126,13 +140,15 @@ def write_report(d, s):
 def main() -> int:
     import argparse
     ap = argparse.ArgumentParser()
-    ap.add_argument("--add", choices=["affiliate", "adsense", "cost"], help="記一筆")
+    ap.add_argument("--add", choices=list(TYPE_LABEL.keys()), help="記一筆")
     ap.add_argument("--amount", type=float, default=0)
     ap.add_argument("--note", default="")
+    ap.add_argument("--platform", default="youtube", choices=["youtube", "tiktok", "instagram", "general"],
+                     help="所屬平台(預設 youtube，供 C2 revenue_dashboard.py 按平台拆帳)")
     args = ap.parse_args()
 
     if args.add:
-        add_entry(args.add, args.amount, args.note)
+        add_entry(args.add, args.amount, args.note, platform=args.platform)
         print(f"[ok] 已記一筆 {TYPE_LABEL.get(args.add)} NT$ {args.amount:.0f}")
 
     d = load_finance()

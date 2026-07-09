@@ -7,6 +7,10 @@
            每 5 分鐘 cron poll(getUpdates + offset 去重)。
   --digest 避雷雷達週報:彙整最近《拆穿》題目/避雷重點,群發給 tg_leads.json 全名單(每人一則)。
            供 cron 每週跑一次;有節流(避免 Telegram 限流)+ 去重(本週發過不重發)。
+  --upsell 數位產品試算表 upsell(item12):對領檢核表滿 24h 名單推 NT$149 一次性試算表,見 run_upsell。
+  --newsletter 付費電子報 pitch(item A2·經常性收入):對已買 worksheet 或名單滿 7 天的對象推 NT$99/月電子報,
+           見 run_newsletter_pitch;推播完把該 lead stage 升到 3,是否真訂閱仍由 Carson 人工對帳確認。
+  各模式皆支援 --dry(只印預覽/不實送,無收款方式時自動強制 dry)。
 
 token 放雲端 .env 的 TG_MAGNET_TOKEN。與 telegram_command.py 是不同 bot/不同 token,各跑各的不衝突。
 """
@@ -33,6 +37,11 @@ try:
     from ops import log_ops
 except Exception:  # noqa: BLE001
     def log_ops(s, m): pass
+
+try:  # 併發安全寫檔(多支腳本/cron 併發碰 tg_leads.json 時消互毀);沒有就退回原本 write_text
+    from studio_common import save_json_atomic as _save_leads_atomic
+except Exception:  # noqa: BLE001
+    _save_leads_atomic = None
 
 TOKEN = os.environ.get("TG_MAGNET_TOKEN", "").strip()
 OFFSET = STUDIO / "tg_magnet_offset.json"
@@ -80,6 +89,21 @@ _UPSELL = (
     "一次性 NT$149，一杯手搖的錢，上真錢前先看清楚自己的策略會不會漏財。\n\n"
     "{pay}\n"
     "（想清楚再買，這是工具不是明牌；投資有風險，不構成投資建議。）"
+)
+
+# 付費電子報(item A2:經常性收入)。對象=已買過 worksheet(stage>=2,較有付費意願)或名單建立滿 7 天。
+# 誠信:內容原料一律來自現成 STUDIO 真回測/避雷資料,不臨時編數字;不喊單不保證收益,交付走 TG 付費頻道(人工拉群,非自動)。
+_NEWSLETTER_URL = os.environ.get("NEWSLETTER_URL", "").strip()
+_NEWSLETTER_DELAY_SEC = 7 * 24 * 3600  # 名單建立滿 7 天才推(給 worksheet 買家額外快速資格,見 run_newsletter_pitch)
+_NEWSLETTER = (
+    "📮 想每週固定收到避雷清單＋真回測數字嗎？\n\n"
+    "我開了付費電子報，NT$99／月：\n"
+    "1️⃣ 每週台股＋加密雙軌『避雷清單』——挑出正在割韭菜的話術／機器人先幫你標出來。\n"
+    "2️⃣ 搭配真回測摘要數字，不是嘴巴講講，附實測結果。\n"
+    "3️⃣ 透過 Telegram 付費頻道交付，訂閱就收得到。\n\n"
+    "先講清楚：這是資訊整理，不是明牌，不喊單、不保證收益，你還是要自己判斷再進場。\n\n"
+    "{pay}\n"
+    "（想清楚再訂；投資有風險，不構成投資建議。）"
 )
 
 
@@ -138,6 +162,73 @@ def run_upsell(dry=False) -> int:
             pass
         log_ops("TG數位產品", f"試算表 upsell 送出 {sent} 人")
     print(f"[ok] upsell {'(dry)' if dry else ''} 對象 {sent} 人。")
+    return 0
+
+
+def _newsletter_pay_instructions():
+    """組電子報訂閱付款指示(NT$99/月):優先讀 payment_info.json(銀行匯款,人工對帳拉群);
+    沒設就退回 NEWSLETTER_URL 連結(Carson 自填 env,例如 TG 付費頻道邀請連結)。"""
+    try:
+        info = json.loads(_PAYINFO.read_text(encoding="utf-8")) if _PAYINFO.exists() else {}
+    except Exception:  # noqa: BLE001
+        info = {}
+    if info.get("method") == "bank_transfer" and info.get("account"):
+        return (f"匯款 NT$99／月 到：{info.get('bank_name','')}（{info.get('bank_code','')}）"
+                f"{info.get('account')} 戶名 {info.get('account_name','')}\n"
+                "匯款後私訊我「已匯款＋帳號末五碼」，我對帳後把你加進電子報頻道。")
+    if _NEWSLETTER_URL:
+        return _NEWSLETTER_URL
+    return ""
+
+
+def run_newsletter_pitch(dry=False) -> int:
+    """對『已買 worksheet(stage>=2)』或『名單建立滿 7 天』且尚未推過電子報的名單,推 NT$99/月付費電子報 pitch(item A2)。
+    推播成功即把該 lead stage 升到 3(『已推播訂閱邀約』;是否真訂閱仍由 Carson 人工對帳確認,不自動判定已付款)。
+    無收款方式(payment_info.json/NEWSLETTER_URL 皆空)時強制轉 dry,不送出沒有交付路徑的殘信。"""
+    leads = _load_leads()
+    if not leads:
+        print("[newsletter] 名單為空,略過。")
+        return 0
+    pay = _newsletter_pay_instructions()
+    if not pay:
+        print("[newsletter] 無收款方式(payment_info.json/NEWSLETTER_URL 皆空),先不實送。")
+        dry = True
+    now = int(time.time())
+    text = _NEWSLETTER.replace("{pay}", pay or "（收款方式待設定）")
+    sent = 0
+    for chat_id, info in list(leads.items()):
+        if not isinstance(info, dict):
+            continue
+        if info.get("newslettered"):  # 已推過,不重推
+            continue
+        stage = int(info.get("stage", 0) or 0)
+        ts = int(info.get("ts", 0) or 0)
+        eligible = stage >= 2 or (ts > 0 and (now - ts) >= _NEWSLETTER_DELAY_SEC)
+        if not eligible:
+            continue
+        if dry:
+            print(f"[dry] 會推電子報 → {info.get('username') or chat_id}(stage={stage})")
+            sent += 1
+            continue
+        if not TOKEN:
+            print("[info] 未設 TG_MAGNET_TOKEN,電子報未送。")
+            return 0
+        r = _api("sendMessage", chat_id=chat_id, text=text[:3900])
+        if r.get("ok"):
+            info["newslettered"] = int(now)
+            info["stage"] = max(stage, 3)
+            sent += 1
+            time.sleep(_THROTTLE_SEC)
+    if not dry and sent:
+        try:
+            if _save_leads_atomic:
+                _save_leads_atomic(LEADS, leads)
+            else:
+                LEADS.write_text(json.dumps(leads, ensure_ascii=False, indent=2), encoding="utf-8")
+        except Exception:  # noqa: BLE001
+            pass
+        log_ops("TG電子報", f"付費電子報 pitch 送出 {sent} 人")
+    print(f"[ok] 電子報 {'(dry)' if dry else ''} 對象 {sent} 人。")
     return 0
 
 
@@ -277,6 +368,8 @@ def main() -> int:
         return run_digest(dry=("--dry" in sys.argv))
     if "--upsell" in sys.argv:
         return run_upsell(dry=("--dry" in sys.argv))
+    if "--newsletter" in sys.argv:
+        return run_newsletter_pitch(dry=("--dry" in sys.argv))
     if not TOKEN:
         print("[info] 未設 TG_MAGNET_TOKEN，名單 bot 未啟用。"); return 0
     off = _offset()
