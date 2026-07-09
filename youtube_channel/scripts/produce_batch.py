@@ -213,9 +213,32 @@ def load_orders():
     return {}
 
 
+# ── P3 時事題保底配額(2026-07 破局計畫)──
+# 現況雷:_rank 把 hotspot/breakout/intel 時事新聞題一律排在乾淨題之後,143 支 hotspot + 9 支
+# breakout 長期被墊底餓死,拿不到演算法對時事的加速。改法:不動 _rank 排序本身(乾淨題仍優先、
+# 不誤殺贏家公式產出),而是在每批(main() 用 _set_batch_plan 設定)保留固定名額給時事題
+# (~30%、至少 2 支;批次 <2 支不保底),配額只在「庫存確實有時事題」時才生效,沒有就照原排序
+# 自然落回乾淨題——只是給時事題保底配額,不是完全翻轉排序。
+_NEWS_SRC = ("news", "hotspot", "breakout", "intel")
+_BATCH_PLAN = {}   # kind -> {"total": int, "quota": int}；main() 開跑前設定,沒設定=配額0(行為等同修改前)
+_BATCH_STATE = {}  # kind -> {"pulled": int, "news_pulled": int}
+
+
+def _set_batch_plan(kind, total):
+    """每批補產開始前呼叫一次,設定這一批(共 total 支 kind)要保底幾支時事題。
+    規則:~30%、至少 2 支;批次 total<2 時不保底(避免單支長片被硬塞時事)；quota 不超過 total。"""
+    total = max(0, int(total or 0))
+    quota = max(2, round(total * 0.3)) if total >= 2 else 0
+    quota = min(quota, total)
+    _BATCH_PLAN[kind] = {"total": total, "quota": quota}
+    _BATCH_STATE[kind] = {"pulled": 0, "news_pulled": 0}
+
+
 def pull_topic(kind):
     """從 STUDIO/topic_bank.json 取一個未用、符合格式的題目並標記為已用；無則回 None。
-    讀寫一律走 topic_bank.load_bank/save_bank(原子寫+.bak 救命),避免併發寫互毀把整庫洗掉(2026-07 根因修復)。"""
+    讀寫一律走 topic_bank.load_bank/save_bank(原子寫+.bak 救命),避免併發寫互毀把整庫洗掉(2026-07 根因修復)。
+    2026-07 P3:若本 kind 這一批(_set_batch_plan 設定)時事配額還沒吃滿、且庫存確實有時事題,
+    優先從時事候選(仍照 _rank 排序取最優)挑；配額吃滿或庫存沒時事題,就照原本排序邏輯自然選。"""
     try:
         import topic_bank as _tb
         import studio_common as _sc
@@ -244,15 +267,55 @@ def pull_topic(kind):
         num = 0 if any(k in _ta for k in _NUM_KW) else 1
         return (flag, news_src, depri, seo, num)
     cand.sort(key=_rank)
-    if cand:
-        t = cand[0]
-        t["used"] = True
-        try:
-            _tb.save_bank(bank)  # 原子寫,不再直接覆蓋
-        except Exception:
-            pass
-        return t
-    return None
+    if not cand:
+        return None
+    chosen = None
+    state = _BATCH_STATE.setdefault(kind, {"pulled": 0, "news_pulled": 0})
+    plan = _BATCH_PLAN.get(kind) or {}
+    quota = plan.get("quota", 0)
+    state["pulled"] += 1
+    if quota and state["news_pulled"] < quota:
+        news_cand = [t for t in cand if str(t.get("source", "")).lower() in _NEWS_SRC]
+        if news_cand:
+            chosen = news_cand[0]  # 時事候選內仍照 _rank 排序取最優,不是隨機抓
+    if chosen is None:
+        chosen = cand[0]
+    if str(chosen.get("source", "")).lower() in _NEWS_SRC:
+        state["news_pulled"] += 1
+    chosen["used"] = True
+    try:
+        _tb.save_bank(bank)  # 原子寫,不再直接覆蓋
+    except Exception:
+        pass
+    return chosen
+
+
+# ── P1 鉤子留存:把 retention_insights.json 的完播診斷回灌進 HOOK 生成 prompt(2026-07 破局計畫)──
+# 現況雷:diagnose 有查出「7/10 支熱門片開頭 12-20% 流失最兇」,但診斷從沒回灌產線,HOOK_RULES
+# 只有靜態規則、吃不到最新一批真實數據。這裡讓每次寫稿都讀最新診斷結論;檔不在/壞掉就優雅跳過
+# (不影響產線,HOOK_RULES 的靜態規則仍在)。
+RETENTION_FILE = ROOT / "STUDIO" / "retention_insights.json"
+
+
+def _retention_insight():
+    """讀 STUDIO/retention_insights.json 的完播診斷結論,組成一段注入 HOOK 生成 prompt 的文字。
+    檔不存在/JSON壞/沒有 verdict → 回空字串,呼叫端直接不注入(優雅跳過,不影響其他片)。"""
+    try:
+        if not RETENTION_FILE.exists():
+            return ""
+        d = json.loads(RETENTION_FILE.read_text(encoding="utf-8"))
+        verdict = str(d.get("verdict", "")).strip()
+        if not verdict:
+            return ""
+        early = d.get("early_drops")
+        analyzed = d.get("analyzed")
+        stat = f"(最新一輪 {analyzed} 支熱門片中 {early} 支開頭流失最兇)" if (
+            isinstance(early, int) and isinstance(analyzed, int) and analyzed) else ""
+        return (f"\n【★真實完播診斷{stat}·retention_insights.json(務必照此修正,別再犯)】{verdict}——"
+                "第一句(前3秒)必須是最大數字/反直覺結論本身，不是鋪陳、不是暖場問句、"
+                "更不能跟段落1旁白逐字重複；結論先講，背景與鋪陳全部往後放。")
+    except Exception:  # noqa: BLE001
+        return ""
 
 
 HOOK_RULES = """
@@ -269,6 +332,9 @@ HOOK_RULES = """
    ·「停損設百分之二，連輸十次，帳戶只剩六成一，你猜多少？」
    ·「同一個策略，切點不同，夏普值差一倍。」
    ·「勝率八成七，帳戶卻還在虧。」
+   ★硬性(2026-07 完播診斷回灌·別再犯)：第一句必須是「結論／最大數字」本身，不是暖場鋪陳或背景交代——
+   嚴禁用「你知道嗎」「大家好」「今天要來跟大家聊聊」「什麼是○○」這種軟性提問／自我介紹當開場句；
+   第一句也不得與後面段落1的旁白逐字重複(段落1可承接同一件事，但要換句、往下推進，不能複製貼上)。
 2. 製造「好奇缺口」：開頭丟反直覺結論或數字謎題，**答案留到最後一句才揭曉**，逼觀眾看到底。
 3. 全程快節奏、每句一個衝擊點、不鋪陳不繞圈；寧可短(二十到三十秒)也不稀釋。
 4. 結尾用一句反轉或重磅數字收（不要平淡總結），**接一句『留言鉤』CTA**(「你的設定是哪種?留言告訴我」或「想要完整回測數據?留言『數據』我私你」)——留言在 Shorts 演算法權重比訂閱高,別只喊訂閱。
@@ -536,6 +602,7 @@ def call_claude(kind, avoid, topic_override=None):
     training = (load_training() or "")[:1200]      # 每週進修洞察(限長)
     avoid_block = "\n".join(f"  · {t}" for t in (avoid or [])[:30]) if avoid else "  （無）"
     hook_rules = HOOK_RULES if kind == "short" else LONG_RULES
+    hook_rules = hook_rules + _retention_insight()  # P1:把最新完播診斷結論回灌進 prompt(檔不在則優雅跳過)
     # 實測 EP 系列(爆款招牌)：短片且題目屬實測/實驗類 → 追加續集鐵律(前1.5秒錨數字+cliffhanger+留言題+念出HUD數字)
     _epkw = ("EP", "實測", "實驗")
     is_ep = (kind == "short" and not topic_override and topic
@@ -861,26 +928,49 @@ def _has_second_person(text):
     return ("\u4f60" in t) or ("\u59b3" in t)  # 你 / 妳
 
 
+# 2026-07 P1:純鋪陳/暖場式起手詞——第一句以這些開頭＝背景交代/自我介紹/軟性提問，不是結論前置。
+# 只抓典型鋪陳起手詞，不碰「你猜/你以為/你的」這類已證實有效的第二人稱衝擊句(純加法,不誤傷)。
+_PREAMBLE_OPENERS = (
+    "你知道嗎", "你有沒有想過", "你有想過",
+    "大家好", "各位好", "今天要跟大家", "今天來跟大家",
+    "我們來聊聊", "我們今天", "先跟大家", "什麼是",
+    "不知道大家", "相信大家都", "說到", "講到",
+    "歡迎回來", "自我介紹一下",
+)
+
+
+def _is_preamble_open(head):
+    """第一句是否為『鋪陳式暖場』(背景交代/自我介紹/軟性提問)，不是結論/數字直接開場。"""
+    t = (head or "").strip()
+    if not t:
+        return False
+    return any(t.startswith(p) or p in t[:10] for p in _PREAMBLE_OPENERS)
+
+
 def _weak_hook(voice_text):
-    """第一句(前1秒)弱鉤子判定(保守·沿用重生上限≤2)：
-    ·原規則：第一句既無數字、又無衝突詞＝弱。
-    ·新增痛點第二人稱：開頭一兩句完全沒對觀眾說話(你/妳)時，若又沒有衝突詞撐場＝弱。
-      刻意保守——只要有衝突詞(卻/居然/差/剩/爆…)就算沒第二人稱也放行，避免誤殺
-      『同一個策略…夏普值差一倍』這類無「你」但很強的金句鉤。純加法：原本擋下的絕不會因此變放行。"""
+    """第一句(前1秒)弱鉤子判定(保守·沿用重生上限<=2)：
+    ·原規則：第一句既無數字、又無衝突詞=弱。
+    ·新增痛點第二人稱：開頭一兩句完全沒對觀眾說話(你/妳)時，若又沒有衝突詞撐場=弱。
+      刻意保守——只要有衝突詞(卻/居然/差/剩/爆等)就算沒第二人稱也放行，避免誤殺
+      同一個策略切點不同夏普值差一倍這類無「你」但很強的金句鉤。純加法：原本擋下的絕不會因此變放行。
+    ·2026-07 新增(結論前置 gate)：即使有數字/衝突詞，若第一句仍是典型鋪陳起手詞(你知道嗎/大家好/
+      今天要跟大家聊聊/什麼是某某等)=一樣算弱，擋純鋪陳問句開場——回應 retention_insights.json
+      開頭12-20%流失最兇、別鋪陳的診斷。純加法：只多擋、不放行任何原本會被擋的片。"""
     import re as _r
     body = (voice_text or "").replace("\n", " ")
-    head = body.split("\u3002")[0]  # 第一句：管數字/衝突(前1秒最強那句)
-    head2 = "\u3002".join(body.split("\u3002")[:2])  # 前一兩句：管第二人稱
+    head = body.split("。")[0]  # 第一句：管數字/衝突(前1秒最強那句)
+    head2 = "。".join(body.split("。")[:2])  # 前一兩句：管第二人稱
     if not head:
         return True
-    has_num = bool(_r.search(r"[0-9\uff10-\uff19]|[\u4e00\u4e8c\u4e09\u56db\u4e94\u516d\u4e03\u516b\u4e5d\u5341\u767e\u5343\u842c\u5169\u534a\u500d\u6210]", head))
-    conflict = ["\u537b","\u9084","\u7adf","\u5c45\u7136","\u5dee","\u8667","\u5269","\u7206","\u7834","\u6c92\u60f3\u5230",
-                "\u5176\u5be6","\u771f\u76f8","\u70ba\u4ec0\u9ebc","\u932f","\u9676\u6c70","\u8b8a\u6210","\u96e3\u9053"]
+    has_num = bool(_r.search(r"[0-9０-９]|[一二三四五六七八九十百千萬兩半倍成]", head))
+    conflict = ["卻", "還", "竟", "居然", "差", "虧", "剩", "爆", "破", "沒想到",
+                "其實", "真相", "為什麼", "錯", "陶汰", "變成", "難道"]
     has_conf = any(w in head for w in conflict)
     has_you = _has_second_person(head2)
     # 保守：有衝突詞就不算弱；沒衝突詞時，數字與第二人稱缺一即弱
     # (等於在原「無數字」外，多擋「有數字但整段都不對觀眾說話」的乾巴巴陳述)
-    return (not has_conf) and ((not has_num) or (not has_you))
+    weak_orig = (not has_conf) and ((not has_num) or (not has_you))
+    return weak_orig or _is_preamble_open(head)
 
 
 def _impact_density(voice_text, max_sec_per_beat=7.0):
@@ -1166,6 +1256,10 @@ def main() -> int:
                 print(f"[err {kind} 第{t+1}次] {exc}", file=sys.stderr)
         log_ops("補產部門", f"⚠️ {kind} 連續失敗，跳過")
         return False
+
+    # P3:本批開跑前設定時事題保底配額(短片/長片各自算;quota=0 時行為與修改前完全相同)
+    _set_batch_plan("short", args.shorts)
+    _set_batch_plan("long", args.long)
 
     log_ops("補產部門", f"開始補產（庫存 {q}/{args.target}）…")
     made = sum(1 for _ in range(args.shorts) if attempt("short"))
