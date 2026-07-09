@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -38,6 +39,88 @@ def _ffmpeg_exe() -> str:
         return imageio_ffmpeg.get_ffmpeg_exe()
     except Exception:
         return os.environ.get("IMAGEIO_FFMPEG_EXE") or "ffmpeg"
+
+
+# --------------------------------------------------------------------------- #
+# P5-a 產線止血：組片 cmd 一律先寫暫存檔、探測(視訊軌/音軌/片長)過了才搬進正式
+# out_mp4 路徑；沒過就重試一次；兩次都不過絕不留壞檔在 output/ ——
+# 這是 07-09 audit_fail 由 0-2 暴衝到 10（0KB/無視訊軌/片長 0-1秒）的根因修復：
+# 舊寫法讓 ffmpeg `-y` 直接寫正式路徑，一旦被 batch 逾時整組砍掉(produce_batch 的
+# 殭屍防護)或 concat/編碼中途失敗，正式路徑上就留下半成品，audit_video 才在事後抓到。
+# --------------------------------------------------------------------------- #
+
+
+def _probe_media(path: Path):
+    """回傳 (duration, has_video, has_audio)；探測失敗回 (0.0, False, False)。"""
+    try:
+        ff = _ffmpeg_exe()
+        out = subprocess.run([ff, "-i", str(path)], capture_output=True, text=True,
+                             encoding="utf-8", errors="replace", timeout=20)
+        txt = out.stderr or ""
+        m = re.search(r"Duration:\s*(\d+):(\d+):(\d+\.?\d*)", txt)
+        dur = (int(m.group(1)) * 3600 + int(m.group(2)) * 60 + float(m.group(3))) if m else 0.0
+        return dur, ("Video:" in txt), ("Audio:" in txt)
+    except Exception:  # noqa: BLE001
+        return 0.0, False, False
+
+
+def _log_ops(stage: str, msg: str) -> None:
+    """寫進既有 STUDIO/ops_log.txt；ops 模組不可用時安靜略過，絕不影響渲染主流程。"""
+    try:
+        import ops
+        ops.log_ops(stage, msg)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _encode_and_validate(cmd, final_out: Path, tmp_dir: Path, *, stage: str, timeout: int,
+                         min_dur: float = 1.0) -> bool:
+    """執行組片 cmd（cmd 最後一個元素會被改寫成暫存輸出路徑，呼叫端傳入的原值僅供參考）。
+    成功且通過探測驗證才搬到 final_out；失敗（含逾時）重試一次；兩次都失敗絕不在
+    final_out 留下壞檔，並把原因寫進 STUDIO/ops_log.txt。回傳 True/False。"""
+    tmp_out = tmp_dir / f"_render_tmp_{final_out.stem}.mp4"
+    cmd = list(cmd)
+    cmd[-1] = str(tmp_out)
+    last_err = ""
+    for attempt in (1, 2):
+        try:
+            tmp_out.unlink(missing_ok=True)
+        except Exception:  # noqa: BLE001
+            pass
+        r = None
+        try:
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        except subprocess.TimeoutExpired:
+            last_err = f"逾時（{timeout}s）"
+        if r is not None and r.returncode == 0:
+            dur, has_v, has_a = _probe_media(tmp_out)
+            size = tmp_out.stat().st_size if tmp_out.exists() else 0
+            if tmp_out.exists() and size > 0 and has_v and has_a and dur >= min_dur:
+                try:
+                    final_out.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.move(str(tmp_out), str(final_out))
+                except Exception as mv_exc:  # noqa: BLE001
+                    last_err = f"搬移失敗：{mv_exc}"
+                    if attempt == 2:
+                        break
+                    continue
+                if attempt == 2:
+                    print(f"[ffmpeg後端·{stage}] 重試後成功", file=sys.stderr)
+                    _log_ops(f"render_ffmpeg/{stage}", f"{final_out.name}：重試後成功")
+                return True
+            last_err = f"輸出無效（dur={dur:.1f}s video={has_v} audio={has_a} size={size}B）"
+        elif r is not None:
+            last_err = (r.stderr or "")[-400:]
+        if attempt == 1:
+            print(f"[ffmpeg後端·{stage}] 第1次失敗（{last_err[:200]}），重試一次…", file=sys.stderr)
+            _log_ops(f"render_ffmpeg/{stage}", f"{final_out.name}：第1次失敗，重試：{last_err[:150]}")
+    try:
+        tmp_out.unlink(missing_ok=True)
+    except Exception:  # noqa: BLE001
+        pass
+    print(f"[ffmpeg後端·{stage}] 兩次都失敗，不留壞檔：{last_err[:300]}", file=sys.stderr)
+    _log_ops(f"render_ffmpeg/{stage}", f"{final_out.name}：兩次都失敗，不留壞檔：{last_err[:200]}")
+    return False
 
 
 def _pick_codec(ff: str):
@@ -335,15 +418,12 @@ def _render_with_broll(slug_paths, *, segments, seg_cards, intro_png, outro_png,
                "-t", f"{total:.3f}", "-movflags", "+faststart", str(slug_paths.out_mp4)]
         print(f"[ffmpeg後端·b-roll] b-roll={broll_used}/{n}段  字幕={len(cues)}  "
               f"BGM={'有' if bgm else '無'}  總長={total:.1f}s")
-        slug_paths.out_mp4.parent.mkdir(parents=True, exist_ok=True)
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
-        if r.returncode != 0:
-            print(f"[ffmpeg後端·b-roll] concat 失敗,交回卡片路徑:\n{r.stderr[-400:]}", file=sys.stderr)
-            return False
-        ok = slug_paths.out_mp4.exists() and slug_paths.out_mp4.stat().st_size > 0
+        ok = _encode_and_validate(cmd, slug_paths.out_mp4, tmp_dir, stage="b-roll", timeout=300)
         if ok:
             mb = slug_paths.out_mp4.stat().st_size / (1024 * 1024)
             print(f"[ffmpeg後端·b-roll] ✅ 完成 {slug_paths.out_mp4.name}（{mb:.1f} MB, b-roll {broll_used} 段）")
+        else:
+            print("[ffmpeg後端·b-roll] 交回卡片路徑", file=sys.stderr)
         return ok
     except Exception as exc:  # noqa: BLE001
         print(f"[ffmpeg後端·b-roll] 失敗({exc}),交回卡片路徑", file=sys.stderr)
@@ -458,15 +538,12 @@ def _render_animated(slug_paths, *, segments, seg_cards, intro_png, outro_png, c
                "-map", "0:v", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-b:a", "128k",
                "-t", f"{total:.3f}", "-movflags", "+faststart", str(slug_paths.out_mp4)]
         print(f"[ffmpeg後端·動畫] 特效={fx_count}  字幕={len(cues)}  BGM={'有' if bgm else '無'}  總長={total:.1f}s")
-        slug_paths.out_mp4.parent.mkdir(parents=True, exist_ok=True)
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
-        if r.returncode != 0:
-            print(f"[ffmpeg後端·動畫] concat 失敗,交回其他路徑:\n{r.stderr[-400:]}", file=sys.stderr)
-            return False
-        ok = slug_paths.out_mp4.exists() and slug_paths.out_mp4.stat().st_size > 0
+        ok = _encode_and_validate(cmd, slug_paths.out_mp4, tmp_dir, stage="動畫", timeout=600)
         if ok:
             mb = slug_paths.out_mp4.stat().st_size / (1024 * 1024)
             print(f"[ffmpeg後端·動畫] ✅ 完成 {slug_paths.out_mp4.name}（{mb:.1f} MB, 特效 {fx_count}）")
+        else:
+            print("[ffmpeg後端·動畫] 交回其他路徑", file=sys.stderr)
         return ok
     except Exception as exc:  # noqa: BLE001
         print(f"[ffmpeg後端·動畫] 失敗({exc}),交回其他路徑", file=sys.stderr)
@@ -612,17 +689,25 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
             except Exception:  # noqa: BLE001
                 pass
 
-        # 品牌固定片頭優先；無品牌素材時 render_brand_intro 回 None → 退回既有 hook_card/seg_card 降級鏈
-        intro_png = None
-        try:
-            _mpath_i = mv._mascot_path_for(mv._ep_data_numbers().get("pct")) if mv._mascot_enabled() else None
-            intro_png = mv.render_brand_intro(width, height, title=title,
-                                              dest=tmp_dir / "brand_intro.png",
-                                              tagline=branding.get("intro_tagline"), mascot_path=_mpath_i)
-        except Exception:  # noqa: BLE001
-            intro_png = None
+        # P1 首幀視覺 gate:演算法看前 2 秒滑走率,開場第一幀絕不能是空鏡/鋪陳的純品牌卡。
+        # 舊優先序是「品牌卡優先、hook_card 只在無品牌素材時當備案」——但 assets/brand/intro_template.png
+        # 常態存在,結果 hook_card(大數字衝擊卡)幾乎從沒被用到,首幀變成平淡標題卡。
+        # 改成:能從標題抽到數字就優先用 hook_card(大數字/反直覺句/懸念,衝擊力最強);
+        # 抽不到數字(標題本身無量化衝擊點)才退回品牌卡;品牌卡也產不出才退通用卡片。
+        intro_png = _render_hook_card(title, width, height, accent, tmp_dir)
+        if intro_png:
+            print(f"[ffmpeg後端] 首幀=大數字衝擊卡 (hook_card)", file=sys.stderr)
+        else:
+            print("[warn] 首幀抽不到數字,退品牌卡/通用卡(建議檢查標題是否含具體數字)", file=sys.stderr)
+            try:
+                _mpath_i = mv._mascot_path_for(mv._ep_data_numbers().get("pct")) if mv._mascot_enabled() else None
+                intro_png = mv.render_brand_intro(width, height, title=title,
+                                                  dest=tmp_dir / "brand_intro.png",
+                                                  tagline=branding.get("intro_tagline"), mascot_path=_mpath_i)
+            except Exception:  # noqa: BLE001
+                intro_png = None
         if not intro_png:
-            intro_png = _render_hook_card(title, width, height, accent, tmp_dir) or _make_seg_card(
+            intro_png = _make_seg_card(
                 mv.Segment(heading=title, narration=""), 900,
                 width=width, height=height, watermark=watermark, accent=accent,
                 vid_seed=f"{vid_seed}_intro", video_concept=None, tmp_dir=tmp_dir)
@@ -761,15 +846,12 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
         ]
         print(f"[ffmpeg後端] 編碼器={codec}  切片={len(timeline)}段  字幕={len(cues)}  "
               f"BGM={'有' if bgm else '無'}  總長={total:.1f}s")
-        slug_paths.out_mp4.parent.mkdir(parents=True, exist_ok=True)
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
-        if r.returncode != 0:
-            print(f"[ffmpeg後端] ffmpeg 失敗(rc={r.returncode}),交回備案:\n{r.stderr[-600:]}", file=sys.stderr)
-            return False
-        ok = slug_paths.out_mp4.exists() and slug_paths.out_mp4.stat().st_size > 0
+        ok = _encode_and_validate(cmd, slug_paths.out_mp4, tmp_dir, stage="靜態", timeout=600)
         if ok:
             mb = slug_paths.out_mp4.stat().st_size / (1024 * 1024)
             print(f"[ffmpeg後端] ✅ 完成 {slug_paths.out_mp4.name}（{mb:.1f} MB）")
+        else:
+            print("[ffmpeg後端] 兩次都失敗,交回備案", file=sys.stderr)
         return ok
     finally:
         import shutil

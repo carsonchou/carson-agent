@@ -1247,6 +1247,60 @@ def probe_audio_duration(audio_path: Path) -> float:
 
 
 # --------------------------------------------------------------------------- #
+# 輸出驗證（P5-a 產線止血：絕不讓 0KB/無視訊軌/超短片悄悄留在 output/）
+# --------------------------------------------------------------------------- #
+
+
+def _probe_render_output(path: Path, min_duration: float = 1.0):
+    """輕量 ffprobe 驗證輸出 mp4：檔案存在且非空、有視訊軌、有音軌、片長 >= min_duration。
+    回傳 (ok: bool, reason: str)；探測本身失敗一律視為不合格（保守，寧可誤殺重試也不留壞檔）。"""
+    try:
+        if not path.exists():
+            return False, "檔案不存在"
+        size = path.stat().st_size
+        if size <= 0:
+            return False, "0 bytes"
+        import subprocess as _sp
+        import imageio_ffmpeg as _iio
+        ff = _iio.get_ffmpeg_exe()
+        out = _sp.run([ff, "-i", str(path)], capture_output=True, text=True,
+                      encoding="utf-8", errors="replace", timeout=20)
+        txt = out.stderr or ""
+        m = re.search(r"Duration:\s*(\d+):(\d+):(\d+\.?\d*)", txt)
+        dur = (int(m.group(1)) * 3600 + int(m.group(2)) * 60 + float(m.group(3))) if m else 0.0
+        has_v, has_a = ("Video:" in txt), ("Audio:" in txt)
+        if dur < min_duration:
+            return False, f"片長過短（{dur:.1f}s）"
+        if not has_v:
+            return False, "無視訊軌"
+        if not has_a:
+            return False, "無音軌"
+        return True, ""
+    except Exception as exc:  # noqa: BLE001
+        return False, f"探測失敗（{exc}）"
+
+
+def _cleanup_bad_output(path: Path) -> None:
+    """渲染徹底失敗（重試過仍不合格）時，主動清掉殘留在 output/ 的壞檔——
+    別讓 0KB/無視訊軌/超短片留到 audit_video 事後才發現、白算一次有效產量。"""
+    try:
+        if path.exists():
+            path.unlink()
+            print(f"[cleanup] 已清除壞檔殘留：{path}", file=sys.stderr)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[warn] 清除壞檔失敗（{exc}）：{path}", file=sys.stderr)
+
+
+def _log_render_ops(stage: str, msg: str) -> None:
+    """寫進既有 STUDIO/ops_log.txt 心跳時間軸；ops 模組不可用時安靜略過，絕不影響渲染主流程。"""
+    try:
+        import ops
+        ops.log_ops(stage, msg)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+# --------------------------------------------------------------------------- #
 # 影片組裝（moviepy）
 # --------------------------------------------------------------------------- #
 
@@ -2050,9 +2104,15 @@ def build_video(
             pass
     print(f"[編碼] 使用 {_codec}（preset={_preset}）", file=sys.stderr)
 
+    # 直接寫真正輸出路徑很危險：moviepy 中途被殺（batch timeout kill 整組子行程）或編碼中途炸掉，
+    # 會在 output/ 留一個 0KB/截斷的 mp4，audit_video 事後才抓到、白算一次有效產量。
+    # 改成先寫暫存檔，探測(視訊軌/音軌/片長)過了才搬進正式路徑；沒過 raise 讓外層重試迴圈接手，
+    # 正式路徑要嘛不動、要嘛是已驗證的完整檔，絕不留半成品。
+    _tmp_out = tmp_dir / f"_render_{getattr(slug_paths, 'slug', 'out')}.mp4"
+
     def _write(cv, pr, extra):
         final.write_videofile(
-            str(slug_paths.out_mp4),
+            str(_tmp_out),
             fps=fps,
             codec=cv,
             audio_codec="aac",
@@ -2087,6 +2147,18 @@ def build_video(
                 c.close()
             except Exception:  # noqa: BLE001
                 pass
+
+    _ok, _reason = _probe_render_output(_tmp_out)
+    if not _ok:
+        try:
+            _tmp_out.unlink(missing_ok=True)
+        except Exception:  # noqa: BLE001
+            pass
+        _log_render_ops("make_video/moviepy驗證失敗", f"{getattr(slug_paths, 'slug', '?')}: {_reason}")
+        raise RuntimeError(f"moviepy 輸出驗證失敗：{_reason}")
+    slug_paths.out_mp4.parent.mkdir(parents=True, exist_ok=True)
+    import shutil as _sh_move
+    _sh_move.move(str(_tmp_out), str(slug_paths.out_mp4))
 
     stats["total_duration"] = INTRO_DURATION + audio_duration + OUTRO_DURATION
     return stats
@@ -2331,16 +2403,25 @@ def run(args: argparse.Namespace) -> int:
             import render_ffmpeg
             if render_ffmpeg.render(slug_paths, branding, width=width, height=height,
                                     fps=fps, no_subtitles=args.no_subtitles):
-                size_mb = slug_paths.out_mp4.stat().st_size / (1024 * 1024) if slug_paths.out_mp4.exists() else 0
-                print("=" * 64)
-                print("[OK] 影片完成（ffmpeg 後端·快）！")
-                print(f"  檔案     : {slug_paths.out_mp4}")
-                print(f"  大小     : {size_mb:.1f} MB")
-                print("=" * 64)
-                return 0
-            print("[info] ffmpeg 後端不適用此片，改用 moviepy 備案。", file=sys.stderr)
+                # 二次防呆：render_ffmpeg 內部已驗證過，這裡再探一次（成本極低），
+                # 徹底堵死「回傳 True 但正式路徑其實是壞檔」的任何殘餘縫隙。
+                _ok, _reason = _probe_render_output(slug_paths.out_mp4)
+                if _ok:
+                    size_mb = slug_paths.out_mp4.stat().st_size / (1024 * 1024)
+                    print("=" * 64)
+                    print("[OK] 影片完成（ffmpeg 後端·快）！")
+                    print(f"  檔案     : {slug_paths.out_mp4}")
+                    print(f"  大小     : {size_mb:.1f} MB")
+                    print("=" * 64)
+                    return 0
+                print(f"[warn] ffmpeg 後端輸出驗證未過（{_reason}），清除壞檔改用 moviepy 備案。", file=sys.stderr)
+                _cleanup_bad_output(slug_paths.out_mp4)
+                _log_render_ops("make_video/ffmpeg後端驗證失敗", f"{slug_paths.slug}: {_reason}")
+            else:
+                print("[info] ffmpeg 後端不適用此片，改用 moviepy 備案。", file=sys.stderr)
         except Exception as _ff_exc:  # noqa: BLE001
             print(f"[warn] ffmpeg 後端失敗（{_ff_exc}），改用 moviepy 備案。", file=sys.stderr)
+            _cleanup_bad_output(slug_paths.out_mp4)
 
     stats = None
     last_exc = None
@@ -2368,6 +2449,13 @@ def run(args: argparse.Namespace) -> int:
             _gc.collect()
             _shutil.rmtree(tmp_dir, ignore_errors=True)
     if stats is None:
+        # 兩次都沒過：正式路徑本身這次沒被寫壞（build_video 只搬「已驗證」的檔），
+        # 但保險起見仍探一次——若殘留舊壞檔（例如舊版程式留下的），一併清掉，
+        # 別讓 audit_video 事後才發現、白算一次有效產量。
+        _ok, _reason = _probe_render_output(slug_paths.out_mp4)
+        if not _ok:
+            _cleanup_bad_output(slug_paths.out_mp4)
+        _log_render_ops("make_video/總失敗", f"{slug_paths.slug}: {type(last_exc).__name__}: {last_exc}")
         print(f"[FATAL] 影片組裝失敗（{type(last_exc).__name__}: {last_exc}）", file=sys.stderr)
         print("  常見原因：ffmpeg 未安裝或不在 PATH（winget install Gyan.FFmpeg）。", file=sys.stderr)
         return 4
