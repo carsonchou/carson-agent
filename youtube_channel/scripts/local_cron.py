@@ -219,6 +219,9 @@ def main() -> int:
 
     _log(f"本機工作室排程器啟動：{len(jobs)} 個 job（Ctrl+C 停）。LLM={env.get('LLM_PROVIDER')}")
     last_min = None
+    # bug 修復(2026-07-09)：jobs 原本只在啟動時 parse 一次，crontab.txt 之後的改動(如新增
+    # tiktok_upload 跨發排程)在本實例存活期間永遠不會生效，只能靠人手動重啟才會吃到——
+    # 排程「看起來對」實際上不會跑，很難察覺。改成每分鐘連同 .env 一起重讀 crontab.txt。
     while True:
         now = datetime.now()
         cur = now.strftime("%Y%m%d%H%M")
@@ -226,6 +229,7 @@ def main() -> int:
         if cur != last_min:      # 每分鐘只判定一次
             last_min = cur
             env = load_env()     # 每分鐘重讀 .env（金鑰換了即生效）
+            jobs = parse_jobs()  # 每分鐘重讀 crontab.txt（排程改動免重啟即生效）
             for j in jobs:
                 if due(j, now):
                     run_job(j[5], env)
