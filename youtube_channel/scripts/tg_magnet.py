@@ -295,8 +295,13 @@ def main() -> int:
         if not chat_id:
             continue
         if chat_id not in leads:  # 新名單:送磁鐵 + 記錄
+            # C2 歸因:首訊暗號分流來源(各平台 caption 用不同暗號)→看哪個平台最會帶名單/賺
+            _tl = text.lower()
+            src = ("tiktok" if ("抖" in text or "tk" in _tl) else
+                   "instagram" if "ig" in _tl else
+                   "youtube")
             leads[chat_id] = {"username": chat.get("username", ""), "name": chat.get("first_name", ""),
-                              "first_msg": text[:40], "ts": int(time.time())}
+                              "first_msg": text[:40], "ts": int(time.time()), "src": src, "stage": 1}
             # opt-in 分流:打「省AI/便宜/共享/Claude…」→ 送 AI 省錢版(含共享連結、已揭露);其餘一律送 Pionex 檢核表預設
             if any(k in text.lower() for k in _AI_KW):
                 _send(chat_id, _MAGNET_AI)
