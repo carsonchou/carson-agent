@@ -17,6 +17,20 @@ import requests
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "output"
 GRAPH = "https://graph.instagram.com/v21.0"
+
+
+def _load_env():
+    """直跑時把專案根 .env 併進 os.environ(cron 由 local_cron 載;直跑沒有→IG token 找不到)。"""
+    envf = ROOT / ".env"
+    if envf.exists():
+        for ln in envf.read_text(encoding="utf-8", errors="replace").splitlines():
+            s = ln.strip()
+            if s and not s.startswith("#") and "=" in s:
+                k, v = s.split("=", 1)
+                os.environ.setdefault(k.strip(), v.strip())
+
+
+_load_env()
 UID = os.environ.get("IG_USER_ID", "").strip()
 TOKEN = os.environ.get("IG_ACCESS_TOKEN", "").strip()
 
