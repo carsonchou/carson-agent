@@ -226,6 +226,8 @@ def find_candidates(ledger: dict) -> list:
     shorts, longs, mtimes = [], [], {}
     for f in list(OUTPUT.glob("S_*.mp4")) + list(OUTPUT.glob("L_*.mp4")):
         slug = f.stem
+        if slug.endswith("_ytcta"):
+            continue  # IG/TikTok 片尾卡衍生檔(append_yt_cta 產),原片多半已上 YT,當新片發=重複發布已上線影片
         if slug in ledger or slug in skip:
             continue
         if f.stat().st_size < 100 * 1024:
