@@ -231,13 +231,17 @@ def main() -> int:
         return 0 if ok else 1
 
     if args.max:
-        # 最近的短片 mp4、未傳過的,傳 N 支
+        # 最近的短片 mp4、未傳過的,傳 N 支。排除衍生 _ytcta 檔+洗版骨架片(別把垃圾/重複跨發出去)
         mp4s = sorted(OUT.glob("S_*.mp4"), key=lambda f: -f.stat().st_mtime)
         done = 0
         for f in mp4s:
             slug = f.stem
+            if slug.endswith("_ytcta"):
+                continue  # 衍生片尾卡檔,非原片
             if slug in led:
                 continue
+            if sc.is_banned_skeleton(slug):
+                continue  # 洗版骨架舊片(爆倉還活著等),不跨發
             if _upload_one(slug, dry=args.dry):
                 if not args.dry:
                     led[slug] = int(time.time()); sc.save_json_atomic(LEDGER, led)
