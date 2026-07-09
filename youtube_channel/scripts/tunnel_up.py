@@ -115,9 +115,13 @@ def run_forever() -> None:
             cf.terminate()
             time.sleep(5)
             continue
-        # 保活:輪詢 cloudflared/fileserver 是否還活著,掛了就重起
+        # 保活:輪詢 cloudflared/fileserver 是否還活著,掛了就重起;並定期重蓋 ts(否則 tunnel 活著但 ts 變舊→下游誤判不通)
+        _cyc = 0
         while True:
             time.sleep(10)
+            _cyc += 1
+            if _cyc % 24 == 0:  # 每 ~4 分鐘重蓋一次 ts(同 URL·刷新新鮮度)
+                _write_tunnel_json(url)
             if cf.poll() is not None:
                 print("[tunnel_up] cloudflared 掛了,重起中…", file=sys.stderr)
                 break
@@ -127,10 +131,52 @@ def run_forever() -> None:
                 time.sleep(1)
 
 
+def _fresh_and_reachable(max_age: int = 900) -> bool:
+    """tunnel_url.json 夠新(<max_age 秒)且公網 URL 真的連得上 → 視為健康。"""
+    import json
+    import urllib.request
+    try:
+        d = json.loads(TUNNEL_JSON.read_text(encoding="utf-8"))
+        if (time.time() - int(d.get("ts", 0))) > max_age:
+            return False
+        base = d.get("base")
+        if not base:
+            return False
+        req = urllib.request.Request(base, method="HEAD")
+        with urllib.request.urlopen(req, timeout=8) as r:
+            return r.status < 500
+    except urllib.error.HTTPError as e:  # 4xx(如 fileserver 對根路徑回 403)=伺服器有回應=tunnel 通
+        return e.code < 500
+    except Exception:  # noqa: BLE001  連線錯/逾時/5xx=真的不通
+        return False
+
+
+def ensure() -> None:
+    """cron 自癒:tunnel 健康就啥都不做;否則 detached 起一個常駐 run_forever(survive 父程序結束)。"""
+    if _fresh_and_reachable():
+        print("[tunnel_up] tunnel 健康,無需動作")
+        return
+    print("[tunnel_up] tunnel 不健康/過期,detached 重啟常駐…")
+    kw = {}
+    if sys.platform == "win32":
+        # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP:脫離父程序,cron 子程序結束也不會收掉 tunnel
+        kw["creationflags"] = 0x00000008 | 0x00000200
+    else:
+        kw["start_new_session"] = True
+    logf = open(ROOT / "logs" / "tunnel_up.log", "a", encoding="utf-8", errors="replace")
+    subprocess.Popen([sys.executable, str(ROOT / "scripts" / "tunnel_up.py")],
+                     cwd=str(ROOT), stdout=logf, stderr=subprocess.STDOUT, **kw)
+    print("[tunnel_up] 已 detached 啟動常駐 tunnel")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--once", action="store_true", help="只起一次抓到 URL 就結束(測試用)")
+    ap.add_argument("--ensure", action="store_true", help="cron 自癒:不健康才 detached 重啟常駐")
     args = ap.parse_args()
+    if args.ensure:
+        ensure()
+        raise SystemExit(0)
     if args.once:
         url = run_once()
         raise SystemExit(0 if url else 1)
