@@ -106,6 +106,8 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 0 9 * * * /root/yt/run.sh scripts/daily_health.py --notify >> /root/yt/logs/cron.log 2>&1
 # 北極星整合(每天 09:05:訂閱/觀看/各源收入/YPP缺口/飛輪贏家 → northstar.json + ntfy)
 5 9 * * * /root/yt/run.sh scripts/northstar.py --notify >> /root/yt/logs/cron.log 2>&1
+# 成長哨兵(每天 09:10,northstar後):盯7日滾動觀看趨勢,真.持續下滑或產線見底才偏產贏家題+ntfy(不追單日噪音)
+10 9 * * * /root/yt/run.sh scripts/growth_watchdog.py >> /root/yt/logs/cron.log 2>&1
 # 收入儀表板(C2·每天 09:06,排北極星之後:各平台×各收入線進帳/名單來源/名單→付費轉換率 → revenue.json,併入 northstar)
 6 9 * * * /root/yt/run.sh scripts/revenue_dashboard.py >> /root/yt/logs/cron.log 2>&1
 # D1 趨勢劫持(每4h:抓競品爆款題型→改寫成誠實同型片,騎演算法)
