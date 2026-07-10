@@ -2,13 +2,20 @@
 # -*- coding: utf-8 -*-
 """make_cover.py — 高質感 Shorts/縮圖封面產生器（量化阿森品牌）。
 
-兩種風格（依主題自動選，可輪替）：
-  · tech：科技吉祥物機器人（霓虹眼 + 終端網格 + 發光字）→ 原理/教學/概念題
-  · real：真人手機 App 實測畫面（崩盤紅光 + 綠勢 + 紅圈）→ 結果/實測/帳戶題
+2026-07 B4 全面重製：淘汰舊版「AI 生圖·手拿手機紅光走勢圖」cliché（同一模子、且會把
+「真實帳戶」字樣蓋在 AI 算圖上、不誠實）。改成純程式繪製的「暗色 + 數據卡（仿 macOS
+視窗顯示回測數字 + 免責）」風格，收斂到頻道最好那張(『我給機器人1萬跑30天』)的設計語言：
+  · 背景：深色交易終端（細網格 + 種子穩定 K 線走勢帶），不再打 Pollinations 生圖 API
+    （不再有「同一姿勢的手/手機」問題、不再受限流/超時、離線可跑、100% 是自家視覺語言）
+  · 數據卡：只有 style=real(結果/實測類) 才顯示；優先用 backtest_cards.json 的真回測數字
+    （label=「真回測」），否則用 AI/啟發式抽出的示意數字但誠實標「示意回測」——
+    誠信鐵則：「真實帳戶／真回測」字樣只准蓋在真數據上，絕不蓋在示意/AI 算圖上。
+  · style=tech(原理/教學/概念類) 不強塞數字卡，只留 kicker+headline+hook+品牌，同一套
+    暗色語言但不編造數據。
+  · 品牌浮水印/kicker 固定高對比淺色，不再跟著 sentiment 變成深底看不到的粉紅字。
 
-流程：Haiku 從標題/旁白抽「狠話 kicker / 主標 / 鉤子(含金色關鍵字) / 數據標 / 漲跌情緒 / 英文場景詞」
-      → 免金鑰 Pollinations(Flux) 生主題場景圖 → 疊精緻文字 → 1080x1920 JPG。
-AI 生圖或 API 失敗 → 退回 make_video 的 K 線卡保底（不開天窗）。
+流程：Haiku(或啟發式保底) 從標題/旁白抽「頂部小字 kicker / 主標 headline / 鉤子(前+金字+後) /
+      亮點數據 data / 漲跌情緒 sentiment / 適用 style」→ 純 PIL 合成 → 1080x1920 JPG。
 
 用法：
   python make_cover.py --slug S_xxx --title "標題" [--narration "旁白"] [--style tech|real|auto] [--out path]
@@ -21,8 +28,6 @@ import json
 import os
 import re
 import sys
-import urllib.parse
-import urllib.request
 from pathlib import Path
 
 try:
@@ -31,13 +36,12 @@ try:
 except Exception:
     pass
 
-from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 OUT = ROOT / "assets" / "thumbnails"
 OUT.mkdir(parents=True, exist_ok=True)
-TMP = ROOT / "assets" / "_cover_tmp"
-TMP.mkdir(parents=True, exist_ok=True)
 W, H = 1080, 1920
 API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
 AI_MODEL = "claude-haiku-4-5-20251001"
@@ -63,77 +67,21 @@ def F(s, b=True):
 
 # ───────────────────────── 情緒色盤 ─────────────────────────
 def _palette(sentiment):
-    """依漲跌情緒回傳 (accent, glow, scrim_col, kicker_col, data_border)。"""
+    """依漲跌情緒回傳 (accent, glow, scrim_col)。品牌浮水印/kicker 一律走固定高對比色
+    (見 BRAND_TEXT/KICKER_TEXT)，不再跟情緒色掛勾——B5：修「粉紅浮水印深底看不到」。"""
     if sentiment == "down":
-        # 崩盤冷調：深紅 + 冰藍暗角
-        return (
-            (220, 50, 60),       # accent — 紅
-            (200, 30, 40, 130),  # glow
-            (8, 6, 10),          # scrim base
-            (255, 160, 165),     # kicker text
-            (230, 60, 70, 255),  # data border
-        )
-    else:
-        # 獲利暖調：青綠 + 深海藍暗角
-        return (
-            (54, 230, 200),      # accent — 青綠
-            (30, 200, 180, 130), # glow
-            (4, 10, 16),         # scrim base
-            (120, 240, 220),     # kicker text
-            (54, 230, 200, 255), # data border
-        )
+        return ((220, 50, 60), (200, 30, 40, 130), (8, 6, 10))
+    return ((54, 230, 200), (30, 200, 180, 130), (4, 10, 16))
 
 
-# ───────────────────────── 場景模板庫 ─────────────────────────
-# 依主題關鍵字 map 到更精緻的英文場景前綴，後面再拼通用品質後綴
-_SCENE_QUALITY = (
-    "cinematic lighting, octane render, depth of field, 8k ultra detail, "
-    "premium dark navy teal palette, moody atmosphere, anamorphic lens flare"
-)
-
-_SCENE_MAP = [
-    # (關鍵字 tuple, scene_prefix)
-    (("崩盤", "爆倉", "大跌", "暴跌", "破產"),
-     "dramatic cinematic photo of a crypto trading screen in red freefall, "
-     "shattered glass effect, emergency red light flooding a dark trading desk, "
-     "panic atmosphere, scattered papers"),
-    (("定投", "DCA", "每月", "每週", "長期"),
-     "serene top-down flat lay of a smartphone showing steady upward dollar-cost-averaging chart, "
-     "minimalist dark marble desk, single gold coin gleaming, calm confident mood"),
-    (("網格", "Grid", "grid", "區間"),
-     "futuristic holographic grid trading matrix floating in dark space, "
-     "cyan laser grid lines, glowing nodes at intersections, abstract geometric precision"),
-    (("回測", "backtest", "歷史", "模擬", "10年", "5年"),
-     "dramatic split-screen: left side shows historical market chaos, right side shows "
-     "clean profit equity curve glowing green, time-travel portal effect, dark studio"),
-    (("派網", "Pionex", "pionex", "機器人", "自動"),
-     "sleek dark smartphone floating in dark space displaying a professional crypto trading bot "
-     "dashboard with glowing teal metrics, robotic arm gently touching the screen, premium product shot"),
-    (("質押", "借錢", "槓桿", "借貸"),
-     "close-up cinematic of golden coins being used as collateral, "
-     "dark bank vault atmosphere, green digital loan approval screen reflected on coins"),
-    (("比較", "vs", "哪個", "選擇", "適合"),
-     "dramatic cinematic duel composition, two glowing holographic trading strategies "
-     "facing each other in dark arena, electric energy between them, versus split"),
-    (("ETF", "0050", "006208", "指數", "大盤"),
-     "elegant top-down of diversified investment portfolio visualization, "
-     "glowing bar chart rising steadily, dark premium background, long-term wealth theme"),
-]
-
-
-def _build_scene_prompt(title, scene_en_ai, sentiment):
-    """挑最貼題的模板；AI 有給 scene_en 就融合，否則純用模板。"""
-    title_lower = (title or "").lower()
-    for kws, prefix in _SCENE_MAP:
-        if any(k in (title or "") or k.lower() in title_lower for k in kws):
-            base = prefix
-            break
-    else:
-        # 無命中 → 用 AI 給的或通用
-        base = scene_en_ai or "professional crypto trading setup with glowing monitors in dark studio"
-
-    mood = "cold blue desaturated color grade" if sentiment == "down" else "rich teal warm highlights"
-    return f"{base}, {mood}, {_SCENE_QUALITY}, vertical 9:16"
+BRAND_TEXT = (228, 234, 247, 255)   # 固定高對比淺灰白(全不透明)：品牌浮水印/kicker 字，不受 sentiment 影響
+GOLD = (255, 209, 102)              # 品牌暗金 #FFD166——與 design_system.json accent_palette[0] 同值(B5 統一)
+GOLD_DARK = (176, 138, 58)
+INK = (236, 242, 250)
+MUT = (165, 176, 196)
+RED_ACCENT = (230, 60, 70)
+TEAL_ACCENT = (54, 230, 200)
+BASE_BG = (9, 12, 20)
 
 
 # ───────────────────────── 文字推導 ─────────────────────────
@@ -147,14 +95,14 @@ def _heuristic(title):
         "headline": t[:10] or "你不知道的真相",
         "hook_pre": "結果", "hook_key": "讓人意外", "hook_post": "？",
         "data": "", "sentiment": "up",
-        "scene_en": "futuristic trading robot, glowing chart",
         "style": "real" if any(k in (title or "") for k in _REAL_KW) else "tech",
     }
 
 
 def derive(title, narration=""):
     fb = _heuristic(title)
-    if not any(os.environ.get(_k,"").strip() for _k in ("OPENROUTER_API_KEY","ANTHROPIC_API_KEY","DEEPSEEK_API_KEY","GEMINI_API_KEY","GROQ_API_KEY")):
+    if not any(os.environ.get(_k, "").strip() for _k in
+               ("OPENROUTER_API_KEY", "ANTHROPIC_API_KEY", "DEEPSEEK_API_KEY", "GEMINI_API_KEY", "GROQ_API_KEY")):
         return fb
     prompt = (
         "你是量化交易頻道的縮圖文案。讀標題與旁白，輸出 JSON（繁中、不誇大不保證收益）。"
@@ -163,9 +111,8 @@ def derive(title, narration=""):
         '"headline":"主標狠話(≤9字,衝擊反差,如\'全場爆倉它沒事\'\'虧損中反而賺\')",'
         '"hook_pre":"鉤子前段(≤5字)","hook_key":"金色強調關鍵詞(2-3字)","hook_post":"鉤子後段(≤3字,常是問號)",'
         '"//note":"hook_pre+hook_key+hook_post 三段合起來必須≤9字、像\'它為什麼還在|賺|？\'或\'結果竟然|賺爆|了\'",'
-        '"data":"亮點數據短語(≤7字,如\'逆勢+8.6%\'\'終值5.8倍\',無合適可空)",'
+        '"data":"亮點數據短語(≤7字,如\'+8.6%\'\'5.8倍\',只放數字，無合適可空)",'
         '"sentiment":"up或down(結論賺/正面=up,崩跌/虧=down)",'
-        '"scene_en":"AI生圖英文場景補充詞(10字內,主體特徵,如 shattered phone screen red candles / cute robot celebrating profit)",'
         '"style":"real(結果/實測/帳戶/績效類)或tech(原理/教學/概念/比較類)"}\n'
         f"標題：{title}\n旁白：{(narration or '')[:500]}"
     )
@@ -200,39 +147,8 @@ def derive(title, narration=""):
         return fb
 
 
-# ───────────────────────── AI 生圖（Pollinations Flux，免金鑰） ─────────────────────────
-def _poll(prompt, seed, dest, tries=3):
-    """生圖，含 429/暫態錯誤的重試＋退避，避免量產時被限流而退回保底卡。"""
-    import time
-    u = ("https://image.pollinations.ai/prompt/" + urllib.parse.quote(prompt)
-         + f"?width=720&height=1280&model=flux&nologo=true&seed={seed}")
-    last = ""
-    for attempt in range(tries):
-        try:
-            req = urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0"})
-            data = urllib.request.urlopen(req, timeout=90).read()
-            if len(data) < 4000:
-                last = "回傳過小"
-            else:
-                dest.write_bytes(data)
-                return Image.open(dest).convert("RGB")
-        except Exception as e:  # noqa: BLE001
-            last = str(e)[:70]
-        if attempt < tries - 1:
-            time.sleep(4 * (attempt + 1) + 2)  # 退避：6s, 10s
-    print(f"[warn] AI 生圖 {tries} 次失敗：{last}", file=sys.stderr)
-    return None
-
-
 def _seed(slug):
     return int(hashlib.md5((slug or "x").encode("utf-8")).hexdigest(), 16) % 100000
-
-
-def _cover(im):
-    s = max(W / im.width, H / im.height)
-    im = im.resize((int(im.width * s), int(im.height * s)))
-    return im.crop(((im.width - W) // 2, (im.height - H) // 2,
-                    (im.width - W) // 2 + W, (im.height - H) // 2 + H))
 
 
 # ───────────────────────── 視覺工具 ─────────────────────────
@@ -298,11 +214,12 @@ def _frosted_panel(img, y0, y1, col=(10, 16, 24), alpha=185, accent=None, border
 
 
 def _separator(d, y, accent, pad=80):
-    """細水平分隔線 + 兩端小菱形裝飾。"""
-    d.line([(pad, y), (W - pad, y)], fill=(*accent[:3], 90), width=1)
+    """細水平分隔線 + 兩端小菱形裝飾。注意：直接 draw 在既有 RGBA 圖上不會做半透明混合(整像素覆寫)，
+    這裡是細線/小圖標，一律用不透明色(視覺上仍是細線，不影響觀感)。"""
+    d.line([(pad, y), (W - pad, y)], fill=(*accent[:3], 255), width=1)
     for cx in (pad, W - pad):
         d.polygon([(cx, y - 5), (cx + 5, y), (cx, y + 5), (cx - 5, y)],
-                  fill=(*accent[:3], 160))
+                  fill=(*accent[:3], 255))
 
 
 def _fit(d, t, max_w, start, mn=44):
@@ -314,14 +231,6 @@ def _fit(d, t, max_w, start, mn=44):
     return F(mn)
 
 
-GOLD = (228, 192, 108)
-GOLD_DARK = (180, 140, 60)
-INK = (236, 242, 250)
-MUT = (165, 176, 196)
-RED_ACCENT = (230, 60, 70)
-TEAL_ACCENT = (54, 230, 200)
-
-
 def _hook(d, img, txt, y, hf, box=None, glow_col=None):
     pre, key, post = txt
     w1 = d.textbbox((0, 0), pre, font=hf)[2]
@@ -331,7 +240,6 @@ def _hook(d, img, txt, y, hf, box=None, glow_col=None):
     if box == "yellow":
         b = d.textbbox((W // 2, y), pre + key + post, font=hf, anchor="mm")
         bx0 = max(28, b[0] - 36); bx1 = min(W - 28, b[2] + 36)
-        # 金色漸層框（用兩層疊出漸層感）
         d.rounded_rectangle([bx0 - 2, b[1] - 18, bx1 + 2, b[3] + 24], radius=26,
                              fill=(200, 160, 20, 255))
         d.rounded_rectangle([bx0, b[1] - 16, bx1, b[3] + 22], radius=24,
@@ -348,131 +256,168 @@ def _hook(d, img, txt, y, hf, box=None, glow_col=None):
         d2.text((x0 + w1 + w2, y), post, font=hf, fill=INK, anchor="lm", stroke_width=2, stroke_fill=(6, 16, 20))
 
 
-# ───────────────────────── 風格合成 ─────────────────────────
-def compose_tech(base, t):
+# ───────────────────────── 暗色交易終端背景（取代 AI 生圖） ─────────────────────────
+def _market_bg(accent, seed="x", tall_band=False):
+    """深色『交易終端』直式背景：細網格 + 種子穩定 K 線走勢帶 + accent 指標線。
+    純程式繪製、零網路依賴——徹底移除舊版「AI 生圖手拿手機」cliché 的來源。
+    tall_band=True(tech 風格、無數據卡可填版面)時走勢帶拉高蓋住中段，避免大片空白。"""
+    img = Image.new("RGB", (W, H), BASE_BG)
+    d = ImageDraw.Draw(img, "RGBA")
+    for x in range(0, W, 54):
+        d.line([(x, 0), (x, H)], fill=(255, 255, 255, 9), width=1)
+    for y in range(0, H, 54):
+        d.line([(0, y), (W, y)], fill=(255, 255, 255, 9), width=1)
+    try:
+        import make_thumbnails as mt
+        seed_vals = mt._seed_vals
+    except Exception:  # noqa: BLE001
+        def seed_vals(sd, n, lo, hi):
+            val = int.from_bytes(hashlib.md5((sd or "x").encode("utf-8")).digest()[:8], "big")
+            out = []
+            for _ in range(n):
+                val = (val * 6364136223846793005 + 1442695040888963407) & ((1 << 64) - 1)
+                out.append(lo + (val >> 11) / float(1 << 53) * (hi - lo))
+            return out
+    n = 40
+    band_top = int(H * 0.30) if tall_band else int(H * 0.56)
+    band_bot = int(H * 0.95)
+    step = W / n
+    r = seed_vals(seed, n, -1.0, 1.0)
+    prices, p = [], 0.5
+    for v in r:
+        p = min(0.92, max(0.08, p + v * 0.09))
+        prices.append(p)
+    span = band_bot - band_top
+    up, dn, cw = (34, 200, 128), (228, 78, 90), step * 0.5
+    pts, prev = [], prices[0]
+    for i, p in enumerate(prices):
+        cx = step * i + step / 2
+        mid = band_bot - p * span
+        col = up if p >= prev else dn
+        prev = p
+        body = 10 + abs(r[i]) * 16
+        wick = body / 2 + 6 + abs(r[i]) * 10
+        d.line([(cx, mid - wick), (cx, mid + wick)], fill=(*col, 55), width=2)
+        d.rectangle([cx - cw / 2, mid - body / 2, cx + cw / 2, mid + body / 2], fill=(*col, 55))
+        pts.append((cx, mid))
+    if len(pts) > 1:
+        d.line(pts, fill=(*accent, 65), width=3, joint="curve")
+    return img
+
+
+# ───────────────────────── 誠實數據卡（只在有真/示意數字時才畫，見 compose_datacard） ─────────────────────────
+def _pick_card(slug, title, t):
+    """誠信鐵則：優先用 backtest_cards.json 的真回測數字(label=真回測)；否則用示意數字但誠實標
+    「示意回測」——絕不把『真實帳戶/真回測』字樣蓋在 AI 算圖或憑空編的數字上(B4④)。"""
+    try:
+        import make_thumbnails as mt
+        real = mt._real_card(slug, title)
+        if real:
+            real = dict(real)
+            real["label"] = "真回測"
+            return real
+    except Exception:  # noqa: BLE001
+        pass
     sent = t.get("sentiment", "up")
-    accent, glow_rgba, scrim_col, kicker_col, data_border = _palette(sent)
+    raw = (t.get("data") or "").strip()
+    digits = re.search(r"[\d.]+", raw)
+    if digits:
+        val = digits.group(0)
+        pct = f"{'+' if sent == 'up' else '-'}{val.lstrip('+-')}"
+        if "%" not in pct and "倍" not in pct:
+            pct += "%"
+    else:
+        pct = "+82.4%" if sent == "up" else "-32.0%"
+    return {
+        "label": "示意回測", "strat": "策略回測（示意）",
+        "metric": "回測總報酬（含回撤，示意）",
+        "pct": pct, "pct_color": "red" if sent == "down" else "green",
+        "mdd": "最大回撤　示意值", "range": "※非真實逐筆回測結果",
+        "note": "※示意回測，非真實獲利保證",
+    }
 
-    img = _cover(base).convert("RGBA")
 
-    # 終端網格線（低透明度，依情緒色）
+def _draw_vertical_card(img, card, accent):
+    """仿 macOS 視窗的暗色回測卡（直式），視覺語言對齊
+    assets/thumbnails/我給機器人1萬跑30天_結果公開.jpg 這張頻道最好的縮圖。"""
+    PANEL, BORDER = (16, 21, 33), (46, 56, 80)
+    INK2, GREY = (233, 239, 249), (138, 150, 174)
+    GREEN, RED = (38, 214, 134), (240, 86, 96)
+    pct = card.get("pct", "+82.4%")
+    pc = (card.get("pct_color") or ("red" if str(pct).strip().startswith("-") else "green")).lower()
+    PCT_COL = RED if pc == "red" else GREEN
+    x0, y0, x1, y1 = 90, 640, W - 90, 1500
+    shadow = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    ImageDraw.Draw(shadow).rounded_rectangle([x0 + 8, y0 + 16, x1 + 8, y1 + 16], radius=28, fill=(0, 0, 0, 120))
+    img.alpha_composite(shadow)
     d = ImageDraw.Draw(img, "RGBA")
-    grid_col = (*accent[:3], 15)
-    for g in range(0, W, 65):
-        d.line([(g, 0), (g, H)], fill=grid_col, width=1)
-    for g in range(0, H, 65):
-        d.line([(0, g), (W, g)], fill=grid_col, width=1)
-
-    # 上下漸層 scrim + 四周電影暗角
-    _scrim(img, 420, 1380, scrim_col)
-    _vignette(img, strength=160)
-
-    # ── 頂部 kicker 區 ──
-    _frosted_panel(img, 60, 230, col=scrim_col, alpha=160, accent=accent, border_top=False)
+    d.rounded_rectangle([x0, y0, x1, y1], radius=28, fill=PANEL, outline=BORDER, width=2)
+    px = x0 + 40
+    for i, cc in enumerate([(240, 86, 96), (255, 184, 40), (38, 214, 134)]):
+        d.ellipse([px + i * 30, y0 + 34, px + i * 30 + 18, y0 + 34 + 18], fill=cc)
+    d.text((px, y0 + 96), card.get("strat", "策略回測"), font=F(38), fill=INK2)
+    lbl = card.get("label", "回測")
+    lf = F(30)
+    lb = d.textbbox((0, 0), lbl, font=lf); lw = lb[2] - lb[0]
+    pill_box = [x1 - lw - 76, y0 + 88, x1 - 40, y0 + 88 + (lb[3] - lb[1]) + 20]
+    # 半透明玻璃底：PIL 在既有 RGBA 圖上直接 draw 半透明 fill 不會與底圖混合(會整像素覆寫成實色，
+    # 文字同色蓋上去會消失)——一律先畫在獨立透明圖層，再 alpha_composite 疊上去(同 make_brand_assets 修法)。
+    pill_layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    ImageDraw.Draw(pill_layer).rounded_rectangle(pill_box, radius=10, fill=(*accent[:3], 40))
+    img.alpha_composite(pill_layer)
     d = ImageDraw.Draw(img, "RGBA")
-    # kicker 小字 + 霓虹光暈
-    _glow(img, (W // 2, 148), t["kicker"], F(46), (*kicker_col, 255), glow_rgba, gr=12)
+    d.rounded_rectangle(pill_box, radius=10, outline=(*accent[:3], 255), width=1)
+    d.text((pill_box[0] + 18, y0 + 96), lbl, font=lf, fill=(*accent[:3], 255))
+    d.text((px, y0 + 168), card.get("metric", "回測總報酬（含回撤）"), font=F(30), fill=GREY)
+    pf = F(140)
+    d.text((px + 3, y0 + 218), pct, font=pf, fill=(0, 0, 0, 130))
+    d.text((px, y0 + 214), pct, font=pf, fill=PCT_COL)
+    d.line([(px, y0 + 430), (x1 - 46, y0 + 430)], fill=BORDER, width=2)
+    ry = y0 + 462
+    for label in (card.get("mdd", "最大回撤 -15.3%"), card.get("range", "夏普 4.8｜勝率 54%")):
+        d.text((px, ry), label, font=F(34), fill=INK2)
+        ry += 58
+    d.text((px, y1 - 58), card.get("note", "※歷史回測，非未來獲利保證"), font=F(26, False), fill=GREY)
 
-    # ── 主標 headline（最大字，中央偏上）──
-    hline_y = 360
-    hf_main = _fit(d, t["headline"], W - 100, 98)
+
+# ───────────────────────── 風格合成 ─────────────────────────
+def compose_datacard(t, slug, title):
+    """B4：全線收斂到「暗色 + 數據卡」風格。style=real 才畫回測卡(誠實標真/示意)；
+    style=tech 只留 kicker/headline/hook/品牌(同一套暗色語言，不編數字)。"""
+    sent = t.get("sentiment", "up")
+    accent, glow_rgba, scrim_col = _palette(sent)
+
+    img = _market_bg(accent, seed=slug or title or "x", tall_band=(t.get("style") != "real")).convert("RGBA")
+    _scrim(img, 470, 1330, scrim_col)
+    _vignette(img, strength=140)
+
+    # 頂部 kicker（固定高對比，不受 sentiment 影響——修浮水印/文字低對比 B5）
+    _frosted_panel(img, 55, 235, col=scrim_col, alpha=185, accent=accent, border_top=False)
+    d = ImageDraw.Draw(img, "RGBA")
+    # 注意：直接在既有 RGBA 圖上 draw 半透明 fill 不會與底圖混合(見 _draw_vertical_card 註解)，
+    # 這裡都是細裝飾線/小圖標，乾脆用完全不透明色(視覺上一樣是細線，不影響觀感、不踩雷)。
+    d.line([(80, 95), (W - 80, 95)], fill=(*accent[:3], 255), width=1)
+    d.text((W // 2, 165), t["kicker"], font=F(46), fill=BRAND_TEXT, anchor="mm")
+
+    # 主標
+    hline_y = 380
+    hf_main = _fit(d, t["headline"], W - 100, 96)
     _glow(img, (W // 2, hline_y), t["headline"], hf_main,
-          (240, 252, 255, 255), glow_rgba, gr=16, sw=3, sf=(4, 16, 20))
-
-    # 主標下細分隔線
+          (248, 252, 255, 255), (*accent[:3], 130), gr=14, sw=3, sf=(6, 10, 16))
     d = ImageDraw.Draw(img, "RGBA")
     _separator(d, hline_y + 80, accent, pad=100)
 
-    # ── 數據標（右側毛玻璃卡片）──
-    if t.get("data") and re.search(r"\d", t["data"]):
-        gf = F(56)
-        gb = d.textbbox((W - 230, 720), t["data"], font=gf, anchor="mm")
-        # 卡片邊框 + 填色
-        d.rounded_rectangle([gb[0] - 28, gb[1] - 18, gb[2] + 28, gb[3] + 18],
-                             radius=16, fill=(4, 20, 24, 210),
-                             outline=data_border, width=3)
-        _glow(img, (W - 230, 720), t["data"], gf, (*accent[:3], 255), glow_rgba, gr=10)
+    if t.get("style") == "real":
+        card = _pick_card(slug, title, t)
+        _draw_vertical_card(img, card, accent)
 
-    # ── 底部毛玻璃鉤子板 ──
-    _frosted_panel(img, 1450, 1680, col=scrim_col, alpha=200, accent=accent, border_top=True)
+    # 底部鉤子(黃底按鈕) + 品牌浮水印（固定高對比）
+    _frosted_panel(img, 1560, 1790, col=scrim_col, alpha=210, accent=accent, border_top=True)
     d = ImageDraw.Draw(img, "RGBA")
-    hf_hook = _fit(d, t["hook_pre"] + t["hook_key"] + t["hook_post"], W - 80, 106)
-    _hook(d, img, (t["hook_pre"], t["hook_key"], t["hook_post"]), 1568, hf_hook,
-          glow_col=(*accent[:3], 200))
-
-    # ── 品牌浮水印 ──
-    _frosted_panel(img, 1730, 1860, col=scrim_col, alpha=140, accent=None, border_top=True)
+    hf_hook = _fit(d, t["hook_pre"] + t["hook_key"] + t["hook_post"], W - 90, 100)
+    _hook(d, img, (t["hook_pre"], t["hook_key"], t["hook_post"]), 1660, hf_hook, box="yellow")
     d = ImageDraw.Draw(img, "RGBA")
-    # 品牌左側小菱形點綴
-    bx = (W - sum(d.textbbox((0, 0), ch, font=F(36))[2] for ch in BRAND)
-          - 8 * (len(BRAND) - 1)) // 2
-    d.polygon([(bx - 22, 1795), (bx - 14, 1795 - 8),
-               (bx - 6, 1795), (bx - 14, 1795 + 8)],
-              fill=(*accent[:3], 220))
-    _spaced(ImageDraw.Draw(img, "RGBA"), (W // 2, 1795), BRAND, F(36),
-            (*kicker_col[:3], 220), 8, "mm")
-
-    return img.convert("RGB")
-
-
-def compose_real(base, t):
-    sent = t.get("sentiment", "up")
-    accent, glow_rgba, scrim_col, kicker_col, data_border = _palette(sent)
-
-    img = _cover(base).convert("RGBA")
-
-    # 上下漸層 scrim + 電影暗角
-    _scrim(img, 440, 1350, scrim_col)
-    _vignette(img, strength=150)
-
-    # ── 頂部 kicker 區（毛玻璃帶）──
-    _frosted_panel(img, 55, 235, col=scrim_col, alpha=175, accent=accent, border_top=False)
-    d = ImageDraw.Draw(img, "RGBA")
-    # 情緒色細線 + kicker
-    d.line([(80, 95), (W - 80, 95)], fill=(*accent[:3], 120), width=1)
-    d.text((W // 2, 165), t["kicker"], font=F(46), fill=(*kicker_col, 255), anchor="mm")
-
-    # ── 主標（大字 + 情緒光暈）──
-    hline_y = 370
-    hf_main = _fit(d, t["headline"], W - 100, 98)
-    if sent == "down":
-        _glow(img, (W // 2, hline_y), t["headline"], hf_main,
-              (248, 248, 255, 255), (255, 50, 60, 140), gr=16, sw=3, sf=(20, 6, 8))
-    else:
-        _glow(img, (W // 2, hline_y), t["headline"], hf_main,
-              (248, 252, 255, 255), (40, 220, 190, 130), gr=16, sw=3, sf=(6, 20, 18))
-
-    # 主標下分隔線
-    d = ImageDraw.Draw(img, "RGBA")
-    _separator(d, hline_y + 85, accent, pad=90)
-
-    # ── 底部資訊板（毛玻璃面板 + 黃底鉤子 + 數據 + 品牌）──
-    _frosted_panel(img, 1400, 1920, col=scrim_col, alpha=210, accent=accent, border_top=True)
-    d = ImageDraw.Draw(img, "RGBA")
-
-    # 鉤子（黃底按鈕風格）
-    hf_hook = _fit(d, t["hook_pre"] + t["hook_key"] + t["hook_post"], W - 90, 110)
-    _hook(d, img, (t["hook_pre"], t["hook_key"], t["hook_post"]), 1530, hf_hook, box="yellow")
-
-    # 數據標（毛玻璃卡片 or 實測文字）
-    d = ImageDraw.Draw(img, "RGBA")
-    _separator(d, 1620, accent, pad=120)
-
-    if t.get("data") and re.search(r"\d", t["data"]):
-        # 數據卡片（居中小卡）
-        df = F(46, False)
-        label = f"真實帳戶 · {t['data']}"
-        db = d.textbbox((W // 2, 1680), label, font=df, anchor="mm")
-        d.rounded_rectangle([db[0] - 20, db[1] - 10, db[2] + 20, db[3] + 10],
-                             radius=10, fill=(*scrim_col, 120), outline=(*accent[:3], 140), width=1)
-        _spaced(d, (W // 2, 1680), label, df, (210, 222, 236, 255), 4, "mm")
-    else:
-        _spaced(d, (W // 2, 1680), "真實帳戶 · 實測拆解", F(44, False),
-                (200, 215, 232, 255), 4, "mm")
-
-    # 品牌
-    _spaced(ImageDraw.Draw(img, "RGBA"), (W // 2, 1835), BRAND, F(38),
-            (*kicker_col[:3], 190), 6, "mm")
+    _spaced(d, (W // 2, 1745), BRAND, F(36), BRAND_TEXT, 6, "mm")
 
     return img.convert("RGB")
 
@@ -489,40 +434,19 @@ def make_cover(slug, title, narration="", style="auto", dest=None):
     t = derive(title, narration)
     if style in ("tech", "real"):
         t["style"] = style
-    seed = _seed(slug)
-    sent = t.get("sentiment", "up")
-    scene_ai = t.get("scene_en", "")
-
-    # ── 生圖 prompt：場景模板 + 情緒調色 + 品質標籤 ──
-    if t["style"] == "real":
-        chart = "green rising profit" if sent == "up" else "red crashing loss"
-        scene = _build_scene_prompt(title, scene_ai, sent)
-        prompt = (
-            f"realistic cinematic photo, a hand holding a modern smartphone displaying "
-            f"a crypto trading app with a glowing {chart} chart, {scene}, "
-            f"dark background studio, {_SCENE_QUALITY}"
-        )
-    else:
-        arrow = "glowing green upward arrow, success energy" if sent == "up" else "glowing red downward arrow, danger warning"
-        scene = _build_scene_prompt(title, scene_ai, sent)
-        prompt = (
-            f"cute chibi 3D robot mascot, big round glowing eyes, chunky rounded body, "
-            f"standing lower-left foreground, {arrow} on the right, "
-            f"dark navy gradient studio background, soft cinematic rim light, "
-            f"{scene}, {_SCENE_QUALITY}"
-        )
-    base = _poll(prompt, seed, TMP / f"{slug}_base.jpg")
-    if base is None:
+    try:
+        img = compose_datacard(t, slug, title)
+        img.save(dest, "JPEG", quality=93)
+        print(f"[ok] 封面 {dest.name}（style={t['style']}, sentiment={t.get('sentiment')}）")
+        return dest
+    except Exception as exc:  # noqa: BLE001
+        print(f"[warn] compose_datacard 失敗({exc})，退回 K 線卡保底", file=sys.stderr)
         try:
             import make_video as mv
             return mv.render_candle_card(W, H, big_text=t["headline"], watermark=BRAND,
-                                         accent=(54, 230, 220), seed=slug, dest=dest)
+                                         accent=GOLD, seed=slug, dest=dest)
         except Exception:
-            base = Image.new("RGB", (W, H), (10, 14, 22))
-    img = compose_real(base, t) if t["style"] == "real" else compose_tech(base, t)
-    img.save(dest, "JPEG", quality=93)
-    print(f"[ok] 封面 {dest.name}（style={t['style']}, sentiment={sent}）")
-    return dest
+            return dest
 
 
 def main():

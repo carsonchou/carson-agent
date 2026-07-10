@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 OUT = ROOT / "output"
 CTA_PNG = ROOT / "assets" / "cta_yt_endcard.png"
+CTA_PNG_16X9 = ROOT / "assets" / "cta_yt_endcard_16x9.png"  # B6：長片(16:9)用，避免直式卡被硬 scale 拉伸變形
 CTA_SEC = 3.0
 
 
@@ -46,23 +47,28 @@ def append_cta(slug: str) -> Path:
         return src
     if dst.exists() and dst.stat().st_size > 0:
         return dst
-    if not CTA_PNG.exists():
-        try:
-            import make_cta_card
-            make_cta_card.make()
-        except Exception:  # noqa: BLE001
-            return src
     info = _probe(src)
     if not info:
         return src
     W, H, fps = info
+    # 長片(16:9，寬>高)用橫式卡；Shorts(9:16)用直式卡——B6：避免任一種被硬 scale 拉伸變形
+    cta_png = CTA_PNG_16X9 if (W > H and CTA_PNG_16X9.exists()) else CTA_PNG
+    if not cta_png.exists():
+        try:
+            import make_cta_card
+            make_cta_card.make()
+            if W > H:
+                make_cta_card.make_horizontal()
+                cta_png = CTA_PNG_16X9 if CTA_PNG_16X9.exists() else CTA_PNG
+        except Exception:  # noqa: BLE001
+            return src
     ff = _ff("ffmpeg")
     # 原片(v+a) + 3秒卡(scale對齊+靜音) → concat
     af = (f"[1:v]scale={W}:{H},setsar=1,fps={fps},format=yuv420p[card];"
           f"[0:v][0:a][card][2:a]concat=n=2:v=1:a=1[v][a]")
     cmd = [ff, "-y", "-hide_banner", "-loglevel", "error",
            "-i", str(src),
-           "-loop", "1", "-t", str(CTA_SEC), "-i", str(CTA_PNG),
+           "-loop", "1", "-t", str(CTA_SEC), "-i", str(cta_png),
            "-f", "lavfi", "-t", str(CTA_SEC), "-i", "anullsrc=r=44100:cl=stereo",
            "-filter_complex", af, "-map", "[v]", "-map", "[a]",
            "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",

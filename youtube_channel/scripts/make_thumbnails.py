@@ -363,7 +363,9 @@ import os as _os
 import re as _re
 import json as _json
 
-ACCENTS = {"yellow": (255, 210, 63), "green": (88, 224, 140), "red": (255, 96, 96), "blue": (90, 184, 255)}
+ACCENTS = {"yellow": (255, 209, 102), "green": (88, 224, 140), "red": (255, 96, 96), "blue": (90, 184, 255)}
+# yellow=#FFD166，與 STUDIO/design_system.json accent_palette[0]（make_video.pick_accent 全片鎖金來源）
+# 同一個值——B5：縮圖/banner/logo/intro 全線統一，不再各自一種黃
 
 # ── 《拆穿》debunk 縮圖公式：神話數字(金)被紅刀切開 + ≤6大字 + 吉祥物戰友 ──
 MASCOT = PROJECT_ROOT / "assets" / "mascot"

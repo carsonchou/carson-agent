@@ -9,8 +9,10 @@
 重用 make_video 的卡片/字幕 PIL 生成(純函數),只換掉「組裝+編碼」。
 Phase 1:純字卡 + 字幕 + intro/outro + 開場淡入(最常見)。b-roll = Phase 2(暫走卡片)。
 
-用法:python scripts/render_ffmpeg.py --slug <slug> [--width 1080 --height 1920 --fps 15]
+用法:python scripts/render_ffmpeg.py --slug <slug> [--width 1080 --height 1920 --fps 30]
 編碼器:MV_CODEC 強制 / MV_NO_GPU 關 GPU / 預設偵測 NVENC 就用,否則 libx264。
+fps 地板:render() 內部強制 max(fps, MIN_FPS=30)，呼叫端傳更低值(如舊的 15)也會被拉到 30，
+避免 15fps 頓、廉價感傷完播；呼叫端仍可傳更高值(如 60)。
 """
 from __future__ import annotations
 import argparse
@@ -550,10 +552,14 @@ def _render_animated(slug_paths, *, segments, seg_cards, intro_png, outro_png, c
         return False
 
 
+MIN_FPS = 30  # A5：短片 15fps 太頓、廉價感傷完播；不論呼叫端傳什麼一律吃 30fps 地板(呼叫端仍可傳更高)。
+
+
 def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> bool:
     """純 ffmpeg 組片。回傳 True=成功;False=此片不適用(交回 moviepy 備案)。"""
     from PIL import Image
 
+    fps = max(int(fps or 0), MIN_FPS)
     title, segments = mv.parse_script_md(slug_paths.script_md)
     audio_duration = mv.probe_audio_duration(slug_paths.audio)
     if audio_duration <= 0:

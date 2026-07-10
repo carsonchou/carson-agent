@@ -40,7 +40,8 @@ try:
 except Exception:  # noqa: BLE001
     def log_ops(stage, msg): pass
 
-ACCENT = {"yellow": (255, 210, 63), "green": (88, 224, 140), "red": (255, 96, 96), "blue": (90, 184, 255)}
+ACCENT = {"yellow": (255, 209, 102), "green": (88, 224, 140), "red": (255, 96, 96), "blue": (90, 184, 255)}
+# yellow=#FFD166，B5：與 design_system.json / make_thumbnails.py / assets/brand 全線統一同一個金
 
 
 def tw_ts():

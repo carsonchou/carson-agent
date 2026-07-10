@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "assets" / "brand"
@@ -17,7 +17,8 @@ OUT.mkdir(parents=True, exist_ok=True)
 
 NAVY_TOP = (12, 20, 44)
 NAVY_BOT = (30, 48, 92)
-ACCENT = (255, 210, 63)   # 品牌黃
+ACCENT = (255, 209, 102)  # 品牌暗金 #FFD166——與 STUDIO/design_system.json accent_palette[0]（make_video.pick_accent
+                          # 鎖色來源）同一個值，B5：縮圖/banner/logo/intro 全線統一，不再各自一種黃
 WHITE = (240, 244, 255)
 
 BOLD = [r"C:\Windows\Fonts\msjhbd.ttc", r"C:\Windows\Fonts\msyhbd.ttc", r"C:\Windows\Fonts\msjh.ttc"]
@@ -91,24 +92,44 @@ def make_banner():
 
 
 def make_intro_template():
-    """品牌固定片頭底圖(1920x1080)：漸層+淡網格+底部強調條+頂部品牌小字。
+    """品牌固定片頭底圖：直式 1080x1920(頻道主力是 Shorts，原生比例貼合、不被 render_brand_intro
+    的 resize 拉伸變形；render() 傳 16:9 長片時仍會被等比外的 resize 撐開，但長片占比小，可接受)。
+    漸層+淡網格+背景折線箭頭核心符號(暗金、低透明度，呼應品牌，不搶標題)+底部強調條+頂部品牌小字。
     中央刻意留白，交給 render_brand_intro 在渲染時壓上該片標題。存 assets/brand/intro_template.png。"""
-    W, H = 1920, 1080
+    W, H = 1080, 1920
     img = gradient(W, H).convert("RGBA")
-    d = ImageDraw.Draw(img, "RGBA")
     ac = ACCENT
-    step = 120
+    # 注意：PIL 的 ImageDraw 直接畫在既有 RGBA 圖上時 fill 的 alpha 不會與底圖混合(會整像素覆寫，
+    # 半透明會變成實色色塊)——所有半透明元素一律先畫在獨立透明圖層，再用 alpha_composite 疊上去。
+    overlay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    od = ImageDraw.Draw(overlay)
+    step = 90
     for gx in range(0, W, step):
-        d.line([(gx, 0), (gx, H)], fill=(*ac, 14), width=1)
+        od.line([(gx, 0), (gx, H)], fill=(*ac, 12), width=1)
     for gy in range(0, H, step):
-        d.line([(0, gy), (W, gy)], fill=(*ac, 14), width=1)
+        od.line([(0, gy), (W, gy)], fill=(*ac, 12), width=1)
     # 中央偏上柔和光暈（給標題襯底、又不擋字）
-    cx, cy = W // 2, int(H * 0.42)
-    for rr, a in ((520, 12), (380, 16), (250, 22)):
-        d.ellipse([cx - rr, cy - int(rr * 0.6), cx + rr, cy + int(rr * 0.6)], fill=(*ac, a))
-    # 底部強調條 + 頂部品牌小字
+    cx = W // 2
+    cy = int(H * 0.40)
+    for rr, a in ((420, 10), (300, 14), (200, 20)):
+        od.ellipse([cx - rr, cy - int(rr * 0.75), cx + rr, cy + int(rr * 0.75)], fill=(*ac, a))
+    img.alpha_composite(overlay)
+    # 背景折線箭頭核心符號(低透明度，置中偏下，襯在標題文字之後、不搶戲——與 logo/avatar 同一視覺語言)
+    base_y = int(H * 0.62)
+    scale = 1.55
+    pts = [(cx + int((x - 256) * scale), base_y + int((y - 256) * scale))
+           for x, y in ((120, 330), (200, 260), (260, 300), (320, 210), (392, 130))]
+    glow = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    gd = ImageDraw.Draw(glow)
+    gd.line(pts, fill=(*ac, 46), width=26, joint="curve")
+    tip = (pts[-1][0] + int(34 * scale), pts[-1][1] - int(34 * scale))
+    gd.line([pts[-1], tip], fill=(*ac, 46), width=26)
+    gd.polygon([tip, (tip[0] - 40, tip[1] + 10), (tip[0] - 4, tip[1] + 44)], fill=(*ac, 46))
+    img.alpha_composite(glow.filter(ImageFilter.GaussianBlur(2)))
+    # 底部強調條 + 頂部品牌小字(不透明,直接畫在 img 上沒問題)
+    d = ImageDraw.Draw(img, "RGBA")
     d.rectangle([0, H - 10, W, H], fill=ac)
-    center_text(d, cx, 56, "量化阿森 · Carson Quant", font(46), WHITE, stroke=3)
+    center_text(d, cx, 64, "量化阿森 · Carson Quant", font(40), WHITE, stroke=3)
     p = OUT / "intro_template.png"
     img.convert("RGB").save(p, "PNG")
     print(f"[ok] {p.name} {W}x{H}")
@@ -116,18 +137,25 @@ def make_intro_template():
 
 
 def make_logo():
-    """透明底品牌 logo(512x512)：深色圓角方底+金色上升箭頭+「量」字。供 render_brand_intro 貼右上角。"""
+    """透明底品牌 logo(512x512)：Carson 定案的品牌核心符號＝數據/折線箭頭(暗金量化質感)，
+    machine 吉祥物退居影片內配角、不再當頻道 logo(2026-07 定案)。純符號、無文字，貼小尺寸(如
+    render_brand_intro 右上角 13% 寬)也清楚可讀。深色圓角方底 + 粗金折線圖(先跌後噴出)+ 箭頭。"""
     S = 512
     img = Image.new("RGBA", (S, S), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
-    cx = S // 2
-    d.rounded_rectangle([40, 40, S - 40, S - 40], radius=90, fill=(12, 20, 44, 235), outline=ACCENT, width=10)
-    d.line([(150, 340), (230, 262), (300, 312), (382, 200)], fill=ACCENT, width=22, joint="curve")
-    d.polygon([(382, 200), (338, 210), (378, 246)], fill=ACCENT)
-    center_text(d, cx, 300, "量", font(150), WHITE, stroke=5)
+    d.rounded_rectangle([28, 28, S - 28, S - 28], radius=96, fill=(11, 17, 36, 240), outline=ACCENT, width=12)
+    # 折線圖：低→高→回檔→噴出，比 avatar 更粗更滿框(小尺寸縮圖仍清楚)
+    pts = [(120, 330), (200, 260), (260, 300), (320, 210), (392, 130)]
+    d.line(pts, fill=ACCENT, width=30, joint="curve")
+    for x, y in pts:  # 每個轉折點補圓點，折線感更明確(避免縮小後糊成一條線)
+        d.ellipse([x - 9, y - 9, x + 9, y + 9], fill=ACCENT)
+    # 箭頭尖(終點延伸,比末端轉折點更外面一點，指向右上)
+    tip = (426, 96)
+    d.line([pts[-1], tip], fill=ACCENT, width=30)
+    d.polygon([tip, (tip[0] - 46, tip[1] + 8), (tip[0] - 6, tip[1] + 50)], fill=ACCENT)
     p = OUT / "logo.png"
     img.save(p, "PNG")
-    print(f"[ok] {p.name} {S}x{S} (透明底)")
+    print(f"[ok] {p.name} {S}x{S} (透明底·折線箭頭符號)")
     return p
 
 
