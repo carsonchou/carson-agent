@@ -151,10 +151,24 @@ def _fresh_and_reachable(max_age: int = 900) -> bool:
         return False
 
 
+def _fresh(max_age: int = 900) -> bool:
+    """只看 tunnel_url.json 夠不夠新(<max_age 秒)。ts 新=run_forever 還活著在每~4 分重蓋 ts
+    (且它內圈會自動重啟掛掉的 cloudflared)→視為健康,不再查 URL 可達性。
+    ⚠️根因修:cloudflared quick-tunnel 邊緣常抖,HEAD 逾時/5xx 會讓 _fresh_and_reachable 誤判
+    不健康→每次 ensure 都 spawn 新 run_forever 卻不清舊的→tunnel/fileserver 程序 20 分一對爆增
+    (實測一夜堆到 150 個)。改成只看新鮮度即可,tunnel 真死時 ts 會過期(~15 分)才重起。"""
+    import json
+    try:
+        d = json.loads(TUNNEL_JSON.read_text(encoding="utf-8"))
+        return (time.time() - int(d.get("ts", 0))) <= max_age
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def ensure() -> None:
     """cron 自癒:tunnel 健康就啥都不做;否則 detached 起一個常駐 run_forever(survive 父程序結束)。"""
-    if _fresh_and_reachable():
-        print("[tunnel_up] tunnel 健康,無需動作")
+    if _fresh():
+        print("[tunnel_up] tunnel 新鮮(run_forever 存活),無需動作")
         return
     print("[tunnel_up] tunnel 不健康/過期,detached 重啟常駐…")
     kw = {}
