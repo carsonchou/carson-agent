@@ -19,7 +19,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # TradingView 全攻略課程:--next 依序餵下2個課程EP(由淺入深)、--review 挖2支熱門腳本拆穿(永動題源);都在製作前餵
 52 5 * * * /root/yt/run.sh scripts/tv_curriculum.py --next 2 >> /root/yt/logs/cron.log 2>&1
 54 5 * * * /root/yt/run.sh scripts/tv_curriculum.py --review 2 >> /root/yt/logs/cron.log 2>&1
-7 6 * * * /root/yt/run.sh scripts/produce_batch.py --manual --format-focus --shorts 9 --long 3 --target 99999 --no-render >> /root/yt/logs/cron.log 2>&1
+7 6 * * * /root/yt/run.sh scripts/produce_batch.py --manual --format-focus --shorts 14 --long 4 --target 99999 --no-render >> /root/yt/logs/cron.log 2>&1
 # Short→長片精準連看:建 short_to_long.json(bigram題材相似度對應已發布短→長),發布前跑
 50 6 * * * /root/yt/run.sh scripts/build_short_to_long.py >> /root/yt/logs/cron.log 2>&1
 # Short→Short 同系列/同題材連看:建 short_to_short.json(EP實測系列接上一集、其餘bigram題材相似度
@@ -39,10 +39,10 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # 本機模式:每天發布前對帳 ledger(比對頻道實際已發布,防重複發片)
 0 12 * * * /root/yt/run.sh scripts/reconcile_ledger.py >> /root/yt/logs/cron.log 2>&1
 # 黃金時段發布：台灣 Shorts 互動高峰＝午餐 12:30 + 晚間 20:30（取代原 09:07/21:07）;台股加量後 max 6→8
-30 12 * * * /root/yt/run.sh scripts/daily_publish.py --max 8 >> /root/yt/logs/cron.log 2>&1
-30 20 * * * /root/yt/run.sh scripts/daily_publish.py --max 8 >> /root/yt/logs/cron.log 2>&1
+30 12 * * * /root/yt/run.sh scripts/daily_publish.py --max 12 >> /root/yt/logs/cron.log 2>&1
+30 20 * * * /root/yt/run.sh scripts/daily_publish.py --max 12 >> /root/yt/logs/cron.log 2>&1
 # 台股收盤後覆盤情緒黃金窗口(13:30 收盤後,只交易日)
-40 13 * * 1-5 /root/yt/run.sh scripts/daily_publish.py --max 4 >> /root/yt/logs/cron.log 2>&1
+40 13 * * 1-5 /root/yt/run.sh scripts/daily_publish.py --max 6 >> /root/yt/logs/cron.log 2>&1
 # 播放清單自動化(每日一次,排在當天最後一批上架之後,把新發布的片依三主軸建/補進 YT 播放清單):
 # --max 40 跟 daily_publish 共用同一組每日 quota,設上限防一次跑光擋到隔天上架;冪等(items_in
 # 跳過已加過的),沒加完下次自動接續
@@ -90,7 +90,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 10 5 * * 1 /root/yt/run.sh scripts/ig_token_refresh.py
 # IG 舊片回填(每天補15支到 IG)
 # 回填近期 on-brand 舊片到 IG(策略:新片優先,舊片小量回填避洗版;預設 RENDER_CUTOFF 只補近期渲染、只打 ig)
-30 6 * * * /root/yt/run.sh scripts/ig_backfill.py --max 8
+30 6 * * * /root/yt/run.sh scripts/ig_backfill.py --max 15
 # 完播率週報→回寫 completion_signals.json 餵決策(週一 00:30)
 30 0 * * 1 /root/yt/run.sh scripts/analytics_weekly.py
 # IG 健康檢查(每天 08:00/21:00 探 token+發布狀態)
@@ -116,7 +116,9 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # 捏造史實守門(每天 11:30·發佈前:掃產片有無編個股價位/史實→旗標+ntfy人工複查)
 30 11 * * * /root/yt/run.sh scripts/fact_guard.py --notify >> /root/yt/logs/cron.log 2>&1
 # TikTok 跨發(每天 15:30:補發近期短片到TikTok·帶片尾卡導回YT·排除衍生檔與洗版)
-30 15 * * * /root/yt/run.sh scripts/tiktok_upload.py --max 3 >> /root/yt/logs/cron.log 2>&1
+30 15 * * * /root/yt/run.sh scripts/tiktok_upload.py --max 6 >> /root/yt/logs/cron.log 2>&1
+# TikTok 第二班(增量發片:早上再跨發一批,無YT配額限制、擴觸及+導流YT)
+30 9 * * * /root/yt/run.sh scripts/tiktok_upload.py --max 6 >> /root/yt/logs/cron.log 2>&1
 # 數位產品 upsell(每天 11:00:對領檢核表滿24h的名單送低價試算表;未設 WORKSHEET_URL 只 dry 不實送)
 0 11 * * * /root/yt/run.sh scripts/tg_magnet.py --upsell >> /root/yt/logs/cron.log 2>&1
 # YPP 進度追蹤(每週一 00:50 誠實顯示四門檻距離 + ntfy)
