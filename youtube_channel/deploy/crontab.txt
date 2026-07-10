@@ -106,6 +106,9 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 0 9 * * * /root/yt/run.sh scripts/daily_health.py --notify >> /root/yt/logs/cron.log 2>&1
 # 北極星整合(每天 09:05:訂閱/觀看/各源收入/YPP缺口/飛輪贏家 → northstar.json + ntfy)
 5 9 * * * /root/yt/run.sh scripts/northstar.py --notify >> /root/yt/logs/cron.log 2>&1
+# E2 低報校正確認(每天 09:07,排北極星之後:純讀當天northstar.json,不打API;RECORRECT_AFTER
+# 前/低報窗未完全滾出7d28d視窗前皆no-op;一旦確認滾出→ntfy給Carson一次+寫marker,之後idempotent不重推)
+7 9 * * * /root/yt/run.sh scripts/analytics_recorrect.py >> /root/yt/logs/cron.log 2>&1
 # 🧠 24/7智慧成長守衛(每2小時·OpenRouter當腦·關Claude也活):蒐集脈絡→LLM判真下滑vs正常退潮+根因→
 # 安全出手(偏產贏家題/告警);紅線對外/動錢/寫YT不自動做。真.持續下滑或產線出包才動,不追單日噪音。
 41 */2 * * * /root/yt/run.sh scripts/growth_agent.py >> /root/yt/logs/cron.log 2>&1

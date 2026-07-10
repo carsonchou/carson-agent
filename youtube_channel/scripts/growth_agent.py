@@ -35,6 +35,10 @@ except Exception:  # noqa: BLE001
 WINNER_KW = ["複利", "剩多少", "差多少", "停損", "vs", "ETF", "回測", "樣本外", "過擬合", "實測", "定投", "0050"]
 DECLINE_7D_PCT = -10.0
 QUEUE_FLOOR = 3
+# E1:YouTube 官方 2026/6/30-7/7 觀看資料低報,northstar 的趨勢已對該窗跳過錨點,但窗剛過、
+# 乾淨資料還稀疏時數字仍可能偏保守。ctx 帶到 unreliable_window_note 時,下滑門檻額外放寬
+# 這個緩衝,別把「校正殘留的雜訊」當「真下滑」誤報(YouTube 修好、窗完全滾出後可移除)。
+WINDOW_DECLINE_BUFFER_PCT = 5.0
 
 
 def _load(p, d=None):
@@ -75,6 +79,10 @@ def _context() -> dict:
         "shorts_today": md.get("shorts_today"),
         "longs_today": md.get("longs_today"),
         "audit_fail_today": md.get("audit_fail"),
+        # E1:northstar._rolling_trend 已對 UNRELIABLE_WINDOW(YouTube 官方低報 2026/6/30-7/7)
+        # 的錨點做跳過/降權處理,這裡帶上該註記給 LLM 判斷脈絡+寫進告警文案,別誤報成真下滑。
+        "unreliable_window_note": tr.get("unreliable_window_note"),
+        "unreliable_window_excluded": tr.get("unreliable_window_excluded"),
     }
     try:
         import produce_batch as pb
@@ -98,6 +106,9 @@ def _llm_decide(ctx: dict):
             "規則:①觀看 7 日%為正、或 7 日負但 28 日仍大漲=爆發退潮(正常)→problem=false,action=none。"
             "②7 日<=-10% 且 28 日不再大漲=真下滑→problem=true。③待發庫存<=3 或今日 audit_fail 異常高=產線出包→problem=true。"
             "④真下滑且根因偏題材/內容→action=seed_winners(偏產贏家題);根因偏發布卡/跨平台/需人工→action=alert_only。健康→none。"
+            "⑤脈絡若帶 unreliable_window_note(非 null)→表示 views_7d_pct/28d_pct 的算法已跳過 YouTube 官方"
+            "自承低報的資料窗、盡量避免假下滑,但仍可能因窗內外資料稀疏而不夠準;此時判斷偏保守,"
+            "diagnosis 要點出這個已知低報窗當背景說明,不要單憑此區間的數字就斷定成長真的變差。"
         )
         raw = llm.complete(prompt, 300, json_mode=True, temperature=0.1)
         d = json.loads(raw)
@@ -109,14 +120,22 @@ def _llm_decide(ctx: dict):
 
 
 def _fallback_decide(ctx: dict):
-    """LLM 掛掉時的確定性判斷(同 growth_watchdog 邏輯)。"""
+    """LLM 掛掉時的確定性判斷(同 growth_watchdog 邏輯)。
+    E1:unreliable_window_note 有值時(northstar 判定近期趨勢仍受 YouTube 低報窗影響)門檻放寬
+    WINDOW_DECLINE_BUFFER_PCT,避免校正後殘留的雜訊被誤判成真下滑;診斷文字附上該註記,
+    讓告警(若仍觸發)也帶著「這可能是 YouTube 低報,非真的掉」的脈絡給 Carson 判斷。"""
     t7, t28, q = ctx.get("views_7d_pct"), ctx.get("views_28d_pct"), ctx.get("queue_size")
+    note = ctx.get("unreliable_window_note")
+    threshold = (DECLINE_7D_PCT - WINDOW_DECLINE_BUFFER_PCT) if note else DECLINE_7D_PCT
     problem, action, rc = False, "none", "無"
-    if isinstance(t7, (int, float)) and t7 <= DECLINE_7D_PCT and not (isinstance(t28, (int, float)) and t28 > 5):
+    if isinstance(t7, (int, float)) and t7 <= threshold and not (isinstance(t28, (int, float)) and t28 > 5):
         problem, action, rc = True, "seed_winners", "題材單一"
     if isinstance(q, int) and q <= QUEUE_FLOOR:
         problem, action, rc = True, "alert_only", "發布卡"
-    return {"problem": problem, "diagnosis": f"7日{t7}% 28日{t28}% 庫存{q}", "root_cause": rc, "action": action}
+    diag = f"7日{t7}% 28日{t28}% 庫存{q}"
+    if note:
+        diag += f"(註:{note})"
+    return {"problem": problem, "diagnosis": diag, "root_cause": rc, "action": action}
 
 
 def _seed_winners(dry: bool) -> int:
