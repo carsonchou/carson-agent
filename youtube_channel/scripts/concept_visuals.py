@@ -61,6 +61,34 @@ def classify(text: str) -> Optional[str]:
     return None
 
 
+# 正負向關鍵字：用來把「隨機漫步線」的走勢方向跟旁白綁定（A6-a）。
+# 分兩層：先看「結果／損益」詞（虧損/獲利…精準對應錢有沒有變多），這層有訊號就直接採用；
+# 沒訊號才退而看「價格動作」詞（漲/跌/暴漲…）。這樣「比特幣暴漲後追高，結果虧損23%」
+# 這種「market 漲、但你的錢賠」的敘事，才不會被 4 個「漲」蓋過 2 個「虧損」判成上漲圖。
+_NEG_OUTCOME_WORDS = (
+    "虧損", "虧錢", "賠錢", "賠了", "倒賠", "慘賠", "套牢", "腰斬", "歸零",
+    "爆倉", "踩雷", "踏空", "回吐", "虧", "賠",
+)
+_POS_OUTCOME_WORDS = ("賺錢", "獲利", "大賺", "翻倍", "倍增", "賺翻", "回本", "賺")
+_NEG_PRICE_WORDS = ("暴跌", "崩跌", "崩盤", "下殺", "破底", "跌破", "跌深", "重摔", "拉回", "回檔", "跌")
+_POS_PRICE_WORDS = ("飆漲", "大漲", "暴漲", "噴出", "新高", "漲")
+
+
+def _direction(text: str) -> int:
+    """粗判整段文字的漲跌方向：-1＝跌/虧、+1＝漲/賺、0＝中性(找不到明顯訊號或打平)。
+    優先看損益結果詞，抓不到訊號才退看價格動作詞（見上方註解）。"""
+    t = text or ""
+    neg1 = sum(t.count(w) for w in _NEG_OUTCOME_WORDS)
+    pos1 = sum(t.count(w) for w in _POS_OUTCOME_WORDS)
+    if neg1 != pos1:
+        return -1 if neg1 > pos1 else 1
+    neg2 = sum(t.count(w) for w in _NEG_PRICE_WORDS)
+    pos2 = sum(t.count(w) for w in _POS_PRICE_WORDS)
+    if neg2 == pos2:
+        return 0
+    return -1 if neg2 > pos2 else 1
+
+
 # --------------------------------------------------------------------------- #
 # 各主題畫法（在 ax 上作畫，座標自定，外觀統一在 _new_ax / _finish 處理）
 # --------------------------------------------------------------------------- #
@@ -210,11 +238,13 @@ def _overfit(ax, rng):
     return "回測完美．實盤打回原形", None
 
 
-def _backtest(ax, rng):
+def _backtest(ax, rng, direction=0):
     n = 180
     x = np.arange(n)
     split = 120
-    eq = 100 + np.cumsum(np.full(n, 0.22) + rng.randn(n) * 0.6)
+    # 方向跟旁白綁定：講虧/跌/賠就別再畫一路上漲的線（A6-a）。
+    drift = 0.22 if direction >= 0 else -0.22
+    eq = 100 + np.cumsum(np.full(n, drift) + rng.randn(n) * 0.6)
     ax.axvspan(0, split, color=(1, 1, 1, 0.04), zorder=0)
     ax.axvline(split, color=(1, 1, 1, 0.20), lw=1.2, ls="--", zorder=1)
     ax.plot(x[: split + 1], eq[: split + 1], color=FG, lw=2.4, zorder=3)
@@ -226,10 +256,11 @@ def _backtest(ax, rng):
     return "真正能信的是樣本外", None
 
 
-def _trend(ax, rng):
+def _trend(ax, rng, direction=0):
     n = 170
     x = np.arange(n)
-    up = rng.rand() > 0.5
+    # 方向跟旁白綁定：偵測到明確漲跌訊號就照旁白畫，沒有才退回原本隨機（A6-a）。
+    up = (direction > 0) if direction != 0 else (rng.rand() > 0.5)
     drift = 0.42 if up else -0.42
     price = 100 + np.cumsum(np.full(n, drift) + rng.randn(n) * 0.45)
     col = GREEN if up else RED
@@ -321,7 +352,13 @@ def render_concept_chart(width: int, height: int, text: str, accent, seed: str,
     ax.set_yticks([])
     ax.grid(axis="y", color=(1, 1, 1, 0.06), lw=1)
 
-    caption, legend = drawer(ax, rng)
+    # A6-a：偵測旁白正負向，餵給支援方向的圖(trend/backtest)，不支援的圖照舊(2 參數)。
+    direction = _direction(text)
+    import inspect
+    if len(inspect.signature(drawer).parameters) >= 3:
+        caption, legend = drawer(ax, rng, direction)
+    else:
+        caption, legend = drawer(ax, rng)
 
     # 圖說（圖下方、字幕上方）
     if caption:

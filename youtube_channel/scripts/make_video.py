@@ -1677,8 +1677,11 @@ def render_hud_strip(width, height, *, dest: Path, day=None, principal=None,
     barh = int(height * 0.072)
     bary = int(height * 0.185)  # 避開概念卡頂部標題條(0~0.165)
     bx1, bx2 = int(width * 0.05), width - int(width * 0.05)
+    # 全不透明(255)：這條 HUD 帶會疊在概念圖(concept_visuals)軸圖正上方，
+    # 半透明(舊 205)會讓底下的折線穿出來變成「長條/字疊在線圖上」的破圖感(A6-b)；
+    # 248 仍會漏一絲亮線(浮點/抗鋸齒殘留)，全不透明才是真的乾淨。
     d.rounded_rectangle([bx1, bary, bx2, bary + barh], radius=int(barh * 0.28),
-                        fill=(10, 14, 26, 205),
+                        fill=(10, 14, 26, 255),
                         outline=(accent[0], accent[1], accent[2], 150), width=max(2, int(md * 0.004)))
     cy = bary + barh // 2
     up, dn = cy - int(md * 0.026), cy + int(md * 0.004)
@@ -1716,6 +1719,7 @@ def render_race_split(width, height, *, dest: Path, labelA="A", labelB="B",
         return None
     md = min(width, height)
     f_lbl = _load_font(int(md * 0.030), bold=True)
+    f_val = _load_font(int(md * 0.030), bold=True)
     if not f_lbl:
         return None
     img = Image.new("RGBA", (width, height), (0, 0, 0, 0))
@@ -1723,8 +1727,11 @@ def render_race_split(width, height, *, dest: Path, labelA="A", labelB="B",
     # 面板（頂部 HUD 區，避開中央）
     px1, px2 = int(width * 0.05), width - int(width * 0.05)
     py1, py2 = int(height * 0.185), int(height * 0.365)  # 避開概念卡頂部標題條
+    # 全不透明(255)：這塊面板會疊在概念圖(concept_visuals)軸圖正上方，
+    # 半透明(舊 205)會讓底下的折線穿出來變成「長條疊在線圖上」的破圖感(A6-b)；
+    # 248 仍會漏一絲亮線(浮點/抗鋸齒殘留)，全不透明才是真的乾淨。
     d.rounded_rectangle([px1, py1, px2, py2], radius=int(md * 0.03),
-                        fill=(10, 14, 26, 205),
+                        fill=(10, 14, 26, 255),
                         outline=(accent[0], accent[1], accent[2], 150), width=max(2, int(md * 0.004)))
     tx1, tx2 = px1 + int(width * 0.05), px2 - int(width * 0.05)
     tw = tx2 - tx1
@@ -1736,10 +1743,24 @@ def render_race_split(width, height, *, dest: Path, labelA="A", labelB="B",
         for dx, dy in ((-2, 0), (2, 0), (0, -2), (0, 2)):
             d.text((tx1 + dx, yy - int(md * 0.042) + dy), lbl[:10], font=f_lbl, fill=(0, 0, 0, 220))
         d.text((tx1, yy - int(md * 0.042)), lbl[:10], font=f_lbl, fill=(245, 248, 255, 255))
-        d.rounded_rectangle([tx1, yy, tx2, yy + barh], radius=rad, fill=(20, 26, 40, 220))
+        # 軌道/填色都要全不透明：這兩塊疊在概念圖軸圖正上方，半透明會讓底下折線
+        # 從軌道裡透出來(A6-b 的真正根因——不是面板本身漏，是軌道那層漏)。
+        d.rounded_rectangle([tx1, yy, tx2, yy + barh], radius=rad, fill=(20, 26, 40, 255))
         fw = int(tw * prog)
         if fw >= 2 * rad + 2:
-            d.rounded_rectangle([tx1, yy, tx1 + fw, yy + barh], radius=rad, fill=(col[0], col[1], col[2], 240))
+            d.rounded_rectangle([tx1, yy, tx1 + fw, yy + barh], radius=rad, fill=(col[0], col[1], col[2], 255))
+        # 數值標籤（A6-b：長條「驚人差距」沒數字看不出差多少，補上百分比錨在條尾）
+        vtxt = f"{prog * 100:.0f}%"
+        vy = yy + barh // 2
+        try:
+            vx = tx1 + fw - int(md * 0.010) if fw >= int(md * 0.06) else tx1 + fw + int(md * 0.010)
+            vanchor = "rm" if fw >= int(md * 0.06) else "lm"
+            vcol = (10, 14, 26, 255) if fw >= int(md * 0.06) else (245, 248, 255, 255)
+            for dx, dy in ((-2, 0), (2, 0), (0, -2), (0, 2)):
+                d.text((vx + dx, vy + dy), vtxt, font=f_val, fill=(0, 0, 0, 160), anchor=vanchor)
+            d.text((vx, vy), vtxt, font=f_val, fill=vcol, anchor=vanchor)
+        except Exception:  # noqa: BLE001
+            pass
     dest.parent.mkdir(parents=True, exist_ok=True)
     img.save(str(dest), format="PNG")
     return dest
@@ -2219,7 +2240,9 @@ def _render_subtitle_image(width: int, height: int, text: str, tmp_dir: Path, ac
     img = Image.new("RGBA", (max(iw, 1), max(ih, 1)), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
     rad = int(min(iw, ih) * 0.22)
-    draw.rounded_rectangle([0, 0, iw - 1, ih - 1], radius=rad, fill=(8, 12, 24, 185),
+    # 全不透明(255)：字幕框常跟概念圖的圖說/圖例同一 y 帶(A6-b)，半透明(舊 185)會讓
+    # 底下文字「穿透」變殘影字；248 仍會漏一絲字跡，拉到全不透明才是真的完全蓋掉。
+    draw.rounded_rectangle([0, 0, iw - 1, ih - 1], radius=rad, fill=(8, 12, 24, 255),
                            outline=(accent[0], accent[1], accent[2], 150), width=max(2, int(fsize * 0.045)))
 
     y = pad_y
