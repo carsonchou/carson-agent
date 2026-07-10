@@ -451,6 +451,15 @@ HOOK_RULES = """
 
 LONG_RULES = """
 【長片成長鐵律（8-10 分鐘長片專用，蒸餾自 MrBeast／DecodingYT／Greyson 等成長頻道實證）】
+★★【A4 真長片引擎·2026-07 頻道整頓】實證問題：過去產出的「長片」實際只有 55-205 秒，
+   本質是「比較長的短片」——這樣拿不到長片靠的搜尋流量／長 watch-time。本片必須是**真正的
+   8-10 分鐘、資訊密度撐滿全長的長片**，不是把短片腳本硬拉長、也不是灌水贅字湊字數。
+★ 深段結構（治「清單體」的核心規則，務必照走）：正文分 3-5 個**各自獨立展開的深段**，
+   每段=一個子主題，段落內部要有完整弧線：①具體數據/案例切入 → ②解釋為什麼會這樣/原理
+   → ③反直覺轉折或與另一做法的對比。**嚴禁**「第一個坑、第二個坑、第三個坑」這種一句話
+   帶過的清單體條列——每個坑/每個重點都要用一整段展開講透，帶真數據或具體案例情境，
+   不能只是條列標題。段落之間要有承接語（例如「講完這個，你可能會問…」「但這還沒完，更關鍵的是…」），
+   讓正文像有敘事弧線的一篇文章，不是互相獨立的短片拼接。
 ★ Intro 三步框架（前 30 秒決定留存，務必照走）：
    ①目標：一句話講「看完你能拿走什麼」，帶具體數字承諾（例「這條網格參數讓回撤少一半」）。
    ②障礙：點出多數人卡在哪、為什麼直覺會做錯（製造好奇缺口）。
@@ -459,9 +468,17 @@ LONG_RULES = """
 ★ 標題＝可搜尋長尾（長片靠搜尋流量起家、不吃帳號權重）：用觀眾真的會搜的詞、關鍵字放開頭。三類有搜尋量題型：
    ①回答問題（「派網網格機器人怎麼設」）②教具體技能（「Pionex 第一次設定教學」）③評測比較（「Pionex vs 幣安 新手選哪個」）。
 ★ 相對留存：每個段落轉折都要給「繼續看下去的理由」，不鋪陳不繞圈；先秀成品（回測曲線／結果畫面）再回頭教。
+★ 對比/實測段（結尾前必有）：正文深段講完後，安排一段明確的「對比」或「實測」小結——
+   把前面幾個深段的重點放在一起做具體比較（例：方法A vs 方法B 誰的回撤小、哪個情境選哪個），
+   給觀眾一個可以直接拿走的結論，而不是講完就結束。
 ★ 主題一致：緊扣單一受眾（想自動化又怕被割的上班族散戶），別離題到不同客群，否則演算法會重置對你的辨識、燒掉累積。
 ★ 對仗金句（至少一句·可截圖轉發）：正文轉折或結尾至少放一句結構對稱的對仗/排比金句（例「便宜囤貨，貴了出貨」「新手賠在追高，老手賠在重倉」「不是賺多少，是活多久」），做成觀眾想截圖轉發的記憶點，強化本片被分享的機率。
-6. 誠信不變：不編造損益、不保證收益、不喊單；理財誇大詞（躺賺／穩賺／一天賺X）一律不用（會被演算法限流）。
+★ 字數/時長硬性目標（A4 長度 gate 會檢查，不達標會重生或補寫）：voice_text 至少 2200 字、
+   目標 2400-3000 字（對應真正 8-10 分鐘）。字數不是靠贅字湊，是靠上面「深段結構」每段真的展開講透
+   自然撐出來的——寧可少一個深段但每段紮實，也不要湊出 5 段空洞條列。
+6. 誠信不變：不編造損益、不保證收益、不喊單；理財誇大詞（躺賺／穩賺／一天賺X）一律不用（會被演算法限流）；
+   台股題一律用 tw_stock_facts 真數據展開深段（不只用一次，每個相關深段都可各自引用不同一項真數字）；
+   非台股題無真數據佐證，深段一樣要展開講透，但數字一律用「假設/示意」語氣（見 A2 誠信規則），不得暗示是真實回測出來的事實。
 """
 
 
@@ -695,8 +712,12 @@ def call_claude(kind, avoid, topic_override=None):
                 "voice_text 150–220 字、前 2 秒就是鉤子、講清一個觀念但每 3-4 秒一個新衝擊點/轉折維持完播、"
                 "結尾用留言鉤『你是哪種?留言告訴我』或『想要完整回測數據?留言「數據」我私你』(留言權重比訂閱高)。segments 給 2 段。")
     else:
-        spec = ("一支 8–10 分鐘長片。voice_text 1300–1700 字（HOOK→正文 4–5 段→軟性 CTA 訂閱+派網→下集預告）。"
-                "segments 給 4–5 段。")
+        spec = ("一支**真正**的 8–10 分鐘長片（A4真長片引擎：不是把短片拉長，資訊密度要撐滿全長）。"
+                "voice_text 至少 2200 字、目標 2400–3000 字。結構＝HOOK(前30秒三步框架)→"
+                "正文 3–5 個各自獨立展開的深段(每段一個子主題，段落內部要有「具體數據/案例→原理解釋→"
+                "反直覺轉折或對比」的完整弧線，段落間要有承接語，嚴禁「第一個坑/第二個坑」這種清單體"
+                "一句帶過)→對比/實測小結→軟性 CTA 訂閱+派網→下集預告。"
+                "segments 給 4–5 段，每段標題對應一個真正展開的子主題。")
     # playbook/training/avoid 限長：原本 playbook 近萬字，會撐爆 token(成本高、Groq 免費版直接 413)。
     # 取前段(最重要的爆款心法在前)即可，省 token 又不破品質。可用 LLM_PB_CHARS 調整。
     _pbmax = int(os.environ.get("LLM_PB_CHARS", "3200"))
@@ -1096,6 +1117,72 @@ def _impact_density(voice_text, max_sec_per_beat=7.0):
     return (est_sec / beats) > max_sec_per_beat
 
 
+# A4 真長片引擎(2026-07 頻道整頓計畫)：實證問題＝所有 L_ 長片實際只 55-205 秒(最長3.5分)，
+# 但 LONG_RULES 寫的是 8-10 分鐘/1300-1700 字——長片策略沒落地、產出只是「比較長的短片」，
+# 靠搜尋/長 watch-time 拿不到流量。用中文字數＋估計時長雙門檻擋不達標長片(沿用專案既有
+# 5字/秒估時慣例，見 _impact_density)。硬底線刻意設在 1200 字/6分(低於 LONG_RULES 目標 2400-3000
+# 字，留緩衝避免誤殺正常波動)，只擋明顯「偽裝成長片的短片」。
+LONG_MIN_CHARS = 1200      # 中文字數硬底線
+LONG_TARGET_CHARS = 2400   # 目標字數(對應 8 分鐘，供補寫時參考)
+LONG_MIN_EST_MIN = 6.0     # 估計時長硬底線(分鐘)
+
+
+def _long_chinese_chars(voice_text):
+    """純中文字數(排除標點/空白/英數)，估時長用；跟 _impact_density 同一套算法保持一致。"""
+    import re as _r
+    return len(_r.findall(r"[一-鿿]", voice_text or ""))
+
+
+def _long_underlength(voice_text):
+    """A4 長度 gate：字數 <1200 或 估計時長(以 5字/秒換算) <6 分＝不達標。
+    任一項不達標就算 True，供 make_one 觸發重生/補寫。"""
+    n = _long_chinese_chars(voice_text)
+    if n < LONG_MIN_CHARS:
+        return True
+    est_min = (n / 5.0) / 60.0
+    return est_min < LONG_MIN_EST_MIN
+
+
+def _expand_long_script(d, kind, topic_override):
+    """A4 補寫：長片重生 LONG_RETRY_CAP 次仍不達標時，不再從零重來(重生也常一樣短)，
+    改把既有草稿「加深」——針對既有段落各自展開更多真數據/案例/對比,補到目標字數,
+    維持 HOOK 與收尾結構不動，只加深正文段落，同樣守 A2 誠信(台股用真數據/非台股用示意假設)。
+    任何失敗都靜默放行原稿(不中斷產線)。"""
+    try:
+        import llm  # 共用路由，同 call_claude
+        cur_voice = d.get("voice_text", "") or ""
+        cur_title = d.get("title", "") or ""
+        is_tw = bool(d.get("_is_tw_stock", False))
+        integrity = TW_STOCK_RULES if is_tw else NO_FACTS_INTEGRITY_RULES
+        cur_n = _long_chinese_chars(cur_voice)
+        prompt = (
+            f"你是量化阿森頻道的專業腳本寫手。{GUARD}\n{QUANT_STANDARD}\n"
+            f"以下是一支長片草稿《{cur_title}》，但目前只有約 {cur_n} 中文字，遠低於真長片門檻"
+            f"(需≥{LONG_TARGET_CHARS}字，對應 8-10 分鐘)。\n"
+            "請把它『加深』成真正的長片——不是加贅字/重複句湊字數，而是把既有的每個段落"
+            "**展開成有乾貨的深段**：每段補一個具體子主題＋真數據/回測情境/實測案例(不是清單體"
+            "一句帶過)，段落之間要有承接語，維持原本 HOOK 開場與收尾(訂閱/下集預告)不變，"
+            "只加深、擴寫正文段落。\n"
+            f"{integrity}\n"
+            "【配音友善】口語、短句為主(每句約15-25字用句號斷開)；少用括號/破折號/冒號；"
+            "數字寫成口語念法。\n"
+            "只輸出 JSON(不要任何其他文字/markdown圍欄)，格式："
+            '{"voice_text":"展開加深後的完整旁白逐字稿"}\n\n'
+            f"【原始草稿】\n{cur_voice}"
+        )
+        txt = llm.complete(prompt, 4000, json_mode=True)
+        m = re.search(r"\{.*\}", txt, re.S)
+        if not m:
+            return d
+        expanded = _to_traditional(json.loads(m.group(0)))
+        new_voice = _fix_artifacts(expanded.get("voice_text", "") or "")
+        if new_voice and _long_chinese_chars(new_voice) > cur_n:
+            d["voice_text"] = new_voice
+    except Exception as exc:  # noqa: BLE001
+        print(f"[warn] A4 長片補寫失敗，放行原稿：{str(exc)[:80]}", file=sys.stderr)
+    return d
+
+
 def _bump_ep(d, slug):
     """EP 正片產出成功 → 遞增 EP 引擎狀態（集數+1、記錄本集、EP>=10 收官升季）。純本地檔，失敗不影響出片。"""
     try:
@@ -1181,6 +1268,20 @@ def make_one(kind, no_render=False, topic_override=None):
                or _ending_too_similar(d.get("voice_text", ""), _recent_ends)) and _hk < 2:
             _hk += 1
             d = call_claude(kind, _ex, topic_override)
+    # A4 真長片引擎(2026-07 頻道整頓計畫)：長片產出後檢查中文字數/預估時長，不達標
+    # (<1200字 或 預估<6分)就重生(最多2次，共用重生上限別無限迴圈卡死產線)；重生後仍不足
+    # 就補寫一次(把既有段落加深展開，不是從零重來)；補寫後仍不足就放行最後版但寫警告 log，
+    # 供人工複查(誤判成本高，不做「靜默刪片」，跟現有 A2 只旗標的精神一致)。
+    if kind == "long" and not topic_override:
+        _lk = 0
+        while _long_underlength(d.get("voice_text", "")) and _lk < 2:
+            _lk += 1
+            d = call_claude(kind, _ex, topic_override)
+        if _long_underlength(d.get("voice_text", "")):
+            d = _expand_long_script(d, kind, topic_override)
+        if _long_underlength(d.get("voice_text", "")):
+            _n = _long_chinese_chars(d.get("voice_text", ""))
+            log_ops("補產部門", f"⚠️ A4長片字數不足(重生+補寫後仍約{_n}字),已放行需人工複查:{d.get('title','')[:26]}")
     # A2 誠信硬擋(2026-07 頻道整頓計畫)：非台股題(無 tw_stock_facts 真數據佐證)、
     # 也非已有自己數字紀律的 EP/旗艦 franchise，若疑似捏造具體績效數字(回測N檔/勝率X%/報酬Y%/
     # 夏普轉折/虧損X% 等且無示意假設語境)→ 重生最多 2 次；仍命中就放行最後版但寫警告 log，
