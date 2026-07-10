@@ -52,19 +52,56 @@ def center_text(d, cx, y, text, f, fill, stroke=4):
     d.text((cx - w // 2, y), text, font=f, fill=fill, stroke_width=stroke, stroke_fill=(0, 0, 0))
 
 
+# ── 核心符號：折線箭頭(暗金) ──────────────────────────────────────────
+# 2026-07 B6：Carson 定案 logo.png 的折線箭頭為品牌唯一核心符號，banner/avatar/intro
+# 全部統一貼同一個 icon(深色圓角方底+金折線箭頭)，不再各自畫不同版本的箭頭，
+# 確保三者(logo/banner/avatar)看起來像同一套。座標取自 make_logo() 512 畫布的相對位移。
+ARROW_REL = [(-136, 74), (-56, 4), (4, 44), (64, -46), (136, -126)]
+ARROW_TIP_REL = (170, -160)
+
+
+def draw_arrow(d, cx, cy, scale=1.0, color=ACCENT, width=30, dot_r=9):
+    """畫折線箭頭(低→高→回檔→噴出+箭頭尖)，與 make_logo() 完全同一形狀，只是可縮放/移動中心。"""
+    pts = [(cx + int(x * scale), cy + int(y * scale)) for x, y in ARROW_REL]
+    lw = max(2, int(width * scale))
+    d.line(pts, fill=color, width=lw, joint="curve")
+    r = max(1, int(dot_r * scale))
+    for x, y in pts:
+        d.ellipse([x - r, y - r, x + r, y + r], fill=color)
+    tip = (cx + int(ARROW_TIP_REL[0] * scale), cy + int(ARROW_TIP_REL[1] * scale))
+    d.line([pts[-1], tip], fill=color, width=lw)
+    d.polygon([tip, (tip[0] - int(46 * scale), tip[1] + int(8 * scale)),
+               (tip[0] - int(6 * scale), tip[1] + int(50 * scale))], fill=color)
+    return pts, tip
+
+
+def draw_logo_icon(img, cx, cy, scale=1.0):
+    """在 img(任意模式)貼上與 assets/brand/logo.png 同一視覺語言的品牌符號 icon：
+    深色圓角方底 + 金折線箭頭。用獨立透明圖層畫好再 paste(用自己當 mask)貼上，
+    確保圓角外的透明區不覆蓋底圖。回傳貼上的 icon 邊長(int)。"""
+    S = max(1, int(512 * scale))
+    icon = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    di = ImageDraw.Draw(icon)
+    pad = max(1, int(28 * scale))
+    di.rounded_rectangle([pad, pad, S - pad, S - pad], radius=max(1, int(96 * scale)),
+                          fill=(11, 17, 36, 240), outline=ACCENT, width=max(2, int(12 * scale)))
+    draw_arrow(di, S // 2, S // 2, scale=scale, width=30, dot_r=9)
+    img.paste(icon, (cx - S // 2, cy - S // 2), icon)
+    return S
+
+
 def make_avatar():
+    """800x800，箭頭符號為主：跟 logo.png 同一個折線箭頭 icon 置中放大，下方僅點綴頻道名，
+    確保縮小成 YT 圓形大頭貼後符號仍清楚可讀(2026-07 B6 品牌統一)。"""
     S = 800
     img = gradient(S, S)
     d = ImageDraw.Draw(img)
     # 外圈強調環
     d.ellipse([18, 18, S - 18, S - 18], outline=ACCENT, width=16)
-    # 上方向上箭頭(量化/成長意象)
     cx = S // 2
-    d.line([(cx - 150, 300), (cx - 50, 230), (cx + 30, 285), (cx + 150, 175)], fill=ACCENT, width=20, joint="curve")
-    d.polygon([(cx + 150, 175), (cx + 110, 180), (cx + 150, 215)], fill=ACCENT)  # 箭頭
-    # 主字「量化阿森」兩行
-    center_text(d, cx, 350, "量化", font(180), WHITE, stroke=6)
-    center_text(d, cx, 540, "阿森", font(180), ACCENT, stroke=6)
+    draw_logo_icon(img, cx, int(S * 0.43), scale=1.08)
+    d = ImageDraw.Draw(img)
+    center_text(d, cx, int(S * 0.80), "量化阿森", font(72), WHITE, stroke=5)
     p = OUT / "avatar.png"
     img.save(p, "PNG")
     print(f"[ok] {p.name} {S}x{S}")
@@ -72,19 +109,22 @@ def make_avatar():
 
 
 def make_banner():
-    W, H = 2048, 1152
+    """2560x1440(YT 官方建議尺寸，安全區 1546x423 置中)：品牌符號 icon(跟 logo.png 同一套折線
+    箭頭)+ 頻道名 + 定位語，全部收在安全區內置中，跨裝置(電視/桌機/手機裁切)都看得到核心內容。"""
+    W, H = 2560, 1440
     img = gradient(W, H)
     d = ImageDraw.Draw(img)
-    cx = W // 2
-    # 安全區大約中央 1546x423；內容置中
-    # 上方品牌名
-    center_text(d, cx, 430, "量化阿森｜Carson Quant", font(150), WHITE, stroke=6)
-    # 強調底線
-    d.rectangle([cx - 560, 610, cx + 560, 622], fill=ACCENT)
-    # 標語
-    center_text(d, cx, 650, "把每一個交易策略拆給你看 · 用數據說話，不喊單", font(58), (190, 205, 230), stroke=3)
-    # 四支柱小標
-    center_text(d, cx, 740, "策略拆解 ·  派網實操 ·  風控心法 ·  回測實驗室", font(50), ACCENT, stroke=3)
+    cx, cy = W // 2, H // 2
+    # 安全區 y:[cy-211, cy+211]（≈[509,931]）；整個 icon+文字區塊置中收在這內
+    icon_top = cy - 190
+    icon_s = draw_logo_icon(img, cx, icon_top + 97, scale=0.38)
+    d = ImageDraw.Draw(img)
+    y = icon_top + icon_s + 18
+    center_text(d, cx, y, "量化阿森｜Carson Quant", font(84), WHITE, stroke=5)
+    y += 100
+    d.rectangle([cx - 420, y + 10, cx + 420, y + 18], fill=ACCENT)
+    y += 32
+    center_text(d, cx, y, "用真回測拆穿割韭菜神話", font(42), (200, 214, 236), stroke=3)
     p = OUT / "banner.png"
     img.save(p, "PNG")
     print(f"[ok] {p.name} {W}x{H}")
@@ -114,20 +154,19 @@ def make_intro_template():
     for rr, a in ((420, 10), (300, 14), (200, 20)):
         od.ellipse([cx - rr, cy - int(rr * 0.75), cx + rr, cy + int(rr * 0.75)], fill=(*ac, a))
     img.alpha_composite(overlay)
-    # 背景折線箭頭核心符號(低透明度，置中偏下，襯在標題文字之後、不搶戲——與 logo/avatar 同一視覺語言)
-    base_y = int(H * 0.62)
-    scale = 1.55
-    pts = [(cx + int((x - 256) * scale), base_y + int((y - 256) * scale))
-           for x, y in ((120, 330), (200, 260), (260, 300), (320, 210), (392, 130))]
+    # 2026-07 B6 polish：核心符號改「金色、置中、夠顯眼」(舊版低透明度 46/255 在深底上讀成灰
+    # 色，且箭頭尖端往右外延但左側沒對應延伸，視覺重心偏右──改實色金 + 兩側延伸對齊 cx 置中)，
+    # 擺在畫面下半部(標題文字壓中段偏上，箭頭+品牌字在下段當視覺主體填滿構圖，不搶標題)。
+    # 形狀跟 logo.png 同一份 draw_arrow()，確保片頭跟 logo/banner/avatar 同一套視覺語言。
+    arrow_cy = int(H * 0.70)
     glow = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    gd = ImageDraw.Draw(glow)
-    gd.line(pts, fill=(*ac, 46), width=26, joint="curve")
-    tip = (pts[-1][0] + int(34 * scale), pts[-1][1] - int(34 * scale))
-    gd.line([pts[-1], tip], fill=(*ac, 46), width=26)
-    gd.polygon([tip, (tip[0] - 40, tip[1] + 10), (tip[0] - 4, tip[1] + 44)], fill=(*ac, 46))
-    img.alpha_composite(glow.filter(ImageFilter.GaussianBlur(2)))
-    # 底部強調條 + 頂部品牌小字(不透明,直接畫在 img 上沒問題)
+    draw_arrow(ImageDraw.Draw(glow), cx, arrow_cy, scale=2.1, color=(*ac, 150), width=40, dot_r=15)
+    img.alpha_composite(glow.filter(ImageFilter.GaussianBlur(20)))
     d = ImageDraw.Draw(img, "RGBA")
+    draw_arrow(d, cx, arrow_cy, scale=2.1, color=(*ac, 255), width=28, dot_r=12)
+    # 品牌字「量化阿森」實色金字，置於箭頭正下方，填滿下段構圖(修「構圖空」)
+    center_text(d, cx, int(H * 0.855), "量化阿森", font(150), ac, stroke=6)
+    # 底部強調條 + 頂部品牌小字(不透明,直接畫在 img 上沒問題)
     d.rectangle([0, H - 10, W, H], fill=ac)
     center_text(d, cx, 64, "量化阿森 · Carson Quant", font(40), WHITE, stroke=3)
     p = OUT / "intro_template.png"
@@ -145,14 +184,8 @@ def make_logo():
     d = ImageDraw.Draw(img)
     d.rounded_rectangle([28, 28, S - 28, S - 28], radius=96, fill=(11, 17, 36, 240), outline=ACCENT, width=12)
     # 折線圖：低→高→回檔→噴出，比 avatar 更粗更滿框(小尺寸縮圖仍清楚)
-    pts = [(120, 330), (200, 260), (260, 300), (320, 210), (392, 130)]
-    d.line(pts, fill=ACCENT, width=30, joint="curve")
-    for x, y in pts:  # 每個轉折點補圓點，折線感更明確(避免縮小後糊成一條線)
-        d.ellipse([x - 9, y - 9, x + 9, y + 9], fill=ACCENT)
-    # 箭頭尖(終點延伸,比末端轉折點更外面一點，指向右上)
-    tip = (426, 96)
-    d.line([pts[-1], tip], fill=ACCENT, width=30)
-    d.polygon([tip, (tip[0] - 46, tip[1] + 8), (tip[0] - 6, tip[1] + 50)], fill=ACCENT)
+    # 形狀由 draw_arrow() 統一產生(banner/avatar 的 draw_logo_icon 也是同一份)，確保三者同一套符號。
+    draw_arrow(d, S // 2, S // 2, scale=1.0, width=30, dot_r=9)
     p = OUT / "logo.png"
     img.save(p, "PNG")
     print(f"[ok] {p.name} {S}x{S} (透明底·折線箭頭符號)")

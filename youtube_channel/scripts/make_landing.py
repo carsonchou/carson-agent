@@ -28,7 +28,7 @@ def _cfg():
         return {}
 
 
-def _btn(href, main, sub="", accent="#d4af5a"):
+def _btn(href, main, sub="", accent="#FFD166"):
     sub_html = f'<span class="sub">{sub}</span>' if sub else ""
     return (f'<a class="btn" href="{href}" target="_blank" rel="noopener" '
             f'style="border-color:{accent}33">{main}{sub_html}</a>')
@@ -44,10 +44,10 @@ def build() -> Path:
     for k, a in affs.items():
         if k == "_note" or not isinstance(a, dict) or not a.get("url"):
             continue
-        rows.append(_btn(a["url"], f'🔗 {a.get("label", k)}', a.get("rate", a.get("note", "")), "#d4af5a"))
+        rows.append(_btn(a["url"], f'🔗 {a.get("label", k)}', a.get("rate", a.get("note", "")), "#FFD166"))
     # 產品(私訊索取·不放帳號/金流)
-    rows.append(_btn(TG, "📊 回測不騙人 試算表(NT$149)", "私訊「試算表」索取", "#d4af5a"))
-    rows.append(_btn(TG, "📮 避雷雷達 付費電子報", "私訊「電子報」了解", "#d4af5a"))
+    rows.append(_btn(TG, "📊 回測不騙人 試算表(NT$149)", "私訊「試算表」索取", "#FFD166"))
+    rows.append(_btn(TG, "📮 避雷雷達 付費電子報", "私訊「電子報」了解", "#FFD166"))
     rows.append(_btn(TG, "🤝 合作/接案詢價", "自動化AI頻道·量化系統搭建", "#8a8"))
     if tips:
         rows.append(_btn(tips, "☕ 請我喝杯咖啡(打賞)", "", "#c9a"))
@@ -64,7 +64,7 @@ def build() -> Path:
   body{{margin:0;background:#0a0c10;color:#eee;font-family:-apple-system,"Noto Sans TC",sans-serif}}
   .wrap{{max-width:520px;margin:0 auto;padding:32px 20px 48px}}
   header{{text-align:center;margin-bottom:28px}}
-  .logo{{font-size:34px;font-weight:800;color:#d4af5a;letter-spacing:2px}}
+  .logo{{font-size:34px;font-weight:800;color:#FFD166;letter-spacing:2px}}
   .tag{{color:#8a8a90;font-size:15px;margin-top:6px}}
   main{{display:flex;flex-direction:column;gap:14px}}
   .btn{{display:flex;flex-direction:column;align-items:center;gap:3px;padding:16px 18px;

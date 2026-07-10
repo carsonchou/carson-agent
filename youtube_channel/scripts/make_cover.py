@@ -14,8 +14,10 @@
     暗色語言但不編造數據。
   · 品牌浮水印/kicker 固定高對比淺色，不再跟著 sentiment 變成深底看不到的粉紅字。
 
-流程：Haiku(或啟發式保底) 從標題/旁白抽「頂部小字 kicker / 主標 headline / 鉤子(前+金字+後) /
-      亮點數據 data / 漲跌情緒 sentiment / 適用 style」→ 純 PIL 合成 → 1080x1920 JPG。
+流程：llm.complete(共用路由，走 OpenRouter，失敗退回鏈同其他腳本；或啟發式保底) 從標題/旁白抽
+      「頂部小字 kicker / 主標 headline / 鉤子(前+金字+後) / 亮點數據 data / 漲跌情緒 sentiment /
+      適用 style」→ 純 PIL 合成 → 1080x1920 JPG。
+      2026-07 B6：淘汰直打 Anthropic API(常 400 失敗只能退保底)，改走產線共用 llm.py。
 
 用法：
   python make_cover.py --slug S_xxx --title "標題" [--narration "旁白"] [--style tech|real|auto] [--out path]
@@ -43,8 +45,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 OUT = ROOT / "assets" / "thumbnails"
 OUT.mkdir(parents=True, exist_ok=True)
 W, H = 1080, 1920
-API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
-AI_MODEL = "claude-haiku-4-5-20251001"
 BRAND = "量化阿森 · Carson Quant"
 
 BOLD = [r"C:\Windows\Fonts\msjhbd.ttc", r"C:\Windows\Fonts\msyhbd.ttc",
@@ -117,14 +117,9 @@ def derive(title, narration=""):
         f"標題：{title}\n旁白：{(narration or '')[:500]}"
     )
     try:
-        import requests
-        r = requests.post("https://api.anthropic.com/v1/messages",
-                          headers={"x-api-key": API_KEY, "anthropic-version": "2023-06-01",
-                                   "content-type": "application/json"},
-                          json={"model": AI_MODEL, "max_tokens": 400, "temperature": 0.4,
-                                "messages": [{"role": "user", "content": prompt}]}, timeout=50)
-        r.raise_for_status()
-        d = json.loads(re.search(r"\{.*\}", r.json()["content"][0]["text"], re.S).group(0))
+        import llm  # 共用路由：主供應商(OpenRouter)→失敗退回 fallback，換模型只改 env，同其他腳本
+        txt = llm.complete(prompt, max_tokens=400, temperature=0.4)
+        d = json.loads(re.search(r"\{.*\}", txt, re.S).group(0))
         for k, v in fb.items():
             d.setdefault(k, v)
         if d.get("style") not in ("real", "tech"):
@@ -143,7 +138,7 @@ def derive(title, narration=""):
         d["hook_pre"], d["hook_key"], d["hook_post"] = pre, key, post
         return d
     except Exception as e:  # noqa: BLE001
-        print(f"[warn] Haiku 文案失敗，用保底：{str(e)[:70]}", file=sys.stderr)
+        print(f"[warn] LLM 文案失敗，用保底：{str(e)[:70]}", file=sys.stderr)
         return fb
 
 
