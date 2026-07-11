@@ -92,8 +92,14 @@ BANNED_SKELETONS = [_re.compile(p) for p in (
     r"爆倉.{0,14}(還活|還撐|沒被|為什麼還|怎麼還|還敢|還在)",
     # 換皮救援(獨立驗證找到的縫):換血詞(血洗/崩盤/清算/歸零/暴跌)但保留「生存 clickbait」尾巴=一樣是洗版
     r"(爆倉|血洗|崩盤|清算|歸零|暴跌|狂洩|狂瀉).{0,14}(還活著|憑什麼不死|怎麼沒死|還沒歸零|怎麼還沒死|還敢開|為什麼還活)",
-    # 勝率高卻虧:含數字型(9X/8X)與中文型(九成/八成)
+    # 2026-07 成長衝刺補洞:原規則要求「還撐/還活」才算,漏掉裸「撐得住嗎」(無「還」字)這款實測完播殺手
+    # (見『X億爆倉…你的網格撐得住嗎』實例,完播僅24-39%)——補上不含「還」的「撐得住」尾巴。
+    r"(爆倉|血洗|崩盤|清算|歸零|暴跌|狂洩|狂瀉|空單|空軍).{0,14}(撐得住|撐不住)",
+    # 勝率高卻虧:含數字型(9X/8X)與中文型(九成/八成)——原順序「勝率9X」
     r"勝率\s*(9\d|8\d|9成|8成|九成|八成).{0,10}(卻虧|還虧|破產|虧光|還在虧)",
+    # 2026-07 成長衝刺補洞:實測發現真實洗版是反過來的順序「87%勝率」(數字在前),原規則漏抓、
+    # 導致 2026-07-07 單日 5 支近乎同題「XX%勝率陷阱」互打分散曝光——補反序比對。
+    r"(9\d|8\d)\s*%.{0,6}勝率.{0,14}(卻虧|還虧|破產|虧光|還在虧|竟虧|實盤.{0,6}虧)",
     r"破產機率公式.{0,8}(一秒|戳破|暴露|揭|拆穿)",
 )]
 
@@ -186,7 +192,8 @@ def recent_titles(n: int = 80) -> list:
 #    抽出比全文相似度更粗的『家族指紋』,對近 7 天內同家族設每週上限,超過就要求換家族。
 #    只有命中已知濫用家族(動作/比喻詞)的標題才計入,一般標題不受影響、不誤殺贏家公式單支)──
 _SK_ACTION_WORDS = ("定投", "網格", "複利", "停損", "停利", "回測", "存股", "當沖",
-                     "馬丁格爾", "凱利", "夏普", "微笑曲線")
+                     "馬丁格爾", "凱利", "夏普", "微笑曲線",
+                     "勝率")  # 2026-07 成長衝刺:補「87%勝率陷阱」這款反序洗版家族(見上方 BANNED_SKELETONS 補洞說明)
 _SK_LIFE_METAPHOR = ("賓士", "手搖", "便當", "一頓", "一杯", "一台", "一輛", "一年", "一個月薪")
 _SKELETON_FREQ_FILE = "skeleton_freq_state.json"
 
@@ -202,10 +209,12 @@ def _skeleton_family(title: str) -> str:
     return f"{action}|{life}"
 
 
-def check_skeleton_frequency(title: str, cap: int = 3, window_days: int = 7) -> bool:
+def check_skeleton_frequency(title: str, cap: int = 2, window_days: int = 7) -> bool:
     """True = 該標題所屬『濫用家族』近 window_days 天已達週上限,應擋下/要求換家族。
     只讀 STUDIO/skeleton_freq_state.json(由 record_skeleton_produced 寫入的時間戳);
-    非已知家族(_skeleton_family 回空)一律放行(不誤殺)。"""
+    非已知家族(_skeleton_family 回空)一律放行(不誤殺)。
+    2026-07 成長衝刺:cap 原為 3,實測「同核心比喻/數字題一週上限 1-2 支」才夠緊(見
+    growth_sprint_plan.md D 段:2026-07-07 單日 5 支近乎同題互打),下修為 2。"""
     fam = _skeleton_family(title)
     if not fam:
         return False
@@ -214,6 +223,49 @@ def check_skeleton_frequency(title: str, cap: int = 3, window_days: int = 7) -> 
     cutoff = time.time() - window_days * 86400
     recent = [e for e in events if isinstance(e, (int, float)) and e >= cutoff]
     return len(recent) >= cap
+
+
+# ── 通用『主題頻率上限』helper(2026-07 成長衝刺:給非標題骨架的分類用,例如「加密爆倉/網格
+#    新聞蹭熱」這種完播殺手,要用『分類標籤』而非標題文字算頻率——news_dept/hotspot_dept/
+#    produce_batch.pull_topic 共用同一份 state,不論走哪條產線路徑,同一週上限都算在一起)──
+_TOPIC_FREQ_FILE = "topic_freq_state.json"
+
+
+def check_topic_frequency(tag: str, cap: int = 2, window_days: int = 7) -> bool:
+    """True = 指定 tag(如 "news_liquidation")近 window_days 天已達 cap 次數上限,應擋下。
+    tag 為空一律放行。"""
+    if not tag:
+        return False
+    st = load_json_safe(STUDIO / _TOPIC_FREQ_FILE, {}) or {}
+    events = st.get(tag) or []
+    cutoff = time.time() - window_days * 86400
+    recent = [e for e in events if isinstance(e, (int, float)) and e >= cutoff]
+    return len(recent) >= cap
+
+
+def record_topic_produced(tag: str) -> None:
+    """tag 對應主題確定產出後呼叫,記一筆時間戳(供 check_topic_frequency 計數)。
+    自帶清理:超過 30 天的舊紀錄丟棄。tag 為空不記錄。"""
+    if not tag:
+        return
+    st = load_json_safe(STUDIO / _TOPIC_FREQ_FILE, {}) or {}
+    cutoff = time.time() - 30 * 86400
+    events = [e for e in (st.get(tag) or []) if isinstance(e, (int, float)) and e >= cutoff]
+    events.append(time.time())
+    st[tag] = events
+    save_json_atomic(STUDIO / _TOPIC_FREQ_FILE, st)
+
+
+# ── 加密爆倉/網格新聞蹭熱分類器(2026-07 成長衝刺:實測完播殺手,近一週重複約 6 支、
+#    完播僅 24-39%,見 growth_sprint_plan.md C 段)。news_dept/hotspot_dept/produce_batch.pull_topic
+#    共用同一個判斷式,搭配 check_topic_frequency("news_liquidation", cap=2) 設週上限。──
+_LIQUIDATION_RE = _re.compile(
+    r"爆倉|爆仓|血洗|清算|斷頭|断头|歸零|归零|空單|空军|空軍|網格.{0,6}(撐得住|撐不住|還活著|還撐)")
+
+
+def is_liquidation_hijack(text: str) -> bool:
+    """標題/新聞重點是否屬『加密爆倉/清算新聞蹭熱』完播殺手類型(純新聞恐慌轉述,非個人化反直覺鉤子)。"""
+    return bool(_LIQUIDATION_RE.search(text or ""))
 
 
 def record_skeleton_produced(title: str) -> None:

@@ -257,17 +257,29 @@ def pull_topic(kind):
     cand = [t for t in bank if not t.get("used") and t.get("format", "short") == kind]
     # 2026-07 止血:濾掉殘留的洗版濫用骨架題(爆倉還活著/勝率9X破產公式)
     cand = [t for t in cand if not _sc.is_banned_skeleton(t.get("title", ""))]
+    # 2026-07 成長衝刺:加密爆倉/網格新聞蹭熱本週已達上限(≤2支,見 studio_common.is_liquidation_hijack)
+    # → 直接從候選池濾掉,不讓它有機會被選到(產線層強制擋,不是靠運氣);未達上限則不影響正常排序。
+    if _sc.check_topic_frequency("news_liquidation", cap=2):
+        cand = [t for t in cand if not _sc.is_liquidation_hijack(
+            (t.get("title", "") or "") + (t.get("angle", "") or ""))]
     # 治本:①乾淨題優先於新聞旁路來源題(修「回測/你的」讓幣圈恐慌題誤命中 _NUM_KW 插隊贏過乾淨題的 bug)
     #       ②同組內再靠「數字戳破直覺」會紅題(完播高)優先;工具教學/純新聞題排後、自然餓死
+    # 2026-07 成長衝刺(growth_sprint_plan.md B 段):台股/ETF/0050×定投對比×回測打臉直覺＝
+    # 全頻道 reach 天花板(450-855v)的已驗證贏家脈絡,獨立設 winner 優先層級,僅次於旗艦題,
+    # 優先於一般 SEO/NUM 排序——放大這條產線資源會自然多分配到它。
+    _WINNER_KW = ("0050", "0056", "00878", "00929", "006208", "定投", "定期定額", "ETF",
+                  "存股", "大盤", "台股", "All in", "all in", "ALL IN", "一次投入", "一次all",
+                  "回測打臉", "無腦買", "vs")
     def _rank(t):
         _ta = (t.get("title", "") or "") + (t.get("angle", "") or "")
         src = str(t.get("source", "")).lower()
         flag = 0 if str(t.get("category", "")) in FLAGSHIP_CATS else 1  # 旗艦題最優先自動產(破圈押注·稽核B修:原本被墊底餓死)
+        winner = 0 if any(k in _ta for k in _WINNER_KW) else 1  # 贏家脈絡優先(2026-07 成長衝刺放大)
         news_src = 1 if src in ("news", "hotspot", "breakout", "intel") else 0
         depri = 1 if t.get("deprioritized") else 0  # A5:含輸家詞的題被降權排最後
         seo = 0 if _seo_hit(_ta) else 1             # A2:含高意圖搜尋詞的題優先
         num = 0 if any(k in _ta for k in _NUM_KW) else 1
-        return (flag, news_src, depri, seo, num)
+        return (flag, winner, news_src, depri, seo, num)
     cand.sort(key=_rank)
     if not cand:
         return None
@@ -421,6 +433,16 @@ HOOK_RULES = """
    ★硬性(2026-07 完播診斷回灌·別再犯)：第一句必須是「結論／最大數字」本身，不是暖場鋪陳或背景交代——
    嚴禁用「你知道嗎」「大家好」「今天要來跟大家聊聊」「什麼是○○」這種軟性提問／自我介紹當開場句；
    第一句也不得與後面段落1的旁白逐字重複(段落1可承接同一件事，但要換句、往下推進，不能複製貼上)。
+1c. ★硬性(2026-07 成長衝刺實測·完播殺手 vs 贏家的關鍵差距)：**嚴禁把新聞事件原封不動當開場句**——
+   殺手實例(完播僅24-39%，開頭 watchRatio 只 1.05 一路衰減)：「BTC暴漲前兆？8億空單即將爆倉！」
+   「4.5億空軍一夜歸零！恐慌指數卻躺19？」「空頭爆倉4.58億！網格撐得住嗎？」——這類句子只是把新聞標題
+   念一遍、丟給陌生人一個他無法代入的抽象天文數字，沒有「你」、沒有反直覺對比，觀眾看完第一句仍不知道
+   這跟自己有什麼關係，秒滑。
+   贏家實例(開頭 watchRatio 1.35-1.50，觀眾狂回看)：都是「具體反直覺數字＋跟觀眾切身相關的對比」
+   （例：「同樣丟一萬，一次全押跟分12個月，10年後差多少？」），不是轉述外部新聞事件。
+   遇到加密爆倉/清算/網格新聞這類時事題材，開場**必須先把新聞事件轉譯成觀眾能代入的反直覺對比或具體後果**
+   （例如把「XX億爆倉」轉成「你的網格參數，遇到這種單邊行情會怎樣」的個人化反直覺問句），
+   絕不能只是照抄新聞標題的天文數字當第一句；且該支結論要接一個真數字或回測結論收尾，不能只停在恐慌情緒。
 2. 製造「好奇缺口」：開頭丟反直覺結論或數字謎題，**答案留到最後一句才揭曉**，逼觀眾看到底。
 3. 全程快節奏、每句一個衝擊點、不鋪陳不繞圈；寧可短(二十到三十秒)也不稀釋。
 4. 結尾用一句反轉或重磅數字收（不要平淡總結），**接一句『留言鉤』CTA**——留言在 Shorts 演算法權重比訂閱高,別只喊訂閱。
@@ -1085,7 +1107,10 @@ def _weak_hook(voice_text):
       同一個策略切點不同夏普值差一倍這類無「你」但很強的金句鉤。純加法：原本擋下的絕不會因此變放行。
     ·2026-07 新增(結論前置 gate)：即使有數字/衝突詞，若第一句仍是典型鋪陳起手詞(你知道嗎/大家好/
       今天要跟大家聊聊/什麼是某某等)=一樣算弱，擋純鋪陳問句開場——回應 retention_insights.json
-      開頭12-20%流失最兇、別鋪陳的診斷。純加法：只多擋、不放行任何原本會被擋的片。"""
+      開頭12-20%流失最兇、別鋪陳的診斷。純加法：只多擋、不放行任何原本會被擋的片。
+    ·2026-07 成長衝刺新增：裸新聞轉述開場(加密爆倉/清算等)實測完播僅24-39%，但原規則的
+      「爆」字算衝突詞會誤放行——新增專判:第一句命中 is_liquidation_hijack 且沒有第二人稱/
+      對比詞(vs/差/倍/你猜)時＝弱，強制要求轉譯成個人化反直覺對比才算過關。"""
     import re as _r
     body = (voice_text or "").replace("\n", " ")
     head = body.split("。")[0]  # 第一句：管數字/衝突(前1秒最強那句)
@@ -1100,7 +1125,18 @@ def _weak_hook(voice_text):
     # 保守：有衝突詞就不算弱；沒衝突詞時，數字與第二人稱缺一即弱
     # (等於在原「無數字」外，多擋「有數字但整段都不對觀眾說話」的乾巴巴陳述)
     weak_orig = (not has_conf) and ((not has_num) or (not has_you))
-    return weak_orig or _is_preamble_open(head)
+    if weak_orig or _is_preamble_open(head):
+        return True
+    # 裸新聞轉述開場專判：命中加密爆倉/清算類字眼、且完全沒有個人化對比(你/妳/vs/差/倍/你猜)
+    # ＝只是把新聞標題念一遍，即使帶「爆」字滿足了上面 has_conf 也一樣視為弱鉤子。
+    try:
+        if sc.is_liquidation_hijack(head):
+            _compare = _r.search(r"vs|VS|你猜|差[0-9一二三四五六七八九十]|[0-9一二三四五六七八九十]倍", head)
+            if not has_you and not _compare:
+                return True
+    except Exception:  # noqa: BLE001
+        pass
+    return False
 
 
 def _impact_density(voice_text, max_sec_per_beat=7.0):
@@ -1255,17 +1291,31 @@ def make_one(kind, no_render=False, topic_override=None):
             return None
         if _title_weak(d.get("title", "")):
             log_ops("補產部門", f"標題重生3次仍弱(放行最後版·分{title_formula_score(d.get('title',''))}):{d.get('title','')[:26]}")
+    else:
+        # 2026-07 成長衝刺：時事 topic_override 原本完全跳過骨架週上限與加密爆倉/清算頻率上限，
+        # 是「加密爆倉/網格新聞蹭熱」近一週複製約 6 支、完播僅 24-39% 的破口之一。標題由新聞判斷官
+        # 給死、不能像一般題重生換角度，故只做「本週已達上限就跳過本次不產」(不重生)；
+        # news_dept 自身有每輪重試與下一輪排程機制，跳過不影響下一次抓新聞的機會。
+        if sc.check_skeleton_frequency(d.get("title", "")):
+            log_ops("補產部門", "骨架家族本週已達上限(時事題),跳過避免洗版:" + d.get("title", "")[:26])
+            return None
+        if sc.is_liquidation_hijack(d.get("title", "")) and sc.check_topic_frequency("news_liquidation", cap=2):
+            log_ops("補產部門", "加密爆倉/網格新聞本週已達上限(≤2支),跳過避免完播殺手洗版:" + d.get("title", "")[:26])
+            return None
     prefix = "S" if kind == "short" else "L"
-    # 硬擋弱鉤子+衝擊密度+結尾CTA同質(只對 Shorts；時事 topic_override 不擋)：
-    #   ①弱鉤子=前1秒沒數字/衝突、或開頭整段不對觀眾說話(痛點第二人稱)
+    # 硬擋弱鉤子+衝擊密度+結尾CTA同質(只對 Shorts)：
+    #   ①弱鉤子=前1秒沒數字/衝突、開頭整段不對觀眾說話(痛點第二人稱)、或裸新聞轉述開場(加密爆倉等)
     #   ②衝擊密度=平均 >7 秒才一個斷句(明顯拖沓)
-    #   ③結尾CTA與近期任一支高度相似(A1去同質化,治「77%結尾同一句」)
-    #   三者共用同一重生上限(≤2)，用完就放行最後一版，絕不無限重生卡死產線。
-    if kind == "short" and not topic_override:
+    #   ③結尾CTA與近期任一支高度相似(A1去同質化,治「77%結尾同一句」)——只對常規題檢查,
+    #     時事 topic_override 的題目本來就與常規題材不同源,不比對(避免誤殺)
+    #   前兩者共用同一重生上限(≤2)，用完就放行最後一版，絕不無限重生卡死產線；
+    #   2026-07 成長衝刺：①弱鉤子/②衝擊密度改為時事 topic_override 也照查
+    #   (裸新聞轉述開場正是完播殺手主因，時事片更該被這道閘擋，不能再豁免)。
+    if kind == "short":
         _hk = 0
         _recent_ends = _recent_endings()
         while (_weak_hook(d.get("voice_text", "")) or _impact_density(d.get("voice_text", ""))
-               or _ending_too_similar(d.get("voice_text", ""), _recent_ends)) and _hk < 2:
+               or (not topic_override and _ending_too_similar(d.get("voice_text", ""), _recent_ends))) and _hk < 2:
             _hk += 1
             d = call_claude(kind, _ex, topic_override)
     # A4 真長片引擎(2026-07 頻道整頓計畫)：長片產出後檢查中文字數/預估時長，不達標
@@ -1308,6 +1358,8 @@ def make_one(kind, no_render=False, topic_override=None):
     (OUT / f"{slug}.voice.txt").write_text(d["voice_text"], encoding="utf-8")
     (OUT / f"{slug}.md").write_text(build_md(d), encoding="utf-8")
     sc.record_skeleton_produced(d["title"])  # 記骨架家族時間戳,供週上限(check_skeleton_frequency)計數
+    if sc.is_liquidation_hijack(d.get("title", "")):
+        sc.record_topic_produced("news_liquidation")  # 加密爆倉/網格新聞蹭熱週上限計數(2026-07 成長衝刺)
 
     _run_tts(slug)
 
