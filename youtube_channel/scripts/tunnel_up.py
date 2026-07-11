@@ -165,12 +165,64 @@ def _fresh(max_age: int = 900) -> bool:
         return False
 
 
+def _reachable_retry(base: str, tries: int = 3) -> bool:
+    """對 tunnel URL 做 HEAD,容忍 cloudflared 邊緣抖動:重試 tries 次,任一次通(<500 或 4xx)就算可達。
+    避免單次 HEAD 逾時就誤判死掉→誤殺一個其實還活著的 tunnel。"""
+    import urllib.request
+    import urllib.error
+    for i in range(tries):
+        try:
+            with urllib.request.urlopen(urllib.request.Request(base, method="HEAD"), timeout=8) as r:
+                return r.status < 500
+        except urllib.error.HTTPError as e:  # 4xx=伺服器有回應=通
+            return e.code < 500
+        except Exception:  # noqa: BLE001
+            if i < tries - 1:
+                time.sleep(3)
+    return False
+
+
+def _kill_stale_tunnels() -> None:
+    """換 tunnel 前先殺掉現有 tunnel_up(run_forever)+fileserver_local 程序(除自己),
+    避免 spawn 新的又不清舊的→程序爆增(先前一夜堆到 150 個的根因)。Windows best-effort。"""
+    import os
+    me = os.getpid()
+    try:
+        out = subprocess.run(
+            ["powershell", "-NoProfile", "-Command",
+             "Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" | "
+             "Where-Object { $_.CommandLine -match 'tunnel_up|fileserver_local' } | "
+             "ForEach-Object { $_.ProcessId }"],
+            capture_output=True, text=True, timeout=20).stdout
+        for tok in out.split():
+            try:
+                pid = int(tok.strip())
+                if pid != me:
+                    subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True, timeout=10)
+            except Exception:  # noqa: BLE001
+                pass
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def ensure() -> None:
-    """cron 自癒:tunnel 健康就啥都不做;否則 detached 起一個常駐 run_forever(survive 父程序結束)。"""
-    if _fresh():
-        print("[tunnel_up] tunnel 新鮮(run_forever 存活),無需動作")
+    """cron 自癒:tunnel 新鮮(ts<900s)且可達(HEAD 帶重試容忍)→無需動作;否則先殺舊 tunnel/fileserver
+    (防爆增)再 detached 起一個常駐 run_forever。平衡:救 IG(死 tunnel 會被替換)又不爆增(換前先清)。"""
+    import json
+    healthy = False
+    try:
+        d = json.loads(TUNNEL_JSON.read_text(encoding="utf-8"))
+        fresh = (time.time() - int(d.get("ts", 0))) <= 900
+        base = d.get("base")
+        if fresh and base and _reachable_retry(base):
+            healthy = True
+    except Exception:  # noqa: BLE001
+        healthy = False
+    if healthy:
+        print("[tunnel_up] tunnel 健康(新鮮+可達),無需動作")
         return
-    print("[tunnel_up] tunnel 不健康/過期,detached 重啟常駐…")
+    print("[tunnel_up] tunnel 不健康(過期或不可達),先殺舊 tunnel/fileserver 再重啟…")
+    _kill_stale_tunnels()  # 換之前先清舊的,防程序爆增
     kw = {}
     if sys.platform == "win32":
         # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP:脫離父程序,cron 子程序結束也不會收掉 tunnel
