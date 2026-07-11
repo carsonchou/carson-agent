@@ -417,8 +417,72 @@ def compose_datacard(t, slug, title):
     return img.convert("RGB")
 
 
+def _advisor_cutout_thumb():
+    """借用 make_brand_assets 的顧問去背快取(assets/brand/advisor_cutout.png)，避免這裡重複寫一份
+    rembg 邏輯。找不到來源就丟例外，呼叫端(compose_advisor)自行退回無人像版。"""
+    import make_brand_assets as mba  # 延遲載入，只有真的要顧問變體才需要
+    return mba.advisor_cutout()
+
+
+def compose_advisor(t, slug, title):
+    """顧問人物縮圖變體(2026-07 B3b 新增)：真人半身像(advisor_v4 去背)滿版當背景主體，
+    上方壓 kicker/主標、下方壓黃底鉤子+品牌浮水印，仿競品「真人+大字」構圖，增加點擊 hook。
+    **預設不啟用**——現有乾淨「數據卡」風(compose_datacard)仍是預設，這裡只是多一種可選變體
+    增加縮圖多樣性；呼叫端要用得傳 variant="advisor"（見 make_cover()/CLI --variant）。"""
+    sent = t.get("sentiment", "up")
+    accent, glow_rgba, scrim_col = _palette(sent)
+    img = _market_bg(accent, seed=slug or title or "x", tall_band=True).convert("RGBA")
+
+    try:
+        cutout = _advisor_cutout_thumb()
+        scale = (W * 1.06) / cutout.width  # 略寬於畫布，滿版出血、不留左右白邊
+        pw, ph = max(1, int(cutout.width * scale)), max(1, int(cutout.height * scale))
+        person = cutout.resize((pw, ph), Image.LANCZOS)
+        px = (W - pw) // 2
+        py = H - ph  # 底部對齊，頭頂上方留白給 kicker/主標
+        # 暗金背光(頭肩後方)，呼應品牌金、增加主視覺質感
+        glow = Image.new("RGBA", img.size, (0, 0, 0, 0))
+        gd = ImageDraw.Draw(glow)
+        gcx, gcy = W // 2, py + int(ph * 0.22)
+        gd.ellipse([gcx - 480, gcy - 480, gcx + 480, gcy + 480], fill=(*GOLD, 70))
+        img.alpha_composite(glow.filter(ImageFilter.GaussianBlur(110)))
+        # 底部黃色鉤子面板本身有 alpha=222 的毛玻璃底，疊在人像胸口上仍可讀，不需額外柔化。
+        img.alpha_composite(person, (px, py))
+    except Exception as exc:  # noqa: BLE001
+        print(f"[warn] 顧問人像合成失敗({exc})，退回無人像版(仍會有 kicker/主標/鉤子)", file=sys.stderr)
+
+    _scrim(img, 520, 1300, scrim_col)
+    _vignette(img, strength=120)
+
+    # 頂部 kicker
+    _frosted_panel(img, 55, 235, col=scrim_col, alpha=185, accent=accent, border_top=False)
+    d = ImageDraw.Draw(img, "RGBA")
+    d.line([(80, 95), (W - 80, 95)], fill=(*accent[:3], 255), width=1)
+    d.text((W // 2, 165), t["kicker"], font=F(46), fill=BRAND_TEXT, anchor="mm")
+
+    # 主標(人像頭頂上方留白區)
+    hline_y = 380
+    hf_main = _fit(d, t["headline"], W - 100, 96)
+    _glow(img, (W // 2, hline_y), t["headline"], hf_main,
+          (248, 252, 255, 255), (*accent[:3], 150), gr=14, sw=3, sf=(6, 10, 16))
+    d = ImageDraw.Draw(img, "RGBA")
+    _separator(d, hline_y + 80, accent, pad=100)
+
+    # 底部鉤子(黃底按鈕) + 品牌浮水印，疊在人像胸口位置(毛玻璃面板保證可讀性)
+    _frosted_panel(img, 1560, 1790, col=scrim_col, alpha=222, accent=accent, border_top=True)
+    d = ImageDraw.Draw(img, "RGBA")
+    hf_hook = _fit(d, t["hook_pre"] + t["hook_key"] + t["hook_post"], W - 90, 100)
+    _hook(d, img, (t["hook_pre"], t["hook_key"], t["hook_post"]), 1660, hf_hook, box="yellow")
+    d = ImageDraw.Draw(img, "RGBA")
+    _spaced(d, (W // 2, 1745), BRAND, F(36), BRAND_TEXT, 6, "mm")
+
+    return img.convert("RGB")
+
+
 # ───────────────────────── 主流程 ─────────────────────────
-def make_cover(slug, title, narration="", style="auto", dest=None):
+def make_cover(slug, title, narration="", style="auto", dest=None, variant="clean"):
+    """variant="clean"(預設，不變) 走現有數據卡風 compose_datacard；variant="advisor" 走
+    2026-07 B3b 新增的顧問真人像變體 compose_advisor(增加縮圖多樣性+真人 hook，非預設)。"""
     dest = Path(dest) if dest else (OUT / f"{slug}.jpg")
     if not narration:
         try:
@@ -430,12 +494,12 @@ def make_cover(slug, title, narration="", style="auto", dest=None):
     if style in ("tech", "real"):
         t["style"] = style
     try:
-        img = compose_datacard(t, slug, title)
+        img = compose_advisor(t, slug, title) if variant == "advisor" else compose_datacard(t, slug, title)
         img.save(dest, "JPEG", quality=93)
-        print(f"[ok] 封面 {dest.name}（style={t['style']}, sentiment={t.get('sentiment')}）")
+        print(f"[ok] 封面 {dest.name}（style={t['style']}, sentiment={t.get('sentiment')}, variant={variant}）")
         return dest
     except Exception as exc:  # noqa: BLE001
-        print(f"[warn] compose_datacard 失敗({exc})，退回 K 線卡保底", file=sys.stderr)
+        print(f"[warn] compose 失敗({exc})，退回 K 線卡保底", file=sys.stderr)
         try:
             import make_video as mv
             return mv.render_candle_card(W, H, big_text=t["headline"], watermark=BRAND,
@@ -449,10 +513,11 @@ def main():
     ap.add_argument("--slug", required=True)
     ap.add_argument("--title", required=True)
     ap.add_argument("--narration", default="")
+    ap.add_argument("--variant", default="clean", choices=["clean", "advisor"])
     ap.add_argument("--style", default="auto", choices=["auto", "tech", "real"])
     ap.add_argument("--out", default=None)
     a = ap.parse_args()
-    make_cover(a.slug, a.title, a.narration, a.style, a.out)
+    make_cover(a.slug, a.title, a.narration, a.style, a.out, a.variant)
     return 0
 
 

@@ -7,6 +7,7 @@
 """
 from __future__ import annotations
 
+import io
 import sys
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
@@ -14,6 +15,8 @@ from PIL import Image, ImageDraw, ImageFont, ImageFilter
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "assets" / "brand"
 OUT.mkdir(parents=True, exist_ok=True)
+ADVISOR_SRC = OUT / "advisor.png"          # 正典顧問臉(2026-07 B3b：Carson 選定 advisor_v4)
+ADVISOR_CUTOUT_CACHE = OUT / "advisor_cutout.png"  # 去背快取，避免每次重生都重跑 rembg
 
 NAVY_TOP = (12, 20, 44)
 NAVY_BOT = (30, 48, 92)
@@ -90,44 +93,133 @@ def draw_logo_icon(img, cx, cy, scale=1.0):
     return S
 
 
+def _advisor_photo():
+    """讀正典顧問臉照片(assets/brand/advisor.png，RGB)。找不到就丟例外，呼叫端自行處理。"""
+    if not ADVISOR_SRC.exists():
+        raise FileNotFoundError(f"缺 {ADVISOR_SRC}——請先把選定的 advisor_vN.png 複製成 advisor.png")
+    return Image.open(ADVISOR_SRC).convert("RGB")
+
+
+def advisor_cutout(use_cache=True):
+    """回傳顧問人像去背後的 RGBA(已裁到人形 bbox，無多餘透明邊)。
+    優先用快取(assets/brand/advisor_cutout.png)，沒有才跑 rembg(模型載入慢，跑一次存起來)。
+    rembg 不可用或失敗時退回原圖(不去背，呼叫端仍可用，只是會帶方形背景)。"""
+    if use_cache and ADVISOR_CUTOUT_CACHE.exists():
+        return Image.open(ADVISOR_CUTOUT_CACHE).convert("RGBA")
+    im = _advisor_photo()
+    try:
+        from rembg import remove  # type: ignore
+        buf = io.BytesIO()
+        im.save(buf, format="PNG")
+        out = remove(buf.getvalue())
+        cut = Image.open(io.BytesIO(out)).convert("RGBA")
+    except Exception as exc:  # noqa: BLE001
+        print(f"[warn] rembg 去背失敗({exc})，用原圖(無去背)", file=sys.stderr)
+        cut = im.convert("RGBA")
+    bbox = cut.getbbox()
+    if bbox:
+        cut = cut.crop(bbox)
+    try:
+        cut.save(ADVISOR_CUTOUT_CACHE, "PNG")
+    except Exception:
+        pass
+    return cut
+
+
 def make_avatar():
-    """800x800，箭頭符號為主：跟 logo.png 同一個折線箭頭 icon 置中放大，下方僅點綴頻道名，
-    確保縮小成 YT 圓形大頭貼後符號仍清楚可讀(2026-07 B6 品牌統一)。"""
+    """800x800，頻道正式大頭貼＝顧問真人臉(2026-07 B3b 定案，Carson 選 advisor_v4)。
+    箭頭符號**不再**當大頭貼(容易被圓形裁邊、且真人臉=治「AI 農場」味)——箭頭符號改保留在
+    logo.png/浮水印/片頭當品牌 symbol，兩者分工。做法：從 advisor.png(768x768 半身工作站照)
+    裁一個臉部置中的方形(裁掉部份身體，留夠邊，避免圓形裁邊切到臉)，加暗金環呼應品牌識別。"""
     S = 800
-    img = gradient(S, S)
-    d = ImageDraw.Draw(img)
-    # 外圈強調環
-    d.ellipse([18, 18, S - 18, S - 18], outline=ACCENT, width=16)
-    cx = S // 2
-    draw_logo_icon(img, cx, int(S * 0.43), scale=1.08)
-    d = ImageDraw.Draw(img)
-    center_text(d, cx, int(S * 0.80), "量化阿森", font(72), WHITE, stroke=5)
+    photo = _advisor_photo()  # 768x768
+    pw, ph = photo.size
+    # 臉部置中裁切框：源圖是半身工作站照，臉落在上半部；經目視校正的裁切框(pw=ph=768時
+    # 約為 480x480、y 從 15px 起)，臉部留有頭頂+下巴+肩膀邊，圓形裁邊也不會切到五官。
+    crop_s = int(pw * 0.625)
+    x0 = (pw - crop_s) // 2
+    y0 = int(ph * 0.02)
+    y0 = min(y0, ph - crop_s)
+    face = photo.crop((x0, y0, x0 + crop_s, y0 + crop_s)).resize((S, S), Image.LANCZOS)
+    img = face.convert("RGB")
+    d = ImageDraw.Draw(img, "RGBA")
+    # 四角柔化暗角(照片邊角比中央暗一點，呼應品牌深色質感、也讓圓形裁邊過渡更自然)
+    vgn = Image.new("L", (S, S), 0)
+    vd = ImageDraw.Draw(vgn)
+    vd.ellipse([-S * 0.35, -S * 0.35, S * 1.35, S * 1.35], fill=255)
+    vgn = vgn.filter(ImageFilter.GaussianBlur(60))
+    dark = Image.new("RGBA", (S, S), (*NAVY_TOP, 130))
+    img = Image.composite(img.convert("RGBA"), Image.alpha_composite(img.convert("RGBA"), dark), vgn)
+    d = ImageDraw.Draw(img, "RGBA")
+    # 外圈品牌暗金環(跟 logo/banner 同色，識別度)
+    d.ellipse([10, 10, S - 10, S - 10], outline=ACCENT, width=14)
     p = OUT / "avatar.png"
-    img.save(p, "PNG")
-    print(f"[ok] {p.name} {S}x{S}")
+    img.convert("RGB").save(p, "PNG")
+    print(f"[ok] {p.name} {S}x{S}(顧問真人臉，置中裁切)")
     return p
 
 
 def make_banner():
-    """2560x1440(YT 官方建議尺寸，安全區 1546x423 置中)：品牌符號 icon(跟 logo.png 同一套折線
-    箭頭)+ 頻道名 + 定位語，全部收在安全區內置中，跨裝置(電視/桌機/手機裁切)都看得到核心內容。"""
+    """2560x1440(YT 官方建議尺寸，安全區 1546x423 置中)：2026-07 B3b 重製──右側顧問真人臉
+    (advisor_v4，去背)出血滿版增添真人感，左側收在安全區內的 icon(跟 logo.png 同一套折線箭頭
+    symbol)+ 頻道名 + 定位語，維持跨裝置(電視/桌機/手機裁切)都看得到核心文字內容。"""
     W, H = 2560, 1440
-    img = gradient(W, H)
-    d = ImageDraw.Draw(img)
+    img = gradient(W, H).convert("RGBA")
     cx, cy = W // 2, H // 2
-    # 安全區 y:[cy-211, cy+211]（≈[509,931]）；整個 icon+文字區塊置中收在這內
+
+    # ── 右側：顧問真人臉去背，貼近右緣出血，營造「顧問走進畫面」的真人感 ──
+    try:
+        cutout = advisor_cutout()
+        target_h = int(H * 0.97)
+        scale = target_h / cutout.height
+        pw, ph = max(1, int(cutout.width * scale)), target_h
+        person = cutout.resize((pw, ph), Image.LANCZOS)
+        # 跟品牌深藍做輕微色彩統一(乘色疊一層低透明度深藍，不蓋掉膚色細節)
+        tint = Image.new("RGBA", person.size, (*NAVY_TOP, 46))
+        person = Image.alpha_composite(person, tint)
+        px = W - pw - 24  # 右側留一點邊，讓臉部落在安全區內(不整個貼到最右緣)
+        # advisor_v4 去背後髮際線幾乎頂到裁切框頂(bbox 實測)，眼睛約在人像高度 25.5% 處。
+        # 為了讓臉落在 YT 官方安全區(y:[cy-211,cy+211])內，把眼睛對齊 cy，寧可讓下半身(手/桌
+        # 面反光)超出畫布下緣被裁掉，也要保臉部在安全區內(B3b：人臉是核心，不是身體)。
+        EYE_RATIO = 0.255
+        py = cy - int(ph * EYE_RATIO)
+        # 人像背後暗金光暈，呼應品牌金
+        glow = Image.new("RGBA", img.size, (0, 0, 0, 0))
+        gd = ImageDraw.Draw(glow)
+        gcx, gcy = px + pw // 2, py + int(ph * 0.30)
+        gd.ellipse([gcx - 520, gcy - 520, gcx + 520, gcy + 520], fill=(*ACCENT, 60))
+        img.alpha_composite(glow.filter(ImageFilter.GaussianBlur(140)))
+        img.alpha_composite(person, (px, py))
+        # 人像左緣往中央的柔化漸層，跟背景融合(不要看起來像硬貼的貼紙)
+        fade_w = int(pw * 0.30)
+        fade = Image.new("L", (W, H), 255)
+        fd = fade.load()
+        y_lo, y_hi = max(0, py), min(H, py + ph)
+        x_lo, x_hi = max(0, px), min(W, px + fade_w)
+        for xx in range(x_lo, x_hi):
+            a = int(255 * (xx - px) / fade_w)
+            for yy in range(y_lo, y_hi):
+                fd[xx, yy] = min(fd[xx, yy], a)
+        blend_bg = gradient(W, H).convert("RGBA")
+        img = Image.composite(img, blend_bg, fade)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[warn] banner 顧問人像合成失敗({exc})，退回純符號版", file=sys.stderr)
+
+    # ── 左側：安全區內置中的 icon + 頻道名 + 定位語(核心文字，不隨人像出血區被裁) ──
+    d = ImageDraw.Draw(img, "RGBA")
+    text_cx = max(cx - 460, 507 + 380)  # 收在安全區左半，跟右側人像錯開不重疊
     icon_top = cy - 190
-    icon_s = draw_logo_icon(img, cx, icon_top + 97, scale=0.38)
-    d = ImageDraw.Draw(img)
-    y = icon_top + icon_s + 18
-    center_text(d, cx, y, "量化阿森｜Carson Quant", font(84), WHITE, stroke=5)
-    y += 100
-    d.rectangle([cx - 420, y + 10, cx + 420, y + 18], fill=ACCENT)
-    y += 32
-    center_text(d, cx, y, "用真回測拆穿割韭菜神話", font(42), (200, 214, 236), stroke=3)
+    icon_s = draw_logo_icon(img, text_cx, icon_top + 97, scale=0.34)
+    d = ImageDraw.Draw(img, "RGBA")
+    y = icon_top + icon_s + 16
+    center_text(d, text_cx, y, "量化阿森｜Carson Quant", font(72), WHITE, stroke=5)
+    y += 88
+    d.rectangle([text_cx - 340, y + 8, text_cx + 340, y + 15], fill=ACCENT)
+    y += 28
+    center_text(d, text_cx, y, "用真回測拆穿割韭菜神話", font(38), (200, 214, 236), stroke=3)
     p = OUT / "banner.png"
-    img.save(p, "PNG")
-    print(f"[ok] {p.name} {W}x{H}")
+    img.convert("RGB").save(p, "PNG")
+    print(f"[ok] {p.name} {W}x{H}(顧問真人臉 + 箭頭符號 + 定位語)")
     return p
 
 
