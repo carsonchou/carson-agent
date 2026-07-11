@@ -78,6 +78,95 @@ def _caption(slug: str) -> str:
     return (title + "\n" + yt + "\n" + " ".join(tags[:8]))[:2100]
 
 
+def _cover_path(slug: str) -> Path | None:
+    """回傳這支片專業數據卡封面(jpg)路徑;assets/thumbnails/<slug>.jpg 已存在就直接用(產線本就會產),
+    沒有才臨時呼叫 make_cover 補產一張。任何失敗都安靜回 None(呼叫端會跳過自訂封面,不影響上傳)。"""
+    p = ROOT / "assets" / "thumbnails" / f"{slug}.jpg"
+    if p.exists() and p.stat().st_size > 0:
+        return p
+    try:
+        import make_cover as mc
+        md = OUT / f"{slug}.md"
+        title = slug.lstrip("SL_")
+        if md.exists():
+            txt = md.read_text(encoding="utf-8", errors="replace")
+            m = re.search(r"標題[:：]\s*(.+)", txt) or re.search(r"^#\s*(.+)", txt, re.M)
+            if m:
+                title = m.group(1).strip()
+        dest = mc.make_cover(slug, title, dest=p)
+        return Path(dest) if dest and Path(dest).exists() else None
+    except Exception as exc:  # noqa: BLE001
+        print(f"[tiktok] 補產封面失敗({str(exc)[:80]}),此片跳過自訂封面", file=sys.stderr)
+        return None
+
+
+def _set_custom_cover(page, cover_path: Path) -> bool:
+    """上傳成功後(強·加分,非必要):嘗試在 TikTok 編輯頁把封面換成 make_cover 專業數據卡。
+    TikTok Studio UI 常改版、封面編輯是彈窗+分頁+巢狀 file input,選擇器極易失效——
+    整段包在寬鬆 try/except、每步都有短超時,任何一步找不到就直接放棄回 False,絕不卡住上傳
+    (根因修已保底 t=0 不黑,自訂封面只是加分項)。回傳 True=已送出自訂封面圖檔。"""
+    try:
+        # 1) 找封面編輯入口(文字/data-e2e 雙保險,中英文都試)
+        entry = None
+        for sel in ("[data-e2e='select_cover_button']", "[data-e2e='cover_edit_button']",
+                    "text=Edit cover", "text=Select cover", "text=編輯封面", "text=選擇封面"):
+            try:
+                el = page.wait_for_selector(sel, timeout=2500)
+                if el:
+                    entry = el
+                    break
+            except Exception:  # noqa: BLE001
+                continue
+        if not entry:
+            print("[tiktok] 找不到封面編輯入口(UI 可能改版),略過自訂封面", file=sys.stderr)
+            return False
+        entry.click(timeout=3000)
+        page.wait_for_timeout(1500)
+        # 2) 彈窗內切「上傳」分頁(不用預設的「從影片選」)
+        for sel in ("text=Upload", "text=上傳", "[data-e2e='upload_cover_tab']"):
+            try:
+                el = page.query_selector(sel)
+                if el:
+                    el.click(timeout=2000)
+                    page.wait_for_timeout(800)
+                    break
+            except Exception:  # noqa: BLE001
+                continue
+        # 3) 找彈窗內(含 iframe)的圖檔 input[type=file],灌自製封面
+        fi = None
+        for _ in range(6):
+            fi = page.query_selector("input[type=file][accept*='image']") or None
+            if not fi:
+                for fr in page.frames:
+                    fi = fr.query_selector("input[type=file][accept*='image']")
+                    if fi:
+                        break
+            if fi:
+                break
+            page.wait_for_timeout(1000)
+        if not fi:
+            print("[tiktok] 找不到封面圖檔 input(UI 可能改版),略過自訂封面", file=sys.stderr)
+            return False
+        fi.set_input_files(str(cover_path))
+        page.wait_for_timeout(2500)
+        # 4) 確認送出(彈窗常見「確認/Confirm/Save」)
+        for sel in ("text=Confirm", "text=確認", "text=Save", "text=儲存", "[data-e2e='cover_confirm_button']"):
+            try:
+                el = page.query_selector(sel)
+                if el:
+                    el.click(timeout=2000)
+                    page.wait_for_timeout(1500)
+                    print("[tiktok] ✓ 自訂封面已套用(數據卡)")
+                    return True
+            except Exception:  # noqa: BLE001
+                continue
+        print("[tiktok] 封面圖已灌入但找不到確認鈕,可能仍套用中,不擋主流程", file=sys.stderr)
+        return False
+    except Exception as exc:  # noqa: BLE001
+        print(f"[tiktok] 自訂封面流程失敗({str(exc)[:100]}),略過(不影響上傳)", file=sys.stderr)
+        return False
+
+
 def _upload_one(slug: str, dry: bool = False) -> bool:
     if not (OUT / f"{slug}.mp4").exists():
         print(f"[tiktok] 找不到 {slug}.mp4", file=sys.stderr)
@@ -154,6 +243,14 @@ def _upload_one(slug: str, dry: bool = False) -> bool:
                     fi.set_input_files(str(mp4))
                     print("[tiktok] 檔案已送入,等 TikTok 處理…")
                     page.wait_for_timeout(15000)  # 等上傳/轉檔
+                    # 自訂封面(加分項,失敗絕不擋主流程):換上 make_cover 專業數據卡,
+                    # 取代 TikTok 預設抓的片頭幀(根因修1已保底不黑,這步只是更專業)
+                    try:
+                        _cp = _cover_path(slug)
+                        if _cp:
+                            _set_custom_cover(page, _cp)
+                    except Exception as _ce:  # noqa: BLE001
+                        print(f"[tiktok] 自訂封面外層例外({str(_ce)[:80]}),略過", file=sys.stderr)
                     # caption:contenteditable
                     for sel in ["div[contenteditable=true]", "[data-text=true]", "div.public-DraftEditor-content"]:
                         el = page.query_selector(sel)

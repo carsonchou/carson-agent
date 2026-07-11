@@ -301,7 +301,13 @@ def _seg_clip(ff, *, src, is_video, dur, subs, fade_in, width, height, fps, tmp_
                 f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s={width}x{height}:fps={fps},"
                 f"setsar=1,format=yuv420p")
     if fade_in:
-        base += ",fade=t=in:st=0:d=0.5"
+        # P-封面修:純 fade=t=in:st=0 讓輸出的 t=0 那一幀是 100% 純黑(fade 從 alpha=0
+        # 起跳),TikTok/IG 自動抓片頭幀當封面 → 全部抓到黑。改用 tpad 在最前面複製墊
+        # 0.35s(clone 第一幀),把淡入起點藏在墊片裡、輸出前再 trim 掉墊片——真正輸出
+        # 的 t=0 幀此時已淡入 ~70% 亮度(不是黑),淡入尾段(~0.15s)仍保留在畫面內,
+        # 美感不變、封面不再黑。trim 後 setpts 重置時間軸,長度淨變化為 0。
+        base += (",tpad=start_duration=0.35:start_mode=clone,fade=t=in:st=0:d=0.5,"
+                 "trim=start=0.35,setpts=PTS-STARTPTS")
     parts = [f"{base}[bg]"]
     prev = "bg"
     for j, (sp, ls, le) in enumerate(subs):
@@ -825,9 +831,11 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
         ff = _ffmpeg_exe()
         codec, enc_args = _pick_codec(ff)
         intro_ms = int(mv.INTRO_DURATION * 1000)
+        # 同 _seg_clip 的封面修法:tpad 墊片藏黑幀、trim 掉墊片,輸出 t=0 保證有內容(見上方註解)。
         vf = (f"fps={fps},scale={width}:{height}:force_original_aspect_ratio=decrease,"
               f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1,"
-              f"fade=t=in:st=0:d=0.5,format=yuv420p")
+              f"tpad=start_duration=0.35:start_mode=clone,fade=t=in:st=0:d=0.5,"
+              f"trim=start=0.35,setpts=PTS-STARTPTS,format=yuv420p")
         af = f"adelay={intro_ms}:all=1,apad,atrim=0:{total:.3f}"
         # 配樂床:有 BGM 素材才混(人聲為主,BGM≈-20dB);缺素材完全照舊走單軌
         bgm = _pick_bgm(getattr(slug_paths, "slug", "") or "")
