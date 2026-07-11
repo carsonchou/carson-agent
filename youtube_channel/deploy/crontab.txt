@@ -138,3 +138,5 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 20 1 * * 1 /root/yt/run.sh scripts/retention_dept.py --top 10 --notify >> /root/yt/logs/cron.log 2>&1
 # 每日備份 STUDIO/token/ledger 到 backups/日期/(留最近7天)
 15 4 * * * cd /root/yt && d=backups/$(date +\%Y\%m\%d) && mkdir -p $d && cp STUDIO/*.json token_manage.json token_analytics.json uploaded_ledger.json $d/ 2>/dev/null; ls -dt backups/*/ 2>/dev/null | tail -n +8 | xargs -r rm -rf
+# 🔴 停擺偵測守衛(每天10:12·治「壞了不吭聲」):各管道最後活動超過門檻=疑似靜默停擺→ntfy推Carson
+12 10 * * * /root/yt/run.sh scripts/stall_watchdog.py >> /root/yt/logs/cron.log 2>&1
