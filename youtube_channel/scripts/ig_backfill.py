@@ -60,19 +60,11 @@ RENDER_CUTOFF = _dt.datetime(2026, 6, 25).timestamp()  # 早於此=舊渲染,不
 
 
 def _platform_configured(platform: str) -> bool:
-    """該平台 token(+公開影片網址)是否都到位;沒到位就整平台跳過,不要列一堆待發清單然後每支必敗。
-    ig_reels_upload.py 不動(平行 agent 在改),故 ig 直接查 env;fb/threads 有自己的 configured()。"""
+    """該平台 token 是否到位;沒到位就整平台跳過,不要列一堆待發清單然後每支必敗。
+    ig 主路徑改走 litterbox 直傳(見 ig_reels_upload._upload_filehost),不再需要預先設好
+    公開影片網址(IG_VIDEO_BASE/tunnel)才算「有設定」——那條只在 litterbox 失敗時當備援。"""
     if platform == "ig":
-        # 公網網址:env IG_VIDEO_BASE 或 tunnel_url.json(ig_reels_upload 會退讀後者)
-        has_base = bool(os.environ.get("IG_VIDEO_BASE"))
-        if not has_base:
-            try:
-                import json as _j
-                tb = _j.loads((ROOT / "STUDIO" / "tunnel_url.json").read_text(encoding="utf-8")).get("base")
-                has_base = bool(tb)
-            except Exception:
-                has_base = False
-        return bool(os.environ.get("IG_USER_ID") and os.environ.get("IG_ACCESS_TOKEN") and has_base)
+        return bool(os.environ.get("IG_USER_ID") and os.environ.get("IG_ACCESS_TOKEN"))
     try:
         return __import__(MODULE_NAME[platform]).configured()
     except Exception:
@@ -114,13 +106,17 @@ def _backfill_platform(platform: str, max_n: int, dry_run: bool, skip_cutoff: bo
         print(f"[skip] [{platform}] 尚未設定(缺 token 或公開影片網址)，整平台跳過(非錯誤)")
         return
     if platform == "ig":
-        # 免費 tunnel 是 ephemeral,整批開始前先驗一次,不通就整輪跳過(別對每支硬打失敗)
+        # 主路徑是 litterbox 直傳,不受 tunnel 死活影響 → litterbox 可達就不管 tunnel。
+        # 只有 litterbox 也不可達時,才退回舊的 tunnel 健康檢查當整批開閘門(別對每支硬打失敗)。
         try:
-            if not __import__("ig_reels_upload").tunnel_healthy():
-                print("[skip] [ig] tunnel 不通,本輪整批跳過(非錯誤,下輪 cron 再試)")
+            mod = __import__("ig_reels_upload")
+            if hasattr(mod, "litterbox_reachable") and mod.litterbox_reachable():
+                pass  # litterbox 可用,不看 tunnel,照常整批發
+            elif not mod.tunnel_healthy():
+                print("[skip] [ig] litterbox 不可達且 tunnel 也不通,本輪整批跳過(非錯誤,下輪 cron 再試)")
                 return
         except Exception as e:  # noqa: BLE001
-            print(f"[skip] [ig] tunnel 健康檢查失敗，本輪跳過：{e}")
+            print(f"[skip] [ig] 健康檢查失敗，本輪跳過：{e}")
             return
     todo = pending(platform, skip_cutoff)
     print(f"[info] [{platform}] 待補發：{len(todo)} 支，本輪上限 {max_n}")

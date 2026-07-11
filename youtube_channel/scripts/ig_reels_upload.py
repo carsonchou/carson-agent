@@ -3,8 +3,11 @@
 """ig_reels_upload.py — 把一支 Shorts 發到 Instagram Reels(免費直連 Graph API)。
 
 流程：建立 media container(REELS, video_url) → 輪詢處理完成 → media_publish 發布。
-IG 從『公開 video_url』抓影片，所以主機要有公開檔案服務(見 IG_VIDEO_BASE)。
-需 .env：IG_USER_ID、IG_ACCESS_TOKEN；可選 IG_VIDEO_BASE(預設 http://<主機IP>:8888)。
+IG 從『公開 video_url』抓影片，所以要有能公開存取的網址。
+主路徑：把 mp4/封面直接上傳到 litterbox(catbox 的免帳號臨時檔案空間,72h 自動清)拿公網直鏈,
+        不靠本機 fileserver + 免費 cloudflared tunnel(那條 quick-tunnel 天生不穩,常掉線→IG 停更)。
+備援：litterbox 失敗才退回舊的 VIDEO_BASE(本機 fileserver + tunnel)路徑。
+需 .env：IG_USER_ID、IG_ACCESS_TOKEN；可選 IG_VIDEO_BASE(備援用,預設 http://<主機IP>:8888)。
 
 用法：python scripts/ig_reels_upload.py <slug>
 """
@@ -79,6 +82,48 @@ def tunnel_healthy(check_url: str | None = None) -> bool:
         return False
 
 
+LITTERBOX_API = "https://litterbox.catbox.moe/resources/internals/api.php"
+
+
+def litterbox_reachable(timeout: float = 6.0) -> bool:
+    """輕量連線檢查(不做完整上傳測試):litterbox 網域可達就當作『可走 litterbox 路徑』。
+    給 ig_backfill 開批前當閘門用,取代舊的 tunnel_healthy(litterbox 路徑不該被 tunnel 死活拖累)。"""
+    try:
+        r = requests.head("https://litterbox.catbox.moe/", timeout=timeout, allow_redirects=True)
+        if r.status_code >= 500:
+            r = requests.get("https://litterbox.catbox.moe/", timeout=timeout)
+        return r.status_code < 500
+    except Exception:
+        return False
+
+
+def _upload_filehost(local_path: Path, retries: int = 2) -> str | None:
+    """把本地檔案上傳到 litterbox(catbox 免帳號臨時版,72h 自動清)拿公網直鏈。
+    免 tunnel:不穩的免費 cloudflared quick-tunnel 是近 24h IG 停更主因,改直接把檔案丟到
+    公網檔案空間,IG container 建立當下抓一次就夠,不需要長期在線的 URL。失敗回 None(呼叫端會
+    fallback 回 VIDEO_BASE/tunnel 路徑，不裸崩)。"""
+    if not local_path or not Path(local_path).exists():
+        return None
+    last_err = None
+    for attempt in range(retries + 1):
+        try:
+            with open(local_path, "rb") as f:
+                files = {"fileToUpload": (Path(local_path).name, f)}
+                data = {"reqtype": "fileupload", "time": "72h"}
+                r = requests.post(LITTERBOX_API, data=data, files=files, timeout=180)
+            r.raise_for_status()
+            out = r.text.strip()
+            if out.startswith("http"):
+                return out
+            last_err = f"非預期回應：{out[:200]}"
+        except Exception as e:  # noqa: BLE001
+            last_err = str(e)
+        if attempt < retries:
+            time.sleep(3)
+    print(f"[warn] litterbox 上傳失敗（{Path(local_path).name}）：{last_err}", file=sys.stderr)
+    return None
+
+
 # IG-native 分級 hashtag 池(大詞觸及廣/中詞精準/小眾轉換高/reels 版位),每片混抽 ~13 個
 IG_HASHTAG_POOL = {
     "big":   ["#投資", "#理財", "#加密貨幣", "#比特幣", "#被動收入"],
@@ -133,8 +178,6 @@ def _caption(slug: str) -> str:
 def publish(slug: str) -> str | None:
     if not (UID and TOKEN):
         print("[FATAL] 缺 IG_USER_ID / IG_ACCESS_TOKEN", file=sys.stderr); return None
-    if not VIDEO_BASE:
-        print("[FATAL] 缺 IG_VIDEO_BASE(公開影片網址)", file=sys.stderr); return None
     if not (OUT / f"{slug}.mp4").exists():
         print(f"[FATAL] 找不到 {slug}.mp4", file=sys.stderr); return None
     # 片尾接「訂閱量化阿森 YouTube」CTA(只 IG 版,YT 原片不動);失敗退回原片
@@ -143,14 +186,9 @@ def publish(slug: str) -> str | None:
         mp4 = append_yt_cta.append_cta(slug)
     except Exception:  # noqa: BLE001
         mp4 = OUT / f"{slug}.mp4"
-    video_url = f"{VIDEO_BASE}/{quote(mp4.name)}"
-    if not tunnel_healthy(video_url):
-        print("[skip] tunnel 不通,跳過延後(不硬打 Meta API)")
-        return None
 
     # 封面：用 make_cover 產的高質感封面當 IG Reels 縮圖（避免 IG 抓到開頭黑幀→全黑）。
-    # 封面在 assets/thumbnails/{slug}.jpg；複製進 output/(fileserver 供檔處)成 {slug}.cover.jpg 給 cover_url。
-    cover_data = {}
+    cover_path = None
     try:
         import shutil
         cover = ROOT / "assets" / "thumbnails" / f"{slug}.jpg"
@@ -158,13 +196,37 @@ def publish(slug: str) -> str | None:
             pub = OUT / f"{slug}.cover.jpg"
             if not pub.exists():
                 shutil.copy2(cover, pub)
+            cover_path = pub
+    except Exception:  # noqa: BLE001
+        cover_path = None
+
+    # 1) 拿公網 URL：優先 litterbox 直傳(不靠 tunnel)，失敗才 fallback VIDEO_BASE/tunnel。
+    video_url = None
+    cover_data = {}
+    lb_video = _upload_filehost(mp4)
+    if lb_video:
+        video_url = lb_video
+        print(f"[info] litterbox video_url={video_url}")
+        lb_cover = _upload_filehost(cover_path) if cover_path is not None else None
+        if lb_cover:
+            cover_data["cover_url"] = lb_cover
+        else:
+            cover_data["thumb_offset"] = 2500  # 無封面/封面上傳失敗→取 2.5s 的幀(過開頭黑淡入)
+    else:
+        print("[warn] litterbox 上傳失敗，fallback 回 VIDEO_BASE/tunnel 路徑")
+        if not VIDEO_BASE:
+            print("[FATAL] litterbox 失敗且缺 IG_VIDEO_BASE(公開影片網址)備援", file=sys.stderr)
+            return None
+        video_url = f"{VIDEO_BASE}/{quote(mp4.name)}"
+        if not tunnel_healthy(video_url):
+            print("[skip] tunnel 不通,跳過延後(不硬打 Meta API)")
+            return None
+        if cover_path is not None:
             cover_data["cover_url"] = f"{VIDEO_BASE}/{quote(slug + '.cover.jpg')}"
         else:
-            cover_data["thumb_offset"] = 2500  # 無封面→取 2.5s 的幀(過開頭黑淡入)
-    except Exception:  # noqa: BLE001
-        cover_data["thumb_offset"] = 2500
+            cover_data["thumb_offset"] = 2500
 
-    # 1) 建 container
+    # 2) 建 container
     r = requests.post(f"{GRAPH}/{UID}/media", data={
         "media_type": "REELS", "video_url": video_url,
         "caption": _caption(slug), "access_token": TOKEN, **cover_data}, timeout=60)
@@ -176,7 +238,7 @@ def publish(slug: str) -> str | None:
     cid = d["id"]
     print(f"[info] container={cid}，等 IG 抓影片+處理…")
 
-    # 2) 輪詢處理狀態(影片處理可能要 30s~數分)
+    # 3) 輪詢處理狀態(影片處理可能要 30s~數分)
     for i in range(40):
         time.sleep(8)
         s = requests.get(f"{GRAPH}/{cid}", params={"fields": "status_code,status", "access_token": TOKEN}, timeout=30).json()
@@ -190,7 +252,7 @@ def publish(slug: str) -> str | None:
     else:
         print("[FAIL] 處理逾時", file=sys.stderr); return None
 
-    # 3) 發布
+    # 4) 發布
     r2 = requests.post(f"{GRAPH}/{UID}/media_publish", data={"creation_id": cid, "access_token": TOKEN}, timeout=60)
     d2 = r2.json()
     if "id" in d2:
