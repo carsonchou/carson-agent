@@ -244,12 +244,41 @@ _COIN_ALIASES = {
     "XRP": ["xrp", "瑞波"], "DOGE": ["doge", "狗狗"],
 }
 _STRAT_KW = ["回測", "策略", "supertrend", "超級趨勢", "趨勢", "夏普", "勝率", "backtest", "停損", "做多", "做空"]
-_NON_STRAT = ["定投", "dca", "網格", "grid"]  # 這些是別的策略，不該套 SuperTrend 回測（誠實·避免主題不符）
+
+# ── 領域判定（治根因：「回測/策略/停損」這類泛用詞台股、加密都會講，
+#    不能單憑它們就套加密貨幣的 SuperTrend 卡——那正是台積電片被誤配 BTC 卡的根因）──
+_TW_KW = ["台股", "台積電", "2330", "0050", "0056", "00878", "大盤", "加權指數", "加權",
+          "股息", "存股", "定期定額", "定投", "etf", "台灣50", "元大", "國泰", "富邦",
+          "個股", "股票", "現股", "台指期", "填息", "除息", "上市櫃", "市值型", "高股息", "微笑曲線"]
+_CRYPTO_KW = ["btc", "eth", "sol", "bnb", "xrp", "doge", "比特幣", "以太幣", "以太坊",
+              "加密貨幣", "幣圈", "幣安", "派網", "pionex", "網格機器人", "自動交易機器人",
+              "合約交易", "usdt", "虛擬貨幣", "數位貨幣", "現貨交易"]
+# tw_stock_facts.json 目前只有 0050/0056/00878/大盤等 ETF/指數的真回測，沒有個股(如台積電)自己的數字。
+# 標題點名這些個股 → 該股沒有對應真數據，誠信起見絕不拿 ETF/大盤數字冒充該股表現(寧無卡不亂配)。
+_TW_UNCOVERED_STOCK_KW = ["台積電", "2330"]
+
+TW_FACTS_JSON = PROJECT_ROOT / "STUDIO" / "tw_stock_facts.json"
+
+_TW_BRANCH_LABEL = {"allin": "一次All in", "dca": "定期定額", "buy_hold": "長抱不動",
+                     "timing_200ma": "跌破年線擇時", "hidiv": "高股息", "mktcap": "市值型"}
 
 
-def _real_card(slug: str, title: str):
-    """依影片主題，從多幣真實回測(backtest_cards.json)挑一張誠實的真數據卡。
-    主題對不上(如純定投/網格)或無資料 → 回 None(交給示意卡或無卡)。"""
+def _asset_domain(low: str) -> str:
+    """粗判標題屬於「台股/ETF」還是「加密貨幣」領域。兩邊關鍵字都對上、或都沒對上 → unknown。
+    unknown 一律不套任何領域的數據卡（誠信鐵則：台股題絕不配加密卡，反之亦然；領域不明寧可無卡）。"""
+    is_tw = any(k in low for k in _TW_KW)
+    is_crypto = any(k in low for k in _CRYPTO_KW) or any(
+        any(a in low for a in aliases) for aliases in _COIN_ALIASES.values())
+    if is_tw and not is_crypto:
+        return "tw"
+    if is_crypto and not is_tw:
+        return "crypto"
+    return "unknown"
+
+
+def _crypto_card(low: str):
+    """加密貨幣領域確認後才會被呼叫：標題點名的幣優先真實呈現；否則只在「策略/回測」題材
+    才挑夏普最高的正報酬幣。主題對不上(不在加密領域)不會走到這裡。"""
     try:
         data = _json.loads(CARDS_JSON.read_text(encoding="utf-8"))
         cards = {c["coin"]: c for c in data.get("cards", []) if "coin" in c}
@@ -257,11 +286,7 @@ def _real_card(slug: str, title: str):
         return None
     if not cards:
         return None
-    low = f"{title or ''} {slug or ''}".lower()
     is_strat = any(k in low for k in _STRAT_KW)
-    # 純定投/網格題材且非策略回測 → 不套（SuperTrend 回測與其主題不符，硬套=誤導）
-    if any(k in low for k in _NON_STRAT) and not is_strat:
-        return None
     # 1) 標題點名某幣 → 用那個幣的真實結果（即使是負的也誠實呈現）
     chosen = None
     for coin, aliases in _COIN_ALIASES.items():
@@ -288,6 +313,79 @@ def _real_card(slug: str, title: str):
         "range": f'夏普 {chosen["sharpe"]:.1f}｜勝率 {chosen["win_rate"]*100:.0f}%',
         "note": "※歷史回測，非未來獲利保證",
     }
+
+
+def _build_tw_card(r: dict):
+    """把 tw_stock_facts.json 一筆結果轉成縮圖卡欄位，只用裡面已有的真數字，不外插不編造。"""
+    d = r.get("data", {})
+    scored = []
+    for k, v in d.items():
+        if not isinstance(v, dict):
+            continue
+        if "total_return" in v:
+            scored.append((k, v, v["total_return"], "total_return"))
+        elif "cagr" in v:
+            scored.append((k, v, v["cagr"], "cagr"))
+    if not scored:
+        return None
+    scored.sort(key=lambda t: t[2], reverse=True)
+    pk, pv, pval, pkind = scored[0]
+    pct = f'{"+" if pval >= 0 else ""}{pval * 100:.1f}%'
+    mdd = pv.get("max_drawdown")
+    mdd_txt = f'最大回撤  {mdd * 100:.1f}%' if mdd is not None else None
+    metric = ("總報酬" if pkind == "total_return" else "年化報酬") + f'（{_TW_BRANCH_LABEL.get(pk, pk)}）'
+    range_txt = None
+    if len(scored) > 1:
+        sk, sv, sval, skind = scored[1]
+        sfx = "總報酬" if skind == "total_return" else "年化"
+        range_txt = f'{_TW_BRANCH_LABEL.get(sk, sk)}對照 {"+" if sval >= 0 else ""}{sval * 100:.1f}%（{sfx}）'
+    years = d.get("years")
+    yr_txt = f'{years:.0f}年' if years else ""
+    strat = f'{_TW_BRANCH_LABEL.get(pk, pk)}·{yr_txt}' if yr_txt else _TW_BRANCH_LABEL.get(pk, pk)
+    return {
+        "label": "台股實測",
+        "strat": strat[:14],
+        "metric": metric,
+        "pct": pct,
+        "pct_color": "green" if pval >= 0 else "red",
+        "mdd": mdd_txt or (range_txt or "歷史回測"),
+        "range": (range_txt if mdd_txt else None) or (f'期間 {years:.0f} 年' if years else "歷史回測"),
+        "note": "※歷史回測，非未來獲利保證",
+    }
+
+
+def _tw_card(low: str):
+    """台股/ETF領域確認後才會被呼叫：從 tw_stock_facts.json 找關鍵字明確對上(≥2個)的結果才套卡。
+    標題點名個股(如台積電)→ 該股沒有真數據，一律不套(誠信優先於好看)。"""
+    if any(k in low for k in _TW_UNCOVERED_STOCK_KW):
+        return None
+    try:
+        data = _json.loads(TW_FACTS_JSON.read_text(encoding="utf-8"))
+        results = data.get("results", {})
+    except Exception:  # noqa: BLE001
+        return None
+    if not results:
+        return None
+    best_key, best_score = None, 0
+    for key, r in results.items():
+        score = sum(1 for k in r.get("keywords", []) if k.lower() in low)
+        if score > best_score:
+            best_key, best_score = key, score
+    if best_score < 2 or not best_key:  # 至少2個關鍵字對上才算可信匹配，避免單一泛用詞誤配
+        return None
+    return _build_tw_card(results[best_key])
+
+
+def _real_card(slug: str, title: str):
+    """依影片主題領域(台股/加密)挑一張誠實的真數據卡。領域不明、個股無資料、或關鍵字對不上
+    → 回 None(交給示意卡或無卡)。誠信鐵則：台股題絕不配加密卡，反之亦然；數字對不上主題寧可不掛卡。"""
+    low = f"{title or ''} {slug or ''}".lower()
+    domain = _asset_domain(low)
+    if domain == "crypto":
+        return _crypto_card(low)
+    if domain == "tw":
+        return _tw_card(low)
+    return None
 
 
 def make_one(cfg: dict):
