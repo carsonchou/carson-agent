@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
+import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -47,6 +49,11 @@ PUBLISH_SKIP = PROJECT_ROOT / "STUDIO" / "publish_skip.json"  # 選填：跳過�
 IG_LEDGER = PROJECT_ROOT / "STUDIO" / "ig_ledger.json"
 FB_LEDGER = PROJECT_ROOT / "STUDIO" / "fb_ledger.json"
 THREADS_LEDGER = PROJECT_ROOT / "STUDIO" / "threads_ledger.json"
+TIKTOK_LEDGER = PROJECT_ROOT / "STUDIO" / "tiktok_ledger.json"
+TIKTOK_UPLOAD_SCRIPT = PROJECT_ROOT / "scripts" / "tiktok_upload.py"
+# tiktok_upload.py 需 playwright，.venv 沒裝 → 一律走「系統 python」，路徑寫法比照
+# local_cron.py 的 SYS_PY 常數(找不到才用 which 後援，絕不硬編死路徑導致找不到就整段爆掉)。
+_SYS_PY_HARDCODED = Path(r"C:\Users\User\AppData\Local\Programs\Python\Python39\python.exe")
 SHORT_TO_LONG = PROJECT_ROOT / "STUDIO" / "short_to_long.json"  # 選填：slug→長片slug或youtu.be，短→長導流
 SHORT_TO_SHORT = PROJECT_ROOT / "STUDIO" / "short_to_short.json"  # 選填：本機待上架短片slug→已發布短片slug，短→短同系列連看
 
@@ -296,6 +303,61 @@ def _ig_crosspost(slug: str) -> None:
     _crosspost_one(slug, THREADS_LEDGER, "threads_upload", "threads")
 
 
+def _sys_python() -> Path:
+    """回傳能跑 playwright 的系統 python(.venv 沒裝 playwright，tiktok_upload.py 需要它)。
+    寫法比照 local_cron.py 的 SYS_PY 常數：優先常見安裝路徑，找不到用 which('python') 後援，
+    再找不到才退回目前的 venv python(至少不整段崩，但 TikTok 那步預期會因缺 playwright 而優雅失敗)。"""
+    if _SYS_PY_HARDCODED.exists():
+        return _SYS_PY_HARDCODED
+    w = shutil.which("python")
+    return Path(w) if w else Path(sys.executable)
+
+
+def _tiktok_crosspost(slug: str) -> None:
+    """把一支 Short 跨發到 TikTok(spawn 系統 python 跑 tiktok_upload.py --slug)。
+
+    失敗隔離(關鍵)：整段包 try/except + subprocess timeout；TikTok 掛掉／session 過期／
+    playwright 報錯，一律不得中斷或影響已完成的 YouTube+IG 發布——只印一行 log 就返回。
+    去重：tiktok_upload.py 內部 --slug 模式本身不查 ledger，所以這裡先淺查一次
+    STUDIO/tiktok_ledger.json，已發過(例如被 crontab 補發安全網搶先跑過)就不重發；
+    成功後由 tiktok_upload.py 自己把 slug 寫回 ledger，供其他呼叫端(cron 補發)去重。
+    可用 env TIKTOK_IN_PIPELINE=0 整條關掉(預設開，方便除錯/隔離問題)。"""
+    import os
+    if os.environ.get("TIKTOK_IN_PIPELINE", "1") == "0":
+        return
+    try:
+        led = json.loads(TIKTOK_LEDGER.read_text(encoding="utf-8")) if TIKTOK_LEDGER.exists() else {}
+    except Exception:  # noqa: BLE001
+        led = {}
+    if slug in led:
+        print(f"[tiktok] {slug} 已在 ledger(補發安全網搶先跑過)，跳過重發")
+        return
+    try:
+        py = _sys_python()
+        proc = subprocess.run(
+            [str(py), str(TIKTOK_UPLOAD_SCRIPT), "--slug", slug],
+            cwd=str(PROJECT_ROOT), timeout=170,
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+        )
+        out = f"{proc.stdout or ''}\n{proc.stderr or ''}"
+        if proc.returncode == 0:
+            print(f"[tiktok] 已跨發 {slug}")
+            log_ops("上架部門", f"TikTok 跨發成功：{slug}")
+        elif ("session" in out.lower() and "過期" in out) or "尚未登入" in out or "重新開瀏覽器登入" in out:
+            print(f"[tiktok] {slug} session 過期／尚未登入，已跳過(不影響YT/IG)", file=sys.stderr)
+            log_ops("上架部門", f"TikTok session 過期，跳過 {slug}（不影響YT/IG，請重登 tiktok_state.json）")
+        else:
+            tail = out.strip()[-200:]
+            print(f"[tiktok] {slug} 跨發失敗(不影響YT/IG)：{tail}", file=sys.stderr)
+            log_ops("上架部門", f"TikTok 跨發失敗 {slug}：{tail[:120]}（不影響YT/IG）")
+    except subprocess.TimeoutExpired:
+        print(f"[tiktok] {slug} 逾時(170s)，已跳過(不影響YT/IG)", file=sys.stderr)
+        log_ops("上架部門", f"TikTok 跨發逾時，跳過 {slug}（不影響YT/IG）")
+    except Exception as exc:  # noqa: BLE001 — TikTok 這步絕不能拖累 YT/IG 主流程
+        print(f"[tiktok] {slug} 跨發例外(不影響YT/IG)：{str(exc)[:150]}", file=sys.stderr)
+        log_ops("上架部門", f"TikTok 跨發例外 {slug}：{str(exc)[:100]}（不影響YT/IG）")
+
+
 def upload_one(yt, slug: str, privacy: str) -> str:
     cfg = up.load_channel_config()
     meta = up.assemble_metadata(slug=slug, md_path=OUTPUT / f"{slug}.md", channel_config=cfg, append_affiliate=True)
@@ -520,6 +582,13 @@ def main() -> int:
             if slug.startswith("S_") and not args.no_ig and ig_done < args.ig_max:
                 _ig_crosspost(slug)
                 ig_done += 1
+            if slug.startswith("S_"):
+                # TikTok 排在 YouTube(+IG)成功之後才觸發；外層再包一層 try/except 雙重保險
+                # （理論上 _tiktok_crosspost 內部已全接，這裡只是不讓任何漏網例外反噬主流程）。
+                try:
+                    _tiktok_crosspost(slug)
+                except Exception as _e:  # noqa: BLE001
+                    print(f"[warn] TikTok 跨發外層例外（不影響YT/IG，已忽略）：{_e}", file=sys.stderr)
         except HttpError as exc:
             msg = str(exc)
             print(f"[FAIL] {slug}: {msg[:160]}", file=sys.stderr)
