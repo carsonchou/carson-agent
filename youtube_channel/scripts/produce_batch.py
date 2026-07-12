@@ -743,10 +743,14 @@ def call_claude(kind, avoid, topic_override=None):
                 "結尾用留言鉤『你是哪種?留言告訴我』或『想要完整回測數據?留言「數據」我私你』(留言權重比訂閱高)。segments 給 2 段。")
     else:
         spec = ("一支**真正**的 8–10 分鐘長片（A4真長片引擎：不是把短片拉長，資訊密度要撐滿全長）。"
-                "voice_text 至少 2200 字、目標 2400–3000 字。結構＝HOOK(前30秒三步框架)→"
-                "正文 3–5 個各自獨立展開的深段(每段一個子主題，段落內部要有「具體數據/案例→原理解釋→"
-                "反直覺轉折或對比」的完整弧線，段落間要有承接語，嚴禁「第一個坑/第二個坑」這種清單體"
-                "一句帶過)→對比/實測小結→軟性 CTA 訂閱+派網→下集預告。"
+                "voice_text **硬性要求至少 2200 字、目標 2600–3000 字**——低於 2000 字會被長度 gate 直接打回、"
+                "整支重生或作廢(白做),所以務必一次寫足、寫滿全長。標題必須是**可搜尋長尾**(觀眾真的會搜的"
+                "問題句/教學句/比較句,關鍵字放最前,例『0050 定期定額 vs 一次All in 十年回測』『派網網格機器人怎麼設』)。"
+                "結構＝HOOK(前30秒三步框架:一句話講看完能拿走什麼+具體數字承諾→點出多數人卡在哪→暗示我有可回測驗證的解法但先不全給)→"
+                "正文 4–5 個各自獨立展開的深段(每段一個子主題，**每段旁白至少 400 字**、段落內部要有「具體數據/案例→原理解釋→"
+                "反直覺轉折或對比」的完整弧線，段落間要有承接語(如『講完這個你可能會問…』『但這還沒完,更關鍵的是…』)，"
+                "嚴禁「第一個坑/第二個坑」這種清單體一句帶過——每個重點都用一整段展開講透)→"
+                "把前面深段重點放一起做具體比較的對比/實測小結(給可帶走的結論)→軟性 CTA 訂閱+派網→下集預告。"
                 "segments 給 4–5 段，每段標題對應一個真正展開的子主題。")
     # playbook/training/avoid 限長：原本 playbook 近萬字，會撐爆 token(成本高、Groq 免費版直接 413)。
     # 取前段(最重要的爆款心法在前)即可，省 token 又不破品質。可用 LLM_PB_CHARS 調整。
@@ -792,6 +796,7 @@ def call_claude(kind, avoid, topic_override=None):
     is_tw_stock = (topic is not None and (
         any(k in str(topic.get("category", "")) for k in _twkw)
         or any(k in str(topic.get("title", "")) for k in _twkw)))
+    facts_ctx = ""  # A4:長片分段深寫要把真數據帶進每一段,故把 tw facts 區塊獨立留一份
     if is_tw_stock:
         hook_rules = hook_rules + TW_STOCK_RULES
         # 真數據引擎：讀 STUDIO/tw_stock_facts.json，挑與題材相關的真回測數字注入寫稿 prompt。
@@ -801,6 +806,7 @@ def call_claude(kind, avoid, topic_override=None):
             _tw_inject = _tw_facts_context(_facts, topic)
             if _tw_inject:
                 assign += _tw_inject
+                facts_ctx = _tw_inject
         except Exception:  # noqa: BLE001
             pass
     else:
@@ -837,7 +843,9 @@ def call_claude(kind, avoid, topic_override=None):
 {{"title":"有點擊慾的標題","voice_text":"完整旁白逐字稿(口語、適合中文TTS)","segments":[{{"heading":"段落小標","broll":["english keyword","english keyword"]}}],"description":"YouTube 說明欄：前 3 行＝①核心可搜尋關鍵字短語②一句鉤子摘要③價值承諾(看完能拿走什麼)；接 1-2 句補充、自然含關鍵字與同義詞(別硬塞)；**再加一行變現漏斗 CTA：『📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」，免費領新手回測避雷檢核表』**(Telegram bot 會自動把檢核表送到觀眾手上+養名單再自然導向 Pionex；比「留言領」更能真的交付資源、也把觀眾沉澱成可觸及的名單)；結尾含風險聲明『投資有風險，不構成投資建議』","hashtags":["#Shorts","#量化交易","#..."]}}
 hashtags 規則：給 4-6 個「精準且利基相關」的標籤(第一個必為 #Shorts)，不要硬塞 20 個——精準勝過熱門，乾淨又利於演算法分類。"""
     import llm  # 共用路由：主供應商→失敗退回 fallback，換模型只改 env
-    txt = llm.complete(prompt, 3500, json_mode=True)  # 強制合格 JSON
+    # 長片要吐 2600+ 中文字的 voice_text,3500 token 會被截斷成短長片(A4 根因之一);長片給足 token
+    _maxtok = 6500 if kind == "long" else 3500
+    txt = llm.complete(prompt, _maxtok, json_mode=True)  # 強制合格 JSON
     m = re.search(r"\{.*\}", txt, re.S)
     if not m:
         raise ValueError("LLM 回應非 JSON")
@@ -860,6 +868,11 @@ hashtags 規則：給 4-6 個「精準且利基相關」的標籤(第一個必�
             if k not in _have:
                 _tags.append(k)
         result["hashtags"] = _tags
+    # A4 真長片內容引擎(2026-07-13)：長片一次寫不出 2600 字(實測 LLM 只吐 ~1000 字冒充長片)是根因。
+    # 改「分段深寫」——保留開場 HOOK,對每個 segment 各發一次 LLM 寫成 ~470 字深段,末尾補對比小結,
+    # 串成真 8-10 分鐘資訊密度長片。台股題每段引真數據、非台股題示意語氣(誠信不變)。失敗回原稿。
+    if kind == "long":
+        result = _densify_long(result, facts_ctx, bool(is_tw_stock))
     return result
 
 
@@ -1176,14 +1189,16 @@ def _impact_density(voice_text, max_sec_per_beat=7.0):
     return (est_sec / beats) > max_sec_per_beat
 
 
-# A4 真長片引擎(2026-07 頻道整頓計畫)：實證問題＝所有 L_ 長片實際只 55-205 秒(最長3.5分)，
-# 但 LONG_RULES 寫的是 8-10 分鐘/1300-1700 字——長片策略沒落地、產出只是「比較長的短片」，
-# 靠搜尋/長 watch-time 拿不到流量。用中文字數＋估計時長雙門檻擋不達標長片(沿用專案既有
-# 5字/秒估時慣例，見 _impact_density)。硬底線刻意設在 1200 字/6分(低於 LONG_RULES 目標 2400-3000
-# 字，留緩衝避免誤殺正常波動)，只擋明顯「偽裝成長片的短片」。
-LONG_MIN_CHARS = 1200      # 中文字數硬底線
-LONG_TARGET_CHARS = 2400   # 目標字數(對應 8 分鐘，供補寫時參考)
-LONG_MIN_EST_MIN = 6.0     # 估計時長硬底線(分鐘)
+# A4 真長片引擎(2026-07-13 頻道整頓·收緊 gate + fail-closed)：實證問題＝現存 18 支 L_ 長片
+# 中位僅 882 字、最高 1420、0 支達 2200 字目標——「長片引擎」實際只產「比較長的短片」，靠
+# 搜尋/長 watch-time 拿不到流量(而長片是 10x 訂閱引擎、唯一瓶頸)。用中文字數＋估計時長雙門檻
+# 擋不達標長片(沿用專案既有 5字/秒估時慣例，見 _impact_density)。
+# 舊版硬底線刻意設在 1200 字/6分(低於 LONG_RULES 目標)、gate 形同虛設,只重生2次就放行假長片。
+# 本次把硬底線拉到 2000 字/8 分(對齊「真 8-10 分鐘」),且改 fail-closed：重生+逐次補寫後仍不達
+# 標就**不輸出**這支(return None),絕不再把短長片冒充長片發出去(誠信優先於產量)。
+LONG_MIN_CHARS = 2000      # 中文字數硬底線(對應真 8 分鐘;2000字≈400秒≈6.7分純語音+畫面停頓才夠8分)
+LONG_TARGET_CHARS = 2600   # 目標字數(對應 8-10 分鐘，供生成/補寫時參考)
+LONG_MIN_EST_MIN = 8.0     # 估計時長硬底線(分鐘)
 
 
 def _long_chinese_chars(voice_text):
@@ -1193,13 +1208,185 @@ def _long_chinese_chars(voice_text):
 
 
 def _long_underlength(voice_text):
-    """A4 長度 gate：字數 <1200 或 估計時長(以 5字/秒換算) <6 分＝不達標。
-    任一項不達標就算 True，供 make_one 觸發重生/補寫。"""
+    """A4 長度 gate：字數 <LONG_MIN_CHARS(2000) 或 估計時長(以 5字/秒換算) <LONG_MIN_EST_MIN(8) 分＝不達標。
+    任一項不達標就算 True，供 make_one 觸發重生/補寫/fail-closed 不輸出。"""
     n = _long_chinese_chars(voice_text)
     if n < LONG_MIN_CHARS:
         return True
     est_min = (n / 5.0) / 60.0
     return est_min < LONG_MIN_EST_MIN
+
+
+# A4 分段深寫的數據誠信鐵律：分段要求「具體數據/案例」會誘導 LLM 虛構股價點位(實測抓到
+# 「0050從90元跌到60元」「2022高點150元」這種捏造史實)。這段硬約束每個深寫 prompt 都掛,
+# 把「能講成事實的數字」死鎖在 facts 給的那幾個,其餘一律假設語氣;且全用中文口語念法
+# (百分之八十二,不寫 82%)——既合 TTS 慣例,也讓真數字不落進 fact_guard 的阿拉伯數字誤判。
+_LONG_DATA_DISCIPLINE = (
+    "\n【數據誠信·鐵律務必遵守】"
+    "①你唯一能當成事實講的精確數字,只有上面實證數據區塊給的那幾個(總報酬、年化、最大回撤);"
+    "沒給的一律不准自己生。"
+    "②**嚴禁虛構任何股價、指數點位、某一年的高點或低點**——像「0050從九十元跌到六十元」"
+    "「二零二二年高點一百五十元」「套在六百八十元」這類具體價位/點位全部禁止(系統沒有這些真實資料,"
+    "講了就是捏造史實)。要舉例就用「假設」「打個比方」「示意」開頭,別講得像真的發生過。"
+    "③所有數字一律用中文口語念法(百分之八十二點三、年化百分之二十四,不要寫成 82.3% 或 24.8%);"
+    "講到具體績效百分比時,順帶點明這是歷史回測、不代表未來。"
+    "④**嚴禁出現誇大/保證詞**:穩賺、穩賺不賠、保證獲利、保證收益、必賺、包賺、零風險、一定賺、"
+    "穩定獲利、躺賺、閉著眼睛賺——就算是要拆穿『大家以為穩賺不賠』的迷思也不要寫出這四個字,"
+    "改用『以為很安全』『以為不會賠』『以為包贏』這種說法(審核禁語不看語境,出現即違規)。"
+)
+
+# audit_video 的誇大/保證禁語(與 audit_video.BANNED 對齊);densify 產出後掃到就重寫,不讓假長片帶禁語進審核。
+_PROMO_BANNED = ("保證賺", "保證獲利", "保證收益", "穩賺不賠", "穩賺", "必賺", "包賺", "零風險",
+                 "一定賺", "一定獲利", "穩定獲利", "躺著就能賺", "閉著眼睛賺", "穩定月收", "保本保息", "穩定報酬率")
+
+
+def _promo_banned_hits(text):
+    return [w for w in _PROMO_BANNED if w in (text or "")]
+
+
+def fact_guard_flags(text):
+    """借 fact_guard 判準檢查一段文字有無疑似捏造/未標示數字;讀不到就回空(不擋)。"""
+    try:
+        import fact_guard
+        return fact_guard.flags_for(text or "")
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def _long_fact_heal(bodies, facts_ctx, integrity, title):
+    """誠信自癒:組稿後跑 fact_guard,對含旗標的深段各重寫一次(把捏造/未標示數字改成 facts 真數字或假設語氣、
+    中文念法)。回傳(修過的 bodies, 殘留旗標數)。fact_guard 讀不到就原樣回。"""
+    try:
+        import fact_guard, llm
+    except Exception:  # noqa: BLE001
+        return bodies, 0
+    for _round in range(2):
+        remaining = 0
+        for k, para in enumerate(bodies):
+            hits = fact_guard.flags_for(para)
+            banned = _promo_banned_hits(para)
+            if not hits and not banned:
+                continue
+            try:
+                _issue = (f"疑似捏造/未標示數字:{hits[:6]}；" if hits else "") + \
+                         (f"誇大保證禁語:{banned}(必刪);" if banned else "")
+                hp = (
+                    f"你是量化阿森頻道的長片腳本寫手。{GUARD}\n以下段落被守門抓到問題:{_issue}。"
+                    "請重寫這一段,維持一樣的長度與子主題,但:把不是下面 facts 給的精確數字全部拿掉或"
+                    "改成『假設/示意』語氣、絕不虛構股價點位、所有數字改中文口語念法、講績效百分比時點明歷史回測不代表未來;"
+                    "**絕不出現穩賺/穩賺不賠/保證獲利/包賺/零風險等禁語**(要拆迷思改用『以為很安全』)。\n"
+                    f"{facts_ctx}\n{integrity}{_LONG_DATA_DISCIPLINE}\n"
+                    "只輸出重寫後的完整段落純文字,不要JSON/小標/前後綴。\n\n【原段落】\n" + para
+                )
+                fixed = _fix_artifacts(_to_traditional(llm.complete(hp, 1800).strip()))
+                if fixed and _long_chinese_chars(fixed) >= 100:
+                    bodies[k] = fixed
+                    if fact_guard.flags_for(fixed) or _promo_banned_hits(fixed):
+                        remaining += 1
+                else:
+                    remaining += 1
+            except Exception:  # noqa: BLE001
+                remaining += 1
+        if remaining == 0:
+            break
+    return bodies, remaining
+
+
+def _densify_long(d, facts_ctx, is_tw):
+    """A4 真長片內容引擎·分段深寫：治「LLM 一次寫不出 2600 字、只吐 ~1000 字冒充長片」的根因。
+    做法：保留原稿開場 HOOK(前 3 句),對每個 segment 各發一次 LLM,把該子主題寫成 ~470 字的深段
+    (①具體數據/案例情境切入 →②原理解釋 →③反直覺轉折或對比,段首帶承接語),最後補一段對比/實測小結。
+    每段只要寫 ~470 字模型都做得到,4-5 段自然堆到 2200-2600 字。台股題每段可各引不同真數字,
+    非台股題一律示意/假設語氣(誠信不變)。任何失敗靜默回原稿,不中斷產線。"""
+    try:
+        import llm
+        segs = d.get("segments") or []
+        if len(segs) < 3:
+            return d  # 段數太少撐不出長片密度,交給 make_one 的重生機制
+        title = d.get("title", "") or ""
+        voice = d.get("voice_text", "") or ""
+        integrity = TW_STOCK_RULES if is_tw else NO_FACTS_INTEGRITY_RULES
+        sents = [s for s in re.split(r"(?<=[。！？!?])", voice) if s.strip()]
+        hook = "".join(sents[:3]).strip() if sents else ""  # 保留原稿三步框架 HOOK 開場
+        bodies, prev = [], "開場鉤子"
+        for i, seg in enumerate(segs, 1):
+            heading = ((seg.get("heading") if isinstance(seg, dict) else str(seg)) or f"重點{i}")
+            prompt = (
+                f"你是量化阿森頻道的專業長片腳本寫手。{GUARD}\n{QUANT_STANDARD}\n"
+                f"這是長片《{title}》的第 {i} 段,子主題:「{heading}」。只寫這一段旁白,**務必寫滿 520-620 中文字**"
+                "(這是長片深段,字數不夠會被打回,寧可多給細節也不要少寫)。\n"
+                "務必有完整弧線且每一步都展開講透:①用具體數據或案例情境切入(不是空泛開場,給場景/數字/人物處境)"
+                " →②解釋為什麼會這樣的原理(講清機制、別只下結論) →③一個反直覺轉折,或跟另一種做法的具體對比,"
+                "並補一句這對觀眾的實際意義。段首用一句自然承接語接上文"
+                f"(上一段講的是「{prev[:30]}」)。嚴禁清單體一句帶過。\n"
+                f"{facts_ctx}\n{integrity}{_LONG_DATA_DISCIPLINE}\n"
+                "【配音友善】口語、短句為主(每句約15-25字用句號斷開);少用括號/破折號/冒號。\n"
+                "只輸出這一段旁白純文字——不要 JSON、不要小標、不要段號、不要任何前後綴或引號。"
+            )
+            try:
+                para = llm.complete(prompt, 1800).strip()
+            except Exception:  # noqa: BLE001
+                continue
+            para = _fix_artifacts(_to_traditional(para))
+            if para and _long_chinese_chars(para) >= 120:
+                bodies.append(para)
+                prev = heading
+        if len(bodies) < 3:
+            return d  # 深寫沒成功湊到 3 段,回原稿讓 gate 決定重生/fail-closed
+        # top-up:總量還沒到目標時,挑最短的 1-2 段就地加深(續補細節/對比),把長度穩穩推過門檻。
+        def _cur_total():
+            return _long_chinese_chars(hook) + sum(_long_chinese_chars(b) for b in bodies)
+        _tu = 0
+        while _cur_total() < LONG_TARGET_CHARS and _tu < 2 and bodies:
+            _tu += 1
+            _idx = min(range(len(bodies)), key=lambda k: _long_chinese_chars(bodies[k]))
+            try:
+                tp = (
+                    f"你是量化阿森頻道的長片腳本寫手。{GUARD}\n以下是長片《{title}》的一個段落,請把它"
+                    "『加深擴寫』到 560-680 中文字:補更多具體數據情境、原理細節、或與另一做法的對比,"
+                    "維持同一子主題與口語短句,不要改變立場、不要湊贅字重複句。\n"
+                    f"{facts_ctx}\n{integrity}{_LONG_DATA_DISCIPLINE}\n只輸出擴寫後的完整段落純文字,不要JSON/小標/前後綴。\n\n"
+                    f"【原段落】\n{bodies[_idx]}"
+                )
+                _ex = _fix_artifacts(_to_traditional(llm.complete(tp, 1800).strip()))
+                if _ex and _long_chinese_chars(_ex) > _long_chinese_chars(bodies[_idx]):
+                    bodies[_idx] = _ex
+                else:
+                    break
+            except Exception:  # noqa: BLE001
+                break
+        # 誠信自癒:分段深寫易誘導 LLM 具象化而編股價/落阿拉伯數字,組稿前先跑 fact_guard 逐段修乾淨
+        bodies, _rem = _long_fact_heal(bodies, facts_ctx, integrity, title)
+        if _rem:
+            print(f"[warn] A4 長片誠信自癒後仍殘留 {_rem} 段旗標(交 make_one/fact_guard 續處理)", file=sys.stderr)
+        # 對比/實測小結(結尾前必有):把前面深段重點放一起做具體比較,給可帶走的結論 + 軟性 CTA
+        try:
+            _sub = "\n".join(bodies)[:1400]
+            sum_prompt = (
+                f"你是量化阿森頻道的長片腳本寫手。{GUARD}\n"
+                f"這是長片《{title}》的結尾小結旁白,約 360-460 中文字。任務:把前面幾段的重點放在一起做一個"
+                "具體的對比/實測小結,給觀眾一個可以直接帶走的結論(哪種情境該選哪種做法),語氣定調"
+                "「我先幫你用數據試過,別自己送死」;最後自然帶一句軟性訂閱鉤與一句下集/系列預告,"
+                "不喊單、不保證收益。\n"
+                f"{integrity}{_LONG_DATA_DISCIPLINE}\n【配音友善】口語短句。只輸出這段旁白純文字,不要JSON/小標/前後綴。\n"
+                f"【前面各段重點摘要】\n{_sub}"
+            )
+            _summary = _fix_artifacts(_to_traditional(llm.complete(sum_prompt, 1300).strip()))
+            if _summary and (fact_guard_flags(_summary) or _promo_banned_hits(_summary)):
+                _summary = _long_fact_heal([_summary], facts_ctx, integrity, title)[0][0]
+        except Exception:  # noqa: BLE001
+            _summary = ""
+        # hook 來自 call_claude 主草稿,偶爾也帶禁語/未標示數字 → 一併過自癒(保證整支進審核零禁語)
+        if hook and (fact_guard_flags(hook) or _promo_banned_hits(hook)):
+            hook = _long_fact_heal([hook], facts_ctx, integrity, title)[0][0]
+        parts = ([hook] if hook else []) + bodies + ([_summary] if _summary and _long_chinese_chars(_summary) >= 80 else [])
+        new_voice = "\n".join(p for p in parts if p)
+        if _long_chinese_chars(new_voice) > _long_chinese_chars(voice):
+            d["voice_text"] = new_voice
+            d["_densified"] = True
+    except Exception as exc:  # noqa: BLE001
+        print(f"[warn] A4 長片分段深寫失敗,放行原稿：{str(exc)[:80]}", file=sys.stderr)
+    return d
 
 
 def _expand_long_script(d, kind, topic_override):
@@ -1229,7 +1416,7 @@ def _expand_long_script(d, kind, topic_override):
             '{"voice_text":"展開加深後的完整旁白逐字稿"}\n\n'
             f"【原始草稿】\n{cur_voice}"
         )
-        txt = llm.complete(prompt, 4000, json_mode=True)
+        txt = llm.complete(prompt, 7000, json_mode=True)  # 加深要吐 2600+ 字,token 要給足否則被截斷
         m = re.search(r"\{.*\}", txt, re.S)
         if not m:
             return d
@@ -1341,20 +1528,22 @@ def make_one(kind, no_render=False, topic_override=None):
                or (not topic_override and _ending_too_similar(d.get("voice_text", ""), _recent_ends))) and _hk < 2:
             _hk += 1
             d = call_claude(kind, _ex, topic_override)
-    # A4 真長片引擎(2026-07 頻道整頓計畫)：長片產出後檢查中文字數/預估時長，不達標
-    # (<1200字 或 預估<6分)就重生(最多2次，共用重生上限別無限迴圈卡死產線)；重生後仍不足
-    # 就補寫一次(把既有段落加深展開，不是從零重來)；補寫後仍不足就放行最後版但寫警告 log，
-    # 供人工複查(誤判成本高，不做「靜默刪片」，跟現有 A2 只旗標的精神一致)。
+    # A4 真長片引擎(2026-07-13 收緊 gate + fail-closed)：長片 call_claude 內已做「分段深寫+誠信自癒」
+    # (每段各發一次 LLM 寫深段、跑 fact_guard/禁語逐段修乾淨),單次就能穩定產 2400-3100 字的真長片。
+    # 這裡只做長度 gate 把關：不達標(<2000字 或 預估<8分,偶發波動)就整支重生(最多4次,每次都是一支
+    # 已深寫+已自癒的新草稿);4 次都不達標就 **fail-closed 不輸出這支**(return None),絕不把短長片
+    # 冒充長片發出去——寧可今天少一支長片,也不砸「真 8-10 分鐘資訊密度」的招牌(誠信優先於產量)。
+    # (舊 _expand_long_script 整篇重寫易縮水且繞過自癒,已從長片路徑移除;函式保留供他處備援。)
     if kind == "long" and not topic_override:
         _lk = 0
-        while _long_underlength(d.get("voice_text", "")) and _lk < 2:
+        while _long_underlength(d.get("voice_text", "")) and _lk < 4:
             _lk += 1
             d = call_claude(kind, _ex, topic_override)
         if _long_underlength(d.get("voice_text", "")):
-            d = _expand_long_script(d, kind, topic_override)
-        if _long_underlength(d.get("voice_text", "")):
             _n = _long_chinese_chars(d.get("voice_text", ""))
-            log_ops("補產部門", f"⚠️ A4長片字數不足(重生+補寫後仍約{_n}字),已放行需人工複查:{d.get('title','')[:26]}")
+            log_ops("補產部門", f"⛔ A4長片重生4次後仍僅約{_n}字(<{LONG_MIN_CHARS}字/8分),fail-closed不輸出假長片:{d.get('title','')[:24]}")
+            print(f"[skip] long 長度不足({_n}字),fail-closed 不輸出:{d.get('title','')[:24]}")
+            return None
     # A2 誠信硬擋(2026-07 頻道整頓計畫)：非台股題(無 tw_stock_facts 真數據佐證)、
     # 也非已有自己數字紀律的 EP/旗艦 franchise，若疑似捏造具體績效數字(回測N檔/勝率X%/報酬Y%/
     # 夏普轉折/虧損X% 等且無示意假設語境)→ 重生最多 2 次；仍命中就放行最後版但寫警告 log，
@@ -1400,7 +1589,7 @@ def make_one(kind, no_render=False, topic_override=None):
         # Shorts 保留 PEXELS → render_ffmpeg 走混合(數據段圖表卡 + 情境段 b-roll 動態影片)
         _run_render(["scripts/make_video.py", "--slug", slug, "--width", "1080", "--height", "1920", "--fps", "15"], env, timeout=1200)
     else:
-        _run_render(["scripts/make_video.py", "--slug", slug], env, timeout=2400)  # 長片渲染久，給 40 分鐘
+        _run_render(["scripts/make_video.py", "--slug", slug, "--fps", "30"], env, timeout=2400)  # 長片 30fps 順+渲染久給40分
     ok = (OUT / f"{slug}.mp4").exists() and (OUT / f"{slug}.mp4").stat().st_size > 100 * 1024
     if ok:  # 產製即審核：壞片/違規早發現
         passed, reasons = audit_video.audit(slug)
