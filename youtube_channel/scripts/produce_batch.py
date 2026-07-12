@@ -410,6 +410,14 @@ def _fabricated_perf_claim(text):
         return False
 
 
+def _fabricated_perf_claim_d(d):
+    """A2 誠信硬擋(P7 補強):併入標題+描述一起查,不只旁白。捏造績效數字若寫進標題/描述
+    (而非旁白逐字稿),舊版只傳 voice_text 完全查不到——同一漏洞已在 fact_guard.py main() 修過,
+    這裡是 produce_batch.py 自己的生成期檢查點,獨立補齊。"""
+    blob = "\n".join([d.get("title", ""), d.get("description", ""), d.get("voice_text", "")])
+    return _fabricated_perf_claim(blob)
+
+
 HOOK_RULES = """
 【受眾方向（2026-07-02 新增·偏好非硬性）】多服務一種人：**想被動賺、但怕被割的投資小白**（這是重點方向之一，不是唯一）。
 - **能白話就白話**：術語盡量翻成人話（回測=拿歷史行情跑一遍、夏普=賺得穩不穩、網格=機器人低買高賣），第一次出現的名詞順手一句解釋；不必為了白話犧牲該有的乾貨。
@@ -992,7 +1000,14 @@ def _run_render(args, env, timeout=720):
 
 def _norm_title_dup(t):
     import re as _r
-    return _r.sub(r"[0-9\uff10-\uff19%/\u3001\uff0c\u3002\uff01\uff1f!?\u2026\s\-_]+", "", t or "")
+    t = _r.sub(r"[0-9\uff10-\uff19%/\u3001\uff0c\u3002\uff01\uff1f!?\u2026\s\-_]+", "", t or "")
+    # \u4e2d\u6587\u6578\u5b57\u5beb\u6cd5(\u4e8c\u5341\u842c/\u4e8c\u5341\u5e74)\u8ddf\u963f\u62c9\u4f2f\u6578\u5b57(20\u842c/20\u5e74)\u662f\u540c\u7fa9\u8b8a\u9ad4\uff0c\u53ea\u6ffe\u963f\u62c9\u4f2f\u6578\u5b57\u6642\u5169\u8005\u5224\u6210\u4e0d\u540c\u6a19\u984c\u3001
+    # \u8fd1\u4f3c\u91cd\u8907\u5075\u6e2c\u6293\u4e0d\u5230\u2014\u2014\u53ea\u6ffe\u300c\u5e36\u9032\u4f4d\u5b57(\u5341\u767e\u5343\u842c\u5104\u5146)\u7684\u6578\u8a5e\u7247\u6bb5\u300d\uff0c\u4e0d\u52d5\u55ae\u7368\u7684\u300c\u4e00/\u4e8c\u300d\u7b49\u5e38\u7528\u5b57\uff0c
+    # \u907f\u514d\u8aa4\u50b7\u4e0d\u76f8\u95dc\u4f46\u525b\u597d\u90fd\u542b\u9019\u4e9b\u5b57\u7684\u6a19\u984c(\u5df2\u7528 207 \u652f\u771f\u5be6\u6a19\u984c\u5be6\u6e2c\uff0c0 \u7b46\u65b0\u589e\u8aa4\u5224)\u3002
+    t = _r.sub(r"[\u96f6\u4e00\u4e8c\u4e09\u56db\u4e94\u516d\u4e03\u516b\u4e5d\u5169]*"
+               r"[\u5341\u767e\u5343\u842c\u5104\u5146]+"
+               r"[\u96f6\u4e00\u4e8c\u4e09\u56db\u4e94\u516d\u4e03\u516b\u4e5d\u5169]*", "", t)
+    return t
 
 
 # ── 贏家公式評分卡(2026-07·用 198 支有數據片回歸出的標題必備元素,把散在 HOOK_RULES 的原則升級成可打分)──
@@ -1096,7 +1111,15 @@ def _is_preamble_open(head):
     t = (head or "").strip()
     if not t:
         return False
-    return any(t.startswith(p) or p in t[:10] for p in _PREAMBLE_OPENERS)
+    for p in _PREAMBLE_OPENERS:
+        # 短詞(≤2字，如「說到／講到」)只認開頭，不做前10字子字串比對——子字串比對容易誤中
+        # 中段才出現的強力鉤子句(如「……沒想到，說到底最慘的是……」)，觸發不必要的重生。
+        if len(p) <= 2:
+            if t.startswith(p):
+                return True
+        elif t.startswith(p) or p in t[:10]:
+            return True
+    return False
 
 
 def _weak_hook(voice_text):
@@ -1338,10 +1361,10 @@ def make_one(kind, no_render=False, topic_override=None):
     # 供人工複查(誤判成本高，不做「靜默刪片」，跟現有 fact_guard 只旗標的精神一致)。
     if not d.get("_is_tw_stock", False) and not d.get("_is_ep", False) and not d.get("_is_flagship", False):
         _fk = 0
-        while _fabricated_perf_claim(d.get("voice_text", "")) and _fk < 2:
+        while _fabricated_perf_claim_d(d) and _fk < 2:
             _fk += 1
             d = call_claude(kind, _ex, topic_override)
-        if _fabricated_perf_claim(d.get("voice_text", "")):
+        if _fabricated_perf_claim_d(d):
             log_ops("補產部門", f"⚠️ A2疑似捏造績效數字·重生2次仍命中,已放行需人工複查:{d.get('title','')[:26]}")
     # 疊字守門:修 LLM 偶發 stutter(voice_text/title/description/段落小標),一次覆蓋 voice.txt 與 md
     for _k in ("voice_text", "title", "description"):
@@ -1476,8 +1499,8 @@ def main() -> int:
 
     # 🔥 金融時事優先：給了 --topic 就立刻產 1 支相關 Short，不管排程/片庫上限。
     if args.topic:
-        if not API_KEY:
-            print("[FATAL] 找不到 ANTHROPIC_API_KEY 環境變數。", file=sys.stderr)
+        if not _has_llm_key():
+            print("[FATAL] 找不到任一 LLM 供應商金鑰(OPENROUTER/ANTHROPIC/DEEPSEEK/GEMINI/GROQ)。", file=sys.stderr)
             return 2
         slug_made = None
         _tov = {"title": args.topic, "angle": args.angle or ""}
@@ -1520,8 +1543,8 @@ def main() -> int:
         except Exception:
             pass
 
-    if not API_KEY:
-        print("[FATAL] 找不到 ANTHROPIC_API_KEY 環境變數。", file=sys.stderr)
+    if not _has_llm_key():
+        print("[FATAL] 找不到任一 LLM 供應商金鑰(OPENROUTER/ANTHROPIC/DEEPSEEK/GEMINI/GROQ)。", file=sys.stderr)
         return 2
 
     q = queue_size()

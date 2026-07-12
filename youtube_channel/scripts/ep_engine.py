@@ -260,7 +260,11 @@ def _start_new_season(st):
 
 
 def _save_state(st):
-    """寫回 ep_data.json；寫前重讀磁碟的真數字/累計/角色欄位覆蓋，避免蓋掉 pionex 剛更新的真實損益。"""
+    """寫回 ep_data.json；寫前重讀磁碟的真數字/累計/角色欄位覆蓋，避免蓋掉 pionex 剛更新的真實損益。
+    但若磁碟仍停留在『升季前』的舊季別(disk season != 這次要寫的 season)，代表這是
+    _start_new_season() 剛做的季重置，不是外部併發寫入——此時不能拿舊季磁碟值蓋掉剛重置好的
+    cumulative/character_state/milestones_hit，否則季重置形同白做，milestones_hit 永遠不會真的
+    清空，導致「里程碑→題庫插隊」機制第一季後永久靜默失效。"""
     out = copy.deepcopy(st)
     try:
         if EP_DATA.exists():
@@ -269,9 +273,10 @@ def _save_state(st):
                 for k in _REAL_FIELDS:
                     if disk.get(k) is not None:
                         out[k] = disk[k]
-                for k in ("milestones_hit", "character_state", "cumulative"):
-                    if disk.get(k) is not None:
-                        out[k] = disk[k]
+                if disk.get("season") == out.get("season"):
+                    for k in ("milestones_hit", "character_state", "cumulative"):
+                        if disk.get(k) is not None:
+                            out[k] = disk[k]
     except Exception:
         pass
     try:

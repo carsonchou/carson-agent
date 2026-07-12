@@ -357,8 +357,12 @@ def evidence_block(max_chars: int = 900) -> str:
         for v in tv[:6]:
             t = str(v.get("slug") or v.get("title") or "").replace("S_", "")[:22]
             ap = v.get("avg_pct")
+            # 健全性檢查:完播率理應落在 0-100 區間,壞值(資料源出錯/被手動改壞)不該原封不動
+            # 包成「已驗證實證數據」餵進 LLM prompt——那正是模型會照抄進逐字稿的「真數據」來源，
+            # 壞掉的話反而變成放大版的捏造數字。
+            ap_ok = isinstance(ap, (int, float)) and not isinstance(ap, bool) and 0 <= ap <= 100
             if t:
-                ex.append(f"「{t}」完播{round(ap)}%" if isinstance(ap, (int, float)) else f"「{t}」")
+                ex.append(f"「{t}」完播{round(ap)}%" if ap_ok else f"「{t}」")
         if ex:
             lines.append("・近期實際表現較好的片:" + "；".join(ex))
     cs = _load("completion_signals.json", {})

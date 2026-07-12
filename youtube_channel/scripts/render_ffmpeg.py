@@ -175,9 +175,26 @@ def _make_seg_card(seg, i, *, width, height, watermark, accent, vid_seed, video_
                 accent=accent, seed=f"{vid_seed}_{i}", dest=tmp_dir / f"kcard_{i:02d}.png")
         except Exception as exc:  # noqa: BLE001
             print(f"[warn] K 線卡失敗,退字卡:{exc}", file=sys.stderr)
+            card = None
+    if card is None:
+        # 三級降級的最後一級本身也要防呆:字卡理論上最不該失敗,但若真的失敗(如字型載入炸掉),
+        # 不能讓整個 render() 崩潰而拿不到 _encode_and_validate 的重試/不留壞檔機制。
+        try:
             card = mv.render_card_image(
                 width, height, big_text=seg.heading or "", small_text="",
                 watermark=watermark, dest=tmp_dir / f"card_{i:02d}.png", accent=accent)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[warn] 字卡也失敗,退最小純色保底圖:{exc}", file=sys.stderr)
+            card = None
+    if card is None:
+        try:
+            from PIL import Image
+            fallback_path = tmp_dir / f"fallback_{i:02d}.png"
+            Image.new("RGB", (width, height), color=accent or (20, 20, 20)).save(fallback_path)
+            card = fallback_path
+        except Exception as exc:  # noqa: BLE001
+            print(f"[warn] 純色保底圖也失敗:{exc}", file=sys.stderr)
+            raise
     return str(card)
 
 
@@ -573,6 +590,12 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
         return False
 
     n = len(segments)
+    if n == 0:
+        # 腳本解析不到任何段落:後面 seg_cards[-1] 等邏輯會對空陣列取值直接 IndexError 崩潰,
+        # 且發生在呼叫 ffmpeg 之前，接不到 _encode_and_validate 的重試/不留壞檔機制。
+        # 交回 moviepy 備案，而不是讓整個 render() 硬崩潰。
+        print("[ffmpeg後端] 腳本解析不到任何段落,交回備案", file=sys.stderr)
+        return False
     per_seg = audio_duration / n if n else audio_duration
     watermark = branding.get("watermark_text", "")
     accent = mv.pick_accent(getattr(slug_paths, "slug", "") or title)
@@ -655,7 +678,10 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
                                 hud_png = mv.render_race_split(width, height, dest=tmp_dir / f"hud_{i:02d}.png",
                                                               labelA=_la, labelB=_lb, progA=frac, progB=frac * 0.82, accent=accent)
                             else:
-                                _day = int(round((_dtot or _ns) * frac)) if (_dtot or _is_exp) else None
+                                # 用 is not None 而非 or:_dtot==0(合法「第0天」)不該被當 falsy
+                                # 誤退回用段落數 _ns 當總天數,導致 HUD 顯示的天數跟旁白脫鉤。
+                                _day = int(round((_dtot if _dtot is not None else _ns) * frac)) \
+                                    if (_dtot is not None or _is_exp) else None
                                 _bal_i = int(_pr + (_bal - _pr) * frac) if (_pr is not None and _bal is not None) else _bal
                                 _pct_i = round(_pct * frac, 2) if _pct is not None else None
                                 hud_png = mv.render_hud_strip(width, height, dest=tmp_dir / f"hud_{i:02d}.png",

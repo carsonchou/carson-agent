@@ -141,8 +141,33 @@ def save_bank(bank):
     os.replace(tmp, BANK)  # 原子替換,消除「讀到寫一半殘檔」的競態
 
 
+_CC = None
+_CC_TRIED = False
+
+
+def _to_trad(t):
+    """簡體→繁體正規化(僅用於去重比對字串,不改動實際儲存的標題)。LLM 偶爾滑成簡體時,
+    簡繁字形不同會讓 _norm() 誤判成不同標題、放行近乎重複的題目進題庫。OpenCC 沒裝就原樣回
+    (與 produce_batch.py 的 _to_traditional 同一容錯策略,不中斷產線)。"""
+    global _CC, _CC_TRIED
+    if not _CC_TRIED:
+        _CC_TRIED = True
+        try:
+            from opencc import OpenCC
+            _CC = OpenCC("s2twp")
+        except Exception:  # noqa: BLE001
+            _CC = None
+    if _CC is None:
+        return t
+    try:
+        return _CC.convert(t)
+    except Exception:  # noqa: BLE001
+        return t
+
+
 def _norm(t):
-    return re.sub(r"[\s，。！？、：；…·\-—()（）]+", "", (t or "")).lower()
+    t = _to_trad(t or "")
+    return re.sub(r"[\s，。！？、：；…·\-—()（）]+", "", t).lower()
 
 
 def add_topics(items, source="", front=False):

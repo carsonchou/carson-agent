@@ -242,8 +242,11 @@ def _backtest(ax, rng, direction=0):
     n = 180
     x = np.arange(n)
     split = 120
-    # 方向跟旁白綁定：講虧/跌/賠就別再畫一路上漲的線（A6-a）。
-    drift = 0.22 if direction >= 0 else -0.22
+    # 方向跟旁白綁定：講虧/跌/賠就別再畫一路上漲的線（A6-a）。中性/無訊號(direction==0)
+    # 不該被 >= 併入正向分支(等於「查無訊號一律偏多」)，比照 _trend() 改成隨機，避免
+    # 中性/避雷敘事的段落被固定畫成「回測成功、一路上漲」的誤導圖。
+    up = (direction > 0) if direction != 0 else (rng.rand() > 0.5)
+    drift = 0.22 if up else -0.22
     eq = 100 + np.cumsum(np.full(n, drift) + rng.randn(n) * 0.6)
     ax.axvspan(0, split, color=(1, 1, 1, 0.04), zorder=0)
     ax.axvline(split, color=(1, 1, 1, 0.20), lw=1.2, ls="--", zorder=1)

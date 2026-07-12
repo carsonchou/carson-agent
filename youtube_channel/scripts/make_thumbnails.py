@@ -487,9 +487,11 @@ def _myth_number(cfg: dict):
         if not src:
             continue
         found = [f.replace(" ", "") for f in _MYTH_NUM_RE.findall(str(src)) if any(c.isdigit() for c in f)]
-        if found:
-            pref = [f for f in found if "%" in f or "倍" in f]
-            return (pref[0] if pref else max(found, key=len))[:8]
+        pref = [f for f in found if "%" in f or "倍" in f]
+        if pref:
+            return pref[0][:8]
+        # 找不到帶 %／倍 的數字就不要 fallback 亂抓裸數字(可能是 EP 集數/年份/K棒價位，
+        # 跟「神話數字」毫無關係)，寧可整張圖不掛神話數字卡，也不要張冠李戴。
     return None
 
 

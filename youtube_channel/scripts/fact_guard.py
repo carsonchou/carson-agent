@@ -113,17 +113,21 @@ def _flags_for(text: str):
     for rx in _RISK_PERF:
         for m in rx.finditer(text):
             i, j = m.span()
-            window = text[max(0, i - 20): j + 20]
-            if any(h in window for h in _HEDGE):
-                continue  # 附近有「示意/假設/僅供參考」等誠實揭露 → 放行,非誤殺對象
+            if any(h in _clause_around(text, i, j) for h in _HEDGE):
+                continue  # 同句內有「示意/假設/僅供參考」等誠實揭露 → 放行,非誤殺對象
             hits.append(m.group(0)[:40])
-    if not _HAS_REAL_DATA.search(text):  # 全篇零真實數據佐證,中文模糊量詞才需要細查
-        for rx in _RISK_CN + _RISK_CN_ABS:
-            for m in rx.finditer(text):
-                i, j = m.span()
-                if any(h in _clause_around(text, i, j) for h in _HEDGE):
-                    continue  # 同句內有誠實揭露詞 → 放行
-                hits.append(m.group(0)[:40])
+    for rx in _RISK_CN + _RISK_CN_ABS:
+        for m in rx.finditer(text):
+            i, j = m.span()
+            if any(h in _clause_around(text, i, j) for h in _HEDGE):
+                continue  # 同句內有誠實揭露詞 → 放行
+            # 「有無真數據佐證」閘門(P6):只看命中點「附近」(前後約120字)是否有具體數字佐證,
+            # 不能整篇任一角落出現一個不相干數字(如開場提年份/股號)就讓全篇模糊量詞斷言免疫——
+            # 那正是品保實案「九成回測都虧錢」這類捏造句,溜過守門的真實迴歸風險。
+            near = text[max(0, i - 120): j + 120]
+            if _HAS_REAL_DATA.search(near):
+                continue
+            hits.append(m.group(0)[:40])
     return hits
 
 
@@ -147,6 +151,15 @@ def main() -> int:
             txt = f.read_text(encoding="utf-8", errors="replace")
         except Exception:  # noqa: BLE001
             continue
+        # P7(2026-07 誠信漏洞修補):過去只查 voice.txt(旁白逐字稿),標題/描述(.md)完全沒被
+        # 掃到——捏造績效數字若寫進標題或 YouTube 描述而非旁白,舊版守門完全無感。
+        # 同 slug 的 .md(標題+描述)一併併入同一次檢查,不重複維護規則。
+        md = f.with_name(f.stem.replace(".voice", "") + ".md")
+        if md.exists():
+            try:
+                txt += "\n" + md.read_text(encoding="utf-8", errors="replace")
+            except Exception:  # noqa: BLE001
+                pass
         hits = _flags_for(txt)
         if hits:
             flagged[f.stem] = hits[:4]

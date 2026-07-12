@@ -186,8 +186,12 @@ def passes_floor(slug_or_score) -> bool:
 
 
 def set_min(n):
+    n0 = int(n)
+    n = max(n0, FLOOR)  # FLOOR 是紅線底線,語意上永遠 FLOOR <= 生效門檻,不能被設更低(見檔頭註解)
+    if n != n0:
+        print(f"[warn] 門檻 {n0} 低於硬地板 FLOOR={FLOOR},已夾回 {FLOOR} 分")
     d = _load(DIRECTIVES, {})
-    d["min_score"] = int(n)
+    d["min_score"] = n
     sc.save_json_atomic(DIRECTIVES, d)
     log_ops("倉庫評分", f"退件門檻設為 {n} 分")
     print(f"[ok] 退件門檻 → {n} 分，重新評定 pass/退件…")
@@ -407,6 +411,9 @@ def produce_until_pass(title, angle=REMAKE_ANGLE, tries=3):
             continue
         sc, _ = score_one(slug, ai_score(slug))
         print(f"  第{t}次：{slug[:18]}… 得分 {sc}（門檻 {mn}）")
+        if sc is None:  # AI 評分失敗(限流/腳本未就緒)→ 本輪不算數,別讓 None>=int 直接崩潰整個重做流程。
+            print(f"  [warn] 第{t}次 {slug[:18]} 無法AI評分,暫不隔離、留給下輪 scan() 補評分。")
+            continue  # 不隔離(未評分≠低分)、也不當 best,直接進下一次重做嘗試
         if sc >= mn:
             if best and best != slug:
                 _quarantine(best)
