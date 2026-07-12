@@ -66,22 +66,25 @@ def do_dump(path):
 
 # ───────── 2) 本機 render ─────────
 def gen_configs(items):
-    """items: [(vid,title)]。Claude 依角度配封面卡，回 {vid: cfg}。"""
+    """items: [(vid,title)]。Claude 只配文案角度(l1/l2/tag/accent)，回 {vid: cfg}。
+    誠信鐵則(同 make_thumbnails._real_card)：數據卡的數字絕不讓 LLM 現場編——
+    一律由 do_render() 呼叫 make_thumbnails._real_card() 依標題領域(台股/加密)比對
+    真實資料檔(backtest_cards.json / tw_stock_facts.json)取得，領域對不上或無真資料
+    就不掛卡，不會出現「台股題配加密卡」或「查無憑據的示意數字」。"""
     import requests
     listing = "\n".join(f"{i}. {t}" for i, (_, t) in enumerate(items))
     prompt = f"""你是量化阿森頻道（量化/網格/派網Pionex/回測/風控，繁中 faceless）的封面設計師。
-為下面每支影片設計一張縮圖文案＋一張『派網回測卡』。鐵則：
-- 卡片數字一律「示意、含回撤、不保證」；**獲利/方法類**片用綠色正報酬(pct_color=green、pct 如 +82.4%)，
-  **警示/虧損/過擬合類**片用紅色負數或對比(pct_color=red、pct 如 -40%，metric 寫『實盤(示意)』)，**不可在警示片造假獲利**。
+為下面每支影片設計縮圖文案（不含任何數據卡數字——數據卡由程式另外依真實回測資料配對，
+你不用也不可以編造 pct/mdd/回撤/報酬等數字）：
 - l1/l2：兩行大字鉤子，每行 ≤5 字，從標題濃縮（左側顯示，要短）。
-- tag：底部一行（≤16 字）。accent 從 yellow/green/red/blue 擇一（警示紅、方法綠、工具藍、一般黃）。
-- mdd/range：兩列副資料（如『最大回撤 -15.3%』『實盤 -40%』『區間 1774-2028』擇合適兩條）。
+- tag：底部一行（≤16 字）。accent 從 yellow/green/red/blue 擇一（警示紅、方法綠、工具藍、一般黃，
+  純視覺配色，與是否掛得到數據卡無關）。
 
 影片清單：
 {listing}
 
 只輸出 JSON 陣列（i 對應編號，不要其他字、不要 markdown 圍欄）：
-[{{"i":0,"l1":"丟1萬","l2":"跑30天","tag":"自動交易實測｜結果公開","accent":"green","metric":"回測年化(示意)","pct":"+82.4%","pct_color":"green","mdd":"最大回撤 -15.3%","range":"區間 1774-2028","note":"※示意回測，非真實獲利保證"}}]"""
+[{{"i":0,"l1":"丟1萬","l2":"跑30天","tag":"自動交易實測｜結果公開","accent":"green"}}]"""
     r = requests.post("https://api.anthropic.com/v1/messages",
                       headers={"x-api-key": API_KEY, "anthropic-version": "2023-06-01",
                                "content-type": "application/json"},
@@ -120,27 +123,33 @@ def do_render(dump_path):
     cfgs = gen_configs(items)
     REFRESH_DIR.mkdir(parents=True, exist_ok=True)
     manifest = {}
+    no_card = 0
     for vid, title in items:
         c = cfgs.get(vid)
         if not c:
             print(f"[skip] {vid} 無設定"); continue
         accent = ACCENT.get((c.get("accent") or "yellow").lower(), ACCENT["yellow"])
+        # 誠信防線：數據卡一律走 make_thumbnails._real_card()（先判定台股/加密領域，
+        # 領域對不上或無真實資料就回 None）——絕不讓 LLM 現場臆造 pct/mdd/回撤數字，
+        # 也絕不會出現台股題掛加密卡、或反之的跨領域誤配。
+        real_card = mt._real_card(vid, title)
+        if real_card is None:
+            no_card += 1
         cfg = {"slug": vid, "l1": c.get("l1", "")[:8], "l2": c.get("l2", "")[:8],
                "tag": c.get("tag", "")[:18], "accent": accent, "mark": "$",
-               "card": {"strat": "網格·示意", "metric": c.get("metric", "回測年化(示意)"),
-                        "pct": c.get("pct", "+82.4%"), "pct_color": c.get("pct_color", "green"),
-                        "mdd": c.get("mdd", "最大回撤 -15.3%"), "range": c.get("range", "區間 1774-2028"),
-                        "note": c.get("note", "※示意回測，非真實獲利保證")}}
+               "card": real_card}
         # 借 make_thumbnails 的繪圖（改輸出到 refresh 目錄）
         img = mt.gradient_bg((14, 22, 46), (28, 44, 86))
         d = ImageDraw.Draw(img, "RGBA")
         _draw_full(mt, d, img, cfg)
         out = REFRESH_DIR / f"{vid}.jpg"
         img.save(out, "JPEG", quality=90)
-        manifest[vid] = {"title": title, "file": f"assets/thumbnails/refresh/{vid}.jpg"}
-        print(f"[ok] {vid}  {title[:24]}")
+        manifest[vid] = {"title": title, "file": f"assets/thumbnails/refresh/{vid}.jpg",
+                          "has_card": bool(real_card)}
+        note = "" if real_card else "（無真數據可對應，乾淨版·不掛卡）"
+        print(f"[ok] {vid}  {title[:24]} {note}")
     MANIFEST.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"\n== 完成：渲染 {len(manifest)} 張 → {REFRESH_DIR} ==")
+    print(f"\n== 完成：渲染 {len(manifest)} 張（{no_card} 支無真數據·乾淨版無卡）→ {REFRESH_DIR} ==")
     return 0
 
 
@@ -148,7 +157,7 @@ def _draw_full(mt, d, img, cfg):
     """重現 make_thumbnails.make_one 的繪圖（不另存檔，畫到傳入的 d/img）。"""
     accent = cfg["accent"]
     if cfg.get("card"):
-        mt.draw_backtest_card(d, cfg["card"])
+        mt.draw_backtest_card(d, cfg["card"], accent)
     mt.draw_text_stroke  # noqa
     d.rectangle([0, 0, 18, mt.H], fill=accent)
     tagf = mt.font(38, bold=True)
