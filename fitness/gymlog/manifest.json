@@ -1,0 +1,14 @@
+{
+  "name": "GymLog 健身記錄",
+  "short_name": "GymLog",
+  "description": "Carson 的離線健身重量記錄",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0d1117",
+  "theme_color": "#0d1117",
+  "icons": [
+    { "src": "icon.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-180.png", "sizes": "180x180", "type": "image/png" }
+  ]
+}
