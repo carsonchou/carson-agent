@@ -653,6 +653,63 @@ def _recent_used_phrases(n=20):
     return {h for h in hit if h and not _is_protected_phrase(h)}
 
 
+def _loads_lenient(txt):
+    """把 LLM 回應解析成 dict;**被 token 上限截斷的 JSON 也盡量救回來**。回不了就 None。
+
+    2026-07-13 實案:長片產製吐「[err long 第2次] LLM 回應非 JSON」→ 該批 0 支長片。
+    根因不是模型講廢話,是**輸出撞 token 上限被硬切**——JSON 少了結尾的括號/引號,
+    舊碼 `re.search(r"\\{.*\\}")` 找不到閉合的 }，就把整段**已經花錢生出來、內容其實完好的**
+    2000+ 字旁白全部丟掉重來。長片是 YPP 唯一路徑,一次失敗=當天少一支,不能這樣浪費。
+
+    策略:①先照原樣抓完整 JSON ②抓不到就從第一個 { 開始,自動補上未閉合的字串/括號再解析
+    (截斷通常只斷在最後一個欄位,前面的 title/voice_text 多半是完整的,救得回來)。
+    """
+    if not txt:
+        return None
+    m = re.search(r"\{.*\}", txt, re.S)
+    if m:
+        try:
+            return json.loads(m.group(0))
+        except Exception:  # noqa: BLE001
+            pass  # 抓到了但解不開(內部截斷/壞跳脫)→ 走下面的修復
+    i = txt.find("{")
+    if i < 0:
+        return None
+    s = txt[i:]
+    # 逐字掃描,用**括號堆疊**記住每一層該補什麼(不能只算深度——陣列要補 ] 不是 }),
+    # 並記錄是否斷在字串/跳脫字元中間。
+    stack, in_str, esc = [], False, False
+    for ch in s:
+        if in_str:
+            if esc:
+                esc = False
+            elif ch == "\\":
+                esc = True
+            elif ch == '"':
+                in_str = False
+        else:
+            if ch == '"':
+                in_str = True
+            elif ch == "{":
+                stack.append("}")
+            elif ch == "[":
+                stack.append("]")
+            elif ch in "}]" and stack:
+                stack.pop()
+    repaired = s
+    if esc:                      # 尾巴斷在跳脫字元 → 砍掉它(否則補完引號仍是壞跳脫)
+        repaired = repaired[:-1]
+    if in_str:                   # 尾巴斷在字串中間 → 先把引號補起來
+        repaired += '"'
+    repaired += "".join(reversed(stack))   # 由內而外補回未閉合的括號(型別要對)
+    for cand in (repaired, re.sub(r",\s*([}\]])", r"\1", repaired)):  # 順手清尾逗號
+        try:
+            return json.loads(cand)
+        except Exception:  # noqa: BLE001
+            continue
+    return None
+
+
 def _self_repeated_metaphor(text, thr=0.72):
     """🔴 片內比喻自我重複——去重機制的盲區(2026-07-13 用實產長片抓到)。
 
@@ -1336,13 +1393,16 @@ def call_claude(kind, avoid, topic_override=None):
 {{"title":"有點擊慾的標題","voice_text":"完整旁白逐字稿(口語、適合中文TTS)","segments":[{{"heading":"段落小標","broll":["english keyword","english keyword"]}}],"description":"YouTube 說明欄：前 3 行＝①核心可搜尋關鍵字短語②一句鉤子摘要③價值承諾(看完能拿走什麼)；接 1-2 句補充、自然含關鍵字與同義詞(別硬塞)；**再加一行變現漏斗 CTA：『📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」，免費領新手回測避雷檢核表』**(Telegram bot 會自動把檢核表送到觀眾手上+養名單再自然導向 Pionex；比「留言領」更能真的交付資源、也把觀眾沉澱成可觸及的名單)；結尾含風險聲明『投資有風險，不構成投資建議』","hashtags":["#Shorts","#量化交易","#..."]}}
 hashtags 規則：給 4-6 個「精準且利基相關」的標籤(第一個必為 #Shorts)，不要硬塞 20 個——精準勝過熱門，乾淨又利於演算法分類。"""
     import llm  # 共用路由：主供應商→失敗退回 fallback，換模型只改 env
-    # 長片要吐 2600+ 中文字的 voice_text,3500 token 會被截斷成短長片(A4 根因之一);長片給足 token
-    _maxtok = 6500 if kind == "long" else 3500
+    # 長片要吐 2600+ 中文字的 voice_text(中文 token 貴),3500 會被截斷成短長片(A4 根因之一)。
+    # 2026-07-13:6500 又不夠了——實測長片產製吐 "[err long 第2次] LLM 回應非 JSON" 直接 0 支。
+    # 根因同一個:輸出撞 token 上限被截斷 → JSON 少了結尾的 } → 下面的 re.search 抓不到 → 整支作廢。
+    # 資訊密度規則上線後內容更長更容易撞。拉到 8000(DeepSeek 輸出上限附近)並加截斷修復。
+    _maxtok = 8000 if kind == "long" else 3500
     txt = llm.complete(prompt, _maxtok, json_mode=True)  # 強制合格 JSON
-    m = re.search(r"\{.*\}", txt, re.S)
-    if not m:
+    obj = _loads_lenient(txt)
+    if obj is None:
         raise ValueError("LLM 回應非 JSON")
-    result = _to_traditional(json.loads(m.group(0)))  # 安全網：簡轉繁(台灣用字),防 DeepSeek 偶爾出簡體
+    result = _to_traditional(obj)  # 安全網：簡轉繁(台灣用字),防 DeepSeek 偶爾出簡體
     result["_is_ep"] = bool(is_ep)  # 供 make_one 判斷是否為 EP 正片 → 產出成功後遞增 EP 引擎
     result["_is_tw_stock"] = bool(is_tw_stock)  # A2:供 make_one 判斷本片是否有 tw_stock_facts 真數據佐證
     result["_is_flagship"] = bool(is_flagship)  # A2:旗艦片已有 AI_COMPANY_RULES 自己的數字紀律,不重複套 A2 重生
