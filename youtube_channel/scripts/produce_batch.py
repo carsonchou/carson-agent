@@ -567,9 +567,32 @@ def _extract_metaphor_sentences(text):
     return [s for s in _split_sentences(text) if any(m in s for m in _METAPHOR_MARKERS) and 6 <= len(s) <= 40]
 
 
-def _extract_repeated_ngrams(texts, n=4, min_count=3):
-    """跨檔統計重複出現的 n 字(預設4字)以上中文片語，回傳『出現在 >= min_count 個不同檔案』的片語
-    (跨檔重複＝真正被反覆套用的『特色短語』；單檔內自己重複不算)。輕量字元 n-gram，不做完整斷詞。"""
+# 🔴 保護清單:這些是「每支片都該有」的必要用語(免責揭露 / CTA 結構 / 誠信語境),
+# 絕不可因為「跨檔重複出現」就被列進禁用清單餵給 LLM——那會叫 LLM 別再講免責聲明。
+# 2026-07-13 實測:n-gram 抽出的禁用清單裡赫然有「代表未來」(來自法定必要的
+# 「歷史回測、不代表未來」)、「人留言告」「是哪種留」等切碎片段。把「代表未來」告訴 LLM
+# 「這句用過了別再用」,等於誘導它把免責聲明拿掉——去重 bug 會直接變成誠信事故。
+_PHRASE_PROTECTED = (
+    "不代表未來", "代表未來", "歷史回測", "回測資料", "僅供參考", "投資建議", "不構成",
+    "非保證", "獲利保證", "示意", "假設", "留言", "訂閱", "追蹤", "分享", "按讚",
+    "百分之", "年化", "報酬", "回撤", "本金", "數據", "資料",
+)
+
+
+def _is_protected_phrase(g: str) -> bool:
+    """這個片語是不是必要用語(或其片段)?是就不准進禁用清單。"""
+    return any(p in g or g in p for p in _PHRASE_PROTECTED)
+
+
+def _extract_repeated_ngrams(texts, n=6, min_count=4):
+    """跨檔統計重複出現的 n 字中文片語，回傳『出現在 >= min_count 個不同檔案』的片語
+    (跨檔重複＝真正被反覆套用的『特色短語』；單檔內自己重複不算)。輕量字元 n-gram，不做完整斷詞。
+
+    2026-07-13 修:原本 n=4/min_count=3 太寬鬆,抽出來的是「酬百分之」「人留言告」這種
+    切碎的無意義片段(而非真正的比喻/特色句),既擋不到真正的重複比喻(「少賺一台賓士」漏抓),
+    又會把免責聲明的片段列進禁用。改成 n=6(6字以上才可能是有語意的短句)、min_count=4
+    (要真的常出現),並過濾掉保護清單。
+    """
     from collections import Counter
     file_grams = []
     for t in texts:
@@ -578,7 +601,20 @@ def _extract_repeated_ngrams(texts, n=4, min_count=3):
     counter = Counter()
     for grams in file_grams:
         counter.update(grams)
-    return [g for g, c in counter.items() if c >= min_count]
+    return [g for g, c in counter.items() if c >= min_count and not _is_protected_phrase(g)]
+
+
+# 「比較型比喻」:少賺/多賺一台賓士、等於一棟房、相當於三支iPhone……
+# 這family 是實測抓到的重複大戶(「少賺一台賓士」3 天內用在 5 支不同影片),但它不含
+# 「就像/好比」等比喻標記詞,_extract_metaphor_sentences 抓不到,n-gram 也切碎抓不準。
+_RX_COMPARE_METAPHOR = re.compile(
+    r"(少賺|多賺|少領|等於|相當於|換得|買得起|夠買)\s*[一二三四五兩幾\d]+\s*(台|臺|輛|棟|間|支|隻|杯|年)\s*[^\s，。!！?？、]{1,6}"
+)
+
+
+def _extract_compare_metaphors(text: str):
+    """抽出「少賺一台賓士」這類比較型比喻(標的物才是重點,如『賓士』『房』)。"""
+    return [m.group(0).strip() for m in _RX_COMPARE_METAPHOR.finditer(text or "")]
 
 
 def _recent_voice_files(n=20, pattern="*.voice.txt"):
@@ -603,9 +639,18 @@ def _recent_used_phrases(n=20):
     hit = set(_KNOWN_METAPHORS.values())
     texts = [t for _, t in _recent_voice_files(n, "*.voice.txt")]
     for t in texts:
-        hit.update(_extract_metaphor_sentences(t))
-    hit.update(_extract_repeated_ngrams(texts, n=4, min_count=3))
-    return hit
+        hit.update(_extract_metaphor_sentences(t))   # 含「就像/好比/等於是」的比喻句
+        hit.update(_extract_compare_metaphors(t))    # 「少賺一台賓士」family(3天撞5支的元兇)
+    # 🔴 2026-07-13:_extract_repeated_ngrams 這個來源刻意**不用**。
+    # 它抓的是「跨檔重複出現的片段」,但這個頻道**該重複的東西正好也跨檔重複**——實測它抽出:
+    #   「量化阿森下支」「蹤量化阿森下」← 招牌片尾(追蹤量化阿森,下支繼續)
+    #   「每月定期定額」            ← 頻道核心題材本身
+    #   「代表未來」                ← 法定必要的免責聲明「歷史回測、不代表未來」
+    #   「人留言告」「是哪種留」    ← 切碎的無語意片段
+    # 把這些餵給 LLM 說「用過了別再用」= 叫它拿掉免責聲明、拿掉招牌片尾、不准再講定期定額。
+    # n-gram 分不出「招牌」與「偷懶重複」——招牌本來就該每支都出現。去重要抓的是**比喻與包裝**,
+    # 不是「常出現的字串」。精準度優先:誤擋的代價(誠信事故/品牌斷裂)遠高於漏擋一個比喻。
+    return {h for h in hit if h and not _is_protected_phrase(h)}
 
 
 def _body_too_similar(text, recent_texts, thr=0.85, min_len=10):
@@ -777,8 +822,24 @@ LONG_RULES = """
 ★ 字數/時長硬性目標（A4 長度 gate 會檢查，不達標會重生或補寫）：voice_text 至少 2200 字、
    目標 2400-3000 字（對應真正 8-10 分鐘）。字數不是靠贅字湊，是靠上面「深段結構」每段真的展開講透
    自然撐出來的——寧可少一個深段但每段紮實，也不要湊出 5 段空洞條列。
+★★【資訊密度硬指標·2026-07-13 內容審查修復(生成期會逐段硬檢查，命中即重寫/砍段)】
+   實測抓到的兩個真實症狀：①一支後半段 40% 篇幅整段跑題(標題講高股息月配，中段起整段偷換成
+   另一支影片的「2022 All in 0050 vs 定期定額」湊時長)②同一組核心數字用「反直覺的是」這個轉場句
+   反覆重講 10 次以上，只換人物/比喻包裝，資訊密度只剩全片 1/3。逐條硬性遵守：
+   ①每 60 秒(約 300 中文字)至少要有 1 個「全片第一次出現」的具體數據點；同一個事實(同一組數字/
+   同一個結論)全片最多引用 2 次(一次在正文鋪陳、一次在結尾小結收尾)，第 3 次起就是重複灌水，
+   要嘛換一個新事實，要嘛就誠實地把這段寫短，不准硬湊。
+   ②主題鎖定：本片引用的事實/案例必須與標題主題直接相關；若要引用其他主題的事實做延伸比較，
+   全片篇幅上限 15%，且開頭必須有明確「延伸比較」轉場語(如「換個角度看／延伸比較一下」)，
+   絕不能像「講高股息結果後半段整段變成講 0050 All in」這樣，主題被悄悄替換掉。
+   ③禁重複包裝：「反直覺的是」這類轉場句全片最多出現 2 次；禁止「假設……」只換人物(小美/老王)
+   或換比喻(雲霄飛車/攀高峰/安全帽)、但核心數字和結論完全沒變的段落——這種段落一律視為灌水。
+   ④寧短不灌：任何一段如果對應不到一個新的、未使用過的事實或角度，就是填充，直接砍掉重寫；
+   寧可整支片長掉到 6 分鐘，也不要用重複內容硬撐到 8 分鐘（長度 gate 本身沒錯，錯在沒有資訊
+   密度門檻——真材料不夠就誠實地短，別灌水）。
 6. 誠信不變：不編造損益、不保證收益、不喊單；理財誇大詞（躺賺／穩賺／一天賺X）一律不用（會被演算法限流）；
-   台股題一律用 tw_stock_facts 真數據展開深段（不只用一次，每個相關深段都可各自引用不同一項真數字）；
+   台股題一律用 tw_stock_facts 真數據展開深段（每個深段各引用一個不同的真事實，同一事實不重複用在
+   兩個不同深段——只在結尾小結可以綜合引用前面提過的事實做收尾）；
    非台股題無真數據佐證，深段一樣要展開講透，但數字一律用「假設/示意」語氣（見 A2 誠信規則），不得暗示是真實回測出來的事實。
 """
 
@@ -1018,6 +1079,67 @@ def _tw_facts_context(facts, topic):
             "不得據此喊單/報明牌/喊目標價/保證獲利。抓不到的數字寧可用示意也不編造。）")
 
 
+# ── 病灶A根因(2026-07-13 長片內容審查實測)：_tw_facts_context 只挑最多 6 條相關事實組成
+# 一份「文字區塊」，而舊版 _densify_long 把這同一份文字**原封不動塞進每一段 deep-segment prompt**——
+# 4-5 段全部拿到一模一樣的 2-6 組數字，LLM 除了換比喻/換人物重講同一組數字，沒有別的素材可用，
+# 這正是「813%/24.7%/-33.8% vs 380%/16.9%/-22.6% 用『反直覺的是』重複10次以上」的根因。
+# 修法：_densify_long 逐段各自分配「本段專屬事實」，同一個 fact key 全片最多被引用 2 次
+# (body 段落各自最多引用 1 次不重複 + 結尾小結综合引用 1 次＝鋪陳+收尾)。
+def _relevant_facts_list(facts, topic):
+    """把 tw facts 依『標題/角度實際關鍵字』挑出與本題相關(primary)/不相關(extension)兩份清單，
+    每項含 key/desc/summary/keywords。供 _densify_long 逐段分配專屬事實、做主題鎖定用。
+
+    ★ 病灶A主題鎖定：刻意只用 topic 的 title+angle 做關鍵字比對，不看 category——category="台股"
+    這種大分類太粗，若沿用 _tw_facts_context 那套「category 命中台股/大盤/ETF 就整包 45 組全給」
+    的寬鬆規則，等於完全沒做主題鎖定(高股息題材一樣會拿到 All-in 0050 的事實當『同主題』)。
+    只有標題+角度真的完全比對不到任何具體關鍵字時(泛用型台股題材、沒有明確比較對象)，
+    才退回「全部當 primary」——這種情況本來就沒有明確主題可鎖，不算鬆綁。"""
+    primary, extension = [], []
+    if not facts or not isinstance(facts, dict):
+        return primary, extension
+    text = (str(topic.get("title", "")) + " " + str(topic.get("angle", ""))) if topic else ""
+    cand = facts.get("results") or facts.get("backtests") or {}
+    if not isinstance(cand, dict):
+        return primary, extension
+    entries = []
+    for key, item in cand.items():
+        if not isinstance(item, dict):
+            continue
+        summary = item.get("summary")
+        if not summary:
+            continue
+        entries.append({"key": str(key), "desc": str(item.get("desc") or item.get("label") or key),
+                         "summary": str(summary), "keywords": item.get("keywords") or []})
+    if not entries:
+        return primary, extension
+    matched = [e for e in entries if any(kw in text for kw in e["keywords"] if isinstance(kw, str))]
+    if not text.strip() or not matched:
+        return entries, []  # 標題沒給出可比對的具體關鍵字 → 無法鎖題，全部當 primary(退回寬鬆行為)
+    matched_keys = {e["key"] for e in matched}
+    return matched, [e for e in entries if e["key"] not in matched_keys]
+
+
+# ── 病灶A：全片重複轉場詞硬上限(2026-07-13)——「反直覺的是」這類轉場句只要還在同一份稿子裡
+# 被啟用超過上限次數，就是「同一組數字換比喻/換人物重講」的鐵證。軟性 prompt 提示擋不住 LLM
+# 復發(同 A1c 「考古題」教訓)，故用確定性文字後處理硬上限，第 cap+1 次起直接替換掉，不再靠運氣。
+_TRANSITION_ALT_POOL = ("更耐人尋味的是，", "數字攤開來看，", "但真正該注意的是，",
+                        "拆開來看才發現，", "值得玩味的是，", "換個角度看，")
+
+
+def _cap_repeated_phrase(text, phrase, cap, alt_pool=_TRANSITION_ALT_POOL):
+    """全片同一個轉場詞出現次數硬性上限：超過 cap 次，第 cap+1 次起輪替換成替代詞，
+    確定性文字處理、不靠 LLM 自律(對齊 A1c『已知累犯硬擋』的設計精神)。"""
+    if not text or not phrase or phrase not in text:
+        return text
+    parts = text.split(phrase)
+    if len(parts) - 1 <= cap:
+        return text
+    out = parts[0]
+    for idx, p in enumerate(parts[1:], 1):
+        out += (phrase if idx <= cap else alt_pool[(idx - cap - 1) % len(alt_pool)]) + p
+    return out
+
+
 def call_claude(kind, avoid, topic_override=None):
     orders = load_orders()
     # 時事優先：有指定題目（金融時事）就用它，否則從題庫抽；題庫空了才自由發揮
@@ -1101,12 +1223,14 @@ def call_claude(kind, avoid, topic_override=None):
         any(k in str(topic.get("category", "")) for k in _twkw)
         or any(k in str(topic.get("title", "")) for k in _twkw)))
     facts_ctx = ""  # A4:長片分段深寫要把真數據帶進每一段,故把 tw facts 區塊獨立留一份
+    _facts_raw = None  # 病灶A(2026-07-13):原始 facts dict 也留一份,供 _densify_long 逐段分配專屬事實
     if is_tw_stock:
         hook_rules = hook_rules + TW_STOCK_RULES
         # 真數據引擎：讀 STUDIO/tw_stock_facts.json，挑與題材相關的真回測數字注入寫稿 prompt。
         # 檔不存在/讀不到/無關聯數字 → 靜默跳過，台股題照樣用 TW_STOCK_RULES 產（標示意數字），不崩。
         try:
             _facts = _load_tw_facts()
+            _facts_raw = _facts
             _tw_inject = _tw_facts_context(_facts, topic)
             if _tw_inject:
                 assign += _tw_inject
@@ -1176,7 +1300,7 @@ hashtags 規則：給 4-6 個「精準且利基相關」的標籤(第一個必�
     # 改「分段深寫」——保留開場 HOOK,對每個 segment 各發一次 LLM 寫成 ~470 字深段,末尾補對比小結,
     # 串成真 8-10 分鐘資訊密度長片。台股題每段引真數據、非台股題示意語氣(誠信不變)。失敗回原稿。
     if kind == "long":
-        result = _densify_long(result, facts_ctx, bool(is_tw_stock))
+        result = _densify_long(result, facts_ctx, bool(is_tw_stock), facts=_facts_raw, topic=topic)
     return result
 
 
@@ -1567,6 +1691,46 @@ def _long_underlength(voice_text):
     return est_min < LONG_MIN_EST_MIN
 
 
+# 病灶A：資訊密度硬指標(2026-07-13 長片內容審查實測修復)。實測抓到的兩個具體症狀：
+# ①一支後半段 40% 篇幅整段跑題(標題講高股息月配,第17段起整段切成2022 All in 0050,用另一支影片的
+#   同一組數據湊時長)②同一組核心數字(813%/24.7%/-33.8% vs 380%/16.9%/-22.6%)用「反直覺的是」
+#   反覆重講10次以上,只換人物/比喻包裝,實際資訊密度只剩全片1/3。
+# gate 只管長度不管密度是根因——本函式在長度達標之外，額外查「內容是不是灌水湊出來的」：
+# ①每60秒(≈300中文字,沿用全專案5字/秒估時慣例)窗口至少要有1個『這個窗口才第一次出現』的
+#   具體數字,超過45%窗口完全沒有新數字＝判定灌水(填充/贅述撐時長,不是真的展開新內容)。
+# ②全片是否有10字以上的片語逐字重複出現>=3次(治「同一組數字換包裝重講10次」的鐵證：
+#   換比喻/換人物但核心數字片語不變，n-gram 還是抓得到)。
+# 任一命中就回 True，供 make_one 併入既有 A4 長度 gate 的重生迴圈(fail-closed：重生4次仍
+# 不達標就整支不輸出，寧可少一支長片也不讓灌水稿冒充「真8-10分鐘資訊密度長片」發出去)。
+def _long_content_padding(voice_text):
+    """病灶A資訊密度硬檢查：偵測『字數達標但其實是灌水撐出來的』長片(重複數字/片語、
+    整段內容零新資訊)。太短的稿子交給既有 _long_underlength 判，這裡不重複判。"""
+    t = (voice_text or "").strip()
+    n = _long_chinese_chars(t)
+    if n < 900:  # 太短的稿子交給 _long_underlength(2000字門檻)判；窗口數太少時比例雜訊大，不在此重複判
+        return False
+    win_chars = 300  # 5字/秒 * 60秒 ≈ 每60秒一個窗口
+    num_pat = re.compile(r"[0-9０-９]+(?:\.[0-9]+)?|[零一二三四五六七八九十百千萬億兩]{2,}"
+                         r"|[一二三四五六七八九十兩](?=[趴倍億萬元年個次成分點%])")
+    windows = [t[i:i + win_chars] for i in range(0, len(t), win_chars)]
+    # 結尾殘段(<半個窗口)常是收尾/CTA、本就不必然帶新數字，排除在比例計算外，避免誤判
+    windows = [w for w in windows if len(w) >= win_chars * 0.5] or windows
+    seen_nums, empty_windows = set(), 0
+    for w in windows:
+        nums = num_pat.findall(w)
+        fresh = [x for x in nums if x not in seen_nums]
+        if not fresh:
+            empty_windows += 1
+        seen_nums.update(nums)
+    if len(windows) >= 3 and (empty_windows / len(windows)) > 0.45:
+        return True
+    from collections import Counter
+    chars_only = re.sub(r"[^一-鿿0-9]", "", t)
+    n_gram = 10
+    grams = Counter(chars_only[i:i + n_gram] for i in range(max(len(chars_only) - n_gram + 1, 0)))
+    return any(c >= 3 for c in grams.values())
+
+
 # A4 分段深寫的數據誠信鐵律：分段要求「具體數據/案例」會誘導 LLM 虛構股價點位(實測抓到
 # 「0050從90元跌到60元」「2022高點150元」這種捏造史實)。這段硬約束每個深寫 prompt 都掛,
 # 把「能講成事實的數字」死鎖在 facts 給的那幾個,其餘一律假設語氣;且全用中文口語念法
@@ -1642,12 +1806,18 @@ def _long_fact_heal(bodies, facts_ctx, integrity, title):
     return bodies, remaining
 
 
-def _densify_long(d, facts_ctx, is_tw):
+def _densify_long(d, facts_ctx, is_tw, facts=None, topic=None):
     """A4 真長片內容引擎·分段深寫：治「LLM 一次寫不出 2600 字、只吐 ~1000 字冒充長片」的根因。
     做法：保留原稿開場 HOOK(前 3 句),對每個 segment 各發一次 LLM,把該子主題寫成 ~470 字的深段
     (①具體數據/案例情境切入 →②原理解釋 →③反直覺轉折或對比,段首帶承接語),最後補一段對比/實測小結。
     每段只要寫 ~470 字模型都做得到,4-5 段自然堆到 2200-2600 字。台股題每段可各引不同真數字,
-    非台股題一律示意/假設語氣(誠信不變)。任何失敗靜默回原稿,不中斷產線。"""
+    非台股題一律示意/假設語氣(誠信不變)。任何失敗靜默回原稿,不中斷產線。
+
+    病灶A修復(2026-07-13 長片內容審查實測)：舊版把同一份 facts_ctx(最多6條相同事實文字)
+    原封不動塞進每一段 prompt，LLM 只能對同一組數字換比喻/換人物重講(『反直覺的是』洗10次)。
+    現改逐段分配「本段專屬事實」——primary(與題材相關)事實池每條只分給一個 body 段落，
+    同一個 fact key 全片最多再被結尾小結引用一次(鋪陳+收尾＝上限2次)；池不夠時，中後段最多
+    分配 1 個 extension(非本題材)事實做『延伸比較』，強制帶轉場語且字數壓低以符合全片篇幅≤15%。"""
     try:
         import llm
         segs = d.get("segments") or []
@@ -1658,18 +1828,53 @@ def _densify_long(d, facts_ctx, is_tw):
         integrity = TW_STOCK_RULES if is_tw else NO_FACTS_INTEGRITY_RULES
         sents = [s for s in re.split(r"(?<=[。！？!?])", voice) if s.strip()]
         hook = "".join(sents[:3]).strip() if sents else ""  # 保留原稿三步框架 HOOK 開場
+        # ── 病灶A：主題鎖定+事實分配 ──
+        primary_pool, extension_pool = _relevant_facts_list(facts, topic)
+        used_keys = []
+        n_segs = len(segs)
+        ext_assigned = False  # 全片最多 1 個延伸比較段落(篇幅上限靠字數預算壓低+事後裁切雙重把關)
+        ext_seg_indexes = set()
         bodies, prev = [], "開場鉤子"
         for i, seg in enumerate(segs, 1):
             heading = ((seg.get("heading") if isinstance(seg, dict) else str(seg)) or f"重點{i}")
+            # 逐段挑一個「本段專屬、還沒被其他段引用過」的 primary 事實；primary 池用完才考慮 extension。
+            seg_fact = next((f for f in primary_pool if f["key"] not in used_keys), None)
+            is_extension_seg = False
+            if seg_fact is None and extension_pool and not ext_assigned and i >= max(2, n_segs - 1):
+                seg_fact = extension_pool[0]
+                is_extension_seg = True
+                ext_assigned = True
+            if seg_fact:
+                used_keys.append(seg_fact["key"])
+            if seg_fact:
+                fact_line = (f"\n【本段專屬事實(本段只准引用這一條,不得重複其他段落已引用過的數字/結論)】\n"
+                             f"  ·{seg_fact['desc']}：{seg_fact['summary']}\n")
+            else:
+                fact_line = ("\n【本段無新事實可引用】本段不得重複前面段落已經講過的任何具體數字/結論——"
+                             "只能做原理解釋、情境延伸或明確的『延伸比較』分析，不能複述已用過的百分比/倍數。\n")
+            topic_lock_note = ""
+            char_budget = "520-620"
+            if is_extension_seg:
+                topic_lock_note = (
+                    "\n★主題鎖定：本片主題是「" + title + "」，這一段引用的事實屬於**不同主題**的延伸比較，"
+                    "**開頭第一句務必用『延伸比較』式轉場**(例如「換個角度看/延伸比較一下/如果換成另一種做法」)，"
+                    "全段只能是簡短的對比延伸，絕不能變成本片主要論述、絕不能偷換掉本片主題。\n")
+                char_budget = "260-340"  # 壓低字數，確保延伸段落全片佔比≤15%
+                ext_seg_indexes.add(len(bodies))  # 記下即將寫入的 index(下方 append 前先記)
             prompt = (
                 f"你是量化阿森頻道的專業長片腳本寫手。{GUARD}\n{QUANT_STANDARD}\n"
-                f"這是長片《{title}》的第 {i} 段,子主題:「{heading}」。只寫這一段旁白,**務必寫滿 520-620 中文字**"
+                f"這是長片《{title}》的第 {i} 段,子主題:「{heading}」。只寫這一段旁白,**務必寫滿 {char_budget} 中文字**"
                 "(這是長片深段,字數不夠會被打回,寧可多給細節也不要少寫)。\n"
                 "務必有完整弧線且每一步都展開講透:①用具體數據或案例情境切入(不是空泛開場,給場景/數字/人物處境)"
                 " →②解釋為什麼會這樣的原理(講清機制、別只下結論) →③一個反直覺轉折,或跟另一種做法的具體對比,"
                 "並補一句這對觀眾的實際意義。段首用一句自然承接語接上文"
                 f"(上一段講的是「{prev[:30]}」)。嚴禁清單體一句帶過。\n"
-                f"{facts_ctx}\n{integrity}{_LONG_DATA_DISCIPLINE}\n"
+                "★資訊密度鐵律：本段**不得重複**前面任何段落已經講過的具體數字/結論,只能換句話講——"
+                "『反直覺的是』這類轉場句全片最多出現 2 次,本段若前面已用過同組數字/結論就不要再換個比喻/"
+                "換個人物重講一次,那是灌水;本段一定要帶出**新的**資訊或角度,講不出新東西就把這段寫短一點、"
+                "誠實地做承轉,不要硬湊字數重複前段。\n"
+                f"{fact_line}{topic_lock_note}"
+                f"{integrity}{_LONG_DATA_DISCIPLINE}\n"
                 "【配音友善】口語、短句為主(每句約15-25字用句號斷開);少用括號/破折號/冒號。\n"
                 "只輸出這一段旁白純文字——不要 JSON、不要小標、不要段號、不要任何前後綴或引號。"
             )
@@ -1681,9 +1886,21 @@ def _densify_long(d, facts_ctx, is_tw):
             if para and _long_chinese_chars(para) >= 120:
                 bodies.append(para)
                 prev = heading
+            elif is_extension_seg:
+                ext_seg_indexes.discard(len(bodies))  # 這段沒寫成功，取消預記的 index
         if len(bodies) < 3:
             return d  # 深寫沒成功湊到 3 段,回原稿讓 gate 決定重生/fail-closed
+        # 主題鎖定篇幅上限(≤15%)：延伸比較段落若實際佔比仍超標，直接砍掉這段——寧可少一段也不跑題。
+        total_body_chars = sum(_long_chinese_chars(b) for b in bodies)
+        if ext_seg_indexes and total_body_chars:
+            _ei = next(iter(ext_seg_indexes))
+            if _ei < len(bodies):
+                _ext_chars = _long_chinese_chars(bodies[_ei])
+                if len(bodies) > 3 and (_ext_chars / total_body_chars) > 0.15:
+                    bodies.pop(_ei)
         # top-up:總量還沒到目標時,挑最短的 1-2 段就地加深(續補細節/對比),把長度穩穩推過門檻。
+        # 病灶A：加深時不再注入 facts_ctx(避免重新引入其他段已用過的相同事實文字)，只要求深挖
+        # 既有內容的原理/情境/對比，不引入新的精確數字，維持「不重複」鐵律。
         def _cur_total():
             return _long_chinese_chars(hook) + sum(_long_chinese_chars(b) for b in bodies)
         _tu = 0
@@ -1693,9 +1910,9 @@ def _densify_long(d, facts_ctx, is_tw):
             try:
                 tp = (
                     f"你是量化阿森頻道的長片腳本寫手。{GUARD}\n以下是長片《{title}》的一個段落,請把它"
-                    "『加深擴寫』到 560-680 中文字:補更多具體數據情境、原理細節、或與另一做法的對比,"
-                    "維持同一子主題與口語短句,不要改變立場、不要湊贅字重複句。\n"
-                    f"{facts_ctx}\n{integrity}{_LONG_DATA_DISCIPLINE}\n只輸出擴寫後的完整段落純文字,不要JSON/小標/前後綴。\n\n"
+                    "『加深擴寫』到 560-680 中文字:補更多原理細節、情境舉例、或這件事對觀眾的實際意義,"
+                    "維持同一子主題與口語短句,不要改變立場、**不要引入新的精確數字/百分比、不要湊贅字重複句**。\n"
+                    f"{integrity}{_LONG_DATA_DISCIPLINE}\n只輸出擴寫後的完整段落純文字,不要JSON/小標/前後綴。\n\n"
                     f"【原段落】\n{bodies[_idx]}"
                 )
                 _ex = _fix_artifacts(_to_traditional(llm.complete(tp, 1800).strip()))
@@ -1710,6 +1927,7 @@ def _densify_long(d, facts_ctx, is_tw):
         if _rem:
             print(f"[warn] A4 長片誠信自癒後仍殘留 {_rem} 段旗標(交 make_one/fact_guard 續處理)", file=sys.stderr)
         # 對比/實測小結(結尾前必有):把前面深段重點放一起做具體比較,給可帶走的結論 + 軟性 CTA
+        # (這是 fact key 允許的『第二次引用』位置——鋪陳在 body、收尾在此小結，上限2次由此自然成立)
         try:
             _sub = "\n".join(bodies)[:1400]
             sum_prompt = (
@@ -1731,9 +1949,12 @@ def _densify_long(d, facts_ctx, is_tw):
             hook = _long_fact_heal([hook], facts_ctx, integrity, title)[0][0]
         parts = ([hook] if hook else []) + bodies + ([_summary] if _summary and _long_chinese_chars(_summary) >= 80 else [])
         new_voice = "\n".join(p for p in parts if p)
+        # 病灶A：全片『反直覺的是』硬上限2次，確定性後處理，不靠 LLM 自律(對齊 A1c 硬擋精神)
+        new_voice = _cap_repeated_phrase(new_voice, "反直覺的是", 2)
         if _long_chinese_chars(new_voice) > _long_chinese_chars(voice):
             d["voice_text"] = new_voice
             d["_densified"] = True
+            d["_fact_keys_used"] = used_keys  # 供自驗/稽核查『用了哪些 fact key、有沒有重複』
     except Exception as exc:  # noqa: BLE001
         print(f"[warn] A4 長片分段深寫失敗,放行原稿：{str(exc)[:80]}", file=sys.stderr)
     return d
@@ -1895,19 +2116,22 @@ def make_one(kind, no_render=False, topic_override=None):
             log_ops("補產部門", f"⚠️ A1c已知濫用比喻『{_nm}』重生{_hk}次仍命中,已放行需人工複查:{d.get('title','')[:26]}")
     # A4 真長片引擎(2026-07-13 收緊 gate + fail-closed)：長片 call_claude 內已做「分段深寫+誠信自癒」
     # (每段各發一次 LLM 寫深段、跑 fact_guard/禁語逐段修乾淨),單次就能穩定產 2400-3100 字的真長片。
-    # 這裡只做長度 gate 把關：不達標(<2000字 或 預估<8分,偶發波動)就整支重生(最多4次,每次都是一支
-    # 已深寫+已自癒的新草稿);4 次都不達標就 **fail-closed 不輸出這支**(return None),絕不把短長片
-    # 冒充長片發出去——寧可今天少一支長片,也不砸「真 8-10 分鐘資訊密度」的招牌(誠信優先於產量)。
+    # 這裡做兩層 gate 把關：①長度不達標(<2000字 或 預估<8分,偶發波動) ②病灶A資訊密度不達標
+    # (字數達標但其實是同一組數字/片語灌水重複撐出來的、或整段跑題)——任一項不達標就整支重生
+    # (最多4次,每次都是一支已深寫+已自癒的新草稿);4 次都不達標就 **fail-closed 不輸出這支**
+    # (return None),絕不把短長片/灌水長片冒充「真8-10分鐘資訊密度長片」發出去
+    # (寧可今天少一支長片,也不砸招牌，誠信優先於產量)。
     # (舊 _expand_long_script 整篇重寫易縮水且繞過自癒,已從長片路徑移除;函式保留供他處備援。)
     if kind == "long" and not topic_override:
         _lk = 0
-        while _long_underlength(d.get("voice_text", "")) and _lk < 4:
+        while (_long_underlength(d.get("voice_text", "")) or _long_content_padding(d.get("voice_text", ""))) and _lk < 4:
             _lk += 1
             d = call_claude(kind, _ex, topic_override)
-        if _long_underlength(d.get("voice_text", "")):
+        if _long_underlength(d.get("voice_text", "")) or _long_content_padding(d.get("voice_text", "")):
             _n = _long_chinese_chars(d.get("voice_text", ""))
-            log_ops("補產部門", f"⛔ A4長片重生4次後仍僅約{_n}字(<{LONG_MIN_CHARS}字/8分),fail-closed不輸出假長片:{d.get('title','')[:24]}")
-            print(f"[skip] long 長度不足({_n}字),fail-closed 不輸出:{d.get('title','')[:24]}")
+            _why = "長度不足" if _long_underlength(d.get("voice_text", "")) else "資訊密度不足/內容重複灌水或跑題"
+            log_ops("補產部門", f"⛔ A4長片重生4次後仍{_why}(約{_n}字),fail-closed不輸出假長片:{d.get('title','')[:24]}")
+            print(f"[skip] long {_why}({_n}字),fail-closed 不輸出:{d.get('title','')[:24]}")
             return None
         # A1b 內文去同質化(2026-07-13 深化)：原本 _ending_too_similar 只給 Shorts 用，長片結尾 CTA
         # 一樣會反覆套同一句、中段句型也一樣會抄自己——長片各自跟長片比(結構跟 Shorts 不同不能互比)。
