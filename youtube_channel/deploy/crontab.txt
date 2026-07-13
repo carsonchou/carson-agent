@@ -36,13 +36,19 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 10 3 * * * /root/yt/run.sh scripts/auto_cost.py >> /root/yt/logs/cron.log 2>&1
 # 本機每日快照關鍵 STUDIO json → STUDIO/_snapshots/日期/(留7天;補雲端 backups 被 SKIP 的安全網)
 5 4 * * * /root/yt/run.sh scripts/snapshot_studio.py >> /root/yt/logs/cron.log 2>&1
-# 本機模式:每天發布前對帳 ledger(比對頻道實際已發布,防重複發片)
-0 12 * * * /root/yt/run.sh scripts/reconcile_ledger.py >> /root/yt/logs/cron.log 2>&1
-# 黃金時段發布：台灣 Shorts 互動高峰＝午餐 12:30 + 晚間 20:30（取代原 09:07/21:07）;台股加量後 max 6→8
-30 12 * * * /root/yt/run.sh scripts/daily_publish.py --max 12 >> /root/yt/logs/cron.log 2>&1
-30 20 * * * /root/yt/run.sh scripts/daily_publish.py --max 12 >> /root/yt/logs/cron.log 2>&1
-# 台股收盤後覆盤情緒黃金窗口(13:30 收盤後,只交易日)
-40 13 * * 1-5 /root/yt/run.sh scripts/daily_publish.py --max 6 >> /root/yt/logs/cron.log 2>&1
+# 本機模式:每天發布前對帳 ledger(比對頻道實際已發布,防重複發片)——隨下面 daily_publish 提早到
+# 11:00,對帳也跟著提早到 10:45,維持「發布前對帳」順序不變
+45 10 * * * /root/yt/run.sh scripts/reconcile_ledger.py >> /root/yt/logs/cron.log 2>&1
+# 黃金時段發布 2026-07-13 依 best_publish_times.json 實測校正(見 STUDIO/best_publish_times.json)：
+# 本頻道歷史 publishedAt×成熟片(>=14天)views/day + Analytics retention 交叉驗證,樣本數最大(n=51/86)
+# 的區間集中在 09:00-12:00,20:30 舊晚間檔在兩指標都明顯偏弱(views/day僅0.5、retention35.9%,對照
+# 18:00 有1.26/41.2%);故：午段 12:30→11:00(提前於12:00-13:00觀看高峰前索引推播),
+# 晚段 20:30→18:30(提前於晚間黃金時段、貼齊18:00實測最佳晚間桶,取代原12:30/20:30)
+0 11 * * * /root/yt/run.sh scripts/daily_publish.py --max 12 >> /root/yt/logs/cron.log 2>&1
+30 18 * * * /root/yt/run.sh scripts/daily_publish.py --max 12 >> /root/yt/logs/cron.log 2>&1
+# 台股收盤後覆盤情緒黃金窗口 —— 2026-07-13 依實測改停靠早盤強桶(09:00 時段 retention 49.75%/
+# n=26,views_per_day 2.34/n=27,樣本夠大且表現佳,優於原 13:40),只交易日
+15 9 * * 1-5 /root/yt/run.sh scripts/daily_publish.py --max 6 >> /root/yt/logs/cron.log 2>&1
 # 播放清單自動化(每日一次,排在當天最後一批上架之後,把新發布的片依三主軸建/補進 YT 播放清單):
 # --max 40 跟 daily_publish 共用同一組每日 quota,設上限防一次跑光擋到隔天上架;冪等(items_in
 # 跳過已加過的),沒加完下次自動接續
@@ -90,7 +96,9 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 10 5 * * 1 /root/yt/run.sh scripts/ig_token_refresh.py
 # IG 舊片回填(每天補15支到 IG)
 # 回填近期 on-brand 舊片到 IG(策略:新片優先,舊片小量回填避洗版;預設 RENDER_CUTOFF 只補近期渲染、只打 ig)
-30 6 * * * /root/yt/run.sh scripts/ig_backfill.py --max 15
+# 2026-07-13 依平台特性(IG Reels 晚間互動高於清晨)由 06:30 早晨改 21:15 晚間黃金時段;
+# 避開 21:00 整點的 ig_health_check,間隔 15 分不搶跑
+15 21 * * * /root/yt/run.sh scripts/ig_backfill.py --max 15
 # 完播率週報→回寫 completion_signals.json 餵決策(週一 00:30)
 30 0 * * 1 /root/yt/run.sh scripts/analytics_weekly.py
 # IG 健康檢查(每天 08:00/21:00 探 token+發布狀態)
