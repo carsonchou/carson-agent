@@ -63,6 +63,22 @@ def _ledger_mtime(fn: str) -> float:
         return 0.0
 
 
+def _check_truncation():
+    """P0 止血(2026-07-13)：每日順帶掃斷尾壞檔(成品比旁白短很多)，尤其揪已發布到
+    YouTube 的——04_0056 事故(旁白218.9s/成品61.7s)就是這樣悄悄過關的，audit_video 只
+    在『產製當下』把關，已發布的舊片不會再被複查，靠這裡補上事後巡檢。回傳
+    (published_bad, all_bad)：published_bad 是已發布仍異常的清單(最急)。"""
+    try:
+        import audit_truncation as _at
+        rows = _at.audit_all()
+    except Exception as exc:  # noqa: BLE001
+        print(f"[stall_watchdog] 截斷檢查略過(audit_truncation 不可用：{exc})")
+        return [], []
+    bad = [r for r in rows if r["status"] not in ("正常",)]
+    published_bad = [r for r in bad if r.get("video_id")]
+    return published_bad, bad
+
+
 def main() -> int:
     dry = "--dry" in sys.argv
     now = time.time()
@@ -78,12 +94,32 @@ def main() -> int:
     print("[stall_watchdog] 管線活動檢查:")
     print("\n".join(lines))
 
-    if not stalled:
-        log_ops("停擺守衛", "各管道正常,無停擺")
+    published_bad, all_bad = _check_truncation()
+    if all_bad:
+        print(f"[stall_watchdog] 斷尾/異常成片 {len(all_bad)} 支(已發布 {len(published_bad)} 支)：")
+        for r in all_bad[:10]:
+            pub = f" videoId={r['video_id']}" if r.get("video_id") else ""
+            print(f"    [{r['status']}] {r['slug'][:40]} ratio={r['ratio']}{pub}")
+    else:
+        print("[stall_watchdog] 斷尾檢查：零異常")
+
+    if not stalled and not all_bad:
+        log_ops("停擺守衛", "各管道正常,無停擺,無斷尾壞檔")
         print("[stall_watchdog] 全部正常")
         return 0
 
-    msg = "⚠️ 管線疑似停擺:" + "、".join(stalled) + "。cron 可能『跑了✓完成卻沒真做事』(靜默失敗),去查對應 log/ledger。"
+    msgs = []
+    if stalled:
+        msgs.append("⚠️ 管線疑似停擺:" + "、".join(stalled) +
+                    "。cron 可能『跑了✓完成卻沒真做事』(靜默失敗),去查對應 log/ledger。")
+    if published_bad:
+        names = "、".join(f"{r['slug'][:20]}(videoId={r['video_id']})" for r in published_bad[:5])
+        msgs.append(f"🚨 已發布但疑似斷尾/異常 {len(published_bad)} 支：{names}"
+                    "。旁白沒剪完就上架了,去查 scripts/audit_truncation.py 全清單。")
+    elif all_bad:
+        msgs.append(f"⚠️ 偵測到 {len(all_bad)} 支斷尾/異常成片(未發布)，production 產線本身有問題，"
+                    "去查 scripts/audit_truncation.py。")
+    msg = " ".join(msgs)
     print(f"[stall_watchdog][ALERT] {msg}")
     log_ops("停擺守衛", msg)
     if not dry:

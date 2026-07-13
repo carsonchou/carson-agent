@@ -1253,7 +1253,9 @@ def probe_audio_duration(audio_path: Path) -> float:
 
 def _probe_render_output(path: Path, min_duration: float = 1.0):
     """輕量 ffprobe 驗證輸出 mp4：檔案存在且非空、有視訊軌、有音軌、片長 >= min_duration。
-    回傳 (ok: bool, reason: str)；探測本身失敗一律視為不合格（保守，寧可誤殺重試也不留壞檔）。"""
+    回傳 (ok: bool, reason: str)；探測本身失敗一律視為不合格（保守，寧可誤殺重試也不留壞檔）。
+    呼叫端應把 min_duration 設成「旁白時長*0.95」等貼近真實預期值，而非放任預設的 1.0s——
+    04_0056 事故(旁白218.9s/成品僅61.7s)就是靠這道下限形同虛設才闖關成功並發布出去的。"""
     try:
         if not path.exists():
             return False, "檔案不存在"
@@ -1270,7 +1272,7 @@ def _probe_render_output(path: Path, min_duration: float = 1.0):
         dur = (int(m.group(1)) * 3600 + int(m.group(2)) * 60 + float(m.group(3))) if m else 0.0
         has_v, has_a = ("Video:" in txt), ("Audio:" in txt)
         if dur < min_duration:
-            return False, f"片長過短（{dur:.1f}s）"
+            return False, f"片長過短（{dur:.1f}s，預期至少{min_duration:.1f}s，疑似旁白截斷）"
         if not has_v:
             return False, "無視訊軌"
         if not has_a:
@@ -2169,7 +2171,10 @@ def build_video(
             except Exception:  # noqa: BLE001
                 pass
 
-    _ok, _reason = _probe_render_output(_tmp_out)
+    # P0 止血(2026-07-13)：成品長度必須 ≥ 旁白長度(0.95 容錯)，不再只查 >=1.0s 這種形同虛設
+    # 的下限——04_0056 事故的斷尾片(旁白218.9s/成品61.7s)靠舊下限一樣能 PASS。
+    _expected_min = max(1.0, (INTRO_DURATION + audio_duration + OUTRO_DURATION) * 0.95)
+    _ok, _reason = _probe_render_output(_tmp_out, min_duration=_expected_min)
     if not _ok:
         try:
             _tmp_out.unlink(missing_ok=True)
@@ -2428,7 +2433,9 @@ def run(args: argparse.Namespace) -> int:
                                     fps=fps, no_subtitles=args.no_subtitles):
                 # 二次防呆：render_ffmpeg 內部已驗證過，這裡再探一次（成本極低），
                 # 徹底堵死「回傳 True 但正式路徑其實是壞檔」的任何殘餘縫隙。
-                _ok, _reason = _probe_render_output(slug_paths.out_mp4)
+                # P0 止血(2026-07-13)：一併查長度與旁白是否匹配(≥95%)，別只查 >=1.0s。
+                _expected_min = max(1.0, (INTRO_DURATION + duration + OUTRO_DURATION) * 0.95)
+                _ok, _reason = _probe_render_output(slug_paths.out_mp4, min_duration=_expected_min)
                 if _ok:
                     size_mb = slug_paths.out_mp4.stat().st_size / (1024 * 1024)
                     print("=" * 64)
@@ -2475,7 +2482,8 @@ def run(args: argparse.Namespace) -> int:
         # 兩次都沒過：正式路徑本身這次沒被寫壞（build_video 只搬「已驗證」的檔），
         # 但保險起見仍探一次——若殘留舊壞檔（例如舊版程式留下的），一併清掉，
         # 別讓 audit_video 事後才發現、白算一次有效產量。
-        _ok, _reason = _probe_render_output(slug_paths.out_mp4)
+        _expected_min = max(1.0, (INTRO_DURATION + duration + OUTRO_DURATION) * 0.95)
+        _ok, _reason = _probe_render_output(slug_paths.out_mp4, min_duration=_expected_min)
         if not _ok:
             _cleanup_bad_output(slug_paths.out_mp4)
         _log_render_ops("make_video/總失敗", f"{slug_paths.slug}: {type(last_exc).__name__}: {last_exc}")

@@ -60,6 +60,7 @@ def audit(slug: str):
     reasons = []
     is_short = slug.startswith("S_")
     mp4 = OUTPUT / f"{slug}.mp4"
+    mp3 = OUTPUT / f"{slug}.mp3"
     voice = OUTPUT / f"{slug}.voice.txt"
     md = OUTPUT / f"{slug}.md"
 
@@ -78,6 +79,17 @@ def audit(slug: str):
         reasons.append("無視訊軌")
     if not has_a:
         reasons.append("無音軌")
+
+    # ①b 旁白截斷檢查(P0 止血 2026-07-13)：發布前最後一道關卡，不論上游哪條渲染路徑/是否
+    # 雲端 code drift 都在這裡兜底攔下——04_0056 事故(旁白218.9s/成品僅61.7s)當時完全沒有
+    # 任何一道 gate 比對過 mp4 與旁白 mp3 的長度，結果直接發布到 YouTube。
+    # ratio < 0.9 = 疑似截斷(旁白沒剪完就發布)；fail-closed，不放行。
+    if mp3.exists() and dur > 0:
+        adur, _, _ = _probe(mp3)
+        if adur > 0:
+            ratio = dur / adur
+            if ratio < 0.9:
+                reasons.append(f"旁白疑似截斷（成品{dur:.1f}s / 旁白{adur:.1f}s，比值{ratio:.2f}<0.9）")
 
     # ② 誠信禁語（辨識否定詞，避免把「不保證收益」這種誠實聲明誤判）
     blob = ""

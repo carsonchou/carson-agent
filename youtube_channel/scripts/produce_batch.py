@@ -1656,7 +1656,9 @@ def make_one(kind, no_render=False, topic_override=None):
         passed, reasons = audit_video.audit(slug)
         if not passed:
             log_ops("補產·審核", f"⚠️ {slug} 審核未過：{'；'.join(reasons)[:60]}")
-            _FATAL = ("片長過短", "無視訊軌", "無音軌", "檔案過小")
+            # P0 止血(2026-07-13)：「旁白疑似截斷」併入結構性壞片，同樣清掉重渲，
+            # 不能讓斷尾片停在 quarantined 卻留著壞檔佔 queue_size。
+            _FATAL = ("片長過短", "無視訊軌", "無音軌", "檔案過小", "旁白疑似截斷")
             if any(any(tag in r for tag in _FATAL) for r in reasons):
                 # 結構性壞片（0s/無影音軌）：清除佔位檔案，讓 queue_size 正確，觸發重試
                 for ext in (".mp4", ".mp3", ".voice.txt"):

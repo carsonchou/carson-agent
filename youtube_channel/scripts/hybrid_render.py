@@ -55,13 +55,23 @@ def _render_local(slug: str, env=None) -> bool:
 
 # ───────────────────────── 雲端模式（本機檔案＋本機鎖）─────────────────────────
 def cloud_pending():
+    """P0 止血(2026-07-13，同 render_watcher.pending_slugs 的根因)：mp3 比 mp4 新(配音
+    被重生/補寫覆寫過，但成片未跟著重渲)也要當成待渲染，避免發布跟旁白不同步的舊成片。"""
     out = []
     for vt in sorted(OUT.glob("*.voice.txt")):
         slug = vt.name[:-len(".voice.txt")]
         if not slug.startswith(("S_", "L_")):
             continue
-        if (OUT / f"{slug}.mp4").exists() or not (OUT / f"{slug}.mp3").exists():
+        mp3 = OUT / f"{slug}.mp3"
+        if not mp3.exists():
             continue
+        mp4 = OUT / f"{slug}.mp4"
+        if mp4.exists():
+            try:
+                if mp3.stat().st_mtime <= mp4.stat().st_mtime:
+                    continue
+            except Exception:  # noqa: BLE001
+                continue
         out.append(slug)
     return out
 

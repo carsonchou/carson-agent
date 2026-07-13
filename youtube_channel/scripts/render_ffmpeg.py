@@ -302,7 +302,13 @@ def _seg_clip(ff, *, src, is_video, dur, subs, fade_in, width, height, fps, tmp_
     out = tmp_dir / f"piece_{idx:03d}.mp4"
     inputs = []
     if is_video:
-        inputs += ["-t", f"{dur:.3f}", "-i", src]
+        # P0 止血(2026-07-13 斷尾壞檔根因)：b-roll 來源片常比要分配到的 dur 短(Pexels
+        # 素材動輒 3-15s，per_seg 常 20-40s)。舊寫法只有「-t dur -i src」是純輸入端裁切，
+        # 來源比 dur 短就整段悄悄縮水(實測 dur=10s、來源 3s → 輸出僅 2.97s)；concat 起來
+        # 總長就會比旁白短，卻沒有任何檢查攔下——這是 4 支已知斷尾片(含 3 支已發布)的主因
+        # 之一。改成 -stream_loop -1 先把來源無限循環，仍由 -t dur 裁到精確長度，保證這段
+        # 輸出永遠等於 dur，絕不再因素材太短而截斷。
+        inputs += ["-stream_loop", "-1", "-t", f"{dur:.3f}", "-i", src]
         base = (f"[0:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
                 f"crop={width}:{height},setsar=1,fps={fps},format=yuv420p,"
                 f"trim=0:{dur:.3f},setpts=PTS-STARTPTS")
@@ -443,7 +449,9 @@ def _render_with_broll(slug_paths, *, segments, seg_cards, intro_png, outro_png,
                "-t", f"{total:.3f}", "-movflags", "+faststart", str(slug_paths.out_mp4)]
         print(f"[ffmpeg後端·b-roll] b-roll={broll_used}/{n}段  字幕={len(cues)}  "
               f"BGM={'有' if bgm else '無'}  總長={total:.1f}s")
-        ok = _encode_and_validate(cmd, slug_paths.out_mp4, tmp_dir, stage="b-roll", timeout=300)
+        # P0 止血：成品長度必須 ≥ 旁白長度，否則 fail-closed 不留壞檔(見 _encode_and_validate 註解)。
+        ok = _encode_and_validate(cmd, slug_paths.out_mp4, tmp_dir, stage="b-roll", timeout=300,
+                                  min_dur=max(1.0, total * 0.95))
         if ok:
             mb = slug_paths.out_mp4.stat().st_size / (1024 * 1024)
             print(f"[ffmpeg後端·b-roll] ✅ 完成 {slug_paths.out_mp4.name}（{mb:.1f} MB, b-roll {broll_used} 段）")
@@ -563,7 +571,9 @@ def _render_animated(slug_paths, *, segments, seg_cards, intro_png, outro_png, c
                "-map", "0:v", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-b:a", "128k",
                "-t", f"{total:.3f}", "-movflags", "+faststart", str(slug_paths.out_mp4)]
         print(f"[ffmpeg後端·動畫] 特效={fx_count}  字幕={len(cues)}  BGM={'有' if bgm else '無'}  總長={total:.1f}s")
-        ok = _encode_and_validate(cmd, slug_paths.out_mp4, tmp_dir, stage="動畫", timeout=600)
+        # P0 止血：成品長度必須 ≥ 旁白長度，否則 fail-closed 不留壞檔(見 _encode_and_validate 註解)。
+        ok = _encode_and_validate(cmd, slug_paths.out_mp4, tmp_dir, stage="動畫", timeout=600,
+                                  min_dur=max(1.0, total * 0.95))
         if ok:
             mb = slug_paths.out_mp4.stat().st_size / (1024 * 1024)
             print(f"[ffmpeg後端·動畫] ✅ 完成 {slug_paths.out_mp4.name}（{mb:.1f} MB, 特效 {fx_count}）")
@@ -886,7 +896,11 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
         ]
         print(f"[ffmpeg後端] 編碼器={codec}  切片={len(timeline)}段  字幕={len(cues)}  "
               f"BGM={'有' if bgm else '無'}  總長={total:.1f}s")
-        ok = _encode_and_validate(cmd, slug_paths.out_mp4, tmp_dir, stage="靜態", timeout=600)
+        # P0 止血(2026-07-13)：成品長度必須 ≥ 旁白長度(0.95 容錯)，否則 fail-closed 不留壞檔——
+        # 根因是 04_0056 事故：舊版 min_dur 預設只查 >=1.0s，任何遠比旁白短的斷尾片都能通過驗證、
+        # 被搬進正式路徑、甚至發布到 YouTube(旁白 218.9s、成品僅 61.7s 也照樣 PASS)。
+        ok = _encode_and_validate(cmd, slug_paths.out_mp4, tmp_dir, stage="靜態", timeout=600,
+                                  min_dur=max(1.0, total * 0.95))
         if ok:
             mb = slug_paths.out_mp4.stat().st_size / (1024 * 1024)
             print(f"[ffmpeg後端] ✅ 完成 {slug_paths.out_mp4.name}（{mb:.1f} MB）")

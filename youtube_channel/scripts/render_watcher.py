@@ -57,16 +57,29 @@ except Exception:  # noqa: BLE001
 
 
 def pending_slugs():
-    """有腳本+配音但還沒成片的 slug（去重、排序）。"""
+    """有腳本+配音但還沒成片、或成片已過期(比配音舊)的 slug（去重、排序）。
+
+    P0 止血(2026-07-13)：舊版只看『mp4 存在與否』，一旦 mp3 在 mp4 渲染完之後又被
+    重新產生(例如 A4 字數不足 gate 重生/補寫，同一 slug 的配音被覆寫成更長版本)，
+    這裡會誤判成『已完成』永遠跳過——04_0056 事故(旁白218.9s／成品僅61.7s)的時間序
+    高度吻合這個 race:ops_log 顯示「渲染完成」發生在同一 slug 的「已備妥待渲染」
+    (=TTS 剛寫完 mp3)之前。改成同時比對 mtime：mp3 比 mp4 新，視為過期需重渲。"""
     out = []
     for vt in sorted(OUT.glob("*.voice.txt")):
         slug = vt.name[:-len(".voice.txt")]
         if not slug.startswith(("S_", "L_")):
             continue
-        if (OUT / f"{slug}.mp4").exists():
-            continue
-        if not (OUT / f"{slug}.mp3").exists():
+        mp3 = OUT / f"{slug}.mp3"
+        if not mp3.exists():
             continue  # 配音還沒好，跳過（雲端 TTS 可能還在跑）
+        mp4 = OUT / f"{slug}.mp4"
+        if mp4.exists():
+            try:
+                if mp3.stat().st_mtime <= mp4.stat().st_mtime:
+                    continue  # 成片不比配音舊，視為已完成
+            except Exception:  # noqa: BLE001
+                continue
+            print(f"[watcher] {slug} 的配音比成片新(疑似重生後未重渲)，排入重渲。")
         out.append(slug)
     return out
 
