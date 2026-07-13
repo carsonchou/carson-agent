@@ -188,8 +188,14 @@ def run_job(pyargs, env):
         errf.write(f"\n===== [{datetime.now():%Y-%m-%d %H:%M:%S}] {' '.join(pyargs)} =====\n")
         errf.flush()
         _py = str(SYS_PY) if Path(script).name in PLAYWRIGHT_SCRIPTS else str(VENV_PY)
+        # CREATE_NO_WINDOW(2026-07-14 修「一直跳黑頻」):排程器用 run_studio_bg.vbs 無視窗常駐後,
+        # 父程序沒有 console → 每個到點 job 的子程序 Windows 11 會自動新開一個 Windows Terminal
+        # 黑窗蓋在 Carson 畫面上,同一分鐘多個 job 到點就「一次跳好多個」。job 的 stdout/stderr
+        # 本來就導 DEVNULL/檔案,不需要 console——CREATE_NO_WINDOW 讓子程序(含其孫程序鏈)無視窗。
+        _flags = 0x08000000 if sys.platform == "win32" else 0  # CREATE_NO_WINDOW
         proc = subprocess.Popen([_py, script] + pyargs[1:], cwd=str(ROOT), env=env,
-                                 stdout=subprocess.DEVNULL, stderr=errf)
+                                 stdout=subprocess.DEVNULL, stderr=errf,
+                                 creationflags=_flags)
         errf.close()  # 子程序已繼承 fd,父端關閉安全
         _log(f"▶ 啟動 {' '.join(pyargs)}")
         # 非阻塞：另開背景執行緒等它跑完再補一行成功/失敗(job 常跑數分鐘，不能卡住排程迴圈)。
