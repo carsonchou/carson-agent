@@ -250,6 +250,29 @@ def _walk_numbers(obj) -> set[float]:
     return pool
 
 
+def _derived_numbers(entry) -> set[float]:
+    """同一組事實內部數字的『合法衍生值』:兩兩差值 + 相對比例(%)。
+
+    2026-07-14 實戰誤擋修正:題庫反轉上線後 LLM 真的在用真數據了,但它會做合法算術——
+    「All in 1050% vs 定投 479.5% → 少賺 570.5%」(差值)、「少賺近 54%」(比例)。
+    這些衍生數字不在原始池裡,守門就把「用真數據做的正確減法」當編造擋掉(實測晨批
+    17 支被擋 5 支,其中 3 支是這種誤擋)。
+    只在**同一組事實內部**做衍生(衍生計算幾乎都發生在同組,如 All in vs DCA 的差);
+    跨組不做(組合爆炸且極少見,寧可漏放不亂放)。"""
+    nums = sorted(_walk_numbers(entry))
+    out: set[float] = set()
+    n = len(nums)
+    if n < 2 or n > 40:  # 單數字無衍生;超大 entry(異常)不擴,防池爆
+        return out
+    for i in range(n):
+        for j in range(i + 1, n):
+            a, b = nums[i], nums[j]
+            out.add(round(abs(b - a), 1))            # 差值:1050-479.5=570.5
+            if b > 0:
+                out.add(round(abs(b - a) / b * 100, 1))  # 相對比例:(1050-479.5)/1050=54.3%
+    return out
+
+
 _POOL_CACHE: set[float] | None = None
 
 
@@ -271,6 +294,42 @@ def fact_pool(refresh: bool = False) -> set[float]:
     return pool
 
 
+_DERIVED_CACHE: set[float] | None = None
+
+
+def derived_pool(refresh: bool = False) -> set[float]:
+    """同組事實的衍生值池(差值/比例),**與原始池分開**。
+
+    ⚠️ 2026-07-14 血淚教訓:第一版把衍生值直接倒進全域池,池從 431 爆到 3156——
+    40 組事實兩兩差+比例幾乎鋪滿 0~100 整數空間,**任何編造數字都找得到鄰居**,
+    實測連「勝率31%」「少賺38萬」這些已知編造全放行,守門變漏勺。
+    正解:衍生池獨立,**只在「差值語境」的宣稱**(少賺/多賺/差距…)才查它;
+    一般宣稱只查原始池。語境限縮讓衍生池的密度不至於掏空守門。"""
+    global _DERIVED_CACHE  # noqa: PLW0603
+    if _DERIVED_CACHE is not None and not refresh:
+        return _DERIVED_CACHE
+    out: set[float] = set()
+    for fn in FACT_FILES:
+        p = STUDIO / fn
+        if not p.exists():
+            continue
+        try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+            entries = data.get("results") or data.get("backtests") or {}
+            if isinstance(entries, dict):
+                for entry in entries.values():
+                    out |= _derived_numbers(entry)
+        except Exception:  # noqa: BLE001
+            pass
+    _DERIVED_CACHE = out
+    return out
+
+
+# 差值語境:句子明確在講「兩者之差」時,才允許查衍生池
+_DIFF_CTX = ("少賺", "多賺", "差距", "相差", "差了", "竟差", "差多少", "少領", "多領",
+             "少了", "多了", "落後", "領先", "差幅")
+
+
 def _sourced(val: float, pool: set[float]) -> bool:
     """這個數字在事實庫裡找得到(容差內)嗎?"""
     for f in pool:
@@ -279,19 +338,81 @@ def _sourced(val: float, pool: set[float]) -> bool:
     return False
 
 
+_RX_OVER = re.compile(r"(超過|逾|突破|至少|不只)\s*$")   # 「超過五百」:真值須 ≥ 宣稱值
+_RX_NEAR = re.compile(r"(近|約|將近|大約|差不多|快要)\s*$")  # 「近60%」:真值在 ±15% 內
+
+
+def _approx_kind(clause: str, raw: str) -> str:
+    """看數字前面的字,判斷這是精確宣稱還是口語近似:'over'/'near'/''。
+    2026-07-14:LLM 用真數據時常口語化——「總報酬**超過**百分之五百」(真值 589)、
+    「少賺**近**60%」(真值 54.3)。這不是編造,是修辭;但方向要對:
+    「超過X」要求池中真的有 ≥X 的數(說「超過90」而真值只有 82 = 說謊,照擋)。"""
+    i = clause.find(raw)
+    if i <= 0:
+        return ""
+    prefix = clause[max(0, i - 6): i]
+    if _RX_OVER.search(prefix):
+        return "over"
+    if _RX_NEAR.search(prefix):
+        return "near"
+    return ""
+
+
+def _sourced_approx(val: float, kind: str, pool: set[float]) -> bool:
+    """近似詞的方向性溯源:over → 存在 p∈[val, val*1.6];near → 存在 p 於 val±15%。"""
+    if kind == "over":
+        return any(val <= p <= val * 1.25 for p in pool)  # 1.6 太寬會語義錯配,收到 1.25
+    if kind == "near":
+        return any(abs(p - val) <= val * 0.15 for p in pool)
+    return False
+
+
 def unsourced_claims(text: str, pool: set[float] | None = None) -> list[dict]:
     """回傳『查無來源的績效數字宣稱』。空 list = 全部數字都溯源得到(或本來就沒講數字)。
 
     放行條件(任一):
       - 同句有誠實揭露語境(示意/假設/號稱/拆穿…)→ 不是本片的事實斷言
-      - 數字在事實庫容差內找得到 → 有憑據
+      - 數字在事實庫容差內找得到(含同組衍生值:差/比例)→ 有憑據
+      - 口語近似詞且方向正確(「超過500」而池有 589;「近60」而池有 54.3)→ 修辭非編造
     """
     pool = fact_pool() if pool is None else pool
+    claims = extract_claims(text)
+    # 「文本內已溯源的原始數字」——差值驗算的合法原料。
+    # ⚠️ 2026-07-14 二次教訓:第一版預建全域衍生池(所有組差值/比例),池爆到 2880 個、
+    # 0.1 步進幾乎連續 → 「少賺38萬」都找得到鄰居,守門變漏勺。
+    # 正解:衍生值只有在**組成它的兩個原始數字就在同一篇文本裡**才算合法算術——
+    # 「All in 1050% vs 定投479.5%,少賺570.5%」三個數字同場;單獨冒出的「少賺38萬」沒有原料,擋。
+    grounded = sorted({c["value"] for c in claims if _sourced(c["value"], pool)})
+
+    def _diff_ok(val: float, loose: bool) -> bool:
+        tol_rel = 0.15 if loose else 0.02
+        for i in range(len(grounded)):
+            for j in range(i + 1, len(grounded)):
+                d = abs(grounded[j] - grounded[i])
+                if d <= 0:
+                    continue
+                if abs(d - val) <= max(1.0, d * tol_rel):          # 差值:1050-479.5=570.5
+                    return True
+                r = d / grounded[j] * 100                           # 比例:570.5/1050=54.3%
+                if abs(r - val) <= max(1.0, r * tol_rel):
+                    return True
+        return False
+
     bad = []
-    for c in extract_claims(text):
+    for c in claims:
         if any(h in c["clause"] for h in HEDGE):
             continue
         if _sourced(c["value"], pool):
+            continue
+        kind = _approx_kind(c["clause"], c["raw"])
+        in_diff = any(w in c["clause"] for w in _DIFF_CTX)
+        # 差值語境 → 文本內驗算(組成數字必須在場);帶近似詞(「少賺近60%」)放寬到 ±15%
+        if in_diff and _diff_ok(c["value"], loose=bool(kind)):
+            continue
+        # 口語近似詞 → 方向性查原始池,但**只限大數值(>100,報酬率類)**:
+        # 「總報酬超過500%」(真值589)是修辭;「超過七成當沖客」(≤100,人群統計)沒有這種豁免
+        # ——實測 over 對小數值會撞上池裡不相干的 82 之類,語義錯配放水。
+        if kind and c["value"] > 100 and _sourced_approx(c["value"], kind, pool):
             continue
         bad.append(c)
     return bad
