@@ -942,16 +942,45 @@ def _ai_savings_desc_block():
 
 
 TW_FACTS = ROOT / "STUDIO" / "tw_stock_facts.json"
+# 2026-07-13:tw_facts_engine.py 用真實含息還原股價批次算出的 40 組事實(定投vs單筆/扣款日效應/
+# 停利vs續抱/高股息vs市值型/槓桿ETF長抱/擇時vs傻抱/錯過最佳N天/崩盤加碼vs停損)。
+TW_FACTS_COMPUTED = ROOT / "STUDIO" / "tw_facts_computed.json"
 
 
 def _load_tw_facts():
-    """讀 STUDIO/tw_stock_facts.json（真回測數據）。檔不存在/壞掉 → 回 None，呼叫端靜默跳過。"""
-    try:
-        if not TW_FACTS.exists():
-            return None
-        return json.loads(TW_FACTS.read_text(encoding="utf-8"))
-    except Exception:  # noqa: BLE001
-        return None
+    """讀真回測事實庫。檔不存在/壞掉 → 回 None，呼叫端靜默跳過。
+
+    🔴 2026-07-13 閉合迴圈(這是誠信問題的最後一哩):
+    原本只讀 tw_stock_facts.json——裡面**只有 5 組**事實,產線卻要一天生 14-18 支台股影片。
+    事實不夠用 → LLM 只能編(品保實測抓到長片憑空生出「毛利率選股勝率31%」等整套假統計)。
+    現在把 tw_facts_engine 算出的 40 組真事實一起餵給寫稿 LLM。
+
+    ⚠️ 沒有這一步的話,新的 40 組事實「只有發布守門(fact_source_guard)看得到、寫稿的 LLM
+    看不到」——結果會是:LLM 照樣編 → 守門照樣擋 → 擋得住,但永遠產不出好片。
+    餵料端(這裡)與守門端(fact_source_guard.FACT_FILES)必須讀同一組事實庫,才是完整的解。
+    """
+    merged = None
+    for p in (TW_FACTS, TW_FACTS_COMPUTED):
+        try:
+            if not p.exists():
+                continue
+            d = json.loads(p.read_text(encoding="utf-8"))
+            if not isinstance(d, dict):
+                continue
+            if merged is None:
+                merged = dict(d)
+                continue
+            # results 合併(computed 的 key 不與舊的衝突;真衝突時保留舊的手工事實優先)
+            base = dict(merged.get("results") or merged.get("backtests") or {})
+            extra = dict(d.get("results") or d.get("backtests") or {})
+            for k, v in extra.items():
+                base.setdefault(k, v)
+            merged["results"] = base
+            merged.setdefault("as_of", d.get("as_of", ""))
+            merged.setdefault("disclaimer", d.get("disclaimer", ""))
+        except Exception:  # noqa: BLE001
+            continue
+    return merged
 
 
 def _tw_facts_context(facts, topic):
