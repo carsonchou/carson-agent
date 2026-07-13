@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import sys
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
@@ -14,6 +15,21 @@ from PIL import Image, ImageDraw, ImageFont
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 OUT = PROJECT_ROOT / "assets" / "thumbnails"
 OUT.mkdir(parents=True, exist_ok=True)
+
+
+def _load_env():
+    """直跑時把專案根 .env 併進 os.environ(cron 由 local_cron 載;直跑沒有→llm.complete 拿不到
+    OPENROUTER key→縮圖鉤子靜默失敗、全退保底硬切標題)。同 quality_score.py/growth_agent.py 的作法。"""
+    envf = PROJECT_ROOT / ".env"
+    if envf.exists():
+        for ln in envf.read_text(encoding="utf-8", errors="replace").splitlines():
+            s = ln.strip()
+            if s and not s.startswith("#") and "=" in s:
+                k, v = s.split("=", 1)
+                os.environ.setdefault(k.strip(), v.strip())
+
+
+_load_env()
 # 真實 Pionex 截圖素材夾：Carson 丟後台/回測截圖進來，縮圖卡就自動改用真截圖+紅框（信任貨幣）；空則退回示意設計卡
 SHOTS = PROJECT_ROOT / "assets" / "pionex_shots"
 # 多幣真實回測卡（backtest_cards.py 產，trading_bot 直連 Pionex 真K棒跑出來的真數字）
@@ -593,18 +609,22 @@ def _make_debunk(cfg: dict):
     return out
 
 
+_CLAUSE_SPLIT_RE = _re.compile(r"[？?！!，,。、：:；;\-—－\s]+")
+
+
 def _heuristic(slug: str, title: str) -> dict:
-    """無 LLM 時的保底：把標題切成兩行 + 底條。"""
+    """無 LLM 時的保底：按標點斷句(不從單一子句『中間』硬切)，避免像「網格上/限」「輕/鬆」
+    這種把一個完整詞硬生生切成兩半、跨行斷字的破碎縮圖。
+    l1＝第一個完整短句(取其前 8 字內，不夠 8 字就整句)；
+    l2＝第二個完整短句(前 10 字內)；沒有第二句就用通用收尾語，絕不從 l1 的子句裡挖字硬湊。"""
     t = _re.sub(r"[（(].*?[)）]", "", title or slug).strip()
-    cut = 6
-    for i, ch in enumerate(t[:10]):
-        if ch in "？?！!，,。、 ":
-            cut = i or cut
-            break
-    l1 = t[:cut] or t[:6]
-    rest = t[cut:].lstrip("？?！!，,。、 ")
-    l2 = rest[:8] or "看完秒懂"
-    tag = (rest[8:] or t)[:14]
+    clauses = [c for c in _CLAUSE_SPLIT_RE.split(t) if c]
+    if not clauses:
+        clauses = [t] if t else [slug or "看完秒懂"]
+    l1 = clauses[0][:8] or t[:8] or "看完秒懂"
+    l2 = clauses[1][:10] if len(clauses) > 1 and clauses[1] else "看完秒懂"
+    tag_src = "".join(clauses[2:]) if len(clauses) > 2 else t
+    tag = (tag_src or t)[:14] or "量化阿森"
     return {"slug": slug, "l1": l1[:8], "l2": l2[:10], "tag": tag, "accent": ACCENTS["yellow"], "mark": "?"}
 
 
@@ -629,14 +649,19 @@ def _decorate_debunk(cfg: dict, title: str) -> dict:
 
 
 def derive_cfg(slug: str, title: str) -> dict:
-    """從標題自動生縮圖鉤子。優先用 haiku(便宜)，失敗退保底啟發式。《拆穿》題自動套打假公式。"""
+    """從標題自動生縮圖鉤子。優先用共用 llm.complete(OpenRouter 路由,同其他 dept 腳本)，失敗退保底啟發式。
+    《拆穿》題自動套打假公式。
+    2026-07 根因修復：舊版直打 api.anthropic.com + 讀 ANTHROPIC_API_KEY——工作室早改 OpenRouter，
+    Anthropic key 已失效，每張新縮圖的 LLM 鉤子因此靜默失敗、全退保底硬切標題，是縮圖斷字的根因。"""
     deb = is_debunk(title)
     fb = _decorate_debunk(_heuristic(slug, title), title)
-    key = _os.environ.get("ANTHROPIC_API_KEY", "").strip()
-    if not key:
+    has_any_key = any(_os.environ.get(k, "").strip() for k in
+                      ("OPENROUTER_API_KEY", "GROQ_API_KEY", "DEEPSEEK_API_KEY",
+                       "GEMINI_API_KEY", "ANTHROPIC_API_KEY"))
+    if not has_any_key:
         return fb
     try:
-        import requests
+        import llm  # 共用路由：主供應商(OpenRouter)→失敗退回 fallback，換模型只改 env，同 make_cover.py
         myth_line = ('這是「拆穿神話」打假片：l1/l2 用打假語氣(如「他說812%」「我回測給你看」)，'
                      '另給 "myth" 欄＝對手宣稱、要被一刀切開的神話數字(如「812%」「88.89%」「236倍」，抓標題裡的；沒有就給空字串)，'
                      'accent 固定 red。\n') if deb else ""
@@ -646,11 +671,7 @@ def derive_cfg(slug: str, title: str) -> dict:
                   '"tag":"底部說明條(6-14字)","accent":"yellow|green|red|blue","mark":"?或!或$或VS","myth":"被拆穿的神話數字或空字串"}\n'
                   + myth_line +
                   "繁體中文。誠信鐵則：不用『穩賺/保證/必賺』。配色：紅=警示/虧損，綠=獲利/實測，黃=疑問/教學，藍=工具/平台。")
-        r = requests.post("https://api.anthropic.com/v1/messages",
-                          headers={"x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
-                          json={"model": "claude-haiku-4-5-20251001", "max_tokens": 300,
-                                "messages": [{"role": "user", "content": prompt}]}, timeout=40)
-        t = r.json()["content"][0]["text"]
+        t = llm.complete(prompt, max_tokens=300, json_mode=True, temperature=0.6)
         d = _json.loads(_re.search(r"\{.*\}", t, _re.S).group(0))
         cfg = {"slug": slug, "l1": (d.get("l1") or fb["l1"])[:8], "l2": (d.get("l2") or fb["l2"])[:10],
                "tag": (d.get("tag") or fb["tag"])[:16],
@@ -660,7 +681,7 @@ def derive_cfg(slug: str, title: str) -> dict:
             cfg["myth"] = str(d["myth"])[:8]
         return _decorate_debunk(cfg, title)
     except Exception as e:
-        print(f"[warn] haiku 生鉤子失敗，用保底：{str(e)[:80]}", file=sys.stderr)
+        print(f"[warn] llm 生鉤子失敗，用保底：{str(e)[:80]}", file=sys.stderr)
         return fb
 
 

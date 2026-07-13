@@ -32,13 +32,26 @@ LEDGER = STUDIO / "uploaded_ledger.json"
 REFRESH_DIR = ROOT / "assets" / "thumbnails" / "refresh"
 MANIFEST = REFRESH_DIR / "_manifest.json"
 TW = timezone(timedelta(hours=8))
-API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
-MODEL = "claude-haiku-4-5-20251001"
 
 try:
     from ops import log_ops
 except Exception:  # noqa: BLE001
     def log_ops(stage, msg): pass
+
+
+def _load_env():
+    """直跑時把專案根 .env 併進 os.environ(同 quality_score.py/make_thumbnails.py 作法)——
+    否則直跑 --render 讀不到 OPENROUTER key，llm.complete 全供應商都失敗。"""
+    envf = ROOT / ".env"
+    if envf.exists():
+        for ln in envf.read_text(encoding="utf-8", errors="replace").splitlines():
+            s = ln.strip()
+            if s and not s.startswith("#") and "=" in s:
+                k, v = s.split("=", 1)
+                os.environ.setdefault(k.strip(), v.strip())
+
+
+_load_env()
 
 ACCENT = {"yellow": (255, 209, 102), "green": (88, 224, 140), "red": (255, 96, 96), "blue": (90, 184, 255)}
 # yellow=#FFD166，B5：與 design_system.json / make_thumbnails.py / assets/brand 全線統一同一個金
@@ -66,12 +79,14 @@ def do_dump(path):
 
 # ───────── 2) 本機 render ─────────
 def gen_configs(items):
-    """items: [(vid,title)]。Claude 只配文案角度(l1/l2/tag/accent)，回 {vid: cfg}。
+    """items: [(vid,title)]。LLM 只配文案角度(l1/l2/tag/accent)，回 {vid: cfg}。
     誠信鐵則(同 make_thumbnails._real_card)：數據卡的數字絕不讓 LLM 現場編——
     一律由 do_render() 呼叫 make_thumbnails._real_card() 依標題領域(台股/加密)比對
     真實資料檔(backtest_cards.json / tw_stock_facts.json)取得，領域對不上或無真資料
-    就不掛卡，不會出現「台股題配加密卡」或「查無憑據的示意數字」。"""
-    import requests
+    就不掛卡，不會出現「台股題配加密卡」或「查無憑據的示意數字」。
+    2026-07 根因修復：舊版直打 api.anthropic.com(工作室已改 OpenRouter，key 早失效)——
+    改走共用 llm.py 路由，同 make_thumbnails.derive_cfg()。"""
+    import llm  # sys.path 已在模組頂插入 scripts/（見 ROOT/"scripts"）
     listing = "\n".join(f"{i}. {t}" for i, (_, t) in enumerate(items))
     prompt = f"""你是量化阿森頻道（量化/網格/派網Pionex/回測/風控，繁中 faceless）的封面設計師。
 為下面每支影片設計縮圖文案（不含任何數據卡數字——數據卡由程式另外依真實回測資料配對，
@@ -85,13 +100,9 @@ def gen_configs(items):
 
 只輸出 JSON 陣列（i 對應編號，不要其他字、不要 markdown 圍欄）：
 [{{"i":0,"l1":"丟1萬","l2":"跑30天","tag":"自動交易實測｜結果公開","accent":"green"}}]"""
-    r = requests.post("https://api.anthropic.com/v1/messages",
-                      headers={"x-api-key": API_KEY, "anthropic-version": "2023-06-01",
-                               "content-type": "application/json"},
-                      json={"model": MODEL, "max_tokens": 8000,
-                            "messages": [{"role": "user", "content": prompt}]}, timeout=240)
-    r.raise_for_status()
-    txt = r.json()["content"][0]["text"]
+    # 注意：輸出是 JSON 陣列(非物件)，不能開 json_mode(OpenAI 相容端點的 response_format=json_object
+    # 只接受頂層物件)——沿用原本的正則抓 [...] 解析法。
+    txt = llm.complete(prompt, max_tokens=8000, temperature=0.6)
     m = re.search(r"\[.*\]", txt, re.S)
     arr = []
     if m:
@@ -251,7 +262,7 @@ def main() -> int:
         return do_dump(args.dump)
     if args.render:
         if not any(os.environ.get(_k,"").strip() for _k in ("OPENROUTER_API_KEY","ANTHROPIC_API_KEY","DEEPSEEK_API_KEY","GEMINI_API_KEY","GROQ_API_KEY")):
-            print("[FATAL] 無 ANTHROPIC_API_KEY", file=sys.stderr); return 2
+            print("[FATAL] 無 LLM key(OPENROUTER_API_KEY 等皆未設)", file=sys.stderr); return 2
         return do_render(args.render)
     if args.apply:
         return do_apply()
