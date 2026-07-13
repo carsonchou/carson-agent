@@ -133,6 +133,29 @@ def _cn_num_to_float(s: str) -> float | None:
 _RX_PCT_ARABIC = re.compile(r"(?:百分之\s*)?(\d{1,4}(?:\.\d+)?)\s*%|百分之\s*(\d{1,4}(?:\.\d+)?)")
 _RX_PCT_CN = re.compile(r"百分之([零一二三四五六七八九十百千兩點]+)")
 
+# 🔴 2026-07-13 用產線剛產的新片實測抓到的破口:
+# 「回測顯示...其實**七成**被手續費吃掉」「一年就少賺**三十八萬**」——
+# 舊版只抓百分比,中文**成數**(七成/九成)與**金額**(三十八萬)完全在雷達外,
+# 於是這支「當沖手續費」片(該主題根本沒有回測引擎、就在事實引擎的無資料黑名單裡)
+# 頂著「回測顯示」的假掛名,被守門判定「可發布」。編造的兩種最常見說法都漏掉了。
+# ⚠️ 只收「明確成數」(七成/九成=具體統計宣稱),**不收**口語模糊量詞。
+# 實測:把「多數/大半/一半/幾乎都」也當數字,會誤擋「多數人根本撐不過中間的波動」
+# 「為什麼多數人領股息反而輸掉複利」——那是口語修辭,不是統計宣稱,擋它只是找碴。
+# 「超過七成當沖客年報酬不到10%」才是真正需要憑據的統計句。
+_CN_QUANT_PCT = {
+    "十成": 100.0, "九成": 90.0, "八成": 80.0, "七成": 70.0, "六成": 60.0,
+    "五成": 50.0, "四成": 40.0, "三成": 30.0, "兩成": 20.0, "二成": 20.0, "一成": 10.0,
+}
+_RX_CN_QUANT = re.compile("(" + "|".join(sorted(_CN_QUANT_PCT, key=len, reverse=True)) + ")")
+
+# 「假掛名」偵測(最狠也最準的一條):句子明講「回測顯示/根據回測/實測」——這是在宣稱
+# 「這數字是我實際跑出來的」——但該數字事實庫查無來源 ⇒ 假借實測之名編造,比一般編造更嚴重
+# (頻道招牌就是「用真回測拆穿割韭菜神話」)。金額(三十八萬)在一般句子裡可能只是本金舉例
+# (「每天當沖兩百萬」),誤擋成本高;但只要落在「回測顯示」的掛名句裡,就必須有憑據。
+_ATTRIBUTION = ("回測顯示", "根據回測", "回測結果", "回測資料顯示", "實測顯示", "實測結果",
+                "數據顯示", "統計顯示", "資料顯示", "歷史資料顯示", "根據數據", "根據統計")
+_RX_NUM_IN_ATTR = re.compile(r"([零一二三四五六七八九十百千兩點]{1,8}|\d+(?:\.\d+)?)\s*(萬|億|倍|次|檔|支|%)")
+
 
 def _clause(text: str, i: int, j: int) -> str:
     """命中點所在的同一子句(以 。！？，、\\n 分界)。跨句的誠實揭露詞不該救援本句斷言。"""
@@ -170,7 +193,39 @@ def extract_claims(text: str) -> list[dict]:
             pass
     for m in _RX_PCT_CN.finditer(text):
         _add(_cn_num_to_float(m.group(1)), m.group(0), *m.span())
+    # 中文成數:「七成被手續費吃掉」「九成散戶會虧」——換算成百分比一樣要溯源
+    for m in _RX_CN_QUANT.finditer(text):
+        _add(_CN_QUANT_PCT[m.group(1)], m.group(0), *m.span())
+    # 假掛名:「回測顯示…少賺三十八萬」——句子自稱是實測結果,那就必須查得到那個數字
+    for attr in _ATTRIBUTION:
+        start = 0
+        while True:
+            i = text.find(attr, start)
+            if i < 0:
+                break
+            start = i + len(attr)
+            cl = _clause(text, i, start)
+            if any(h in cl for h in HEDGE):
+                continue
+            for m in _RX_NUM_IN_ATTR.finditer(cl):
+                raw = m.group(0)
+                tok = m.group(1)
+                val = float(tok) if re.fullmatch(r"\d+(?:\.\d+)?", tok) else _cn_num_to_float(tok)
+                if val is None:
+                    continue
+                if _sourced_hint(val):   # 已在事實庫→不重複列
+                    continue
+                claims.append({"value": float(val), "raw": raw,
+                               "clause": ("【假掛名·" + attr + "】" + cl.strip())[:100]})
     return claims
+
+
+def _sourced_hint(val: float) -> bool:
+    """給 extract_claims 內部用的輕量溯源(避免同一數字被百分比規則與假掛名規則重複列)。"""
+    try:
+        return _sourced(val, fact_pool())
+    except Exception:  # noqa: BLE001
+        return False
 
 
 def _walk_numbers(obj) -> set[float]:
