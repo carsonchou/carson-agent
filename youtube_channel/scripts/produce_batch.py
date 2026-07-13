@@ -982,6 +982,27 @@ TW_STOCK_RULES = """
 - 誠信：所有回測/數據標「歷史回測，非未來保證」；不編造精確數字、不保證收益、不喊單、不報明牌。
 """
 
+TW_LAB_RULES = """
+【★台股真相實驗室 franchise·訂閱轉換診斷落地(2026-07-13,逐條照走)】
+- 診斷根因(見 tw_lab_engine.py 檔頭)：全站 588 支片 20326 觀看只換 27 訂閱(0.133%)；表現最好的
+  8 支片結尾各講各的、只說「追蹤」不說「訂閱」、理由是空泛的「不然演算法不會再推你」——觀眾聽完
+  不知道訂閱等於訂閱到什麼。本 franchise 用「有固定形狀、可預期下一集會拿到什麼」的常態連載解決。
+- ★命名與集數：本片是「台股真相實驗室」系列一集，題目與集數(EP 幾)以本次注入的
+  【★台股真相實驗室系列連貫設定】區塊為準——那裡有上集回顧/本集定位/下集懸念，務必照它給的走，
+  片名或旁白開場/結尾其中一處要自然帶出系列名稱與 EP 數字(不必生硬複誦，融入語氣即可)。
+- ★開場「你猜」框題：前 2 秒先把比較兩邊丟出來、用「你猜」或反問句吊懸念，**不要在前 5 秒就爆數字**
+  (例「一次all in跟每月定期定額，10年後你猜差多少？」)，數字留到中段揭曉才有懸念張力。
+- ★數字只能用本次注入的【★本集唯一指定實證數據】那一組，不得混用其他標的/期間的數字湊細節。
+- ★結尾三件事都要有(順序：留言題 → 訂閱鉤 → 下集預告，各自一句，不要合併成一句敷衍帶過)：
+  ①留言互動題(對這集數字的看法/選邊)
+  ②系列訂閱鉤——**必須明確出現「訂閱」二字**(不是只用「追蹤」)，理由是本系列已經排好一整組
+  台股真回測要拆、訂閱是唯一會收到下一組數字通知的方式，不用「不然演算法不推你」這種操弄語氣
+  ③下集預告——用本次注入區塊給的「下一集題材」懸念句，不洩露具體數字答案。
+- 誠信：全部數字標「歷史回測，非未來保證」；不喊單、不報明牌、不喊目標價、不保證獲利；
+  不得把「你猜」包裝成保證答案或明牌。
+"""
+
+
 NO_FACTS_INTEGRITY_RULES = """
 【★誠信硬規則·本題無真實回測數據佐證(非台股題,系統目前只有 tw_stock_facts.json 這一份真數據)·A2】
 - 本片主題沒有對應的真實回測資料檔可查證,**嚴禁把任何具體精確的績效數字講成『真的測過的歷史事實』**——
@@ -1272,11 +1293,18 @@ def _cap_repeated_phrase(text, phrase, cap, alt_pool=_TRANSITION_ALT_POOL):
 # 修:題庫抽不到時,把「本支必須是哪個題材」**直接下令給 LLM**,不讓它自由發揮。
 _BUCKET_DIRECTIVE = {
     "tw_stock": (
-        "\n【本支題材硬性指定:台股】必須寫台股題材(0050/006208/0056/00878/00631L/台積電等權值股、"
-        "定期定額/定投/存股/停利停損/高股息vs市值型/扣款日/槓桿ETF/當沖成本/財報迷思…)。"
-        "⚠️ 不得寫加密貨幣(比特幣/以太幣/網格/派網/爆倉)或 AI 工具題——本頻道實測數據顯示"
-        "台股題觀看是幣圈題的數十倍,這是產線配重的硬性要求。"
-        "數字一律只用 tw_stock_facts 的真實回測,查不到就用示意語氣,絕不編造。"),
+        "\n【本支題材硬性指定:台股】必須寫台股題材,而且**只能寫下面這幾類我們真的有回測數據的**:"
+        "定期定額vs單筆All-in、扣款日效應(月初/月中/月底)、停利vs續抱、高股息(0056/00878)vs"
+        "市值型(0050/006208)、槓桿ETF長抱(00631L)、擇時vs長抱、錯過最佳N天、崩盤加碼vs恐慌賣。"
+        "標的限:0050/006208/0056/00878/00631L/2330台積電/加權大盤。"
+        "\n⚠️ 不得寫加密貨幣(比特幣/以太幣/網格/派網/爆倉)或 AI 工具題——實測數據顯示台股題觀看是"
+        "幣圈題的數十倍,這是產線配重的硬性要求。"
+        "\n🔴【無資料主題·絕對禁止】以下主題我們**沒有任何回測引擎**,寫了就只能編數字(實測已抓到"
+        "『毛利率選股勝率31%』『現金流量表連續衰退87%機率爆雷』這類全編的假統計,一律被誠信守門"
+        "擋下、整支片白產):**毛利率/營益率選股勝率、財報公布前後股價反應機率、現金流量表爆雷機率、"
+        "本益比/淨值比估值選股、ROE/營收成長選股、當沖真實勝率統計、融資融券斷頭統計、"
+        "個股填息機率天數統計**——以及任何『某某指標選股勝率 X%』的宣稱。碰到這些主題請直接換題。"
+        "\n數字一律只用 tw_stock_facts / tw_facts_computed 的真實回測,查不到就用示意語氣,絕不編造。"),
     "crypto": (
         "\n【本支題材硬性指定:加密貨幣】必須寫加密貨幣題材(比特幣/以太幣/網格/派網/風控)。"
         "數字只能用 backtest_cards 的真實回測,查不到就不給具體數字(用示意/假設語氣),絕不編造。"),
@@ -1378,6 +1406,38 @@ def call_claude(kind, avoid, topic_override=None):
             assign += f"\n【本支為 EP{_next_ep}｜標題務必含「EP{_next_ep}」字樣與時間或金錢錨】"
         except Exception:  # noqa: BLE001
             pass
+    # 台股真相實驗室 franchise(2026-07-13 訂閱轉換診斷落地)：題目由 tw_lab_engine 派發(category
+    # 命中系列名，topic_bank 種題或 --tw-lab CLI 都會標這個 category)→ 追加系列鐵律 + 集數前情提要 +
+    # 本集唯一指定的真回測數字(比一般 is_tw_stock 關鍵字比對更精準：這裡是引擎明確指定的那一組，
+    # 不會混題)。刻意不要求 `not topic_override`(EP 系列才有這限制)，讓 --tw-lab/topic_override
+    # 兩條路徑都能觸發，方便自驗證與未來手動補產。
+    is_tw_lab = bool(topic) and str(topic.get("category", "")) == "台股真相實驗室"
+    _tw_lab_ep_no = None
+    _tw_lab_actual_key = ""  # 供 result["_tw_lab_key"] 用(不能只信 topic.get，備援路徑會換一組)
+    if is_tw_lab:
+        hook_rules = hook_rules + TW_LAB_RULES
+        try:
+            import tw_lab_engine
+            _tlst = tw_lab_engine.load_state()
+            _facts_all, _tl_as_of = tw_lab_engine._load_facts()
+            _tl_key = topic.get("tw_lab_key") or ""
+            _tl_fact = _facts_all.get(_tl_key) or {}
+            if not _tl_fact:
+                # 題目來自題庫但沒帶 tw_lab_key(舊題/透傳漏了)→備援：直接向引擎要下一組，
+                # 不讓整個 franchise 因為單一欄位缺失而退化成沒有真數據的空片。
+                _tl_key, _tl_fact, _, _ = tw_lab_engine.pick_next(_tlst)
+                _tl_fact = _tl_fact or {}
+            _tl_next_key = topic.get("tw_lab_next_key") or ""
+            _tl_next_fact = _facts_all.get(_tl_next_key) or {}
+            if not _tl_next_fact and _tl_key:
+                _tl_next_key, _tl_next_fact = tw_lab_engine.next_after(_tl_key, _tlst)
+                _tl_next_fact = _tl_next_fact or {}
+            assign += tw_lab_engine.context_block(_tlst, _tl_key, _tl_fact, _tl_next_key, _tl_next_fact)
+            assign += tw_lab_engine.fact_data_block(_tl_key, _tl_fact, _tl_as_of)
+            _tw_lab_ep_no = int(_tlst.get("current_ep", 0) or 0) + 1
+            _tw_lab_actual_key = _tl_key
+        except Exception:  # noqa: BLE001
+            pass
     # 《拆穿》招牌 franchise：題目屬競品拆解/打假神話類 → 追加《拆穿》格式（點名神話+誠實反差鉤+真回測三刀+避雷結論）
     _dbkw = ("拆穿", "神話", "揭穿", "打假", "揭露真相")
     is_debunk = (topic is not None and (
@@ -1458,6 +1518,10 @@ hashtags 規則：給 4-6 個「精準且利基相關」的標籤(第一個必�
         # 自由發揮路徑:把實際產出的題材記進配額(否則配額只認題庫抽的,自由發揮的不計,配重失準)
         _record_bucket_taken(kind, result.get("title", ""))
     result["_is_ep"] = bool(is_ep)  # 供 make_one 判斷是否為 EP 正片 → 產出成功後遞增 EP 引擎
+    result["_is_tw_lab"] = bool(is_tw_lab)  # 供 make_one 判斷是否為台股真相實驗室正片 → 產出成功後遞增系列引擎
+    if is_tw_lab:
+        result["_tw_lab_key"] = _tw_lab_actual_key or (topic.get("tw_lab_key") or "")
+        result["_tw_lab_ep"] = _tw_lab_ep_no
     result["_is_tw_stock"] = bool(is_tw_stock)  # A2:供 make_one 判斷本片是否有 tw_stock_facts 真數據佐證
     result["_is_flagship"] = bool(is_flagship)  # A2:旗艦片已有 AI_COMPANY_RULES 自己的數字紀律,不重複套 A2 重生
     # 「聰明用 AI」franchise：把誠實比較表+聯盟連結+揭露語確定性附加到描述本體(保證揭露不被 LLM 吞)。
@@ -2262,6 +2326,19 @@ def _bump_ep(d, slug):
         print(f"[warn] EP bump 略過：{str(exc)[:80]}", file=sys.stderr)
 
 
+def _bump_tw_lab(d, slug):
+    """台股真相實驗室正片產出成功 → 遞增系列狀態(集數+1、標記本集事實 key 已用、EP>=10 收官升季)。
+    純本地檔，失敗不影響出片。"""
+    try:
+        import tw_lab_engine
+        st = tw_lab_engine.load_state()
+        rec = {"key": d.get("_tw_lab_key", ""), "title": d.get("title", ""), "slug": slug}
+        new_st = tw_lab_engine.bump_episode(st, rec, persist=True)
+        log_ops("台股真相實驗室", f"EP 遞增 → S{new_st.get('season')} EP{new_st.get('current_ep')} 已記錄：{slug[:28]}")
+    except Exception as exc:  # noqa: BLE001
+        print(f"[warn] tw_lab bump 略過：{str(exc)[:80]}", file=sys.stderr)
+
+
 # LLM 偶發疊字守門(實測 574 支中 5 支出「演演算法」;非 code bug、是模型 stutter,但會被 TTS 念出來)。
 # 只列「絕不可能是正確疊字」的術語→修回,不碰「剛剛/常常」等正確疊字,零誤傷。
 _ARTIFACT_FIXES = {
@@ -2292,16 +2369,33 @@ _SUB_HOOK_POOL = [
 ]
 _SUB_CUES = ("訂閱", "追蹤", "追更", "別錯過", "鈴鐺", "按個訂", "關注")
 
+# 台股真相實驗室 franchise 專屬訂閱鉤池(2026-07-13 訂閱轉換診斷落地)：
+# 診斷發現全站頂流片(588~855 觀看)結尾清一色只講「追蹤」、理由是「不然演算法不會再推你」
+# ——語彙跟 YouTube 按鈕本身寫的「訂閱」對不上、理由是平台操弄語氣不是內容價值。
+# 這個池子①一律明講「訂閱」二字②理由=系列已排好一整組真回測、訂閱才收得到下一組③點名系列名稱。
+_TW_LAB_SUB_HOOK_POOL = [
+    "台股真相實驗室這系列我已經排好一整組台股真回測要拆，訂閱才會在下一組數字公布時通知你。",
+    "這是台股真相實驗室的固定企劃，一集一組真回測，訂閱就等於訂閱到下一組數字，不會漏掉。",
+    "喜歡這種台股數據拆解，訂閱一下，台股真相實驗室下一集還有一組數字等你猜。",
+    "台股真相實驗室還有好幾組台股迷思沒拆，訂閱之後每集都會主動推給你，不用自己來找。",
+]
+# 台股真相實驗室要求的是「訂閱」這個明確動作字樣，比一般片的 _SUB_CUES(含「追蹤」等鬆散同義詞)
+# 更嚴格——正是診斷抓到的問題本身(只講追蹤、不講訂閱)，所以這裡故意不接受「追蹤」代替判定通過。
+_TW_LAB_SUB_CUES = ("訂閱",)
 
-def _ensure_sub_hook(text, key):
-    """LLM 漏訂閱鉤時結尾補一句(有寫就不動);key 用來輪替措辭。"""
+
+def _ensure_sub_hook(text, key, pool=None, cues=None):
+    """LLM 漏訂閱鉤時結尾補一句(有寫就不動);key 用來輪替措辭。
+    pool/cues 給 franchise 專屬需求覆寫(如台股真相實驗室要求字面一定要有「訂閱」二字)。"""
     if not isinstance(text, str) or not text.strip():
         return text
-    if any(c in text for c in _SUB_CUES):
+    _pool = pool or _SUB_HOOK_POOL
+    _cues = cues or _SUB_CUES
+    if any(c in text for c in _cues):
         return text  # LLM 已寫訂閱鉤,尊重原文不重複
     import hashlib
-    i = int(hashlib.md5((key or "x").encode("utf-8")).hexdigest(), 16) % len(_SUB_HOOK_POOL)
-    return text.rstrip() + " " + _SUB_HOOK_POOL[i]
+    i = int(hashlib.md5((key or "x").encode("utf-8")).hexdigest(), 16) % len(_pool)
+    return text.rstrip() + " " + _pool[i]
 
 
 def make_one(kind, no_render=False, topic_override=None):
@@ -2433,7 +2527,12 @@ def make_one(kind, no_render=False, topic_override=None):
         if isinstance(_seg, dict) and "heading" in _seg:
             _seg["heading"] = _fix_artifacts(_seg["heading"])
     # 訂閱鉤硬性保底:LLM 漏掉就結尾補一句(直攻 0.29% 轉換瓶頸;有寫就不動)
-    d["voice_text"] = _ensure_sub_hook(d.get("voice_text", ""), d.get("title", ""))
+    # 台股真相實驗室要求字面一定要有「訂閱」二字(比一般片的鬆散判定更嚴格,見診斷根因)。
+    if d.get("_is_tw_lab"):
+        d["voice_text"] = _ensure_sub_hook(d.get("voice_text", ""), d.get("title", ""),
+                                            pool=_TW_LAB_SUB_HOOK_POOL, cues=_TW_LAB_SUB_CUES)
+    else:
+        d["voice_text"] = _ensure_sub_hook(d.get("voice_text", ""), d.get("title", ""))
     slug = slugify(d["title"], prefix)
     if (OUT / f"{slug}.voice.txt").exists() or (OUT / f"{slug}.mp4").exists():
         slug = f"{slug}{int(time.time()) % 10000}"
@@ -2453,6 +2552,8 @@ def make_one(kind, no_render=False, topic_override=None):
         print(f"[{'queued' if mp3_ok else 'FAIL'}] {kind} {slug}（待 PC 渲染）")
         if mp3_ok and d.get("_is_ep"):
             _bump_ep(d, slug)  # EP 正片(非預告)產出成功 → 遞增 EP 引擎
+        if mp3_ok and d.get("_is_tw_lab"):
+            _bump_tw_lab(d, slug)  # 台股真相實驗室正片產出成功 → 遞增系列引擎
         return slug if mp3_ok else None
 
     env = os.environ.copy()
@@ -2492,6 +2593,8 @@ def make_one(kind, no_render=False, topic_override=None):
                     pass
     if ok and d.get("_is_ep"):
         _bump_ep(d, slug)  # EP 正片(非預告)產出成功 → 遞增 EP 引擎
+    if ok and d.get("_is_tw_lab"):
+        _bump_tw_lab(d, slug)  # 台股真相實驗室正片產出成功 → 遞增系列引擎
     print(f"[{'ok' if ok else 'FAIL'}] {kind} {slug}")
     return slug if ok else None
 
@@ -2555,9 +2658,36 @@ def main() -> int:
     ap.add_argument("--angle", default=None, help="切入點（搭配 --topic）")
     ap.add_argument("--publish", action="store_true", help="產完立刻發布（時事片用：消息面要即時上架，不等排程）")
     ap.add_argument("--manual", action="store_true", help="手動補產：照 --shorts/--long 數量，不被人事部員額覆蓋")
+    ap.add_argument("--tw-lab", action="store_true",
+                     help="立刻產 1 支「台股真相實驗室」系列正片（由 tw_lab_engine 依序派下一組真回測事實，繞過題庫）")
     args = ap.parse_args()
     if getattr(args, "format_focus", False):
         os.environ["FORMAT_FOCUS"] = "1"  # D2:本批短片走最強格式模板
+
+    # 台股真相實驗室：立刻產 1 支系列正片，事實由 tw_lab_engine 依贏家關鍵字排序依序派發。
+    if getattr(args, "tw_lab", False):
+        if not _has_llm_key():
+            print("[FATAL] 找不到任一 LLM 供應商金鑰(OPENROUTER/ANTHROPIC/DEEPSEEK/GEMINI/GROQ)。", file=sys.stderr)
+            return 2
+        import tw_lab_engine
+        _tov = tw_lab_engine.build_topic()
+        if not _tov:
+            print("[FATAL] 台股真相實驗室事實庫是空的(STUDIO/tw_stock_facts.json / tw_facts_computed.json 都讀不到)。",
+                  file=sys.stderr)
+            return 2
+        slug_made = None
+        for t in range(2):
+            try:
+                slug_made = make_one("short", no_render=args.no_render, topic_override=_tov)
+                if slug_made:
+                    break
+            except Exception as exc:  # noqa: BLE001
+                print(f"[err 台股真相實驗室第{t+1}次] {exc}", file=sys.stderr)
+        log_ops("台股真相實驗室", f"{'已產出' if slug_made else '⚠️ 失敗'}：{_tov.get('title','')[:40]}")
+        print(f"[{'ok' if slug_made else 'FAIL'}] 台股真相實驗室：{_tov.get('title','')[:40]}")
+        if slug_made and args.publish and not args.no_render:
+            _publish_now(slug_made)
+        return 0 if slug_made else 3
 
     # 🔥 金融時事優先：給了 --topic 就立刻產 1 支相關 Short，不管排程/片庫上限。
     if args.topic:
@@ -2624,6 +2754,15 @@ def main() -> int:
                 print(f"[err {kind} 第{t+1}次] {exc}", file=sys.stderr)
         log_ops("補產部門", f"⚠️ {kind} 連續失敗，跳過")
         return False
+
+    # 台股真相實驗室：每批開跑前先把接下來幾集的真回測事實種進題庫(category=台股真相實驗室)，
+    # 讓 pull_topic() 日常補產時能自然抽到本系列，不必每次都靠 --tw-lab 手動觸發。已種過的事實
+    # key 不重複種(tw_lab_engine 自己追蹤)，失敗靜默跳過不影響本批正常出片。
+    try:
+        import tw_lab_engine
+        tw_lab_engine.seed_topic_bank(6)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[warn] 台股真相實驗室種題略過：{str(exc)[:80]}", file=sys.stderr)
 
     # P3:本批開跑前設定時事題保底配額(短片/長片各自算;quota=0 時行為與修改前完全相同)
     _set_batch_plan("short", args.shorts)
