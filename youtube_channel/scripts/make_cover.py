@@ -65,17 +65,8 @@ def F(s, b=True):
     return ImageFont.load_default()
 
 
-# ───────────────────────── 情緒色盤 ─────────────────────────
-def _palette(sentiment):
-    """依漲跌情緒回傳 (accent, glow, scrim_col)。品牌浮水印/kicker 一律走固定高對比色
-    (見 BRAND_TEXT/KICKER_TEXT)，不再跟情緒色掛勾——B5：修「粉紅浮水印深底看不到」。"""
-    if sentiment == "down":
-        return ((220, 50, 60), (200, 30, 40, 130), (8, 6, 10))
-    return ((54, 230, 200), (30, 200, 180, 130), (4, 10, 16))
-
-
-BRAND_TEXT = (228, 234, 247, 255)   # 固定高對比淺灰白(全不透明)：品牌浮水印/kicker 字，不受 sentiment 影響
-GOLD = (255, 209, 102)              # 品牌暗金 #FFD166——與 design_system.json accent_palette[0] 同值(B5 統一)
+# ───────────────────────── 品牌強調色（統一走 design_system.json）─────────────────────────
+GOLD = (255, 209, 102)              # 內建保底暗金 #FFD166——讀不到 design_system.json 時退回這個值
 GOLD_DARK = (176, 138, 58)
 INK = (236, 242, 250)
 MUT = (165, 176, 196)
@@ -84,15 +75,77 @@ TEAL_ACCENT = (54, 230, 200)
 BASE_BG = (9, 12, 20)
 
 
+def _load_accent():
+    """從 design_system.json 讀品牌唯一強調色(accent_hex，暗金)。B7(2026-07)：縮圖強調色不再依漲跌
+    切換成青綠/紅(那是舊「情緒色盤」_palette 的產物，導致每支片邊框/pill 顏色隨機、品牌識別度低)，
+    改統一收斂成金色；漲跌語意改只留給 _draw_vertical_card 裡數字本身的 pct_color(紅跌/綠漲)。
+    讀不到就退回內建 GOLD 常數，並記 log(不 crash)。"""
+    try:
+        cfg = json.loads((ROOT / "STUDIO" / "design_system.json").read_text(encoding="utf-8"))
+        hexv = str(cfg.get("accent_hex", "")).lstrip("#")
+        if len(hexv) == 6:
+            return tuple(int(hexv[i:i + 2], 16) for i in (0, 2, 4))
+    except Exception as e:  # noqa: BLE001
+        print(f"[warn] 讀不到 design_system.json accent_hex，退回內建暗金：{str(e)[:70]}", file=sys.stderr)
+    return GOLD
+
+
+ACCENT = _load_accent()             # 品牌唯一強調色：縮圖邊框/分隔線/pill/kicker 底線全部吃這個
+BRAND_TEXT = (*ACCENT, 235)         # 浮水印/kicker 字：金色、留一點透明(暗色克制、不刺眼)
+
+
+def _scrim_tone(sentiment):
+    """背景暗角底色隨漲跌微調——只是極不顯眼的暗色差異，不是可見強調色，
+    真正會被看到的品牌強調色一律走上面的 ACCENT(金)，不受漲跌影響。"""
+    return (8, 6, 10) if sentiment == "down" else (4, 10, 16)
+
+
 # ───────────────────────── 文字推導 ─────────────────────────
 _REAL_KW = ("實測", "結果", "帳戶", "30天", "天後", "回測", "賺", "虧", "績效", "報酬", "實盤", "公開")
+
+
+def _smart_cut(t: str, limit: int = 10) -> str:
+    """保底標題斷句:優先在標點處斷,絕不切在數字/英文單字中間。
+
+    2026-07-13 實案:LLM 文案失敗退保底時,舊的 `t[:10]` 把
+    「年化只差7趴?多拉10年後 0050 跟 0056 報酬缺口竟這麼大」
+    切成「年化只差7趴?多拉1」——「多拉1」語意破碎(切在數字 10 的中間),縮圖就這樣出街。
+    """
+    t = (t or "").strip()
+    if not t or len(t) <= limit:
+        return t
+    # ① 優先:第一個標點前的完整子句,長度合格就用它(語意完整,最好看)
+    for m in re.finditer(r"[?？!！,，、。:：|｜·]", t):
+        seg = t[:m.start()].strip()
+        if seg and len(seg) <= limit:
+            return seg
+    # ② 沒有合適標點 → 硬切,但退回到不會切斷「數字/英文」token 的位置
+    cut = limit
+    def _tok(ch):  # 數字或英數(同一個 token 的字元,不可從中間切開)
+        return ch.isdigit() or (ch.isascii() and ch.isalnum())
+    while cut > 2 and cut < len(t) and _tok(t[cut - 1]) and _tok(t[cut]):
+        cut -= 1
+    seg = t[:cut].strip()
+    # ③ 再清掉尾巴的「懸空連接詞/助詞」——切在這些字上語意會斷在半空:
+    #    「0050定期定額vs」「台積電跌破500元該」。清到剩實詞為止。
+    _DANGLE = ("vs", "VS", "與", "跟", "和", "或", "的", "該", "竟", "卻", "是", "在",
+               "對", "從", "把", "被", "讓", "就", "才", "又", "也", "更", "而", "並", "還")
+    changed = True
+    while changed and len(seg) > 2:
+        changed = False
+        for d_ in _DANGLE:
+            if seg.endswith(d_):
+                seg = seg[: -len(d_)].strip()
+                changed = True
+                break
+    return seg
 
 
 def _heuristic(title):
     t = re.sub(r"[（(].*?[)）]", "", title or "").strip()
     return {
         "kicker": "量化交易實測",
-        "headline": t[:10] or "你不知道的真相",
+        "headline": _smart_cut(t, 10) or "你不知道的真相",
         "hook_pre": "結果", "hook_key": "讓人意外", "hook_post": "？",
         "data": "", "sentiment": "up",
         "style": "real" if any(k in (title or "") for k in _REAL_KW) else "tech",
@@ -126,9 +179,10 @@ def derive(title, narration=""):
             d["style"] = fb["style"]
         if d.get("sentiment") not in ("up", "down"):
             d["sentiment"] = "up"
-        # 硬截斷保險（防爆框）
-        d["headline"] = str(d.get("headline", ""))[:10]
-        d["kicker"] = str(d.get("kicker", ""))[:14]
+        # 硬截斷保險（防爆框）——用 _smart_cut 而非裸 [:N]，LLM 偶爾也會回超長句，
+        # 裸切一樣會切在數字/英文中間出「多拉1」這種破碎字(2026-07-13 實案)。
+        d["headline"] = _smart_cut(str(d.get("headline", "")), 10)
+        d["kicker"] = _smart_cut(str(d.get("kicker", "")), 14)
         _dat = str(d.get("data", "")).strip()
         d["data"] = _dat if (re.search(r"\d", _dat) and len(_dat) <= 8) else ""
         pre, key, post = str(d.get("hook_pre", "")), str(d.get("hook_key", "")), str(d.get("hook_post", ""))
@@ -375,12 +429,39 @@ def _draw_vertical_card(img, card, accent):
     d.text((px, y1 - 58), card.get("note", "※歷史回測，非未來獲利保證"), font=F(26, False), fill=GREY)
 
 
+def _brand_footer(img, y):
+    """底部品牌列：logo(左)+浮水印文字，整體置中排版——B7 新增品牌 logo 疊圖。
+    logo 檔不存在或載入失敗時優雅退回純文字版(不 crash 整條產線)。"""
+    f = F(36)
+    d = ImageDraw.Draw(img, "RGBA")
+    ws = [d.textbbox((0, 0), ch, font=f)[2] for ch in BRAND]
+    text_w = sum(ws) + 6 * (len(BRAND) - 1)
+    logo_img, logo_gap = None, 16
+    logo_path = ROOT / "assets" / "brand" / "logo.png"
+    if logo_path.exists():
+        try:
+            raw = Image.open(logo_path).convert("RGBA")
+            logo_h = 48
+            scale = logo_h / raw.height
+            logo_img = raw.resize((max(1, int(raw.width * scale)), logo_h), Image.LANCZOS)
+        except Exception as e:  # noqa: BLE001
+            print(f"[warn] logo 載入失敗({str(e)[:70]})，退回純文字浮水印", file=sys.stderr)
+            logo_img = None
+    total_w = text_w + (logo_img.width + logo_gap if logo_img else 0)
+    x0 = W // 2 - total_w // 2
+    if logo_img:
+        img.alpha_composite(logo_img, (x0, y - logo_img.height // 2))
+        x0 += logo_img.width + logo_gap
+    d = ImageDraw.Draw(img, "RGBA")
+    _spaced(d, (x0, y), BRAND, f, BRAND_TEXT, 6, "lm")
+
+
 # ───────────────────────── 風格合成 ─────────────────────────
 def compose_datacard(t, slug, title):
     """B4：全線收斂到「暗色 + 數據卡」風格。style=real 才畫回測卡(誠實標真/示意)；
     style=tech 只留 kicker/headline/hook/品牌(同一套暗色語言，不編數字)。"""
     sent = t.get("sentiment", "up")
-    accent, glow_rgba, scrim_col = _palette(sent)
+    accent, scrim_col = ACCENT, _scrim_tone(sent)
 
     img = _market_bg(accent, seed=slug or title or "x", tall_band=(t.get("style") != "real")).convert("RGBA")
     _scrim(img, 470, 1330, scrim_col)
@@ -406,13 +487,12 @@ def compose_datacard(t, slug, title):
         card = _pick_card(slug, title, t)
         _draw_vertical_card(img, card, accent)
 
-    # 底部鉤子(黃底按鈕) + 品牌浮水印（固定高對比）
+    # 底部鉤子(黃底按鈕) + 品牌浮水印+logo（金色統一，見 _brand_footer）
     _frosted_panel(img, 1560, 1790, col=scrim_col, alpha=210, accent=accent, border_top=True)
     d = ImageDraw.Draw(img, "RGBA")
     hf_hook = _fit(d, t["hook_pre"] + t["hook_key"] + t["hook_post"], W - 90, 100)
     _hook(d, img, (t["hook_pre"], t["hook_key"], t["hook_post"]), 1660, hf_hook, box="yellow")
-    d = ImageDraw.Draw(img, "RGBA")
-    _spaced(d, (W // 2, 1745), BRAND, F(36), BRAND_TEXT, 6, "mm")
+    _brand_footer(img, 1745)
 
     return img.convert("RGB")
 
@@ -430,7 +510,7 @@ def compose_advisor(t, slug, title):
     **預設不啟用**——現有乾淨「數據卡」風(compose_datacard)仍是預設，這裡只是多一種可選變體
     增加縮圖多樣性；呼叫端要用得傳 variant="advisor"（見 make_cover()/CLI --variant）。"""
     sent = t.get("sentiment", "up")
-    accent, glow_rgba, scrim_col = _palette(sent)
+    accent, scrim_col = ACCENT, _scrim_tone(sent)
     img = _market_bg(accent, seed=slug or title or "x", tall_band=True).convert("RGBA")
 
     try:
@@ -468,13 +548,12 @@ def compose_advisor(t, slug, title):
     d = ImageDraw.Draw(img, "RGBA")
     _separator(d, hline_y + 80, accent, pad=100)
 
-    # 底部鉤子(黃底按鈕) + 品牌浮水印，疊在人像胸口位置(毛玻璃面板保證可讀性)
+    # 底部鉤子(黃底按鈕) + 品牌浮水印+logo，疊在人像胸口位置(毛玻璃面板保證可讀性)
     _frosted_panel(img, 1560, 1790, col=scrim_col, alpha=222, accent=accent, border_top=True)
     d = ImageDraw.Draw(img, "RGBA")
     hf_hook = _fit(d, t["hook_pre"] + t["hook_key"] + t["hook_post"], W - 90, 100)
     _hook(d, img, (t["hook_pre"], t["hook_key"], t["hook_post"]), 1660, hf_hook, box="yellow")
-    d = ImageDraw.Draw(img, "RGBA")
-    _spaced(d, (W // 2, 1745), BRAND, F(36), BRAND_TEXT, 6, "mm")
+    _brand_footer(img, 1745)
 
     return img.convert("RGB")
 

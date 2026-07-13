@@ -8,13 +8,18 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re as _re
 import sys
+import time as _time
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 OUT = PROJECT_ROOT / "assets" / "thumbnails"
 OUT.mkdir(parents=True, exist_ok=True)
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from studio_common import save_json_atomic, load_json_safe  # 併發安全 JSON 讀寫，同其他部門
 
 
 def _load_env():
@@ -34,6 +39,9 @@ _load_env()
 SHOTS = PROJECT_ROOT / "assets" / "pionex_shots"
 # 多幣真實回測卡（backtest_cards.py 產，trading_bot 直連 Pionex 真K棒跑出來的真數字）
 CARDS_JSON = PROJECT_ROOT / "STUDIO" / "backtest_cards.json"
+# 數據卡數字去重狀態檔：記錄每支影片縮圖用掉的數字組，避免不同影片一直挑到同一組(如 +813.7%)反覆出現
+USED_NUMBERS_JSON = PROJECT_ROOT / "STUDIO" / "used_datacard_numbers.json"
+_DEDUP_WINDOW = 15  # 只看近 15 支的用過數字做去重比對，太舊的允許再出現
 
 W, H = 1280, 720
 
@@ -292,9 +300,52 @@ def _asset_domain(low: str) -> str:
     return "unknown"
 
 
-def _crypto_card(low: str):
+_PCT_TOKEN_RE = _re.compile(r"[-+]?\d+\.\d+%")
+
+
+def _load_used_numbers() -> list:
+    """讀去重歷史檔；壞檔/沒檔 → 空清單(不擋產圖，只是這次無法去重)。"""
+    return load_json_safe(USED_NUMBERS_JSON, default=[]) or []
+
+
+def _recent_number_signatures(kind: str, window: int = _DEDUP_WINDOW):
+    """近 window 支同領域(tw/crypto)縮圖已用過的「主數字」集合 + 「整組數字」集合，供去重比對。"""
+    records = [r for r in _load_used_numbers() if r.get("kind") == kind]
+    recent = records[-window:]
+    mains = {r.get("pct") for r in recent if r.get("pct")}
+    fulls = {tuple(r.get("numbers") or []) for r in recent}
+    return mains, fulls
+
+
+def _extract_card_numbers(card: dict) -> list:
+    """從已組好的數據卡欄位(pct/mdd/range)掃出所有百分比數字字串，當作這張卡的「整組數字」簽名。"""
+    text = " ".join(str(card.get(k, "") or "") for k in ("pct", "mdd", "range"))
+    return _PCT_TOKEN_RE.findall(text)
+
+
+def _record_used_numbers(slug: str, kind: str, target: str, card: dict) -> None:
+    """把這次縮圖數據卡用掉的數字組寫回歷史檔，供下次去重比對；統一走 save_json_atomic 防併發洗檔。"""
+    records = _load_used_numbers()
+    records.append({
+        "slug": slug or "",
+        "kind": kind,
+        "target": target,
+        "pct": card.get("pct"),
+        "numbers": _extract_card_numbers(card),
+        "date": _time.strftime("%Y-%m-%d"),
+    })
+    if len(records) > 200:  # 去重視窗只看近 _DEDUP_WINDOW 支，不必無限增長
+        records = records[-200:]
+    try:
+        save_json_atomic(USED_NUMBERS_JSON, records)
+    except Exception as e:  # noqa: BLE001 — 寫歷史失敗不該擋產圖，只是下次少一筆去重依據
+        print(f"[warn] 數據卡去重歷史寫入失敗（不影響本次縮圖）：{str(e)[:80]}", file=sys.stderr)
+
+
+def _crypto_card(low: str, slug: str = None):
     """加密貨幣領域確認後才會被呼叫：標題點名的幣優先真實呈現；否則只在「策略/回測」題材
-    才挑夏普最高的正報酬幣。主題對不上(不在加密領域)不會走到這裡。"""
+    才挑夏普最高的正報酬幣——但跳過近期已用過的數字組合，避免不同影片反覆冒出同一組數字。
+    主題對不上(不在加密領域)不會走到這裡。"""
     try:
         data = _json.loads(CARDS_JSON.read_text(encoding="utf-8"))
         cards = {c["coin"]: c for c in data.get("cards", []) if "coin" in c}
@@ -309,17 +360,32 @@ def _crypto_card(low: str):
         if coin in cards and any(a in low for a in aliases):
             chosen = cards[coin]
             break
-    # 2) 否則只在「策略/回測」題材才套，挑夏普最高的正報酬幣
+    # 2) 否則只在「策略/回測」題材才套，挑夏普最高的正報酬幣——但跳過近期用過的數字組合
     if chosen is None:
         if not is_strat:
             return None
         pos = [c for c in cards.values() if c.get("total_return", 0) > 0]
         if not pos:
             return None
-        chosen = max(pos, key=lambda c: c.get("sharpe", -99))
+        pos_sorted = sorted(pos, key=lambda c: c.get("sharpe", -99), reverse=True)
+        mains, fulls = _recent_number_signatures("crypto")
+        for c in pos_sorted:
+            pct_s = f'{"+" if c["total_return"] >= 0 else ""}{c["total_return"] * 100:.1f}%'
+            mdd_s = f'-{c["max_drawdown"] * 100:.1f}%'
+            if pct_s not in mains and (pct_s, mdd_s) not in fulls:
+                chosen = c
+                break
+        if chosen is None:
+            # 2026-07-13 硬化：全部候選近期都出現過 → 不再「沿用重複數字」(那正是 Carson 抓到的
+            # 「兩支不同影片數字一字不差」真實bug的根因)。誠信鐵則二選一都不能編數字，所以改成
+            # 「擋下這張真實數據卡」(回 None)，呼叫端(_real_card→make_cover._pick_card)會優雅
+            # 退回誠實標「示意回測」的卡，絕不會讓兩支影片頂著同一組『真回測』數字出街。
+            print(f"[warn] 加密數據卡：近{_DEDUP_WINDOW}支已用完所有未重複的真實候選幣，"
+                  f"硬擋不產真回測卡(退回示意卡)，拒絕輸出重複數字", file=sys.stderr)
+            return None
     ret = chosen["total_return"] * 100
     mdd = chosen["max_drawdown"] * 100
-    return {
+    card = {
         "label": "真回測",
         "strat": f'{chosen["coin"]} {chosen["interval"]}·SuperTrend',
         "metric": "回測總報酬（含回撤）",
@@ -329,10 +395,21 @@ def _crypto_card(low: str):
         "range": f'夏普 {chosen["sharpe"]:.1f}｜勝率 {chosen["win_rate"]*100:.0f}%',
         "note": "※歷史回測，非未來獲利保證",
     }
+    _record_used_numbers(slug, "crypto", chosen["coin"], card)
+    return card
 
 
-def _build_tw_card(r: dict):
-    """把 tw_stock_facts.json 一筆結果轉成縮圖卡欄位，只用裡面已有的真數字，不外插不編造。"""
+def _build_tw_card(r: dict, slug: str = None, stock_key: str = None):
+    """把 tw_stock_facts.json 一筆結果轉成縮圖卡欄位，只用裡面已有的真數字，不外插不編造。
+    挑主數字時跳過近期已用過的組合（往 scored 清單下找第一個沒用過的分支），
+    避免同一支股票/ETF反覆掛出同一組百分比——絕不為了避重而竄改數字本身。
+
+    2026-07-13 硬化：候選池從『每分支只挑一個指標(total_return 優先, elif cagr)』改成
+    『total_return 與 cagr 都存在時各自算一個候選』(即「換指標」而非只「換分支」)——
+    這是 Carson 抓到的真實bug根因：0050 all-in vs dca 這類題只有 2 個分支，若每分支只認
+    1 個指標，全池只有 2 種可能的『pct』數字，題材一熱門(短時間內多支同題)必然撞號。
+    把 total_return/cagr 都算進候選池能把可用組合翻倍，同一支股票也能「換指標」呈現
+    (例如這支用總報酬、下一支用年化報酬)，不必動用到虛構數字。"""
     d = r.get("data", {})
     scored = []
     for k, v in d.items():
@@ -340,25 +417,44 @@ def _build_tw_card(r: dict):
             continue
         if "total_return" in v:
             scored.append((k, v, v["total_return"], "total_return"))
-        elif "cagr" in v:
+        if "cagr" in v:
             scored.append((k, v, v["cagr"], "cagr"))
     if not scored:
         return None
     scored.sort(key=lambda t: t[2], reverse=True)
-    pk, pv, pval, pkind = scored[0]
+    mains, fulls = _recent_number_signatures("tw")
+    chosen_idx = None
+    for idx, (k, v, val, kind) in enumerate(scored):
+        pct_s = f'{"+" if val >= 0 else ""}{val * 100:.1f}%'
+        mdd_v = v.get("max_drawdown")
+        mdd_s = f'{mdd_v * 100:.1f}%' if mdd_v is not None else None
+        if pct_s not in mains and (pct_s, mdd_s) not in fulls:
+            chosen_idx = idx
+            break
+    if chosen_idx is None:
+        # 2026-07-13 硬化：全部分支×指標組合近期都出現過 → 不再「沿用重複數字」(那正是
+        # 「兩支不同影片縮圖數據卡三個數字一字不差」的真實bug根因)。誠信鐵則不能編數字，
+        # 所以改成「擋下這張真實數據卡」(回 None)，呼叫端優雅退回誠實標「示意回測」的卡，
+        # 絕不讓兩支影片頂著同一組『真回測』數字出街——這正是任務要求的「換指標仍重複就擋下不產」。
+        print(f"[warn] 台股數據卡（{stock_key or '?'}）：近{_DEDUP_WINDOW}支已用完所有未重複的真實候選"
+              f"分支×指標組合，硬擋不產真回測卡(退回示意卡)，拒絕輸出重複數字", file=sys.stderr)
+        return None
+    pk, pv, pval, pkind = scored[chosen_idx]
     pct = f'{"+" if pval >= 0 else ""}{pval * 100:.1f}%'
     mdd = pv.get("max_drawdown")
     mdd_txt = f'最大回撤  {mdd * 100:.1f}%' if mdd is not None else None
     metric = ("總報酬" if pkind == "total_return" else "年化報酬") + f'（{_TW_BRANCH_LABEL.get(pk, pk)}）'
+    # 對照分支：優先挑排序上緊接著主數字後面那筆，主數字不是原本最高分那筆時退回原本最高分那筆對照
+    sec_idx = chosen_idx + 1 if chosen_idx + 1 < len(scored) else (0 if chosen_idx != 0 else None)
     range_txt = None
-    if len(scored) > 1:
-        sk, sv, sval, skind = scored[1]
+    if sec_idx is not None:
+        sk, sv, sval, skind = scored[sec_idx]
         sfx = "總報酬" if skind == "total_return" else "年化"
         range_txt = f'{_TW_BRANCH_LABEL.get(sk, sk)}對照 {"+" if sval >= 0 else ""}{sval * 100:.1f}%（{sfx}）'
     years = d.get("years")
     yr_txt = f'{years:.0f}年' if years else ""
     strat = f'{_TW_BRANCH_LABEL.get(pk, pk)}·{yr_txt}' if yr_txt else _TW_BRANCH_LABEL.get(pk, pk)
-    return {
+    card = {
         "label": "台股實測",
         "strat": strat[:14],
         "metric": metric,
@@ -368,9 +464,11 @@ def _build_tw_card(r: dict):
         "range": (range_txt if mdd_txt else None) or (f'期間 {years:.0f} 年' if years else "歷史回測"),
         "note": "※歷史回測，非未來獲利保證",
     }
+    _record_used_numbers(slug, "tw", stock_key or pk, card)
+    return card
 
 
-def _tw_card(low: str):
+def _tw_card(low: str, slug: str = None):
     """台股/ETF領域確認後才會被呼叫：從 tw_stock_facts.json 找關鍵字明確對上(≥2個)的結果才套卡。
     標題點名個股(如台積電)→ 該股沒有真數據，一律不套(誠信優先於好看)。"""
     if any(k in low for k in _TW_UNCOVERED_STOCK_KW):
@@ -389,7 +487,7 @@ def _tw_card(low: str):
             best_key, best_score = key, score
     if best_score < 2 or not best_key:  # 至少2個關鍵字對上才算可信匹配，避免單一泛用詞誤配
         return None
-    return _build_tw_card(results[best_key])
+    return _build_tw_card(results[best_key], slug=slug, stock_key=best_key)
 
 
 def _real_card(slug: str, title: str):
@@ -398,9 +496,9 @@ def _real_card(slug: str, title: str):
     low = f"{title or ''} {slug or ''}".lower()
     domain = _asset_domain(low)
     if domain == "crypto":
-        return _crypto_card(low)
+        return _crypto_card(low, slug=slug)
     if domain == "tw":
-        return _tw_card(low)
+        return _tw_card(low, slug=slug)
     return None
 
 
