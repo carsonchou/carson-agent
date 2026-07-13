@@ -236,6 +236,41 @@ def _set_batch_plan(kind, total):
     _BATCH_STATE[kind] = {"pulled": 0, "news_pulled": 0}
 
 
+# ── 2026-07 台股比重修正:題材桶保底配額 ──
+# 現況雷:即使 topic_bank 產題端已依 studio_common.TOPIC_BUCKET_WEIGHTS 加權出題,若題庫存量
+# 本身還沒清乾淨(舊題目台股佔比極低),抽題當下若只靠 _rank() 的候選池內排序,候選池台股本來就
+# 稀薄時排序再優先也沒用、批次還是會被非台股題填滿名額。故在抽題這一層再加一道保底配額,跟
+# _set_batch_plan(時事題)同一套模式、彼此獨立共存(不互相取代)：main() 開跑前呼叫 _set_bucket_plan
+# 設定這批 tw_stock/crypto/ai_tools 各要保底幾支,pull_topic() 每次抽題先看配額還沒吃滿的桶、
+# 桶內仍照既有 _rank() 排序取最優;配額吃滿或該桶候選池已空,才落回原本排序自然選。
+_BUCKET_PLAN = {}   # kind -> {"tw_stock": int, "crypto": int, "ai_tools": int}
+_BUCKET_STATE = {}  # kind -> {"tw_stock": int, "crypto": int, "ai_tools": int}
+
+
+def _set_bucket_plan(kind, total):
+    """依 sc.TOPIC_BUCKET_WEIGHTS 設定這批(kind,共 total 支)台股/加密/AI工具保底配額。
+    規則同 topic_bank._bucket_quota(兩處刻意保持一致，一邊改權重、兩邊同步生效):
+    total<3 全歸 tw_stock,不硬拆三桶;total>=3 時 crypto/ai_tools 各自至少保底 1 支
+    (比重×小基數捨去成 0 會讓這兩桶被結構性歸零，故設下限，除非整批 total<3)，
+    其餘名額(含配額外剩下的)全歸 tw_stock(主力)——這是「保底」不是「上限」，tw_stock
+    候選不夠配額時,pull_topic 自然會落回其他桶或原排序,不會硬卡住不出片。"""
+    total = max(0, int(total or 0))
+    if total < 3:
+        plan = {"tw_stock": total, "crypto": 0, "ai_tools": 0}
+    else:
+        remaining = total
+        plan = {}
+        for b in ("crypto", "ai_tools"):
+            w = sc.TOPIC_BUCKET_WEIGHTS.get(b, 0)
+            q = max(1, round(total * w))
+            q = min(q, remaining - 1)  # 至少留 1 支給 tw_stock
+            plan[b] = max(0, q)
+            remaining -= plan[b]
+        plan["tw_stock"] = max(0, remaining)
+    _BUCKET_PLAN[kind] = plan
+    _BUCKET_STATE[kind] = {"tw_stock": 0, "crypto": 0, "ai_tools": 0}
+
+
 def pull_topic(kind):
     """從 STUDIO/topic_bank.json 取一個未用、符合格式的題目並標記為已用；無則回 None。
     讀寫一律走 topic_bank.load_bank/save_bank(原子寫+.bak 救命),避免併發寫互毀把整庫洗掉(2026-07 根因修復)。
@@ -292,10 +327,47 @@ def pull_topic(kind):
         news_cand = [t for t in cand if str(t.get("source", "")).lower() in _NEWS_SRC]
         if news_cand:
             chosen = news_cand[0]  # 時事候選內仍照 _rank 排序取最優,不是隨機抓
+    # 2026-07 台股比重修正:時事配額沒選中時,再看 bucket 配額——用「平滑加權輪詢(smooth WRR)」
+    # 決定這次優先挑哪個桶,而不是每次都固定先查 tw_stock 再查 crypto/ai_tools。
+    # 根因(已用小批次實測抓到):固定順序每次都先查 tw_stock,只要 tw_stock 候選池還有貨、
+    # 配額還沒滿就一定贏,會導致 tw_stock 把批次前段名額整個吃光,等真正輪到 crypto/ai_tools
+    # 檢查時,批次名額可能已經被(時事配額+tw_stock)用完,保底配額變成看得到吃不到。
+    # smooth WRR(cw 累加器每輪 +=配額、選中者扣總權重)讓三桶交錯分布在整批次裡，
+    # 不會全擠在批次頭尾；已達自己配額(或被時事配額提前吃到超過配額)的桶會被移出 active、
+    # 剩餘權重自動只在還沒達標的桶之間比例分配,不會因為前面時事配額picks已提前貢獻某桶
+    # 而重複超配。
+    # 沿用同一支 _bucket_of 現場分類:題目自己有 bucket 欄位(topic_bank 產題端已寫入)就直接用,
+    # 沒有(舊題庫存量、或外部模組 add_topics 尚未跑過新版)才現場呼叫 classify_topic_bucket。
+    def _bucket_of(t):
+        b = t.get("bucket")
+        if b in ("tw_stock", "crypto", "ai_tools", "general"):
+            return b
+        return _sc.classify_topic_bucket(t.get("title", ""), t.get("angle", ""), t.get("category", ""))
+    bstate = _BUCKET_STATE.setdefault(kind, {"taken": {}, "cw": {}})
+    bplan = _BUCKET_PLAN.get(kind) or {}
+    taken = bstate.setdefault("taken", {})
+    cw = bstate.setdefault("cw", {})
+    if chosen is None and bplan:
+        active = {b: q for b, q in bplan.items() if q > taken.get(b, 0)}
+        if active:
+            for b in active:
+                cw[b] = cw.get(b, 0) + active[b]
+            total_active = sum(active.values())
+            for b in sorted(active.keys(), key=lambda x: -cw[x]):  # 這輪 WRR 最該輪到的桶優先試
+                b_cand = [t for t in cand if _bucket_of(t) == b]
+                if b_cand:
+                    chosen = b_cand[0]  # cand 已照 _rank 排序,篩選後仍保留桶內最優先的相對順序
+                    cw[b] = cw.get(b, 0) - total_active
+                    break
     if chosen is None:
         chosen = cand[0]
     if str(chosen.get("source", "")).lower() in _NEWS_SRC:
         state["news_pulled"] += 1
+    _chosen_bucket = _bucket_of(chosen)
+    if _chosen_bucket in ("tw_stock", "crypto", "ai_tools"):  # 不論走哪個分支選中,都記進 bucket 計數,後續抽題才準
+        taken[_chosen_bucket] = taken.get(_chosen_bucket, 0) + 1
+    if not chosen.get("bucket"):
+        chosen["bucket"] = _chosen_bucket  # 補記錄,讓舊題目一經抽中就補齊 bucket 欄位供日後稽核
     chosen["used"] = True
     try:
         _tb.save_bank(bank)  # 原子寫,不再直接覆蓋
@@ -345,7 +417,31 @@ _KNOWN_METAPHORS = {
     "手扶梯": "定投＝手扶梯(已用多次，盡量換)",
     "滾雪球": "複利＝滾雪球(已用多次，盡量換)",
     "雲霄飛車": "最大回撤＝雲霄飛車(已用多次，盡量換)",
+    "一台賓士": "少賺的錢＝一台賓士(已用爛，3天內連撞5支，禁用，換新比喻或直接講具體金額差距)",
 }
+
+# ── A1c 已知濫用比喻「硬擋」(2026-07-13 抓包：軟性 prompt 提示擋不住 LLM 用同義變體復發——
+#    「背考古題」被禁後隔天原句復發於另一支：「等於考古題先看過答案再背」，字面不同但核心詞沒變；
+#    「一台賓士」3 天內連撞 5 支不同影片)。這層是「已知累犯，永久硬擋」，跟下面 _body_too_similar
+#    (近期任何新出現的重複句型，動態、有時間窗)是兩層互補防線。
+#    ★核心設計：故意取比原詞更短的「核心關鍵字」(如「考古題」而非「背考古題」、「賓士」而非「一台賓士」)，
+#    這樣不管 LLM 怎麼倒裝語序、加什麼修飾詞包裝，只要核心詞還在文字裡就用子字串比對攔下來——
+#    不需要真的做語意相似度，比對變體最省成本又最不會漏。要加新的累犯比喻，直接把核心詞加進這個 tuple。
+NOTORIOUS_METAPHOR_KEYWORDS = (
+    "考古題", "賓士", "菜市場大媽", "雜貨店", "存錢罐", "手扶梯", "滾雪球", "雲霄飛車",
+)
+
+
+def _notorious_metaphor_hit(text: str):
+    """硬擋：旁白是否命中『已知濫用比喻』的核心關鍵字——不管怎麼換句話講、語序怎麼變，
+    只要核心詞還在文字裡就攔下來(純子字串比對，見上方 NOTORIOUS_METAPHOR_KEYWORDS 說明)。
+    命中回傳該關鍵字(供 log 訊息用)，沒命中回 None。"""
+    if not text:
+        return None
+    for kw in NOTORIOUS_METAPHOR_KEYWORDS:
+        if kw in text:
+            return kw
+    return None
 
 
 def _recent_voice_texts(n=15, pattern="*.voice.txt"):
@@ -363,27 +459,28 @@ def _recent_voice_texts(n=15, pattern="*.voice.txt"):
     return out
 
 
-def _recent_metaphor_block(n=15):
-    """近期(最新 n 支，短+長片都算)旁白裡偵測到的已知比喻 → 組一段『禁止再用』提示；
-    沒偵測到任何已知比喻就回空字串(不誤導、不硬塞)。"""
-    hit = set()
-    for t in _recent_voice_texts(n, "*.voice.txt"):
-        for kw, note in _KNOWN_METAPHORS.items():
-            if kw in t:
-                hit.add(note)
+def _recent_metaphor_block(n=20):
+    """近期(最新 n 支，短+長片都算)旁白裡動態抽出的『已用比喻/特色短語』→組一段『禁止再用』提示。
+    2026-07-13 深化：改呼叫 _recent_used_phrases(定義於本檔後段)，不再只認 7 個硬編碼關鍵字——
+    沒抽到任何東西就回空字串(不誤導、不硬塞)。"""
+    hit = _recent_used_phrases(n)
     if not hit:
         return ""
-    return ("\n【近期已用比喻(A1去同質化，避免同質化，務必換一個新比喻或改用白話直講，不要再用下列任一個)】\n- "
-            + "\n- ".join(sorted(hit)))
+    listed = sorted(hit, key=len, reverse=True)[:20]  # 限量避免撐爆 prompt，長句優先(資訊量較高)
+    return ("\n【近期已用比喻/特色短語(A1去同質化，避免同質化，務必換一個新說法，不要再用下列任一個)】\n- "
+            + "\n- ".join(listed))
 
 
-def _recent_endings(n=15, tail_chars=50):
-    """近期已產出 Shorts 旁白的結尾片段(給結尾 CTA 相似度比對用；只比 Shorts，長片結構不同不比)。"""
-    return [t.strip()[-tail_chars:] for t in _recent_voice_texts(n, "S_*.voice.txt") if t.strip()]
+def _recent_endings(n=15, tail_chars=100, pattern="S_*.voice.txt"):
+    """近期已產出旁白的結尾片段(給結尾 CTA 相似度比對用)。tail_chars 從 50 放寬到 100(涵蓋完整 CTA)；
+    pattern 預設只比 Shorts 自己，長片結構不同、要各自跟長片比時傳 "L_*.voice.txt"(2026-07-13 深化)。"""
+    return [t.strip()[-tail_chars:] for t in _recent_voice_texts(n, pattern) if t.strip()]
 
 
-def _ending_too_similar(text, recent, thr=0.72, tail_chars=50):
-    """本支旁白結尾是否與『近期任一支』的結尾高度相似(=同一句 CTA 反覆重複，治 77% 同句問題)。"""
+def _ending_too_similar(text, recent, thr=0.72, tail_chars=100):
+    """本支旁白結尾是否與『近期任一支』的結尾高度相似(=同一句 CTA 反覆重複，治 77% 同句問題)。
+    tail_chars 從 50 放寬到 100(2026-07-13 深化)：50 字常只涵蓋連看鉤半句，接不到前面的留言鉤／
+    訂閱鉤，真正重複的 CTA 反而漏比對；100 字能涵蓋完整的『留言鉤+訂閱鉤(+連看鉤)』三句組合。"""
     if not text:
         return False
     from difflib import SequenceMatcher
@@ -397,6 +494,170 @@ def _ending_too_similar(text, recent, thr=0.72, tail_chars=50):
         except Exception:  # noqa: BLE001
             continue
     return False
+
+
+# ── A1d CTA 範例池參數化(2026-07-13 治病灶A根因之一)：spec/HOOK_RULES 原本在 prompt 裡固定寫死
+# 同一句「你是哪種?留言告訴我」當範例，LLM 高機率照抄——3天內5支不同影片撞同一句結尾正是這樣來的。
+# 改成 ≥10 句可調池，每次呼叫只挑「近 _CTA_POOL_WINDOW 次沒被當過範例」的句子塞進 prompt，
+# 範例本身先做到輪替，LLM 就算照抄也不會一直抄同一句。池子與視窗大小都是模組常數，方便之後調整。
+CTA_ENDING_POOL = [
+    "你的設定是哪種?留言告訴我",
+    "想要完整回測數據?留言「數據」我私你",
+    "你會怎麼選?留言告訴我你的答案",
+    "猜到答案了嗎?留言公布你的猜測",
+    "這招你敢用嗎?留言說說你的顧慮",
+    "你會停損還是加碼?留言告訴我",
+    "換成是你會選哪邊?留言戰一波",
+    "你中過這個坑嗎?留言講講你的經驗",
+    "這數字有嚇到你嗎?留言說說你的想法",
+    "你猜下一步該怎麼做?留言告訴我",
+    "換你操作會怎麼做?留言告訴我你的判斷",
+    "這結果你猜對了嗎?留言公布你的戰績",
+]
+_CTA_POOL_WINDOW = 5  # 近 N 次生成不重複拿同一句當範例(可調)
+_CTA_POOL_STATE_FILE = ROOT / "STUDIO" / "cta_pool_state.json"
+
+
+def _cta_pool_sample(k=2):
+    """從 CTA_ENDING_POOL(≥10句)挑 k 句當本次生成 prompt 的『範例』(只是示範句型給 LLM 參考，
+    不是強制輸出字面值)，優先挑近 _CTA_POOL_WINDOW 次沒被當過範例的句子，避免同一句範例反覆
+    出現在 prompt 裡讓 LLM 照抄。狀態存 STUDIO/cta_pool_state.json(只記最近用過的池索引佇列)；
+    缺檔/壞檔/寫入失敗都優雅退回單純隨機挑，不影響產線。"""
+    import random
+    n = len(CTA_ENDING_POOL)
+    k = min(k, n)
+    try:
+        state = sc.load_json_safe(_CTA_POOL_STATE_FILE, default={"recent": []}) or {"recent": []}
+        recent_idx = [i for i in state.get("recent", []) if isinstance(i, int) and 0 <= i < n]
+    except Exception:  # noqa: BLE001
+        recent_idx = []
+    recent_set = set(recent_idx[-_CTA_POOL_WINDOW:])
+    candidates = [i for i in range(n) if i not in recent_set]
+    if len(candidates) < k:  # 池子被近期用滿了(池子太小或視窗太大)→退回全池挑，不卡死
+        candidates = list(range(n))
+    picked = random.sample(candidates, k)
+    try:
+        recent_idx = (recent_idx + picked)[-max(_CTA_POOL_WINDOW * k, 20):]
+        sc.save_json_atomic(_CTA_POOL_STATE_FILE, {"recent": recent_idx})
+    except Exception:  # noqa: BLE001
+        pass
+    return [CTA_ENDING_POOL[i] for i in picked]
+
+
+# ── A1b 內文去同質化深化(2026-07-13)：_too_similar 只擋標題、_ending_too_similar 只擋結尾，
+# 都漏掉「旁白整篇的比喻/中段句型抄自己」這一層——實測同一批稿標題不同，但中段比喻、句型、
+# CTA 結尾幾乎一樣，觀眾看第二支就膩。以下補「比喻/金句」與「中段句型」兩個維度，
+# 全部沿用『命中就重生，重生超過上限就放行但記 log 標記』的既有模式，不做無限迴圈。
+
+USED_PHRASES_FILE = ROOT / "STUDIO" / "used_phrases.json"
+_METAPHOR_MARKERS = ("就像", "就好像", "好比", "等於是", "宛如", "＝", "彷彿")
+
+
+def _split_sentences(text):
+    """中文斷句：依句末標點(。！？!?)切，去空白/空句。供內文相似度比對共用的輕量工具。"""
+    if not text:
+        return []
+    parts = re.split(r"[。！？!?]+", text)
+    return [p.strip() for p in parts if p.strip()]
+
+
+def _extract_metaphor_sentences(text):
+    """從一篇旁白裡挑出『比喻句』(含就像/好比/等於是/＝等標記詞的句子)，長度限制在
+    6~40 字之間——太短沒資訊量(可能斷句誤切)、太長多半是整段被切壞，不是乾淨的比喻句。"""
+    return [s for s in _split_sentences(text) if any(m in s for m in _METAPHOR_MARKERS) and 6 <= len(s) <= 40]
+
+
+def _extract_repeated_ngrams(texts, n=4, min_count=3):
+    """跨檔統計重複出現的 n 字(預設4字)以上中文片語，回傳『出現在 >= min_count 個不同檔案』的片語
+    (跨檔重複＝真正被反覆套用的『特色短語』；單檔內自己重複不算)。輕量字元 n-gram，不做完整斷詞。"""
+    from collections import Counter
+    file_grams = []
+    for t in texts:
+        chars_only = re.sub(r"[^一-鿿]", "", t or "")
+        file_grams.append({chars_only[i:i + n] for i in range(max(len(chars_only) - n + 1, 0))})
+    counter = Counter()
+    for grams in file_grams:
+        counter.update(grams)
+    return [g for g, c in counter.items() if c >= min_count]
+
+
+def _recent_voice_files(n=20, pattern="*.voice.txt"):
+    """讀最近 n 支已產出旁白的 (slug, 全文) 清單(mtime 倒序)；讀不到就整批優雅跳過，不中斷產線。"""
+    out = []
+    try:
+        files = sorted(OUT.glob(pattern), key=lambda f: f.stat().st_mtime, reverse=True)[:n]
+        for f in files:
+            try:
+                out.append((f.name[: -len(".voice.txt")], f.read_text(encoding="utf-8", errors="replace")))
+            except Exception:  # noqa: BLE001
+                continue
+    except Exception:  # noqa: BLE001
+        pass
+    return out
+
+
+def _recent_used_phrases(n=20):
+    """動態抽取『近期已用比喻/特色短語』——取代原本只認 7 個硬編碼關鍵字(_KNOWN_METAPHORS)的做法。
+    三路來源：①_KNOWN_METAPHORS 種子(保留，免舊比喻復辟)②近期旁白裡含比喻標記詞的句子
+    ③跨檔重複出現(>=3 個不同檔案)的 4 字以上片語(抓『幾乎每支都出現』的特色短句/句型)。"""
+    hit = set(_KNOWN_METAPHORS.values())
+    texts = [t for _, t in _recent_voice_files(n, "*.voice.txt")]
+    for t in texts:
+        hit.update(_extract_metaphor_sentences(t))
+    hit.update(_extract_repeated_ngrams(texts, n=4, min_count=3))
+    return hit
+
+
+def _body_too_similar(text, recent_texts, thr=0.85, min_len=10):
+    """新旁白『整篇』與近期任一支是否有『局部』高度相似——逐句(chunk)比對，不是整篇平均，
+    避免長片字數多，把某一句抄自己的相似度被稀釋掉(治『中段句型抄自己』，長短片都適用)。
+    任一句與歷史任一句相似度 >= thr 就判定為重複，回傳 True 觸發重生。"""
+    if not text:
+        return False
+    from difflib import SequenceMatcher
+    new_sents = [s for s in _split_sentences(text) if len(s) >= min_len]
+    if not new_sents:
+        return False
+    hist_sents = []
+    for r in recent_texts or []:
+        hist_sents.extend(s for s in _split_sentences(r) if len(s) >= min_len)
+    if not hist_sents:
+        return False
+    for ns in new_sents:
+        for hs in hist_sents:
+            # 長度差太懸殊沒必要比(不可能高相似)，省掉多數無效的 SequenceMatcher 呼叫
+            if abs(len(ns) - len(hs)) > max(len(ns), len(hs)) * 0.5:
+                continue
+            try:
+                if SequenceMatcher(None, ns, hs).ratio() >= thr:
+                    return True
+            except Exception:  # noqa: BLE001
+                continue
+    return False
+
+
+def _record_used_phrases(d, slug):
+    """把本支已產出的比喻句 + CTA 結尾片段記進 STUDIO/used_phrases.json(持久化狀態，供未來稽核/
+    人工複查『哪些短語已經用過』)。寫入一律走 studio_common.save_json_atomic(專案統一防併發洗檔的
+    原子寫入工具)，不自己 open().write()。純附加、缺檔/壞檔靜默跳過，不影響產線。"""
+    try:
+        text = d.get("voice_text", "") or ""
+        phrases = _extract_metaphor_sentences(text)
+        tail = text.strip()[-100:]
+        if tail:
+            phrases.append(tail)
+        if not phrases:
+            return
+        data = sc.load_json_safe(USED_PHRASES_FILE, default={"entries": []})
+        if not isinstance(data, dict) or not isinstance(data.get("entries"), list):
+            data = {"entries": []}
+        today = time.strftime("%Y-%m-%d")
+        for p in phrases:
+            data["entries"].append({"phrase": p, "slug": slug, "date": today})
+        data["entries"] = data["entries"][-2000:]  # 限量避免無界成長
+        sc.save_json_atomic(USED_PHRASES_FILE, data)
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def _fabricated_perf_claim(text):
@@ -748,9 +1009,13 @@ def call_claude(kind, avoid, topic_override=None):
         if pk or pm:
             bias = f"\n【決策部門指令】優先方向：{pm}。偏好關鍵字：{pk}。" + (f"避免題材：{av}。" if av else "")
     if kind == "short":
+        # A1d(2026-07-13)：範例句改從 CTA_ENDING_POOL 動態抽 2 句(近5次不重複)，
+        # 不再固定寫死同一句『你是哪種?留言告訴我』——那正是3天內5支撞同句的根因之一。
+        _cta_ex = _cta_pool_sample(2)
         spec = ("一支 30–45 秒直式 Shorts(2026 演算法甜蜜點;15秒以下已死,因為要 100% 完播才過得了門檻)。"
                 "voice_text 150–220 字、前 2 秒就是鉤子、講清一個觀念但每 3-4 秒一個新衝擊點/轉折維持完播、"
-                "結尾用留言鉤『你是哪種?留言告訴我』或『想要完整回測數據?留言「數據」我私你』(留言權重比訂閱高)。segments 給 2 段。")
+                f"結尾用留言鉤(範例僅供參考句型,務必自創或換句,不要照抄)：『{_cta_ex[0]}』或『{_cta_ex[1]}』"
+                "(留言權重比訂閱高)。segments 給 2 段。")
     else:
         spec = ("一支**真正**的 8–10 分鐘長片（A4真長片引擎：不是把短片拉長，資訊密度要撐滿全長）。"
                 "voice_text **硬性要求至少 2200 字、目標 2600–3000 字**——低於 2000 字會被長度 gate 直接打回、"
@@ -1577,18 +1842,28 @@ def make_one(kind, no_render=False, topic_override=None):
     #   ⑤提早揭曉(P2 完播狙擊)=開頭懸念的答案在前 30% 就講完，觀眾拿了就走
     #   ③結尾CTA與近期任一支高度相似(A1去同質化,治「77%結尾同一句」)——只對常規題檢查,
     #     時事 topic_override 的題目本來就與常規題材不同源,不比對(避免誤殺)
-    #   前兩者共用同一重生上限(≤2)，用完就放行最後一版，絕不無限重生卡死產線；
+    #   ⑥內文中段句型與近期任一支逐句(chunk)高度相似(A1b 深化 2026-07-13)——同樣只對常規題檢查
+    #   前面共用同一重生上限(≤2)，用完就放行最後一版(超過上限就記 log 標記，不再無限重生卡死產線)；
     #   2026-07 成長衝刺：①弱鉤子/②衝擊密度改為時事 topic_override 也照查
     #   (裸新聞轉述開場正是完播殺手主因，時事片更該被這道閘擋，不能再豁免)；
     #   ④⑤同樣對時事題照查(中段拖沓/提早爆雷不分題材都會流失，不豁免)。
     if kind == "short":
         _hk = 0
-        _recent_ends = _recent_endings()
+        _recent_ends = _recent_endings(15, 100, "S_*.voice.txt")
+        _recent_bodies = _recent_voice_texts(20, "S_*.voice.txt")
         while (_weak_hook(d.get("voice_text", "")) or _impact_density(d.get("voice_text", ""))
                or _weak_mid_hook(d.get("voice_text", "")) or _reveals_too_early(d.get("voice_text", ""))
-               or (not topic_override and _ending_too_similar(d.get("voice_text", ""), _recent_ends))) and _hk < 2:
+               or (not topic_override and _ending_too_similar(d.get("voice_text", ""), _recent_ends))
+               or (not topic_override and _body_too_similar(d.get("voice_text", ""), _recent_bodies))
+               or _notorious_metaphor_hit(d.get("voice_text", ""))) and _hk < 2:
             _hk += 1
             d = call_claude(kind, _ex, topic_override)
+        if not topic_override and (_ending_too_similar(d.get("voice_text", ""), _recent_ends)
+                                    or _body_too_similar(d.get("voice_text", ""), _recent_bodies)):
+            log_ops("補產部門", f"⚠️ A1b內文/CTA與近期重複度高·重生{_hk}次仍命中,已放行需人工複查:{d.get('title','')[:26]}")
+        _nm = _notorious_metaphor_hit(d.get("voice_text", ""))
+        if _nm:
+            log_ops("補產部門", f"⚠️ A1c已知濫用比喻『{_nm}』重生{_hk}次仍命中,已放行需人工複查:{d.get('title','')[:26]}")
     # A4 真長片引擎(2026-07-13 收緊 gate + fail-closed)：長片 call_claude 內已做「分段深寫+誠信自癒」
     # (每段各發一次 LLM 寫深段、跑 fact_guard/禁語逐段修乾淨),單次就能穩定產 2400-3100 字的真長片。
     # 這裡只做長度 gate 把關：不達標(<2000字 或 預估<8分,偶發波動)就整支重生(最多4次,每次都是一支
@@ -1605,6 +1880,22 @@ def make_one(kind, no_render=False, topic_override=None):
             log_ops("補產部門", f"⛔ A4長片重生4次後仍僅約{_n}字(<{LONG_MIN_CHARS}字/8分),fail-closed不輸出假長片:{d.get('title','')[:24]}")
             print(f"[skip] long 長度不足({_n}字),fail-closed 不輸出:{d.get('title','')[:24]}")
             return None
+        # A1b 內文去同質化(2026-07-13 深化)：原本 _ending_too_similar 只給 Shorts 用，長片結尾 CTA
+        # 一樣會反覆套同一句、中段句型也一樣會抄自己——長片各自跟長片比(結構跟 Shorts 不同不能互比)。
+        # 獨立於長度 gate 的重生上限(≤2)：不跟長度 gate 搶 4 次預算，超過就放行但記 log 標記人工複查。
+        _lc = 0
+        _recent_ends_l = _recent_endings(15, 100, "L_*.voice.txt")
+        _recent_bodies_l = _recent_voice_texts(20, "L_*.voice.txt")
+        while (_ending_too_similar(d.get("voice_text", ""), _recent_ends_l)
+               or _body_too_similar(d.get("voice_text", ""), _recent_bodies_l)
+               or _notorious_metaphor_hit(d.get("voice_text", ""))) and _lc < 2:
+            _lc += 1
+            d = call_claude(kind, _ex, topic_override)
+        if _ending_too_similar(d.get("voice_text", ""), _recent_ends_l) or _body_too_similar(d.get("voice_text", ""), _recent_bodies_l):
+            log_ops("補產部門", f"⚠️ A1b長片內文/CTA與近期重複度高·重生{_lc}次仍命中,已放行需人工複查:{d.get('title','')[:26]}")
+        _nm_l = _notorious_metaphor_hit(d.get("voice_text", ""))
+        if _nm_l:
+            log_ops("補產部門", f"⚠️ A1c長片已知濫用比喻『{_nm_l}』重生{_lc}次仍命中,已放行需人工複查:{d.get('title','')[:26]}")
     # A2 誠信硬擋(2026-07 頻道整頓計畫)：非台股題(無 tw_stock_facts 真數據佐證)、
     # 也非已有自己數字紀律的 EP/旗艦 franchise，若疑似捏造具體績效數字(回測N檔/勝率X%/報酬Y%/
     # 夏普轉折/虧損X% 等且無示意假設語境)→ 重生最多 2 次；仍命中就放行最後版但寫警告 log，
@@ -1630,6 +1921,7 @@ def make_one(kind, no_render=False, topic_override=None):
         slug = f"{slug}{int(time.time()) % 10000}"
     (OUT / f"{slug}.voice.txt").write_text(d["voice_text"], encoding="utf-8")
     (OUT / f"{slug}.md").write_text(build_md(d), encoding="utf-8")
+    _record_used_phrases(d, slug)  # A1b:把本支已用比喻句/CTA 結尾記進 STUDIO/used_phrases.json(供稽核)
     sc.record_skeleton_produced(d["title"])  # 記骨架家族時間戳,供週上限(check_skeleton_frequency)計數
     if sc.is_liquidation_hijack(d.get("title", "")):
         sc.record_topic_produced("news_liquidation")  # 加密爆倉/網格新聞蹭熱週上限計數(2026-07 成長衝刺)
@@ -1818,6 +2110,10 @@ def main() -> int:
     # P3:本批開跑前設定時事題保底配額(短片/長片各自算;quota=0 時行為與修改前完全相同)
     _set_batch_plan("short", args.shorts)
     _set_batch_plan("long", args.long)
+    # 2026-07 台股比重修正:本批開跑前也設定題材桶保底配額(短片/長片各自算,跟時事配額
+    # 彼此獨立、互不覆蓋——pull_topic() 內先看時事配額,沒中才看桶配額,兩層可疊加)。
+    _set_bucket_plan("short", args.shorts)
+    _set_bucket_plan("long", args.long)
 
     log_ops("補產部門", f"開始補產（庫存 {q}/{args.target}）…")
     made = sum(1 for _ in range(args.shorts) if attempt("short"))

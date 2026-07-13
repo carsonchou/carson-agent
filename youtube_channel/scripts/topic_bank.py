@@ -84,7 +84,54 @@ CATEGORIES = [
     "AI省錢·聰明用 AI（官方訂閱 vs 第三方共享合租 vs 走 API vs 免費額度 誠實比較、Claude/ChatGPT/Gemini 便宜怎麼用、共享帳號會不會被官方停用、值不值——一律拆穿/實測/幫你試/揭露風險，資訊比較非推銷，絕不喊「快買/最划算/穩用」）",
     # ↓↓ AI×交易招牌 franchise（2026-07；我真的用 Claude Code 開/跑 AI 系統=對手抄不出的護城河）
     "AI公司揭密·Claude Code 實測（我用 Claude Code 開/跑 AI 系統經營頻道與量化的 behind-the-scenes 揭密、AI 選股/寫 bot/自動化的真實與盲點、樣本外打臉照抄那些瘋傳暴利策略——揭密/實測/避雷角度，不喊單、不報明牌、不保證收益）",
+    # ↓↓ 2026-07 台股比重修正新增（實測195支影片Top5全台股，補上明確缺口的3個台股角度；
+    # 延續現有措辭風格：只做數據拆解、不喊單、不報明牌、不喊目標價、不保證會漲）
+    "台股槓桿ETF陷阱（00631L/正2/反1這類槓桿與反向ETF——用回測拆解波動耗損(volatility decay)如何長期侵蝕報酬、"
+    "「長期持有正2」的迷思、槓桿ETF只適合短期波段不適合存股的數據證明——不喊單、不報明牌、不喊目標價、不保證會漲）",
+    "台股退休試算·長期報酬模擬（用0050/大盤/00878等台股長期歷史報酬回推「準備退休金要存多久/每月要投多少」、"
+    "4%法則在台股適不適用、通膨侵蝕退休金的真實數字、不同報酬假設下的試算差異——用回測與試算表拆解，不報明牌、不保證會漲）",
+    "台股停利vs續抱獨立分析（設停利點賣出 vs 續抱不賣，用歷史數據回測兩種紀律的長期績效差異、"
+    "『賣飛』的心理代價與真實機會成本、停利點怎麼設才不會賣在起漲點——只做數據拆解，不喊單、不報明牌、不保證會漲）",
 ]
+
+# ── 題材桶對照(2026-07 台股比重修正)：每個 CATEGORIES 項目對應到 studio_common.classify_topic_bucket
+# 的哪一桶。用途：main() 依 TOPIC_BUCKET_WEIGHTS 決定「這次要多花幾輪從哪個桶的子領域出題」，
+# 藉此在生成階段就結構性拉高台股比例，而不只是候選池排序層面的優先(那在候選池本身稀薄時無效)。
+# 注意：這是「出題方向」的桶，跟每筆實際存檔的 bucket 欄位不同——存檔時仍用 classify_topic_bucket()
+# 現場判斷 LLM 實際產出的 title/angle/category(LLM 有時會跑題，不能盲信這裡的方向標籤)。
+_TW = "tw_stock"
+_CR = "crypto"
+_AI = "ai_tools"
+_GN = "general"
+CATEGORY_BUCKET_MAP = [
+    _TW,  # 0  台股大盤與ETF·數據拆穿
+    _CR,  # 1  網格交易
+    _CR,  # 2  定投DCA與再平衡
+    _GN,  # 3  資金控管與槓桿風險
+    _GN,  # 4  交易成本與心理陷阱
+    _GN,  # 5  回測與數據方法論
+    _GN,  # 6  風控與心法
+    _CR,  # 7  工具與派網Pionex
+    _GN,  # 8  市場觀念與避坑
+    _GN,  # 9  小白恐懼與避雷
+    _GN,  # 10 我幫你試·實測避雷
+    _TW,  # 11 台股除權息與存股
+    _TW,  # 12 台股財報體檢
+    _TW,  # 13 台股籌碼分析
+    _TW,  # 14 台股當沖與波段比較
+    _TW,  # 15 台股大盤情緒與產業輪動
+    _TW,  # 16 台股新手常見錯誤
+    _TW,  # 17 台股個股與選股·方法拆解
+    _TW,  # 18 台股實戰·避雷
+    _GN,  # 19 通用量化觀念·換角度講
+    _GN,  # 20 拆穿穩賺神話
+    _AI,  # 21 AI省錢·聰明用AI
+    _AI,  # 22 AI公司揭密·Claude Code實測
+    _TW,  # 23 台股槓桿ETF陷阱(新增)
+    _TW,  # 24 台股退休試算(新增)
+    _TW,  # 25 台股停利vs續抱(新增)
+]
+assert len(CATEGORY_BUCKET_MAP) == len(CATEGORIES), "CATEGORY_BUCKET_MAP 要跟 CATEGORIES 一一對應"
 
 # A3 擴廣度：把 CATEGORIES 切成小群組，main() 每輪只指定 1 群組出題（round-robin）。
 # 根因：先前單次全量丟給 LLM 選，靠 evidence_block 的「已驗證贏家關鍵字」(回測/網格)
@@ -92,6 +139,19 @@ CATEGORIES = [
 # 硬性分散，不再只靠 prompt 軟性建議。
 _GROUP_SIZE = 3
 CATEGORY_GROUPS = [CATEGORIES[i:i + _GROUP_SIZE] for i in range(0, len(CATEGORIES), _GROUP_SIZE)]
+
+# 2026-07 台股比重修正：CATEGORY_GROUPS 依桶分組，main() 改成「先決定這批要花幾輪出哪個桶
+# 的題，再在該桶內部 round-robin 子領域」，取代舊版單一 round-robin(那是均分邏輯，沒有加權)。
+CATEGORY_GROUPS_BY_BUCKET = {
+    b: [
+        [CATEGORIES[i] for i in idxs[j:j + _GROUP_SIZE]]
+        for j in range(0, len(idxs), _GROUP_SIZE)
+    ]
+    for b, idxs in {
+        b2: [i for i, bb in enumerate(CATEGORY_BUCKET_MAP) if bb == b2]
+        for b2 in (_TW, _CR, _AI, _GN)
+    }.items()
+}
 
 
 def existing_titles():
@@ -200,13 +260,16 @@ def add_topics(items, source="", front=False):
         have.add(n)
         if _crypto_src:
             _recent_gate.append(title)
+        _angle = (t.get("angle") or "").strip()
+        _cat = (t.get("category") or "").strip()
         rec = {
             "id": "t" + hashlib.md5(n.encode("utf-8")).hexdigest()[:8],
             "title": title,
-            "angle": (t.get("angle") or "").strip(),
-            "category": (t.get("category") or "").strip(),
+            "angle": _angle,
+            "category": _cat,
             "format": "long" if str(t.get("format", "")).lower().startswith("l") else "short",
             "used": False,
+            "bucket": sc.classify_topic_bucket(title, _angle, _cat),
         }
         if source:
             rec["source"] = source
@@ -286,6 +349,28 @@ def gen_topics(need, avoid_titles, bias_keywords=None, category_focus=None):
     return items
 
 
+def _bucket_quota(need: int) -> dict:
+    """依 sc.TOPIC_BUCKET_WEIGHTS 把這次要補的 need 題分配到 tw_stock/crypto/ai_tools 三桶
+    (產題方向，不是硬性事後篩選——實際存檔 bucket 仍由 classify_topic_bucket 判斷真實產出)。
+    規則：need 太小(<3)時全給 tw_stock(主力)，不硬拆三桶；need>=3 時 crypto/ai_tools 各自
+    至少保底 1 題(比重*小基數捨去成 0 會讓這兩桶在小批次時被結構性歸零，故設下限)，
+    剩下(含四捨五入誤差)全部歸給 tw_stock。"""
+    if need <= 0:
+        return {}
+    if need < 3:
+        return {"tw_stock": need}
+    quotas = {}
+    remaining = need
+    for b in ("crypto", "ai_tools"):
+        w = sc.TOPIC_BUCKET_WEIGHTS.get(b, 0)
+        q = max(1, round(need * w))
+        q = min(q, remaining - 1)  # 至少留 1 題給 tw_stock，避免極端小批被小桶吃光
+        quotas[b] = max(0, q)
+        remaining -= quotas[b]
+    quotas["tw_stock"] = max(0, remaining)
+    return quotas
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--target", type=int, default=50, help="題庫要維持的未用題目數")
@@ -302,43 +387,61 @@ def main() -> int:
     log_ops("題庫引擎", f"擴題庫：目標未用 {args.target}，現 {len(unused)}，需補 {need}…")
     print(f"擴題庫中：要補 {need} 個（現有未用 {len(unused)}）…")
 
+    # 2026-07 台股比重修正：不再是單一 round-robin(均分)，改成先依桶配額決定「這批花幾輪
+    # 出哪個桶的題」，桶內部再 round-robin 子領域(維持廣度，避免同桶內全擠在同一子領域)。
+    quotas = _bucket_quota(need)
     added = 0
+    added_by_bucket = {}
     rounds = 0
-    # A3 擴廣度:輪數拉高到能覆蓋完整一輪 CATEGORY_GROUPS，每輪只指定一個小群組出題，
-    # 用結構強制分散，不再靠模型自己平衡（模型會習慣性收斂回「回測/網格」窄圈）。
-    max_rounds = max(8, len(CATEGORY_GROUPS))
-    while added < need and rounds < max_rounds:
-        focus = CATEGORY_GROUPS[rounds % len(CATEGORY_GROUPS)]
-        rounds += 1
-        batch = gen_topics(min(need - added + 3, 15), have_norms | set(), category_focus=focus)
-        for t in batch:
-            title = (t.get("title") or "").strip()
-            if not title:
-                continue
-            n = _norm(title)
-            if n in have_norms:
-                continue  # 去重
-            have_norms.add(n)
-            bank.append({
-                "id": "t" + hashlib.md5(n.encode("utf-8")).hexdigest()[:8],
-                "title": title,
-                "angle": (t.get("angle") or "").strip(),
-                "category": (t.get("category") or "").strip(),
-                "format": "long" if str(t.get("format", "")).lower().startswith("l") else "short",
-                "used": False,
-            })
-            added += 1
-            if added >= need:
-                break
-        save_bank(bank)
+    for bucket, bneed in quotas.items():
+        if bneed <= 0 or added >= need:
+            continue
+        groups = CATEGORY_GROUPS_BY_BUCKET.get(bucket) or CATEGORY_GROUPS
+        b_added = 0
+        b_round = 0
+        # A3 擴廣度精神延續：輪數要能覆蓋完整一輪該桶的子領域群組，且留餘裕應付去重撞名。
+        max_b_rounds = max(4, len(groups) * 2)
+        while b_added < bneed and added < need and b_round < max_b_rounds:
+            focus = groups[b_round % len(groups)]
+            b_round += 1
+            rounds += 1
+            batch = gen_topics(min(bneed - b_added + 3, 15), have_norms | set(), category_focus=focus)
+            for t in batch:
+                title = (t.get("title") or "").strip()
+                if not title:
+                    continue
+                n = _norm(title)
+                if n in have_norms:
+                    continue  # 去重
+                have_norms.add(n)
+                _angle = (t.get("angle") or "").strip()
+                _cat = (t.get("category") or "").strip()
+                actual_bucket = sc.classify_topic_bucket(title, _angle, _cat)  # 現場判斷實際產出,不盲信 focus 方向
+                bank.append({
+                    "id": "t" + hashlib.md5(n.encode("utf-8")).hexdigest()[:8],
+                    "title": title,
+                    "angle": _angle,
+                    "category": _cat,
+                    "format": "long" if str(t.get("format", "")).lower().startswith("l") else "short",
+                    "used": False,
+                    "bucket": actual_bucket,
+                })
+                added += 1
+                b_added += 1
+                added_by_bucket[actual_bucket] = added_by_bucket.get(actual_bucket, 0) + 1
+                if added >= need or b_added >= bneed:
+                    break
+            save_bank(bank)
 
     unused_now = sum(1 for t in bank if not t.get("used"))
     by_fmt = {}
     for t in bank:
         if not t.get("used"):
             by_fmt[t["format"]] = by_fmt.get(t["format"], 0) + 1
-    log_ops("題庫引擎", f"完成 新增{added} 題，現未用 {unused_now}（short {by_fmt.get('short',0)}/long {by_fmt.get('long',0)}）")
-    print(f"[ok] 新增 {added} 題，題庫現有未用 {unused_now} 個"
+    bucket_summary = "、".join(f"{k}{v}" for k, v in added_by_bucket.items())
+    log_ops("題庫引擎", f"完成 新增{added} 題（{bucket_summary}），現未用 {unused_now}"
+                        f"（short {by_fmt.get('short',0)}/long {by_fmt.get('long',0)}）")
+    print(f"[ok] 新增 {added} 題（{bucket_summary}），題庫現有未用 {unused_now} 個"
           f"（short {by_fmt.get('short',0)} / long {by_fmt.get('long',0)}）→ {BANK}")
     return 0
 

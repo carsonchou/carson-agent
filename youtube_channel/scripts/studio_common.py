@@ -390,6 +390,84 @@ def evidence_block(max_chars: int = 900) -> str:
     return out[:max_chars]
 
 
+# ── 題材配重系統(2026-07 台股比重修正)──
+# 實測依據:Carson 用 YT Data/Analytics API 實測 195 支公開影片,Top5(48h觀看854/821/732/666/659)
+# 全是台股題材(0050/台積電/00878/ETF回測比較),Bottom5(0觀看,掛47-54小時)3支是加密貨幣
+# (BTC暴跌/加密網格/AI選股)。但 STUDIO/topic_bank.json 現存 430 個未用題目裡,台股類別加總不到
+# 3%(市場觀念 309題裡混雜大量加密內容、真正台股類別只個位數)。round-robin 式的『每輪出一組』
+# 是均分邏輯,完全沒往台股加權——這是產出鏈的根因之一,故在此新增可調參數化的桶配重,
+# topic_bank(產題存檔)與 produce_batch(抽題配額)共用同一份規則,任何一端改權重都同步生效。
+#
+# 比重設計:台股 78%(頭號實證贏家,主力)、加密 10%(不歸零——頻道 DNA 之一+Pionex 聯盟返佣要用,
+# 且爆款也需要跨題材素材避免演算法判定內容單一)、AI×交易/工具 12%(第二變現支柱:AI省錢+
+# Claude Code揭密兩條 franchise,也是對手抄不出的護城河,要顧但不必是主力)。
+# 之後有更多分眾實測數據,直接改這個 dict 即可,不用動呼叫端邏輯。
+TOPIC_BUCKET_WEIGHTS = {"tw_stock": 0.78, "crypto": 0.10, "ai_tools": 0.12}  # 總和=1.0
+
+# ai_tools 專屬品牌/工具詞——命中即回傳 ai_tools,不論同段文字是否也含台股/加密詞(這是獨立的
+# 變現支柱:即使內容是『我用 Claude Code 分析台積電』也算 AI 公司揭密 franchise,不算 tw_stock)。
+# 刻意不用裸字「AI」當關鍵字、也不對「AI選股/AI策略/AI操盤」這類詞觸發——那些是加密圈常見的
+# 『AI選股神器』話術題,屬 crypto/general 陣營,不是本頻道 AI 工具/Claude Code 揭密這條線
+# (混進來會稀釋 ai_tools 桶的精準度,詳見 classify_topic_bucket 說明)。
+_BUCKET_AI_TOOLS_KW = (
+    "Claude Code", "ChatGPT", "Claude Pro", "GPT Plus", "GPT-4", "Gemini Advanced",
+    "AI訂閱", "共享帳號", "合租帳號", "共享合租", "API串接", "OpenRouter", "DeepSeek",
+    "AI省錢", "AI公司揭密", "PremLogin", "大型語言模型", "AI開發", "AI寫程式",
+    "AI自動化系統", "AI跑頻道", "AI跑量化", "prompt工程", "AI工具比較", "AI助理", "Claude",
+)
+# tw_stock / crypto 各分「專有名詞(strong,權重2)」「泛用詞(weak,權重1)」——分數高者勝出。
+# strong 是具體標的代號/公司名(訊號最硬),weak 是該市場慣用但較泛用的詞彙。
+_BUCKET_TW_STRONG = (
+    "0050", "0056", "00878", "00929", "00919", "00940", "00631L", "006208", "00713", "00733",
+    "台積電", "台灣50",
+)
+_BUCKET_TW_WEAK = (
+    "台股", "臺股", "存股", "除權息", "填息", "籌碼", "財報", "毛利率", "營益率",
+    "當沖", "隔日沖", "波段", "法人買賣超", "融資", "融券", "權值股", "大盤", "加權指數",
+    "開戶", "零股", "證交稅", "退休金", "退休試算", "正2", "反1", "槓桿ETF",
+    # 2026-07-13 實測補漏:分類器把「高股息ETF月配vs年配複利滾存10年差多少」判成 general,
+    # 逃出台股桶=不受配額保護。高股息/配息/定期定額/ETF 這些正是本頻道最核心的台股詞彙,
+    # 原本竟然一個都不在清單裡(只有除權息/填息),導致一大票真台股題被漏掉。
+    # 這些詞加密圈也會用(如「比特幣定期定額」),但 crypto STRONG 權重 2 > 這裡的 weak 權重 1,
+    # 真的講幣的題目仍會正確落到 crypto 桶,不會被誤搶。
+    "高股息", "股息", "配息", "月配", "季配", "年配", "月月配", "殖利率", "配股",
+    "ETF", "市值型", "指數型", "定期定額", "定投", "定期投資", "扣款",
+    "複利", "滾存", "停利", "微笑曲線", "單筆投入", "All-in", "All in",
+)
+_BUCKET_CRYPTO_STRONG = (
+    "比特幣", "比特币", "BTC", "以太坊", "以太幣", "以太币", "ETH", "山寨幣", "迷因幣",
+    "狗狗幣", "幣安", "Coinbase", "Kraken", "Tether", "USDT", "USDC", "Circle",
+    "Pi Network", "Pi幣", "MiCA",
+)
+_BUCKET_CRYPTO_WEAK = (
+    "網格", "派網", "Pionex", "穩定幣", "加密貨幣", "加密幣", "加密", "區塊鏈",
+    "挖礦", "礦企", "永續合約", "合約槓桿", "槓桿合約", "爆倉", "清算", "歸零",
+    "空投", "幣圈", "鏈上", "冷錢包", "熱錢包", "質押",
+)
+
+
+def classify_topic_bucket(title: str, angle: str = "", category: str = "") -> str:
+    """把一個題目歸到 tw_stock/crypto/ai_tools/general 四桶之一,供 topic_bank 產題存檔與
+    produce_batch 抽題配額共用同一套規則(改一處、兩端同步生效)。
+
+    規則(依序判斷,先中先贏):
+    1. 先查 ai_tools 專屬品牌/工具詞(見 _BUCKET_AI_TOOLS_KW)——命中即回傳 ai_tools。
+    2. 否則用「專有名詞(strong,權重2)+泛用詞(weak,權重1)」分別給 tw_stock 與 crypto 計分,
+       分數高者勝出;兩邊都 >0 且打平時偏向 tw_stock(目前要放大的主力,曖昧題就近拉台股,
+       這也呼應實測:許多舊題目掛「市場觀念」類別但內文其實混雜台股/加密,曖昧不決時不該平白
+       流失可歸類為台股的題目)。
+    3. 兩邊都 0 分(無特定資產標的的通用量化觀念/拆穿神話/風控心法等)→ general,不強塞三桶。
+    """
+    text = f"{title or ''} {angle or ''} {category or ''}"
+    if any(k in text for k in _BUCKET_AI_TOOLS_KW):
+        return "ai_tools"
+    tw_score = 2 * sum(1 for k in _BUCKET_TW_STRONG if k in text) + sum(1 for k in _BUCKET_TW_WEAK if k in text)
+    cr_score = 2 * sum(1 for k in _BUCKET_CRYPTO_STRONG if k in text) + sum(1 for k in _BUCKET_CRYPTO_WEAK if k in text)
+    if tw_score == 0 and cr_score == 0:
+        return "general"
+    return "tw_stock" if tw_score >= cr_score else "crypto"
+
+
 if __name__ == "__main__":
     print("has_llm_key:", has_llm_key())
     print(evidence_block())
