@@ -273,7 +273,10 @@ def add_topics(items, source="", front=False):
         }
         if source:
             rec["source"] = source
-        for k in ("parent", "news", "priority"):
+        # tw_lab_key/tw_lab_next_key：台股真相實驗室 franchise 用來記「這題對應事實庫哪一組真回測」，
+        # produce_batch.py 靠這個 key 精準抓那一組數字注入寫稿 prompt(不是靠關鍵字模糊比對)——
+        # 沒有這個透傳，題目一旦從題庫抽出來就跟原始事實斷了連結。
+        for k in ("parent", "news", "priority", "tw_lab_key", "tw_lab_next_key"):
             if t.get(k):
                 rec[k] = t[k]
         new_recs.append(rec)

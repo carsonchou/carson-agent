@@ -1185,6 +1185,41 @@ def _tw_facts_context(facts, topic):
             "不得據此喊單/報明牌/喊目標價/保證獲利。抓不到的數字寧可用示意也不編造。）")
 
 
+# 台股真相實驗室實跑抓到的真 bug(2026-07-13 自驗證時發現)：LLM 拿到「富邦台50(006208)」的正確
+# 數字，卻在 title/voice_text 把標的寫成「0050」(0050 是 prompt 裡出現頻率最高的範例代號，模型
+# 習慣性滑過去)——數字沒錯但標的名稱錯，等於把 006208 的報酬講成 0050 的，是不精確的事實陳述。
+# 只在「這組事實的 desc/claim 根本沒提到 0050」時才判定是誤植(避免誤傷真的比較兩者的比較類事實，
+# 如「高股息0056 vs 市值型0050」本來就該同時出現兩個代號)。
+_TW_LAB_SYMBOL_DISPLAY = {
+    "006208": "006208", "00878": "00878", "0056": "0056", "00631L": "00631L",
+    "2330": "台積電", "TWII": "大盤",
+}
+
+
+def _fix_tw_lab_symbol_mislabel(result, fact):
+    """事實標的不是 0050、事實本身也沒提到 0050，但產出文字裡出現「0050」→ 判定是滑誤植，
+    整片(title/voice_text/description)一律把「0050」換成事實真正的標的顯示名。找不到明確
+    標的代號、或事實本身就含 0050(比較類事實)則不動，避免誤傷。"""
+    if not fact:
+        return result
+    fact_text = str(fact.get("desc", "")) + str(fact.get("claim", "")) + str(fact.get("symbol", ""))
+    if "0050" in fact_text:
+        return result  # 事實本身就講 0050(如比較類)，不誤判
+    真代號 = None
+    for code in ("006208", "00878", "0056", "00631L", "2330", "TWII"):
+        if code in fact_text:
+            真代號 = code
+            break
+    if not 真代號:
+        return result
+    display = _TW_LAB_SYMBOL_DISPLAY.get(真代號, 真代號)
+    for field in ("title", "voice_text", "description"):
+        v = result.get(field)
+        if isinstance(v, str) and "0050" in v:
+            result[field] = v.replace("0050", display)
+    return result
+
+
 # ── 病灶A根因(2026-07-13 長片內容審查實測)：_tw_facts_context 只挑最多 6 條相關事實組成
 # 一份「文字區塊」，而舊版 _densify_long 把這同一份文字**原封不動塞進每一段 deep-segment prompt**——
 # 4-5 段全部拿到一模一樣的 2-6 組數字，LLM 除了換比喻/換人物重講同一組數字，沒有別的素材可用，
@@ -1414,6 +1449,7 @@ def call_claude(kind, avoid, topic_override=None):
     is_tw_lab = bool(topic) and str(topic.get("category", "")) == "台股真相實驗室"
     _tw_lab_ep_no = None
     _tw_lab_actual_key = ""  # 供 result["_tw_lab_key"] 用(不能只信 topic.get，備援路徑會換一組)
+    _tw_lab_fact_used = {}  # 供產出後做「標的誤植」安全網比對用(見 _fix_tw_lab_symbol_mislabel)
     if is_tw_lab:
         hook_rules = hook_rules + TW_LAB_RULES
         try:
@@ -1436,6 +1472,7 @@ def call_claude(kind, avoid, topic_override=None):
             assign += tw_lab_engine.fact_data_block(_tl_key, _tl_fact, _tl_as_of)
             _tw_lab_ep_no = int(_tlst.get("current_ep", 0) or 0) + 1
             _tw_lab_actual_key = _tl_key
+            _tw_lab_fact_used = _tl_fact
         except Exception:  # noqa: BLE001
             pass
     # 《拆穿》招牌 franchise：題目屬競品拆解/打假神話類 → 追加《拆穿》格式（點名神話+誠實反差鉤+真回測三刀+避雷結論）
@@ -1522,6 +1559,7 @@ hashtags 規則：給 4-6 個「精準且利基相關」的標籤(第一個必�
     if is_tw_lab:
         result["_tw_lab_key"] = _tw_lab_actual_key or (topic.get("tw_lab_key") or "")
         result["_tw_lab_ep"] = _tw_lab_ep_no
+        result = _fix_tw_lab_symbol_mislabel(result, _tw_lab_fact_used)
     result["_is_tw_stock"] = bool(is_tw_stock)  # A2:供 make_one 判斷本片是否有 tw_stock_facts 真數據佐證
     result["_is_flagship"] = bool(is_flagship)  # A2:旗艦片已有 AI_COMPANY_RULES 自己的數字紀律,不重複套 A2 重生
     # 「聰明用 AI」franchise：把誠實比較表+聯盟連結+揭露語確定性附加到描述本體(保證揭露不被 LLM 吞)。
