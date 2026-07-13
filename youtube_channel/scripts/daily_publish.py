@@ -672,6 +672,13 @@ def main() -> int:
             save_ledger(ledger)
             print(f"[ok] {slug} -> https://youtu.be/{vid}")
             _post_engage_comment(yt, vid, slug, ledger)  # 首小時互動：提問+長片/訂閱導流(置頂需你在Studio點)
+            try:  # 播放清單即時歸類（台股真相實驗室/ETF定投/EP實測/避雷拆穿）；失敗絕不擋發布
+                import playlist_engine as _ple
+                _added = _ple.add_to_playlists(yt, slug, vid)
+                if _added:
+                    print(f"[playlist] {slug} 已歸類進：{', '.join(_added)}")
+            except Exception as _e:  # noqa: BLE001
+                print(f"[warn] playlist_engine 掛勾略過（{slug}）：{_e}", file=sys.stderr)
             results.append((slug, vid, "ok"))
             if slug.startswith("S_") and not args.no_ig and ig_done < args.ig_max:
                 _ig_crosspost(slug)
