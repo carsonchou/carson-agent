@@ -62,9 +62,22 @@ SHORT_TO_SHORT = PROJECT_ROOT / "STUDIO" / "short_to_short.json"  # 選填：本
 # 否則 str + list 會 TypeError（這正是先前 NameError／崩潰的修補）。
 _SHORTS_HASHTAGS = "\n\n" + " ".join(["#Shorts", "#量化交易", "#Pionex", "#自動交易"])
 
+# 訂閱鉤標準化：價值承諾句，不是光禿禿求訂閱(誠信鐵則：不誇大、不保證收益)。
+_SUBSCRIBE_HOOK = "🔔 訂閱看我每週真金實測交易策略、拆穿話術陷阱，不誇大只看真數據"
 
-def _long_link_for(slug: str, cfg: dict, ledger: dict) -> str:
-    """Shorts 導流連結：優先 short_to_long.json 指定的對應長片，否則退回頻道連結（軟導流）。"""
+
+def _ensure_subscribe_hook(description: str) -> str:
+    """確保每支發布片描述都有清楚的『訂閱理由』句(價值承諾，非空喊)。
+    去重：描述已含「訂閱」字樣(例如逐字稿手寫的 CTA)就不重複加，尊重原文案。"""
+    if "訂閱" in description:
+        return description
+    return f"{description}\n\n{_SUBSCRIBE_HOOK}"
+
+
+def _short_to_long_mapped(slug: str, ledger: dict) -> str:
+    """查 short_to_long.json 是否有『真配對』的長片連結(不含頻道退路)。
+    拆出來供 _long_link_for(描述用，允許退回頻道連結)與導流留言(只在真有配對時才提長片，
+    否則改用訂閱鉤，避免留言講「完整拆解看這裡」卻只是連去頻道首頁的空話)共用。"""
     try:
         if SHORT_TO_LONG.exists():
             m = json.loads(SHORT_TO_LONG.read_text(encoding="utf-8"))
@@ -75,6 +88,14 @@ def _long_link_for(slug: str, cfg: dict, ledger: dict) -> str:
                 return f"https://youtu.be/{ledger[tgt]}"
     except Exception:  # noqa: BLE001
         pass
+    return ""
+
+
+def _long_link_for(slug: str, cfg: dict, ledger: dict) -> str:
+    """Shorts 導流連結：優先 short_to_long.json 指定的對應長片，否則退回頻道連結（軟導流）。"""
+    mapped = _short_to_long_mapped(slug, ledger)
+    if mapped:
+        return mapped
     handle = (cfg.get("channel_handle") or "").lstrip("@")
     return f"https://www.youtube.com/@{handle}" if handle else ""
 
@@ -124,14 +145,30 @@ _ENGAGE_QS = [
 ]
 
 
-def _post_engage_comment(yt, vid, slug):
-    """發布後自動在自己影片留一則引戰提問，衝前一小時互動信號。失敗 soft、不影響上架。
-    註：API 不開放『置頂』(Studio 限定)，留言會發、置頂請你在 Studio 點一下。"""
+def _engage_comment_text(slug: str, vid: str, cfg: dict, ledger: dict) -> str:
+    """組『提問 + 導流』留言文案：Shorts 若有 short_to_long.json 真配對的長片就導去長片，
+    否則(含長片本身)接訂閱鉤——不用 _long_link_for 的頻道退路，避免留言講「完整拆解看這裡」
+    卻只是連去頻道首頁的空話(那個退路留給描述欄用即可)。"""
+    q = _ENGAGE_QS[sum(ord(c) for c in vid) % len(_ENGAGE_QS)]
+    if slug.startswith("S_"):
+        link = _short_to_long_mapped(slug, ledger)
+        if link:
+            return f"{q}\n\n📺 想看完整拆解？我把長片連結放這 👉 {link}"
+    return f"{q}\n\n{_SUBSCRIBE_HOOK}"
+
+
+def _post_engage_comment(yt, vid, slug, ledger=None):
+    """發布後自動在自己影片留一則導流留言(提問 + 對應長片連結或訂閱鉤)，衝前一小時互動信號
+    順便把觀眾往下一步導。失敗 soft、不影響上架。
+    註(已查證 2026-07)：YouTube Data API v3 沒有『置頂留言』端點——commentThreads/comments
+    資源(insert/list/update)都沒有 isPinned 之類可寫欄位，置頂是 YouTube Studio 網頁/App
+    限定操作，官方文件(developers.google.com/youtube/v3/docs/commentThreads)未提供對應方法。
+    退而求其次：把留言內容本身的導流做到最好，置頂仍要你自己在 Studio 點一下。"""
     try:
-        q = _ENGAGE_QS[sum(ord(c) for c in vid) % len(_ENGAGE_QS)]
+        text = _engage_comment_text(slug, vid, up.load_channel_config(), ledger or {})
         yt.commentThreads().insert(part="snippet", body={"snippet": {
-            "videoId": vid, "topLevelComment": {"snippet": {"textOriginal": q}}}}).execute()
-        print(f"[engage] 已留首小時提問：{q[:18]}…")
+            "videoId": vid, "topLevelComment": {"snippet": {"textOriginal": text}}}}).execute()
+        print(f"[engage] 已留導流留言：{text[:24]}…")
     except Exception as exc:  # noqa: BLE001
         print(f"[engage] 留言略過（{str(exc)[:50]}）", file=sys.stderr)
 
@@ -380,6 +417,9 @@ def upload_one(yt, slug: str, privacy: str) -> str:
         if _slink and _slink not in meta["description"]:
             meta["description"] = (f"🔁 接續看同系列 👉 {_slink}\n\n" + meta["description"])[:5000]
 
+    # 描述訂閱鉤標準化：每支發布片(短+長)都要有清楚的『訂閱理由』句(價值承諾,非光禿禿求訂閱)。
+    meta["description"] = _ensure_subscribe_hook(meta["description"])[:5000]
+
     # Shorts 用 #Shorts 加進標題尾端（字數允許時）；長片 categoryId 用教育(27)
     title = meta["title"]
     if is_short and "#shorts" not in title.lower() and len(title) <= 90:
@@ -577,7 +617,7 @@ def main() -> int:
             ledger[slug] = vid
             save_ledger(ledger)
             print(f"[ok] {slug} -> https://youtu.be/{vid}")
-            _post_engage_comment(yt, vid, slug)  # 首小時互動：自動發一則引戰提問(置頂需你在Studio點)
+            _post_engage_comment(yt, vid, slug, ledger)  # 首小時互動：提問+長片/訂閱導流(置頂需你在Studio點)
             results.append((slug, vid, "ok"))
             if slug.startswith("S_") and not args.no_ig and ig_done < args.ig_max:
                 _ig_crosspost(slug)
