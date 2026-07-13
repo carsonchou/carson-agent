@@ -31,9 +31,14 @@ BANNED = [
 
 # 否定詞：禁語前若有這些字，視為誠實聲明（如「不保證收益」）而非違規
 NEG_CHARS = "不沒別非勿未拒避免絕毋"
-# 破除/反問語境標記：禁語前有這些(如「你以為網格穩賺?」)或後接問號，屬誠實破除，非違規
-DEBUNK = ("以為", "迷思", "真的", "真能", "真會", "別信", "別再", "騙", "假象", "謊", "難道", "憑什麼", "怎麼可能")
+# 破除/反問語境標記：同一句內出現這些詞(如「打臉穩賺神話」「你以為網格穩賺?」)或緊接問號，
+# 屬誠實破除，非違規。2026-07 修：舊版只看禁語前 8 字/後 2 字的窄窗，「打臉穩賺神話」這種
+# 破除詞在禁語*前*超出窗口、或神話/騙局這類破除詞接在禁語*後*都會漏判，誤擋「拆穿穩賺神話」
+# 這類避雷片標題——改成掃整句(標點斷句)才不漏。
+DEBUNK = ("以為", "迷思", "真的", "真能", "真會", "別信", "別再", "騙", "假象", "謊",
+          "難道", "憑什麼", "怎麼可能", "拆穿", "打臉", "揭穿", "神話", "騙局")
 QUESTION = "？?嗎吗"
+_SENT_SPLIT_RE = re.compile(r"[。！？!?\n]")
 
 
 def _probe(mp4: Path):
@@ -85,9 +90,17 @@ def audit(slug: str):
         post = blob[i + len(b): i + len(b) + 2]
         if any(n in pre for n in NEG_CHARS):       # 不/沒保證…
             return True
-        if any(dk in pre for dk in DEBUNK):        # 你以為/迷思/真的…穩賺
-            return True
         if any(q in post for q in QUESTION):       # 穩賺？ 反問
+            return True
+        # 破除詞不侷限窄窗，掃「同句」(標點斷句)——「打臉穩賺神話」的「打臉」「神話」
+        # 才抓得到；同句沒有真宣稱在用才擋（「跟著我穩賺」這種仍會擋）
+        left = 0
+        for m in _SENT_SPLIT_RE.finditer(blob[:i]):
+            left = m.end()
+        right_m = _SENT_SPLIT_RE.search(blob, i + len(b))
+        right = right_m.start() if right_m else len(blob)
+        sentence = blob[left:right]
+        if any(dk in sentence for dk in DEBUNK):   # 打臉/拆穿/揭穿/神話/騙局/你以為/迷思…
             return True
         return False
 
