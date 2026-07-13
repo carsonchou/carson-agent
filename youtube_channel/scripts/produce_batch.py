@@ -653,6 +653,34 @@ def _recent_used_phrases(n=20):
     return {h for h in hit if h and not _is_protected_phrase(h)}
 
 
+def _self_repeated_metaphor(text, thr=0.72):
+    """🔴 片內比喻自我重複——去重機制的盲區(2026-07-13 用實產長片抓到)。
+
+    既有 dedup 全是**跨影片**比對(近 N 支用過的別再用),但**同一支片裡把同一個比喻講兩次**
+    完全沒查。實產的 9.2 分長片實測:
+        「這就像專注撿零錢卻忽略眼前的金礦」
+        「這就像你專注撿零錢，卻忽略了眼前的金礦」   ← 同一個比喻,只加了「你」和逗號
+    這正是內容審查點名的「換人物/換包裝重講同一件事」的殘留形態:觀眾聽第二次就知道在灌水。
+
+    判準:抽出全片比喻句,兩兩比相似度(先去掉你/的/了/，等虛詞再比,避免換皮騙過);
+    任兩句 >= thr 即判定自我重複 → 觸發重寫。回 True = 有問題。
+    """
+    from difflib import SequenceMatcher
+    ms = _extract_metaphor_sentences(text or "")
+    if len(ms) < 2:
+        return False
+    def _norm(s):  # 去虛詞/標點,讓「這就像你專注撿零錢，卻忽略了…」與「這就像專注撿零錢卻忽略…」對齊
+        return re.sub(r"[你我他的了，、。：；\s]", "", s)
+    norm = [_norm(m) for m in ms]
+    for i in range(len(norm)):
+        for j in range(i + 1, len(norm)):
+            if not norm[i] or not norm[j]:
+                continue
+            if SequenceMatcher(None, norm[i], norm[j]).ratio() >= thr:
+                return True
+    return False
+
+
 def _body_too_similar(text, recent_texts, thr=0.85, min_len=10):
     """新旁白『整篇』與近期任一支是否有『局部』高度相似——逐句(chunk)比對，不是整篇平均，
     避免長片字數多，把某一句抄自己的相似度被稀釋掉(治『中段句型抄自己』，長短片都適用)。
@@ -2216,6 +2244,7 @@ def make_one(kind, no_render=False, topic_override=None):
                or _weak_mid_hook(d.get("voice_text", "")) or _reveals_too_early(d.get("voice_text", ""))
                or (not topic_override and _ending_too_similar(d.get("voice_text", ""), _recent_ends))
                or (not topic_override and _body_too_similar(d.get("voice_text", ""), _recent_bodies))
+               or _self_repeated_metaphor(d.get("voice_text", ""))   # 片內同一比喻講兩次=灌水
                or _notorious_metaphor_hit(d.get("voice_text", ""))) and _hk < 2:
             _hk += 1
             d = call_claude(kind, _ex, topic_override)
