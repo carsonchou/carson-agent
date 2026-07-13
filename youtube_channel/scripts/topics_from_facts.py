@@ -228,7 +228,27 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true", help="只印生成結果，不寫入 topic_bank.json")
     ap.add_argument("--limit-facts", type=int, default=0, help="只處理前 N 組事實(0=全部)，小量測試用")
     ap.add_argument("--batch-size", type=int, default=5, help="每次 LLM 呼叫塞幾組 fact")
+    ap.add_argument("--min-tw", type=int, default=0,
+                    help="題庫『未用的台股題』低於這個數才補題(0=不檢查,一律補)。"
+                         "給每日 cron 用:台股題夠就不白燒 API、也不讓題庫無限膨脹。")
     args = ap.parse_args()
+
+    # 「不足才補」守門:每天 cron 跑,但台股題還夠就直接結束(省 API、防題庫無限膨脹)。
+    # 產線配額吃台股 78%(一天約 11 短 + 3 長),題庫台股題不足就會落回「自由發揮」→
+    # LLM 生沒數據的題 → 編造 → 被誠信守門擋下 → 整支片白產。這道補題就是防止餓死。
+    if args.min_tw > 0:
+        try:
+            bank = tb.load_bank()
+            _items = bank if isinstance(bank, list) else (bank.get("topics") or bank.get("items") or [])
+            _tw = sum(1 for t in _items
+                      if not t.get("used") and (t.get("bucket") or "") == "tw_stock")
+            print(f"[topics_from_facts] 題庫未用台股題:{_tw} 個(門檻 {args.min_tw})")
+            if _tw >= args.min_tw:
+                print(f"[topics_from_facts] 台股題充足({_tw} >= {args.min_tw}),本次不補題。")
+                return 0
+            print(f"[topics_from_facts] 台股題不足({_tw} < {args.min_tw}),開始從真實回測事實補題…")
+        except Exception as e:  # noqa: BLE001
+            print(f"[warn] 檢查題庫存量失敗({str(e)[:60]}),照常補題", file=sys.stderr)
 
     if not sc.has_llm_key():
         print("[錯誤] 無任何 LLM 供應商 API key，無法生成。")

@@ -1,4 +1,4 @@
-# Carson Quant 全自動雲端排程（伺服器時區 Asia/Taipei，台灣時間 UTC+8）
+﻿# Carson Quant 全自動雲端排程（伺服器時區 Asia/Taipei，台灣時間 UTC+8）
 # ⚠️ 此檔＝雲端 `crontab -l` 的真實同步版(2026-07-04 對齊)。動 cron 前先 `crontab -l` 抓雲端 diff,
 #    絕不要 `crontab deploy/crontab.txt` 直接覆蓋(雲端可能有此檔沒有的行);改雲端請外科手術式 patch。
 SHELL=/bin/bash
@@ -19,6 +19,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # TradingView 全攻略課程:--next 依序餵下2個課程EP(由淺入深)、--review 挖2支熱門腳本拆穿(永動題源);都在製作前餵
 52 5 * * * /root/yt/run.sh scripts/tv_curriculum.py --next 2 >> /root/yt/logs/cron.log 2>&1
 54 5 * * * /root/yt/run.sh scripts/tv_curriculum.py --review 2 >> /root/yt/logs/cron.log 2>&1
+40 5 * * * /root/yt/run.sh scripts/topics_from_facts.py --min-tw 60 >> /root/yt/logs/cron.log 2>&1
 7 6 * * * /root/yt/run.sh scripts/produce_batch.py --manual --format-focus --shorts 14 --long 4 --target 99999 --no-render >> /root/yt/logs/cron.log 2>&1
 # Short→長片精準連看:建 short_to_long.json(bigram題材相似度對應已發布短→長),發布前跑
 50 6 * * * /root/yt/run.sh scripts/build_short_to_long.py >> /root/yt/logs/cron.log 2>&1
