@@ -262,6 +262,56 @@ def _load_skip_set() -> set:
     return set()
 
 
+def _factguard_gate(slugs: list) -> tuple[list, dict]:
+    """誠信硬地板(2026-07-13 建):把『績效數字查無來源』的片擋在發布之外。
+
+    為什麼要有這道:品保實測抓到產線會編造統計數字冒充真實回測(如長片宣稱「根據臺股十年資料，
+    毛利率成長選股勝率只有百分之三十一」——根本沒有這個回測引擎),而頻道定位正是「用真回測拆穿
+    割韭菜神話」。既有 fact_guard.py 的 docstring 寫著「或搭 daily_publish 攔」,但這個「攔」
+    從來沒接上——偵測到只記一筆,片照發。這裡就是把那條線接起來。
+
+    fail-closed:數字溯源不到就不發(可逆——補上真實回測依據或改示意語氣後即可重發)。
+    但『守門自己壞掉』時要 fail-open:事實庫太小(數字池 <10)會讓所有片都像無憑據,
+    那是事實庫沒建好、不是片有問題,此時放行並大聲警告,不能把整條產線鎖死。
+    """
+    blocked: dict = {}
+    try:
+        import fact_source_guard as fsg
+    except Exception as e:  # noqa: BLE001
+        print(f"[factguard] 載入失敗，本輪不擋({e})", file=sys.stderr)
+        return slugs, blocked
+    pool = fsg.fact_pool()
+    if len(pool) < 10:
+        print(f"[factguard] ⚠️ 事實庫數字池只有 {len(pool)} 個——守門會誤擋全部，本輪放行不擋。"
+              "請先把真實回測灌進 STUDIO/tw_stock_facts.json。", file=sys.stderr)
+        return slugs, blocked
+    keep = []
+    for s in slugs:
+        bad = fsg.check_slug(s, pool)
+        if bad:
+            blocked[s] = [{"value": c["value"], "clause": c["clause"]} for c in bad[:3]]
+        else:
+            keep.append(s)
+    if blocked:
+        print(f"[factguard] 🔴 擋下 {len(blocked)} 支『績效數字查無來源』的片(不發布):")
+        for s, hits in list(blocked.items())[:6]:
+            print(f"    - {s[:40]}｜無憑據 {hits[0]['value']}:「{hits[0]['clause'][:44]}」")
+        try:
+            sc_mod = __import__("studio_common")
+            sc_mod.save_json_atomic(PROJECT_ROOT / "STUDIO" / "factguard_blocked.json",
+                                    {"updated": tw_today(), "blocked": blocked})
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            import notify
+            notify.push("量化阿森｜誠信守門攔截",
+                        f"🔴 {len(blocked)} 支片『數字查無來源』被擋下不發布。"
+                        f"補真實回測依據或改示意語氣後才可發。", tag="rotating_light")
+        except Exception:  # noqa: BLE001
+            pass
+    return keep, blocked
+
+
 def find_candidates(ledger: dict) -> list:
     # 高分先發：Shorts(衝YPP)優先，組內依品質分數由高到低；其次長片同理。
     qmap, _ = load_quality()
@@ -278,6 +328,10 @@ def find_candidates(ledger: dict) -> list:
             continue
         mtimes[slug] = f.stat().st_mtime
         (shorts if slug.startswith("S_") else longs).append(slug)
+
+    # 誠信硬地板:績效數字溯源不到的片,一律不進候選(在排序/配額之前就擋掉)
+    shorts, _b1 = _factguard_gate(shorts)
+    longs, _b2 = _factguard_gate(longs)
 
     def _key(s: str):
         # 有分數：一律照真分數 desc 排(維持原行為，已評高分的真好片永遠排該有的位置，
