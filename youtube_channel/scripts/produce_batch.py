@@ -1085,15 +1085,31 @@ def _tw_facts_context(facts, topic):
 # 這正是「813%/24.7%/-33.8% vs 380%/16.9%/-22.6% 用『反直覺的是』重複10次以上」的根因。
 # 修法：_densify_long 逐段各自分配「本段專屬事實」，同一個 fact key 全片最多被引用 2 次
 # (body 段落各自最多引用 1 次不重複 + 結尾小結综合引用 1 次＝鋪陳+收尾)。
-def _relevant_facts_list(facts, topic):
-    """把 tw facts 依『標題/角度實際關鍵字』挑出與本題相關(primary)/不相關(extension)兩份清單，
-    每項含 key/desc/summary/keywords。供 _densify_long 逐段分配專屬事實、做主題鎖定用。
+# ── 病灶A主題鎖定：標的代號白名單。實跑抓到的真實 bug——標題「0050定期定額 vs 美股ETF」，
+# 但事實 hidiv_0056_vs_0050(高股息0056 vs 0050)因為 keywords 裡有「0050」也被判為同主題，
+# 逐段分配時被派給後段，LLM 就老實地整段寫 0056 高股息 → 影片後 40% 悄悄變成另一支片的主題
+# (正是這次要修的症狀本身)。修法：標題若明確點名了標的代號，事實裡若出現「標題沒點名的其他
+# 標的」，一律降級成 extension(延伸比較，全片最多 1 段且篇幅 ≤15%)，不得當本片主線事實。
+_FACT_SYMBOLS = ("0050", "0056", "00878", "00929", "006208", "00631L", "2330", "TWII", "台積電")
 
-    ★ 病灶A主題鎖定：刻意只用 topic 的 title+angle 做關鍵字比對，不看 category——category="台股"
-    這種大分類太粗，若沿用 _tw_facts_context 那套「category 命中台股/大盤/ETF 就整包 45 組全給」
-    的寬鬆規則，等於完全沒做主題鎖定(高股息題材一樣會拿到 All-in 0050 的事實當『同主題』)。
-    只有標題+角度真的完全比對不到任何具體關鍵字時(泛用型台股題材、沒有明確比較對象)，
-    才退回「全部當 primary」——這種情況本來就沒有明確主題可鎖，不算鬆綁。"""
+
+def _symbols_in(text):
+    return {s for s in _FACT_SYMBOLS if s in (text or "")}
+
+
+def _relevant_facts_list(facts, topic):
+    """把 tw facts 挑成與本題相關(primary)/不相關(extension)兩份清單，每項含 key/desc/summary/keywords。
+    供 _densify_long 逐段分配專屬事實、做主題鎖定用。
+
+    ★ 病灶A主題鎖定(兩道)：
+    ①只用 topic 的 title+angle 比對，不看 category——category="台股" 太粗，會讓 45 組事實整包
+      都算「同主題」(等於沒鎖題)。
+    ②標的鎖定(實跑抓到的真 bug)：標題若點名了具體標的(如 0050)，凡是牽涉到標題沒點名的其他
+      標的(0056/00878/2330…)的事實，一律降級為 extension——否則逐段分配會把 0056 高股息的
+      事實派給某一段，那段就整段變成另一支片的主題(影片後段悄悄跑題的根因)。
+    ③primary 依關鍵字命中數排序(命中越多＝越貼題)，讓最貼題的事實優先分配給前面的主力深段。
+    標題完全比對不到任何關鍵字時(泛用題、沒有明確比較對象)才退回「全部當 primary」——那種情況
+    本來就沒有主題可鎖，不算鬆綁。"""
     primary, extension = [], []
     if not facts or not isinstance(facts, dict):
         return primary, extension
@@ -1109,14 +1125,26 @@ def _relevant_facts_list(facts, topic):
         if not summary:
             continue
         entries.append({"key": str(key), "desc": str(item.get("desc") or item.get("label") or key),
-                         "summary": str(summary), "keywords": item.get("keywords") or []})
-    if not entries:
-        return primary, extension
-    matched = [e for e in entries if any(kw in text for kw in e["keywords"] if isinstance(kw, str))]
-    if not text.strip() or not matched:
-        return entries, []  # 標題沒給出可比對的具體關鍵字 → 無法鎖題，全部當 primary(退回寬鬆行為)
-    matched_keys = {e["key"] for e in matched}
-    return matched, [e for e in entries if e["key"] not in matched_keys]
+                        "summary": str(summary), "keywords": item.get("keywords") or []})
+    if not entries or not text.strip():
+        return entries, []
+    title_syms = _symbols_in(text)
+    scored = []
+    for e in entries:
+        kws = [kw for kw in e["keywords"] if isinstance(kw, str)]
+        hits = sum(1 for kw in kws if kw in text)
+        # 事實本身牽涉到哪些標的(看 key+desc+keywords，涵蓋 hidiv_0056_vs_0050 這種 key 帶標的的情況)
+        fact_syms = _symbols_in(e["key"] + " " + e["desc"] + " " + " ".join(kws))
+        off_topic_syms = bool(title_syms) and bool(fact_syms - title_syms)
+        if hits and not off_topic_syms:
+            scored.append((hits, e))
+        else:
+            extension.append(e)
+    if not scored:
+        return entries, []  # 沒有任何貼題事實(標題無可比對關鍵字)→ 退回寬鬆行為，不硬卡住產線
+    scored.sort(key=lambda x: -x[0])  # 命中關鍵字越多＝越貼題，優先分配給主力深段
+    primary = [e for _, e in scored]
+    return primary, extension
 
 
 # ── 病灶A：全片重複轉場詞硬上限(2026-07-13)——「反直覺的是」這類轉場句只要還在同一份稿子裡
@@ -1128,16 +1156,25 @@ _TRANSITION_ALT_POOL = ("更耐人尋味的是，", "數字攤開來看，", "�
 
 def _cap_repeated_phrase(text, phrase, cap, alt_pool=_TRANSITION_ALT_POOL):
     """全片同一個轉場詞出現次數硬性上限：超過 cap 次，第 cap+1 次起輪替換成替代詞，
-    確定性文字處理、不靠 LLM 自律(對齊 A1c『已知累犯硬擋』的設計精神)。"""
+    確定性文字處理、不靠 LLM 自律(對齊 A1c『已知累犯硬擋』的設計精神)。
+
+    ★ 連帶吃掉前面的程度副詞(更/還/也/但/而)：實跑抓到的 bug——原文是「更反直覺的是」，
+    只換掉「反直覺的是」會變成「更」+「更耐人尋味的是」＝「更更耐人尋味的是」的疊字結巴，
+    TTS 會照念出來。故用 regex 把前綴副詞一起納入比對範圍，替換時整段換掉、不留殘字。"""
     if not text or not phrase or phrase not in text:
         return text
-    parts = text.split(phrase)
-    if len(parts) - 1 <= cap:
+    pat = re.compile(r"[更還也但而]?" + re.escape(phrase))
+    matches = list(pat.finditer(text))
+    if len(matches) <= cap:
         return text
-    out = parts[0]
-    for idx, p in enumerate(parts[1:], 1):
-        out += (phrase if idx <= cap else alt_pool[(idx - cap - 1) % len(alt_pool)]) + p
-    return out
+    out, last, n = [], 0, 0
+    for m in matches:
+        n += 1
+        out.append(text[last:m.start()])
+        out.append(m.group(0) if n <= cap else alt_pool[(n - cap - 1) % len(alt_pool)])
+        last = m.end()
+    out.append(text[last:])
+    return "".join(out)
 
 
 def call_claude(kind, avoid, topic_override=None):
@@ -1731,6 +1768,69 @@ def _long_content_padding(voice_text):
     return any(c >= 3 for c in grams.values())
 
 
+# 病灶A 跑題偵測用的「題材叢集」：同一叢集的詞＝同一個影片主題。
+# ★設計依據(用 21 支現存長片實測校準出來的，不是憑感覺設規則)：
+# ①「本片標的以外的代號出現很多次」**不能**當跑題訊號——本頻道主力就是對比型內容(0056 vs 0050、
+#   台積電 vs 大盤)，對照組本來就會被大量提及。實測用這條會誤殺 3 支正常的對比片(誤殺＝fail-closed
+#   不出片，代價比漏抓高)。故此條已移除，只保留下面的「題材被換掉」。
+# ②真正的跑題訊號是**題材整段被換掉**：標題講「0050 定投 vs 美股 ETF」，中後段卻整段在講
+#   「高股息月配息、領息 vs 賺價差」——那是另一支影片的主題(這正是本次修復的證物)。
+# ③題材若是本片標的「天生自帶」的(0056/00878/00929 本來就是高股息 ETF、00631L 本來就是槓桿)，
+#   那講該題材完全合理，不算跑題 → 用 _SYMBOL_IMPLIED_THEMES 排除，避免誤殺高股息片。
+_THEME_CLUSTERS = (
+    ("高股息", "月配息", "月月配", "領股息", "配息", "股息", "殖利率", "除權息", "填息"),
+    ("當沖",),
+    ("槓桿", "正2"),
+    ("網格",),
+)
+# 標的天生自帶的題材(講它=本來就該講,不算跑題)
+_SYMBOL_IMPLIED_THEMES = {
+    "0056": "高股息", "00878": "高股息", "00929": "高股息", "00631L": "槓桿",
+}
+
+
+def _long_topic_drift(voice_text, title, max_share=0.12):
+    """病灶A主題鎖定 gate：偵測『影片後段悄悄變成另一支片的主題』(確定性判準，不靠 LLM 自評)。
+
+    實跑抓到的真實症狀(本次修復的直接證物)：標題「0050 定期定額 vs 美股ETF」，中後段卻連續數段
+    整段在講「0056 高股息月配息 / 領息 vs 賠價差」——那是另一支影片的主題，用別支片的內容湊時長。
+
+    判準：把旁白依段落切開，找出「被一個**標題與本片標的都不涉及**的題材叢集主導」的實質段落
+    (該叢集密集出現 >= 4 次，且該段還提到了屬於那個題材的外來標的；或密集到 >= 6 次)，
+    這些跑題段合計篇幅 > max_share(12%) ＝整支判定跑題。允許順帶一提的延伸比較，但不許變成主線。
+
+    刻意不擋的情況(實測校準，避免誤殺正常片)：對照組標的被大量提及(對比片的本質)、
+    高股息片講股息、槓桿片講槓桿、以及只在片尾順帶提一句別的標的。"""
+    t = (voice_text or "").strip()
+    title_syms = _symbols_in(title)
+    if not t or not title_syms:
+        return False
+    paras = [p for p in t.split("\n") if p.strip()]
+    if len(paras) < 3:
+        return False
+    # 本片「天生就該講」的題材＝標題明講的 + 標題標的自帶的
+    own_themes = {_SYMBOL_IMPLIED_THEMES[s] for s in title_syms if s in _SYMBOL_IMPLIED_THEMES}
+    total = sum(_long_chinese_chars(p) for p in paras) or 1
+    drift_chars = 0
+    for p in paras:
+        if _long_chinese_chars(p) < 100:  # 太短的段(片尾聲明/CTA)不判，順帶提一句不算跑題
+            continue
+        for cluster in _THEME_CLUSTERS:
+            if cluster[0] in own_themes or any(term in title for term in cluster):
+                continue  # 本片本來就該講這個題材
+            hits = sum(p.count(term) for term in cluster)
+            if hits < 4:
+                continue
+            # 段內是否出現「屬於這個外來題材的標的」(如高股息題材的 0056/00878)＝題材真的被換掉的佐證
+            themed_foreign = any(
+                s in p for s, th in _SYMBOL_IMPLIED_THEMES.items()
+                if th == cluster[0] and s not in title_syms)
+            if themed_foreign or hits >= 6:
+                drift_chars += _long_chinese_chars(p)
+                break
+    return (drift_chars / total) > max_share
+
+
 # A4 分段深寫的數據誠信鐵律：分段要求「具體數據/案例」會誘導 LLM 虛構股價點位(實測抓到
 # 「0050從90元跌到60元」「2022高點150元」這種捏造史實)。這段硬約束每個深寫 prompt 都掛,
 # 把「能講成事實的數字」死鎖在 facts 給的那幾個,其餘一律假設語氣;且全用中文口語念法
@@ -1852,13 +1952,21 @@ def _densify_long(d, facts_ctx, is_tw, facts=None, topic=None):
             else:
                 fact_line = ("\n【本段無新事實可引用】本段不得重複前面段落已經講過的任何具體數字/結論——"
                              "只能做原理解釋、情境延伸或明確的『延伸比較』分析，不能複述已用過的百分比/倍數。\n")
-            topic_lock_note = ""
+            # 主題鎖定：**每一段**都掛(不只延伸段)。實跑抓到的 bug——只在延伸段講「別跑題」，
+            # 一般深段沒被告知本片主題，拿到什麼事實就整段寫什麼，後段整段變成另一支片的主題。
+            topic_lock_note = (
+                f"\n★主題鎖定(硬性)：本片主題是「{title}」。這一段**必須是在講這個主題**，"
+                "只能圍繞本片主題的標的與比較對象展開；**嚴禁**把段落寫成另一個標的/另一支影片的主題"
+                "(例如本片講 0050 對比美股 ETF，就不可以整段跑去講 0056 高股息月配、也不可以整段變成"
+                "在講其他標的的優劣)。若本段拿到的事實與本片主題不完全吻合，就只把它當『一句話的旁證』"
+                "帶過，主線仍必須回到本片主題。\n")
             char_budget = "520-620"
             if is_extension_seg:
                 topic_lock_note = (
-                    "\n★主題鎖定：本片主題是「" + title + "」，這一段引用的事實屬於**不同主題**的延伸比較，"
+                    f"\n★主題鎖定：本片主題是「{title}」，這一段引用的事實屬於**不同主題**的延伸比較，"
                     "**開頭第一句務必用『延伸比較』式轉場**(例如「換個角度看/延伸比較一下/如果換成另一種做法」)，"
-                    "全段只能是簡短的對比延伸，絕不能變成本片主要論述、絕不能偷換掉本片主題。\n")
+                    "全段只能是簡短的對比延伸，最後一句必須把話題**收回本片主題**，"
+                    "絕不能變成本片主要論述、絕不能偷換掉本片主題。\n")
                 char_budget = "260-340"  # 壓低字數，確保延伸段落全片佔比≤15%
                 ext_seg_indexes.add(len(bodies))  # 記下即將寫入的 index(下方 append 前先記)
             prompt = (
@@ -2017,6 +2125,9 @@ def _bump_ep(d, slug):
 _ARTIFACT_FIXES = {
     "演演算法": "演算法", "機機器人": "機器人", "網網格": "網格", "回回測": "回測",
     "複複利": "複利", "停停損": "停損", "定定投": "定投", "槓槓桿": "槓桿", "手手續費": "手續費",
+    # 程度副詞疊字(_cap_repeated_phrase 換轉場詞時可能與原文的「更/還」相接產生;已在該函式吃掉
+    # 前綴副詞治本,這裡留一道最後安全網,確保任何路徑都不會把疊字結巴念進 TTS)
+    "更更": "更", "還還": "還", "但但": "但",
 }
 
 
@@ -2123,13 +2234,24 @@ def make_one(kind, no_render=False, topic_override=None):
     # (寧可今天少一支長片,也不砸招牌，誠信優先於產量)。
     # (舊 _expand_long_script 整篇重寫易縮水且繞過自癒,已從長片路徑移除;函式保留供他處備援。)
     if kind == "long" and not topic_override:
+        def _long_bad(_d):
+            """長片三道 gate(任一不過就重生)：①長度 ②資訊密度(灌水重複) ③主題鎖定(後段跑題)。
+            回傳不合格原因字串，合格回空字串。"""
+            _v = _d.get("voice_text", "")
+            if _long_underlength(_v):
+                return "長度不足"
+            if _long_content_padding(_v):
+                return "資訊密度不足(同組數字/片語重複灌水撐時長)"
+            if _long_topic_drift(_v, _d.get("title", "")):
+                return "主題跑題(後段整段變成另一支片的主題)"
+            return ""
         _lk = 0
-        while (_long_underlength(d.get("voice_text", "")) or _long_content_padding(d.get("voice_text", ""))) and _lk < 4:
+        while _long_bad(d) and _lk < 4:
             _lk += 1
             d = call_claude(kind, _ex, topic_override)
-        if _long_underlength(d.get("voice_text", "")) or _long_content_padding(d.get("voice_text", "")):
+        _why = _long_bad(d)
+        if _why:
             _n = _long_chinese_chars(d.get("voice_text", ""))
-            _why = "長度不足" if _long_underlength(d.get("voice_text", "")) else "資訊密度不足/內容重複灌水或跑題"
             log_ops("補產部門", f"⛔ A4長片重生4次後仍{_why}(約{_n}字),fail-closed不輸出假長片:{d.get('title','')[:24]}")
             print(f"[skip] long {_why}({_n}字),fail-closed 不輸出:{d.get('title','')[:24]}")
             return None
