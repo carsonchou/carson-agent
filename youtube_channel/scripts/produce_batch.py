@@ -1262,11 +1262,62 @@ def _cap_repeated_phrase(text, phrase, cap, alt_pool=_TRANSITION_ALT_POOL):
     return "".join(out)
 
 
+# 🔴 2026-07-13:題材配重對「自由發揮」路徑完全無效的破口。
+# call_claude 是 `topic = topic_override or pull_topic(kind)`,pull_topic 抽不到就回 None,
+# 註解明寫「題庫空了才自由發揮」→ LLM 隨便生。而題庫現存 430 個未用題目裡**台股不到 3%**,
+# 於是配額要台股 → 題庫沒台股題 → 落回自由發揮 → LLM 生出加密網格題。
+# 實測:--long 1 的配額是 {tw_stock:1, crypto:0},實際產出 `L_加密網格滑價吃掉50%利潤`
+# (而且那支還編造「實測發現47%訂單失效」被誠信守門擋下 → 整支長片白產)。
+# 等於今天做的台股配重(78%)對長片——YPP 唯一路徑——**完全沒有作用**。
+# 修:題庫抽不到時,把「本支必須是哪個題材」**直接下令給 LLM**,不讓它自由發揮。
+_BUCKET_DIRECTIVE = {
+    "tw_stock": (
+        "\n【本支題材硬性指定:台股】必須寫台股題材(0050/006208/0056/00878/00631L/台積電等權值股、"
+        "定期定額/定投/存股/停利停損/高股息vs市值型/扣款日/槓桿ETF/當沖成本/財報迷思…)。"
+        "⚠️ 不得寫加密貨幣(比特幣/以太幣/網格/派網/爆倉)或 AI 工具題——本頻道實測數據顯示"
+        "台股題觀看是幣圈題的數十倍,這是產線配重的硬性要求。"
+        "數字一律只用 tw_stock_facts 的真實回測,查不到就用示意語氣,絕不編造。"),
+    "crypto": (
+        "\n【本支題材硬性指定:加密貨幣】必須寫加密貨幣題材(比特幣/以太幣/網格/派網/風控)。"
+        "數字只能用 backtest_cards 的真實回測,查不到就不給具體數字(用示意/假設語氣),絕不編造。"),
+    "ai_tools": (
+        "\n【本支題材硬性指定:AI 工具】必須寫 AI×交易/AI 工具題材(Claude Code/ChatGPT/AI 省錢/"
+        "AI 寫策略的真實坑)。不得憑空生成績效統計數字。"),
+}
+
+
+def _wanted_bucket(kind):
+    """本批配額還沒吃滿的桶(台股優先)。回 None = 本批沒設配額 or 都吃滿了。"""
+    bplan = _BUCKET_PLAN.get(kind) or {}
+    if not bplan:
+        return None
+    taken = (_BUCKET_STATE.get(kind) or {}).get("taken", {}) or {}
+    for b in ("tw_stock", "ai_tools", "crypto"):   # 台股優先吃配額
+        if int(bplan.get(b, 0)) > int(taken.get(b, 0)):
+            return b
+    return None
+
+
+def _record_bucket_taken(kind, title):
+    """自由發揮路徑產出後,把實際題材記進配額(否則配額只認題庫抽的,自由發揮的不算,配重會失準)。"""
+    try:
+        b = sc.classify_topic_bucket(title or "")
+        if b in ("tw_stock", "crypto", "ai_tools"):
+            st = _BUCKET_STATE.setdefault(kind, {"taken": {}, "cw": {}})
+            st.setdefault("taken", {})[b] = st.get("taken", {}).get(b, 0) + 1
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def call_claude(kind, avoid, topic_override=None):
     orders = load_orders()
-    # 時事優先：有指定題目（金融時事）就用它，否則從題庫抽；題庫空了才自由發揮
+    # 時事優先：有指定題目（金融時事）就用它，否則從題庫抽；題庫空了才「照配額指定題材」自由發揮
     topic = topic_override or pull_topic(kind)
     assign = ""
+    if not topic and not topic_override:
+        _wb = _wanted_bucket(kind)
+        if _wb:
+            assign = _BUCKET_DIRECTIVE[_wb]   # 題庫沒貨→不放任自由發揮,硬性指定題材
     if topic and topic_override:
         assign = (f"\n【🔥金融時事·優先製作，務必照此主題】：{topic.get('title','')}　切入點：{topic.get('angle','')}"
                   "（這是即時財經時事：緊扣新聞點，再連到頻道的量化/網格/派網/風控觀點；"
@@ -1403,6 +1454,9 @@ hashtags 規則：給 4-6 個「精準且利基相關」的標籤(第一個必�
     if obj is None:
         raise ValueError("LLM 回應非 JSON")
     result = _to_traditional(obj)  # 安全網：簡轉繁(台灣用字),防 DeepSeek 偶爾出簡體
+    if not topic and not topic_override:
+        # 自由發揮路徑:把實際產出的題材記進配額(否則配額只認題庫抽的,自由發揮的不計,配重失準)
+        _record_bucket_taken(kind, result.get("title", ""))
     result["_is_ep"] = bool(is_ep)  # 供 make_one 判斷是否為 EP 正片 → 產出成功後遞增 EP 引擎
     result["_is_tw_stock"] = bool(is_tw_stock)  # A2:供 make_one 判斷本片是否有 tw_stock_facts 真數據佐證
     result["_is_flagship"] = bool(is_flagship)  # A2:旗艦片已有 AI_COMPANY_RULES 自己的數字紀律,不重複套 A2 重生
