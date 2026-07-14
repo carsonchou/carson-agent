@@ -99,7 +99,11 @@ except Exception:  # noqa: BLE001
 # --------------------------------------------------------------------------- #
 
 def _match_truth_lab(slug: str) -> bool:
-    return "真相實驗室" in slug  # 涵蓋「台股真相實驗室」「臺股真相實驗室」
+    """2026-07-14 實測修:slug 有長度上限,系列名掛在標題尾端會被**截斷**——
+    已發布的 EP1 slug 是「…差434臺股真相」、EP6 是「…臺股真相實」,「實驗室」被切掉,
+    原規則 `"真相實驗室" in slug` 永遠 match 不到 → truth_lab 清單 0 支、franchise 連播斷鏈。
+    放寬為「臺股真相/台股真相」子字串(頻道無其他用此字樣的非系列片)。"""
+    return ("真相實驗室" in slug) or ("臺股真相" in slug) or ("台股真相" in slug)
 
 
 def _match_etf_dca(slug: str) -> bool:
