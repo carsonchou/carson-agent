@@ -153,3 +153,6 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # 🔴 停擺偵測守衛(每天10:12·治「壞了不吭聲」):各管道最後活動超過門檻=疑似靜默停擺→ntfy推Carson
 12 10 * * * /root/yt/run.sh scripts/stall_watchdog.py >> /root/yt/logs/cron.log 2>&1
 5 15 * * * /root/yt/run.sh scripts/playlist_engine.py --sync --max 80 >> /root/yt/logs/cron.log 2>&1
+# 存量片描述回填「系列連播」導流連結(每天15:20,排在播放清單同步之後,同一組每日quota共用):
+# 觀看數最高的舊片優先,冪等(已含清單連結就跳過),只插入不刪改原描述,見 scripts/desc_backfill.py
+20 15 * * * /root/yt/run.sh scripts/desc_backfill.py --max 30 >> /root/yt/logs/cron.log 2>&1
