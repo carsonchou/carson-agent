@@ -352,7 +352,18 @@ def find_candidates(ledger: dict) -> list:
 
     shorts.sort(key=_key)
     longs.sort(key=_key)
-    return shorts + longs
+    # 🔴 2026-07-15 修「長片永遠輪不到」:原本 shorts + longs 直接串接,--max 12 的名額
+    # 全被 Shorts 吃光——長片(YPP 4000 小時 watch time 的唯一現實路徑)被結構性擠出佇列,
+    # 實測 94 分的旗艦長片在佇列躺了一整天發不出去。改成交錯插入:每 5 支 Shorts 插 1 支
+    # 長片(≈ --max 12 保底 2 支長片),Shorts 衝量與長片衝 watch time 兩條路都走。
+    merged = []
+    li = 0
+    for i, s in enumerate(shorts):
+        merged.append(s)
+        if (i + 1) % 5 == 0 and li < len(longs):
+            merged.append(longs[li]); li += 1
+    merged.extend(longs[li:])
+    return merged
 
 
 def _crosspost_one(slug: str, ledger_path: Path, module_name: str, tag: str) -> None:
