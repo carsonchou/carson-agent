@@ -56,6 +56,23 @@ TOL_ABS = 1.0      # 絕對容差(百分點)
 TOL_REL = 0.02     # 相對容差 2%(大數字用,如 813.7 vs 823.1 → 差 9.4 > 813.7*0.02=16.3? 否 → 仍算相符)
 # ⚠️ 上面那組容差刻意「寬」:目的是抓「憑空生成、事實庫裡連個影子都沒有」的數字,
 # 不是抓四捨五入誤差。抓錯誤數字(813.7 講成 823.1)是另一個問題,交 fact_guard/人工。
+#
+# 🔴 2026-07-14 規模詛咒實案(三支編造片繞過守門發上線):全市場軍火入池後(89.1% 輸給
+# 0050、唐鋒 -89.9、嘉澤 38.9、飆股 60%…),池從 431 → 1154,舊編造數字全部「撞上鄰居」:
+#   「AI機器人 90% 回測虧損」→ 撞 89.1   「少賺 38 萬」→ 撞 38.9   任何 60 → 撞 60.0
+# 教訓:**池愈大,寬容差愈危險**。兩道補強(下方 _sourced_strict 與整十數規則):
+# ①假掛名句(「回測顯示…」宣稱自己實測)必須**精確**對上(嚴容差)——真引用 89.1 就該講
+#   89.1,講 90 = 湊整編造。②整十數(30/40/60/70/80/90)且無近似詞 → 嚴容差(編造者
+#   最愛湊整;真數據極少剛好整十,若真是 60.0 嚴容差照樣過)。
+TOL_STRICT_ABS = 0.25
+TOL_STRICT_REL = 0.005
+
+
+def _sourced_strict(val: float, pool: set) -> bool:
+    for f in pool:
+        if abs(f - val) <= max(TOL_STRICT_ABS, f * TOL_STRICT_REL):
+            return True
+    return False
 
 _CN_DIGIT = {"零": 0, "一": 1, "二": 2, "兩": 2, "三": 3, "四": 4, "五": 5,
              "六": 6, "七": 7, "八": 8, "九": 9}
@@ -214,7 +231,9 @@ def extract_claims(text: str) -> list[dict]:
                 val = float(tok) if re.fullmatch(r"\d+(?:\.\d+)?", tok) else _cn_num_to_float(tok)
                 if val is None:
                     continue
-                if _sourced_hint(val):   # 已在事實庫→不重複列
+                # 假掛名數字的預過濾必須用**嚴容差**——寬容差會讓「38萬」在抽取階段就撞上
+                # 池裡的 38.9 被丟掉,後面的 assertion 嚴檢根本看不到它(2026-07-14 實案)。
+                if _sourced_strict(float(val), fact_pool()):
                     continue
                 claims.append({"value": float(val), "raw": raw,
                                "clause": ("【假掛名·" + attr + "】" + cl.strip())[:100]})
@@ -403,9 +422,26 @@ def unsourced_claims(text: str, pool: set[float] | None = None) -> list[dict]:
     for c in claims:
         if any(h in c["clause"] for h in HEDGE):
             continue
-        if _sourced(c["value"], pool):
-            continue
         kind = _approx_kind(c["clause"], c["raw"])
+        # 🔴 規模詛咒補強(2026-07-14,三支編造片繞過守門的實案):
+        # ①假掛名句(【假掛名·回測顯示】)宣稱「這數字是我實測的」→ 必須**精確**對上(嚴容差)。
+        #   真引用 89.1% 就該講 89.1,講「90」= 湊整編造(90 撞 89.1 的寬容差正是漏洞)。
+        # ②整十數(30/40/50/60/70/80/90)且無近似詞 → 嚴容差。編造者最愛湊整;
+        #   真數據極少剛好整十(若池裡真有 60.0,嚴容差照樣通過,不誤傷)。
+        is_attr = c["clause"].startswith("【假掛名")
+        is_round10 = (c["value"] % 10 == 0 and 10 <= c["value"] <= 100 and not kind)
+        if is_attr:
+            # 假掛名句 = 宣稱「這是我實測的數字」:嚴容差,且**不給差值/近似任何豁免**
+            # (實測 38 被「少賺」差值語境撈回的漏洞)。過不了 strict 就是編造。
+            if _sourced_strict(c["value"], pool):
+                continue
+            bad.append(c)
+            continue
+        if is_round10:
+            if _sourced_strict(c["value"], pool):
+                continue
+        elif _sourced(c["value"], pool):
+            continue
         in_diff = any(w in c["clause"] for w in _DIFF_CTX)
         # 差值語境 → 文本內驗算(組成數字必須在場);帶近似詞(「少賺近60%」)放寬到 ±15%
         if in_diff and _diff_ok(c["value"], loose=bool(kind)):
