@@ -1,3 +1,9 @@
 // Firebase 專案設定（Web config 本來就是公開設計，安全靠 Firestore 規則）
-// 尚未設定時保持 null，好友連線功能會自動停用、App 其他功能照常。
-window.FIREBASE_CONFIG = null;
+window.FIREBASE_CONFIG = {
+  apiKey: "AIzaSyB_vEUcFKQeTxOHYcg8i5GOoH0MsUmDrG0",
+  authDomain: "gymlog-e088f.firebaseapp.com",
+  projectId: "gymlog-e088f",
+  storageBucket: "gymlog-e088f.firebasestorage.app",
+  messagingSenderId: "98139280020",
+  appId: "1:98139280020:web:87945cd34411c6b2fb5a81"
+};

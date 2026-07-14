@@ -1,5 +1,5 @@
 /* GymLog service worker — cache-first，離線可用 */
-const VER = 'gymlog-v6'; // 每次改動任何檔案都要升版，否則已安裝的 PWA 拿不到更新
+const VER = 'gymlog-v7'; // 每次改動任何檔案都要升版，否則已安裝的 PWA 拿不到更新
 const ASSETS = ['./', './index.html', './manifest.json', './icon.png', './icon-180.png',
   './firebase-app-compat.js', './firebase-firestore-compat.js', './firebase-config.js'];
 
