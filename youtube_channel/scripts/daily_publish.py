@@ -63,7 +63,10 @@ SHORT_TO_SHORT = PROJECT_ROOT / "STUDIO" / "short_to_short.json"  # 選填：本
 _SHORTS_HASHTAGS = "\n\n" + " ".join(["#Shorts", "#量化交易", "#Pionex", "#自動交易"])
 
 # 訂閱鉤標準化：價值承諾句，不是光禿禿求訂閱(誠信鐵則：不誇大、不保證收益)。
-_SUBSCRIBE_HOOK = "🔔 訂閱看我每週真金實測交易策略、拆穿話術陷阱，不誇大只看真數據"
+# 2026-07-15 競品逆向:頭部頻道(股添樂/股乾爹/阿格力)簡介第一句無例外都是 credential 背書,
+# 直接回答「憑什麼信你」——我們的 credential 是真的:全市場 1841 檔回測引擎(對手沒有)。
+_SUBSCRIBE_HOOK = ("🔔 我用 Python 把台股 1841 檔全部跑過回測——訂閱看每週全市場實測、"
+                   "拆穿話術陷阱，不誇大只看真數據")
 
 
 def _ensure_subscribe_hook(description: str) -> str:
