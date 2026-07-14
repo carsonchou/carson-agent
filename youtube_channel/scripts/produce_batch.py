@@ -2397,6 +2397,46 @@ def _fix_artifacts(text):
     return text
 
 
+# loop 結尾硬性保底(完播工程 2026-07-14):HOOK_RULES ④已提示 LLM「結尾呼應開頭數字,誘導
+# 重看」(頻道最高完播片曾被重看到 200~372%,loop=實測最大流量槓桿之一),但跟訂閱鉤一樣是
+# prompt 裡的軟規則、遵從度約半——診斷(ffmpeg 抽樣+人眼看片)也看到多支片開頭丟數字、結尾
+# 卻只有平鋪 CTA,完全沒呼應。改法同訂閱鉤保底:LLM 有自己呼應開頭就不動;漏掉才在結尾
+# (訂閱鉤之前)把開頭那句原句嵌回結尾,保證每片都有 loop 誘因。
+# 注意:配音友善規則要求數字寫成中文口語(「八十一萬」而非「81萬」、「百分之八」而非「8%」),
+# 靠 \d+ regex 抓數字在真實 voice_text 上幾乎抓不到——改抓「開頭第一~二個分句」當可逐字
+# 引用的鉤子片段,不依賴數字格式,只要開頭有實質內容就能呼應。
+_LOOP_HOOK_POOL = [
+    "不確定的話，回開頭再聽一次「{hook}」，答案其實早就藏在裡面。",
+    "把這句記起來：「{hook}」，回頭重聽一次開頭，你會發現破綻早就埋好了。",
+    "這就是「{hook}」的答案，回開頭對一次你剛剛猜的，看你差多少。",
+    "如果這個結果讓你意外，回開頭再聽一次「{hook}」，一切從第一句就寫好了。",
+]
+_LOOP_SENT_SPLIT_RE = re.compile(r"[。！？.!?]")
+
+
+def _ensure_loop_hook(text, key):
+    """LLM 漏 loop 呼應時,結尾補一句把開頭那個鉤子片段原句嵌回去(有呼應就不動)。
+    key 用來輪替措辭。開頭抓不到有意義片段(太短/空)就不硬湊,直接放行。"""
+    if not isinstance(text, str) or not text.strip():
+        return text
+    parts = [p.strip() for p in _LOOP_SENT_SPLIT_RE.split(text) if p.strip()]
+    if not parts:
+        return text
+    hook = parts[0]
+    if len(hook) < 4 and len(parts) > 1:  # 第一分句真的太短才併第二句,避免破壞可辨識度
+        hook = (hook + parts[1]).strip()
+    hook = hook[:26]  # 太長截斷,避免補句本身變超長
+    if len(hook) < 4:
+        return text  # 開頭太短抓不到有意義的鉤子片段,不硬湊
+    check_key = hook[:6]
+    tail = text[60:]  # 跳過開頭本身再找,避免短文本時「尾段」其實還是同一段開頭、自己比對自己誤判
+    if check_key in tail:
+        return text  # 結尾已呼應開頭(逐字或近似),尊重原文不重複
+    import hashlib
+    i = int(hashlib.md5((key or "x").encode("utf-8")).hexdigest(), 16) % len(_LOOP_HOOK_POOL)
+    return text.rstrip() + " " + _LOOP_HOOK_POOL[i].format(hook=hook)
+
+
 # 訂閱鉤硬性保底:0.29% 轉換是頻道最大瓶頸,訂閱鉤是軟規則(LLM 遵從度約半)。
 # LLM 有自然寫訂閱鉤就用它(不動);漏掉才在結尾補一句(依 title 輪替避免全一樣),保證每片 100% 有。
 _SUB_HOOK_POOL = [
@@ -2564,6 +2604,12 @@ def make_one(kind, no_render=False, topic_override=None):
     for _seg in d.get("segments", []) or []:
         if isinstance(_seg, dict) and "heading" in _seg:
             _seg["heading"] = _fix_artifacts(_seg["heading"])
+    # loop 結尾硬性保底(完播工程 2026-07-14):只對非系列 Shorts 補——EP/台股真相實驗室
+    # 已有自己的「下集懸念」續集鉤(角色不同,不疊加);長片節奏不同,loop 重播是 Shorts feed
+    # 專屬機制(83% 觀看來自 Shorts feed),不套用長片。要在訂閱鉤之前補,讓結尾順序是
+    # 「呼應開頭數字→訂閱鉤」。
+    if kind == "short" and not d.get("_is_ep") and not d.get("_is_tw_lab"):
+        d["voice_text"] = _ensure_loop_hook(d.get("voice_text", ""), d.get("title", ""))
     # 訂閱鉤硬性保底:LLM 漏掉就結尾補一句(直攻 0.29% 轉換瓶頸;有寫就不動)
     # 台股真相實驗室要求字面一定要有「訂閱」二字(比一般片的鬆散判定更嚴格,見診斷根因)。
     if d.get("_is_tw_lab"):

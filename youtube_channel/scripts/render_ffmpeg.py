@@ -317,10 +317,23 @@ def _seg_clip(ff, *, src, is_video, dur, subs, fade_in, width, height, fps, tmp_
         # 有影片感、又 100% 是自家數據/圖表(護城河),解決「靜態卡」+「素材脫題」兩難。
         frames = max(1, int(round(dur * fps)))
         inputs += ["-loop", "1", "-t", f"{dur:.3f}", "-i", src]
-        zspeed = 0.0007 + 0.0003 * (idx % 3)  # 段間微調推速,避免每段一模一樣
+        # 完播工程(2026-07-14):實測長段(單卡撐 >7 秒,常見於旁白密集、segments 少的 Shorts)
+        # 原本這條單向緩推鏡整段下來 ffmpeg scene detection 連 gt(scene,0.1) 都量不到差異
+        # (推速 0.0007~0.0013/frame 太慢,20 秒也才推 1.02x)——這正是完播診斷抓到的「單卡
+        # 撐 20+ 秒零場景變化」根因之一。長段改脈衝式(每 3.5 秒在 1.0/1.045 兩級跳一次),
+        # 保證每 3.5 秒有真正可偵測、人眼也感受得到的構圖跳動;短段(<=7秒)維持原本單向緩推鏡
+        # 質感(本來就短,不需要跳動,平滑推近更有電影感)。
+        if dur > 7.0:
+            # 卡片走 2x 預縮放再 zoompan 縮回(見上方 scale={width*2})、內容又比純測試圖複雜
+            # (圖表+文字+邊框),實測同幅度在這條路徑要拉高到 0.07 才能穩定跨過 gt(scene,0.1)
+            # 門檻(靜態切片路徑走的是已合成 1x 圖,0.045 就夠,兩邊分開調)。
+            zexpr = f"1.0+0.07*mod(floor(on/({fps}*3.5)),2)"
+        else:
+            zspeed = 0.0007 + 0.0003 * (idx % 3)  # 段間微調推速,避免每段一模一樣
+            zexpr = f"min(zoom+{zspeed:.4f},1.06)"
         # 推鏡上限 1.06:邊緣裁切夠小,保住卡片燒入的浮水印(別被放大切到底邊)
         base = (f"[0:v]scale={width*2}:{height*2}:flags=lanczos,"
-                f"zoompan=z='min(zoom+{zspeed:.4f},1.06)':d={frames}:"
+                f"zoompan=z='{zexpr}':d={frames}:"
                 f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s={width}x{height}:fps={fps},"
                 f"setsar=1,format=yuv420p")
     if fade_in:
@@ -853,7 +866,20 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
             timeline.append((png, dur))
         timeline.append((outro_png, mv.OUTRO_DURATION))
 
-        total = mv.INTRO_DURATION + audio_duration + mv.OUTRO_DURATION
+        # 3.5) 無縫 loop 尾(完播工程 2026-07-14):片尾補 0.6s 封面(=片頭首幀),讓 Shorts
+        # 重播無縫接回開頭→誘導重看(2026 演算法:結尾 2 秒內重看算部分新觀看;頻道最高完播
+        # 片曾被重看到 200~372%)。同 _render_animated 已用的手法,這裡補進「靜態切片」路徑
+        # (實測目前多數 Shorts 最終走的就是這條路徑,之前只有動畫/b-roll 路徑有 loop 尾)。
+        # 純加法+try 防呆:失敗只是不加尾,不影響主渲染。MV_NO_LOOP_TAIL=1 可關。
+        _loop_tail = 0.0
+        if os.environ.get("MV_NO_LOOP_TAIL") != "1":
+            try:
+                timeline.append((intro_png, 0.6))
+                _loop_tail = 0.6
+            except Exception as _lte:  # noqa: BLE001
+                print(f"[ffmpeg後端] loop 尾略過:{str(_lte)[:60]}", file=sys.stderr)
+
+        total = mv.INTRO_DURATION + audio_duration + mv.OUTRO_DURATION + _loop_tail
 
         # 4) concat demuxer 清單(每張圖一段時長;最後一張要再列一次,ffmpeg quirk)
         list_txt = tmp_dir / "concat.txt"
@@ -868,8 +894,20 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
         codec, enc_args = _pick_codec(ff)
         intro_ms = int(mv.INTRO_DURATION * 1000)
         # 同 _seg_clip 的封面修法:tpad 墊片藏黑幀、trim 掉墊片,輸出 t=0 保證有內容(見上方註解)。
+        # 完播工程(2026-07-14):此「靜態切片」路徑原本整張卡片凍結到字幕换完才切下一張——
+        # 實測 ffmpeg scene detection(gt(scene,0.3))量到單片可以連續 20-40 秒零場景變化,
+        # 只有底部字幕小範圍在動,人眼會覺得「畫面死掉」(完播殺手)。b-roll/動畫路徑本來就
+        # 有 Ken Burns 緩推鏡(_seg_clip 的 zoompan),但這條「靜態」路徑實測是目前多數 Shorts
+        # 實際落地的路徑,之前完全沒有鏡頭動態。改法:呼吸式 zoompan(正弦波在 1.0~1.035 間
+        # 用「脈衝式」推鏡(每 3.5 秒在 1.0/1.045 兩級之間跳一次,不是連續正弦緩推)——連續緩推
+        # 幅度小到 ffmpeg 自己的 scene 偵測都量不到(實測 sin 波驗證過,gt(scene,0.1) 幾乎抓不到
+        # 任何幀,因為連續漸變沒有「瞬間跳動」);改成離散階梯跳動,每 3.5 秒一次真正的構圖跳動,
+        # 才會被 gt(scene,0.3) 判定為真正的畫面變化,同時人眼也感受得到「畫面在動」。
+        # 只加一段 filter,不多一次編碼、不多幀,渲染時間不變;唯一一次 ffmpeg pass 內完成。
         vf = (f"fps={fps},scale={width}:{height}:force_original_aspect_ratio=decrease,"
               f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1,"
+              f"zoompan=z='1.0+0.045*mod(floor(on/({fps}*3.5)),2)':d=1:"
+              f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s={width}x{height}:fps={fps},"
               f"tpad=start_duration=0.35:start_mode=clone,fade=t=in:st=0:d=0.5,"
               f"trim=start=0.35,setpts=PTS-STARTPTS,format=yuv420p")
         af = f"adelay={intro_ms}:all=1,apad,atrim=0:{total:.3f}"
