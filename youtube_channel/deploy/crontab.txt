@@ -161,3 +161,6 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # 存量片描述回填「系列連播」導流連結(每天15:20,排在播放清單同步之後,同一組每日quota共用):
 # 觀看數最高的舊片優先,冪等(已含清單連結就跳過),只插入不刪改原描述,見 scripts/desc_backfill.py
 20 15 * * * /root/yt/run.sh scripts/desc_backfill.py --max 30 >> /root/yt/logs/cron.log 2>&1
+# 殭屍片(0觀看舊片)清理引擎(每天15:30,排在playlist/desc_backfill之後、quota重置後):
+# 0觀看+滿14天+非台股真相實驗室/EP系列+非優先清單→設private(可逆)，見 scripts/zombie_sweep.py
+30 15 * * * /root/yt/run.sh scripts/zombie_sweep.py --apply --max 150 >> /root/yt/logs/cron.log 2>&1
