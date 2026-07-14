@@ -287,6 +287,36 @@ def _cta_posted_save(posted):
         pass
 
 
+def _top_viewed_candidates(n: int) -> list[str]:
+    """回傳觀看數高到低排、尚未發過 CTA 留言的前 n 支 videoId。
+
+    2026-07-14 變現漏斗審計發現:post_cta_comment 這支功能寫好後從未被排程呼叫過
+    (STUDIO/comment_cta_posted.json 原本不存在),等於「留言『數據』我私你」這個鉤子
+    完全沒有可見的發現管道,tg_leads.json 累計 0 筆名單。優先挑『已有觀眾在看』的
+    存量片(觀看數高到低),把 CTA 留言擺在已經有人流的地方,而不是對 461 支 0 觀看
+    的殭屍片盲發(浪費 API quota、對誰都看不到)。資料源:STUDIO/quality_scores.json
+    的 published 清單(views 欄位)。查無觀看數的片不列入候選(避免瞎猜)。
+    """
+    from pathlib import Path as _P
+    root = _P(__file__).resolve().parent.parent
+    try:
+        qs = json.loads((root / "STUDIO" / "quality_scores.json").read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return []
+    posted = _cta_posted_load()
+    rows = []
+    for it in (qs.get("published") or []):
+        if not isinstance(it, dict):
+            continue
+        vid = it.get("videoId")
+        views = it.get("views")
+        if not vid or vid in posted or not isinstance(views, (int, float)) or views <= 0:
+            continue
+        rows.append((views, vid))
+    rows.sort(key=lambda t: -t[0])
+    return [vid for _, vid in rows[:n]]
+
+
 def post_cta_comment(yt, video_id: str, dry_run: bool = False) -> bool:
     """在指定影片發一則頂層 CTA 留言(頻道身分)。dry_run 只印不發。回傳是否成功/會發。
     釘選 API 做不到→發完 log 提醒人工釘選,不假裝自動置頂。"""
@@ -317,6 +347,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="comment_dept — 社群留言部")
     parser.add_argument("--cta", metavar="VIDEO_ID", default=None,
                         help="在指定影片發一則頂層 CTA 留言（配 --dry-run 只預覽）")
+    parser.add_argument("--cta-top", type=int, default=None, metavar="N",
+                        help="在觀看數最高、尚未發過 CTA 留言的前 N 支已發布片各發一則頂層 CTA 留言"
+                             "（配 --dry-run 只預覽；冪等，已發過的不重發）")
     parser.add_argument("--auto-reply-safe", action="store_true",
                         help="安全模板自動回覆模式（白名單句型，不讓 AI 自由生成回覆）")
     parser.add_argument("--dry-run", action="store_true",
@@ -335,6 +368,18 @@ def main() -> int:
 
     if args.cta:
         post_cta_comment(yt, args.cta, dry_run=args.dry_run)
+        return 0
+
+    if args.cta_top is not None:
+        cands = _top_viewed_candidates(args.cta_top)
+        if not cands:
+            print("[info] 無候選(可能觀看數資料缺失，或前 N 支皆已發過)。")
+            return 0
+        n_ok = 0
+        for vid in cands:
+            if post_cta_comment(yt, vid, dry_run=args.dry_run):
+                n_ok += 1
+        print(f"[{'dry-run ' if args.dry_run else ''}ok] --cta-top {args.cta_top}：{n_ok}/{len(cands)} 支{'會發' if args.dry_run else '已發'}。")
         return 0
 
     if args.auto_reply_safe:

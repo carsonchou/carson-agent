@@ -318,6 +318,22 @@ def build_funnel_block() -> str:
     )
 
 
+def _insert_near_top(original: str, block: str) -> str:
+    """把 block 插進描述『第一行之後』，絕不刪改原內容一字（手法比照 desc_backfill.apply_promo）。
+
+    背景（2026-07-14 變現漏斗審計實測抽查 5 支近期發布片發現）：Pionex 聯盟連結／TG CTA
+    原本是在 assemble_metadata 尾端「附加」，落在描述 62-86% 深度——YouTube（尤其 Shorts）
+    描述框「顯示更多」折疊點極早，實測這個深度幾乎不可能被看到。改成插入第一行之後，
+    落點提前到前 ~150-250 字，且完全保留原有全部內容（含 hashtags／訂閱句尾）在插入點之後。
+    """
+    if not block:
+        return original
+    first, sep, rest = (original or "").partition("\n")
+    if sep:
+        return f"{first}\n\n{block}\n\n{rest}"
+    return f"{first}\n\n{block}" if original else block
+
+
 def assemble_metadata(
     *,
     slug: str,
@@ -359,17 +375,22 @@ def assemble_metadata(
             seen.add(t.lower())
             clean_tags.append(t)
 
-    # 附聯盟連結到描述末尾
+    # 聯盟連結／導流漏斗：插進描述『第一行之後』（近頂端），不再附加到最尾端——
+    # 2026-07-14 變現漏斗審計實測：舊法「附加末尾」讓 Pionex 連結落在描述 62-86% 深度，
+    # YouTube（尤其 Shorts）「顯示更多」折疊點很早，等於幾乎沒人看得到；改插入近頂端
+    # 大幅縮短到折疊點的距離，且用 _insert_near_top 的「還原比對」安全手法，原內容一字不刪。
+    base_description = description  # 去重判斷要用『插入前』的原始描述，語意不變
     unreplaced: list[str] = []
+    top_blocks: list[str] = []
     if append_affiliate:
         block, unreplaced = build_affiliate_block(channel_config)
         if block:
-            description = f"{description}\n\n{block}"
+            top_blocks.append(block)
 
     # 確定性附加『導流漏斗＋風險聲明』（不受 append_affiliate 影響，誠信/導流一律要在）。
     # 去重：描述已含該 bot 名就不重覆加 CTA、已含該聲明就不重覆加風險聲明。
     try:
-        desc_now = description or ""
+        desc_now = base_description or ""
         add_lines: list[str] = []
         for ln in build_funnel_block().split("\n"):
             key = ln.strip()
@@ -381,9 +402,12 @@ def assemble_metadata(
                 continue  # 已有風險聲明，不重覆
             add_lines.append(ln)
         if add_lines:
-            description = f"{description}\n\n" + "\n".join(add_lines)
+            top_blocks.append("\n".join(add_lines))
     except Exception:  # noqa: BLE001  漏斗附加失敗不可影響 metadata 組裝
         pass
+
+    if top_blocks:
+        description = _insert_near_top(description, "\n\n".join(top_blocks))
 
     return {
         "title": str(title),
