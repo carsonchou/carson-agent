@@ -1,10 +1,16 @@
 /* GymLog service worker — cache-first，離線可用 */
-const VER = 'gymlog-v7'; // 每次改動任何檔案都要升版，否則已安裝的 PWA 拿不到更新
+const VER = 'gymlog-v8'; // 每次改動任何檔案都要升版，否則已安裝的 PWA 拿不到更新
 const ASSETS = ['./', './index.html', './manifest.json', './icon.png', './icon-180.png',
   './firebase-app-compat.js', './firebase-firestore-compat.js', './firebase-config.js'];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(VER).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  // cache:'reload' 強制繞過 HTTP 快取，避免把瀏覽器裡的舊檔案裝進新版本快取
+  e.waitUntil(caches.open(VER).then(c =>
+    Promise.all(ASSETS.map(u => fetch(new Request(u, {cache: 'reload'})).then(r => {
+      if(!r.ok) throw new Error(u);
+      return c.put(u, r);
+    })))
+  ).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', e => {
