@@ -64,6 +64,16 @@ SYMBOLS = {
     "00631L": {"ticker": "00631L.TW", "name": "元大台灣50正2",  "kind": "leveraged"},
     "2330":   {"ticker": "2330.TW",  "name": "台積電",          "kind": "stock"},
     "TWII":   {"ticker": "^TWII",    "name": "加權指數（大盤）", "kind": "index"},
+    # 2026-07-15 高股息家族 vs 市值型全對決（第三旗艦數據軍火）新增標的：
+    "00713":  {"ticker": "00713.TW", "name": "元大台灣高息低波", "kind": "hidiv"},
+    "00915":  {"ticker": "00915.TW", "name": "凱基優選高股息30", "kind": "hidiv"},
+    "00918":  {"ticker": "00918.TW", "name": "大華優利高填息30", "kind": "hidiv"},
+    "00919":  {"ticker": "00919.TW", "name": "群益台灣精選高息", "kind": "hidiv"},
+    "00929":  {"ticker": "00929.TW", "name": "復華台灣科技優息", "kind": "hidiv"},
+    "00934":  {"ticker": "00934.TW", "name": "中信成長高股息",   "kind": "hidiv"},
+    "00936":  {"ticker": "00936.TW", "name": "台新永續高息中小", "kind": "hidiv"},
+    "00939":  {"ticker": "00939.TW", "name": "統一台灣高息動能", "kind": "hidiv"},
+    "00940":  {"ticker": "00940.TW", "name": "元大台灣價值高息", "kind": "hidiv"},
 }
 
 SOURCE_NOTE = ("Yahoo Finance（yfinance，auto_adjust=True 含息還原收盤價；"
@@ -627,7 +637,12 @@ def build_facts(refresh=False, only_symbols=None):
                 ["停利", "續抱", "紀律", code, name], r)
 
     # ── 4. 高股息 vs 市值型（含息還原，兩兩組合）─────────────────────────────
-    hidiv_codes = ["0056", "00878"]
+    # 2026-07-15 擴編：高股息家族 vs 市值型全對決旗艦片，把台灣主要高股息 ETF
+    # 全部納入同一套方法論（含息還原、共同起點=兩者資料重疊期間、CAGR/MDD/Calmar）。
+    # 上市時間短的（00939/00940 2024上市）common_start 會自動退到「該檔自己上市日」，
+    # 剛好就是「申購熱潮後至今」的公平比較，不需要另外特判。
+    hidiv_codes = ["0056", "00878", "00713", "00915", "00918", "00919",
+                   "00929", "00934", "00936", "00939", "00940"]
     mktcap_codes = ["0050", "006208"]
     for hc in hidiv_codes:
         for mc in mktcap_codes:
