@@ -346,8 +346,16 @@ def render_concept_chart(width: int, height: int, text: str, accent, seed: str,
     fig = plt.figure(figsize=(fig_w, fig_h), dpi=dpi)
     fig.patch.set_facecolor(BG)
 
-    # 圖軸放在上中段；下方 0~0.30 留給圖說/圖例與字幕（字幕約在 y=0.20 處）
-    ax = fig.add_axes([0.06, 0.34, 0.88, 0.46])
+    # 圖軸放在上中段；下方留給圖說與字幕。
+    # 完播節奏修復同批順手修(2026-07-15,獨立驗收抓到 concept_visuals.py:149 這條「逢低
+    # 分批．拉低平均成本」跟字幕框疊在一起):舊版 caption 固定畫在 fig-fraction y=0.30、
+    # 圖例(legend)在 y=0.265,但字幕框錨在畫面 78% 高、往上長出自己的高度——實測 16:9
+    # 長片 2 行字幕的字幕框可以吃到 fig-fraction y≈0.38(9:16 短片≈0.35),兩者的安全區間
+    # 幾乎沒有交集,legend 幾乎必中、caption 遇到長字幕也會中。改法:圖軸 bottom 從 0.34
+    # 拉高到 0.46(騰出更多下方淨空),caption 挪到 0.42(留 ~0.04 安全margin 在最壞情境
+    # 2 行長片字幕框頂之上);legend(圖例圓點文字)直接拿掉——顏色語意本來就在圖上用
+    # 紅/綠點畫出來,legend 文字是錦上添花,兩害相權不留它,徹底消除這條重疊來源。
+    ax = fig.add_axes([0.06, 0.46, 0.88, 0.34])
     ax.set_facecolor(BG)
     for s in ax.spines.values():
         s.set_visible(False)
@@ -363,15 +371,10 @@ def render_concept_chart(width: int, height: int, text: str, accent, seed: str,
     else:
         caption, legend = drawer(ax, rng)
 
-    # 圖說（圖下方、字幕上方）
+    # 圖說（圖下方、字幕安全區之上；見上方 ax 位置註解）。legend 已拿掉，不再畫。
     if caption:
-        fig.text(0.5, 0.30, caption, ha="center", va="center",
+        fig.text(0.5, 0.42, caption, ha="center", va="center",
                  color=FG, fontsize=21, weight="bold")
-    # 圖例（caption 下方，仍在字幕 y≈0.20 之上）
-    if legend and len(legend) == 4:
-        l1, c1, l2, c2 = legend
-        fig.text(0.36, 0.265, l1, ha="center", color=c1, fontsize=14)
-        fig.text(0.64, 0.265, l2, ha="center", color=c2, fontsize=14)
 
     fig.canvas.draw()
     buf = np.asarray(fig.canvas.buffer_rgba())

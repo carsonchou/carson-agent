@@ -258,8 +258,16 @@ def _render_hook_card(title, width, height, accent, tmp_dir):
     for dx, dy in ((-e, 0), (e, 0), (0, -e), (0, e), (e, e), (-e, -e), (e, -e), (-e, e)):
         d.text((x + dx, y + dy), num, fill=(0, 0, 0, 255), font=font)
     d.text((x, y), num, fill=(255, 90, 90, 255), font=font)
-    # 上方鉤子句(去數字/hashtag後前段)
-    hook = re.sub(r'#\S+', '', title.replace(num, "")).strip("？?，,。、 ")
+    # 上方鉤子句(去 hashtag 後前段)
+    # 完播節奏修復同批順手修(2026-07-15,獨立驗收抓到):原本這裡用 title.replace(num, "")
+    # 想把已經在大紅字砸過的數字從鉤子句挖掉、避免視覺重複——但 num 只是「裸數字」子字串
+    # (如 "77"),str.replace 預設整字串「全部」取代,若 title 內另一個更大的數字剛好內含
+    # 這串子字串(如 "3.77億" 內含 "77"),會被一併挖空,砍出「3.億」這種懸空殘句;就算沒撞
+    # 到子字串碰撞,單純的「挖掉裸數字、留下單位/量詞」也會產生「台股檔全算過」這種缺主詞
+    # 的破碎中文(量詞「檔」失去前面的數字就不成句)。兩種都是「暴力砍字串」的產物。
+    # 改法:鉤子句不再嘗試從 title 挖數字,完整保留 title(下方大紅字數字重複出現一次無傷
+    # 大雅,遠比破碎殘句安全);只做原本就有的 hashtag 清理。
+    hook = re.sub(r'#\S+', '', title).strip("？?，,。、 ")
     hook = re.split(r'[，,。]', hook)[0][:14] or "你知道嗎"  # 取第一段、限長
     hfs = int(height * 0.048)
     hf = mv._load_font(hfs, bold=True)
@@ -297,8 +305,11 @@ def _seg_subs(cues, seg_start, seg_end, width, height, tmp_dir, accent):
     return out
 
 
-def _seg_clip(ff, *, src, is_video, dur, subs, fade_in, width, height, fps, tmp_dir, idx, watermark=None) -> str:
-    """把一段(卡片圖 或 b-roll 影片)正規化成 WxH 無聲 mp4,字幕用 overlay 燒上。回傳路徑。"""
+def _seg_clip(ff, *, src, is_video, dur, subs, fade_in, width, height, fps, tmp_dir, idx, watermark=None,
+              seg_start=0.0) -> str:
+    """把一段(卡片圖 或 b-roll 影片)正規化成 WxH 無聲 mp4,字幕用 overlay 燒上。回傳路徑。
+    seg_start:此段在「整支成片」時間軸上的絕對起點(秒)。卡片脈衝鏡的相位用它算,
+    確保脈衝橫跨多段 concat 邊界仍連續(見下方完播節奏修復 2026-07-15 註解)。"""
     out = tmp_dir / f"piece_{idx:03d}.mp4"
     inputs = []
     if is_video:
@@ -309,33 +320,53 @@ def _seg_clip(ff, *, src, is_video, dur, subs, fade_in, width, height, fps, tmp_
         # 之一。改成 -stream_loop -1 先把來源無限循環，仍由 -t dur 裁到精確長度，保證這段
         # 輸出永遠等於 dur，絕不再因素材太短而截斷。
         inputs += ["-stream_loop", "-1", "-t", f"{dur:.3f}", "-i", src]
+        # 完播節奏(2026-07-15 二修):b-roll 分支原本**完全沒有**脈衝——只有卡片分支有。
+        # 旗艦2(全片 Pexels b-roll)實測 scene=0:慢鏡/空拍素材+短素材循環,自身畫面變化
+        # 量不到 gt(scene,0.1)。補上與卡片同週期同相位的亮度脈衝(±8%,每 3.5 秒),
+        # 讓 b-roll 段也有可量測、人眼可感的節奏跳動。
         base = (f"[0:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
                 f"crop={width}:{height},setsar=1,fps={fps},format=yuv420p,"
-                f"trim=0:{dur:.3f},setpts=PTS-STARTPTS")
+                f"trim=0:{dur:.3f},setpts=PTS-STARTPTS,"
+                f"eq=eval=frame:brightness='0.08*mod(floor((t+{seg_start:.3f})/3.5)\\,2)'")
     else:
         # 卡片不再靜止:Ken Burns 緩推鏡(先放大 2x→zoompan 縮回,讓位移是次像素、字幕不抖)。
         # 有影片感、又 100% 是自家數據/圖表(護城河),解決「靜態卡」+「素材脫題」兩難。
         frames = max(1, int(round(dur * fps)))
         inputs += ["-loop", "1", "-t", f"{dur:.3f}", "-i", src]
-        # 完播工程(2026-07-14):實測長段(單卡撐 >7 秒,常見於旁白密集、segments 少的 Shorts)
-        # 原本這條單向緩推鏡整段下來 ffmpeg scene detection 連 gt(scene,0.1) 都量不到差異
-        # (推速 0.0007~0.0013/frame 太慢,20 秒也才推 1.02x)——這正是完播診斷抓到的「單卡
-        # 撐 20+ 秒零場景變化」根因之一。長段改脈衝式(每 3.5 秒在 1.0/1.045 兩級跳一次),
-        # 保證每 3.5 秒有真正可偵測、人眼也感受得到的構圖跳動;短段(<=7秒)維持原本單向緩推鏡
-        # 質感(本來就短,不需要跳動,平滑推近更有電影感)。
-        if dur > 7.0:
-            # 卡片走 2x 預縮放再 zoompan 縮回(見上方 scale={width*2})、內容又比純測試圖複雜
-            # (圖表+文字+邊框),實測同幅度在這條路徑要拉高到 0.07 才能穩定跨過 gt(scene,0.1)
-            # 門檻(靜態切片路徑走的是已合成 1x 圖,0.045 就夠,兩邊分開調)。
-            zexpr = f"1.0+0.07*mod(floor(on/({fps}*3.5)),2)"
-        else:
-            zspeed = 0.0007 + 0.0003 * (idx % 3)  # 段間微調推速,避免每段一模一樣
-            zexpr = f"min(zoom+{zspeed:.4f},1.06)"
-        # 推鏡上限 1.06:邊緣裁切夠小,保住卡片燒入的浮水印(別被放大切到底邊)
+        # 完播節奏根修(2026-07-15,獨立驗收判定 86ec25d 沒真正落地後複查):舊版只在
+        # 「單一 segment 時長 >7 秒」才套脈衝,<=7 秒走原本連續緩推(0.0007~0.0013/frame)。
+        # 但 production 腳本把大多數卡切成對應字幕換氣的短 segment(常見 3-7 秒),per_seg
+        # 幾乎從未跨過 7 秒門檻——緩推速率量到的位移是次像素級,ffmpeg scene detection
+        # (甚至人眼)完全看不到,於是「一堆短 segment 背靠背」串成 20~42 秒(Shorts)甚至
+        # 332 秒(長片,per_seg 有時也 <=7 秒)的視覺凍結。根因不是脈衝公式本身失效,是
+        # 「>7 秒」門檻把大多數 production 內容排除在脈衝之外。
+        #
+        # 改法:拿掉門檻,不分長短一律套脈衝(反正 base pipeline 本來就是同一條 2x 預縮放
+        # +zoompan,不多算 render cost)。相位用「此段在整支片時間軸上的絕對起點」
+        # (seg_start,呼叫端傳入)而非每段各自從 on=0 起跳——每次 _seg_clip 都是獨立
+        # ffmpeg 行程,若相位各自歸零,一串短 segment(尤其彼此在同一半週期內、卡片視覺
+        # 又相近)仍可能疊出跨段的長凍結感;用絕對時間相位讓脈衝在 concat 後的整支片時間軸
+        # 上連續,保證每 3.5 秒有一次真正的構圖跳動,不論被切成幾段。
+        #
+        # 二次覆查(2026-07-15,用真正的 production 卡片圖+ffmpeg select='gte(scene,0)',
+        # metadata=print:key=lavfi.scene_score 實測量出來的,不是憑感覺調):純幾何縮放
+        # (zoompan)不管振幅開多大(實測 0.07~0.5 都試過)分數都卡在 0.04~0.05,穩定量
+        # 不到 gt(scene,0.1)!原因是卡片背景大面積深色、縮放只是同一批像素搬移,ffmpeg
+        # scene 偵測看的是整體色彩/直方圖變化,對純幾何變換本來就不敏感——舊註解「0.07
+        # 才能穩定跨過 0.1」這句話從沒被真正驗證過,是這次複查才發現的。改法:脈衝跳動時
+        # 疊一段極短暫的亮度脈衝(eq=eval=frame:brightness,同一 3.5 秒週期、同相位),
+        # 才是真正讓數值躍過去的關鍵——實測卡片 0.08 亮度脈衝 + 0.07 縮放,分數穩定落在
+        # 0.20~0.29(深色圖表卡+亮色大數字卡都測過),對 gt(scene,0.1) 有 2 倍安全margin。
+        # 亮度脈衝幅度小(±8%,一瞬間)人眼觀感是「呼吸感」不是閃爍。
+        _start_frame = int(round(seg_start * fps))
+        zexpr = f"1.0+0.07*mod(floor((on+{_start_frame})/({fps}*3.5)),2)"
+        beq = f"eq=eval=frame:brightness='0.08*mod(floor((t+{seg_start:.3f})/3.5)\\,2)'"
+        # 推鏡上限 1.06(僅供參考,脈衝公式本身封在 1.0~1.07 內):邊緣裁切夠小,
+        # 保住卡片燒入的浮水印(別被放大切到底邊)
         base = (f"[0:v]scale={width*2}:{height*2}:flags=lanczos,"
                 f"zoompan=z='{zexpr}':d={frames}:"
                 f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s={width}x{height}:fps={fps},"
-                f"setsar=1,format=yuv420p")
+                f"setsar=1,format=yuv420p,{beq}")
     if fade_in:
         # P-封面修:純 fade=t=in:st=0 讓輸出的 t=0 那一幀是 100% 純黑(fade 從 alpha=0
         # 起跳),TikTok/IG 自動抓片頭幀當封面 → 全部抓到黑。改用 tpad 在最前面複製墊
@@ -410,7 +441,7 @@ def _render_with_broll(slug_paths, *, segments, seg_cards, intro_png, outro_png,
         # intro
         pieces.append(_seg_clip(ff, src=intro_png, is_video=False, dur=mv.INTRO_DURATION,
                                 subs=[], fade_in=True, width=width, height=height, fps=fps,
-                                tmp_dir=tmp_dir, idx=0))
+                                tmp_dir=tmp_dir, idx=0, seg_start=0.0))
         broll_used = 0
         broll_cap = max(1, n // 3)  # 卡片(會動的數據/圖表)是護城河,讓它主導;通用實拍封頂 ~1/3 段
         import re as _re
@@ -432,11 +463,13 @@ def _render_with_broll(slug_paths, *, segments, seg_cards, intro_png, outro_png,
             pieces.append(_seg_clip(ff, src=src, is_video=is_video, dur=per_seg, subs=subs,
                                     fade_in=False, width=width, height=height, fps=fps,
                                     tmp_dir=tmp_dir, idx=i + 1,
-                                    watermark=(wm_png if is_video else None)))
+                                    watermark=(wm_png if is_video else None),
+                                    seg_start=mv.INTRO_DURATION + seg_start))
         # outro
         pieces.append(_seg_clip(ff, src=outro_png, is_video=False, dur=mv.OUTRO_DURATION,
                                 subs=[], fade_in=False, width=width, height=height, fps=fps,
-                                tmp_dir=tmp_dir, idx=n + 1))
+                                tmp_dir=tmp_dir, idx=n + 1,
+                                seg_start=mv.INTRO_DURATION + audio_duration))
 
         total = mv.INTRO_DURATION + audio_duration + mv.OUTRO_DURATION
         list_txt = tmp_dir / "pieces.txt"
@@ -496,7 +529,7 @@ def _render_animated(slug_paths, *, segments, seg_cards, intro_png, outro_png, c
         # intro:品牌片頭卡（ffmpeg 緩推鏡+淡入，快；不用逐幀 PIL）
         pieces.append(_seg_clip(ff, src=intro_png, is_video=False, dur=mv.INTRO_DURATION,
                                 subs=[], fade_in=True, width=width, height=height, fps=fps,
-                                tmp_dir=tmp_dir, idx=0))
+                                tmp_dir=tmp_dir, idx=0, seg_start=0.0))
         fx_count = {"smash": 0, "knife": 0, "montage": 0, "popup": 0}
         for i, seg in enumerate(segments):
             seg_start, seg_end = i * per_seg, (i + 1) * per_seg
@@ -540,14 +573,16 @@ def _render_animated(slug_paths, *, segments, seg_cards, intro_png, outro_png, c
             # 預設 / 特效失敗 → 現有卡片走 ffmpeg 緩推鏡+淡入（快，不逐幀 PIL）；卡片已含 concept/HUD/吉祥物/浮水印
             if not clip:
                 clip = _seg_clip(ff, src=seg_cards[i], is_video=False, dur=per_seg, subs=subs,
-                                 fade_in=(i == 0), width=width, height=height, fps=fps, tmp_dir=tmp_dir, idx=i + 1)
+                                 fade_in=(i == 0), width=width, height=height, fps=fps, tmp_dir=tmp_dir, idx=i + 1,
+                                 seg_start=mv.INTRO_DURATION + seg_start)
             fx_count[used if used in fx_count else "popup"] = fx_count.get(used, 0) + 1
             pieces.append(clip)
 
         # outro:品牌卡 ffmpeg 緩推鏡(快)
         pieces.append(_seg_clip(ff, src=outro_png, is_video=False, dur=mv.OUTRO_DURATION,
                                 subs=[], fade_in=False, width=width, height=height, fps=fps,
-                                tmp_dir=tmp_dir, idx=n + 1))
+                                tmp_dir=tmp_dir, idx=n + 1,
+                                seg_start=mv.INTRO_DURATION + audio_duration))
 
         # 無縫 loop 尾(item9):片尾補 0.6s 封面(=片頭首幀),讓 Shorts 重播無縫→拉高 loop 完播
         # (2026 演算法:結尾 2 秒內重看算部分新觀看)。音訊 apad 自動補靜音、body 時序不動→不 desync。
@@ -557,7 +592,8 @@ def _render_animated(slug_paths, *, segments, seg_cards, intro_png, outro_png, c
             try:
                 pieces.append(_seg_clip(ff, src=intro_png, is_video=False, dur=0.6,
                                         subs=[], fade_in=True, width=width, height=height, fps=fps,
-                                        tmp_dir=tmp_dir, idx=n + 2))
+                                        tmp_dir=tmp_dir, idx=n + 2,
+                                        seg_start=mv.INTRO_DURATION + audio_duration + mv.OUTRO_DURATION))
                 _loop_tail = 0.6
             except Exception as _lte:  # noqa: BLE001
                 print(f"[ffmpeg後端·動畫] loop 尾略過:{str(_lte)[:60]}", file=sys.stderr)
@@ -904,10 +940,22 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
         # 任何幀,因為連續漸變沒有「瞬間跳動」);改成離散階梯跳動,每 3.5 秒一次真正的構圖跳動,
         # 才會被 gt(scene,0.3) 判定為真正的畫面變化,同時人眼也感受得到「畫面在動」。
         # 只加一段 filter,不多一次編碼、不多幀,渲染時間不變;唯一一次 ffmpeg pass 內完成。
+        #
+        # 二次覆查(2026-07-15,獨立驗收判定完播節奏修復沒真正落地後複查):上面這段
+        # 「純 zoompan 脈衝」的舊註解說「才會被 gt(scene,0.3) 判定為真正的畫面變化」,
+        # 但這句話從沒被實測驗證過——用 ffmpeg select='gte(scene,0)',metadata=print:
+        # key=lavfi.scene_score 直接量,純 zoompan(不論振幅多大)對這類大面積深色卡片
+        # 背景只能量到 ~0.044,連 gt(scene,0.1) 都量不到,更別說 0.3(根因跟 _seg_clip
+        # 那條完全一樣:純幾何縮放對 histogram/整體色彩為主的 scene 偵測本來就不敏感)。
+        # 改法同 _seg_clip:疊一段極短暫的亮度脈衝(eq=eval=frame:brightness,同一 3.5
+        # 秒週期、同相位,這裡是單一 ffmpeg pass 處理整支已 concat 的片,'t' 本來就是
+        # 全片絕對時間、不用另外算 offset)。實測 0.08 亮度脈衝穩定量到 0.20~0.29,
+        # 對 gt(scene,0.1) 有 2 倍安全margin。
         vf = (f"fps={fps},scale={width}:{height}:force_original_aspect_ratio=decrease,"
               f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1,"
               f"zoompan=z='1.0+0.045*mod(floor(on/({fps}*3.5)),2)':d=1:"
               f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s={width}x{height}:fps={fps},"
+              f"eq=eval=frame:brightness='0.08*mod(floor(t/3.5)\\,2)',"
               f"tpad=start_duration=0.35:start_mode=clone,fade=t=in:st=0:d=0.5,"
               f"trim=start=0.35,setpts=PTS-STARTPTS,format=yuv420p")
         af = f"adelay={intro_ms}:all=1,apad,atrim=0:{total:.3f}"
