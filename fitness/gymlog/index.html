@@ -180,12 +180,19 @@ textarea.note{width:100%;background:var(--input);border:1px solid var(--line2);b
 .padgrid button:active{background:var(--line2)}
 .padrow{display:flex;gap:8px}
 .padrow .btn{flex:1;height:52px}
+/* 好友連線 */
+.roomcode{font-size:21px;font-weight:800;letter-spacing:.16em;color:var(--gold2);margin-top:5px;word-break:break-all}
+.livebadge{font-size:10px;font-weight:700;color:#7ee29a;background:rgba(76,194,106,.12);border:1px solid rgba(76,194,106,.4);
+  border-radius:99px;padding:2px 8px;margin-left:8px;letter-spacing:.1em;animation:pulse 1.6s ease-in-out infinite;vertical-align:2px}
+@keyframes pulse{50%{opacity:.45}}
+.livecard{border-color:rgba(76,194,106,.35)}
 </style>
 </head>
 <body>
 <div id="app"></div>
 <div id="nav">
   <div data-tab="home"><span class="ic">🏠</span>首頁</div>
+  <div data-tab="friends"><span class="ic">👥</span>好友</div>
   <div data-tab="history"><span class="ic">📈</span>歷史</div>
   <div data-tab="plan"><span class="ic">📋</span>課表</div>
   <div data-tab="settings"><span class="ic">⚙️</span>設定</div>
@@ -211,6 +218,9 @@ textarea.note{width:100%;background:var(--input);border:1px solid var(--line2);b
 </div></div>
 <div id="toast" class="toast"></div>
 
+<script src="firebase-app-compat.js"></script>
+<script src="firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
 <script>
 'use strict';
 /* ============ 資料層 ============ */
@@ -329,6 +339,7 @@ function render(){
   if(UI.workoutOpen && S.session){ renderWorkout(); return; }
   UI.workoutOpen = false;
   if(UI.tab==='home') renderHome();
+  else if(UI.tab==='friends') renderFriends();
   else if(UI.tab==='history') UI.histEx ? renderHistDetail() : renderHistory();
   else if(UI.tab==='plan') renderPlan();
   else renderSettings();
@@ -348,8 +359,9 @@ function renderHome(){
   if(S.logs.length >= 3 && (!la || daysAgo(la) > 14)){
     h += `<div class="banner">⚠️ 已超過 14 天沒備份，去「設定」匯出一份保平安。</div>`;
   }
+  const showWeekLabel = S.plan.length > 1; // 只有一週時不顯示週標籤（Carson 要求）
   for(const w of S.plan){
-    h += `<div class="weekhead rule"><span class="t">${esc(w.week)}</span></div>`;
+    if(showWeekLabel) h += `<div class="weekhead rule"><span class="t">${esc(w.week)}</span></div>`;
     for(const d of w.days){
       const lg = lastLogForDay(d.id);
       const active = S.session && S.session.dayId===d.id;
@@ -371,6 +383,7 @@ function startWorkout(dayId){
     S.session = null;
   }
   UI.workoutOpen = true;
+  liveLast = 0; // 開始訓練立即廣播一次 LIVE
   if(!S.session){
     const entries = {};
     for(const ex of d.exercises){
@@ -389,6 +402,7 @@ function startWorkout(dayId){
     S.session = { dayId, startTs: Date.now(), entries };
     save();
   }
+  pushLive(true);
   render();
   window.scrollTo(0,0);
 }
@@ -484,6 +498,7 @@ function toggleSet(exId,i){
   const s=sess(exId).sets[i];
   s.done=!s.done; save();
   if(s.done && S.settings.restTimer) startRest();
+  pushLive();
   render();
 }
 function toggleUnit(exId){
@@ -492,7 +507,7 @@ function toggleUnit(exId){
   const f = findEx(exId); if(f){ f.ex.unit = e.unit; } // 記住偏好
   save(); render();
 }
-function toggleCardio(exId){ const e=sess(exId); e.done=!e.done; save(); render(); }
+function toggleCardio(exId){ const e=sess(exId); e.done=!e.done; save(); pushLive(); render(); }
 function setCardio(exId,v){ sess(exId).minutes = parseInt(v)||0; save(); }
 function stepCardio(exId,d){ const e=sess(exId); e.minutes=Math.max(0,(parseInt(e.minutes)||0)+d); save(); render(); }
 function setCardioNote(exId,v){ sess(exId).note = v; save(); }
@@ -516,11 +531,13 @@ function finishWorkout(){
   S.logs.push({ id:uid('l'), date:todayStr(), ts:Date.now(), dayId:S.session.dayId, dayName:d?d.name:'', entries });
   S.session = null;
   hideRest(); save();
+  pushSummary(); clearLive();
   UI.tab='home'; render();
   toast('已存檔 ✅');
 }
 function discardWorkout(){
   if(!confirm('確定放棄？這次輸入的內容會消失。')) return;
+  clearLive();
   S.session=null; hideRest(); save(); UI.tab='home'; render();
 }
 function confirmQuit(){
@@ -889,6 +906,150 @@ function resetAll(){
   localStorage.removeItem(KEY); S=null; load(); UI={tab:'home',histEx:null}; render();
 }
 
+/* ============ 好友連線（Firestore，離線優先：全部靜默失敗） ============ */
+let DB=null, unsubMembers=null, unsubLive=null, FRIENDS={members:[],live:[]}, liveLast=0;
+function fbInit(){
+  try{
+    if(!window.FIREBASE_CONFIG || typeof firebase==='undefined') return;
+    firebase.initializeApp(window.FIREBASE_CONFIG);
+    DB = firebase.firestore();
+  }catch(e){ console.warn('firebase init skip:', e && e.message); }
+}
+function myUid(){
+  if(!S.settings.uid){ S.settings.uid = 'u'+Date.now().toString(36)+Math.random().toString(36).slice(2,8); save(); }
+  return S.settings.uid;
+}
+function roomRef(){ return (DB && S.settings.room) ? DB.collection('rooms').doc(S.settings.room) : null; }
+
+function calcSummary(){
+  let totalSets=0;
+  for(const l of S.logs){ for(const k in l.entries){ const e=l.entries[k]; totalSets += e.type==='cardio' ? 1 : (e.sets||[]).length; } }
+  const week = S.logs.filter(l=>{ const n=daysAgo(l.date); return n!==null && n<7; }).length;
+  const recent = S.logs.slice(-5).reverse().map(l=>{
+    let sets=0; const lifts=[];
+    for(const k in l.entries){ const e=l.entries[k];
+      if(e.type==='cardio'){ sets++; continue; }
+      sets += (e.sets||[]).length;
+      let best=0, bs=null;
+      for(const s of e.sets||[]){ const w=parseFloat(s.w); if(!isNaN(w) && toKg(w,e.unit)>best){ best=toKg(w,e.unit); bs=s; } }
+      if(bs) lifts.push({kg:best, txt:`${e.name} ${bs.w}${e.unit}×${bs.r||'?'}`});
+    }
+    lifts.sort((a,b)=>b.kg-a.kg);
+    return {date:l.date, day:l.dayName||'', sets, top:lifts.slice(0,3).map(x=>x.txt)};
+  });
+  const last = S.logs[S.logs.length-1];
+  return { nick:S.settings.nick||'我', updatedAt:Date.now(), weekCount:week, totalCount:S.logs.length, totalSets,
+    lastDate: last?last.date:null, lastDayName: last?(last.dayName||''):null, recent };
+}
+function pushSummary(){
+  const r=roomRef(); if(!r) return;
+  r.collection('members').doc(myUid()).set(calcSummary()).catch(()=>{});
+}
+function pushLive(force){
+  const r=roomRef(); if(!r || !S.session) return;
+  const now=Date.now(); if(!force && now-liveLast<2000) return; liveLast=now;
+  const d=findDay(S.session.dayId); if(!d) return;
+  let total=0, done=0, cur='';
+  for(const ex of d.exercises){ const e=S.session.entries[ex.id]; if(!e) continue;
+    if(e.type==='cardio'){ total++; if(e.done) done++; }
+    else{ total+=e.sets.length; const dd=e.sets.filter(s=>s.done).length; done+=dd;
+      if(dd>0 && dd<e.sets.length) cur=ex.name; }
+  }
+  r.collection('live').doc(myUid()).set({ nick:S.settings.nick||'我', day:d.name, exName:cur, done, total,
+    startTs:S.session.startTs, updatedAt:Date.now() }).catch(()=>{});
+}
+function clearLive(){ const r=roomRef(); if(r) r.collection('live').doc(myUid()).delete().catch(()=>{}); }
+function subscribeRoom(){
+  const r=roomRef(); if(!r) return;
+  unsubRoom();
+  const maybeRender = ()=>{ if(UI.tab==='friends' && !(UI.workoutOpen && S.session)) render(); };
+  unsubMembers = r.collection('members').onSnapshot(qs=>{ FRIENDS.members = qs.docs.map(d=>({id:d.id, ...d.data()})); maybeRender(); }, ()=>{});
+  unsubLive = r.collection('live').onSnapshot(qs=>{ FRIENDS.live = qs.docs.map(d=>({id:d.id, ...d.data()})); maybeRender(); }, ()=>{});
+}
+function unsubRoom(){
+  if(unsubMembers) unsubMembers(); if(unsubLive) unsubLive();
+  unsubMembers=unsubLive=null; FRIENDS={members:[],live:[]};
+}
+function genRoomCode(){ const c='ABCDEFGHJKMNPQRSTUVWXYZ23456789'; let s=''; for(let i=0;i<12;i++) s+=c[Math.floor(Math.random()*c.length)]; return s; }
+function newRoom(){ joinFlow(true); }
+function joinRoom(){ joinFlow(false); }
+function joinFlow(create){
+  if(!DB){ alert('連線功能尚未啟用（雲端還沒接上）'); return; }
+  const nick = prompt('你的暱稱（朋友會看到）', S.settings.nick||''); if(!nick || !nick.trim()) return;
+  let room;
+  if(create) room = genRoomCode();
+  else{
+    room = prompt('輸入朋友給你的房間碼');
+    if(!room) return;
+    room = room.trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
+    if(room.length<6){ toast('房間碼格式不對'); return; }
+  }
+  S.settings.nick = nick.trim(); S.settings.room = room; save();
+  pushSummary(); subscribeRoom(); render();
+  toast(create ? '房間已建立，把房間碼傳給朋友' : '已加入房間');
+}
+function leaveRoom(){
+  if(!confirm('退出房間？（你手機裡的訓練紀錄不受影響）')) return;
+  const r=roomRef();
+  if(r){ r.collection('members').doc(myUid()).delete().catch(()=>{}); r.collection('live').doc(myUid()).delete().catch(()=>{}); }
+  unsubRoom(); S.settings.room=null; save(); render();
+}
+function copyRoom(){
+  const t=S.settings.room;
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(t).then(()=>toast('已複製房間碼')).catch(()=>prompt('長按複製房間碼：', t));
+  } else prompt('長按複製房間碼：', t);
+}
+
+function renderFriends(){
+  let h = `<div class="topbar"><h1>👥 好友</h1>${S.settings.room?'<button class="btn sm ghost" style="color:var(--red)" onclick="GL.leaveRoom()">退出房間</button>':''}</div>`;
+  if(!DB){
+    h += `<div class="card"><b>連線功能尚未啟用</b>
+      <div class="small" style="margin-top:6px;line-height:1.7">雲端資料庫還沒接上（firebase-config.js 未設定）。<br>其他功能不受影響。</div></div>`;
+    $app.innerHTML=h; return;
+  }
+  if(!S.settings.room){
+    h += `<div class="card" style="text-align:center;padding:30px 20px">
+      <div style="font-size:36px;margin-bottom:10px">🤝</div>
+      <div style="font-weight:800;font-size:17px;margin-bottom:6px">和朋友一起練</div>
+      <div class="small" style="margin-bottom:20px;line-height:1.8">互看訓練紀錄、比本週排行，<br>對方訓練中還能即時看到他練到第幾組。</div>
+      <button class="btn primary big" onclick="GL.newRoom()">建立房間</button>
+      <button class="btn big" style="margin-top:10px" onclick="GL.joinRoom()">用房間碼加入</button></div>`;
+    $app.innerHTML=h; return;
+  }
+  h += `<div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+    <div style="min-width:0"><div class="small">房間碼（朋友輸入這串加入）</div>
+    <div class="roomcode">${esc(S.settings.room)}</div></div>
+    <button class="btn sm" onclick="GL.copyRoom()">複製</button></div>`;
+  const lives = FRIENDS.live.filter(x=> x.id!==myUid() && Date.now()-(x.updatedAt||0) < 2*3600*1000);
+  for(const lv of lives){
+    const pct = lv.total ? Math.round(lv.done/lv.total*100) : 0;
+    h += `<div class="card livecard">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:9px">
+        <b>${esc(lv.nick)}<span class="livebadge">● LIVE</span></b>
+        <span class="small">${esc(lv.day)} · ${lv.done}/${lv.total} 組</span></div>
+      <div class="pb-track"><div class="pb-fill" style="width:${pct}%"></div></div>
+      ${lv.exName?`<div class="small" style="margin-top:8px">正在練：${esc(lv.exName)}</div>`:''}</div>`;
+  }
+  const ms = FRIENDS.members.slice().sort((a,b)=>(b.weekCount||0)-(a.weekCount||0) || (b.totalSets||0)-(a.totalSets||0));
+  if(ms.length){
+    h += `<div class="weekhead rule"><span class="t">本週排行</span></div>`;
+    ms.forEach((m,i)=>{
+      const me = m.id===myUid();
+      h += `<div class="card" style="padding:14px 16px${me?';border-color:rgba(217,180,83,.4)':''}">
+        <div style="display:flex;align-items:center;gap:12px">
+          <span style="font-size:20px">${['🥇','🥈','🥉'][i]||'💪'}</span>
+          <div style="flex:1;min-width:0"><b>${esc(m.nick||'?')}${me?'（你）':''}</b>
+          <div class="small" style="margin-top:3px">本週 ${m.weekCount||0} 次 · 累計 ${m.totalCount||0} 次 ${m.totalSets||0} 組${m.lastDate?' · 上次 '+fmtDate(m.lastDate)+' '+esc(m.lastDayName||''):''}</div></div></div>
+        ${(m.recent&&m.recent.length)?`<div class="small" style="margin-top:10px;line-height:1.9;border-top:1px solid var(--line);padding-top:9px">${m.recent.slice(0,3).map(r=>`${fmtDate(r.date)} ${esc(r.day)} · ${r.sets}組${(r.top&&r.top[0])?' · '+esc(r.top[0]):''}`).join('<br>')}</div>`:''}
+      </div>`;
+    });
+  } else {
+    h += `<div class="empty">房間裡還沒有任何紀錄<br>完成一次訓練就會出現在這裡</div>`;
+  }
+  $app.innerHTML=h;
+}
+
 /* ============ 啟動 ============ */
 document.querySelectorAll('#nav div').forEach(el=>{
   el.onclick=()=>{
@@ -900,6 +1061,8 @@ document.getElementById('modal').addEventListener('click', e=>{ if(e.target.id==
 document.getElementById('pad').addEventListener('click', e=>{ if(e.target.id==='pad'){ if(PAD){ padCommit(); render(); } padClose(); } }); // 點外面=確定收起
 
 load();
+fbInit();
+if(S.settings.room && DB){ subscribeRoom(); pushSummary(); }
 if(S.session) UI.workoutOpen = true; // 上次沒練完，直接回到訓練頁
 render();
 
@@ -910,6 +1073,7 @@ if('serviceWorker' in navigator){
 // 對外介面（inline onclick 用）
 window.GL = { startWorkout, setW, setR, stepW, stepR, toggleSet, toggleUnit, toggleCardio, setCardio, stepCardio,
   openPad, padKey, padAdj, padOk, padCancel,
+  newRoom, joinRoom, leaveRoom, copyRoom,
   setCardioNote, finishWorkout, discardWorkout, confirmQuit, hideRest, openHist, closeHist, deleteLog,
   addWeek, renameWeek, delWeek, dupWeek, addDay, renameDay, delDay, moveEx, delEx, addEx, editEx, closeModal,
   exportData, importData, resetAll, toggleRestSetting };
