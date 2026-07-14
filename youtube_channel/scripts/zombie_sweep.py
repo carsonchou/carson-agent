@@ -17,8 +17,9 @@ scripts/yt_analytics.py:110-144）。對 YouTube 演算法，這是「這頻道�
 --------------------
 1. 挑選標準：0 觀看 **且** 發布超過 14 天（給新片機會）。
 2. 排除：
-   - 台股真相實驗室系列（沿用 playlist_engine._match_truth_lab）
-   - EP 系列（沿用 playlist_engine._match_ep_live）
+   - 台股真相實驗室系列（沿用 playlist_engine._match_truth_lab，同時比對 slug
+     與 title，防 slug 退化成 videoId 時保護失效——見 is_franchise_protected）
+   - EP 系列（同上，沿用 playlist_engine._match_ep_live）
    - STUDIO/zombie_sweep_keeplist.json 裡列的優先清單（Carson 手動維護的保護清單，
      slug 或 videoId 命中都算，永遠不動）
    - 已處理過的（STUDIO/zombie_sweep_state.json 的 done，冪等）
@@ -145,11 +146,21 @@ def load_private_batch_ids() -> list[str]:
 # 純函式：分類/篩選（皆可離線單元測試）
 # --------------------------------------------------------------------------- #
 
-def is_franchise_protected(slug: str) -> str | None:
-    """回傳命中的排除原因 key，沒命中回 None。"""
-    if ple._match_truth_lab(slug):
+def is_franchise_protected(slug: str, title: str = "") -> str | None:
+    """回傳命中的排除原因 key，沒命中回 None。
+
+    2026-07-15 修（fresh-context 審查抓到的真實缺口）：quality_score.py:326 建
+    published 清單時，slug 來源是 `rev.get(vid) or vid`——若某片在
+    uploaded_ledger.json 裡查無對照（曾發生過），slug 會退化成「原始
+    videoId」，不可能含「台股真相」「EP…實測」等關鍵字，導致系列片保護
+    失效而被誤清。實測 quality_scores.json 目前有 5 支 slug==videoId
+    （皆非系列片，今天沒有真的誤傷，但機制本身是漏洞）。改成同時比對
+    title（quality_score.py 同一行對 title 是抓「真實頻道標題」，不會
+    退化），slug 或 title 任一命中都算保護，雙重保險。"""
+    text = f"{slug} {title}"
+    if ple._match_truth_lab(text):
         return "franchise_truth_lab"
-    if ple._match_ep_live(slug):
+    if ple._match_ep_live(text):
         return "franchise_ep_live"
     return None
 
@@ -189,7 +200,7 @@ def build_offline_pool(published: list[dict], state: dict, keeplist: dict) -> tu
         if is_keeplist_protected(slug, vid, keeplist):
             counts["優先清單保護"] += 1
             continue
-        reason = is_franchise_protected(slug)
+        reason = is_franchise_protected(slug, p.get("title", ""))
         if reason == "franchise_truth_lab":
             counts["台股真相實驗室系列(排除)"] += 1
             continue
