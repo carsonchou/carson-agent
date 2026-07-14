@@ -93,7 +93,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # EP 全自動：每天抓 Pionex 真實帳戶(funded 即自動帶真數字)
 18 6 * * * /root/yt/run.sh scripts/pionex_account.py >> /root/yt/logs/cron.log 2>&1
 # tunnel 自癒(每10分:cloudflared公網URL不健康就detached重啟常駐,IG跨發命脈)
-*/10 * * * * /root/yt/run.sh scripts/tunnel_up.py --ensure >> /root/yt/logs/cron.log 2>&1
+# 2026-07-14 退役(IG已走litterbox直傳,tunnel廢棄備援每小時失敗洗log): */10 * * * * /root/yt/run.sh scripts/tunnel_up.py --ensure >> /root/yt/logs/cron.log 2>&1
 # 殭屍清理安全網(每30分:tunnel/fileserver/決策中心server 若重複累積只留最新,砍舊的;不碰排程器/產片job)
 0,30 * * * * /root/yt/run.sh scripts/reap_orphans.py >> /root/yt/logs/cron.log 2>&1
 # 公開檔案伺服器(供 IG/多平台抓 mp4)：每3分保活
