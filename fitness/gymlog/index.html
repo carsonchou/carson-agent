@@ -154,6 +154,32 @@ body.resting #app{padding-bottom:calc(var(--safe-b) + 190px)} /* 休息計時器
 .backlink{color:var(--fg2);font-size:14px;cursor:pointer;padding:4px 0;display:inline-block;margin-bottom:8px}
 textarea.note{width:100%;background:var(--input);border:1px solid var(--line2);border-radius:12px;padding:11px;
   color:var(--fg);font-size:15px;outline:none;resize:none;margin-top:2px}
+/* 自製數字盤（不用系統鍵盤） */
+.stepgrp .val{flex:1;min-width:0;height:100%;display:flex;align-items:center;justify-content:center;gap:4px;
+  color:var(--fg);font-size:18px;font-weight:700;cursor:pointer;font-variant-numeric:tabular-nums}
+.stepgrp .val:active{background:rgba(255,255,255,.05)}
+.stepgrp .val.ph{color:var(--fg3);font-size:13px;font-weight:500}
+.stepgrp .val .u{font-size:10.5px;color:var(--fg3);letter-spacing:.04em;padding:0}
+#pad{position:fixed;inset:0;z-index:120;display:none;align-items:flex-end;justify-content:center;background:rgba(4,6,10,.45)}
+#pad.show{display:flex}
+.padbox{background:linear-gradient(180deg,#171d28,#10141d);border:1px solid var(--line2);border-bottom:none;
+  border-radius:22px 22px 0 0;width:100%;max-width:560px;padding:14px 16px calc(var(--safe-b) + 14px);
+  box-shadow:0 -14px 40px rgba(0,0,0,.55)}
+.padhead{display:flex;align-items:baseline;justify-content:space-between;margin:2px 4px 12px}
+#padLabel{font-size:13px;color:var(--fg2)}
+#padVal{font-size:34px;font-weight:800;color:var(--gold2);font-variant-numeric:tabular-nums;min-height:42px}
+#padVal .u{font-size:13px;color:var(--fg3);font-weight:600;margin-left:5px}
+#padVal.empty{color:var(--fg3);font-size:20px;font-weight:500}
+.padchips{display:flex;gap:8px;margin-bottom:10px}
+.padchips button{flex:1;height:44px;border-radius:11px;border:1px solid rgba(217,180,83,.3);background:var(--gold-soft);
+  color:var(--gold2);font-size:15px;font-weight:700;cursor:pointer}
+.padchips button:active{opacity:.7}
+.padgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
+.padgrid button{height:56px;border-radius:12px;border:1px solid var(--line2);background:var(--bg3);
+  color:var(--fg);font-size:22px;font-weight:700;cursor:pointer;font-variant-numeric:tabular-nums}
+.padgrid button:active{background:var(--line2)}
+.padrow{display:flex;gap:8px}
+.padrow .btn{flex:1;height:52px}
 </style>
 </head>
 <body>
@@ -169,6 +195,20 @@ textarea.note{width:100%;background:var(--input);border:1px solid var(--line2);b
   <button class="btn sm" onclick="GL.hideRest()">關閉</button>
 </div>
 <div id="modal"><div class="box" id="modalBox"></div></div>
+<div id="pad"><div class="padbox">
+  <div class="padhead"><span id="padLabel"></span><span id="padVal"></span></div>
+  <div class="padchips" id="padChips"></div>
+  <div class="padgrid">
+    <button onclick="GL.padKey('7')">7</button><button onclick="GL.padKey('8')">8</button><button onclick="GL.padKey('9')">9</button>
+    <button onclick="GL.padKey('4')">4</button><button onclick="GL.padKey('5')">5</button><button onclick="GL.padKey('6')">6</button>
+    <button onclick="GL.padKey('1')">1</button><button onclick="GL.padKey('2')">2</button><button onclick="GL.padKey('3')">3</button>
+    <button id="padDot" onclick="GL.padKey('.')">.</button><button onclick="GL.padKey('0')">0</button><button onclick="GL.padKey('⌫')">⌫</button>
+  </div>
+  <div class="padrow">
+    <button class="btn" onclick="GL.padCancel()">取消</button>
+    <button class="btn primary" onclick="GL.padOk()">確定</button>
+  </div>
+</div></div>
 <div id="toast" class="toast"></div>
 
 <script>
@@ -381,8 +421,7 @@ function renderWorkout(){
       h += `<div class="setrow"><div class="setno">分</div>
         <div class="stepgrp">
           <button onclick="GL.stepCardio('${ex.id}',-5)">−</button>
-          <input type="number" inputmode="numeric" value="${e.minutes}" onchange="GL.setCardio('${ex.id}',this.value)">
-          <span class="u">min</span>
+          <div class="val" onclick="GL.openPad('${ex.id}',0,'min')">${e.minutes}<span class="u">min</span></div>
           <button onclick="GL.stepCardio('${ex.id}',5)">＋</button>
         </div></div>
         <textarea class="note" rows="1" placeholder="備註：速度/坡度/心率…" onchange="GL.setCardioNote('${ex.id}',this.value)">${esc(e.note||'')}</textarea>`;
@@ -399,13 +438,12 @@ function renderWorkout(){
           <div class="setno">${i+1}</div>
           <div class="stepgrp">
             <button onclick="GL.stepW('${ex.id}',${i},-2.5)">−</button>
-            <input type="number" inputmode="decimal" step="0.5" placeholder="重量" value="${s.w}" onchange="GL.setW('${ex.id}',${i},this.value)">
-            <span class="u">${e.unit}</span>
+            <div class="val ${s.w===''?'ph':''}" onclick="GL.openPad('${ex.id}',${i},'w')">${s.w===''?'重量':s.w+'<span class=u>'+e.unit+'</span>'}</div>
             <button onclick="GL.stepW('${ex.id}',${i},2.5)">＋</button>
           </div>
-          <div class="stepgrp" style="max-width:132px">
+          <div class="stepgrp" style="max-width:138px">
             <button onclick="GL.stepR('${ex.id}',${i},-1)">−</button>
-            <input type="number" inputmode="numeric" placeholder="次" value="${s.r}" onchange="GL.setR('${ex.id}',${i},this.value)">
+            <div class="val ${s.r===''?'ph':''}" onclick="GL.openPad('${ex.id}',${i},'r')">${s.r===''?'次數':s.r}</div>
             <button onclick="GL.stepR('${ex.id}',${i},1)">＋</button>
           </div>
           <button class="chk ${s.done?'on':''}" onclick="GL.toggleSet('${ex.id}',${i})">✓</button>
@@ -490,6 +528,65 @@ function confirmQuit(){
   UI.workoutOpen=false; UI.tab='home'; render();
   toast('進度已保留，點同一天可繼續');
 }
+
+/* ============ 自製數字盤 ============ */
+let PAD = null; // {exId, i, field:'w'|'r'|'min', buf}
+function openPad(exId, i, field){
+  const e = sess(exId); if(!e) return;
+  const cur = field==='w' ? e.sets[i].w : field==='r' ? e.sets[i].r : e.minutes;
+  PAD = { exId, i, field, buf: (cur===''||cur==null) ? '' : String(cur), fresh:true };
+  const name = e.name;
+  document.getElementById('padLabel').textContent =
+    field==='w' ? `${name} · 第 ${i+1} 組重量` : field==='r' ? `${name} · 第 ${i+1} 組次數` : `${name} · 分鐘`;
+  document.getElementById('padDot').style.visibility = field==='w' ? 'visible' : 'hidden';
+  const chips = field==='w' ? [['-2.5',-2.5],['+2.5',2.5],['+5',5],['+10',10]] :
+                field==='r' ? [['-1',-1],['+1',1]] : [['-5',-5],['+5',5],['+10',10]];
+  document.getElementById('padChips').innerHTML =
+    chips.map(c=>`<button onclick="GL.padAdj(${c[1]})">${c[0]}</button>`).join('');
+  padDraw();
+  document.getElementById('pad').classList.add('show');
+}
+function padDraw(){
+  const el = document.getElementById('padVal');
+  const unit = PAD.field==='w' ? (sess(PAD.exId)||{unit:''}).unit : PAD.field==='min' ? 'min' : '';
+  if(PAD.buf===''){ el.className='empty'; el.textContent='輸入數字…'; }
+  else { el.className=''; el.innerHTML = esc(PAD.buf) + (unit?`<span class="u">${unit}</span>`:''); }
+}
+function padKey(k){
+  if(!PAD) return;
+  if(k==='⌫'){ PAD.buf = PAD.buf.slice(0,-1); PAD.fresh=false; padDraw(); return; }
+  if(PAD.fresh){ PAD.buf=''; PAD.fresh=false; } // 一開始有舊值時，按數字直接重打
+  if(k==='.'){
+    if(PAD.field!=='w' || PAD.buf.includes('.')) return;
+    PAD.buf = PAD.buf==='' ? '0.' : PAD.buf+'.';
+  }else{
+    if(PAD.buf.replace('.','').length>=5) return;
+    PAD.buf += k;
+  }
+  padDraw();
+}
+function padAdj(d){
+  if(!PAD) return;
+  let v = Math.max(0, Math.round(((parseFloat(PAD.buf)||0)+d)*100)/100);
+  PAD.buf = String(v); PAD.fresh=false; padDraw();
+}
+function padCommit(){
+  const v = PAD.buf==='' ? '' : parseFloat(PAD.buf);
+  if(PAD.field==='w') setW(PAD.exId, PAD.i, v===''?'':v);
+  else if(PAD.field==='r') setR(PAD.exId, PAD.i, v===''?'':Math.round(v));
+  else setCardio(PAD.exId, v===''?0:Math.round(v));
+}
+function padOk(){
+  if(!PAD) return;
+  padCommit();
+  const {exId, i, field} = PAD;
+  const e = sess(exId);
+  render();
+  if(field==='w' && e && (e.sets[i].r===''||e.sets[i].r==null)){ openPad(exId, i, 'r'); return; } // 填完重量順手填次數
+  padClose();
+}
+function padCancel(){ padClose(); }
+function padClose(){ PAD=null; document.getElementById('pad').classList.remove('show'); }
 
 /* ============ 休息計時器 ============ */
 let restStart=0, restIv=null;
@@ -800,6 +897,7 @@ document.querySelectorAll('#nav div').forEach(el=>{
   };
 });
 document.getElementById('modal').addEventListener('click', e=>{ if(e.target.id==='modal') closeModal(); });
+document.getElementById('pad').addEventListener('click', e=>{ if(e.target.id==='pad'){ if(PAD){ padCommit(); render(); } padClose(); } }); // 點外面=確定收起
 
 load();
 if(S.session) UI.workoutOpen = true; // 上次沒練完，直接回到訓練頁
@@ -811,6 +909,7 @@ if('serviceWorker' in navigator){
 
 // 對外介面（inline onclick 用）
 window.GL = { startWorkout, setW, setR, stepW, stepR, toggleSet, toggleUnit, toggleCardio, setCardio, stepCardio,
+  openPad, padKey, padAdj, padOk, padCancel,
   setCardioNote, finishWorkout, discardWorkout, confirmQuit, hideRest, openHist, closeHist, deleteLog,
   addWeek, renameWeek, delWeek, dupWeek, addDay, renameDay, delDay, moveEx, delEx, addEx, editEx, closeModal,
   exportData, importData, resetAll, toggleRestSetting };
