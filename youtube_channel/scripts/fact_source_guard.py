@@ -404,6 +404,19 @@ def unsourced_claims(text: str, pool: set[float] | None = None) -> list[dict]:
     # 「All in 1050% vs 定投479.5%,少賺570.5%」三個數字同場;單獨冒出的「少賺38萬」沒有原料,擋。
     grounded = sorted({c["value"] for c in claims if _sourced(c["value"], pool)})
 
+    def _diff_ok_strict(val: float) -> bool:
+        """嚴容差版文本內差值(給假掛名句用):組成數字同場 + 精度 max(0.25, 0.5%)。"""
+        for i in range(len(grounded)):
+            for j in range(i + 1, len(grounded)):
+                dd = abs(grounded[j] - grounded[i])
+                if dd > 0 and abs(dd - val) <= max(TOL_STRICT_ABS, dd * TOL_STRICT_REL):
+                    return True
+                if dd > 0 and grounded[j] > 0:
+                    rr = dd / grounded[j] * 100
+                    if abs(rr - val) <= max(TOL_STRICT_ABS, rr * TOL_STRICT_REL):
+                        return True
+        return False
+
     def _diff_ok(val: float, loose: bool) -> bool:
         tol_rel = 0.15 if loose else 0.02
         for i in range(len(grounded)):
@@ -431,9 +444,11 @@ def unsourced_claims(text: str, pool: set[float] | None = None) -> list[dict]:
         is_attr = c["clause"].startswith("【假掛名")
         is_round10 = (c["value"] % 10 == 0 and 10 <= c["value"] <= 100 and not kind)
         if is_attr:
-            # 假掛名句 = 宣稱「這是我實測的數字」:嚴容差,且**不給差值/近似任何豁免**
-            # (實測 38 被「少賺」差值語境撈回的漏洞)。過不了 strict 就是編造。
-            if _sourced_strict(c["value"], pool):
+            # 假掛名句 = 宣稱「這是我實測的數字」:嚴容差。唯一豁免 = **嚴容差版文本內差值**
+            # (「回測顯示差距達434%」而文內就有 813.7 與 379.9,433.8≈434 精度 0.25 內 → 合法算術;
+            # 「少賺38萬」文內湊不出 38±0.25 的精確差 → 編造照擋)。寬容差差值豁免仍然不給
+            # (實測 38 曾被寬容差 1.0 的差值撈回)。
+            if _sourced_strict(c["value"], pool) or _diff_ok_strict(c["value"]):
                 continue
             bad.append(c)
             continue
