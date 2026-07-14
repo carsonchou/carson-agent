@@ -1529,6 +1529,12 @@ def call_claude(kind, avoid, topic_override=None):
 請產生{spec}{assign}{bias}
 {TITLE_FORMULA}
 【SEO 長尾(能自然融入就融入,別硬塞犧牲鉤子)】標題或說明前段盡量含 1 個觀眾真的會搜的詞,例如:{"、".join(SEO_TERMS[:12])}。
+【★雙軌標題·另外產出 seo_suffix(2026-07 常青搜尋流量修復)】title 欄位維持現有規則(鉤子優先,不要因為這條而改寫 title)。
+另外再產出一個獨立的 seo_suffix 欄位:8-14 字的「搜尋詞組」,是觀眾真的會在 YouTube 搜尋框打的字(不是鉤子句),
+必須含至少一個具體標的代號(0050/0056/00878/00929/006208/2330…)或明確主題詞(定期定額/存股/回測/ETF比較/網格機器人怎麼設…)
+＋一個動作詞(比較/回測/10年回測/怎麼選/怎麼設定/教學)，例如:「0056 vs 00919 十年比較」「0050 定期定額 10年回測」「網格機器人 怎麼設定」。
+★誠信硬規:seo_suffix 提到的標的/主題**必須是本支影片 voice_text 裡真的有講到的**,絕不能為了塞關鍵字提到片中沒出現的標的;
+沒有適合的搜尋詞就把 seo_suffix 留空字串,不要硬湊。seo_suffix 不含 %、不含「倍/萬/億」等績效數字用語(那是 title/voice_text 的事,不是搜尋詞)。
 {hook_rules}
 【配音友善·務必遵守（影響聽感與留存）】voice_text 要口語、**短句為主（每句約 15-25 字就用句號斷開）**；
 少用括號/破折號/冒號/刪節號；數字盡量寫成口語念法（如「百分之八」別寫「8%」、「一萬元」別寫「$10000」、「零點五」別寫「0.5」）；
@@ -1538,7 +1544,7 @@ def call_claude(kind, avoid, topic_override=None):
 {avoid_block}
 ⚠️【語言鐵律】全程一律「繁體中文（台灣用字）」，**嚴禁任何簡體字**（例：要寫「網格、帳戶、獲利、為什麼、機器」，不可寫「网格、账户、获利、为什么、机器」）。標題、旁白、說明、小標全部繁體。
 只輸出 JSON（不要任何其他文字、不要 markdown 圍欄），格式：
-{{"title":"有點擊慾的標題","voice_text":"完整旁白逐字稿(口語、適合中文TTS)","segments":[{{"heading":"段落小標","broll":["english keyword","english keyword"]}}],"description":"YouTube 說明欄：前 3 行＝①核心可搜尋關鍵字短語②一句鉤子摘要③價值承諾(看完能拿走什麼)；接 1-2 句補充、自然含關鍵字與同義詞(別硬塞)；**再加一行變現漏斗 CTA：『📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」，免費領新手回測避雷檢核表』**(Telegram bot 會自動把檢核表送到觀眾手上+養名單再自然導向 Pionex；比「留言領」更能真的交付資源、也把觀眾沉澱成可觸及的名單)；結尾含風險聲明『投資有風險，不構成投資建議』","hashtags":["#Shorts","#量化交易","#..."]}}
+{{"title":"有點擊慾的標題","seo_suffix":"8-14字搜尋詞組(含標的代號或主題詞+動作詞,只能用片中真的講到的標的/主題;沒有合適的就留空字串)","voice_text":"完整旁白逐字稿(口語、適合中文TTS)","segments":[{{"heading":"段落小標","broll":["english keyword","english keyword"]}}],"description":"YouTube 說明欄：前 3 行＝①核心可搜尋關鍵字短語②一句鉤子摘要③價值承諾(看完能拿走什麼)；接 1-2 句補充、自然含關鍵字與同義詞(別硬塞)；**再加一行變現漏斗 CTA：『📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」，免費領新手回測避雷檢核表』**(Telegram bot 會自動把檢核表送到觀眾手上+養名單再自然導向 Pionex；比「留言領」更能真的交付資源、也把觀眾沉澱成可觸及的名單)；結尾含風險聲明『投資有風險，不構成投資建議』","hashtags":["#Shorts","#量化交易","#..."]}}
 hashtags 規則：給 4-6 個「精準且利基相關」的標籤(第一個必為 #Shorts)，不要硬塞 20 個——精準勝過熱門，乾淨又利於演算法分類。"""
     import llm  # 共用路由：主供應商→失敗退回 fallback，換模型只改 env
     # 長片要吐 2600+ 中文字的 voice_text(中文 token 貴),3500 會被截斷成短長片(A4 根因之一)。
@@ -1758,6 +1764,134 @@ def _seo_hit(text: str):
     """回傳標題/角度命中的 SEO 詞(供 tags 併入與選題加權)。"""
     t = text or ""
     return [k for k in SEO_TERMS if k in t]
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# ── 常青搜尋流量修復(2026-07)：雙軌標題 + SEO 描述首段 + 精準 tags ──
+# 現況雷:標題全走「獵奇鉤」(你猜對了嗎/差434%),沒有一支接得到「0050 定期定額」
+# 「0056 00919 比較」這種每天有人搜的詞——搜尋流量是常青的(發布後持續進人),
+# 對 <100 訂閱的頻道尤其重要(feed 不推時的保底流量)。三段修法(全部 fail-open,
+# 任一步失敗都退回原樣,絕不擋產線)：
+#   ①雙軌標題:鉤子(title,規則不變)+「|」+ seo_suffix(LLM 另外產出的搜尋詞組)
+#   ②描述首段(搜尋權重最高的位置)自動加一句含關鍵字的自然語言摘要,純「前插」不動既有內容
+#   ③從標題/旁白抽標的代號+主題詞,併入既有 hashtags 機制(不改動既有機制本身)
+# ══════════════════════════════════════════════════════════════════════════
+
+# 已知標的代號白名單(頻道常提到的台股/ETF)——刻意用白名單而非任意 4-6 位數字正則,
+# 避免把年份(2026)/百分比(3450)/金額 誤判成股票代號。
+_KNOWN_SYMBOLS = ("0050", "0056", "00878", "00929", "006208", "00631L", "00713", "00919",
+                  "2330", "2317", "2454", "1101")
+
+# tags/描述都會用到的主題詞白名單(觀眾真的會搜的動作詞/主題詞)。
+_SEO_THEME_KW = ("定期定額", "定投", "存股", "回測", "10年回測", "ETF比較", "ETF怎麼選",
+                  "網格機器人", "網格交易", "派網", "Pionex", "夏普比率", "最大回撤",
+                  "All in", "all in", "一次投入", "除權息", "填息", "當沖", "台股ETF", "大盤")
+
+
+def _validate_seo_suffix(suffix: str, voice_text: str) -> str:
+    """驗證 LLM 產出的 seo_suffix 品質與誠信,不過任一關就回空字串(呼叫端 fail-open,不擋產線)。
+    規則:①長度合理(4-20字,官方建議8-14字但不死卡) ②不含 %/倍/萬/億等績效數字用語
+    (那些要溯源,不該混進純搜尋詞組,見 fact_source_guard.py 的判準) ③誠信:suffix 裡至少一個
+    標的代號或主題詞,必須真的出現在本支旁白裡——不准為了塞關鍵字提到片中沒講到的標的。"""
+    s = (suffix or "").strip()
+    if not s or not (4 <= len(s) <= 20):
+        return ""
+    if re.search(r"[%％]|[0-9]+\s*倍|[0-9]+\s*萬|[0-9]+\s*億", s):
+        return ""
+    hits = [k for k in (_KNOWN_SYMBOLS + _SEO_THEME_KW) if k in s]
+    if not hits:
+        return ""
+    vt = voice_text or ""
+    if not any(k in vt for k in hits):
+        return ""  # suffix 提到的標的/主題查無本片旁白佐證 → 誠信擋下,退回無 suffix
+    return s
+
+
+def _apply_seo_dual_title(d: dict) -> dict:
+    """雙軌標題組稿:hook(現有 title)+『|』+ 已驗證的 seo_suffix。
+    fail-open:seo_suffix 缺失/驗證不過/核心字已跟 hook 重複/組完超過 YouTube 100 字上限
+    → 原樣回傳純鉤子標題,絕不犧牲鉤子或截斷語意。"""
+    try:
+        hook = str(d.get("title", "") or "")
+        suffix = _validate_seo_suffix(str(d.get("seo_suffix", "") or ""), d.get("voice_text", ""))
+        if not suffix:
+            return d
+        _core = re.sub(r"[^0-9A-Za-z一-鿿]", "", suffix)
+        _hook_core = re.sub(r"[^0-9A-Za-z一-鿿]", "", hook)
+        if _core and _core in _hook_core:
+            return d  # 搜尋詞的核心字已經在鉤子裡了,拼接只是重複,不加
+        combined = f"{hook} | {suffix}"
+        if len(combined) > 100:
+            return d  # 超過 YouTube 標題上限,寧可退回純鉤子
+        d["title"] = combined
+        d["_seo_suffix_used"] = suffix
+    except Exception:  # noqa: BLE001
+        pass
+    return d
+
+
+def _extract_seo_tags(title: str, voice_text: str) -> list:
+    """從標題/旁白抽『標的代號』+『主題詞』當精準 tags(白名單比對,不誤抓年份/金額)。
+    fail-open:抽不到就回空 list,呼叫端只是不併入,不影響既有 hashtags 機制。"""
+    try:
+        text = f"{title or ''} {voice_text or ''}"
+        out = [k for k in _KNOWN_SYMBOLS if k in text]
+        out += [k for k in _SEO_THEME_KW if k in text and k not in out]
+        return out[:10]
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def _build_seo_desc_line(d: dict) -> str:
+    """組一句 SEO 首段(描述第一行,YouTube 搜尋權重最高的位置),含觀眾真的會搜的關鍵詞。
+    來源優先序:①已驗證過誠信的 seo_suffix ②標題/旁白命中的 SEO_TERMS。抽不到東西就回空字串,
+    呼叫端 fail-open 不加這行(不誤導、不硬塞)。"""
+    try:
+        kws = []
+        su = d.get("_seo_suffix_used") or ""
+        if su:
+            kws.append(su)
+        for k in _seo_hit((d.get("title", "") or "") + (d.get("voice_text", "") or "")[:300]):
+            # 已被 seo_suffix(或先前收錄的詞)整句涵蓋 → 不重複列(例如 seo_suffix 是
+            # 「0056 00919 十年比較」，_seo_hit 又命中子字串「0056」，不需要再列一次)。
+            if k not in kws and not any(k in existing for existing in kws):
+                kws.append(k)
+        if not kws:
+            return ""
+        kw_text = "、".join(kws[:3])
+        return f"【{kw_text}】本片用真回測拆解{kw_text}，看完你能自己判斷該怎麼配置。"
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def apply_seo_uplift(d: dict) -> dict:
+    """常青搜尋流量修復總入口:make_one 在標題/內容都定案後、寫檔前呼叫一次。
+    三步驟彼此獨立、各自 fail-open——任一步出錯都不影響其他步驟與既有產線,
+    絕不因為 SEO 加值失敗而擋下整支片。"""
+    try:
+        d = _apply_seo_dual_title(d)
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        _line = _build_seo_desc_line(d)
+        if _line:
+            _desc = d.get("description", "") or ""
+            d["description"] = _line + "\n\n" + _desc if _desc else _line
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        _extra_tags = _extract_seo_tags(d.get("title", ""), d.get("voice_text", ""))
+        if _extra_tags:
+            _tags = d.get("hashtags") or []
+            _have = {str(x).lstrip("#") for x in _tags}
+            for k in _extra_tags:
+                if k not in _have:
+                    _tags.append(k)
+                    _have.add(k)
+            d["hashtags"] = _tags
+    except Exception:  # noqa: BLE001
+        pass
+    return d
 
 
 WINNING_FORMAT = """
@@ -2617,6 +2751,9 @@ def make_one(kind, no_render=False, topic_override=None):
                                             pool=_TW_LAB_SUB_HOOK_POOL, cues=_TW_LAB_SUB_CUES)
     else:
         d["voice_text"] = _ensure_sub_hook(d.get("voice_text", ""), d.get("title", ""))
+    # 常青搜尋流量修復(2026-07):標題/旁白都定案後才做 SEO 加值(雙軌標題+描述首段+精準tags),
+    # 確保 seo_suffix 誠信驗證吃到的是「最終會發布的旁白」。三步驟各自 fail-open,見 apply_seo_uplift。
+    d = apply_seo_uplift(d)
     slug = slugify(d["title"], prefix)
     if (OUT / f"{slug}.voice.txt").exists() or (OUT / f"{slug}.mp4").exists():
         slug = f"{slug}{int(time.time()) % 10000}"

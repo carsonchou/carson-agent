@@ -37,6 +37,11 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 10 3 * * * /root/yt/run.sh scripts/auto_cost.py >> /root/yt/logs/cron.log 2>&1
 # 本機每日快照關鍵 STUDIO json → STUDIO/_snapshots/日期/(留7天;補雲端 backups 被 SKIP 的安全網)
 5 4 * * * /root/yt/run.sh scripts/snapshot_studio.py >> /root/yt/logs/cron.log 2>&1
+# 贏家自動放大迴路(每天10:40，排在09:15前後的數據更新之後、11:00發布批之前)：
+# 掃近72h發布片的即時觀看(Data API,非Analytics——Analytics 2-3天延遲會漏掉剛發布的贏家)，
+# 跟同齡片比(age-normalized velocity)找出真正跑贏同齡的贏家，派生同題材不同切角的新題目
+# 高優先寫回 topic_bank，隔天 produce_batch 自然抽到。冪等：同一支贏家72h內只放大一次。
+40 10 * * * /root/yt/run.sh scripts/winner_amplifier.py >> /root/yt/logs/cron.log 2>&1
 # 本機模式:每天發布前對帳 ledger(比對頻道實際已發布,防重複發片)——隨下面 daily_publish 提早到
 # 11:00,對帳也跟著提早到 10:45,維持「發布前對帳」順序不變
 45 10 * * * /root/yt/run.sh scripts/reconcile_ledger.py >> /root/yt/logs/cron.log 2>&1
