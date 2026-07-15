@@ -357,13 +357,15 @@ def find_candidates(ledger: dict) -> list:
     longs.sort(key=_key)
     # 🔴 2026-07-15 修「長片永遠輪不到」:原本 shorts + longs 直接串接,--max 12 的名額
     # 全被 Shorts 吃光——長片(YPP 4000 小時 watch time 的唯一現實路徑)被結構性擠出佇列,
-    # 實測 94 分的旗艦長片在佇列躺了一整天發不出去。改成交錯插入:每 5 支 Shorts 插 1 支
-    # 長片(≈ --max 12 保底 2 支長片),Shorts 衝量與長片衝 watch time 兩條路都走。
+    # 實測 94 分的旗艦長片在佇列躺了一整天發不出去。
+    # 🔴 同日配額重編後二修:發布批縮到 --max 3/1/1(quota 對齊),原「每 5 支短片插 1 長」
+    # 在小批次下前 3 名全是短片,長片又餓死。改成第 1 支短片後就先插 1 支長片
+    # (--max 3 批 = 短+長+短,保底每天 1 長片),之後每 5 支短片再插 1 支。
     merged = []
     li = 0
     for i, s in enumerate(shorts):
         merged.append(s)
-        if (i + 1) % 5 == 0 and li < len(longs):
+        if li < len(longs) and (i == 0 or (i + 1) % 5 == 0):
             merged.append(longs[li]); li += 1
     merged.extend(longs[li:])
     return merged
