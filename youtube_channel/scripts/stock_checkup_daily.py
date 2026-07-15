@@ -53,10 +53,12 @@ MAX_ATTEMPTS = 5   # 連續試幾檔資料不足就放棄(防止一路撞到都�
 # Carson拍板：一檔股票=一集10分鐘長片(公司是誰→基本面→價格體檢→估值位置→結尾，見
 # TW_STOCK_CHECKUP_RULES)，不是短片系列。LLM 用通用 prompt 生題時偶爾會判成 short(2026-07-15
 # 實測：13組事實生出15題只有short，因為 topics_from_facts.build_prompt 是共用邏輯不知道這系列
-# 只做長片)——這裡強制覆蓋成 long。同時只留前 N 個候選(不是全收)：規模到1900檔時，若每檔都塞
-# 10幾個候選題進 topic_bank，長年累積會讓題庫嚴重膨脹(其中只有1個會被真的產出)；保留2個是為了
-# 給抽題時一點選擇餘地(避免唯一候選撞到既有題被擋掉就整檔卡死)，不是要每個角度都做一集。
-MAX_TOPICS_PER_CODE = 2
+# 只做長片)——這裡強制覆蓋成 long。
+# 🔴 2026-07-15 改 1 題/檔：原本留 2 個候選「給抽題選擇餘地」，但兩個都是 OPEN 的 checkup_
+# fact_key 題,produce_batch 的 checkup 專屬層會照插入順序把第二題也產出來=同一檔兩集近重複
+# 內容(實測 2317 多出 2 支無編號雜題)。候選在本函式內已過完守門才寫入,不存在「唯一候選被擋
+# 整檔卡死」——被擋會在寫入前就換下一個 LLM 候選。
+MAX_TOPICS_PER_CODE = 1
 
 
 def _load_env():
@@ -113,10 +115,43 @@ def _next_candidates(bl, limit):
     return [it for it in items if not it.get("done") and not it.get("skip")][:limit]
 
 
-def seed_topics_for_code(code: str, dry_run: bool = False) -> int:
+def _next_ep_number() -> int:
+    """推下一集 EP 編號:掃題庫標題+output/*.md+uploaded_ledger key 的「個股體檢EP(\\d+)」取
+    max+1(確定性推導,不另存計數器免 drift)。掃不到=1。"""
+    import re
+    max_ep = 0
+    pat = re.compile(r"個股體檢EP(\d+)")
+    try:
+        for t in tb.load_bank():
+            m = pat.search(str(t.get("title", "")))
+            if m:
+                max_ep = max(max_ep, int(m.group(1)))
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        for p in (ROOT / "output").glob("*體檢EP*.md"):
+            m = pat.search(p.stem)
+            if m:
+                max_ep = max(max_ep, int(m.group(1)))
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        import json as _json
+        led = _json.loads((ROOT / "STUDIO" / "uploaded_ledger.json").read_text(encoding="utf-8"))
+        for k in led:
+            m = pat.search(str(k))
+            if m:
+                max_ep = max(max_ep, int(m.group(1)))
+    except Exception:  # noqa: BLE001
+        pass
+    return max_ep + 1
+
+
+def seed_topics_for_code(code: str, name: str = "", dry_run: bool = False) -> int:
     """只對這一檔『新產生』的 checkup_ fact_key 生題(不重跑全部歷史事實，控 LLM 成本)。
     重用 topics_from_facts.py 的 prompt 組裝/去重/誠信溯源邏輯(唯讀 import，不改那支)。
-    回傳實際新增的題目數。"""
+    🔴 2026-07-15:標題強制掛「個股體檢EPn{name}{code}:」連載前綴——LLM 生的裸標題會讓
+    EP 鏈在 EP7 後斷掉(franchise 品牌/播放清單歸類/連看全靠它)。回傳實際新增的題目數。"""
     all_facts = tff.load_facts()
     code_facts = {k: v for k, v in all_facts.items()
                   if k.endswith(f"__{code}") or f"__{code}__" in k}
@@ -164,6 +199,15 @@ def seed_topics_for_code(code: str, dry_run: bool = False) -> int:
             rejected["unsourced"] += 1
             print(f"  ✗ 溯源失敗（不該發生，人工複查）：{title}  無憑據數字={bad_nums}")
             continue
+        # 連載前綴:個股體檢EPn{name}{code}:{LLM鉤子}。LLM 標題若以股名/代號開頭先剝掉,
+        # 避免「個股體檢EP8南亞科2408:南亞科…」疊字。
+        hook = title
+        for lead in (name, code):
+            if lead and hook.startswith(lead):
+                hook = hook[len(lead):].lstrip("：:，,、 ")
+        ep_n = _next_ep_number()
+        title = f"個股體檢EP{ep_n}{name}{code}：{hook}" if name else f"個股體檢EP{ep_n}{code}：{hook}"
+        n = tb._norm(title)  # 前綴改變了標題,去重指紋要跟著重算
         angle = str(c.get("angle") or "").strip()
         category = str(c.get("category") or "").strip()
         keywords = c.get("keywords") if isinstance(c.get("keywords"), list) else []
@@ -257,7 +301,7 @@ def main() -> int:
         cand["done"] = True
         cand["done_at"] = today
         _save_backlog(bl)
-        n_new_topics = seed_topics_for_code(code, dry_run=False)
+        n_new_topics = seed_topics_for_code(code, name=name, dry_run=False)
         state.setdefault("history", []).append({
             "date": today, "code": code, "name": name, "reason": reason, "n_new_topics": n_new_topics,
         })

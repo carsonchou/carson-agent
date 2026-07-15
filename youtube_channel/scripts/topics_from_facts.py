@@ -255,7 +255,10 @@ def main() -> int:
         return 1
 
     facts = load_facts()
-    fact_keys = list(facts.keys())
+    # 🔴 2026-07-15:checkup_ 前綴事實由 stock_checkup_daily 專屬引擎種題(帶「個股體檢EPn」
+    # 連載編號),通用生題這裡跳過——否則兩引擎對同一檔重複種題(實測 2317/2408 各多出
+    # 無編號雜題,遲早產出同檔近重複內容)。load_facts 本身保留 checkup(守門溯源要用全量)。
+    fact_keys = [k for k in facts.keys() if not k.startswith("checkup_")]
     if args.limit_facts:
         fact_keys = fact_keys[: args.limit_facts]
     print(f"[事實庫] 載入 {len(facts)} 組真實回測事實（{'、'.join(FACT_FILES)}），本次處理 {len(fact_keys)} 組。")
