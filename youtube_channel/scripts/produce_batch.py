@@ -309,12 +309,24 @@ def pull_topic(kind):
         _ta = (t.get("title", "") or "") + (t.get("angle", "") or "")
         src = str(t.get("source", "")).lower()
         flag = 0 if str(t.get("category", "")) in FLAGSHIP_CATS else 1  # 旗艦題最優先自動產(破圈押注·稽核B修:原本被墊底餓死)
+        # 2026-07-15「個股體檢」系列(Carson拍板高優先，1900檔一天一集規模化排隊)：LLM生的
+        # category/title不保證帶「個股體檢」字樣(topics_from_facts.py讓LLM自由生category)，
+        # 但fact_key是確定性寫死的checkup_前綴(見stock_checkup_daily.py種題)，用它判斷才可靠。
+        # 獨立成一層(高於一般winner、低於旗艦)：實測只併進winner層會跟0050/0056等winner題平手，
+        # 平手由題庫插入順序決定→體檢集被舊winner題卡住斷更(2026-07-15實跑抓到:--long 1抽到0056題)。
+        _fk = str(t.get("fact_key", ""))
+        checkup = 0 if _fk.startswith("checkup_") else 1
+        if checkup == 0 and flag == 1:
+            # 體檢題彼此之間不再比winner/seo等tie-break——後面那些key會打亂集數順序
+            # (實測:EP7標題含00878命中_WINNER_KW排到EP2鴻海前面)。全部歸零讓sort穩定性
+            # 保留題庫插入順序=種題順序=集數順序，觀眾看到的連載才不會EP7先於EP2。
+            return (flag, 0, 0, 0, 0, 0, 0)
         winner = 0 if any(k in _ta for k in _WINNER_KW) else 1  # 贏家脈絡優先(2026-07 成長衝刺放大)
         news_src = 1 if src in ("news", "hotspot", "breakout", "intel") else 0
         depri = 1 if t.get("deprioritized") else 0  # A5:含輸家詞的題被降權排最後
         seo = 0 if _seo_hit(_ta) else 1             # A2:含高意圖搜尋詞的題優先
         num = 0 if any(k in _ta for k in _NUM_KW) else 1
-        return (flag, winner, news_src, depri, seo, num)
+        return (flag, checkup, winner, news_src, depri, seo, num)
     cand.sort(key=_rank)
     if not cand:
         return None
@@ -990,6 +1002,39 @@ TW_STOCK_RULES = """
 - 誠信：所有回測/數據標「歷史回測，非未來保證」；不編造精確數字、不保證收益、不喊單、不報明牌。
 """
 
+# 2026-07-15任務(Carson拍板)：「個股體檢」系列——單獨介紹一隻股票講基本面，台股1900多檔一隻發一集，
+# 10分鐘長片。見 stock_checkup_facts.py(價格面：報酬/套牢/腰斬) + stock_fundamentals.py(基本面：
+# 營收/EPS/毛利/股利/估值位置)。這裡是「一集結構模板」，與 TW_LAB_RULES 同一套疊加機制(在 TW_STOCK_RULES
+# 之外再疊一層更嚴格的順序規範)，不取代 TW_STOCK_RULES 的招牌語氣，只加結構順序與「介紹≠推薦」硬規。
+TW_STOCK_CHECKUP_RULES = """
+【★「個股體檢」系列·10分鐘長片結構模板(逐段照走，順序不可打亂)】
+- 系列定位：量化阿森=數據體檢師，不是選股老師。每集單獨介紹一檔台股，**只陳述公開數據，不推薦、不喊單**。
+  「介紹一家公司」跟「叫你買」是兩件事，本系列只做前者——這條是本系列生死線，比任何一集的爆點都重要。
+- ★片頭必帶集數與系列名：本次注入的【本集個股體檢設定】區塊會給代號/名稱/集數(EP幾)，
+  片名或旁白開場其中一處要自然帶出「個股體檢」系列名與集數，不必生硬複誦。
+- 五段固定順序(每段都要有，不可省略任何一段，可依內容多寡調整字數配比但順序不可換)：
+  ①【公司是誰】用本次注入的產業分類(FinMind官方分類，非猜測)講一句「這家公司是做什麼的」，
+     不誇大、不下「護城河很深/前景無限」這類無憑據評語，純陳述所屬產業。
+  ②【基本面數據】依序講：近年營收趨勢(是成長還是衰退，用注入的年增率數字)→EPS序列(賺錢能力有沒有變化)→
+     毛利率(近幾季走勢，穩定/上升/下滑)→股利發放史(連續配息幾年+近5年平均殖利率，沒有配息紀錄就老實說沒有)。
+  ③【價格體檢】沿用 TW_STOCK_RULES 的持有體驗數據(20年報酬/最大回撤/套牢期/腰斬次數)，講「拿著這檔股票
+     真實會經歷什麼」，痛點感是這段的重點(套牢幾年/腰斬幾次這類具體數字最能勾住)。
+  ④【估值位置】只講本次注入的「目前本益比在自己近10年歷史區間的第幾百分位」，
+     **絕對禁止**接著評論「所以現在貴/便宜/該不該買/是不是好買點」——講完百分位數字立刻轉場，
+     把判斷權完全留給觀眾。這是本段最容易失守的地方，逐字檢查有沒有不小心滑出「現在便宜」這類語氣詞。
+  ⑤【誠實結尾】三件事都要有(順序：風險揭露 → 留言互動題 → 下集點名)：
+     a. 風險揭露：這集只是數據陳述，不構成投資建議，投資有賺有賠，自己做功課。
+     b. 留言互動題：問觀眾對這檔股票的數據有什麼看法/最意外哪個數字。
+     c. 下集點名：用本次注入的「下一檔候選」自然帶出「下一集要體檢哪一檔」，製造追更懸念，
+        不劇透下一集的具體數字。
+- ★誠信硬規(本系列額外加嚴，疊加 TW_STOCK_RULES 既有規則)：
+  1. 財報數字(營收/EPS/毛利率/股利/本益比)一律只能用本次注入的真實數據，一個字都不能自己換算或估計。
+  2. 「介紹≠推薦」鐵律：全片不得出現「這支值得買/該進場/該加碼/現在是好時機/目標價」等任何推薦性語句，
+     即使是隱晦暗示(如「聰明的投資人都在關注這支」)也不行。
+  3. 估值位置只講「第幾百分位」這個事實，不判斷貴賤——連「相對便宜」「處於高檔」這種聽起來中性但暗示
+     判斷的詞都不用，只講數字本身。
+"""
+
 TW_LAB_RULES = """
 【★台股真相實驗室 franchise·訂閱轉換診斷落地(2026-07-13,逐條照走)】
 - 診斷根因(見 tw_lab_engine.py 檔頭)：全站 588 支片 20326 觀看只換 27 訂閱(0.133%)；表現最好的
@@ -1128,6 +1173,120 @@ TW_FACTS_COMPUTED = ROOT / "STUDIO" / "tw_facts_computed.json"
 # fact_source_guard.FACT_FILES 已經看得到這份檔案，寫稿 LLM 不併進來就會出現
 # 「守門擋得住、卻永遠產不出個股體檢下集」的窘境，系列就斷連載。
 STOCK_CHECKUP_FACTS = ROOT / "STUDIO" / "stock_checkup_facts.json"
+STOCK_CHECKUP_BACKLOG = ROOT / "STUDIO" / "stock_checkup_backlog.json"
+
+_RX_CHECKUP_CODE = re.compile(r"__([0-9]{4,6}[A-Z]?)(?:__|$)")
+
+
+def _checkup_extract_code(fact_key: str):
+    """從 fact_key(如 checkup_revenue_trend__2317 或 checkup_crash__2317__crisis2008)
+    抓出股票代號。抓不到回 None(呼叫端靜默不注入系列設定，不影響一般台股題正常產出)。"""
+    m = _RX_CHECKUP_CODE.search(fact_key or "")
+    return m.group(1) if m else None
+
+
+def _checkup_next_name(code, by_code=None):
+    """回傳下一集要點名的「名稱（代號）」字串；找不到回空字串。
+    優先看題庫裡「下一個真的會被抽到的未用體檢題」(pull_topic 對 checkup 層是照插入順序出，
+    所以題庫第一個未用體檢題=實際下一集)，跟片尾承諾一致才誠信；題庫沒有別檔的未用體檢題
+    (隊伍見底)才退回 backlog 的下一個待體檢代號(明天 daily 會種它)。"""
+    if by_code is None:
+        try:
+            by_code = (json.loads(STOCK_CHECKUP_FACTS.read_text(encoding="utf-8")) or {}).get("by_code") or {}
+        except Exception:  # noqa: BLE001
+            by_code = {}
+    try:
+        import topic_bank as _tb_ck
+        for t in _tb_ck.load_bank():
+            _tfk = str(t.get("fact_key", ""))
+            if (not t.get("used") and _tfk.startswith("checkup_")
+                    and _checkup_extract_code(_tfk) not in (None, code)):
+                _ncode = _checkup_extract_code(_tfk)
+                _nname = (by_code.get(_ncode) or {}).get("name", _ncode)
+                return f"{_nname}（{_ncode}）"
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        bl = json.loads(STOCK_CHECKUP_BACKLOG.read_text(encoding="utf-8"))
+        items = bl.get("items") if isinstance(bl, dict) else bl
+        for it in (items or []):
+            if it.get("code") != code and not it.get("done") and not it.get("skip"):
+                return f"{it.get('name', it.get('code', ''))}（{it.get('code', '')}）"
+    except Exception:  # noqa: BLE001
+        pass
+    return ""
+
+
+def _checkup_finalize(result, next_name):
+    """個股體檢片產出後的確定性補強(同 _ai_savings_desc_block 的「確定性附加，保證不被 LLM 吞」
+    慣例)——2026-07-15 實跑 EP2 抓到：模板雖注入，LLM 仍把片尾下集點名寫成自由發揮的
+    「高股息ETF盲點」(下一集實際是聯發科)，且漏掉留言互動題。regenerate 不可行——長片重生
+    會重新 pull_topic 抽到下一題，EP 順序整個亂掉——所以缺什麼就確定性補上一句，不重生。
+    只在缺的時候補，LLM 已寫好的不重複。"""
+    v = str(result.get("voice_text", "") or "").rstrip()
+    if not v:
+        return result
+    nx = (next_name or "").split("（")[0].strip()
+    # 先拆掉片尾「編出來的下集預告」：LLM(尤其 densify 的收尾段)常自由發揮「下集我們探討XXX」，
+    # 跟系列實際下一集不符=對觀眾的假承諾。檢查範圍=正文最後30%(EP2實跑抓到假預告落在倒數第5句,
+    # 只查最後3句會漏)，只拆「有下集措辭但沒點到真下集標的」的句子，正文前段不動。
+    if nx:
+        parts = re.split(r"(?<=[。！？])", v)
+        total = len(v)
+        kept, offset = [], 0
+        for sent in parts:
+            in_tail = total > 0 and (offset / total) >= 0.7
+            offset += len(sent)
+            if (in_tail and any(k in sent for k in ("下集", "下一集", "下週", "下期"))
+                    and nx not in sent):
+                continue  # 假下集預告,拆掉(正確的下面會補)
+            kept.append(sent)
+        v = "".join(kept).rstrip()
+    tail_bits = []
+    if "留言" not in v:
+        tail_bits.append("留言告訴我，這集哪個數字最讓你意外。")
+    if nx and nx not in v:
+        tail_bits.append(f"下一集個股體檢，輪到{nx}上體檢台，訂閱頻道才不會錯過。")
+    elif "訂閱" not in v:
+        tail_bits.append("訂閱頻道，下一集體檢報告出爐第一時間收到。")
+    if tail_bits:
+        result["voice_text"] = v + ("" if v.endswith(("。", "！", "？")) else "。") + "".join(tail_bits)
+    elif v != str(result.get("voice_text", "") or "").rstrip():
+        result["voice_text"] = v
+    return result
+
+
+def _checkup_context(topic):
+    """組『個股體檢』系列的本集設定區塊(代號/名稱/產業/集數/下一集候選)，供 TW_STOCK_CHECKUP_RULES
+    搭配注入。讀不到任一來源就回空字串，呼叫端不阻斷正常產出(降級成普通台股格式，只是少了系列感)。"""
+    if not topic:
+        return ""
+    code = _checkup_extract_code(str(topic.get("fact_key", "")))
+    if not code:
+        return ""
+    try:
+        d = json.loads(STOCK_CHECKUP_FACTS.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return ""
+    by_code = d.get("by_code") or {}
+    rec = by_code.get(code)
+    if not rec:
+        return ""
+    name = rec.get("name", code)
+    industry = (rec.get("profile") or {}).get("industry", "")
+    # 集數＝這檔在 by_code(插入順序＝體檢先後順序)裡的序位；抓不到就不顯示集數，不硬湊假數字。
+    codes_in_order = list(by_code.keys())
+    ep_no = (codes_in_order.index(code) + 1) if code in codes_in_order else None
+    next_name = _checkup_next_name(code, by_code)
+    lines = [f"\n【本集個股體檢設定】", f"- 本集標的：{name}（{code}）"]
+    if industry:
+        lines.append(f"- 所屬產業(FinMind官方分類，非猜測)：{industry}")
+    if ep_no:
+        lines.append(f"- 本集集數：個股體檢 EP{ep_no}")
+    if next_name:
+        lines.append(f"- 下一集候選(片尾點名用，勿劇透數字)：{next_name}")
+    lines.append("- 誠信提醒：本段設定僅供敘事使用，所有財務數字仍以【本片實證數據】區塊為準，不得自創。")
+    return "\n".join(lines)
 
 
 def _load_tw_facts():
@@ -1175,11 +1334,26 @@ def _tw_facts_context(facts, topic):
             " " + str(topic.get("angle", ""))) if topic else ""
     as_of = str(facts.get("as_of", ""))
     lines = []
-    # 各項回測結果都掛在 facts 下（由 tw_stock_data.py 產）；抓不到的項為 None，跳過不用。
-    # 用關鍵字挑與題材相關的項，題材泛台股則全給（限量避免 prompt 爆）。
-    _pick_all = any(k in text for k in ("台股", "大盤", "0050", "存股", "ETF")) or not text.strip()
     cand = facts.get("results") or facts.get("backtests") or {}
-    if isinstance(cand, dict):
+    # 2026-07-15「個股體檢」專屬路徑：一集要講完基本面5組+價格面8組共13組事實，且**只能是
+    # 本集標的自己的**——走通用 keyword 路徑有兩個坑：①上限6條會把 dict 尾端的基本面事實全部
+    # 切掉(價格面8組在前) ②LLM生的category若含「台股」會觸發_pick_all把別檔股票的事實整批混入。
+    # 故 checkup 題改用 fact_key 的代號做確定性過濾(checkup_xxx__{code} / __{code}__)，全給不設6條限。
+    _ck_code = None
+    if topic and str(topic.get("fact_key", "")).startswith("checkup_"):
+        _ck_code = _checkup_extract_code(str(topic.get("fact_key", "")))
+    if _ck_code and isinstance(cand, dict):
+        for key, item in cand.items():
+            if not isinstance(item, dict) or not item.get("summary"):
+                continue
+            if key.endswith(f"__{_ck_code}") or f"__{_ck_code}__" in key:
+                desc = str(item.get("desc") or item.get("label") or key)
+                lines.append(f"  ·{desc}：{item['summary']}")
+        lines = lines[:16]  # 安全上限(一檔最多13組，這只是保險)
+    elif isinstance(cand, dict):
+        # 各項回測結果都掛在 facts 下（由 tw_stock_data.py 產）；抓不到的項為 None，跳過不用。
+        # 用關鍵字挑與題材相關的項，題材泛台股則全給（限量避免 prompt 爆）。
+        _pick_all = any(k in text for k in ("台股", "大盤", "0050", "存股", "ETF")) or not text.strip()
         for key, item in cand.items():
             if not isinstance(item, dict):
                 continue
@@ -1192,9 +1366,9 @@ def _tw_facts_context(facts, topic):
                 kw in text for kw in (item.get("keywords") or []) if isinstance(kw, str))
             if _match:
                 lines.append(f"  ·{desc}：{summary}")
+        lines = lines[:6]  # 限量：最多 6 條，避免撐爆 token
     if not lines:
         return ""
-    lines = lines[:6]  # 限量：最多 6 條，避免撐爆 token
     body = "\n".join(lines)
     return (f"\n【本片實證數據（台股歷史回測，非未來保證；資料截至 {as_of}）】\n{body}\n"
             "（以上為真實歷史回測數字，旁白引用時務必標明是『歷史回測、不代表未來』；"
@@ -1398,9 +1572,15 @@ def call_claude(kind, avoid, topic_override=None):
         if _wb:
             assign = _BUCKET_DIRECTIVE[_wb]   # 題庫沒貨→不放任自由發揮,硬性指定題材
     if topic and topic_override:
-        assign = (f"\n【🔥金融時事·優先製作，務必照此主題】：{topic.get('title','')}　切入點：{topic.get('angle','')}"
-                  "（這是即時財經時事：緊扣新聞點，再連到頻道的量化/網格/派網/風控觀點；"
-                  "只講已知事實、不誇大、不預測價格漲跌、不喊單、不保證收益）")
+        if str(topic.get("fact_key", "")).startswith("checkup_"):
+            # 個股體檢重生路徑(make_one 鎖同一題重生時走 topic_override 傳回來)：用題庫派發框架,
+            # 不能套下面的「金融時事」框架(那會誤導 LLM 以為是新聞題,語氣跑掉)。
+            assign = (f"\n【本支指定題目（個股體檢系列，務必照此主題寫，標題可潤飾更有點擊慾）】："
+                      f"{topic.get('title','')}　切入點：{topic.get('angle','')}")
+        else:
+            assign = (f"\n【🔥金融時事·優先製作，務必照此主題】：{topic.get('title','')}　切入點：{topic.get('angle','')}"
+                      "（這是即時財經時事：緊扣新聞點，再連到頻道的量化/網格/派網/風控觀點；"
+                      "只講已知事實、不誇大、不預測價格漲跌、不喊單、不保證收益）")
     elif topic:
         assign = (f"\n【本支指定題目（題庫派發，務必照此主題寫，標題可潤飾更有點擊慾）】："
                   f"{topic.get('title','')}　切入點：{topic.get('angle','')}")
@@ -1505,11 +1685,16 @@ def call_claude(kind, avoid, topic_override=None):
         hook_rules = hook_rules + CURRICULUM_RULES
     # 台股招牌格式：題目屬台股/大盤/ETF/個股類 → 追加台股爆款格式（可與《拆穿》疊加，不互斥）
     _twkw = ("台股", "大盤", "ETF", "個股", "當沖", "存股", "0050", "00878", "00929", "006208", "加權", "除權息", "籌碼")
-    is_tw_stock = (topic is not None and (
+    # 2026-07-15「個股體檢」：fact_key 帶 checkup_ 前綴的題天生就是台股個股題，強制走台股路徑——
+    # 不能只靠標題關鍵字判斷(實測「南亞科…DRAM股的真相」一個 _twkw 都沒中,會漏套模板+被誤掛
+    # NO_FACTS_INTEGRITY_RULES「本題無真實數據」——它明明有13組真事實)。
+    is_checkup = bool(topic) and str(topic.get("fact_key", "")).startswith("checkup_")
+    is_tw_stock = is_checkup or (topic is not None and (
         any(k in str(topic.get("category", "")) for k in _twkw)
         or any(k in str(topic.get("title", "")) for k in _twkw)))
     facts_ctx = ""  # A4:長片分段深寫要把真數據帶進每一段,故把 tw facts 區塊獨立留一份
     _facts_raw = None  # 病灶A(2026-07-13):原始 facts dict 也留一份,供 _densify_long 逐段分配專屬事實
+    _checkup_next = ""  # 供產出後確定性補強片尾(見 _checkup_finalize)
     if is_tw_stock:
         hook_rules = hook_rules + TW_STOCK_RULES
         # 真數據引擎：讀 STUDIO/tw_stock_facts.json，挑與題材相關的真回測數字注入寫稿 prompt。
@@ -1523,6 +1708,19 @@ def call_claude(kind, avoid, topic_override=None):
                 facts_ctx = _tw_inject
         except Exception:  # noqa: BLE001
             pass
+        # 2026-07-15「個股體檢」系列：疊加10分鐘長片結構模板 + 本集設定(代號/產業/集數/下一集點名)。
+        # fact_key 前綴 checkup_ 是本系列專屬命名(見 stock_checkup_facts.py/stock_fundamentals.py)，
+        # 不會誤傷其他台股題(那些 fact_key 是 tw_facts_engine/tw_lab_engine 的其他前綴)。
+        if is_checkup:
+            hook_rules = hook_rules + TW_STOCK_CHECKUP_RULES
+            try:
+                _ck_inject = _checkup_context(topic)
+                if _ck_inject:
+                    assign += _ck_inject
+                _checkup_next = _checkup_next_name(
+                    _checkup_extract_code(str(topic.get("fact_key", ""))) or "")
+            except Exception:  # noqa: BLE001
+                pass
     else:
         # A2 誠信(2026-07 頻道整頓計畫)：非台股題無真實 facts 佐證 → 硬性示意/假設語氣,
         # 禁止把捏造的具體績效數字講成真的回測過的事實(crypto/AI 題目前無真回測資料檔)。
@@ -1583,6 +1781,10 @@ hashtags 規則：給 4-6 個「精準且利基相關」的標籤(第一個必�
         result["_tw_lab_ep"] = _tw_lab_ep_no
         result = _fix_tw_lab_symbol_mislabel(result, _tw_lab_fact_used)
     result["_is_tw_stock"] = bool(is_tw_stock)  # A2:供 make_one 判斷本片是否有 tw_stock_facts 真數據佐證
+    if is_checkup:
+        result["_is_checkup"] = True
+        result["_ck_topic"] = topic  # 供 make_one 鎖題重生:所有品質 gate 的重生都重寫「同一集」,
+        #                              絕不再 pull_topic 抽下一題(EP2-EP4被連環燒掉的事故根因)
     result["_is_flagship"] = bool(is_flagship)  # A2:旗艦片已有 AI_COMPANY_RULES 自己的數字紀律,不重複套 A2 重生
     # 「聰明用 AI」franchise：把誠實比較表+聯盟連結+揭露語確定性附加到描述本體(保證揭露不被 LLM 吞)。
     # 只在 is_ai_savings 片生效；非 franchise 片 result["description"] 完全不含 premlogin。
@@ -1604,6 +1806,11 @@ hashtags 規則：給 4-6 個「精準且利基相關」的標籤(第一個必�
     # 串成真 8-10 分鐘資訊密度長片。台股題每段引真數據、非台股題示意語氣(誠信不變)。失敗回原稿。
     if kind == "long":
         result = _densify_long(result, facts_ctx, bool(is_tw_stock), facts=_facts_raw, topic=topic)
+    # 個股體檢：確定性補強片尾(缺留言鉤/下集點名/訂閱鉤才補,LLM寫好的不重複;見 _checkup_finalize 檔頭)。
+    # 🔴 必須放在 _densify_long **之後**——那支會整篇重建 voice_text,放前面補的片尾會被洗掉
+    # (2026-07-15 實跑EP5抓到:補強放 densify 前,產出片尾又變自由發揮的假下集預告)。
+    if is_checkup:
+        result = _checkup_finalize(result, _checkup_next)
     return result
 
 
@@ -2637,8 +2844,21 @@ def _ensure_sub_hook(text, key, pool=None, cues=None):
 def make_one(kind, no_render=False, topic_override=None):
     _ex = existing_titles()
     d = call_claude(kind, _ex, topic_override)
+    # 🔴 個股體檢系列鎖題(2026-07-15 實跑抓到嚴重事故)：make_one 所有品質 gate 的「重生」都是
+    # 再 call_claude 一次,而 call_claude 沒帶 topic_override 時=pull_topic 抽**下一題**——
+    # 系列題標題共用「個股體檢EPn…」骨架是刻意品牌,skeleton_dup 把它當洗版觸發重生,一口氣
+    # 燒掉 EP2/EP3/EP4(標 used 沒產出),最後產出 EP5,集數大亂。修法：第一次抽到體檢題後,
+    # 把該題鎖進 topic_override,之後所有 gate 重生都重寫**同一集**(call_claude 的 checkup
+    # override 分支用題庫派發框架,不會誤套時事語氣)。
+    _is_ck = bool(d.get("_is_checkup"))
+    if _is_ck and not topic_override and d.get("_ck_topic"):
+        topic_override = d.get("_ck_topic")
     # 硬防近似重複：標題與既有太像就重生(時事 topic_override 不擋)；連續 3 次都重複則跳過
-    if not topic_override:
+    # 個股體檢豁免標題 gate：系列骨架天生相似(每集不同標的、數字種題時已溯源驗證,無洗版風險)；
+    # 內文品質 gate(長度/密度/跑題/弱鉤)不豁免,照走(重生時已鎖同一題)。
+    if _is_ck:
+        pass
+    elif not topic_override:
         _tries = 0
         # 近似重複 或 標題不達贏家公式 或 同模板換數字複製(skeleton_dup) 或 濫用家族本週已達上限
         # (check_skeleton_frequency)→重生(共用上限 3);強制多樣性,堵「定投×賓士」這種新洗版

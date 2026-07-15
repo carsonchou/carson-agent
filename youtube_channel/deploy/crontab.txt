@@ -20,6 +20,11 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 52 5 * * * /root/yt/run.sh scripts/tv_curriculum.py --next 2 >> /root/yt/logs/cron.log 2>&1
 54 5 * * * /root/yt/run.sh scripts/tv_curriculum.py --review 2 >> /root/yt/logs/cron.log 2>&1
 40 5 * * * /root/yt/run.sh scripts/topics_from_facts.py --min-tw 60 >> /root/yt/logs/cron.log 2>&1
+# 個股體檢每日出集(2026-07-15任務，Carson拍板：台股1900多檔一隻發一集)：backlog依成交值排序
+# 撈下一檔→算基本面(FinMind)+價格體檢事實→種高優先長片題目進題庫，排在補題(05:40)之後、
+# 決策(05:37前)之後、製作(06:07)之前，讓當天製作能自然抽到新種的題。FinMind免費層每天只處理
+# 1檔(--count預設1)，絕不暴衝rate limit；冪等(當天已跑過會跳過，見 stock_checkup_daily_state.json)。
+50 5 * * * /root/yt/run.sh scripts/stock_checkup_daily.py >> /root/yt/logs/cron.log 2>&1
 7 6 * * * /root/yt/run.sh scripts/produce_batch.py --manual --format-focus --shorts 14 --long 4 --target 99999 --no-render >> /root/yt/logs/cron.log 2>&1
 # Short→長片精準連看:建 short_to_long.json(bigram題材相似度對應已發布短→長),發布前跑
 50 6 * * * /root/yt/run.sh scripts/build_short_to_long.py >> /root/yt/logs/cron.log 2>&1

@@ -53,6 +53,9 @@ from tw_facts_engine import (  # noqa: E402
     slice_trailing, calc_dca_vs_allin, DISCLAIMER, MIN_YEARS, MIN_BARS,
     CACHE_DIR as _SHARED_CACHE_DIR, pd_ts,
 )
+# 2026-07-15 任務(Carson拍板)：個股體檢加基本面。stock_fundamentals.py 是獨立的 FinMind
+# 資料引擎(營收/EPS/毛利/股利/估值位置)，這裡只呼叫它的公開函式、不複製邏輯(唯一真相來源)。
+import stock_fundamentals  # noqa: E402
 
 OUT_FILE = STUDIO / "stock_checkup_facts.json"
 CACHE_DIR = _SHARED_CACHE_DIR    # 跟 tw_facts_engine 共用同一份含息還原快取（同代碼＝同資料，別重抓）
@@ -77,6 +80,10 @@ STOCK_REGISTRY = {
     "00878": {"name": "國泰永續高股息", "kind": "etf",   "ticker": "00878.TW"},
 }
 # 下集池順序（EP1＝2330 已產，不排在候選池裡；照 Carson 拍板順序）
+# ⚠️ 2026-07-15 規模化後此清單已退役為「手動測試用」：正式排隊改走
+#    STUDIO/stock_checkup_backlog.json(1900+檔·依成交值排序,由 stock_checkup_backlog_gen.py 生成)，
+#    每日出集由 stock_checkup_daily.py 驅動。--next/--backlog 兩個 CLI 入口保留但只看這份小清單，
+#    別拿它們當正式產線指令(正式產線 = cron 的 stock_checkup_daily.py)。
 CHECKUP_BACKLOG = ["2317", "2454", "2603", "2412", "2882", "00878"]
 
 BENCH_CODE = "0050"
@@ -165,7 +172,16 @@ def resolve_name(code, name_override=None):
         return name_override
     if code in STOCK_REGISTRY:
         return STOCK_REGISTRY[code]["name"]
-    return code  # 未登錄代號：用代碼本身當名稱（不編公司名）
+    # 2026-07-15 規模化到1900+檔：未登錄代號改查 FinMind TaiwanStockInfo 全市場對照表
+    # (7天快取，公開官方掛牌名稱，不是編的)；查不到才退回代碼本身當名稱。
+    try:
+        info = stock_fundamentals.fetch_stock_info_table()
+        real_name = (info.get(code) or {}).get("name")
+        if real_name:
+            return real_name
+    except Exception:  # noqa: BLE001
+        pass
+    return code  # 未登錄代號且查無官方名稱：用代碼本身當名稱（不編公司名）
 
 
 def resolve_ticker(code):
@@ -474,8 +490,21 @@ def build_checkup(code, name_override=None, refresh=False):
             f"{name}：{wlabel}期間表現", [code, name],
             r)
 
+    # G. 基本面(2026-07-15 任務)：營收趨勢/EPS序列/毛利率/股利發放史/估值位置——見 stock_fundamentals.py。
+    # 傳入已經抓好的含息還原價序列 s，讓股利殖利率計算不必重抓一次價格。
+    # FinMind 抓不到/失敗不讓整支體檢失敗——fund_results 空字典時下面 update 是 no-op，
+    # fund_skipped 會如實記進 skipped 揭露(不編造)。
+    try:
+        fund_results, fund_skipped, profile = stock_fundamentals.build_fundamentals_facts(
+            code, name, price_series=s, refresh=refresh)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[stock_checkup_facts] {code} 基本面抓取整體失敗(不影響已算出的價格面事實)：{str(exc)[:120]}")
+        fund_results, fund_skipped, profile = {}, [], {}
+    results.update(fund_results)
+    skipped.extend(fund_skipped)
+
     facts = {"as_of": as_of, "disclaimer": DISCLAIMER, "results": results,
-             "skipped": skipped, "code": code, "name": name, "kind": kind}
+             "skipped": skipped, "code": code, "name": name, "kind": kind, "profile": profile}
     return facts, skipped
 
 
@@ -504,6 +533,7 @@ def merge_and_write(facts, dry=False):
     existing["by_code"][code] = {
         "name": facts["name"], "kind": facts["kind"], "computed_at": facts["as_of"],
         "n_facts": len(facts["results"]), "skipped": facts["skipped"],
+        "profile": facts.get("profile") or {},
     }
     if dry:
         print(f"[stock_checkup_facts] --dry：不寫檔（{code} 本次算出 {len(facts['results'])} 組，"
