@@ -124,6 +124,23 @@ def _upload_filehost(local_path: Path, retries: int = 2) -> str | None:
     return None
 
 
+def _url_serves(url: str, min_bytes: int = 65536) -> bool:
+    """驗公網 URL 真的抓得動(litterbox 半癱時上傳回 200 但下載端連線被斷,IG 會白等到逾時)。
+    抓前 256KB 串流讀滿 min_bytes 即算通;任何例外/不足=不通。"""
+    try:
+        with requests.get(url, headers={"Range": "bytes=0-262143"}, stream=True, timeout=30) as r:
+            if r.status_code not in (200, 206):
+                return False
+            got = 0
+            for chunk in r.iter_content(chunk_size=16384):
+                got += len(chunk)
+                if got >= min_bytes:
+                    return True
+            return got >= min_bytes
+    except Exception:  # noqa: BLE001
+        return False
+
+
 # IG-native 分級 hashtag 池(大詞觸及廣/中詞精準/小眾轉換高/reels 版位),每片混抽 ~13 個
 IG_HASHTAG_POOL = {
     "big":   ["#投資", "#理財", "#加密貨幣", "#比特幣", "#被動收入"],
@@ -204,6 +221,11 @@ def publish(slug: str) -> str | None:
     video_url = None
     cover_data = {}
     lb_video = _upload_filehost(mp4)
+    # 🔴 2026-07-15 防呆:litterbox 曾「收上傳但下載端斷線」半癱(上傳回 200 + URL,實際抓不動),
+    # IG 抓不到片每支白等 320s 輪詢到逾時。上傳後先自驗 URL 真的 serve 得動,不行視同失敗走 fallback。
+    if lb_video and not _url_serves(lb_video):
+        print("[warn] litterbox 上傳成功但下載端抓不動(服務半癱),視同失敗", file=sys.stderr)
+        lb_video = None
     if lb_video:
         video_url = lb_video
         print(f"[info] litterbox video_url={video_url}")
