@@ -548,6 +548,17 @@ def upload_one(yt, slug: str, privacy: str) -> str:
             yt.thumbnails().set(videoId=vid, media_body=MediaFileUpload(str(_tp), mimetype="image/jpeg")).execute()
         except Exception as exc:  # noqa: BLE001
             print(f"[warn] 縮圖設定失敗 {slug}: {exc}", file=sys.stderr)
+            # 入列補掛佇列(thumb_backfill.py 每天 15:10 quota 重置後補上,治裸奔片)
+            try:
+                _pt_path = PROJECT_ROOT / "STUDIO" / "pending_thumbs.json"
+                _pt = load_json_safe(_pt_path, default={}) or {}
+                _pt.setdefault("pending", {})
+                _pt.setdefault("done", {})
+                if vid not in _pt["done"]:
+                    _pt["pending"][vid] = {"slug": slug, "added": tw_today(), "src": "publish"}
+                    save_json_atomic(_pt_path, _pt)
+            except Exception as _e3:  # noqa: BLE001
+                print(f"[warn] pending_thumbs 入列失敗 {slug}: {_e3}", file=sys.stderr)
         finally:
             _cleanup_jpg()   # 清關鍵字名硬連結(不動原 jpg)
     return vid

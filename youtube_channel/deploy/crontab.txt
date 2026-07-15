@@ -55,15 +55,20 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # 的區間集中在 09:00-12:00,20:30 舊晚間檔在兩指標都明顯偏弱(views/day僅0.5、retention35.9%,對照
 # 18:00 有1.26/41.2%);故：午段 12:30→11:00(提前於12:00-13:00觀看高峰前索引推播),
 # 晚段 20:30→18:30(提前於晚間黃金時段、貼齊18:00實測最佳晚間桶,取代原12:30/20:30)
-0 11 * * * /root/yt/run.sh scripts/daily_publish.py --max 12 >> /root/yt/logs/cron.log 2>&1
-30 18 * * * /root/yt/run.sh scripts/daily_publish.py --max 12 >> /root/yt/logs/cron.log 2>&1
+# 🔴 2026-07-15 配額重編:YouTube Data API 每日 10,000 quota、台灣 15:00 重置,upload=1600/支。
+# 原三班 6+12+12=30 支嘗試=48,000 quota → 89 次 videos.insert 403、66 支片裸奔沒縮圖。
+# 新預算(配額日 15:00→次日15:00):15:10 縮圖補掛≤2000 → 18:30 發3支(4,950) → 22:00 清單500
+# → 02:00 封面400 → 09:15 發1支 → 11:00 發1支(共5支/日全成功有縮圖) → 13:40-14:20 維運吃剩飯。
+# 想加量先申請 quota 提額(Google audit 表單),別改回大 --max:超額的部分 100% 白打還擋別的 job。
+0 11 * * * /root/yt/run.sh scripts/daily_publish.py --max 1 >> /root/yt/logs/cron.log 2>&1
+30 18 * * * /root/yt/run.sh scripts/daily_publish.py --max 3 >> /root/yt/logs/cron.log 2>&1
 # 台股收盤後覆盤情緒黃金窗口 —— 2026-07-13 依實測改停靠早盤強桶(09:00 時段 retention 49.75%/
 # n=26,views_per_day 2.34/n=27,樣本夠大且表現佳,優於原 13:40),只交易日
-15 9 * * 1-5 /root/yt/run.sh scripts/daily_publish.py --max 6 >> /root/yt/logs/cron.log 2>&1
+15 9 * * 1-5 /root/yt/run.sh scripts/daily_publish.py --max 1 >> /root/yt/logs/cron.log 2>&1
 # 播放清單自動化(每日一次,排在當天最後一批上架之後,把新發布的片依三主軸建/補進 YT 播放清單):
 # --max 40 跟 daily_publish 共用同一組每日 quota,設上限防一次跑光擋到隔天上架;冪等(items_in
 # 跳過已加過的),沒加完下次自動接續
-0 22 * * * /root/yt/run.sh scripts/build_playlists.py --max 40 >> /root/yt/logs/cron.log 2>&1
+0 22 * * * /root/yt/run.sh scripts/build_playlists.py --max 10 >> /root/yt/logs/cron.log 2>&1
 # 台股盤中盯盤即時撃(交易日多掃幾次財經新聞)
 35 9,11,13 * * 1-5 /root/yt/run.sh scripts/news_dept.py >> /root/yt/logs/cron.log 2>&1
 37 9 * * * /root/yt/run.sh scripts/retro_dept.py >> /root/yt/logs/cron.log 2>&1
@@ -115,7 +120,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # IG 健康檢查(每天 08:00/21:00 探 token+發布狀態)
 0 8,21 * * * /root/yt/run.sh scripts/ig_health_check.py >> /root/yt/logs/cron.log 2>&1
 # 舊片封面批次重生(make_cover 高質感封面):每天 02:00 補 60 支直到清空(配額安全)
-0 2 * * * /root/yt/run.sh scripts/cover_backfill.py --max 60 >> /root/yt/logs/cron.log 2>&1
+0 2 * * * /root/yt/run.sh scripts/cover_backfill.py --max 8 >> /root/yt/logs/cron.log 2>&1
 # 放大飛輪：贏家全押/好問題即產/輸家汰(每3小時,只動內部可逆檔)
 30 */3 * * * /root/yt/run.sh scripts/auto_loop.py >> /root/yt/logs/cron.log 2>&1
 # A/B 建議產生器(只產建議+本地變體圖,套用 live 需決策中心一鍵;絕不自動改標題/縮圖)
@@ -162,10 +167,16 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 15 4 * * * cd /root/yt && d=backups/$(date +\%Y\%m\%d) && mkdir -p $d && cp STUDIO/*.json token_manage.json token_analytics.json uploaded_ledger.json $d/ 2>/dev/null; ls -dt backups/*/ 2>/dev/null | tail -n +8 | xargs -r rm -rf
 # 🔴 停擺偵測守衛(每天10:12·治「壞了不吭聲」):各管道最後活動超過門檻=疑似靜默停擺→ntfy推Carson
 12 10 * * * /root/yt/run.sh scripts/stall_watchdog.py >> /root/yt/logs/cron.log 2>&1
-5 15 * * * /root/yt/run.sh scripts/playlist_engine.py --sync --max 80 >> /root/yt/logs/cron.log 2>&1
-# 存量片描述回填「系列連播」導流連結(每天15:20,排在播放清單同步之後,同一組每日quota共用):
+# 🔴 2026-07-15 維運三兄弟從 15:05-15:30 挪到 13:40-14:20:quota 台灣 15:00 重置,排在重置
+# 「後」等於一開門就把新糧燒光(80×50+30×50+150×50≈13,000),18:30 發布批因此天天撞牆。
+# 挪到重置「前」的最後一段=吃當日剩飯,撞牆就優雅停(三支都會停),完全不影響發布主線。
+40 13 * * * /root/yt/run.sh scripts/playlist_engine.py --sync --max 20 >> /root/yt/logs/cron.log 2>&1
+# 存量片描述回填「系列連播」導流連結(每天14:00,吃剩飯):
 # 觀看數最高的舊片優先,冪等(已含清單連結就跳過),只插入不刪改原描述,見 scripts/desc_backfill.py
-20 15 * * * /root/yt/run.sh scripts/desc_backfill.py --max 30 >> /root/yt/logs/cron.log 2>&1
-# 殭屍片(0觀看舊片)清理引擎(每天15:30,排在playlist/desc_backfill之後、quota重置後):
+0 14 * * * /root/yt/run.sh scripts/desc_backfill.py --max 15 >> /root/yt/logs/cron.log 2>&1
+# 殭屍片(0觀看舊片)清理引擎(每天14:20,吃剩飯):
 # 0觀看+滿14天+非台股真相實驗室/EP系列+非優先清單→設private(可逆)，見 scripts/zombie_sweep.py
-30 15 * * * /root/yt/run.sh scripts/zombie_sweep.py --apply --max 150 >> /root/yt/logs/cron.log 2>&1
+20 14 * * * /root/yt/run.sh scripts/zombie_sweep.py --apply --max 30 >> /root/yt/logs/cron.log 2>&1
+# 縮圖補掛引擎(每天15:10,quota重置後第一個job:把發布時縮圖403的裸奔片補上門面;
+# 佇列空=0 quota,有欠帳最多40支=2,000,見 scripts/thumb_backfill.py + STUDIO/pending_thumbs.json)
+10 15 * * * /root/yt/run.sh scripts/thumb_backfill.py --scavenge >> /root/yt/logs/cron.log 2>&1
