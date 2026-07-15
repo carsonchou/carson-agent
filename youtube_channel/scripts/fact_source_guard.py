@@ -49,7 +49,7 @@ STUDIO = ROOT / "STUDIO"
 
 # 事實庫(真實回測算出來的數字才准講)
 FACT_FILES = ["tw_stock_facts.json", "backtest_cards.json", "tw_facts_computed.json",
-              "tw_universe_facts.json"]
+              "tw_universe_facts.json", "stock_checkup_facts.json"]
 
 # 數字比對容差:口播會四捨五入(813.7% → 「百分之八百一十三」),容差要夠寬但不能寬到失效。
 TOL_ABS = 1.0      # 絕對容差(百分點)
