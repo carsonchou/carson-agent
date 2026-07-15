@@ -68,7 +68,7 @@ try:
 except Exception:  # noqa: BLE001
     GUARD = "誠信鐵則：不保證收益、不喊單、不編造損益。頻道=量化阿森(網格/定投/派網/回測/風控)。"
 
-FACT_FILES = ["tw_facts_computed.json", "tw_stock_facts.json"]
+FACT_FILES = ["tw_facts_computed.json", "tw_stock_facts.json", "stock_checkup_facts.json"]
 
 ANGLE_POOL = (
     "反直覺數字（結果和直覺想的相反）", "成本揭露（紀律/擇時/手續費的隱藏代價）",

@@ -120,6 +120,14 @@ def _match_debunk(slug: str) -> bool:
     return any(k in slug for k in kws)
 
 
+def _match_stock_checkup(slug: str) -> bool:
+    """2026-07-15 新系列「個股體檢」:同 _match_truth_lab 的截斷防範精神——slugify()
+    只留標題前 26 字(見 produce_batch.slugify),系列名務必落在標題**前段**才不會被切掉。
+    本系列的產線慣例(見 scripts/stock_checkup_facts.py)固定把「個股體檢」放在標題最前面
+    (如「個股體檢EP1台積電2330：…」)，故用完整 4 字子字串比對即可，不需要再退化。"""
+    return "個股體檢" in slug
+
+
 PLAYLIST_DEFS: list[dict] = [
     {
         "key": "truth_lab",
@@ -161,6 +169,18 @@ PLAYLIST_DEFS: list[dict] = [
             "不喊單、不保證收益。訂閱幫自己避開下一個坑。"
         ),
         "match": _match_debunk,
+    },
+    {
+        "key": "stock_checkup",
+        "title": "個股體檢｜台股個股歷史數據連載",
+        "description": (
+            "量化阿森｜個股體檢：每集挑一檔股票，攤開它的20年含息還原總報酬、年化、最大回撤、"
+            "最猛/最慘一年、單筆All-in vs 定期定額 vs 大盤、史上最長套牢期、腰斬次數、"
+            "歷史崩盤三段對照。只做歷史公開事實陳述，介紹不等於推薦，不喊單、不報明牌、"
+            "不給目標價、不保證未來收益。訂閱追蹤連載，看更多標的的真實體檢報告，"
+            "留言點名想看哪一檔。"
+        ),
+        "match": _match_stock_checkup,
     },
 ]
 

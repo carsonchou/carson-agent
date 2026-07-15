@@ -427,34 +427,42 @@ def build_checkup(code, name_override=None, refresh=False):
             "data": payload,
         }
 
+    # ⚠️ 2026-07-15 病灶A同型bug實測抓到(見 produce_batch.py 同名教訓)：keywords 若帶
+    # 「套牢」「崩盤」「持有體驗」這類跨股共用的通用描述詞，_tw_facts_context()／
+    # _relevant_facts_list() 的比對邏輯是單純 `kw in text` 子字串命中，沒有標的鎖定，
+    # 通用詞會讓「鴻海2317」的題目意外撈到「台積電」的事實(兩者都有「持有體驗」關鍵字)。
+    # 實測驗證：keywords 只留 [code, name] 兩個字詞後，_tw_facts_context() 對
+    # 「個股體檢EP2鴻海2317…」題目只回鴻海自己的事實，不再混入台積電——這是本引擎
+    # keywords 刻意收斂到最小(只留能唯一辨識該標的的詞)的原因，不是漏寫。
+
     # A. 20年(或上市至今)總報酬/年化/最大回撤
     add(f"checkup_long_horizon__{code}",
         "20年(可信資料區間不足20年則用上市至今)含息還原總報酬/年化/最大回撤/卡瑪比率",
-        f"{name} 長期含息還原體檢", ["個股體檢", code, name, "總報酬", "年化", "最大回撤"],
+        f"{name} 長期含息還原體檢", [code, name],
         calc_long_horizon(s))
 
     # B. 最慘一年 / 最猛一年
     add(f"checkup_annual_extremes__{code}",
         "年度報酬序列(整年至少約100交易日才列入)，取最大值/最小值",
-        f"{name} 最猛一年 vs 最慘一年", ["個股體檢", code, name, "年度報酬", "最慘一年", "最猛一年"],
+        f"{name} 最猛一年 vs 最慘一年", [code, name],
         calc_annual_extremes(s))
 
     # C. 單筆All-in vs 月定投(10年) vs 同期0050
     add(f"checkup_three_way__{code}",
         "近10年(資料不足10年則用共同起點全段)：單筆All-in vs 每月定期定額 vs 同期買進持有0050",
-        f"{name} 三種買法對決：All-in / 定期定額 / 0050", ["個股體檢", code, name, "All in", "定期定額", "0050", "三種買法"],
+        f"{name} 三種買法對決：All-in / 定期定額 / 0050", [code, name],
         calc_three_way_showdown(s, bench, name) if bench is not None else None)
 
     # D. 持有體驗：最長套牢期
     add(f"checkup_underwater__{code}",
         "從每次創歷史新高算起，到下一次創歷史新高之間的最長間隔(天數/年數)；若目前仍未創新高則計到最新一天並標註ongoing",
-        f"{name} 最長套牢期(創高到下個創高間隔)", ["個股體檢", code, name, "套牢", "持有體驗", "創新高"],
+        f"{name} 最長套牢期(創高到下個創高間隔)", [code, name],
         calc_underwater(s))
 
     # E. 持有體驗：腰斬次數
     add(f"checkup_halvings__{code}",
         "從每個新高點算起，股價跌幅觸及-50%的獨立事件數(重新武裝條件=再創出高於前次的新高)",
-        f"{name} 腰斬(-50%)發生次數", ["個股體檢", code, name, "腰斬", "持有體驗", "回撤"],
+        f"{name} 腰斬(-50%)發生次數", [code, name],
         calc_halvings(s))
 
     # F. 崩盤三段區間表現
@@ -463,7 +471,7 @@ def build_checkup(code, name_override=None, refresh=False):
         wlabel = CRASH_WINDOWS[wk]["label"]
         add(f"checkup_crash__{code}__{wk}",
             f"{wlabel}期間：高點到阱底跌幅 + 若持有至今的報酬(未計股利再投入外的其他操作)",
-            f"{name}：{wlabel}期間表現", ["個股體檢", code, name, "崩盤", wlabel, "持有體驗"],
+            f"{name}：{wlabel}期間表現", [code, name],
             r)
 
     facts = {"as_of": as_of, "disclaimer": DISCLAIMER, "results": results,

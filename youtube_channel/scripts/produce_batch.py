@@ -1123,6 +1123,11 @@ TW_FACTS = ROOT / "STUDIO" / "tw_stock_facts.json"
 # 2026-07-13:tw_facts_engine.py 用真實含息還原股價批次算出的 40 組事實(定投vs單筆/扣款日效應/
 # 停利vs續抱/高股息vs市值型/槓桿ETF長抱/擇時vs傻抱/錯過最佳N天/崩盤加碼vs停損)。
 TW_FACTS_COMPUTED = ROOT / "STUDIO" / "tw_facts_computed.json"
+# 2026-07-15「個股體檢」系列:stock_checkup_facts.py 算的任意個股20年體檢事實
+# (checkup_long_horizon__2330 這類 key)。同樣併入餵料端,理由跟下面同一段一致——
+# fact_source_guard.FACT_FILES 已經看得到這份檔案，寫稿 LLM 不併進來就會出現
+# 「守門擋得住、卻永遠產不出個股體檢下集」的窘境，系列就斷連載。
+STOCK_CHECKUP_FACTS = ROOT / "STUDIO" / "stock_checkup_facts.json"
 
 
 def _load_tw_facts():
@@ -1138,7 +1143,7 @@ def _load_tw_facts():
     餵料端(這裡)與守門端(fact_source_guard.FACT_FILES)必須讀同一組事實庫,才是完整的解。
     """
     merged = None
-    for p in (TW_FACTS, TW_FACTS_COMPUTED):
+    for p in (TW_FACTS, TW_FACTS_COMPUTED, STOCK_CHECKUP_FACTS):
         try:
             if not p.exists():
                 continue
