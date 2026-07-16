@@ -18,6 +18,12 @@ body{ font-family:"Microsoft JhengHei","Noto Sans TC","Segoe UI",-apple-system,s
 .up{ color:var(--up) } .dn{ color:var(--dn) } .mut{ color:var(--tx2) }
 
 /* ---- A4 頁面(固定尺寸,背景逐頁烘,print_background 印底)---- */
+/* 紙張尺寸必須顯式宣告(2026-07-16 修):.page 用 A4 幾何(210×297mm),但若 CSS 沒有
+   @page size,Chromium 的 prefer_css_page_size 沒東西可 prefer → 靜默退回 Letter
+   (612×792pt < A4 842pt)→ 每頁溢 50pt,被 page-break-after 推成一張整頁空白。
+   實測後果:旗艦週報 full 24 頁裡 11 頁空白。與 render_pdf() 的 format="A4" 為雙保險,
+   拿掉任一個 bug 就復發。(同 render_kit.py 的 SKU 修,phase3b B1 同根因) */
+@page{ size:A4; margin:0 }
 .page{ position:relative; width:210mm; height:297mm; margin:0 auto; overflow:hidden;
   page-break-after:always; display:flex; flex-direction:column;
   background:

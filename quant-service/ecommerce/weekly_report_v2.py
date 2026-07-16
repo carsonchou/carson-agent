@@ -818,7 +818,10 @@ def render_pdf(html: str, out_pdf: Path) -> Path:
         pg.goto(html_path.resolve().as_uri(), wait_until="networkidle")
         pg.wait_for_function("window.__paginated__ === true", timeout=15000)
         pg.emulate_media(media="print")
-        pg.pdf(path=str(out_pdf), prefer_css_page_size=True, print_background=True,
+        # format="A4" 與 report_theme.css 的 @page{size:A4} 是雙保險:prefer_css_page_size
+        # 只在 CSS 真的宣告頁面尺寸時才有東西可 prefer,否則**靜默退回 Letter** → 每頁溢
+        # 50pt 擠出整頁空白(實測 full 24 頁裡 11 頁空白)。兩者都指 A4,拿掉任一都會復發。
+        pg.pdf(path=str(out_pdf), format="A4", prefer_css_page_size=True, print_background=True,
                margin={"top": "0", "bottom": "0", "left": "0", "right": "0"})
         br.close()
     return out_pdf

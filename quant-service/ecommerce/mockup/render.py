@@ -25,6 +25,8 @@ def render(src: Path, out: Path) -> Path:
         pg.emulate_media(media="print")
         pg.pdf(
             path=str(out),
+            format="A4",                  # 必給:CSS 沒 @page size 時 prefer_css_page_size
+                                          # 會靜默退回 Letter → 每頁溢 50pt 擠出整頁空白
             prefer_css_page_size=True,   # 用 .page 的 210mm×297mm
             print_background=True,        # 深色底真的印進去
             margin={"top": "0", "bottom": "0", "left": "0", "right": "0"},
