@@ -3,8 +3,18 @@
 
 單一事實來源:視覺 token 全讀 `report_theme.css`(與旗艦週報 weekly_report_v2 同一份),
 確保一次性 SKU 成品與訂閱週報視覺完全一致。管線=HTML+CSS → headless Chromium → page.pdf
-(print_background 印深色底、prefer_css_page_size 吃 A4、繁中系統字型),分頁沿用週報實證的
+(print_background 印深色底、A4 紙張、繁中系統字型),分頁沿用週報實證的
 JS 量測法(把 unit 依序塞進 .page 直到裝滿再開新頁)。
+
+⚠️ 紙張(2026-07-16 修,VERIFY_REPORT_phase3b B1):`.page` 是 A4 幾何(210×297mm),但舊版
+只給 `prefer_css_page_size=True` 而 HTML 從未宣告 `@page` → Chromium 無 CSS 頁面尺寸可
+「prefer」,退回預設紙張 US Letter(612×792pt)。每頁 297mm≈842pt 灌進 792pt → 溢出約 50pt,
+`page-break-after:always` 把那條溢出(含頁尾)推成一張整頁空白 ⇒ 全 8 支 SKU「每張內容頁後跟
+一張空白頁」(C2 18 頁裡 9 頁空白)。修法雙保險:html_doc() 宣告 `@page{size:A4;margin:0}`
++ render_pdf() 明給 `format="A4"`。改動任一處前先跑 tests/test_render_kit_pdf.py(釘死空白頁=0)。
+
+多語:頁殼字串(頁尾/頁碼/免責標題/封面聲明)全走 `_L[lang]`,不再硬編中文——英文版 SKU 要收
+US$35/39,框架字串漏中文 = 對國際買家的交付缺陷(phase3b B3)。新增語系只需擴 _L。
 
 誠信:本工具箱只負責「把已綁定來源的數字排進 HTML」,不產生任何統計數字。gate_text() 把
 HTML 標籤剝掉(SVG/CSS 數字都在屬性裡,一併移除),只留可見文字供 fact_source_guard 複驗。
@@ -18,6 +28,37 @@ HERE = Path(__file__).resolve().parent
 THEME_CSS = HERE / "report_theme.css"
 
 _NUM_RE = re.compile(r"-?\d+\.?\d*")
+
+# ── 頁殼語系字串(單一事實來源:所有頁殼中文都從這裡取,不硬編)──────────────────
+_L = {
+    "zh": {
+        "html_lang": "zh-Hant",
+        "disc_badge": "介紹 ≠ 推薦",
+        "cover_total": lambda: '封面 · 共 <span class="pagetotal"></span> 頁',
+        "cover_strip": ("本商品為<b>歷史/當期數據彙整與教學工具</b>,中性陳述、不喊買賣、不報明牌。"),
+        "disc_title": "免責與資料來源",
+        "disc_src_label": "資料來源",
+        "src_join": "；",
+        "gate_note": ("　每個績效數字經溯源守門(fail-closed)驗證,查無來源的段落不會出現在成品。"),
+    },
+    "en": {
+        "html_lang": "en",
+        "disc_badge": "Description ≠ recommendation",
+        "cover_total": lambda: 'Cover · <span class="pagetotal"></span> pages',
+        "cover_strip": ("This product is a <b>historical/current-data compilation and educational tool</b>. "
+                        "Neutral statements only: no buy/sell calls, no stock tips."),
+        "disc_title": "Disclaimer & Data Sources",
+        "disc_src_label": "Sources",
+        "src_join": "; ",
+        "gate_note": ("　Every performance figure passes a fail-closed provenance gate; any passage whose "
+                      "numbers cannot be traced back to a source file is withheld from the product."),
+    },
+}
+
+
+def L(lang: str) -> dict:
+    """取語系字串包(未知語系退回 zh,不炸)。"""
+    return _L.get(lang, _L["zh"])
 
 
 def esc(s) -> str:
@@ -136,7 +177,8 @@ def sec_head(title: str, badge: str = "") -> str:
 
 # ── 頁面殼(封面 / 內頁模板 / 免責 / 分頁 JS)——沿用週報實證版 ──────────────────
 def cover_page(brand: dict, title_lines: list[str], kicker: str, subtitle: str,
-               stats: list[tuple], price_line: str, badge_txt: str) -> str:
+               stats: list[tuple], price_line: str, badge_txt: str, lang: str = "zh") -> str:
+    lz = L(lang)
     stats_html = "".join(
         f'<div class="cstat"><div class="k">{esc(k)}</div>'
         f'<div class="v">{v}</div></div>' for k, v in stats)
@@ -155,16 +197,17 @@ def cover_page(brand: dict, title_lines: list[str], kicker: str, subtitle: str,
       <div class="sub">{esc(subtitle)}</div>
       <div class="cover-stats">{stats_html}</div>
       <div class="cover-strip"><span class="badge">{esc(badge_txt)}</span>
-        <span class="txt">本商品為<b>歷史/當期數據彙整與教學工具</b>,中性陳述、不喊買賣、不報明牌。</span></div>
+        <span class="txt">{lz["cover_strip"]}</span></div>
       <div class="price-line">{esc(price_line)}</div>
     </div>
     <div class="runfoot"><span>{esc(brand["name_zh"])} {esc(brand["name_en"])}</span>
-      <span class="disc">介紹 ≠ 推薦</span><span>封面 · 共 <span class="pagetotal"></span> 頁</span></div>
+      <span class="disc">{esc(lz["disc_badge"])}</span><span>{lz["cover_total"]()}</span></div>
   </div>
 </section>'''
 
 
-def _page_template(brand: dict, product: str, sub: str) -> str:
+def _page_template(brand: dict, product: str, sub: str, lang: str = "zh") -> str:
+    lz = L(lang)
     return f'''<template id="pagetpl"><section class="page">
   <div class="frame"></div>
   <div class="inner">
@@ -174,18 +217,20 @@ def _page_template(brand: dict, product: str, sub: str) -> str:
     </div>
     <div class="flow"></div>
     <div class="runfoot"><span>{esc(brand["name_zh"])} {esc(brand["name_en"])} · {esc(product)}</span>
-      <span class="disc">介紹 ≠ 推薦</span>
+      <span class="disc">{esc(lz["disc_badge"])}</span>
       <span><span class="pageno"></span> / <span class="pagetotal"></span></span></div>
   </div>
 </section></template>'''
 
 
-def disclaimer_unit(disclaimer: str, sources: list[str], extra: str = "") -> str:
-    src = "；".join(esc(s) for s in sources)
-    return (f'<div class="unit"><div class="disc-title">免責與資料來源</div>'
+def disclaimer_unit(disclaimer: str, sources: list[str], extra: str = "", lang: str = "zh") -> str:
+    lz = L(lang)
+    src = lz["src_join"].join(esc(s) for s in sources)
+    sep, end = (":", "。") if lang == "zh" else (": ", ".")
+    return (f'<div class="unit"><div class="disc-title">{esc(lz["disc_title"])}</div>'
             f'<div class="disc-body">{esc(disclaimer)}<br><br>{extra}</div>'
-            f'<div class="disc-src"><b>資料來源</b>:{src}。'
-            f'　每個績效數字經溯源守門(fail-closed)驗證,查無來源的段落不會出現在成品。</div></div>')
+            f'<div class="disc-src"><b>{esc(lz["disc_src_label"])}</b>{sep}{src}{end}'
+            f'{lz["gate_note"]}</div></div>')
 
 
 _PAGINATE_JS = '''<script>
@@ -205,19 +250,27 @@ _PAGINATE_JS = '''<script>
 
 
 def html_doc(brand: dict, product: str, sub: str, title: str,
-             cover_html: str, unit_htmls: list[str]) -> str:
+             cover_html: str, unit_htmls: list[str], lang: str = "zh") -> str:
     css = load_css()
-    return f'''<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8">
-<title>{esc(title)}</title><style>{css}</style></head><body>
+    lz = L(lang)
+    # @page 必須宣告:`.page` 是 A4 幾何,不宣告則 Chromium 用 Letter → 每頁溢出成空白頁(見檔頭)。
+    return f'''<!doctype html><html lang="{lz["html_lang"]}"><head><meta charset="utf-8">
+<title>{esc(title)}</title><style>@page{{size:A4;margin:0}}
+{css}</style></head><body>
 <div id="pages">{cover_html}</div>
-{_page_template(brand, product, sub)}
+{_page_template(brand, product, sub, lang)}
 <div id="src" style="position:absolute;left:-99999px;top:0;width:186mm">{"".join(unit_htmls)}</div>
 {_PAGINATE_JS}
 </body></html>'''
 
 
 def render_pdf(html: str, out_pdf: Path) -> Path:
-    """HTML → A4 深色 PDF(等分頁 JS 跑完)。與 mockup/render.py 同款 Playwright 參數。"""
+    """HTML → A4 深色 PDF(等分頁 JS 跑完)。與 mockup/render.py 同款 Playwright 參數。
+
+    `format="A4"` 與 html_doc() 的 `@page{size:A4}` 是**雙保險**:prefer_css_page_size 只在
+    CSS 真的宣告了頁面尺寸時才有東西可 prefer,否則靜默退回 Letter(見檔頭 B1)。兩者都指 A4,
+    無論誰先生效結果一致;拿掉任一個都會讓空白頁 bug 復發,故兩個都留。
+    """
     from playwright.sync_api import sync_playwright
     out_pdf = Path(out_pdf)
     out_pdf.parent.mkdir(parents=True, exist_ok=True)
@@ -229,7 +282,7 @@ def render_pdf(html: str, out_pdf: Path) -> Path:
         pg.goto(html_path.resolve().as_uri(), wait_until="networkidle")
         pg.wait_for_function("window.__paginated__ === true", timeout=15000)
         pg.emulate_media(media="print")
-        pg.pdf(path=str(out_pdf), prefer_css_page_size=True, print_background=True,
+        pg.pdf(path=str(out_pdf), format="A4", prefer_css_page_size=True, print_background=True,
                margin={"top": "0", "bottom": "0", "left": "0", "right": "0"})
         br.close()
     return out_pdf
