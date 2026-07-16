@@ -58,7 +58,8 @@ def main():
     print("【1】檔案到位？")
     print(f"    雲端 md5={rmd5}")
     print("    " + ("✅ 一致，本機檔案已成功推上雲端" if rmd5 == lmd5
-                    else "⚠️ 不一致！雲端不是最新版，請重跑 intel_sync 推送"))
+                    else "⚠️ 不一致！雲端不是最新版（intel_sync 自動推送已於 2026-07-17 隨競品"
+                         "下載學習一併移除，playbook 現由人工維護，請自行同步本機版本上雲端）"))
 
     print("\n【2】工廠程式吃進去了？")
     r2 = run(f"cd {rroot} && python3 -c \""

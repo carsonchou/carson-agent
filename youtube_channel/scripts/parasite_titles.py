@@ -86,7 +86,11 @@ def _top_competitors(n=15):
 
 
 def _analysis_tail(chars=2500):
-    """讀 competitor_analysis.md 末段（最新自動學習的拆解），給 Claude 抓最新爆款角度。"""
+    """讀競品拆解檔末段，給 Claude 抓最新爆款角度。
+
+    2026-07-17：來源檔 competitor_analysis.md（yt-dlp 抓字幕的產物）已因違反 YouTube API
+    ToS III.E.6 刪除，此處固定回空字串，prompt 會自動略過該區塊。保留函式以免動到呼叫端。
+    """
     try:
         return ANALYSIS.read_text(encoding="utf-8")[-chars:]
     except Exception:
@@ -95,6 +99,7 @@ def _analysis_tail(chars=2500):
 
 def gen(count, comps, tail):
     comp_lines = "\n".join(f"- 👁{v:,}｜{t}　@{c}" for t, c, v in comps) or "（暫無情報）"
+    tail_block = f"\n以下是競品拆解片段（抓最新爆款角度與鉤子）：\n{tail}\n" if tail.strip() else ""
     prompt = f"""{sc.PERSONA}
 
 你是量化阿森頻道（量化/自動交易/網格/定投/派網Pionex/風控，繁中 faceless）的【寄生流量選題官】。{GUARD}
@@ -111,10 +116,7 @@ def gen(count, comps, tail):
 
 以下是近期『高觀看競品影片』（你的寄生標的，挑最相關的題材切入）：
 {comp_lines}
-
-以下是competitor_analysis.md最新拆解片段（抓最新爆款角度與鉤子）：
-{tail}
-
+{tail_block}
 請產出 {count} 個『寄生 + 好奇缺口』影片題目，要求：
 - 緊貼上面競品的熱門題材，但角度是我們的誠實/反方/回測差異化，不是換句話說抄。
 - 標題有強點擊慾但不誇大、不保證收益、不喊單。

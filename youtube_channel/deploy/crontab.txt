@@ -6,7 +6,10 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # 金融時事優先：每 3 小時掃即時財經/加密新聞，有大事立刻產片（繞過排程，每日上限 3 支）
 0 */2 * * * /root/yt/run.sh scripts/news_dept.py >> /root/yt/logs/cron.log 2>&1
 # 05:30 情報 → 05:37 決策 → 06:07 製作(渲染) → 09:07 發布 → 09:3x~09:5x 後處理各部門
-# 競品深度學習(看100支/天)改在本機跑(雲端IP會被YouTube 429限流)，本機 QuantArsen_IntelLearn 學完SFTP推playbook回來；雲端這支只做輕量情報報告。
+# 2026-07-17 合規清理:競品「深度學習」(下載他人字幕/音訊轉錄)已整段移除,違反 YouTube ToS。
+# 本機 QuantArsen_IntelLearn 排程已 Disabled、intel_sync.py 已 no-op。這支只走官方 Data API
+# search.list/videos.list 讀公開 metadata(標題/頻道/觀看數)產輕量情報報告,不下載任何影片內容。
+# ⚠️ 不要加回下載能力——「產線不下載/不儲存他人頻道內容」是送 Google 配額稽核的承諾。
 # 2026-07-16 配額預算輪值制:每6h→週六一次(重置前吃剩飯),省 2,400→週均 ~343/天
 30 13 * * 6 /root/yt/run.sh scripts/intel_dept.py --no-learn >> /root/yt/logs/cron.log 2>&1
 35 5 * * * /root/yt/run.sh scripts/traffic_dept.py >> /root/yt/logs/cron.log 2>&1
