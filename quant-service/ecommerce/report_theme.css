@@ -1,0 +1,143 @@
+/* ============================================================================
+   report_theme.css — 量化阿森週報 v2 視覺 token(單一事實來源)
+   對齊 docs/ecommerce/REDESIGN_SPEC_product.md §2。台股慣例:漲/正=紅(.up) 跌/負=綠(.dn)。
+   渲染:被 weekly_report_v2 內聯進 <style>(離線自足);.page 為固定 A4,.flow 供 JS 分頁。
+   ============================================================================ */
+:root{
+  --bg:#0B0E14; --bg2:#0D1017; --card:#141922; --card2:#1A2029; --pod:#10151D;
+  --line:#242C38; --line2:#2E3745;
+  --tx:#E6EAF0; --tx2:#9AA5B5; --tx3:#5D6675;
+  --gold:#C9A227; --gold-hi:#E3B93E; --gold-deep:#8A6D1C;
+  --up:#FF5C5C; --dn:#33D69F; --amber:#E3B93E;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{ -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+body{ font-family:"Microsoft JhengHei","Noto Sans TC","Segoe UI",-apple-system,sans-serif;
+  color:var(--tx); background:#05070b; font-variant-numeric:tabular-nums; }
+.num{ font-variant-numeric:tabular-nums; letter-spacing:.2px }
+.up{ color:var(--up) } .dn{ color:var(--dn) } .mut{ color:var(--tx2) }
+
+/* ---- A4 頁面(固定尺寸,背景逐頁烘,print_background 印底)---- */
+.page{ position:relative; width:210mm; height:297mm; margin:0 auto; overflow:hidden;
+  page-break-after:always; display:flex; flex-direction:column;
+  background:
+    radial-gradient(1200px 500px at 78% -8%, rgba(201,162,39,.10), transparent 60%),
+    radial-gradient(900px 600px at -10% 108%, rgba(51,73,110,.14), transparent 60%),
+    linear-gradient(180deg,var(--bg) 0%,var(--bg2) 100%); }
+.page:last-child{ page-break-after:auto }
+.page::before{ content:""; position:absolute; inset:0; pointer-events:none; opacity:.5; z-index:0;
+  background-image:radial-gradient(rgba(148,163,184,.05) 1px, transparent 1px); background-size:22px 22px; }
+.frame{ position:absolute; inset:9mm; border:1px solid var(--line); border-radius:3px; pointer-events:none; z-index:1 }
+/* 內容區:runhead(auto) + flow(flex:1,可分頁) + runfoot(auto) */
+.inner{ position:relative; z-index:2; flex:1; display:flex; flex-direction:column;
+  padding:11mm 12mm 9mm; min-height:0 }
+.flow{ flex:1; min-height:0; overflow:hidden }
+
+/* ---- 頁眉/頁腳 ---- */
+.runhead{ display:flex; align-items:center; justify-content:space-between;
+  padding-bottom:7px; border-bottom:1px solid var(--line); margin-bottom:13px; flex:none }
+.brand{ display:flex; align-items:center; gap:9px; font-size:11.5px; letter-spacing:.06em; color:var(--tx2) }
+.brand b{ color:var(--tx); font-weight:600 }
+.logo{ width:19px; height:19px; border-radius:5px; position:relative;
+  background:linear-gradient(135deg,var(--gold-hi),var(--gold-deep)); box-shadow:0 0 10px rgba(227,185,62,.28) }
+.logo::after{ content:"↗"; position:absolute; inset:0; display:grid; place-items:center; color:#0B0E14; font-weight:900; font-size:12px }
+.eyebrow{ font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--gold) }
+.runfoot{ display:flex; align-items:center; justify-content:space-between; flex:none;
+  font-size:9px; color:var(--tx3); letter-spacing:.03em; border-top:1px solid var(--line); padding-top:6px; margin-top:9px }
+.runfoot .disc{ color:var(--gold); opacity:.85 }
+
+/* ---- 封面 ---- */
+.cover .inner{ justify-content:space-between }
+.cover-top{ display:flex; justify-content:space-between; align-items:flex-start }
+.vol{ text-align:right; font-size:11px; color:var(--tx2); line-height:1.7 }
+.vol b{ color:var(--gold-hi); font-weight:700; font-size:13px }
+.masthead .kick{ font-size:12px; letter-spacing:.34em; color:var(--gold); text-transform:uppercase; margin-bottom:16px }
+.masthead h1{ font-family:"Noto Serif TC",serif; font-weight:700; font-size:54px; line-height:1.08; letter-spacing:.01em; color:#F3F1EA }
+.masthead h1 .thin{ color:var(--gold-hi) }
+.masthead .sub{ margin-top:14px; font-size:14.5px; color:var(--tx2); letter-spacing:.02em; max-width:150mm; line-height:1.75 }
+.cover-stats{ display:flex; gap:11px; margin-top:24px }
+.cstat{ flex:1; background:linear-gradient(180deg,var(--card),var(--pod)); border:1px solid var(--line2);
+  border-radius:9px; padding:14px 15px; position:relative; overflow:hidden }
+.cstat::before{ content:""; position:absolute; left:0; top:0; bottom:0; width:3px; background:linear-gradient(180deg,var(--gold-hi),var(--gold-deep)) }
+.cstat .k{ font-size:10px; letter-spacing:.10em; color:var(--tx3); text-transform:uppercase }
+.cstat .v{ font-size:28px; font-weight:700; margin-top:6px; color:var(--tx) }
+.cstat .v small{ font-size:12px; color:var(--tx2); font-weight:500; margin-left:3px }
+.cover-strip{ margin-top:22px; display:flex; align-items:center; gap:14px;
+  background:rgba(201,162,39,.07); border:1px solid var(--gold-deep); border-radius:8px; padding:12px 16px }
+.cover-strip .badge{ font-size:11px; font-weight:700; letter-spacing:.1em; color:#0B0E14; background:var(--gold-hi); padding:4px 10px; border-radius:4px; white-space:nowrap }
+.cover-strip .txt{ font-size:12px; color:var(--tx2); line-height:1.6 }
+.cover-strip .txt b{ color:var(--tx) }
+.price-line{ margin-top:14px; font-size:11px; color:var(--tx3); letter-spacing:.02em }
+.price-line b{ color:var(--gold-hi) }
+
+/* ---- section 通用 ---- */
+.unit{ margin-bottom:14px }
+.unit:last-child{ margin-bottom:0 }
+.sec-hd{ display:flex; align-items:baseline; gap:10px; margin-bottom:8px }
+.sec-hd .sn{ font-size:11px; font-weight:700; color:#0B0E14; background:var(--gold-hi); border-radius:4px; padding:2px 7px; letter-spacing:.04em }
+.sec-hd h2{ font-size:18px; font-weight:600; color:var(--tx) }
+.sec-hd .tier{ font-size:9px; letter-spacing:.08em; text-transform:uppercase; color:var(--tx3); border:1px solid var(--line2); border-radius:3px; padding:1px 6px; margin-left:auto }
+.sec-hd .tier.b{ color:var(--gold); border-color:var(--gold-deep) }
+.lead{ font-size:11px; color:var(--tx2); line-height:1.65; margin-bottom:11px }
+
+/* ---- 數據卡殼 ---- */
+.card{ background:linear-gradient(180deg,var(--card) 0%,var(--pod) 100%); border:1px solid var(--line2);
+  border-radius:10px; padding:13px 15px; position:relative }
+.card::before{ content:""; position:absolute; left:0; top:13px; bottom:13px; width:3px; border-radius:3px;
+  background:linear-gradient(180deg,var(--gold-hi),var(--gold-deep)) }
+.degrade{ border-style:dashed; color:var(--tx2) }
+.degrade .dt{ font-size:12px; color:var(--amber); font-weight:600; margin-bottom:4px }
+.degrade .db{ font-size:10.5px; color:var(--tx3); line-height:1.6 }
+
+/* ---- KPI tile ---- */
+.kpis{ display:flex; gap:8px; flex-wrap:wrap }
+.kpi{ background:var(--pod); border:1px solid var(--line); border-radius:7px; padding:8px 13px; text-align:right; min-width:96px; flex:1 }
+.kpi .k{ font-size:9px; color:var(--tx3); letter-spacing:.06em; text-transform:uppercase }
+.kpi .v{ font-size:20px; font-weight:700; margin-top:3px }
+.kpi .v small{ font-size:11px; font-weight:500; color:var(--tx2) }
+
+/* ---- 密表 ---- */
+table.grid{ width:100%; border-collapse:collapse; font-size:11px }
+table.grid thead th{ background:#0E141C; color:var(--gold); font-weight:600; text-align:right; padding:7px 9px;
+  border-bottom:1.5px solid var(--gold-deep); letter-spacing:.02em; white-space:nowrap; font-size:10px }
+table.grid thead th.l{ text-align:left }
+table.grid tbody td{ padding:6px 9px; text-align:right; border-bottom:1px solid var(--line); white-space:nowrap; color:var(--tx) }
+table.grid tbody td.l{ text-align:left }
+table.grid tbody tr:nth-child(even){ background:rgba(255,255,255,.014) }
+.tkr{ font-weight:600 } .tkr .code{ color:var(--tx3); font-size:9.5px; margin-left:6px; font-family:"Segoe UI",monospace }
+.pos{ color:var(--up) } .neg{ color:var(--dn) }
+
+/* ---- 燈號 / 位階條 ---- */
+.dot{ display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; vertical-align:middle }
+.dot.r{ background:var(--up) } .dot.a{ background:var(--amber) } .dot.g{ background:var(--dn) }
+.pbar{ position:relative; height:6px; background:var(--line); border-radius:3px; width:110px; display:inline-block; vertical-align:middle }
+.pbar .band{ position:absolute; top:0; bottom:0; background:rgba(201,162,39,.18); border-radius:3px }
+.pbar .mk{ position:absolute; top:-3px; width:2px; height:12px; background:var(--gold-hi) }
+
+/* ---- 溫度 / gauge 條 ---- */
+.gaugebar{ position:relative; height:10px; border-radius:6px; margin:10px 0 6px;
+  background:linear-gradient(90deg,#2FB877 0%,#E3B93E 50%,#FF5C5C 100%); opacity:.85 }
+.gaugebar .mk{ position:absolute; top:-4px; width:3px; height:18px; background:#fff; box-shadow:0 0 6px #fff; border-radius:2px }
+.gaugescale{ display:flex; justify-content:space-between; font-size:9px; color:var(--tx3) }
+
+/* ---- 兩欄區塊 ---- */
+.two{ display:grid; grid-template-columns:1fr 1fr; gap:11px }
+.block{ background:rgba(255,255,255,.018); border:1px solid var(--line); border-radius:8px; padding:11px 13px }
+.block .bt{ font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--gold); margin-bottom:8px }
+.metricrow{ font-size:11px; color:var(--tx2); line-height:1.9 }
+.metricrow b{ color:var(--tx) }
+
+/* ---- 對照橫條(法人/追蹤)---- */
+.cmp{ display:flex; flex-direction:column; gap:7px }
+.cmp .row{ display:grid; grid-template-columns:110px 1fr 66px; align-items:center; gap:9px; font-size:10.5px }
+.cmp .row .lb{ color:var(--tx2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.cmp .track{ height:8px; background:var(--line); border-radius:5px; overflow:hidden }
+.cmp .fill{ height:100%; border-radius:5px; background:linear-gradient(90deg,var(--gold-deep),var(--gold-hi)) }
+.cmp .fill.red{ background:linear-gradient(90deg,#7a2b2b,var(--up)) }
+.cmp .vn{ text-align:right; font-weight:600 }
+
+/* ---- 免責頁 ---- */
+.disc-title{ font-family:"Noto Serif TC",serif; font-size:22px; color:#F3F1EA; margin-bottom:14px }
+.disc-body{ font-size:11px; color:var(--tx2); line-height:1.85 }
+.disc-body b{ color:var(--tx) }
+.disc-src{ margin-top:14px; font-size:10px; color:var(--tx3); line-height:1.7; border-top:1px solid var(--line); padding-top:10px }

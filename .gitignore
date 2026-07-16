@@ -165,3 +165,8 @@ quant-service/output/ecommerce_ready/
 
 # 編輯備份檔
 *.bak-*
+
+# 電商 v2 mockup 生成物(可由 mockup/render.py、xlsx_dashboard_sample.py 重生)
+quant-service/ecommerce/mockup/*.pdf
+quant-service/ecommerce/mockup/*.png
+quant-service/ecommerce/mockup/*.xlsx
