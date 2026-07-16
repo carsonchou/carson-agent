@@ -135,7 +135,12 @@ def test_s7_groups_crash_under_real_code():
 
 
 def test_s8_median_and_positive_pct():
-    s = W.gate_or_degrade(W.sec_S8(_adaptive()))
+    # S8 改成每月輪替 3 個主題(REVIEW #1:舊版標「月度輪替」卻什麼都沒輪),
+    # 只有「主題 0」用 adaptive_per_stock → 本測試釘住主題 0 的月份(2026-06)。
+    import datetime as _dt
+    day = _dt.date(2026, 6, 15)
+    assert W.s8_theme_index(day) == 0, "測試前提:該月須為主題 0(用 adaptive 的那個)"
+    s = W.gate_or_degrade(W.sec_S8(_adaptive(), today=day))
     assert not s["degraded"]
     html = "".join(s["units"])
     assert "4" in html   # 樣本 4 檔
@@ -162,8 +167,20 @@ def test_failsafe_valuation_all_null():
 
 
 def test_failsafe_empty_checkup_and_adaptive():
+    import datetime as _dt
     assert W.sec_S7({"results": {}, "by_code": {}})["degraded"]
-    assert W.sec_S8([])["degraded"]
+    # 主題 0 才吃 adaptive;其餘主題各有自己的來源檔(見下一個測試)
+    assert W.sec_S8([], today=_dt.date(2026, 6, 15))["degraded"]
+
+
+def test_failsafe_every_s8_theme_degrades_when_its_source_missing(monkeypatch):
+    """輪替後每個主題有各自的來源檔 —— 任一缺檔都要降級成明確說明,不是炸、也不是靜默出空段。"""
+    import datetime as _dt
+    monkeypatch.setattr(W, "_load_csv_floats", lambda *a, **k: [])   # 主題 1/2 的來源全空
+    for month in (3, 4, 5):        # 涵蓋主題 0 / 1 / 2
+        s = W.sec_S8([], today=_dt.date(2026, month, 15))
+        assert s["degraded"], f"{month} 月主題來源缺檔卻沒降級"
+        assert "無" in "".join(s["units"])
 
 
 # ── provenance fail-closed:餵未溯源績效數字 → gate 擋下降級 ────────────────────

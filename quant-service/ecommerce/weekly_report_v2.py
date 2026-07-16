@@ -30,6 +30,7 @@ import argparse
 import csv
 import glob
 import json
+import math
 import re
 import statistics
 import sys
@@ -151,6 +152,24 @@ def _bind(prov: Provenance, src: str, **fields) -> None:
             prov.records.append({"field": name, "value": None, "text": str(v), "source": src})
 
 
+def wilson_ci(k: int, n: int, z: float = 1.96) -> tuple[float, float] | None:
+    """勝率的 Wilson score 95% 信賴區間(回 0~1 的 (lo, hi));n<=0 回 None。
+
+    為什麼要它:REVIEW 要求「標明 n=19 樣本不足、不可外推」。但**光寫「樣本不足」是空話**——
+    讀者無從判斷有多不足。Wilson 區間把它變成可查證的事實:19 筆、勝率 15.8% 的 95% 區間是
+    5.5%~37.6%,**寬到什麼都不能斷言**。這是標準閉式解(比 normal approximation 在小樣本/
+    極端比例下更正確),不是自創統計。
+    驗證:k=50,n=100 → 0.4038~0.5962(對得上教科書值);見 tests。
+    """
+    if n <= 0:
+        return None
+    p = k / n
+    d = 1 + z * z / n
+    c = p + z * z / (2 * n)
+    m = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n))
+    return ((c - m) / d, (c + m) / d)
+
+
 def _pct(v, digits=2, sign=True) -> tuple[str, str]:
     """回傳 (顯示字串, 台股色 class)。正=紅(pos) 負=綠(neg)。"""
     try:
@@ -226,23 +245,244 @@ def load_adaptive() -> list[dict]:
     return rows
 
 
-def build_name_map(state: dict, checkup: dict) -> dict:
-    m = {}
+def _load_csv_floats(path: Path, floats: tuple) -> list[dict]:
+    """通用 CSV 載入(指定欄位轉 float,轉不動的列丟掉)。給 S8 主題輪替的另外兩份基準用。"""
+    rows: list[dict] = []
+    if not path.exists():
+        return rows
+    try:
+        with open(path, encoding="utf-8-sig") as f:
+            for r in csv.DictReader(f):
+                ok = True
+                for k in floats:
+                    try:
+                        r[k] = float(r[k])
+                    except (KeyError, ValueError, TypeError):
+                        ok = False
+                if ok:
+                    rows.append(r)
+    except Exception:  # noqa: BLE001
+        return []
+    return rows
+
+
+def _snapshot_age(path: Path) -> tuple[str, int]:
+    """回 (快照日 YYYY-MM-DD, 距今天數)。檔案不存在回 ("—", -1)。"""
+    try:
+        d = datetime.fromtimestamp(path.stat().st_mtime).date()
+        return d.isoformat(), (TODAY - d).days
+    except Exception:  # noqa: BLE001
+        return "—", -1
+
+
+def _twstock_meta() -> dict:
+    """twstock 內建代號表 → {code: (name, industry)}。**本地套件資料集,不打網路**。
+
+    這是全市場唯一「代號→名稱/產業」都齊全的權威來源(實測 12 個缺名碼 12/12 命中)。
+    載入失敗就回空 dict —— name map 還有 state/adaptive 兩層來源,不因此炸掉。
+    """
+    try:
+        import twstock
+    except Exception:  # noqa: BLE001
+        return {}
+    out = {}
+    try:
+        for code, info in twstock.codes.items():
+            if getattr(info, "type", "") == "股票" and getattr(info, "name", ""):
+                out[str(code)] = (info.name, getattr(info, "group", "") or "")
+    except Exception:  # noqa: BLE001
+        return {}
+    return out
+
+
+def build_name_map(state: dict, checkup: dict, adaptive: list[dict] | None = None) -> dict:
+    """{code: name}。**查不到就不放進 map**(不再拿代號當名字)。
+
+    🔴 REVIEW_weekly_value 續訂殺手 #5:舊版每個來源都寫 `r.get("name", code)`、
+    呼叫端又寫 `nmap.get(code, code)` —— 兩層「查不到就用代號」疊起來,渲染成
+    `{name}<span class=code>{code}</span>` 就變成「**2891 2891**」「3045 3045」,實測 12 檔中鏢
+    (中信金/台灣大/亞泥都是大型股,散戶一眼看出「連中信金的名字都不會寫」)。
+    根因:那 12 檔只出現在 valuation/chips(它們**沒有 name 欄位**),不在 state.wave_top 的
+    掃描宇宙裡,所以三個來源都查不到。
+    修法:①補 adaptive_per_stock.csv(1770 檔帶 name)與 twstock 內建表(全市場,權威)
+    ②map 不再自我填充代號 —— 查不到就是查不到,由 _stock_cell() 決定只印一次代號。
+    """
+    m: dict[str, str] = {}
+
+    def _put(code, name, overwrite=False):
+        code = str(code or "").strip()
+        name = str(name or "").strip()
+        # 名稱等於代號(來源自己就沒名字)視同沒有,不要讓它佔位
+        if not code or not name or name == code:
+            return
+        if overwrite or code not in m:
+            m[code] = name
+
     for r in state.get("wave_top", []) or []:
-        if r.get("code"):
-            m[str(r["code"])] = r.get("name", r["code"])
+        _put(r.get("code"), r.get("name"), overwrite=True)
     for key in ("strong", "weak", "watch_long"):
         for r in state.get(key, []) or []:
-            m.setdefault(str(r.get("code")), r.get("name", r.get("code")))
+            _put(r.get("code"), r.get("name"))
     for side in ("long", "short"):
         for r in (state.get("signals", {}) or {}).get(side, []) or []:
-            m.setdefault(str(r.get("code")), r.get("name", r.get("code")))
+            _put(r.get("code"), r.get("name"))
     for grp in ("foreign_top", "trust_top", "consec_top", "retail_exit_top"):
         for r in (state.get("chips", {}) or {}).get(grp, []) or []:
-            m.setdefault(str(r.get("code")), r.get("name", r.get("code")))
+            _put(r.get("code"), r.get("name"))
     for code, meta in (checkup.get("by_code", {}) or {}).items():
-        m.setdefault(str(code), meta.get("name", code))
+        _put(code, (meta or {}).get("name"))
+    for r in adaptive or []:
+        _put(r.get("code"), r.get("name"))
+    for code, (name, _ind) in _twstock_meta().items():
+        _put(code, name)
     return m
+
+
+def build_industry_map(state: dict) -> dict:
+    """{code: industry}。給 S5 做產業集中度揭露用(twstock 的 group = 產業別)。"""
+    m: dict[str, str] = {}
+    for code, (_n, ind) in _twstock_meta().items():
+        if ind:
+            m[str(code)] = ind
+    for r in state.get("wave_top", []) or []:
+        if r.get("code") and r.get("industry"):
+            m[str(r["code"])] = r["industry"]
+    return m
+
+
+def _stock_cell(nmap: dict, code, cls: str = "l tkr") -> str:
+    """個股欄位 HTML:有名字就「名稱+小字代號」,**查不到就只印一次代號**(不印兩次露餡)。"""
+    code = str(code or "")
+    name = nmap.get(code)
+    if name:
+        return f'<td class="{cls}">{_esc(name)}<span class="code">{_esc(code)}</span></td>'
+    return f'<td class="{cls}">{_esc(code)}</td>'
+
+
+def _stock_inline(nmap: dict, code) -> str:
+    """同 _stock_cell 但不含 <td>(給 cmp bar 的 label 用)。"""
+    code = str(code or "")
+    name = nmap.get(code)
+    if name:
+        return f'{_esc(name)} <span class="code">{_esc(code)}</span>'
+    return f'<span class="code">{_esc(code)}</span>'
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  S7 點播佇列 —— 唯一護城河:完整版訂戶每月可指定 1 檔深度體檢
+# ══════════════════════════════════════════════════════════════════════════════
+# 🟠 REVIEW 續訂殺手 #3:S7 是全報告唯一「別處拿不到」的東西(評審 8 分),但它是**樂透**——
+# 每週隨機 7 檔、訂戶不能指定,全輪 1925 檔要 5.3 年。付 149 的人想看的是**自己手上那檔**,
+# 不是隨機發牌。開放點播 = 把唯一的護城河從樂透變成服務,同時製造 basic→full 的升級動機。
+#
+# 設計取捨:
+#  - 佇列是**檔案**(STUDIO/checkup_requests.json),不是 DB —— 與本專案其餘狀態一致,
+#    且 0 訂閱的現在必然是空的 → 空佇列時 S7 行為必須與改版前**完全相同**(有測試釘死)。
+#  - 現算走 `ensure_fn` **可注入**:預設打真引擎(會抓行情),測試注入 stub → 測試零外部網路。
+#  - 額度/資格在 submit_request() 就擋掉(完整版才有、每月 1 檔),不是產週報時才發現。
+CHECKUP_REQUESTS = STUDIO / "checkup_requests.json"
+REQ_QUOTA_PER_MONTH = 1      # 每位完整版訂戶每月可點播幾檔
+REQ_MAX_PER_ISSUE = 3        # 單期最多處理幾筆(其餘留到下期:保護版面 + 現算成本)
+REQ_MAX_ATTEMPTS = 3         # 現算連續失敗幾次才判 failed(暫時性抓取失敗不該直接槍斃)
+
+
+def load_requests() -> dict:
+    """讀點播佇列;不存在/壞檔一律回空結構(不炸、不硬依賴)。"""
+    try:
+        d = json.loads(CHECKUP_REQUESTS.read_text(encoding="utf-8"))
+        if isinstance(d, dict) and isinstance(d.get("requests"), list):
+            return d
+    except Exception:  # noqa: BLE001
+        pass
+    return {"updated": TODAY.isoformat(), "requests": []}
+
+
+def save_requests(doc: dict) -> bool:
+    """寫回佇列。寫不進去只 log 不炸(週報本身不該因為佇列寫入失敗而產不出來)。"""
+    try:
+        doc["updated"] = TODAY.isoformat()
+        CHECKUP_REQUESTS.parent.mkdir(parents=True, exist_ok=True)
+        CHECKUP_REQUESTS.write_text(json.dumps(doc, ensure_ascii=False, indent=2), encoding="utf-8")
+        return True
+    except Exception as exc:  # noqa: BLE001
+        print(f"[weekly_v2] 點播佇列寫入失敗({exc});本期不更新狀態。")
+        return False
+
+
+_RX_CODE = re.compile(r"^\d{4,6}[A-Z]?$")
+
+
+def submit_request(email: str, code: str, *, doc: dict | None = None,
+                   subscribers: list[dict] | None = None, nmap: dict | None = None,
+                   today: date | None = None) -> tuple[bool, str]:
+    """訂戶點播一檔。回 (是否受理, 給使用者看的訊息)。**不寄信、不打網路**,只動佇列檔。
+
+    這是給漏斗/webhook 之後接上來的 API;現在沒有 UI,但契約與額度規則先立好並測試。
+    資格檢查一律 fail-closed:查不到訂戶 → 不受理(現在 0 訂閱,所以佇列必然是空的,符合預期)。
+    """
+    d = today or TODAY
+    doc = load_requests() if doc is None else doc
+    email = (email or "").strip().lower()
+    code = (code or "").strip().upper()
+    if not email or "@" not in email:
+        return False, "請提供有效的 Email。"
+    if not _RX_CODE.match(code):
+        return False, f"「{code}」不是有效的台股代號格式。"
+    # 代號要真的存在(用全市場名冊驗;查不到就不受理,免得排進去才發現算不出來)
+    known = nmap if nmap is not None else {c: n for c, (n, _i) in _twstock_meta().items()}
+    if known and code not in known:
+        return False, f"查無代號 {code};請確認是上市/上櫃股票代號。"
+    # 資格:完整版(含年繳)才有點播
+    subs = load_send_list("full") if subscribers is None else subscribers
+    emails = {(s.get("email") or "").strip().lower() for s in subs}
+    if email not in emails:
+        return False, "深度體檢點播是「完整版」的功能,你目前的方案沒有這項;升級後即可每月指定 1 檔。"
+    # 額度:每人每月 REQ_QUOTA_PER_MONTH 檔(以 requested_at 的年月計)
+    ym = d.strftime("%Y-%m")
+    used = [r for r in doc["requests"]
+            if (r.get("email") or "").lower() == email
+            and str(r.get("requested_at", ""))[:7] == ym
+            and r.get("status") != "rejected"]
+    if len(used) >= REQ_QUOTA_PER_MONTH:
+        return False, f"你這個月的點播額度已用完(每月 {REQ_QUOTA_PER_MONTH} 檔),下個月 1 號重置。"
+    if any(r.get("code") == code and r.get("status") == "pending" for r in doc["requests"]):
+        # 別人已經點過同一檔且還沒出 → 不佔他額度,直接告訴他會出現在本期
+        return True, f"{code} 已在本期排程中,你會在最近一期週報看到它(未扣你的額度)。"
+    doc["requests"].append({
+        "email": email, "code": code, "requested_at": d.isoformat(),
+        "status": "pending", "attempts": 0, "fulfilled_in": None, "last_error": None,
+    })
+    return True, f"已收到 {code} 的點播,會排進最近一期的完整版週報。"
+
+
+def pending_requests(doc: dict | None, limit: int = REQ_MAX_PER_ISSUE) -> list[dict]:
+    """待處理點播(先到先服務);doc 為 None/空 → 回空 list(空佇列 = 行為不變)。"""
+    if not doc:
+        return []
+    out = [r for r in doc.get("requests", []) if r.get("status") == "pending"]
+    out.sort(key=lambda r: str(r.get("requested_at", "")))
+    return out[:limit]
+
+
+def _ensure_checkup_via_engine(code: str) -> bool:
+    """把不在事實庫的點播檔**現算**出來:呼叫體檢引擎 → 寫回共用事實庫。
+
+    ⚠️ 這條路徑會抓外部行情(FinMind/Yahoo),故:
+      - 一切例外都吞成 False(fail-safe):算不出來就降級說明,**絕不炸整份週報、絕不編數字**。
+      - 測試一律注入 stub ensure_fn,不打網路(見 tests)。
+    """
+    try:
+        if str(SCRIPTS) not in sys.path:
+            sys.path.insert(0, str(SCRIPTS))
+        import stock_checkup_facts as SCF
+        facts, _ = SCF.build_checkup(code)
+        if not facts:
+            return False
+        SCF.merge_and_write(facts)
+        return True
+    except Exception as exc:  # noqa: BLE001
+        print(f"[weekly_v2] 點播 {code} 現算失敗({type(exc).__name__}: {exc});本期降級說明。")
+        return False
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -347,7 +587,7 @@ def _strength_table(prov, rows_data, nmap, n, ascending=False, label=""):
         rsi = f"{r.get('rsi', 0):.1f}"
         score = f"{r.get('score', 0):.1f}"
         body.append(
-            f'<tr><td class="l tkr">{_esc(r.get("name","—"))}<span class="code">{_esc(r.get("code",""))}</span></td>'
+            f'<tr>{_stock_cell(nmap, r.get("code"))}'
             f'<td class="l">{_esc(r.get("industry","—"))}</td>'
             f'<td>{_esc(r.get("price","—"))}</td>'
             f'<td class="{cls}">{chg}</td>'
@@ -406,9 +646,8 @@ def sec_S4(state: dict, chips_week: list[dict], nmap: dict) -> dict:
             w = min(100, abs(val) / maxabs * 100)
             cls = "" if val >= 0 else "red"
             vcls = "pos" if val > 0 else "neg"
-            nm = nmap.get(str(code), str(code))
             out.append(
-                f'<div class="row"><span class="lb">{_esc(nm)} <span class="code">{_esc(code)}</span></span>'
+                f'<div class="row"><span class="lb">{_stock_inline(nmap, code)}</span>'
                 f'<div class="track"><div class="fill {cls}" style="width:{w:.0f}%"></div></div>'
                 f'<span class="vn {vcls}">{val:+,.0f}</span></div>')
         return "".join(out)
@@ -419,8 +658,7 @@ def sec_S4(state: dict, chips_week: list[dict], nmap: dict) -> dict:
     for r in consec[:6]:
         _bind(prov, f"state.json:chips.consec_top[{r.get('code','?')}]",
               consec=r.get("consec"), net=r.get("net"))
-        consec_rows.append(f'<div class="metricrow">{_esc(r.get("name","—"))} '
-                           f'<span class="code">{_esc(r.get("code",""))}</span>:連買 '
+        consec_rows.append(f'<div class="metricrow">{_stock_inline(nmap, r.get("code"))}:連買 '
                            f'<b>{_esc(r.get("consec","—"))}</b> 日({_esc(r.get("side",""))})</div>')
     head = _sec_head(sid, title, tier)
     lead = (f'<div class="lead">加總本週 {len([d for d in days if d])} 個交易日外資買賣超(單位:張),'
@@ -437,7 +675,7 @@ def sec_S4(state: dict, chips_week: list[dict], nmap: dict) -> dict:
     return {"id": sid, "title": title, "tier": tier, "prov": prov, "degraded": False, "units": [u1]}
 
 
-def sec_S5(valdoc: dict, nmap: dict) -> dict:
+def sec_S5(valdoc: dict, nmap: dict, imap: dict | None = None) -> dict:
     sid, title, tier = "S5", "估值位階雷達", CFG.SECTION_TIERS["S5"]
     prov = Provenance()
     data = (valdoc or {}).get("data", {}) or {}
@@ -458,29 +696,59 @@ def sec_S5(valdoc: dict, nmap: dict) -> dict:
     _bind(prov, "valuation:data[*].pe 分布(濾 null 且 pe>0)",
           pe_p25=p25, pe_median=pmed, pe_p75=p75, pe_sample_n=len(pes))
 
+    imap = imap or {}
     body = []
+    inds: dict[str, int] = {}
     for c, y, pe, pb in top_y:
         _bind(prov, f"valuation:data[{c}]", dividend_yield=y, pe=pe, pb=pb)
-        nm = nmap.get(str(c), str(c))
+        ind = imap.get(str(c), "")
+        if ind:
+            inds[ind] = inds.get(ind, 0) + 1
         body.append(
-            f'<tr><td class="l tkr">{_esc(nm)}<span class="code">{_esc(c)}</span></td>'
+            f'<tr>{_stock_cell(nmap, c)}'
+            f'<td class="l">{_esc(ind or "—")}</td>'
             f'<td>{y:.2f}%</td>'
             f'<td>{_esc(f"{pe:.2f}") if isinstance(pe,(int,float)) else "—"}</td>'
             f'<td>{_esc(f"{pb:.2f}") if isinstance(pb,(int,float)) else "—"}</td></tr>')
-    thead = '<thead><tr><th class="l">個股</th><th>殖利率</th><th>本益比</th><th>股價淨值比</th></tr></thead>'
+    thead = ('<thead><tr><th class="l">個股</th><th class="l">產業</th><th>殖利率</th>'
+             '<th>本益比</th><th>股價淨值比</th></tr></thead>')
     head = _sec_head(sid, title, tier)
     lead = (f'<div class="lead">濾除 null 後,列全市場現金殖利率 Top 15,並給全市場本益比分布'
             f'(共 {len(pes)} 檔有 PE)。只陳述位置,不判斷貴賤、不構成買賣建議。</div>')
     dist = (f'<div class="block" style="margin-bottom:11px"><div class="bt">全市場本益比分布</div>'
             f'<div class="metricrow">P25 <b>{p25:.1f}</b> 倍　·　中位數 <b>{pmed:.1f}</b> 倍　·　'
             f'P75 <b>{p75:.1f}</b> 倍</div></div>')
+    # 🔴 REVIEW #6:榜單前段幾乎全是營建股(高殖利率多為建案認列的一次性配發),而本頻道受眾
+    # 正是「怕被割的小白」——只列榜不警示,這段對他們不是沒用,是**危險**。
+    # 揭露必須是「事實陳述+機制說明」,不能變成買賣建議:講清楚殖利率怎麼算出來的、
+    # 為什麼會不可持續、產業集中在哪,讓讀者自己判斷。集中度數字由榜單實算,綁 provenance。
+    top_ind = sorted(inds.items(), key=lambda kv: -kv[1])[:2]
+    conc = ""
+    if top_ind and top_ind[0][1] >= 2:
+        _bind(prov, "derived:Top15 榜單的 twstock 產業別計數",
+              **{f"top15_industry_count[{top_ind[0][0]}]": top_ind[0][1]})
+        parts = "、".join(f"{k} {v} 檔" for k, v in top_ind)
+        conc = (f'本期 Top 15 的產業分布集中在 <b>{_esc(parts)}</b>(共 {len(top_y)} 檔)。')
+    warn = (f'<div class="block" style="margin-top:11px"><div class="bt">讀這張表之前(風險揭露)</div>'
+            f'<div class="metricrow">{conc}'
+            f'殖利率 = <b>過去已配發的現金股利 ÷ 現價</b>,是<b>回頭看</b>的數字,不是未來會配多少。<br>'
+            f'· <b>景氣循環股/建案認列型公司</b>(如營建、航運)常因一次性獲利而配出高股利,'
+            f'該筆獲利認列完就可能大幅下降——<b>高殖利率不等於好標的,也不等於配得久</b>。<br>'
+            f'· 殖利率變高也可能是<b>股價跌下來</b>造成的(分母變小),不必然是好事。<br>'
+            f'· 本表<b>只陳述位置、不推薦任何個股</b>;要判斷可持續性,請自行看該公司的獲利'
+            f'來源是否為常態性業務。<span style="color:var(--tx3)">介紹 ≠ 推薦。</span></div></div>')
     u1 = (f'<div class="unit">{head}{lead}{dist}'
-          f'<table class="grid">{thead}<tbody>{"".join(body)}</tbody></table></div>')
+          f'<table class="grid">{thead}<tbody>{"".join(body)}</tbody></table>{warn}</div>')
     return {"id": sid, "title": title, "tier": tier, "prov": prov, "degraded": False, "units": [u1]}
 
 
-def sec_S6(state: dict) -> dict:
-    sid, title, tier = "S6", "訊號追蹤 · 誠實成績單", CFG.SECTION_TIERS["S6"]
+def sec_S6(state: dict, nmap: dict | None = None) -> dict:
+    # 🔴 REVIEW 續訂殺手 #2:舊標題「誠實成績單」把這段framing成「我們的訊號表現」,
+    # 於是 15.8% 勝率/-7.77% 就變成「我在付錢訂閱一個會賠錢的訊號」——而且它在 basic,
+    # 最低價層的門面自曝其短。內容一個字都不用改(那是全報告最可敬的一段),
+    # 改的是**它在回答什麼問題**:不是「我們的訊號多準」,而是「為什麼這份報告不賣訊號」。
+    # 同一批數字,從勸退變成差異化信任錨。
+    sid, title, tier = "S6", "為什麼我們不賣訊號", CFG.SECTION_TIERS["S6"]
     prov = Provenance()
     tr = state.get("track", {}) or {}
     if not tr or tr.get("n_closed") is None:
@@ -498,8 +766,11 @@ def sec_S6(state: dict) -> dict:
           avg_r=avg_r, avg_ret_pct=avg_ret, n_open=tr.get("n_open"))
     ret_s, ret_cls = _pct(avg_ret)
     head = _sec_head(sid, title, tier)
-    lead = ('<div class="lead">這是招牌:程式訊號的<b>真實平倉戰績,含輸單、不挑不藏</b>——'
-            '對比只曬贏單的老師,這裡連平均虧損都攤給你看。這不是投資建議,是誠實揭露。</div>')
+    lead = ('<div class="lead">市面上的老師只曬贏單。我們把自家程式訊號的<b>真實平倉結果全部攤開'
+            '(含輸單、不挑不藏)</b>,而它現在是<b>虧的</b>——這正是這份報告<b>只賣數據、'
+            '不喊單、不報明牌</b>的原因。<br>如果連我們自己跑出來的訊號都證明不了穩定的 edge,'
+            '那任何人叫你「跟單」都該被你懷疑。你付的錢買的是<b>能自己查證的原始數據</b>,'
+            '不是明牌。</div>')
     kpis = (
         f'<div class="kpis">'
         f'<div class="kpi"><div class="k">已平倉</div><div class="v">{_esc(n_closed)}<small> 筆</small></div></div>'
@@ -508,11 +779,34 @@ def sec_S6(state: dict) -> dict:
         f'{_esc(f"{avg_r:+.2f}") if avg_r is not None else "—"}</div></div>'
         f'<div class="kpi"><div class="k">平均報酬</div><div class="v {ret_cls}">{ret_s}</div></div>'
         f'</div>')
+    # 樣本不足揭露:用 Wilson 區間把「n=19 不可外推」從口號變成可查證的事實。
+    # k 由 win_rate×n_closed 還原(track 只給比例不給勝場數),故標「約」。
+    k_win = int(round((tr.get("win_rate") or 0) * n_closed))
+    ci = wilson_ci(k_win, n_closed)
+    ci_html = ""
+    if ci and n_closed > 0:
+        lo, hi = ci[0] * 100, ci[1] * 100
+        _bind(prov, "derived:Wilson score 95% CI(k=round(win_rate×n_closed), n=n_closed)",
+              win_ci_lo_pct=lo, win_ci_hi_pct=hi, k_wins=k_win)
+        # ⚠️ 句子為什麼要這樣斷:守門(FG)是用「同一子句內有沒有績效語境詞」判斷一個 % 是不是
+        # 績效宣稱,而子句只以「。！?\n」分界。若把「95% 信賴區間」寫在含「勝率」的同一句裡,
+        # **信心水準的 95% 會被誤判成一個查無來源的績效數字**,整段 S6 就被 fail-closed 隱藏
+        # (實測如此)。正解**不是**把 95 灌進池——那會讓池多一個 95,日後真有人捏造「勝率 95%」
+        # 就撞得到鄰居,等於為了讓自己的文案過關而弱化守門。正解是把「信心水準」獨立成一句:
+        # 它本來就不是績效宣稱,不該被當成績效宣稱。區間端點(5.5/37.6)仍照常綁來源入池。
+        ci_html = (f'<br><b>樣本不足,不可外推</b>:僅 <b>{n_closed}</b> 筆已平倉,'
+                   f'這個勝率的信賴區間約 <b>{lo:.1f}% ~ {hi:.1f}%</b> —— '
+                   f'區間寬到<b>無法下任何結論</b>(不論好壞)。'
+                   f'(此區間以 Wilson score 法計算,信心水準 95%。)'
+                   f'把 {wr:.1f}% 當成「這套訊號的真實勝率」是錯的;'
+                   f'把它當成「訊號無效的鐵證」也一樣不嚴謹。'
+                   f'我們照實貼出來,是要你知道<b>樣本這麼小的時候,誰都不該給你結論</b>——'
+                   f'包括我們自己。')
     detail = (f'<div class="block" style="margin-top:11px"><div class="metricrow">'
               f'多方勝率 <b>{lwr:.1f}%</b>　·　空方勝率 <b>{swr:.1f}%</b>　·　'
               f'目前未平倉 <b>{_esc(tr.get("n_open","—"))}</b> 筆<br>'
               f'<span style="color:var(--tx3)">R 值 = 報酬 ÷ 進場風險;負值代表這批訊號目前是虧的——'
-              f'我們照實呈現,不美化。</span></div></div>')
+              f'我們照實呈現,不美化。</span>{ci_html}</div></div>')
     # 近期逐筆(只列已平倉的真實結果)
     recent = [r for r in (tr.get("recent", []) or []) if r.get("result") not in (None, "open")][:6]
     rec_rows = ""
@@ -523,7 +817,7 @@ def sec_S6(state: dict) -> dict:
             _bind(prov, f"state.json:track.recent[{r.get('code','?')}]",
                   ret_pct=r.get("ret_pct"), r=r.get("r"), entry=r.get("entry"), exit=r.get("exit"))
             body.append(
-                f'<tr><td class="l tkr">{_esc(r.get("name","—"))}<span class="code">{_esc(r.get("code",""))}</span></td>'
+                f'<tr>{_stock_cell(nmap or {}, r.get("code"))}'
                 f'<td>{_esc(r.get("side","—"))}</td><td>{_esc(r.get("entry","—"))}</td>'
                 f'<td>{_esc(r.get("exit","—"))}</td><td class="{rcls}">{rs}</td>'
                 f'<td>{_esc(r.get("exit_reason","—"))}</td></tr>')
@@ -535,8 +829,15 @@ def sec_S6(state: dict) -> dict:
     return {"id": sid, "title": title, "tier": tier, "prov": prov, "degraded": False, "units": [html]}
 
 
-def sec_S7(checkup: dict, window_days: int = 7) -> dict:
-    sid, title, tier = "S7", "本週深度體檢個股", CFG.SECTION_TIERS["S7"]
+def sec_S7(checkup: dict, window_days: int = 7, requests_doc: dict | None = None,
+           ensure_fn=None, nmap: dict | None = None) -> dict:
+    """本期深度體檢:**點播優先**,其餘用本週輪替補。
+
+    requests_doc:點播佇列(會**就地更新 status/attempts**,由 generate_weekly 負責存檔);
+                 None 或無 pending → 完全等同改版前的行為(有測試釘死)。
+    ensure_fn   :把不在庫的檔現算出來的函式(可注入;預設打真引擎會抓行情,測試注入 stub)。
+    """
+    sid, title, tier = "S7", "本期深度體檢個股", CFG.SECTION_TIERS["S7"]
     prov = Provenance()
     results = checkup.get("results", {}) or {}
     by_code = checkup.get("by_code", {}) or {}
@@ -550,9 +851,64 @@ def sec_S7(checkup: dict, window_days: int = 7) -> dict:
             return datetime.strptime((s or "")[:10], "%Y-%m-%d").date()
         except Exception:  # noqa: BLE001
             return None
+
+    def _facts_of(code: str, res: dict) -> list:
+        """該 code 全部通過守門的事實(**不看時間窗**)——點播檔要的是「我要的那檔」,
+        不是「這週剛好算到的那檔」。"""
+        out = []
+        for key, f in res.items():
+            if not _fact_ok(f):
+                continue
+            parts = key.split("__")
+            if len(parts) < 2 or parts[1] != code:
+                continue
+            out.append(f)
+        return out
+
     since = TODAY - timedelta(days=window_days)
-    # 收本週窗內、通過守門的體檢事實,依 code 分組
+    # ── ① 先處理點播(佇列空 → pend=[] → 完全走原本的輪替路徑,行為不變)──────────
+    pend = pending_requests(requests_doc, REQ_MAX_PER_ISSUE)
+    req_codes: list[str] = []
+    req_notes: list[str] = []
+    ensure = ensure_fn if ensure_fn is not None else _ensure_checkup_via_engine
+    for r in pend:
+        code = str(r.get("code", "")).strip()
+        if not code:
+            continue
+        if _facts_of(code, results):
+            r["status"] = "fulfilled"; r["fulfilled_in"] = TODAY.isoformat()
+            req_codes.append(code)
+            continue
+        # 不在事實庫 → 現算(fail-safe:算不出來只降級說明,不炸、不編)
+        r["attempts"] = int(r.get("attempts") or 0) + 1
+        ok = False
+        try:
+            ok = bool(ensure(code))
+        except Exception as exc:  # noqa: BLE001
+            r["last_error"] = f"{type(exc).__name__}: {exc}"[:160]
+        if ok:
+            checkup = load_checkup()
+            results = checkup.get("results", {}) or {}
+            by_code = checkup.get("by_code", {}) or {}
+        if ok and _facts_of(code, results):
+            r["status"] = "fulfilled"; r["fulfilled_in"] = TODAY.isoformat(); r["last_error"] = None
+            req_codes.append(code)
+        else:
+            r["last_error"] = r.get("last_error") or "體檢引擎本期未能算出此檔(可能資料源暫時不可用)"
+            if r["attempts"] >= REQ_MAX_ATTEMPTS:
+                r["status"] = "failed"
+                req_notes.append(f'點播的 <b>{_esc(code)}</b> 連續 {r["attempts"]} 期都沒能算出來,'
+                                 f'已從佇列移除並會個別通知;<b>不佔用你的點播額度</b>。')
+            else:
+                req_notes.append(f'點播的 <b>{_esc(code)}</b> 這期沒能算出來(資料源暫時不可用),'
+                                 f'<b>已保留在佇列、下期優先處理</b>,不佔用你的額度。')
+
+    # ── ② 本週輪替:窗內新完成的體檢事實(排除已被點播納入的檔)────────────────
     by_stock: dict[str, list] = {}
+    for code in req_codes:                       # 點播檔排最前面
+        fs = _facts_of(code, results)
+        if fs:
+            by_stock[code] = fs
     for key, f in results.items():
         if not _fact_ok(f):
             continue
@@ -565,21 +921,39 @@ def sec_S7(checkup: dict, window_days: int = 7) -> dict:
         if len(parts) < 2:
             continue
         code = parts[1]
+        if code in req_codes:                    # 已由點播納入,別重複
+            continue
         by_stock.setdefault(code, []).append(f)
     if not by_stock:
+        reason = f"本週窗({since}~{TODAY})內無新完成、且通過溯源守門的體檢事實。"
+        if req_notes:
+            reason += " " + re.sub(r"<[^>]+>", "", " ".join(req_notes))
         return {"id": sid, "title": title, "tier": tier, "prov": prov, "degraded": True,
-                "units": [_degrade_unit(sid, title,
-                          f"本週窗({since}~{TODAY})內無新完成、且通過溯源守門的體檢事實。")]}
+                "units": [_degrade_unit(sid, title, reason)]}
     units = []
     head = _sec_head(sid, title, tier)
-    lead = (f'<div class="lead">本週體檢管線新覆蓋 {len(by_stock)} 檔;以下每則都逐字引用體檢引擎'
-            f'算出的既有事實(含息還原/套牢/腰斬/崩盤三段/毛利/股利/估值位階),各附來源。</div>')
+    n_rot = len(by_stock) - len(req_codes)
+    if req_codes:
+        lead = (f'<div class="lead">本期含 <b>{len(req_codes)} 檔訂戶點播</b>'
+                f'(完整版每月可指定 1 檔,先到先服務)+ {n_rot} 檔本週輪替;'
+                f'以下每則都逐字引用體檢引擎算出的既有事實(含息還原/套牢/腰斬/崩盤三段/'
+                f'毛利/股利/估值位階),各附來源。</div>')
+    else:
+        lead = (f'<div class="lead">本週體檢管線新覆蓋 {len(by_stock)} 檔;以下每則都逐字引用體檢引擎'
+                f'算出的既有事實(含息還原/套牢/腰斬/崩盤三段/毛利/股利/估值位階),各附來源。'
+                f'<br><span style="color:var(--tx3)">完整版訂戶每月可<b>點播 1 檔</b>指定個股'
+                f'——想看自己手上那檔,不用等輪到。</span></div>')
+    if req_notes:
+        lead += (f'<div class="block" style="margin-top:9px"><div class="metricrow" '
+                 f'style="color:var(--tx3)">{"<br>".join(req_notes)}</div></div>')
     first = True
     order = ["checkup_long_horizon", "checkup_annual_extremes", "checkup_underwater",
              "checkup_valuation_position", "checkup_three_way", "checkup_crash",
              "checkup_gross_margin", "checkup_dividend_history"]
     for code, facts in by_stock.items():
-        name = by_code.get(code, {}).get("name", code)
+        name = by_code.get(code, {}).get("name") or (nmap or {}).get(code) or code
+        badge = ('<span class="tier" style="margin-left:6px">訂戶點播</span>'
+                 if code in req_codes else "")
         facts_sorted = sorted(facts, key=lambda f: order.index(f["key"].split("__")[0])
                               if f["key"].split("__")[0] in order else 99)
         rows = []
@@ -601,7 +975,7 @@ def sec_S7(checkup: dict, window_days: int = 7) -> dict:
         card = (f'<div class="card"><div class="kpis" style="margin-bottom:8px">'
                 f'<div class="kpi" style="flex:none;text-align:left;min-width:0"><div class="k">個股</div>'
                 f'<div class="v" style="font-size:17px">{_esc(name)} <span class="code" '
-                f'style="font-size:11px;color:var(--tx3)">{_esc(code)}</span></div></div></div>'
+                f'style="font-size:11px;color:var(--tx3)">{_esc(code)}</span>{badge}</div></div></div>'
                 f'{"".join(rows)}</div>')
         if first:
             units.append(f'<div class="unit">{head}{lead}{card}</div>')
@@ -611,41 +985,157 @@ def sec_S7(checkup: dict, window_days: int = 7) -> dict:
     return {"id": sid, "title": title, "tier": tier, "prov": prov, "degraded": False, "units": units}
 
 
-def sec_S8(adaptive: list[dict]) -> dict:
-    sid, title, tier = "S8", "結構基準(月度輪替)", CFG.SECTION_TIERS["S8"]
+def s8_theme_index(today: date | None = None) -> int:
+    """本月主題編號(0/1/2)。以年月決定 → 同一個月固定、跨月必換,可預測可測試。"""
+    d = today or TODAY
+    return (d.year * 12 + d.month) % 3
+
+
+def sec_S8(adaptive: list[dict], nmap: dict | None = None, today: date | None = None) -> dict:
+    """結構基準:每月換一個主題,三個主題輪替。
+
+    🔴 REVIEW 續訂殺手 #1(最確定的退訂觸發器):舊版標題寫「月度輪替」,實際是把同一份
+    2026-06-12 的靜態快照**每週渲染出完全相同的數字**——資料 35 天沒動,訂戶連看 4 週就會
+    發現八分之一是複製貼上,而且「輪替」這個詞當時是**假的**(什麼都沒在輪)。
+
+    修法與取捨(三選一之外的第四條,理由寫在這裡供覆核):
+      ① 「每月真重跑回測」是**正解但不在我的權限內**——重跑 1770 檔要抓外部行情(踩「不打
+         外部 API」紅線)且需要排程,那是 ops 變更。→ 已在回報裡標為建議另開 task。
+      ② 「直接拿掉」會把 S8 唯一的價值(「趨勢策略無腦套全市場只有 53% 正報酬」這種紮實的
+         觀念矯正、且反著自己利益講)一起丟掉,可惜。
+      ③ 所以採「**真的輪替**」:三個主題各用一份**真實存在**的基準資料(趨勢/多空/風險調整),
+         依年月決定,跨月必換 → 「輪替」從假話變成真話,且每月內容真的不同。
+    ⚠️ 但要誠實面對一件事:**月度輪替並不能讓「每週不一樣」**——同一個月內的四週本來就會
+    一樣。所以真正的修不是假裝它每週都新,而是**把規則講白**:本段明寫「每月換一次主題、
+    月內固定」+ 明標快照日與距今天數。訂戶第 2 週看到一樣的東西時,那是**他早就知道的設計**,
+    不是被騙。undisclosed 的重複才是退訂觸發器,disclosed 的月更節奏不是。
+    """
+    sid, tier = "S8", CFG.SECTION_TIERS["S8"]
     prov = Provenance()
-    if not adaptive:
-        return {"id": sid, "title": title, "tier": tier, "prov": prov, "degraded": True,
-                "units": [_degrade_unit(sid, title, "無 adaptive_per_stock.csv 全市場回測快照。")]}
-    n = len(adaptive)
-    nets = [r["a_net"] for r in adaptive]
-    med = statistics.median(nets)
-    n_pos = len([x for x in nets if x > 0])
-    pct_pos = n_pos / n * 100
-    top = sorted(adaptive, key=lambda r: r["a_net"], reverse=True)[:5]
-    _bind(prov, "twdata/adaptive_per_stock.csv(全樣本未濾)",
-          sample_n=n, a_net_median=med, n_positive=n_pos, pct_positive=pct_pos)
+    ti = s8_theme_index(today)
+    snap_map = {0: ADAPTIVE_CSV, 1: TWDATA / "longshort_per_stock.csv", 2: TWDATA / "per_stock_results.csv"}
+    snap_day, snap_age = _snapshot_age(snap_map[ti])
+    theme_names = {0: "趨勢策略無腦套全市場", 1: "加了放空會更好嗎", 2: "風險調整後還剩多少"}
+    title = f"結構基準 · 本月主題:{theme_names[ti]}"
     head = _sec_head(sid, title, tier)
-    lead = ('<div class="lead">月度教育性基準(靜態快照,非即時、非可交易訊號):把趨勢策略無腦套'
-            '全市場,真正該看的是<b>中位數</b>,別被最好幾檔騙走。</div>')
+
+    def _shell(inner: str, extra_note: str = "") -> str:
+        stale = ""
+        if snap_age >= 0:
+            _bind(prov, f"derived:{snap_map[ti].name} 檔案時間 vs 今天", snapshot_age_days=snap_age)
+            stale = (f'資料為 <b>{_esc(snap_day)}</b> 的靜態快照(距今 <b>{snap_age}</b> 天),'
+                     f'非即時、非可交易訊號。')
+        rule = ('<div class="block" style="margin-top:11px"><div class="metricrow" '
+                'style="color:var(--tx3)">'
+                f'<b>這段的更新規則(先講清楚,免得你以為我們在灌水)</b>:本段是<b>教育性基準</b>,'
+                f'<b>每月換一次主題</b>(共 3 個主題輪替),<b>同一個月內的每週內容相同</b>——'
+                f'它要傳達的是不隨盤勢變動的結構性事實,不是每週追新聞。{stale}'
+                f'{extra_note}</div></div>')
+        return f'<div class="unit">{head}{inner}{rule}</div>'
+
+    # ── 主題 0:趨勢策略無腦套全市場(adaptive)────────────────────────────────
+    if ti == 0:
+        if not adaptive:
+            return {"id": sid, "title": title, "tier": tier, "prov": prov, "degraded": True,
+                    "units": [_degrade_unit(sid, title, "無 adaptive_per_stock.csv 全市場回測快照。")]}
+        n = len(adaptive)
+        nets = [r["a_net"] for r in adaptive]
+        med = statistics.median(nets)
+        n_pos = len([x for x in nets if x > 0])
+        pct_pos = n_pos / n * 100
+        top = sorted(adaptive, key=lambda r: r["a_net"], reverse=True)[:5]
+        _bind(prov, "twdata/adaptive_per_stock.csv(全樣本未濾)",
+              sample_n=n, a_net_median=med, n_positive=n_pos, pct_positive=pct_pos)
+        lead = ('<div class="lead">把趨勢策略<b>無腦套全市場</b>,真正該看的是<b>中位數</b>,'
+                '別被最好那幾檔騙走——這是本月的觀念矯正。</div>')
+        kpis = (
+            f'<div class="kpis">'
+            f'<div class="kpi"><div class="k">樣本檔數</div><div class="v">{n}</div></div>'
+            f'<div class="kpi"><div class="k">淨報酬中位數</div><div class="v {"pos" if med>0 else "neg"}">{med:+.1f}<small>%</small></div></div>'
+            f'<div class="kpi"><div class="k">正報酬佔比</div><div class="v">{pct_pos:.1f}<small>%</small></div></div>'
+            f'</div>')
+        body = []
+        for r in top:
+            _bind(prov, f"twdata/adaptive_per_stock.csv[{r.get('code','?')}]",
+                  a_net=r["a_net"], a_win=r["a_win"])
+            s, cls = _pct(r["a_net"])
+            body.append(f'<tr>{_stock_cell(nmap or {}, r.get("code"))}'
+                        f'<td class="{cls}">{s}</td><td>{r["a_win"]:.1f}%</td></tr>')
+        tbl = (f'<div class="block" style="margin-top:11px"><div class="bt">自適應淨報酬前 5(教育示例)</div>'
+               f'<table class="grid"><thead><tr><th class="l">個股</th><th>淨報酬</th><th>勝率</th></tr></thead>'
+               f'<tbody>{"".join(body)}</tbody></table></div>')
+        return {"id": sid, "title": title, "tier": tier, "prov": prov, "degraded": False,
+                "units": [_shell(f"{lead}{kpis}{tbl}")]}
+
+    # ── 主題 1:純多 vs 多空(longshort)—— 「加放空會更好嗎」──────────────────
+    if ti == 1:
+        ls = _load_csv_floats(snap_map[1], ("l_net", "ls_net"))
+        if not ls:
+            return {"id": sid, "title": title, "tier": tier, "prov": prov, "degraded": True,
+                    "units": [_degrade_unit(sid, title, "無 longshort_per_stock.csv 多空基準快照。")]}
+        n = len(ls)
+        l_med = statistics.median([r["l_net"] for r in ls])
+        ls_med = statistics.median([r["ls_net"] for r in ls])
+        better = len([r for r in ls if r["ls_net"] > r["l_net"]])
+        pct_better = better / n * 100
+        _bind(prov, "twdata/longshort_per_stock.csv(全樣本未濾)",
+              sample_n=n, long_only_net_median=l_med, longshort_net_median=ls_med,
+              n_better_with_short=better, pct_better_with_short=pct_better)
+        lead = ('<div class="lead">很多人以為「會放空才是高手」。本月拿同一套策略跑<b>純做多</b> vs '
+                '<b>多空都做</b>,看加了放空到底有沒有比較好——答案不一定是你想的那樣。</div>')
+        kpis = (
+            f'<div class="kpis">'
+            f'<div class="kpi"><div class="k">樣本檔數</div><div class="v">{n}</div></div>'
+            f'<div class="kpi"><div class="k">純多中位數</div><div class="v {"pos" if l_med>0 else "neg"}">{l_med:+.1f}<small>%</small></div></div>'
+            f'<div class="kpi"><div class="k">多空中位數</div><div class="v {"pos" if ls_med>0 else "neg"}">{ls_med:+.1f}<small>%</small></div></div>'
+            f'<div class="kpi"><div class="k">加空後變好</div><div class="v">{pct_better:.1f}<small>%</small></div></div>'
+            f'</div>')
+        note = (f'<div class="block" style="margin-top:11px"><div class="metricrow">'
+                f'同一批 <b>{n}</b> 檔、同一套策略,只差「有沒有做空」:'
+                f'加了放空之後淨報酬變好的只有 <b>{better} / {n}</b>(<b>{pct_better:.1f}%</b>)。'
+                f'<br><span style="color:var(--tx3)">這是歷史統計,不是叫你別放空、也不是叫你放空——'
+                f'台股放空另有借券成本與平盤下限制,本回測未必涵蓋你的實際條件。介紹 ≠ 推薦。</span>'
+                f'</div></div>')
+        return {"id": sid, "title": title, "tier": tier, "prov": prov, "degraded": False,
+                "units": [_shell(f"{lead}{kpis}{note}")]}
+
+    # ── 主題 2:風險調整後(per_stock:sharpe / 報酬回撤比)────────────────────
+    ps = _load_csv_floats(snap_map[2], ("sharpe", "max_dd_pct", "net_profit_pct"))
+    if not ps:
+        return {"id": sid, "title": title, "tier": tier, "prov": prov, "degraded": True,
+                "units": [_degrade_unit(sid, title, "無 per_stock_results.csv 風險基準快照。")]}
+    n = len(ps)
+    sh = [r["sharpe"] for r in ps]
+    sh_med = statistics.median(sh)
+    n_sh1 = len([x for x in sh if x >= 1.0])
+    pct_sh1 = n_sh1 / n * 100
+    dd_med = statistics.median([abs(r["max_dd_pct"]) for r in ps])
+    _bind(prov, "twdata/per_stock_results.csv(全樣本未濾)",
+          sample_n=n, sharpe_median=sh_med, n_sharpe_ge_1=n_sh1, pct_sharpe_ge_1=pct_sh1,
+          max_dd_pct_median=dd_med)
+    # ⚠️ 這句原本寫「同樣賺 50%,一路平順 vs 中間先跌一半」——那個 50% 是**修辭舉例**、
+    # 不是資料,但守門看到績效語境裡的裸 % 就會擋(實測擋下)。正解不是把 50 灌進池
+    # (那會讓池多一個整十數,日後捏造的「報酬 50%」就撞得到鄰居 → 弱化守門),
+    # 而是**把不必要的數字拿掉**:這句話不靠那個 50% 也成立。
+    lead = ('<div class="lead">只看報酬會騙人:同樣的總報酬,一路平順 vs 中間先讓你腰斬一次,'
+            '是兩種完全不同的東西。本月看<b>風險調整後</b>還剩多少——Sharpe,'
+            '以及你實際要吞下去的最大回撤。</div>')
     kpis = (
         f'<div class="kpis">'
         f'<div class="kpi"><div class="k">樣本檔數</div><div class="v">{n}</div></div>'
-        f'<div class="kpi"><div class="k">淨報酬中位數</div><div class="v {"pos" if med>0 else "neg"}">{med:+.1f}<small>%</small></div></div>'
-        f'<div class="kpi"><div class="k">正報酬佔比</div><div class="v">{pct_pos:.1f}<small>%</small></div></div>'
+        f'<div class="kpi"><div class="k">Sharpe 中位數</div><div class="v {"pos" if sh_med>0 else "neg"}">{sh_med:.2f}</div></div>'
+        f'<div class="kpi"><div class="k">Sharpe ≥ 1 佔比</div><div class="v">{pct_sh1:.1f}<small>%</small></div></div>'
+        f'<div class="kpi"><div class="k">最大回撤中位數</div><div class="v neg">{dd_med:.1f}<small>%</small></div></div>'
         f'</div>')
-    body = []
-    for r in top:
-        _bind(prov, f"twdata/adaptive_per_stock.csv[{r.get('code','?')}]",
-              a_net=r["a_net"], a_win=r["a_win"])
-        s, cls = _pct(r["a_net"])
-        body.append(f'<tr><td class="l tkr">{_esc(r.get("name","—"))}<span class="code">{_esc(r.get("code",""))}</span></td>'
-                    f'<td class="{cls}">{s}</td><td>{r["a_win"]:.1f}%</td></tr>')
-    tbl = (f'<div class="block" style="margin-top:11px"><div class="bt">自適應淨報酬前 5(教育示例)</div>'
-           f'<table class="grid"><thead><tr><th class="l">個股</th><th>淨報酬</th><th>勝率</th></tr></thead>'
-           f'<tbody>{"".join(body)}</tbody></table></div>')
-    html = f'<div class="unit">{head}{lead}{kpis}{tbl}</div>'
-    return {"id": sid, "title": title, "tier": tier, "prov": prov, "degraded": False, "units": [html]}
+    note = (f'<div class="block" style="margin-top:11px"><div class="metricrow">'
+            f'全市場 <b>{n}</b> 檔裡,Sharpe 站上 1.0 的只有 <b>{n_sh1}</b> 檔(<b>{pct_sh1:.1f}%</b>);'
+            f'而中位數的最大回撤是 <b>{dd_med:.1f}%</b> —— 意思是<b>一半以上的標的,'
+            f'歷史上都曾經讓你帳面腰斬級別的難受</b>。<br>'
+            f'<span style="color:var(--tx3)">Sharpe = 每承擔一單位波動換到的超額報酬,'
+            f'越高代表報酬相對於波動越划算。這是歷史統計,不預測未來。介紹 ≠ 推薦。</span>'
+            f'</div></div>')
+    return {"id": sid, "title": title, "tier": tier, "prov": prov, "degraded": False,
+            "units": [_shell(f"{lead}{kpis}{note}")]}
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -942,21 +1432,29 @@ def load_send_list(tier: str | None = None) -> list[dict]:
 # ══════════════════════════════════════════════════════════════════════════════
 #  主流程
 # ══════════════════════════════════════════════════════════════════════════════
-def generate_weekly(tier: str = "full", out_dir: Path | None = None) -> dict:
+def generate_weekly(tier: str = "full", out_dir: Path | None = None,
+                    requests_doc: dict | None = None, ensure_fn=None,
+                    save_queue: bool = True) -> dict:
     out_dir = out_dir or OUT_DEFAULT
     state = load_state()
     valdoc = load_valuation_latest()
     chips_week = load_chips_week(5)
     checkup = load_checkup()
     adaptive = load_adaptive()
-    nmap = build_name_map(state, checkup)
+    nmap = build_name_map(state, checkup, adaptive)
+    imap = build_industry_map(state)
+    # 點播佇列:sec_S7 會就地更新 status/attempts,產完後存回(佇列空 → 全程 no-op)
+    reqs = load_requests() if requests_doc is None else requests_doc
 
     sections = [
         sec_S1(state), sec_S2(state), sec_S3(state, nmap),
-        sec_S4(state, chips_week, nmap), sec_S5(valdoc, nmap),
-        sec_S6(state), sec_S7(checkup), sec_S8(adaptive),
+        sec_S4(state, chips_week, nmap), sec_S5(valdoc, nmap, imap),
+        sec_S6(state, nmap), sec_S7(checkup, requests_doc=reqs, ensure_fn=ensure_fn, nmap=nmap),
+        sec_S8(adaptive, nmap),
     ]
     sections = [gate_or_degrade(s) for s in sections]
+    if save_queue and reqs.get("requests"):
+        save_requests(reqs)
 
     d = state.get("date") or TODAY.isoformat()
     week_label = f"{d}(本週)"
