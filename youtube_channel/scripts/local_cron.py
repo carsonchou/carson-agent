@@ -154,11 +154,13 @@ def parse_jobs():
 def due(job, now: datetime) -> bool:
     mi, ho, dom, mon, dow, _, _ = job
     # cron dow: 0/7=Sun..6=Sat；python weekday(): Mon=0..Sun=6 → 轉換
+    # 2026-07-16 修:原本多了一個 `or match(dow, py)`(拿未換算的 python weekday 再比一次),
+    # 導致 dow 限定的 job 每週多跑一天(如 `* * 1-5` 實際一~六都跑)。只比換算後的 cron_dow。
     py = now.weekday()
     cron_dow = 0 if py == 6 else py + 1
     return (_cron_field_match(mi, now.minute) and _cron_field_match(ho, now.hour)
             and _cron_field_match(dom, now.day) and _cron_field_match(mon, now.month)
-            and (_cron_field_match(dow, cron_dow) or _cron_field_match(dow, py)))
+            and _cron_field_match(dow, cron_dow))
 
 
 def _wait_and_log(proc: subprocess.Popen, script: str):

@@ -7,12 +7,14 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 0 */2 * * * /root/yt/run.sh scripts/news_dept.py >> /root/yt/logs/cron.log 2>&1
 # 05:30 情報 → 05:37 決策 → 06:07 製作(渲染) → 09:07 發布 → 09:3x~09:5x 後處理各部門
 # 競品深度學習(看100支/天)改在本機跑(雲端IP會被YouTube 429限流)，本機 QuantArsen_IntelLearn 學完SFTP推playbook回來；雲端這支只做輕量情報報告。
-30 */6 * * * /root/yt/run.sh scripts/intel_dept.py --no-learn >> /root/yt/logs/cron.log 2>&1
+# 2026-07-16 配額預算輪值制:每6h→週六一次(重置前吃剩飯),省 2,400→週均 ~343/天
+30 13 * * 6 /root/yt/run.sh scripts/intel_dept.py --no-learn >> /root/yt/logs/cron.log 2>&1
 35 5 * * * /root/yt/run.sh scripts/traffic_dept.py >> /root/yt/logs/cron.log 2>&1
 37 5 * * * /root/yt/run.sh scripts/decision_dept.py >> /root/yt/logs/cron.log 2>&1
 # 白帽流量四招（都在製作 06:07 前跑完，產的題目當天就做成片；錯開 5 分避免同時寫 topic_bank.json）：
 # ⓪異常爆款偵測(1of10自架,餵寄生彈藥) ①搶首發熱點(插隊題庫最前) ②寄生競品爆款 ③長片切片漏斗
-40 5 * * * /root/yt/run.sh scripts/outlier_scan.py --top 20 --min-views 3000 --min-ratio 3 --days 150 >> /root/yt/logs/cron.log 2>&1
+# 2026-07-16 配額預算輪值制:每天→週日一次(週日只有4支發布有餘裕)
+40 5 * * 0 /root/yt/run.sh scripts/outlier_scan.py --top 20 --min-views 3000 --min-ratio 3 --days 150 >> /root/yt/logs/cron.log 2>&1
 20 */3 * * * /root/yt/run.sh scripts/hotspot_dept.py --max 8 >> /root/yt/logs/cron.log 2>&1
 50 5 * * * /root/yt/run.sh scripts/parasite_titles.py --count 8 >> /root/yt/logs/cron.log 2>&1
 55 5 * * * /root/yt/run.sh scripts/shorts_funnel.py --max 1 --per 6 >> /root/yt/logs/cron.log 2>&1
@@ -69,7 +71,8 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # 播放清單自動化(每日一次,排在當天最後一批上架之後,把新發布的片依三主軸建/補進 YT 播放清單):
 # --max 40 跟 daily_publish 共用同一組每日 quota,設上限防一次跑光擋到隔天上架;冪等(items_in
 # 跳過已加過的),沒加完下次自動接續
-0 22 * * * /root/yt/run.sh scripts/build_playlists.py --max 10 >> /root/yt/logs/cron.log 2>&1
+# 2026-07-16 配額預算輪值制:每天→週四一次
+0 22 * * 4 /root/yt/run.sh scripts/build_playlists.py --max 10 >> /root/yt/logs/cron.log 2>&1
 # 台股盤中盯盤即時撃(交易日多掃幾次財經新聞)
 35 9,11,13 * * 1-5 /root/yt/run.sh scripts/news_dept.py >> /root/yt/logs/cron.log 2>&1
 37 9 * * * /root/yt/run.sh scripts/retro_dept.py >> /root/yt/logs/cron.log 2>&1
@@ -77,7 +80,8 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 45 9 * * * /root/yt/run.sh scripts/organize_dept.py >> /root/yt/logs/cron.log 2>&1
 48 9 * * * /root/yt/run.sh scripts/promo_dept.py >> /root/yt/logs/cron.log 2>&1
 51 9 * * * /root/yt/run.sh scripts/thumbnail_dept.py >> /root/yt/logs/cron.log 2>&1
-54 * * * * /root/yt/run.sh scripts/comment_dept.py --auto-reply-safe --max 10 >> /root/yt/logs/cron.log 2>&1
+# 2026-07-16 配額預算輪值制:每小時→每2小時,降無上限曝險
+54 */2 * * * /root/yt/run.sh scripts/comment_dept.py --auto-reply-safe --max 10 >> /root/yt/logs/cron.log 2>&1
 57 9 * * * /root/yt/run.sh scripts/finance_dept.py >> /root/yt/logs/cron.log 2>&1
 5 10 * * * /root/yt/run.sh scripts/multipost_dept.py --max 50 >> /root/yt/logs/cron.log 2>&1
 # 跨平台真上傳(TikTok/IG via upload-post)：無 UPLOAD_POST_API_KEY 會優雅跳過，金鑰一到即生效
@@ -121,12 +125,14 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # IG 健康檢查(每天 08:00/21:00 探 token+發布狀態)
 0 8,21 * * * /root/yt/run.sh scripts/ig_health_check.py >> /root/yt/logs/cron.log 2>&1
 # 舊片封面批次重生(make_cover 高質感封面):每天 02:00 補 60 支直到清空(配額安全)
-0 2 * * * /root/yt/run.sh scripts/cover_backfill.py --max 8 >> /root/yt/logs/cron.log 2>&1
+# 2026-07-16 配額預算輪值制:每天→週五一次
+0 2 * * 5 /root/yt/run.sh scripts/cover_backfill.py --max 8 >> /root/yt/logs/cron.log 2>&1
 # 放大飛輪：贏家全押/好問題即產/輸家汰(每3小時,只動內部可逆檔)
 30 */3 * * * /root/yt/run.sh scripts/auto_loop.py >> /root/yt/logs/cron.log 2>&1
 # A/B 建議產生器(只產建議+本地變體圖,套用 live 需決策中心一鍵;絕不自動改標題/縮圖)
 0 3 * * * /root/yt/run.sh scripts/ab_title.py >> /root/yt/logs/cron.log 2>&1
-20 3 * * * /root/yt/run.sh scripts/ab_thumbnail.py --limit 6 >> /root/yt/logs/cron.log 2>&1
+# 2026-07-16 配額預算輪值制:每天→週五一次
+20 3 * * 5 /root/yt/run.sh scripts/ab_thumbnail.py --limit 6 >> /root/yt/logs/cron.log 2>&1
 # 每日工作室健檢(每天 09:00:憑證/json完整性/cron失敗/名單/洗版洩漏 → ntfy)
 0 9 * * * /root/yt/run.sh scripts/daily_health.py --notify >> /root/yt/logs/cron.log 2>&1
 # 北極星整合(每天 09:05:訂閱/觀看/各源收入/YPP缺口/飛輪贏家 → northstar.json + ntfy)
@@ -156,7 +162,8 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # 數位產品 upsell(每天 11:00:對領檢核表滿24h的名單送低價試算表;未設 WORKSHEET_URL 只 dry 不實送)
 0 11 * * * /root/yt/run.sh scripts/tg_magnet.py --upsell >> /root/yt/logs/cron.log 2>&1
 # YPP 進度追蹤(每週一 00:50 誠實顯示四門檻距離 + ntfy)
-50 0 * * 1 /root/yt/run.sh scripts/ypp_tracker.py --notify >> /root/yt/logs/cron.log 2>&1
+# 2026-07-16 配額預算輪值制:週一→每天,恢復訂閱數日更(成本僅1 unit)
+50 0 * * * /root/yt/run.sh scripts/ypp_tracker.py --notify >> /root/yt/logs/cron.log 2>&1
 # 三平台原生變現門檻追蹤(E1;每週一 00:55:YouTube 重用 ypp_progress/TikTok 待人工查/IG Graph API →
 # platform_monetization.json + 新達標才 ntfy)
 55 0 * * 1 /root/yt/run.sh scripts/platform_monetization.py --notify >> /root/yt/logs/cron.log 2>&1
@@ -174,13 +181,16 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # 🔴 2026-07-15 維運三兄弟從 15:05-15:30 挪到 13:40-14:20:quota 台灣 15:00 重置,排在重置
 # 「後」等於一開門就把新糧燒光(80×50+30×50+150×50≈13,000),18:30 發布批因此天天撞牆。
 # 挪到重置「前」的最後一段=吃當日剩飯,撞牆就優雅停(三支都會停),完全不影響發布主線。
-40 13 * * * /root/yt/run.sh scripts/playlist_engine.py --sync --max 20 >> /root/yt/logs/cron.log 2>&1
+# 2026-07-16 配額預算輪值制:每天→週二一次,--max 20→10
+40 13 * * 2 /root/yt/run.sh scripts/playlist_engine.py --sync --max 10 >> /root/yt/logs/cron.log 2>&1
 # 存量片描述回填「系列連播」導流連結(每天14:00,吃剩飯):
 # 觀看數最高的舊片優先,冪等(已含清單連結就跳過),只插入不刪改原描述,見 scripts/desc_backfill.py
-0 14 * * * /root/yt/run.sh scripts/desc_backfill.py --max 15 >> /root/yt/logs/cron.log 2>&1
+# 2026-07-16 配額預算輪值制:每天→週三一次
+0 14 * * 3 /root/yt/run.sh scripts/desc_backfill.py --max 15 >> /root/yt/logs/cron.log 2>&1
 # 殭屍片(0觀看舊片)清理引擎(每天14:20,吃剩飯):
 # 0觀看+滿14天+非台股真相實驗室/EP系列+非優先清單→設private(可逆)，見 scripts/zombie_sweep.py
-20 14 * * * /root/yt/run.sh scripts/zombie_sweep.py --apply --max 30 >> /root/yt/logs/cron.log 2>&1
+# 2026-07-16 配額預算輪值制:每天→週一一次,--max 30→15
+20 14 * * 1 /root/yt/run.sh scripts/zombie_sweep.py --apply --max 15 >> /root/yt/logs/cron.log 2>&1
 # 縮圖補掛引擎(每天15:10,quota重置後第一個job:把發布時縮圖403的裸奔片補上門面;
 # 佇列空=0 quota,有欠帳最多40支=2,000,見 scripts/thumb_backfill.py + STUDIO/pending_thumbs.json)
 10 15 * * * /root/yt/run.sh scripts/thumb_backfill.py --scavenge >> /root/yt/logs/cron.log 2>&1
