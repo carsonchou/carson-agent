@@ -162,3 +162,6 @@ quant-service/data_hunter/stock_ratios_*.json
 
 # 電商生成物(10 SKU 成品,可由 quant-service/ecommerce/product_factory.py 重生)
 quant-service/output/ecommerce_ready/
+
+# 編輯備份檔
+*.bak-*
