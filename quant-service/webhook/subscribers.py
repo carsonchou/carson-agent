@@ -124,16 +124,34 @@ def export_active(path: Path, tier: str | None = None) -> list[dict]:
     if not isinstance(book, dict):
         return []
     want_rank = TIER_RANK.get(tier, 0) if tier else 0
-    out = []
+    out, unknowns = [], []
     for entry in book.values():
         if not isinstance(entry, dict) or entry.get("status") != "active":
             continue
-        if tier and TIER_RANK.get(entry.get("tier", "unknown"), 0) < want_rank:
+        raw_tier = entry.get("tier", "unknown")
+        # 🔴 unknown 保底成 basic:他付了錢、名冊也 active,tier 判不出來是**我們**的
+        # 問題(classify_tier 靠金額+幣別猜,而 Portaly 欄位本來就標「暫定待校準」——
+        # 金額以分為單位/幣別寫 NTD/首月促銷價/欄位名猜錯 都會落到 unknown)。
+        # 舊行為:unknown rank=0 < basic(1) → basic 與 full 兩張名單**都**排除他 →
+        # **付 149/月永遠收不到任何一期**,而 HTTP 200/名冊 active//health +1/金流有帳/
+        # 開通信全部照常回報成功,零 log。收了錢卻什麼都不給,是最不可接受的一種失敗。
+        # 新行為:少給一段 section 的傷害,遠小於一期都收不到 → 保底寄 basic。
+        # 但不給 full(不因判不出來就送出完整版),並在下面吵出來讓人去校準。
+        eff_rank = TIER_RANK.get(raw_tier, 0) or TIER_RANK["basic"]
+        if raw_tier not in TIER_RANK or raw_tier == "unknown":
+            unknowns.append(entry.get("email", "?"))
+        if tier and eff_rank < want_rank:
             continue
         out.append({
             "email": entry.get("email", ""), "name": entry.get("name", ""),
-            "tier": entry.get("tier", "unknown"), "platform": entry.get("platform", ""),
+            "tier": raw_tier, "platform": entry.get("platform", ""),
         })
+    if unknowns:
+        # 零告警是這個 codebase 反覆中招的病根(HUNT_silent_failures 的結論):
+        # fail-safe(對) + 零告警(錯) + 只測有利方向(所以沒人發現)。這裡一定要留痕跡。
+        print(f"[subscribers] ⚠️ {len(unknowns)} 位付費 active 訂閱者 tier 判不出來,"
+              f"已保底寄基礎版(不含完整版 section)。請校準 classify_tier 並手動改名冊 "
+              f"tier 欄位:{', '.join(unknowns[:5])}{' …' if len(unknowns) > 5 else ''}")
     out.sort(key=lambda r: (-TIER_RANK.get(r["tier"], 0), r["email"].lower()))
     return out
 
