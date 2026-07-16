@@ -102,37 +102,58 @@ def _cover_path(slug: str) -> Path | None:
 
 def _set_custom_cover(page, cover_path: Path) -> bool:
     """上傳成功後(強·加分,非必要):嘗試在 TikTok 編輯頁把封面換成 make_cover 專業數據卡。
-    TikTok Studio UI 常改版、封面編輯是彈窗+分頁+巢狀 file input,選擇器極易失效——
-    整段包在寬鬆 try/except、每步都有短超時,任何一步找不到就直接放棄回 False,絕不卡住上傳
-    (根因修已保底 t=0 不黑,自訂封面只是加分項)。回傳 True=已送出自訂封面圖檔。"""
+    2026-07-13 實測抓到 TikTok Studio 改版:舊 5 種 selector(data-e2e='select_cover_button' 等)
+    全部從 DOM 消失,新版把入口塞進 [data-e2e='cover_container'](這個容器 data-e2e 還在,穩)裡一個
+    無 data-e2e 的純文字 div(文案「編輯封面」)。彈窗內分頁也改文字「上傳封面」,確認鈕文字是「儲存」。
+    另抓到真正卡死的根因不是 selector 本身,而是上傳後彈出的「開啟自動內容檢查?」版權彈窗留下
+    TUXModal-overlay 殘留蓋住整頁,Playwright 原生 .click()/.wait_for_selector().click() 全被攔截
+    Timeout(跟既有 post_video_button 要用 JS click 繞過同一根因)——所以這裡全面改走 page.evaluate()
+    JS native click(),不再靠 Playwright click。整段仍包在寬鬆 try/except、每步短超時,任何一步找不到
+    就直接放棄回 False,絕不卡住上傳(根因修已保底 t=0 不黑,自訂封面只是加分項)。
+    回傳 True=已送出自訂封面圖檔。"""
     try:
-        # 1) 找封面編輯入口(文字/data-e2e 雙保險,中英文都試)
-        entry = None
-        for sel in ("[data-e2e='select_cover_button']", "[data-e2e='cover_edit_button']",
-                    "text=Edit cover", "text=Select cover", "text=編輯封面", "text=選擇封面"):
-            try:
-                el = page.wait_for_selector(sel, timeout=2500)
-                if el:
-                    entry = el
-                    break
-            except Exception:  # noqa: BLE001
-                continue
-        if not entry:
-            print("[tiktok] 找不到封面編輯入口(UI 可能改版),略過自訂封面", file=sys.stderr)
+        # 1) 找封面編輯入口:錨定穩定的 [data-e2e='cover_container'],容器內找純文字「編輯封面」的
+        #    葉節點(不吃易變的 jsx-hash class)。JS click 繞過殘留版權彈窗 overlay。
+        opened = page.evaluate("""() => {
+            const c = document.querySelector("[data-e2e='cover_container']");
+            if (!c) return false;
+            const el = Array.from(c.querySelectorAll('*')).find(
+                e => (e.innerText || '').trim() === '編輯封面' && e.children.length === 0
+            ) || c.querySelector('.edit-container');
+            if (!el) return false;
+            el.click();
+            return true;
+        }""")
+        if not opened:
+            # 舊版 selector 當備援(萬一改回來/A-B test),timeout 壓短別浪費時間
+            for sel in ("[data-e2e='select_cover_button']", "[data-e2e='cover_edit_button']",
+                        "text=Edit cover", "text=Select cover", "text=編輯封面", "text=選擇封面"):
+                try:
+                    el = page.wait_for_selector(sel, timeout=900)
+                    if el:
+                        el.click(timeout=900)
+                        opened = True
+                        break
+                except Exception:  # noqa: BLE001
+                    continue
+        if not opened:
+            print("[tiktok] 封面編輯 UI 已改版,selector 全部失效,已跳過自訂封面"
+                  "(待人工更新 selector)——fallback 用自動封面", file=sys.stderr)
             return False
-        entry.click(timeout=3000)
         page.wait_for_timeout(1500)
-        # 2) 彈窗內切「上傳」分頁(不用預設的「從影片選」)
-        for sel in ("text=Upload", "text=上傳", "[data-e2e='upload_cover_tab']"):
-            try:
-                el = page.query_selector(sel)
-                if el:
-                    el.click(timeout=2000)
-                    page.wait_for_timeout(800)
-                    break
-            except Exception:  # noqa: BLE001
-                continue
-        # 3) 找彈窗內(含 iframe)的圖檔 input[type=file],灌自製封面
+        # 2) 彈窗內切「上傳封面」分頁(不用預設的「貼圖/文字」);同樣走 JS click
+        page.evaluate("""() => {
+            const d = Array.from(document.querySelectorAll('[role=dialog]'))
+                .find(x => (x.innerText || '').includes('編輯封面'));
+            if (!d) return false;
+            const el = Array.from(d.querySelectorAll('*')).find(
+                e => (e.innerText || '').trim() === '上傳封面' && e.children.length === 0
+            );
+            if (el) { el.click(); return true; }
+            return false;
+        }""")
+        page.wait_for_timeout(800)
+        # 3) 找彈窗內(含 iframe)的圖檔 input[type=file],灌自製封面(這段選擇器未變,仍有效)
         fi = None
         for _ in range(6):
             fi = page.query_selector("input[type=file][accept*='image']") or None
@@ -149,12 +170,25 @@ def _set_custom_cover(page, cover_path: Path) -> bool:
             return False
         fi.set_input_files(str(cover_path))
         page.wait_for_timeout(2500)
-        # 4) 確認送出(彈窗常見「確認/Confirm/Save」)
+        # 4) 確認送出:新版鈕文字是「儲存」,一樣被 overlay 攔 → JS click
+        saved = page.evaluate("""() => {
+            const d = Array.from(document.querySelectorAll('[role=dialog]'))
+                .find(x => (x.innerText || '').includes('編輯封面'));
+            if (!d) return false;
+            const btn = Array.from(d.querySelectorAll('button')).find(b => (b.innerText || '').trim() === '儲存');
+            if (btn && !btn.disabled) { btn.click(); return true; }
+            return false;
+        }""")
+        if saved:
+            page.wait_for_timeout(1500)
+            print("[tiktok] ✓ 自訂封面已套用(數據卡)")
+            return True
+        # 備援:舊版按鈕文字清單(壓短 timeout)
         for sel in ("text=Confirm", "text=確認", "text=Save", "text=儲存", "[data-e2e='cover_confirm_button']"):
             try:
                 el = page.query_selector(sel)
                 if el:
-                    el.click(timeout=2000)
+                    el.click(timeout=1000)
                     page.wait_for_timeout(1500)
                     print("[tiktok] ✓ 自訂封面已套用(數據卡)")
                     return True
