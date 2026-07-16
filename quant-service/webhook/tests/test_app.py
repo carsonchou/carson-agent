@@ -136,6 +136,40 @@ class TestRoutes(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertIn("active_subscribers", r.json())
 
+    # ── B1 回歸（VERIFY_REPORT_phase3a）：簽章合法但 body 壞 → 必須 400 不是 500 ──
+    # 5xx 會讓 webhook 平台無限重試（retry storm），4xx 才會讓它停止重投壞蛋。
+    def test_malformed_json_valid_signature_400_not_500(self):
+        cases = [
+            ("lemonsqueezy", "lssec", "X-Signature", b"{not json"),
+            ("lemonsqueezy", "lssec", "X-Signature", b""),
+            ("portaly", "psec", "X-Portaly-Signature", b"{not json"),
+            ("portaly", "psec", "X-Portaly-Signature", b""),
+        ]
+        for platform, secret, hdr_name, body in cases:
+            with self.subTest(platform=platform, body=body):
+                headers = {hdr_name: _util.sign_hex(secret, body)}
+                r = self.client.post(f"/sale-ping/{platform}", content=body, headers=headers)
+                self.assertEqual(r.status_code, 400, f"{platform} 壞 body 應回 400，實得 {r.status_code}")
+        # 服務未死、也沒有任何東西被記帳
+        self.assertEqual(self.client.get("/health").status_code, 200)
+        self.assertEqual(len(ledger.load_json(self.settings.sales_ledger, [])), 0)
+        self.assertEqual(len(self.entries), 0)
+
+    def test_malformed_json_whop_400_not_500(self):
+        body = b"{broken"
+        sig = _util.sign_standard_webhooks(self.settings.whop_secret, "wh_x", "1", body)
+        r = self.client.post("/sale-ping/whop", content=body,
+                             headers={"webhook-id": "wh_x", "webhook-timestamp": "1",
+                                      "webhook-signature": sig})
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(self.client.get("/health").status_code, 200)
+
+    def test_malformed_json_bad_signature_still_401_not_400(self):
+        """順序正確性：驗簽在解析之前——壞 body + 壞簽章要回 401（不洩漏解析結果）。"""
+        r = self.client.post("/sale-ping/portaly", content=b"{not json",
+                             headers={"X-Portaly-Signature": "deadbeef"})
+        self.assertEqual(r.status_code, 401)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -197,6 +197,46 @@ def test_pool_fg_handles_5digit_percent():
     assert not bad, "合法大數的 FG-tokenized 形式應已入池,不該被擋"
 
 
+# ── 稽核檔覆蓋率回歸(VERIFY_REPORT_phase3a A1/A3)────────────────────────────
+# v1 只有 S7 寫 prov.records:gate 全段有效(擋得下造假),但持久化稽核檔只覆蓋 1/8 段,
+# 外部稽核者無法只憑該檔回查 S1–S6/S8。以下釘死「每段都要留存證」。
+def test_all_sections_write_provenance_records():
+    st = _state()
+    nmap = W.build_name_map(st, _checkup())
+    cases = {
+        "S1": W.sec_S1(st), "S2": W.sec_S2(st), "S3": W.sec_S3(st, nmap),
+        "S4": W.sec_S4(st, _chips_week(), nmap), "S5": W.sec_S5(_valdoc(), nmap),
+        "S6": W.sec_S6(st), "S7": W.sec_S7(_checkup()), "S8": W.sec_S8(_adaptive()),
+    }
+    for sid, sec in cases.items():
+        recs = sec["prov"].records
+        assert recs, f"{sid} 未留任何溯源存證(A1 回歸:稽核檔會只覆蓋部分段)"
+        for r in recs:
+            assert r.get("source"), f"{sid} 有存證未標來源"
+            assert r.get("field"), f"{sid} 有存證未標欄位"
+
+
+def test_provenance_records_carry_structured_values():
+    """A3:數值型要存 value(不能全 null),稽核才能程式化比對而非只靠文字。"""
+    recs = W.sec_S1(_state())["prov"].records
+    vals = [r for r in recs if r.get("value") is not None]
+    assert vals, "S1 存證應含結構化數值"
+    got = {r["field"]: r["value"] for r in vals}
+    assert got.get("temperature") == _state()["gauge"]["temperature"], "存證數值須等同來源欄位值"
+
+
+def test_s7_provenance_text_not_truncated():
+    """A2:稽核檔不得自己把來源文字截斷(v1 存 txt[:60],斷在數字中間像壞數字)。"""
+    ck = _checkup()
+    recs = W.sec_S7(ck)["prov"].records
+    claims = {f["key"]: (f.get("claim") or "") for r in ck["results"].values() for f in r.get("facts", [])}
+    assert recs
+    for r in recs:
+        src_claim = claims.get(r["field"])
+        if src_claim:
+            assert r["text"] == src_claim.strip(), f"{r['field']} 存證文字被截斷/竄改"
+
+
 # ── 交付介面:訂閱名冊不存在 → 空清單,不炸 ──────────────────────────────────
 def test_load_send_list_missing_file(monkeypatch, tmp_path):
     monkeypatch.setattr(W, "SUBSCRIBERS", tmp_path / "nope.json")

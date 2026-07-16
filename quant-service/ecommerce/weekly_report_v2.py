@@ -131,6 +131,26 @@ def _pool(prov: Provenance, *items) -> None:
             _pool_fg(prov, s)
 
 
+def _bind(prov: Provenance, src: str, **fields) -> None:
+    """具名綁定:入池(給 gate 用)+ 留存證(給稽核檔用),每個數字綁「來源檔:欄位」。
+
+    A1 修(VERIFY_REPORT_phase3a):v1 只有 S7 寫 prov.records,其餘 7 段雖然有入池
+    (所以 gate 全段有效、憑空造假擋得下),但**持久化的稽核檔只覆蓋 1/8 段** ——
+    外部稽核者無法只憑該檔回查 S1–S6/S8。現在所有 section 一律走 _bind,
+    存證檔可逐筆回答「這個數字來自哪個檔的哪個欄位」。
+
+    A3 修:數值型直接存 value(不再全 null),稽核可程式化比對而不只靠文字。
+    """
+    for name, v in fields.items():
+        if v is None:
+            continue
+        _pool(prov, v)
+        if isinstance(v, (int, float)) and not isinstance(v, bool):
+            prov.records.append({"field": name, "value": float(v), "text": None, "source": src})
+        else:
+            prov.records.append({"field": name, "value": None, "text": str(v), "source": src})
+
+
 def _pct(v, digits=2, sign=True) -> tuple[str, str]:
     """回傳 (顯示字串, 台股色 class)。正=紅(pos) 負=綠(neg)。"""
     try:
@@ -245,8 +265,10 @@ def sec_S1(state: dict) -> dict:
         return {"id": sid, "title": title, "tier": tier, "prov": prov, "degraded": True,
                 "units": [_degrade_unit(sid, title, "state.json 無 gauge 溫度資料(可能休市或掃描未跑)。")]}
     temp = g.get("temperature")
-    _pool(prov, temp, g.get("breadth"), g.get("adr"), g.get("nh"), g.get("nl"),
-          g.get("avg_rsi"), g.get("adv"), g.get("dec"), g.get("flat"), idx.get("chg"))
+    _bind(prov, "state.json:gauge+index",
+          temperature=temp, breadth=g.get("breadth"), adr=g.get("adr"), nh=g.get("nh"),
+          nl=g.get("nl"), avg_rsi=g.get("avg_rsi"), adv=g.get("adv"), dec=g.get("dec"),
+          flat=g.get("flat"), index_chg=idx.get("chg"), index_price=idx.get("price"))
     label = g.get("label", "")
     idx_chg, idx_cls = _pct(idx.get("chg"))
     mkpos = max(0.0, min(100.0, float(temp) if temp is not None else 50.0))
@@ -288,8 +310,9 @@ def sec_S2(state: dict) -> dict:
         out = []
         for s in items:
             chg, cls = _pct(s.get("avg_chg"))
-            _pool(prov, s.get("avg_chg"), s.get("bull_pct"), s.get("score"), s.get("count"),
-                  s.get("inst_count"), s.get("leader"))
+            _bind(prov, f"state.json:sectors[{s.get('name','?')}]",
+                  avg_chg=s.get("avg_chg"), bull_pct=s.get("bull_pct"), score=s.get("score"),
+                  count=s.get("count"), inst_count=s.get("inst_count"), leader=s.get("leader"))
             bull = f"{s.get('bull_pct', 0):.0f}"
             score = f"{s.get('score', 0):.1f}"
             out.append(
@@ -319,7 +342,8 @@ def _strength_table(prov, rows_data, nmap, n, ascending=False, label=""):
     body = []
     for r in ranked:
         chg, cls = _pct(r.get("chg"))
-        _pool(prov, r.get("chg"), r.get("rsi"), r.get("score"), r.get("price"))
+        _bind(prov, f"state.json:wave_top[{r.get('code','?')}]",
+              chg=r.get("chg"), rsi=r.get("rsi"), score=r.get("score"), price=r.get("price"))
         rsi = f"{r.get('rsi', 0):.1f}"
         score = f"{r.get('score', 0):.1f}"
         body.append(
@@ -378,7 +402,7 @@ def sec_S4(state: dict, chips_week: list[dict], nmap: dict) -> dict:
     def cmp_rows(items):
         out = []
         for code, val in items:
-            _pool(prov, val)
+            _bind(prov, f"twdata/chips[{code}]:foreign_net(本週日檔加總)", foreign_net_5d=val)
             w = min(100, abs(val) / maxabs * 100)
             cls = "" if val >= 0 else "red"
             vcls = "pos" if val > 0 else "neg"
@@ -393,7 +417,8 @@ def sec_S4(state: dict, chips_week: list[dict], nmap: dict) -> dict:
     consec = (state.get("chips", {}) or {}).get("consec_top", []) or []
     consec_rows = []
     for r in consec[:6]:
-        _pool(prov, r.get("consec"), r.get("net"))
+        _bind(prov, f"state.json:chips.consec_top[{r.get('code','?')}]",
+              consec=r.get("consec"), net=r.get("net"))
         consec_rows.append(f'<div class="metricrow">{_esc(r.get("name","—"))} '
                            f'<span class="code">{_esc(r.get("code",""))}</span>:連買 '
                            f'<b>{_esc(r.get("consec","—"))}</b> 日({_esc(r.get("side",""))})</div>')
@@ -430,11 +455,12 @@ def sec_S5(valdoc: dict, nmap: dict) -> dict:
     p25 = statistics.quantiles(pes, n=4)[0] if len(pes) >= 4 else (pes[0] if pes else 0)
     pmed = statistics.median(pes) if pes else 0
     p75 = statistics.quantiles(pes, n=4)[2] if len(pes) >= 4 else (pes[-1] if pes else 0)
-    _pool(prov, p25, pmed, p75, len(pes))
+    _bind(prov, "valuation:data[*].pe 分布(濾 null 且 pe>0)",
+          pe_p25=p25, pe_median=pmed, pe_p75=p75, pe_sample_n=len(pes))
 
     body = []
     for c, y, pe, pb in top_y:
-        _pool(prov, y, pe, pb)
+        _bind(prov, f"valuation:data[{c}]", dividend_yield=y, pe=pe, pb=pb)
         nm = nmap.get(str(c), str(c))
         body.append(
             f'<tr><td class="l tkr">{_esc(nm)}<span class="code">{_esc(c)}</span></td>'
@@ -466,7 +492,10 @@ def sec_S6(state: dict) -> dict:
     swr = (tr.get("short_win_rate") or 0) * 100
     avg_r = tr.get("avg_r")
     avg_ret = tr.get("avg_ret_pct")
-    _pool(prov, n_closed, wr, lwr, swr, avg_r, avg_ret, tr.get("n_open"))
+    # 招牌數字:全部綁 state.json:track 的原始欄位(勝率/R/報酬皆由 track 聚合直出)
+    _bind(prov, "state.json:track",
+          n_closed=n_closed, win_rate_pct=wr, long_win_rate_pct=lwr, short_win_rate_pct=swr,
+          avg_r=avg_r, avg_ret_pct=avg_ret, n_open=tr.get("n_open"))
     ret_s, ret_cls = _pct(avg_ret)
     head = _sec_head(sid, title, tier)
     lead = ('<div class="lead">這是招牌:程式訊號的<b>真實平倉戰績,含輸單、不挑不藏</b>——'
@@ -491,7 +520,8 @@ def sec_S6(state: dict) -> dict:
         body = []
         for r in recent:
             rs, rcls = _pct(r.get("ret_pct"))
-            _pool(prov, r.get("ret_pct"), r.get("r"), r.get("entry"), r.get("exit"))
+            _bind(prov, f"state.json:track.recent[{r.get('code','?')}]",
+                  ret_pct=r.get("ret_pct"), r=r.get("r"), entry=r.get("entry"), exit=r.get("exit"))
             body.append(
                 f'<tr><td class="l tkr">{_esc(r.get("name","—"))}<span class="code">{_esc(r.get("code",""))}</span></td>'
                 f'<td>{_esc(r.get("side","—"))}</td><td>{_esc(r.get("entry","—"))}</td>'
@@ -561,8 +591,12 @@ def sec_S7(checkup: dict, window_days: int = 7) -> dict:
             for val in FG._walk_numbers(f.get("data", {})):
                 prov.pool.add(abs(val)); prov.pool.add(abs(round(val, 1)))
             _pool(prov, txt)
-            prov.records.append({"value": None, "text": txt[:60], "source": f.get("source", ""),
-                                 "field": f.get("key"), "note": "體檢引擎既有事實(逐字引用)"})
+            # A2 修:不截斷。v1 存 txt[:60],51/71 筆被切斷、部分斷在數字中間
+            #(如「卡瑪比率 0.」),PDF 渲染的是完整文字,但稽核檔的尾巴壞掉 →
+            # 稽核者看到的像是壞數字。存證檔要能取信於人就不能自己先失真。
+            prov.records.append({"field": f.get("key"), "value": None, "text": txt,
+                                 "source": f.get("source", ""),
+                                 "note": "體檢引擎既有事實(逐字引用)"})
             rows.append(f'<div class="metricrow">• {_esc(txt)}</div>')
         card = (f'<div class="card"><div class="kpis" style="margin-bottom:8px">'
                 f'<div class="kpi" style="flex:none;text-align:left;min-width:0"><div class="k">個股</div>'
@@ -589,7 +623,8 @@ def sec_S8(adaptive: list[dict]) -> dict:
     n_pos = len([x for x in nets if x > 0])
     pct_pos = n_pos / n * 100
     top = sorted(adaptive, key=lambda r: r["a_net"], reverse=True)[:5]
-    _pool(prov, n, med, n_pos, pct_pos)
+    _bind(prov, "twdata/adaptive_per_stock.csv(全樣本未濾)",
+          sample_n=n, a_net_median=med, n_positive=n_pos, pct_positive=pct_pos)
     head = _sec_head(sid, title, tier)
     lead = ('<div class="lead">月度教育性基準(靜態快照,非即時、非可交易訊號):把趨勢策略無腦套'
             '全市場,真正該看的是<b>中位數</b>,別被最好幾檔騙走。</div>')
@@ -601,7 +636,8 @@ def sec_S8(adaptive: list[dict]) -> dict:
         f'</div>')
     body = []
     for r in top:
-        _pool(prov, r["a_net"], r["a_win"])
+        _bind(prov, f"twdata/adaptive_per_stock.csv[{r.get('code','?')}]",
+              a_net=r["a_net"], a_win=r["a_win"])
         s, cls = _pct(r["a_net"])
         body.append(f'<tr><td class="l tkr">{_esc(r.get("name","—"))}<span class="code">{_esc(r.get("code",""))}</span></td>'
                     f'<td class="{cls}">{s}</td><td>{r["a_win"]:.1f}%</td></tr>')
@@ -929,13 +965,19 @@ def generate_weekly(tier: str = "full", out_dir: Path | None = None) -> dict:
     xlsx = build_xlsx(state, base.parent / f"weekly_{stamp}_全市場數據.xlsx")
 
     # provenance 存證(每個綁定數字 → 來源)
+    # A3 修:只存「本 tier 真的有交付」的段落 —— 對齊 build_html 的可見性過濾。
+    # v1 的 basic 存證檔含 71 筆 S7,但 basic 買家根本收不到 S7 → 稽核檔描述了未交付的內容。
+    visible = [s for s in sections
+               if tier == "full" or CFG.SECTION_TIERS.get(s["id"]) == "basic"]
     prov_records = []
-    for s in sections:
+    for s in visible:
         for rec in s["prov"].records:
             rec = dict(rec); rec["section"] = s["id"]; prov_records.append(rec)
+    cover = sorted({r["section"] for r in prov_records})
     (base.parent / f"weekly_{stamp}_{tier}_provenance.json").write_text(
         json.dumps({"generated_at": stamp, "tier": tier,
                     "gate": "product_factory.Provenance.gate (reused, strict, fail-closed)",
+                    "sections_covered": cover, "n_records": len(prov_records),
                     "records": prov_records}, ensure_ascii=False, indent=2), encoding="utf-8")
 
     status = [{"id": s["id"], "title": s["title"], "tier": CFG.SECTION_TIERS[s["id"]],

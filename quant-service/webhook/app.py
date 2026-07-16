@@ -26,6 +26,20 @@ except Exception:  # noqa: BLE001
     pass
 
 
+def _json_or_400(body: bytes):
+    """驗簽通過後才解析 body；壞 JSON 一律 400 不是 500。
+
+    為什麼重要：webhook 平台對 5xx 會**持續重試**（retry storm），4xx 才會停。
+    平台送出截斷/空 body 的邊界事件時，裸奔的 json.loads 會噴 JSONDecodeError
+    → FastAPI 回 500 → 平台無限重投同一顆壞蛋。回 400 明確告訴平台「這顆別再送」。
+    （VERIFY_REPORT_phase3a B1）
+    """
+    try:
+        return json.loads(body.decode("utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        raise HTTPException(400, f"malformed JSON payload: {e.__class__.__name__}") from e
+
+
 def _run(ev, settings, background_tasks: BackgroundTasks):
     """成交/訂閱進帳走背景處理（記帳/交付有 IO）；退款/取消同步做（要即時反映名冊）。"""
     if ev.kind in (EventKind.REFUND, EventKind.SUB_CANCEL, EventKind.IGNORED):
@@ -65,7 +79,7 @@ def build_app(settings: Settings | None = None) -> FastAPI:
                                 x_signature: str = Header(default="")):
         body = await request.body()
         verify.require_lemonsqueezy(settings, body, x_signature)
-        ev = normalize.parse_lemonsqueezy(json.loads(body.decode("utf-8")))
+        ev = normalize.parse_lemonsqueezy(_json_or_400(body))
         return _run(ev, settings, background_tasks)
 
     @api.post("/sale-ping/whop")
@@ -75,7 +89,7 @@ def build_app(settings: Settings | None = None) -> FastAPI:
                         webhook_signature: str = Header(default="")):
         body = await request.body()
         verify.require_whop(settings, body, webhook_id, webhook_timestamp, webhook_signature)
-        ev = normalize.parse_whop(json.loads(body.decode("utf-8")), webhook_id)
+        ev = normalize.parse_whop(_json_or_400(body), webhook_id)
         return _run(ev, settings, background_tasks)
 
     @api.post("/sale-ping/portaly")
@@ -83,7 +97,7 @@ def build_app(settings: Settings | None = None) -> FastAPI:
                            x_portaly_signature: str = Header(default="")):
         body = await request.body()
         verify.require_portaly(settings, body, x_portaly_signature)
-        ev = normalize.parse_portaly(json.loads(body.decode("utf-8")))
+        ev = normalize.parse_portaly(_json_or_400(body))
         return _run(ev, settings, background_tasks)
 
     return api
