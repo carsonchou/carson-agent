@@ -26,6 +26,67 @@ YT_SCRIPTS = _ROOT / "youtube_channel" / "scripts"
 DISCLAIMER = ("本內容為程式化的歷史數據彙整與教學，只做「事實介紹」，不是投資建議、"
               "不喊單、不報明牌；歷史數據非未來保證，投資有風險，據此進出盈虧自負。")
 
+# ── .env 載入 ────────────────────────────────────────────────────────────────
+QS_ENV = _QS / ".env"                                   # quant-service/.env（相對本檔定位）
+
+
+def _load_env(envf: Path = QS_ENV) -> bool:
+    """把 quant-service/.env 逐行併進 os.environ；回傳「那個檔在不在」。
+
+    為什麼要有這支（2026-07-16 修）：上線手冊叫 Carson 把密鑰填 `quant-service/.env`，
+    但整個 webhook 樹**沒有任何人讀那個檔** → from_env() 六把密鑰全拿空字串 →
+    四平台 verify 一律 fail-closed 回 503、dry_run 鎖死永不寄交付信，而且**全程不報錯**
+    （Carson 只會看到「沒人買」）。(VERIFY_REPORT_runbook B1)
+
+    定位靠 `Path(__file__)` 不靠 cwd：uvicorn 從 repo root 起、pytest 從 quant-service 起，
+    兩種 cwd 都要讀得到同一個檔。
+
+    紀律：`setdefault` = **已存在的環境變數優先**，.env 不覆蓋它——正式部署可用真環境
+    變數蓋過檔案值（同 youtube_channel 各腳本 _load_env() 的既有慣例）。
+    不引新依賴（python-dotenv 未必裝）：略過空行/`#` 註解，值去成對引號。
+    """
+    if not envf.exists():
+        return False
+    for ln in envf.read_text(encoding="utf-8", errors="replace").splitlines():
+        s = ln.strip()
+        if not s or s.startswith("#") or "=" not in s:
+            continue
+        k, v = s.split("=", 1)
+        v = v.strip()
+        if len(v) >= 2 and v[0] == v[-1] and v[0] in "\"'":   # 去成對引號，不動值內引號
+            v = v[1:-1]
+        os.environ.setdefault(k.strip(), v)
+    return True
+
+
+# import 時就載：from_env() 與 download_url_for() 都在這之後才讀 os.getenv，兩者都吃得到。
+_ENV_LOADED = _load_env()
+
+# 啟動摘要要盯的鑰匙（只報有無，絕不報值）
+_REPORT_KEYS: list[tuple[str, list[str]]] = [
+    ("平台密鑰", ["GUMROAD_SELLER_ID", "GUMROAD_PING_TOKEN", "PORTALY_WEBHOOK_SECRET",
+                  "LEMONSQUEEZY_WEBHOOK_SECRET", "WHOP_WEBHOOK_SECRET"]),
+    ("交付信 SMTP", ["SMTP_USER", "SMTP_PASS"]),
+    ("下載連結", ["ECOMMERCE_DL_T1", "ECOMMERCE_DL_T2", "ECOMMERCE_DL_C1", "ECOMMERCE_DL_C2"]),
+]
+
+
+def env_report_lines() -> list[str]:
+    """啟動摘要：每把鑰匙 SET / MISSING。**只印有無，永遠不印值**（密鑰不進主控台/log）。
+
+    治「靜默失敗」：Carson 起 webhook 時一眼看得出哪把是空的，不必等平台送了單、
+    收到 503、錢掉了才發現。缺哪把會怎樣見 docs/ecommerce/GO_LIVE_RUNBOOK.md §2。
+    """
+    where = "已載入" if _ENV_LOADED else "不存在 → 只吃現有環境變數"
+    lines = [f"[webhook] .env: {QS_ENV} ({where})"]
+    for label, keys in _REPORT_KEYS:
+        got = "  ".join(f"{k}={'SET' if os.getenv(k, '').strip() else 'MISSING'}" for k in keys)
+        lines.append(f"[webhook] {label}: {got}")
+    dry = not (os.getenv("SMTP_USER") and os.getenv("SMTP_PASS"))
+    lines.append(f"[webhook] dry_run={dry} "
+                 + ("(SMTP 未齊 → 交付信不會真寄)" if dry else "(SMTP 齊備 → 交付信會真寄)"))
+    return lines
+
 
 # ── SKU 目錄（config 驅動交付；對齊 REDESIGN_SPEC 商品線）───────────────────────
 # match：命中商品名的關鍵字（中英大小寫皆比對）；kind：one_time / subscription；

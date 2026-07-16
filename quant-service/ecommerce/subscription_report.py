@@ -54,6 +54,29 @@ CHECKUP_STATE = STUDIO / "stock_checkup_daily_state.json"
 SCAN_STATE = DATA_HUNTER / "state.json"
 OUTPUT_DIR = QS / "output" / "subscription"
 
+
+def _load_env():
+    """把 quant-service/.env 併進 os.environ（SMTP_* / TG token 在那裡）。
+
+    為什麼是 quant-service/.env（2026-07-16 定案）：全 repo 會讀 SMTP_* 的只有
+    quant-service 底下這幾支（webhook/delivery.py、webhook/config.py、本檔、v1 webhook_server.py）——
+    youtube_channel 全樹**零個** SMTP 讀取點。所以 SMTP 的單一事實來源 = `quant-service/.env`，
+    與上線手冊 §2.3 一致；本檔改成相對自身定位去載它，不管被誰用什麼 cwd 起都讀得到
+    （本檔可被 youtube_channel 排程下的程序 import，靠 cwd 會拿不到）。
+
+    setdefault = 已存在的環境變數優先。同 webhook/config.py:_load_env() 的規則。
+    """
+    envf = QS / ".env"
+    if envf.exists():
+        for ln in envf.read_text(encoding="utf-8", errors="replace").splitlines():
+            s = ln.strip()
+            if s and not s.startswith("#") and "=" in s:
+                k, v = s.split("=", 1)
+                os.environ.setdefault(k.strip(), v.strip())
+
+
+_load_env()
+
 try:
     sys.stdout.reconfigure(encoding="utf-8")
 except Exception:

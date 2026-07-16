@@ -12,10 +12,12 @@
 
 - **這是設定工作,不是寫程式**:你只需要在網頁後台點選、複製貼上密鑰/連結。
 - **紅線**:任何「動錢/對外發送」動作(綁收款、開訂閱牆、發第一封信)請本人親手做;系統預設 `dry_run`(不會自動寄信/自動收款),要你手動關掉才會真跑。
-- **兩個 .env 檔**(密鑰貼這裡,**不要 commit、不要外流**):
-  - `youtube_channel/.env` —— 漏斗/發文/週報營運腳本讀這個(逐行 `KEY=VALUE`,開機由腳本 `os.environ.setdefault` 載入)。
-  - `quant-service/.env` —— 金流 webhook 相關。**webhook 本身不自載 .env**(`quant-service/webhook/config.py` 只 `os.getenv`),所以啟動 webhook 的那個視窗/啟動器要先把這些變數帶進環境(待確認:以你本機 webhook 啟動器實際載入方式為準)。
-  - **改完 .env 一定要重啟對應程序**(工作室排程器 / webhook)才生效。
+- **兩個 .env 檔**(密鑰貼這裡,**不要 commit、不要外流**)。兩個都是**逐行 `KEY=VALUE`**,程式會自己載,你只要貼值:
+  - `quant-service/.env` —— **金流 webhook + SMTP 寄信**。由 `webhook/config.py` 的 `_load_env()` 在 import 時自動載(相對檔案定位,不管你從哪個目錄啟動都讀得到)。
+  - `youtube_channel/.env` —— **漏斗/發文/landing** 營運腳本讀這個(各腳本自己的 `_load_env()`;排程下的 job 由 `local_cron.py` 帶入)。
+  - **規則:真的環境變數優先,.env 不會覆蓋它**(`os.environ.setdefault`)。所以正式部署可以用系統環境變數蓋過檔案值。
+  - **改完 .env 一定要重啟對應程序**(工作室排程器 / webhook 視窗)才生效。
+- **起 webhook 就雙擊 `quant-service/啟動webhook.bat`**(§3)。它會自己切到 repo root、載 `.env`、印出**哪把密鑰有讀到(SET)/沒讀到(MISSING)**的啟動摘要。**看到 MISSING 就代表那個平台會回 503、收不到錢**——上線前先把摘要看過一遍。
 - **順序原則**(§5):Portaly 訂閱主柱最優先 → 免費磁鐵抓名單 → 訂閱牆+webhook → tripwire/core 上架 → 聯盟 → Whop 國際實驗。
 
 **總覽:約 22 個可執行步驟,估總耗時約 6–9 小時**(不含各平台 KYC 審核等待:蝦皮/通路王審核可拖數天~2 個月,越早送越好)。
@@ -56,57 +58,71 @@
 
 ## 2. env 變數總表(⏱ 30–45 分;拿到值就填)
 
-> **重掃 repo 實況**(檔:行號都驗過)。填法:youtube_channel 系列填 `youtube_channel/.env`;webhook 系列填 `quant-service/.env`(並確保啟動 webhook 時載入)。填完**重啟對應程序**。
+> **重掃 repo 實況**(2026-07-16 重驗)。填法:webhook/SMTP 系列填 `quant-service/.env`;漏斗/發文/landing 系列填 `youtube_channel/.env`。兩個檔都會被程式自動載(見 §0)。填完**重啟對應程序**。
+>
+> 「誰在讀」一律標**符號名**(函式/常數)而非行號——行號會隨改動腐爛,符號名不會。要跳到定義處在編輯器搜該符號即可。
 
 ### 2.1 金流 webhook 密鑰(填 `quant-service/.env`)
 
-| 變數 | 去哪拿值 | 誰在讀(檔:行) |
+| 變數 | 去哪拿值 | 誰在讀 |
 |---|---|---|
-| `GUMROAD_SELLER_ID` | Gumroad 帳號設定頁 | `webhook/config.py:124` |
-| `GUMROAD_PING_TOKEN` | 你自訂一組隨機字串,Gumroad Ping 設定頁貼同一組(見 §3.1) | `webhook/config.py:125` |
-| `PORTALY_WEBHOOK_SECRET` | Portaly webhook 設定頁的簽章密鑰(以後台為準) | `webhook/config.py:126` |
-| `LEMONSQUEEZY_WEBHOOK_SECRET` | (若用 Lemon Squeezy)LS webhook 設定的 signing secret | `webhook/config.py:127` |
-| `WHOP_WEBHOOK_SECRET` | Whop webhook 設定的 signing secret | `webhook/config.py:128` |
-| `NTFY_TOPIC` | 已有預設 `carsonquant-hc-9k3x7m2q`(手機 ntfy 訂這個 topic 就會收到成交通知);要換再設 | `webhook/config.py:129` |
+| `GUMROAD_SELLER_ID` | Gumroad 帳號設定頁 | `webhook/config.py` → `Settings.from_env()` |
+| `GUMROAD_PING_TOKEN` | 你自訂一組隨機字串,Gumroad Ping 設定頁貼同一組(見 §3.1) | 同上 |
+| `PORTALY_WEBHOOK_SECRET` | Portaly webhook 設定頁的簽章密鑰(以後台為準) | 同上 |
+| `LEMONSQUEEZY_WEBHOOK_SECRET` | (若用 Lemon Squeezy)LS webhook 設定的 signing secret | 同上 |
+| `WHOP_WEBHOOK_SECRET` | Whop webhook 設定的 signing secret | 同上 |
+| `NTFY_TOPIC` | 已有預設 `carsonquant-hc-9k3x7m2q`(手機 ntfy 訂這個 topic 就會收到成交通知);要換再設 | 同上 |
 
 > 密鑰**未設 → 該平台 webhook 直接 fail-closed 回 503**(不會誤放行未驗簽請求)。所以哪個平台要上線,就先把那個密鑰填好。
+> **怎麼確認有讀到**:起 `啟動webhook.bat`,看主控台那行 `[webhook] 平台密鑰: ... =SET/MISSING`(只報有無,不會印出密鑰值)。
 
 ### 2.2 交付信下載連結(填 `quant-service/.env`;上架拿到成品下載頁後回填)
 
 | 變數 | 對應 SKU | 誰在讀 |
 |---|---|---|
-| `ECOMMERCE_DL_T1` | T1 定投模板下載連結 | `webhook/config.py:35`(SKU_CATALOG dl_env)→ `delivery.py` |
-| `ECOMMERCE_DL_T2` | T2 單檔體檢 | `webhook/config.py:38` |
-| `ECOMMERCE_DL_C1` | C1 全市場回測包 | `webhook/config.py:41` |
-| `ECOMMERCE_DL_C2` | C2 體檢合輯 | `webhook/config.py:44` |
+| `ECOMMERCE_DL_T1` | T1 定投模板下載連結 | `webhook/config.py` → `SKU_CATALOG` 的 `dl_env` → `download_url_for()` → `delivery.py` |
+| `ECOMMERCE_DL_T2` | T2 單檔體檢 | 同上 |
+| `ECOMMERCE_DL_C1` | C1 全市場回測包 | 同上 |
+| `ECOMMERCE_DL_C2` | C2 體檢合輯 | 同上 |
 
-> 未設 → 交付信帶 placeholder(**不寄假連結**),買家不會拿到死連結。訂閱(SUB_weekly)無 dl_env,走週報引擎寄送。
+> 未設 → 交付信帶 placeholder(**不寄假連結**),買家不會拿到死連結。訂閱(SUB_weekly)無 dl_env(見 §2.3 週報說明)。
+> 啟動摘要那行 `[webhook] 下載連結: ECOMMERCE_DL_T1=SET/MISSING ...` 可一眼確認回填了沒。
 
 ### 2.3 交付信寄件(SMTP,填 `quant-service/.env`)
 
+**SMTP 的單一事實來源 = `quant-service/.env`**。理由(2026-07-16 實掃):全 repo 會讀 `SMTP_*` 的**只有 quant-service 底下這幾支**,`youtube_channel` 全樹**零個** SMTP 讀取點——所以不會有「填錯邊」的問題,填這一個檔就對了。
+
 | 變數 | 去哪拿 | 誰在讀 |
 |---|---|---|
-| `SMTP_USER` | Gmail 帳號(或寄件信箱) | `webhook/delivery.py:28`、`webhook/config.py:131` |
-| `SMTP_PASS` | Gmail **應用程式密碼**(非登入密碼) | `webhook/delivery.py:29`、`config.py:131` |
-| `SMTP_HOST` | 預設 `smtp.gmail.com`,用 Gmail 不用改 | `webhook/delivery.py:26` |
-| `SMTP_PORT` | 預設 `587`,不用改 | `webhook/delivery.py:27` |
+| `SMTP_USER` | Gmail 帳號(或寄件信箱) | `webhook/delivery.py` → `_smtp_send()`;`webhook/config.py` → `Settings.from_env()`(定 dry_run);`ecommerce/subscription_report.py` → `_send_email()` |
+| `SMTP_PASS` | Gmail **應用程式密碼**(非登入密碼) | 同上 |
+| `SMTP_HOST` | 預設 `smtp.gmail.com`,用 Gmail 不用改 | 同上 |
+| `SMTP_PORT` | 預設 `587`,不用改 | 同上 |
 
-> **重要**:`SMTP_USER` 與 `SMTP_PASS` **兩個都齊** webhook 才會關掉 `dry_run` 真寄信(`config.py:131`)。缺任一 → 強制 dry_run,不會誤寄。要正式寄交付信才填。
+> **重要**:`SMTP_USER` 與 `SMTP_PASS` **兩個都齊** webhook 才會關掉 `dry_run` 真寄信(`Settings.from_env()`)。缺任一 → 強制 dry_run,不會誤寄。
+>
+> ⚠️ **這條現在是活的**:啟動摘要會直接告訴你 `dry_run=True/False`。看到 **`dry_run=False` 就代表下一筆真成交會真的寄信給買家**——那是對外動作,確定 §2.2 的下載連結都回填好了再開。要暫時關掉真寄信:把 `SMTP_USER`/`SMTP_PASS` 其中一個註解掉再重啟。
+
+**旗艦訂閱週報「不吃」SMTP —— 它目前根本不寄信**(別誤會這裡沒設好):
+
+- 排程跑的是 `ecommerce_weekly.py`(`deploy/crontab.txt` 每週一),它呼叫的週報引擎是 **`weekly_report_v2.py`**,而 `weekly_report_v2` **全檔零個 SMTP 讀取點、也沒有任何寄送函式**——只 `generate_weekly()` 產 PDF/xlsx + `load_send_list()` 列出名單。`ecommerce_weekly._weekly_report_preview()` 的交付結果是**寫死的 `dry_run=True`**,設計上就不寄給任何人(要寄給訂閱者是「對外發布」紅線,留給你本人決定)。
+- `ecommerce/subscription_report.py`(有 `_send_email()`)是 **v1 舊引擎,已被 v2 取代**,其 `send_report()` **目前零個呼叫點**。留著是備援(回退方式見該檔 `_weekly_report_preview()` docstring)。
+- ⇒ 所以:**填 SMTP 只會讓「交付信」(一次性商品下載信)真寄**;訂閱週報要真寄,是還沒接的一段功能,不是設定問題。
 
 ### 2.4 漏斗/發文/週報營運(填 `youtube_channel/.env`)
 
 | 變數 | 去哪拿值 | 誰在讀(檔:行) |
 |---|---|---|
 | `PORTALY_SUBSCRIPTION_URL` | Portaly 訂閱牆連結(§1.1 拿到後) | `tg_magnet.py:98` |
-| `PRODUCT_STORE_URL` | Portaly 商店/訂閱牆連結(發文帶購買連結用) | `autopost.py:54`、`make_landing.py:40` |
-| `GUMROAD_STORE_URL` | Gumroad 商店連結(國際 EN) | `make_landing.py:41` |
+| `PRODUCT_STORE_URL` | Portaly 商店/訂閱牆連結(發文帶購買連結用) | `autopost.py:54`、`make_landing.py` → 模組層 `PORTALY` |
+| `GUMROAD_STORE_URL` | Gumroad 商店連結(國際 EN) | `make_landing.py` → 模組層 `GUMROAD` |
 | `WORKSHEET_URL` | tripwire 收款連結(T1 試算表 upsell) | `tg_magnet.py:82` |
 | `NEWSLETTER_URL` | 付費電子報收款連結(若開) | `tg_magnet.py:96` |
-| `TG_MAGNET_TOKEN` | Telegram bot token(BotFather)——磁鐵/名單機器人 | `tg_magnet.py:46`;`ecommerce/subscription_report.py:325` |
+| `TG_MAGNET_TOKEN` | Telegram bot token(BotFather)——磁鐵/名單機器人 | `tg_magnet.py:46`;`ecommerce/subscription_report.py` → `_send_telegram()`(退回別名 `TELEGRAM_BOT_TOKEN`) |
 | `UPLOADPOST_API_KEY` | upload-post 服務 API key(多平台發片) | `autopost.py:43` |
 | `UPLOADPOST_USER` | upload-post 使用者 | `autopost.py:44` |
 
-> 週報引擎 `weekly_report_v2.py` **本身不讀任何 env**(交付走 `load_send_list()` 介面 + dry_run);寄送真正上線時由營運迴圈/webhook 帶 SMTP。
+> 週報引擎 `weekly_report_v2.py` **本身不讀任何 env**,且**沒有寄送路徑**(交付走 `load_send_list()` 介面 + dry_run)——詳見 §2.3 末段。
 
 ### 2.5 與 team-lead 先前那批清單的**差異**(重掃結果)
 
@@ -118,31 +134,39 @@
 
 ## 3. webhook 接線(⏱ 45–60 分/平台,真實測試才算完)
 
-> webhook 服務:`quant-service/webhook/app.py`,啟動 `uvicorn quant-service.webhook.app:app --host 0.0.0.0 --port 8021`(`app.py:8`)。四平台各一個路徑。你要有一個**公網可達 URL** 指到這個 port(cloudflared tunnel 或雲端;以你本機對外方式為準)。以下用 `https://<你的公網域名>` 代表。
+> **怎麼起**:雙擊 **`quant-service/啟動webhook.bat`**。就這樣,不用開終端機、不用管目錄。
+>
+> 它做的事:切到 repo root → 載 `quant-service/.env` → 起 `uvicorn quant-service.webhook.app:app --host 0.0.0.0 --port 8021` → 印啟動摘要。
+>
+> ⚠️ **要手打指令的話,cwd 必須是 repo root(`D:\carson-agent`)**:import 路徑 `quant-service.webhook.app:app` 裡的 `quant-service` 是 namespace package,**只有站在 repo root 才 import 得到**。在 `quant-service/` 裡面跑會直接 `ModuleNotFoundError: No module named 'quant-service'`(實測過)。`.bat` 已經幫你處理掉這件事。
+>
+> **起來後先自檢**:主控台的 `[webhook] ...` 摘要——密鑰該 SET 的都 SET 了嗎?`dry_run` 是你要的嗎?再打 `http://127.0.0.1:8021/health` 應回 `{"status":"ok",...}`。
+>
+> **對外**:平台後台要填**公網可達 URL**,不是 localhost —— 本機請開 cloudflared tunnel 指到 `127.0.0.1:8021`。以下用 `https://<你的公網域名>` 代表。四平台各一個路徑。
 
 ### 3.1 Gumroad ⏱ 30 分
 - 後台 → Settings → Advanced → **Ping URL** 填:`https://<你的公網域名>/sale-ping/gumroad?token=<GUMROAD_PING_TOKEN>`
-- **必須帶 `?token=`**:webhook 用 query 的 `token` 或 header `x-ping-token` 驗(`app.py:58`),值要等於 `.env` 的 `GUMROAD_PING_TOKEN`。少了它 → 驗簽失敗。
-- 路由:`app.py:53 /sale-ping/gumroad`;欄位對照 `normalize.parse_gumroad`(`normalize.py:46`,已對 Gumroad 官方 Ping 欄位:`product_name/email/price(分)/currency/sale_id/refunded/cancelled/recurrence`)。
+- **必須帶 `?token=`**:webhook 用 query 的 `token` 或 header `x-ping-token` 驗(`app.py` → `sale_gumroad()`),值要等於 `.env` 的 `GUMROAD_PING_TOKEN`。少了它 → 驗簽失敗。
+- 路由:`app.py` → `@api.post("/sale-ping/gumroad")`;欄位對照 `normalize.parse_gumroad`(`normalize.py:46`,已對 Gumroad 官方 Ping 欄位:`product_name/email/price(分)/currency/sale_id/refunded/cancelled/recurrence`)。
 
 ### 3.2 Lemon Squeezy(可選) ⏱ 20 分
 - 後台 webhook URL:`https://<你的公網域名>/sale-ping/lemonsqueezy`,signing secret 填進 `LEMONSQUEEZY_WEBHOOK_SECRET`。
-- 路由 `app.py:63`;事件對照表 `normalize.py:82 _LS_KIND`(order_created/subscription_* 已對應)。
+- 路由 `app.py` → `@api.post("/sale-ping/lemonsqueezy")`;事件對照表 `normalize.py:82 _LS_KIND`(order_created/subscription_* 已對應)。
 
 ### 3.3 Whop(⚠️ 需校準) ⏱ 30 分 + 校準
-- webhook URL:`https://<你的公網域名>/sale-ping/whop`,signing secret 填 `WHOP_WEBHOOK_SECRET`。路由 `app.py:71`。
+- webhook URL:`https://<你的公網域名>/sale-ping/whop`,signing secret 填 `WHOP_WEBHOOK_SECRET`。路由 `app.py` → `@api.post("/sale-ping/whop")`。
 - **⚠️ 欄位待真實 webhook 校準**(`normalize.py:7-11` 校準註記):
   - 事件名→kind 對應表:`normalize.py:118 _WHOP_KIND`(`payment.succeeded→SUB_RENEW`、`membership.went_valid/activated→SUB_NEW`、`membership.went_invalid/cancelled→SUB_CANCEL`、`payment.refunded→REFUND`)。
   - 欄位候選鍵:`normalize.py:140-146`(email 取 `data.email/user_email/user.email`;product 取 `product/plan/product_name`;amount 取 `final_amount/amount/subtotal`;period_end 取 `renewal_period_end/expires_at`)。
   - **怎麼校準**:發一筆真實測試訂閱 → 看 webhook log 印出的原始 payload → 對照上面候選鍵,少哪個 key 就在該 `_first(...)` 補上 → 重跑測試直到 kind/email/amount/tier 都對。
 
 ### 3.4 Portaly(⚠️ 需校準,台灣主柱) ⏱ 30 分 + 校準
-- webhook URL:`https://<你的公網域名>/sale-ping/portaly`,簽章密鑰填 `PORTALY_WEBHOOK_SECRET`。路由 `app.py:81`。
+- webhook URL:`https://<你的公網域名>/sale-ping/portaly`,簽章密鑰填 `PORTALY_WEBHOOK_SECRET`。路由 `app.py` → `@api.post("/sale-ping/portaly")`。
 - **⚠️ 官方無第一手 webhook spec,全為暫定**(`normalize.py:152-154`):
   - status→kind 對應:`normalize.py:155 _PORTALY_STATUS_KIND`(`subscription_created/subscribed→SUB_NEW`、`renewed→SUB_RENEW`、`cancelled/unsubscribed→SUB_CANCEL`、`refunded→REFUND`)。
   - 欄位候選鍵:`normalize.py:181-187`(email 取 `email/buyer_email/customer_email`;name 取 `name/buyer_name/姓名`;amount 取 `amount/price/total`;period_end 取 `period_end/next_billing_at`)。
-  - **怎麼校準**:同 Whop —— 拿第一筆真實 Portaly 測試 webhook 的 payload,對照候選鍵補齊/改名,重測到 tier 分層(basic/full/full_annual,金額分類見 `config.py:51 SUBSCRIPTION_TIERS`)正確。
-- **驗證通了沒**:打 `GET https://<你的公網域名>/health`(`app.py:47`)回 `active_subscribers` 有跟著測試單增加,就是名冊有接上。
+  - **怎麼校準**:同 Whop —— 拿第一筆真實 Portaly 測試 webhook 的 payload,對照候選鍵補齊/改名,重測到 tier 分層(basic/full/full_annual,金額分類見 `quant-service/webhook/config.py` → `SUBSCRIPTION_TIERS`)正確。
+- **驗證通了沒**:打 `GET https://<你的公網域名>/health`(`app.py` → `@api.get("/health")`)回 `active_subscribers` 有跟著測試單增加,就是名冊有接上。
 
 ---
 
@@ -154,13 +178,18 @@
 |---|---|---|---|
 | `youtube_channel/scripts/tg_magnet.py:98` | `[PORTALY_URL_PLACEHOLDER]` | Portaly 訂閱連結 | 設 `.env` 的 `PORTALY_SUBSCRIPTION_URL`(不改檔) |
 | `youtube_channel/scripts/autopost.py:54` | `[PORTALY_URL_PLACEHOLDER]` | Portaly 商店連結 | 設 `.env` 的 `PRODUCT_STORE_URL` |
-| `youtube_channel/scripts/make_landing.py:40` | `[PORTALY_URL_PLACEHOLDER]` | Portaly 連結 | 設 `.env` 的 `PRODUCT_STORE_URL` 後**重跑** `make_landing.py` |
-| `youtube_channel/scripts/make_landing.py:41` | `[GUMROAD_URL_PLACEHOLDER]` | Gumroad 商店連結 | 設 `.env` 的 `GUMROAD_STORE_URL` 後**重跑** `make_landing.py` |
+| `youtube_channel/scripts/make_landing.py` → 模組層 `PORTALY` | `[PORTALY_URL_PLACEHOLDER]` | Portaly 連結 | 設 `youtube_channel/.env` 的 `PRODUCT_STORE_URL` 後**重跑** `python youtube_channel/scripts/make_landing.py` |
+| `youtube_channel/scripts/make_landing.py` → 模組層 `GUMROAD` | `[GUMROAD_URL_PLACEHOLDER]` | Gumroad 商店連結 | 設 `youtube_channel/.env` 的 `GUMROAD_STORE_URL` 後**重跑**(同上,一次全換) |
 | `youtube_channel/assets/landing/index.html:115,142,148` | `[PORTALY_URL_PLACEHOLDER]` | Portaly 連結 | 由 `make_landing.py` 重新產生覆蓋(或手動改這 3 行) |
 | `youtube_channel/assets/landing/index.html:154` | `[GUMROAD_URL_PLACEHOLDER]` | Gumroad 連結 | 同上 |
-| `youtube_channel/scripts/gen_media_kit.py` | (含 placeholder,媒體包用) | 對應連結 | 需要對外媒體包時再換 |
 
+> **重跑真的會生效**(2026-07-16 修+實測):`make_landing.py` 現在自己會載 `youtube_channel/.env`。修之前它不載、又不在排程裡,手動重跑吃不到 `.env`,會靜默落回 placeholder → 買鈕全是死連結。
+> 實測:設好兩個變數重跑 → 產出 0 個 placeholder、4 個購買按鈕(3 Portaly + 1 Gumroad)全是真連結;沒設 → 仍正確落回 placeholder(不外發死連結的紀律沒破)。
+>
 > 換完檢查:landing 頁四個購買按鈕都不再是 placeholder;`autopost` 發文尾巴的購買連結(`autopost.py:145`)是真連結。
+> 產出的 `index.html` 要部署才會對外生效(覆蓋到 `carsonchou/carson-quant-link` repo 再 push,見 `make_landing.py` docstring)。
+>
+> **`gen_media_kit.py` 不在這張表**(先前列它是誤植):它全檔**沒有**商店連結 placeholder;它的 `PLACEHOLDER = "〔待補：Carson 從 YouTube Studio 後台填〕"` 是**YT 後台數據佔位**(訂閱總數/聯絡窗口),跟 Portaly/Gumroad 連結無關,也不走 env。別去那裡找連結。
 
 ---
 
@@ -212,9 +241,9 @@
 2. **Portaly 訂閱**:訂一筆基礎版 → 檢查:
    - `GET /health` 的 `active_subscribers` +1;
    - `youtube_channel/STUDIO/ecommerce_subscribers.json` 出現該 email、`status=active`、`tier` 正確(這步同時驗 §3.4 校準對不對);
-   - 跑 `python youtube_channel/scripts/ecommerce_weekly.py`(不帶 `--notify`)→ 週報段「寄送名單」人數應 +1。
+   - 跑 `python youtube_channel/scripts/ecommerce_weekly.py`(不帶 `--notify`)→ 週報段「寄送名單」人數應 +1(這步只驗名單接上了,**它不會寄任何東西**,見 §2.3 末段)。
 3. **退款測試**:對上面測試單發退款 → 檢查名冊 `status` 變 `cancelled`、`active_subscribers` -1、記帳簿有負值沖銷。
-4. **交付信真寄**:確認 `SMTP_USER`+`SMTP_PASS` 都設了(否則永遠 dry_run 不寄)——用一筆測試單確認信真的寄達。
+4. **交付信真寄**:起 webhook 時看啟動摘要那行 `dry_run=False`(= `SMTP_USER`+`SMTP_PASS` 都讀到了;任一缺就是 `dry_run=True` 永遠不寄)——再用一筆測試單確認信真的寄達。
 5. **金額怎麼退**:各平台後台「訂單→退款」;webhook 收到退款事件會自動把訂閱者移出名單 + 記帳沖銷(`subscribers.py` / `revenue.py`),你只需在平台按退款。
 
 ---
@@ -222,8 +251,9 @@
 ## 8. 依賴速查(哪步不做會卡哪步)
 
 - §1.1 Portaly 帳號 ❌ → §2.4 `PORTALY_SUBSCRIPTION_URL`/§3.4 webhook/§4 換連結/§5 C1・C2・訂閱 全卡。
-- §2.1 webhook 密鑰 ❌ → §3 對應平台 webhook 回 503,收不到成交。
-- §2.3 SMTP ❌ → 交付信永遠 dry_run,買家收不到下載信(名冊/記帳仍會動)。
+- §2.1 webhook 密鑰 ❌ → §3 對應平台 webhook 回 503,收不到成交。**起 webhook 時看啟動摘要有沒有 MISSING 就能提前抓到。**
+- §2.3 SMTP ❌ → 交付信永遠 dry_run,買家收不到下載信(名冊/記帳仍會動)。**反過來:SMTP 齊備 = `dry_run=False` = 真成交會真寄信,這是對外動作。**
+- (訂閱週報寄送:目前**沒有**寄送路徑,與 SMTP 無關,見 §2.3 末段——不是你哪裡沒設好。)
 - §2.2 `ECOMMERCE_DL_*` ❌ → 交付信帶 placeholder(不寄假連結,但買家拿不到檔)。
 - §4 placeholder 沒換 → landing/發文的購買按鈕是死連結,流量進來買不了。
 - §3.3/§3.4 沒校準 → Whop/Portaly 可能把事件歸錯類(tier 錯 / 名冊沒進),**務必用真實測試單驗過再開放**。

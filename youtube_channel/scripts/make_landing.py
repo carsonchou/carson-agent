@@ -36,6 +36,29 @@ CFG = ROOT / "channel_config.json"
 YT = "https://www.youtube.com/@carson-quant"
 TG = "https://t.me/CarsonQuant_message_bot"
 
+
+def _load_env():
+    """直跑時把 youtube_channel/.env 併進 os.environ。同 make_thumbnails.py/quality_score.py 的作法。
+
+    為什麼(2026-07-16 修):本腳本**不在 crontab 裡**,只會被手動重跑——而唯一會載
+    youtube_channel/.env 的是排程器 local_cron(且只餵給它自己排的 job)。所以手冊叫
+    Carson「設好 PRODUCT_STORE_URL 再重跑 make_landing」時,手動 shell 沒有那些變數 →
+    下面兩行落回 placeholder → landing 四個購買按鈕全是死連結,而腳本正常結束不報錯。
+    (VERIFY_REPORT_runbook B2)
+
+    setdefault = 已存在的環境變數優先,.env 不覆蓋它。必須在下面 PORTALY/GUMROAD 兩行**之前**跑。
+    """
+    envf = ROOT / ".env"
+    if envf.exists():
+        for ln in envf.read_text(encoding="utf-8", errors="replace").splitlines():
+            s = ln.strip()
+            if s and not s.startswith("#") and "=" in s:
+                k, v = s.split("=", 1)
+                os.environ.setdefault(k.strip(), v.strip())
+
+
+_load_env()
+
 # 商店連結:env 優先,未設落回字面 placeholder(不外發紀律,同 autopost/tg_magnet)。
 PORTALY = os.environ.get("PRODUCT_STORE_URL", "[PORTALY_URL_PLACEHOLDER]").strip() or "[PORTALY_URL_PLACEHOLDER]"
 GUMROAD = os.environ.get("GUMROAD_STORE_URL", "[GUMROAD_URL_PLACEHOLDER]").strip() or "[GUMROAD_URL_PLACEHOLDER]"

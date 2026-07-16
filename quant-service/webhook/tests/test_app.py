@@ -4,6 +4,7 @@ TestClient 會同步跑完 BackgroundTasks，故可在 post 後直接驗記帳/�
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -16,12 +17,30 @@ from webhook.config import Settings
 
 
 class TestRoutes(unittest.TestCase):
+    # 這組測試代表「設定齊備的正式系統」(平台密鑰+SMTP+下載連結都備好)的快樂路徑。
+    # 下載連結必須設:否則 delivery 的 fail-safe 會正確地拒寄(不把 placeholder 內部字
+    # 寄給付錢的客人),快樂路徑就驗不到寄信了。未設連結的情境由
+    # test_delivery_failsafe.py 專門覆蓋。
+    _DL_ENVS = {"ECOMMERCE_DL_T1": "https://example.com/dl/t1",
+                "ECOMMERCE_DL_T2": "https://example.com/dl/t2",
+                "ECOMMERCE_DL_C1": "https://example.com/dl/c1",
+                "ECOMMERCE_DL_C2": "https://example.com/dl/c2"}
+
     def setUp(self):
         self.dir = Path(tempfile.mkdtemp())
         self.entries: list = []
         self.mails: list = []
+        self._saved_env = {k: os.environ.get(k) for k in self._DL_ENVS}
+        os.environ.update(self._DL_ENVS)
         self.settings = _util.make_settings(self.dir, _entries=self.entries, _mails=self.mails)
         self.client = TestClient(build_app(self.settings))
+
+    def tearDown(self):
+        for k, v in self._saved_env.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
 
     # ── Lemon Squeezy：簽章通過/失敗/密鑰未設 ──
     def _ls_body(self, event="order_created", **attrs):
@@ -169,6 +188,46 @@ class TestRoutes(unittest.TestCase):
         r = self.client.post("/sale-ping/portaly", content=b"{not json",
                              headers={"X-Portaly-Signature": "deadbeef"})
         self.assertEqual(r.status_code, 401)
+
+    # ── B1 補洞回歸（VERIFY_REPORT_c9538e6 M1）：合法 JSON 但**不是物件** → 也必須 400 ──
+    # 只捕 JSONDecodeError 會漏掉這一整類：它們解析得過，卻讓下游 parser 直接 .get()
+    # → AttributeError → 500 → retry storm 照舊（正是 B1 要治的失效模式）。
+    # null 最現實：平台序列化 bug / 空事件送 null body 就會踩到。
+    NON_OBJECT_BODIES = [b"[1,2,3]", b"null", b'"hello"', b"123"]
+
+    def test_non_object_json_valid_signature_400_not_500(self):
+        for body in self.NON_OBJECT_BODIES:
+            for platform, secret, hdr in (("lemonsqueezy", "lssec", "X-Signature"),
+                                          ("portaly", "psec", "X-Portaly-Signature")):
+                with self.subTest(platform=platform, body=body):
+                    r = self.client.post(f"/sale-ping/{platform}", content=body,
+                                         headers={hdr: _util.sign_hex(secret, body)})
+                    self.assertEqual(r.status_code, 400,
+                                     f"{platform} {body!r} 應回 400，實得 {r.status_code}")
+            with self.subTest(platform="whop", body=body):
+                sig = _util.sign_standard_webhooks(self.settings.whop_secret, "wh_x", "1", body)
+                r = self.client.post("/sale-ping/whop", content=body,
+                                     headers={"webhook-id": "wh_x", "webhook-timestamp": "1",
+                                              "webhook-signature": sig})
+                self.assertEqual(r.status_code, 400,
+                                 f"whop {body!r} 應回 400，實得 {r.status_code}")
+        # 服務未死、零記帳（與既有 B1 回歸同一組不變量）
+        self.assertEqual(self.client.get("/health").status_code, 200)
+        self.assertEqual(len(ledger.load_json(self.settings.sales_ledger, [])), 0)
+        self.assertEqual(len(self.entries), 0)
+
+    def test_valid_object_payload_not_broken_by_type_check(self):
+        """反向護欄：型別檢查只能擋非物件，**不可**誤傷合法物件。
+
+        `{}`（合法物件、欄位全缺）既有正確行為：LS → 200（事件名不在對應表 → IGNORED）、
+        portaly → 422（缺 email 無法交付）。這兩個若變 400，代表型別檢查擋過頭了。"""
+        body = b"{}"
+        r = self.client.post("/sale-ping/lemonsqueezy", content=body,
+                             headers={"X-Signature": _util.sign_hex("lssec", body)})
+        self.assertEqual(r.status_code, 200, f"LS {{}} 應 200，實得 {r.status_code}")
+        r = self.client.post("/sale-ping/portaly", content=body,
+                             headers={"X-Portaly-Signature": _util.sign_hex("psec", body)})
+        self.assertEqual(r.status_code, 422, f"portaly {{}} 應 422，實得 {r.status_code}")
 
 
 if __name__ == "__main__":

@@ -16,7 +16,7 @@ import urllib.parse
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request
 
 from . import normalize, service, verify
-from .config import Settings
+from .config import Settings, env_report_lines
 from .events import EventKind
 
 try:  # Windows 主控台中文 print 防呆（與其他工作室腳本一致）
@@ -27,17 +27,25 @@ except Exception:  # noqa: BLE001
 
 
 def _json_or_400(body: bytes):
-    """驗簽通過後才解析 body；壞 JSON 一律 400 不是 500。
+    """驗簽通過後才解析 body；壞 JSON、或合法 JSON 但不是物件 → 一律 400 不是 500。
 
     為什麼重要：webhook 平台對 5xx 會**持續重試**（retry storm），4xx 才會停。
     平台送出截斷/空 body 的邊界事件時，裸奔的 json.loads 會噴 JSONDecodeError
     → FastAPI 回 500 → 平台無限重投同一顆壞蛋。回 400 明確告訴平台「這顆別再送」。
     （VERIFY_REPORT_phase3a B1）
+
+    型別檢查（VERIFY_REPORT_c9538e6 M1）：只捕解析例外還漏一整類——`[1,2,3]`、`"hello"`、
+    `123`、`null` 都是**合法 JSON 但不是 dict**，會原樣穿過去讓下游 parser 直接 `.get()`
+    → AttributeError → 仍然 500 → retry storm 照舊（portaly/lemonsqueezy/whop 三平台實彈全中）。
+    `null` 尤其現實：平台序列化 bug / 空事件送 null body 就會踩到。
     """
     try:
-        return json.loads(body.decode("utf-8"))
+        payload = json.loads(body.decode("utf-8"))
     except (json.JSONDecodeError, UnicodeDecodeError) as e:
         raise HTTPException(400, f"malformed JSON payload: {e.__class__.__name__}") from e
+    if not isinstance(payload, dict):
+        raise HTTPException(400, f"JSON payload must be an object, got {type(payload).__name__}")
+    return payload
 
 
 def _run(ev, settings, background_tasks: BackgroundTasks):
@@ -54,7 +62,13 @@ def _run(ev, settings, background_tasks: BackgroundTasks):
 
 
 def build_app(settings: Settings | None = None) -> FastAPI:
-    settings = settings or Settings.from_env()
+    if settings is None:
+        # 正式入口：載 quant-service/.env（config import 時已載）並印啟動摘要，
+        # 讓「密鑰是空的」當場看得見，而不是等平台送單被 503 才發現（靜默收不到錢）。
+        # 測試傳自訂 Settings → 不印，測試輸出不吵。
+        settings = Settings.from_env()
+        for line in env_report_lines():
+            print(line, flush=True)
     api = FastAPI(title="量化阿森 電商金流 webhook", version="2.0.0")
     api.state.settings = settings
 

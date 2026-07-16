@@ -72,14 +72,37 @@ def _compose(ev) -> tuple[str, str]:
     return subject, body
 
 
+def needs_manual_delivery(ev) -> bool:
+    """一次性商品但下載連結未設 → 這封信不能寄給真的付錢的客人。
+
+    為什麼(2026-07-16 加):`_download_block()` 在 ECOMMERCE_DL_* 未設時會塞一段
+    「下載連結為 placeholder,正式打包上線後此處帶實際下載連結;設定環境變數…」——
+    那是寫給開發者看的內部字。以前 dry_run 恆為 True(沒人載 .env)所以不會外流;
+    現在 .env 載入器修好、SMTP 憑證一被讀到 dry_run 就自動關 → **付了 NT$990 的客人
+    會收到一封叫他自己去設環境變數的信**。收錢給壞連結,踩動錢+對外雙紅線。
+
+    故 fail-safe:連結沒備妥就**不寄**,改用 ntfy 緊急叫 Carson 手動交付。
+    客人等幾分鐘拿到真東西 >> 立刻收到一封開發者筆記。
+    """
+    return ev.kind == EventKind.SALE and not download_url_for(ev.sku_id)
+
+
 def deliver(ev, settings) -> dict:
     """交付商品/開通信。回 {sent, dry_run, reason?}。
-    dry_run（預設）或 SUB_RENEW（不重寄）→ 不真寄。"""
+    dry_run（預設）或 SUB_RENEW（不重寄）→ 不真寄。
+    下載連結未備妥 → 拒寄(見 needs_manual_delivery)。"""
     subject, body = _compose(ev)
     if not subject:
         return {"sent": False, "dry_run": settings.dry_run, "reason": "續訂不重寄"}
     if not ev.email:
         return {"sent": False, "dry_run": settings.dry_run, "reason": "缺 email"}
+    if not settings.dry_run and needs_manual_delivery(ev):
+        # 寧可不寄也不能把 placeholder 內部字寄給付錢的客人
+        print(f"[delivery] ⚠️ 拒寄:SKU={ev.sku_id} 下載連結未設(ECOMMERCE_DL_*)。"
+              f"訂單 {ev.order_id} / {ev.email} 需手動交付。")
+        return {"sent": False, "dry_run": False, "manual_required": True,
+                "reason": f"下載連結未設(SKU={ev.sku_id}),已擋下 placeholder 信,需手動交付",
+                "to": ev.email}
     if settings.dry_run:
         return {"sent": False, "dry_run": True, "to": ev.email,
                 "subject": subject, "preview": body[:160]}
@@ -102,11 +125,19 @@ def _httpx_ntfy(topic: str, title: str, body: str) -> None:
 def notify(ev, settings, delivered: dict) -> None:
     """ntfy 通知 Carson。dry_run 只印；否則走 settings.ntfy_poster（測試注入假的，
     不打外網）或預設 httpx。Title 保持 ASCII 避免 header 編碼錯誤，中文放 body。"""
-    tail = "｜已寄交付信" if delivered.get("sent") else (
-        "｜(dry_run 未寄)" if delivered.get("dry_run") else "｜⚠️交付信未送")
+    if delivered.get("manual_required"):
+        # 有人真的付錢了但東西寄不出去 → 這是最該吵醒 Carson 的一種通知,別跟一般成交同級
+        tail = f"｜🚨需你手動交付({delivered.get('reason','')})"
+    elif delivered.get("sent"):
+        tail = "｜已寄交付信"
+    elif delivered.get("dry_run"):
+        tail = "｜(dry_run 未寄)"
+    else:
+        tail = "｜⚠️交付信未送"
     body = (f"💰 {ev.platform} {ev.kind.value}：{ev.product} "
             f"{ev.currency}{ev.amount:.2f}｜{ev.email}{tail}")
-    title = f"CarsonQuant ecommerce {ev.platform}"   # ASCII only（header 安全）
+    title = ("CarsonQuant MANUAL DELIVERY NEEDED" if delivered.get("manual_required")
+             else f"CarsonQuant ecommerce {ev.platform}")   # ASCII only（header 安全）
     if settings.dry_run:
         print("[ntfy dry_run]", title, body)
         return
