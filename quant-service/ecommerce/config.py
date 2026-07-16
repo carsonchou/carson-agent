@@ -16,11 +16,23 @@ BRAND = {
     "tagline_zh": "全市場掃描 · 法人籌碼 · 真實訊號追蹤",
 }
 
-# ── 訂閱雙層 + 年繳(NT$ / US$)——暫定,待 Carson 拍板,改這裡即可 ──────────────
+# ── 訂閱雙層 + 年繳(NT$ / US$)——**單一事實來源**,改這裡即可 ────────────────
+# 2026-07-16 Carson 拍板(依 REVIEW_weekly_value 的獨立評審):
+#  · basic 99 → 49:評審兩次判定「basic 四段沒有任何不可替代內容」,真正的風險不是
+#    「沒人升級」而是**沒人會買 basic**。降到衝動價當漏斗入口,不當獲利層。
+#  · 國際版 15 → 9:規格原本宣稱「US$15 是對 Substack $30.6 的低價卡位」,但複查
+#    發現那個 $30.6 是**誤引**(該來源標題是 Top 15 **by Revenue**,倖存者偏誤子集;
+#    原文實際講 $5–20、主群集 $5–15)→ **US$15 是天花板不是卡位價**。重訂 US$5/9。
+#  · 年繳:**暫緩**(enabled=False)。續訂殺手會在第 2–3 個月暴露,年繳等於把不滿意的
+#    客戶鎖 12 個月;對只有 ~30 訂閱的頻道是負資產。補完 S7 點播且有真實續訂率後再開。
+# 台灣競品實查(2026-07-16):財經M平方 PRO ≈NT$533/月、CMoney 籌碼K線 ≈NT$299/月
+# → NT$149 定位成立(M平方的 1/4、CMoney 的 1/2),但三者不直接對打,沒有價格參考點
+# 可搭便車,買家會純用「149 換到什麼」評判。
 SUBSCRIPTION = {
-    "basic":  {"name_zh": "基礎版", "name_en": "Basic",  "ntd_month": 99,  "usd_month": 9},
-    "full":   {"name_zh": "完整版", "name_en": "Full",   "ntd_month": 149, "usd_month": 15},
-    "annual": {"name_zh": "完整版年繳", "name_en": "Full Annual", "ntd_year": 1290, "usd_year": 129},
+    "basic":  {"name_zh": "基礎版", "name_en": "Basic",  "ntd_month": 49,  "usd_month": 5},
+    "full":   {"name_zh": "完整版", "name_en": "Full",   "ntd_month": 149, "usd_month": 9},
+    "annual": {"name_zh": "完整版年繳", "name_en": "Full Annual", "ntd_year": 1290,
+               "usd_year": 99, "enabled": False},
     "platform_tw": "Portaly",
     "platform_intl": "Whop",
 }

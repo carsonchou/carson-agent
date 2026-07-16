@@ -36,6 +36,21 @@ CFG = ROOT / "channel_config.json"
 YT = "https://www.youtube.com/@carson-quant"
 TG = "https://t.me/CarsonQuant_message_bot"
 
+# 定價一律讀 quant-service/ecommerce/config.py 這個**單一事實來源**,不在本檔寫死。
+# 為什麼(2026-07-16):本檔原本把 NT$99/149/1290 直接寫死在 HTML 裡,而 listing_templates
+# 已經在讀 config —— 兩邊各自為政。Carson 把 basic 降成 49 時,若只改 config,
+# **landing 會繼續對買家顯示 99 而系統實收 49**:買家看到的價格 ≠ 實際收的價格。
+# 這跟本專案反覆中招的病同型(單一事實來源沒貫徹 + 不同步時零告警)。
+_QS_ECOM = ROOT.parent / "quant-service" / "ecommerce"
+if str(_QS_ECOM) not in sys.path:
+    sys.path.insert(0, str(_QS_ECOM))
+try:
+    import config as _ecom_cfg
+    SUB = _ecom_cfg.SUBSCRIPTION
+except Exception as e:  # noqa: BLE001
+    # 讀不到就**炸**,不要落回寫死的舊價 —— 對外顯示錯的價格比不出頁面嚴重。
+    raise SystemExit(f"[make_landing] 讀不到定價單一事實來源 {_QS_ECOM/'config.py'}: {e}")
+
 
 def _load_env():
     """直跑時把 youtube_channel/.env 併進 os.environ。同 make_thumbnails.py/quality_score.py 的作法。
@@ -77,6 +92,29 @@ def _btn(href, main, sub="", accent="#C9A227"):
             f'style="border-color:{accent}33">{main}{sub_html}</a>')
 
 
+def _tiers_html() -> str:
+    """訂閱層級價格 —— 一律從 config.SUBSCRIPTION 組,不在 HTML 寫死。
+
+    年繳受 enabled 旗標控制:Carson 已拍板暫緩年繳(續訂殺手會在第 2–3 個月暴露,
+    年繳=把不滿意的客戶鎖 12 個月)。旗標關著就不對買家顯示這個選項——
+    「config 說停售、landing 還在賣」正是這個 codebase 反覆中招的不同步病。
+    """
+    parts = []
+    for key, unit in (("basic", "/月"), ("full", "/月"), ("annual", "/年")):
+        t = SUB.get(key) or {}
+        if t.get("enabled") is False:
+            continue
+        price = t.get("ntd_month") or t.get("ntd_year")
+        if not price:
+            continue
+        parts.append(f'<span class="tier"><b>{t.get("name_zh", key)}</b>'
+                     f'<span class="p">NT${price}<i>{unit}</i></span></span>')
+    return "".join(parts)
+
+
+TIERS = _tiers_html()
+
+
 def _shop_section() -> str:
     """🛒 數位商品鋪 v2 —— 旗艦訂閱週報為視覺主位的四層漏斗(暗金數據卡血統)。
 
@@ -95,11 +133,7 @@ def _shop_section() -> str:
         <div class="pc-eyebrow">★ 旗艦訂閱 · WEEKLY</div>
         <div class="pc-title">台股全市場週報</div>
         <div class="pc-desc">每週掃 <b>1900+ 檔</b>:市場溫度體質 · 34 板塊輪動 · 全市場強弱榜 · 法人週籌碼 · <b class="hl">真實訊號追蹤(含輸單)</b></div>
-        <div class="tiers">
-          <span class="tier"><b>基礎版</b><span class="p">NT$99<i>/月</i></span></span>
-          <span class="tier"><b>完整版</b><span class="p">NT$149<i>/月</i></span></span>
-          <span class="tier"><b>年繳</b><span class="p">NT$1290<i>/年</i></span></span>
-        </div>
+        <div class="tiers">{TIERS}</div>
         <div class="pc-foot"><span class="badge">介紹 ≠ 推薦</span><span class="go">前往訂閱 →</span></div>
       </a>
 
