@@ -42,6 +42,7 @@ CACHE_DIR = ROOT / "twdata" / "cache"
 STATE_FILE = HERE / "state.json"
 SIG_LOG = HERE / "signals_log.json"    # 已推過的訊號(去重)
 HIST_FILE = HERE / "history.json"      # 當日已確認訊號流水(給看板回顧)
+GAUGE_HIST_FILE = HERE / "gauge_history.jsonl"   # 市場溫度逐日歷史(每日一筆,見 append_gauge_history)
 
 sys.path.insert(0, str(QS))            # 讓 indicators / notify 可匯入
 try:
@@ -138,6 +139,125 @@ def _json_safe(o):
     if isinstance(o, (list, tuple)):
         return [_json_safe(v) for v in o]
     return o
+
+
+def append_gauge_history(state: dict, path: Path | None = None) -> bool:
+    """把本輪市場溫度追加進 gauge_history.jsonl(每日一筆,同日重跑覆蓋)。回 True=有寫入。
+
+    ── 為什麼需要這個檔(不是可有可無的 log)──────────────────────────────────
+    市場溫度只活在 state.json 的**當下快照**裡,寫完就沒了,而且**歷史無法回填**:
+      · twdata/cache 有 Volume(算 vol 成分要用)但每檔中位只剩 ~170 根 ≈ 8 個月
+        → 做 20 日前瞻只剩 ~7 個獨立期,統計上無意義;
+      · twdata/cache_adj 有 17 年,但**只有 Close 欄** → 算不出 vol 成分(權重 0.10),
+        重建出來的是「另一個指標」,拿去跟畫面上的溫度對照就是誤導。
+    (以上為 2026-07-17 實測結論,詳見 REVIEW_weekly_value ④ 的裁決。)
+    結論:**沒有時光機**。今天不開始記,半年後仍然做不出「溫度落在這區間 → 後續 N 日
+    大盤表現如何」的對照。這個檔就是那把刀的原料,所以值得動產線掃描器一次。
+
+    ── 為什麼每筆都要記 mode/source/confirmed ──────────────────────────────
+    盤中(realtime/intraday)的讀數是**暫定值**、收盤後(daily/cache)才是**確認值**。
+    未來分析必須能濾出 confirmed 的那條乾淨序列;混著用 = 拿兩個不同的東西當同一個
+    (這正是重建溫度時踩到的坑:頭條數字對得上、內部成分全錯)。所以寧可多存欄位。
+
+    ── 🔴 同日合併規則:confirmed 優先(不是「後寫的贏」)────────────────────
+    第一版寫成「同日留最後寫的那筆」,**實測是錯的**:看板 app.py:59 **無條件**呼叫
+    `run_once(realtime=True)`(→ confirmed=False),而盤中閘 `mh` 只控制 `wait = 2 if mh else 30`
+    ——迴圈盤後照跑。於是 14:00 cron 寫進來的確認值,會在 30 分內被看板的盤中值蓋掉。
+    後果最惡劣的地方在於它**看起來完全正常**:每天都有一筆、格式沒問題,要等到半年後真的要
+    用時才發現 confirmed 幾乎全 false —— 而那時**沒有時光機**,代價是再等半年。
+    規則:同日若已有 confirmed=True,**unconfirmed 不准覆蓋它**;同為 confirmed 才後寫的贏。
+    (防禦性設計:不依賴呼叫端守規矩 —— 不管誰用什麼參數呼叫,這裡都保得住確認值。)
+
+    ── 安全承諾(這是產線掃描器,S1/S2/S3/S6 全靠它)──────────────────────────
+    整段包 try/except,**任何例外都只 print 不拋**:寧可漏記一天,也不能讓掃描器掛掉。
+    呼叫點在 state.json 寫完、且 ok 檢查通過之後 → 就算這裡整個爆掉,主產物也早就落地了。
+    寫法為「讀全檔 → 依 date 合併 → 整檔原子重寫」:
+      · 冪等:app 一天會反覆跑,同日只留一筆(依上面的 confirmed 優先規則);
+      · 原子:沿用本檔 _atomic_write_text(tmp + os.replace),不可能寫出半行;
+      · 壞行:parse 不動的行直接丟棄,不讓一行髒資料污染整個歷史;
+      · .bak:重寫前先備份上一版 —— 整檔重寫唯一的殘餘風險是「檔案已損壞 → 壞行被靜默
+        丟棄並持久化」,留一份 .bak 就能救回來。
+    檔案量級:一年 ~250 筆 × ~300B ≈ 75KB,整檔重寫成本可忽略。
+    """
+    path = path or GAUGE_HIST_FILE
+    try:
+        if not state or not state.get("ok"):
+            return False
+        g = state.get("gauge") or {}
+        if not g or g.get("temperature") is None:
+            return False
+        day = str(state.get("date") or "")[:10]
+        if len(day) != 10:
+            return False
+        idx = state.get("index") or {}
+        # mkt_long_ok:溫度公式最後那道「大盤偏空 → ×0.90」的開關,但 state.json **沒有這個欄位**
+        # (compute_index 只把它 return 給呼叫端,沒寫進 state),而我不能改 state.json 的產出。
+        # ⚠️ 不可以讓未來的人自己用 `trend == "UP"` 推:compute_index 在 0050 資料不足時會回
+        # **(trend=None, long_ok=True)** —— 照 `trend=="UP"` 推會得到 False,誤以為乘了 0.90。
+        # 這裡忠實複製 compute_index 的契約(trend 為 None → True;否則 trend=="UP"),直接存起來。
+        # 交叉驗算(不必存,但未來可自行檢查):weighted = Σ(權重×components),
+        # temperature/weighted ≈ 1.0 → 沒乘;≈ 0.90 → 乘了。
+        trend = idx.get("trend")
+        mkt_long_ok = True if trend is None else (trend == "UP")
+        rec = {
+            "date": day,
+            "ts": state.get("ts"),
+            "source": state.get("source"),          # cache / live
+            "mode": state.get("mode"),              # daily / intraday
+            "confirmed": bool(state.get("confirmed")),   # 收盤後確認值才是乾淨序列
+            "universe": state.get("universe"),
+            "mkt_long_ok": mkt_long_ok,             # 溫度是否**沒有**被 ×0.90(見上方註解)
+            "temperature": g.get("temperature"),
+            "label": g.get("label"),
+            "avg_rsi": g.get("avg_rsi"),
+            "breadth": g.get("breadth"),
+            "adv": g.get("adv"), "dec": g.get("dec"), "flat": g.get("flat"),
+            "adr": g.get("adr"),
+            "nh": g.get("nh"), "nl": g.get("nl"), "nhnl": g.get("nhnl"),
+            "vol_med": g.get("vol_med"),
+            "components": g.get("components") or {},   # rsi/breadth/adr/nhnl/vol(重建溫度用)
+            "index_name": idx.get("name"),
+            "index_price": idx.get("price"),
+            "index_chg": idx.get("chg"),
+            "index_trend": idx.get("trend"),
+            "index_above_yearline": idx.get("above_yearline"),
+        }
+        rows = []
+        same_day = None
+        if path.exists():
+            for line in path.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    o = json.loads(line)
+                except Exception:  # noqa: BLE001
+                    continue                      # 壞行丟掉,不讓它污染整個歷史
+                if not isinstance(o, dict):
+                    continue
+                if str(o.get("date", ""))[:10] == day:
+                    same_day = o                  # 同日舊記錄:交給下面的合併規則裁決
+                else:
+                    rows.append(o)
+        # 🔴 confirmed 優先:已確認的值不准被盤中暫定值蓋掉(見 docstring 的實測根因)
+        if same_day is not None and same_day.get("confirmed") and not rec["confirmed"]:
+            return False                          # 保留既有確認值,本輪不寫(靜默,免得每 30 分洗版)
+        rows.append(rec)
+        rows.sort(key=lambda o: str(o.get("date", "")))
+        # 重寫前先備份上一版:整檔重寫若讀到已損壞的檔,壞行會被丟棄並持久化 → .bak 可救
+        if path.exists():
+            try:
+                import shutil
+                shutil.copy2(path, path.with_suffix(path.suffix + ".bak"))
+            except Exception:  # noqa: BLE001
+                pass                              # 備份失敗不擋主寫入(它只是保險,不是必要條件)
+        text = "".join(json.dumps(_json_safe(o), ensure_ascii=False) + "\n" for o in rows)
+        _atomic_write_text(path, text)
+        return True
+    except Exception as e:  # noqa: BLE001
+        # 絕不讓觀測記錄影響掃描:漏記一天可以,掃描掛掉不行。
+        print(f"[hunter] gauge 歷史記錄略過:{type(e).__name__}: {e}")
+        return False
 
 
 def _market_open_now() -> bool:
@@ -1321,6 +1441,11 @@ def run_once(push: bool = True, cache_only: bool = False, intraday: bool = False
     if not state.get("ok"):
         print(f"[hunter] ✗ 掃描無資料：{state.get('error')}")
         return state
+
+    # 純附加的觀測記錄:溫度歷史無法回填,今天不記半年後就沒有(見 append_gauge_history)。
+    # 刻意放在 state.json 寫完 + ok 檢查通過之後 —— 就算這裡整個爆掉,主產物也早已落地;
+    # 且函式內自帶 try/except,不會把例外丟回掃描主流程。
+    append_gauge_history(state)
 
     g = state["gauge"]
     idx = state["index"]
