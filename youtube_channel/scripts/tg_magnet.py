@@ -109,6 +109,65 @@ _NEWSLETTER = (
 )
 
 
+# ── 漏斗對齊(v2):免費磁鐵 = 當沖適格快照(M1);升級 CTA 一律指向旗艦訂閱週報 ──────────
+# 連結走 _PORTALY_SUBSCRIPTION_URL(上方 env 機制);未設落回 landing(不外發真訂閱連結)。
+_LANDING = "https://carsonchou.github.io/carson-quant-link/"
+_TWDATA = ROOT.parent / "twdata"   # D:\carson-agent\twdata(當沖適格每日快照來源)
+
+
+def _subscribe_cta() -> str:
+    """磁鐵交付尾端的旗艦升級 CTA:把免費名單往「台股全市場週報」訂閱推。"""
+    url = (_PORTALY_SUBSCRIPTION_URL
+           if (_PORTALY_SUBSCRIPTION_URL and _PORTALY_SUBSCRIPTION_URL != "[PORTALY_URL_PLACEHOLDER]")
+           else _LANDING)
+    return ("\n\n──────────\n"
+            "📈 想每週收到《台股全市場週報》嗎?全市場強弱掃描＋板塊輪動＋法人籌碼＋"
+            "真實訊號追蹤(含輸單,不挑不藏)。基礎版 NT$99/月、完整版 NT$149/月。\n"
+            "介紹 ≠ 推薦、不喊單、不保證收益:\n"
+            f"{url}")
+
+
+def _daytrade_magnet() -> str:
+    """M1 免費磁鐵:最新當沖適格快照(處置/注意股)＋ 盤前防呆 5 點 ＋ 訂閱升級 CTA。
+    讀不到檔就退回純防呆清單,永遠有內容可送(fail-safe)。名單只列真實代號,不加任何買賣判斷。"""
+    disp, att, day = [], [], ""
+    try:
+        files = sorted(_TWDATA.glob("daytrade_eligibility_*.json"))
+        if files:
+            d = json.loads(files[-1].read_text(encoding="utf-8"))
+            disp = d.get("disposition", []) or []
+            att = d.get("attention", []) or []
+            day = str(d.get("updated", "") or files[-1].stem.split("_")[-1])
+    except Exception:  # noqa: BLE001
+        pass
+    head = "🎯 量化阿森・台股當沖適格快照\n\n"
+    if day:
+        head += f"(資料日 {day})\n\n"
+    lines = []
+    if disp:
+        lines.append(f"🚫 處置股 {len(disp)} 檔(分盤/預收款,當沖成本高、易被巴):\n"
+                     + "、".join(disp[:30]) + ("…等" if len(disp) > 30 else ""))
+    if att:
+        lines.append(f"⚠️ 注意股 {len(att)} 檔(波動加大,進場先看清楚):\n"
+                     + "、".join(att[:30]) + ("…等" if len(att) > 30 else ""))
+    if not lines:
+        lines.append("今日快照沒有處置/注意股名單(或休市)——沒名單是好事,但盤前 5 點還是要過一遍。")
+    guard = ("\n\n盤前防呆 5 點:\n"
+             "1️⃣ 這檔今天是不是處置/注意股?是就先跳過或極小量試單。\n"
+             "2️⃣ 開盤量夠不夠?量太小,滑價會吃掉你的利潤。\n"
+             "3️⃣ 停損點先設好、先算最壞賠多少再進場。\n"
+             "4️⃣ 別凹單:當沖不留倉是紀律。\n"
+             "5️⃣ 手續費＋證交稅來回吃多少,先算清楚。\n\n"
+             "(此為公開處置/注意股名單整理,只做資訊提醒,不是選股名單、不喊買賣。)")
+    return head + "\n\n".join(lines) + guard + _subscribe_cta()
+
+
+# 當沖適格快照 opt-in 關鍵字(打這些 → 送 M1 當沖快照;預設仍送 Pionex 回測檢核表)
+_DAYTRADE_KW = ("當沖", "適格", "處置", "注意股", "盤前", "當日沖銷")
+# 訂閱升級 opt-in 關鍵字(回頭客打這些 → 直接送旗艦訂閱 CTA)
+_SUB_KW = ("訂閱", "週報", "周報", "全市場")
+
+
 def _pay_instructions():
     """組付款指示:優先讀 STUDIO/payment_info.json(銀行匯款);沒有則退回 WORKSHEET_URL 連結。"""
     try:
@@ -402,15 +461,24 @@ def main() -> int:
                    "youtube")
             leads[chat_id] = {"username": chat.get("username", ""), "name": chat.get("first_name", ""),
                               "first_msg": text[:40], "ts": int(time.time()), "src": src, "stage": 1}
-            # opt-in 分流:打「省AI/便宜/共享/Claude…」→ 送 AI 省錢版(含共享連結、已揭露);其餘一律送 Pionex 檢核表預設
-            if any(k in text.lower() for k in _AI_KW):
+            # opt-in 分流:當沖/適格 → 送 M1 當沖適格快照(漏斗磁鐵,尾帶訂閱升級 CTA);
+            #             省AI/便宜/共享/Claude → AI 省錢版(含共享連結、已揭露);
+            #             其餘一律送 Pionex 回測避雷檢核表(預設)。
+            if any(k in text for k in _DAYTRADE_KW):
+                _send(chat_id, _daytrade_magnet())
+            elif any(k in text.lower() for k in _AI_KW):
                 _send(chat_id, _MAGNET_AI)
             else:
                 _send(chat_id, _MAGNET)
             new += 1
             log_ops("TG名單磁鐵", f"新名單 {chat.get('username') or chat_id}")
-        else:  # 回頭客:輕回覆不洗版
-            _send(chat_id, "完整回測數據＋每天更新都在我 YouTube『量化阿森』。有量化／網格的問題直接問我，我會看。")
+        else:  # 回頭客:打「訂閱/週報」→ 送旗艦訂閱 CTA;打「當沖/適格」→ 送當日快照;其餘輕回覆不洗版
+            if any(k in text for k in _SUB_KW):
+                _send(chat_id, "《台股全市場週報》——全市場強弱＋法人籌碼＋真實訊號追蹤(含輸單):" + _subscribe_cta())
+            elif any(k in text for k in _DAYTRADE_KW):
+                _send(chat_id, _daytrade_magnet())
+            else:
+                _send(chat_id, "完整回測數據＋每天更新都在我 YouTube『量化阿森』。想每週收到台股全市場週報可打「訂閱」了解;有量化／網格問題直接問我，我會看。")
     try:
         LEADS.write_text(json.dumps(leads, ensure_ascii=False, indent=2), encoding="utf-8")
     except Exception:  # noqa: BLE001

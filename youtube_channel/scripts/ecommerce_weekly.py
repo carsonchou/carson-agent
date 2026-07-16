@@ -192,16 +192,38 @@ def build_summary(window_days: int, drop_weeks: int) -> dict:
 
 
 def _weekly_report_preview():
-    """呼叫訂閱報告引擎產一份週報範例,並以 dry_run 走一次交付(不真寄)。"""
-    if str(ECOM_DIR) not in sys.path:
-        sys.path.insert(0, str(ECOM_DIR))
-    try:
+    """呼叫旗艦週報引擎 v2 產 basic+full 兩版 PDF+xlsx,並以 dry_run 摘要交付(不真寄)。
+
+    v2(weekly_report_v2)取代 v1(subscription_report):主體吃全市場掃描、暗色數據卡 HTML→PDF、
+    數字全綁來源(誠信 gate fail-closed)。寄送名單走 load_send_list(tier)——與金流層
+    webhook.subscribers.export_active 同一契約(見該檔 docstring)。dry_run 預設,本函式不寄任何東西。
+
+    回退:若要暫時回 v1,把下方 v2 段註解、改用——
         import subscription_report as sr
         report = sr.generate_weekly_report()
         delivery = sr.send_report("carson@internal", report, channel="telegram", dry_run=True)
         return report.get("meta", {}), delivery
+    """
+    if str(ECOM_DIR) not in sys.path:
+        sys.path.insert(0, str(ECOM_DIR))
+    try:
+        import weekly_report_v2 as wr
+        tiers = {}
+        for tier in ("basic", "full"):
+            res = wr.generate_weekly(tier=tier)
+            send_list = wr.load_send_list(tier=tier)   # 分層寄送名單(dry_run,不真寄)
+            tiers[tier] = {
+                "pdf": str(res["pdf"]), "xlsx": str(res["xlsx"]),
+                "n_ok": res["n_ok"], "recipients": len(send_list),
+                "sections": res["sections"],
+            }
+        meta = {"engine": "weekly_report_v2", "tiers": tiers}
+        delivery = {"sent": False, "dry_run": True,
+                    "basic_recipients": tiers["basic"]["recipients"],
+                    "full_recipients": tiers["full"]["recipients"]}
+        return meta, delivery
     except Exception as exc:  # noqa: BLE001
-        return {"error": f"{type(exc).__name__}: {exc}"}, {"sent": False, "reason": "報告引擎載入失敗"}
+        return {"error": f"{type(exc).__name__}: {exc}"}, {"sent": False, "reason": "週報引擎 v2 載入失敗"}
 
 
 def render_text(summary: dict) -> str:
@@ -230,10 +252,16 @@ def render_text(summary: dict) -> str:
     L.append("")
     wm = summary["weekly_report_meta"]
     if "error" in wm:
-        L.append(f"訂閱週報範例:產製失敗（{wm['error']}）")
+        L.append(f"旗艦週報 v2:產製失敗（{wm['error']}）")
     else:
-        L.append(f"訂閱週報範例:覆蓋 {len(wm.get('symbols', []))} 檔 / "
-                 f"{wm.get('n_facts', 0)} 事實（交付 dry_run,未真寄）")
+        tiers = wm.get("tiers", {})
+        b = tiers.get("basic", {})
+        f = tiers.get("full", {})
+        L.append(f"旗艦週報 v2（{wm.get('engine', 'weekly_report_v2')}｜交付 dry_run,未真寄）:")
+        L.append(f" - 基礎版 PDF:{b.get('n_ok', 0)}/8 sections OK｜寄送名單 {b.get('recipients', 0)} 人")
+        L.append(f" - 完整版 PDF:{f.get('n_ok', 0)}/8 sections OK｜寄送名單 {f.get('recipients', 0)} 人")
+        if f.get("pdf"):
+            L.append(f" - 產物:{Path(f['pdf']).name} + {Path(f['xlsx']).name}(+基礎版)")
     return "\n".join(L)
 
 

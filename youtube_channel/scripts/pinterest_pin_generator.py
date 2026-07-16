@@ -22,20 +22,23 @@ from PIL import Image, ImageDraw, ImageFont
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent          # youtube_channel/
 REPO_ROOT = PROJECT_ROOT.parent                                # carson-agent/
-OUT = REPO_ROOT / "quant-service" / "output" / "ecommerce_ready" / "pinterest"
+# v2:輸出到 v2/pinterest(對齊電商 v2 商品線 + REDESIGN_SPEC_product 視覺 token)
+OUT = REPO_ROOT / "quant-service" / "output" / "ecommerce_ready" / "v2" / "pinterest"
 OUT.mkdir(parents=True, exist_ok=True)
 MASCOT = PROJECT_ROOT / "assets" / "mascot"
 
 W, H = 1000, 1500                                              # Pinterest 建議 2:3 直式
-BASE_BG = (9, 12, 20)                                          # 近黑深色終端底(同縮圖引擎)
+BASE_BG = (11, 14, 20)                                         # #0B0E14 v2 主背景(近黑帶藍)
 
 FONT_BOLD = [r"C:\Windows\Fonts\msjhbd.ttc", r"C:\Windows\Fonts\msyhbd.ttc", r"C:\Windows\Fonts\msjh.ttc",
              "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc"]
 FONT_REG = [r"C:\Windows\Fonts\msjh.ttc", r"C:\Windows\Fonts\msyh.ttc",
             "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"]
 
-ACCENTS = {"yellow": (255, 209, 102), "green": (88, 224, 140),
-           "red": (255, 96, 96), "blue": (90, 184, 255)}
+# v2 視覺 token(REDESIGN_SPEC_product §2.1):暗金 gold=#C9A227 / gold-hi=#E3B93E,
+# 台股漲紅 #FF5C5C(up)/ 跌綠 #33D69F(dn)。marketing accent 用暗金 gold 系為主。
+ACCENTS = {"gold": (227, 185, 62), "green": (51, 214, 159),
+           "red": (255, 92, 92), "blue": (90, 184, 255)}
 CHANNEL = "量化阿森｜Carson Quant"
 
 
@@ -78,7 +81,8 @@ def terminal_bg(accent, seed="x"):
         prices.append(p)
     top, bot = H * 0.60, H * 0.985
     span = bot - top
-    up, dn, cw = (34, 200, 128), (228, 78, 90), step * 0.5
+    # 台股慣例:漲=紅(up #FF5C5C)、跌=綠(dn #33D69F)——與西方相反,對齊 v2 視覺 token
+    up, dn, cw = (255, 92, 92), (51, 214, 159), step * 0.5
     pts, prev = [], prices[0]
     for i, p in enumerate(prices):
         cx = step * i + step / 2
@@ -191,47 +195,53 @@ def _cta_bar(d, accent, price, cta="免費領工具 → 訂閱解鎖全部"):
     d.text((50, H - 34), cta, font=font(30, bold=True), fill=(214, 222, 236), anchor="lm")
 
 
-# ── 電商計畫 S1-S3 + 頻道主題,對應 pin。內容全是「商品是什麼/內含/給誰」,不含捏造績效數字 ──
+# ── 電商 v2 商品線(旗艦訂閱為主位的四層漏斗),對應 5 張 pin。價格 = config.py 事實來源。
+#    內容全是「商品是什麼/內含/給誰」,不含捏造績效/勝率/報酬數字。「介紹 ≠ 推薦」。──
 PINS = [
-    {"slug": "S1_台股訂閱週報", "accent": "green", "mascot": "neutral",
+    # 旗艦訂閱(視覺主位,暗金 gold)
+    {"slug": "旗艦_台股全市場週報", "accent": "gold", "mascot": "neutral",
      "l1": "台股全市場", "l2": "每週幫你掃一遍",
-     "kicker": "台股掃描 + 個股體檢週報 · 訂閱制",
-     "bullets": ["全市場強弱掃描,每週更新", "個股體檢:基本面+價格 13 組事實/檔",
-                 "介紹 ≠ 推薦,只給你事實不報明牌", "email + Telegram 私訊直送"],
+     "kicker": "旗艦訂閱 · 台股全市場週報 · 每週更新",
+     "bullets": ["全市場強弱掃描 + 34 板塊輪動", "法人週籌碼 + 估值位階雷達",
+                 "真實訊號追蹤(含輸單,不挑不藏)", "介紹 ≠ 推薦,email + Telegram 直送"],
      "price": "NT$99–149 / 月"},
 
-    {"slug": "S2_回測數據包", "accent": "yellow", "mascot": "smug",
-     "l1": "1841 檔台股", "l2": "回測數據一次打包",
+    # L2 core:全市場回測數據包
+    {"slug": "數據包_全市場回測", "accent": "gold", "mascot": "smug",
+     "l1": "1770 檔台股", "l2": "回測數據一次打包",
      "kicker": "全市場回測數據包 · 一次買斷",
-     "bullets": ["全市場歷史回測 CSV,自己隨意分析", "個股體檢手冊 + 定投檢查表",
-                 "方法全公開,資料清洗過程透明", "非投資建議,是給你自己驗證的工具"],
-     "price": "NT$149–990"},
+     "bullets": ["adaptive + 多空 + Sharpe 合併 CSV", "淨報酬/回撤/勝率/起訖日/最終權益",
+                 "方法與清洗過程全公開,附摘要 PDF", "歷史快照,非即時、非可交易訊號"],
+     "price": "NT$990 一次買斷"},
 
-    {"slug": "S3_intl_workbook", "accent": "blue", "mascot": "neutral",
-     "l1": "Taiwan Stocks", "l2": "Quant Data Pack (EN)",
-     "kicker": "Taiwan market quant data · English edition",
-     "bullets": ["Full-market backtest workbook (CSV)", "Per-stock checkup: 13 fundamental facts",
-                 "Rare: Taiwan-market data for global quants", "Educational, not financial advice"],
-     "price": "US$9–29", "cta": "Free sample → get the full data pack"},
+    # L2 core:權值股體檢合輯
+    {"slug": "體檢_權值股合輯", "accent": "red", "mascot": "neutral",
+     "l1": "權值股體檢", "l2": "長期真相攤開看",
+     "kicker": "台股權值股體檢合輯 · 深度數據手冊",
+     "bullets": ["含息還原總報酬、最大回撤、最長套牢", "2008/2020/2022 三次崩盤韌性",
+                 "單筆 vs 定投 vs 0050、估值位階", "只做誠實體檢,不喊多空不報明牌"],
+     "price": "NT$1280 一次買斷"},
 
-    {"slug": "T1_個股體檢系列", "accent": "yellow", "mascot": "neutral",
-     "l1": "一檔一集", "l2": "台股個股體檢",
-     "kicker": "頻道主題 · 免費看,深度數據磁鐵",
-     "bullets": ["含息還原總報酬、最大回撤、套牢期", "20 年一檔一檔真數據攤開給你看",
-                 "不喊多空,只做誠實的體檢報告", "看完想要原始數據 → 訂閱解鎖"],
-     "price": "免費上片 · 數據包另售"},
-
-    {"slug": "T2_定投脈絡", "accent": "green", "mascot": "happy",
+    # L1 tripwire:定投追蹤模板
+    {"slug": "入門_定投追蹤模板", "accent": "green", "mascot": "happy",
      "l1": "存股定投", "l2": "先看數據再決定",
-     "kicker": "頻道主題 · 定期定額 vs 一次買進",
-     "bullets": ["一次 All in / 定期定額 / 長抱,數據對照", "跌破年線擇時到底有沒有用?回測給你看",
-                 "0050 / 0056 / 00878 全攤開", "工具免費領,完整檢查表訂閱解鎖"],
-     "price": "免費領檢查表"},
+     "kicker": "台股定投追蹤模板 · 低價入門",
+     "bullets": ["Excel/CSV 定投模板,自動算平均成本", "10 年真對照:All-in vs 定投 vs 0050",
+                 "含息還原,數字取自體檢引擎實算", "工具不是明牌,不含任何買賣訊號"],
+     "price": "NT$99"},
+
+    # 國際 EN:數據包英版
+    {"slug": "EN_quant_data_pack", "accent": "blue", "mascot": "neutral",
+     "l1": "Taiwan Stocks", "l2": "Quant Data Pack (EN)",
+     "kicker": "Taiwan whole-market backtest data · English",
+     "bullets": ["Full-market backtest workbook (CSV)", "Adaptive + long/short + Sharpe merged",
+                 "Rare: Taiwan-market data for global quants", "Educational, not financial advice"],
+     "price": "US$35", "cta": "Free sample → get the full data pack"},
 ]
 
 
 def make_pin(cfg: dict) -> Path:
-    accent = ACCENTS.get(cfg.get("accent", "yellow"), ACCENTS["yellow"])
+    accent = ACCENTS.get(cfg.get("accent", "gold"), ACCENTS["gold"])
     img = terminal_bg(accent, seed=cfg["slug"])
     d = ImageDraw.Draw(img, "RGBA")
     d.rectangle([0, 0, 12, H], fill=accent)                    # 左緣 accent 直條
