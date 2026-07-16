@@ -51,8 +51,13 @@ def _load_leads() -> dict:
     return d if isinstance(d, dict) else {}
 
 
-def _revenue_matrix(entries: list) -> dict:
-    """{platform: {stream: 累計金額}}；cost 另計不進矩陣(那是支出，不是收入線)。"""
+def _entry_currency(e) -> str:
+    # 舊資料無 currency 欄 → 一律視為 TWD(報表原生幣別 NT$)，維持向下相容。
+    return (e.get("currency") or "TWD").upper()
+
+
+def _matrix_for(entries: list) -> dict:
+    """對『單一幣別』的 entries 算 {platform:{stream:累計金額}} + 各加總；cost 另計不進矩陣(那是支出，不是收入線)。"""
     matrix: dict[str, dict[str, float]] = {}
     total_cost = 0.0
     for e in entries:
@@ -90,6 +95,22 @@ def _revenue_matrix(entries: list) -> dict:
         "total_cost": round(total_cost, 2),
         "total_revenue": round(sum(by_platform_total.values()), 2),
     }
+
+
+def _revenue_matrix(entries: list) -> dict:
+    """分幣別加總：不同幣別絕不混加(990 TWD 不再被當 990 USD 直接相加，修 total_revenue 高估)。
+    頂層 legacy 鍵(matrix/by_platform_total/by_stream_total/total_cost/total_revenue)鏡射 TWD 桶(報表原生幣別)
+    → 全 TWD 舊資料輸出與舊版逐位相同、既有讀取端(_merge_northstar/print/revenue.json)不受影響；
+    另新增 by_currency(各幣別完整矩陣)與 currencies。"""
+    valid = [e for e in entries if isinstance(e, dict)]
+    currencies = sorted({_entry_currency(e) for e in valid}) or ["TWD"]
+    by_currency = {c: _matrix_for([e for e in valid if _entry_currency(e) == c]) for c in currencies}
+    primary = "TWD" if "TWD" in by_currency else currencies[0]
+    result = dict(by_currency[primary])  # 鏡射原生幣別那一桶，頂層 5 鍵語意與舊版一致
+    result["primary_currency"] = primary
+    result["currencies"] = currencies
+    result["by_currency"] = by_currency
+    return result
 
 
 # 誠信/防灌水(獨立複查抓到的真實 bug 修正)：stage=3 是 tg_magnet.py run_newsletter_pitch 在「推播成功送達」

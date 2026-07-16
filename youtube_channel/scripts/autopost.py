@@ -50,6 +50,8 @@ except Exception:  # noqa: BLE001
     def log_ops(d, m): pass
 
 HASHTAGS = "#量化交易 #網格交易 #定投 #被動收入 #加密貨幣 #理財 #Pionex #派網"
+# 電商數位商品連結(Portaly/Gumroad 商店頁)。env 未設或仍是 placeholder → 描述不附這行,避免對外發出佔位符。
+PRODUCT_STORE_URL = os.environ.get("PRODUCT_STORE_URL", "[PORTALY_URL_PLACEHOLDER]").strip()
 
 
 def tw_today():
@@ -140,7 +142,9 @@ def main() -> int:
     done = 0
     for p in shorts:
         title, hook = parse_md(p.stem)
-        desc = f"{hook}\n📈 工具：Pionex 派網 {link}（邀請碼 08NAcfvcWna）\n⚠️ 投資有風險，非投資建議。\n{HASHTAGS}"
+        shop = (f"\n🛒 數據包／週報：{PRODUCT_STORE_URL}"
+                if PRODUCT_STORE_URL and PRODUCT_STORE_URL != "[PORTALY_URL_PLACEHOLDER]" else "")
+        desc = f"{hook}\n📈 工具：Pionex 派網 {link}（邀請碼 08NAcfvcWna）{shop}\n⚠️ 投資有風險，非投資建議。\n{HASHTAGS}"
         if post_one(p, title, desc, platforms):
             posted.add(p.stem)
             done += 1

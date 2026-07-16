@@ -163,6 +163,9 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 10 1 * * 1 /root/yt/run.sh scripts/weekly_winners.py --notify >> /root/yt/logs/cron.log 2>&1
 # 逐段留存分析(每週一 01:20:找觀眾在影片幾成處流失→鉤子還是節奏問題→retention_insights.json)
 20 1 * * 1 /root/yt/run.sh scripts/retention_dept.py --top 10 --notify >> /root/yt/logs/cron.log 2>&1
+# 每週電商營運迴圈(每週一 01:30:回收本週銷售→SKU排名→連4週零銷量標待淘汰(只建議不刪檔)→
+# 訂閱週報範例dry_run→ntfy推Carson內部摘要;數字全來自 STUDIO/ecommerce_sales.json+output/ecommerce_ready)
+30 1 * * 1 /root/yt/run.sh scripts/ecommerce_weekly.py --notify >> /root/yt/logs/cron.log 2>&1
 # 每日備份 STUDIO/token/ledger 到 backups/日期/(留最近7天)
 15 4 * * * cd /root/yt && d=backups/$(date +\%Y\%m\%d) && mkdir -p $d && cp STUDIO/*.json token_manage.json token_analytics.json uploaded_ledger.json $d/ 2>/dev/null; ls -dt backups/*/ 2>/dev/null | tail -n +8 | xargs -r rm -rf
 # 🔴 停擺偵測守衛(每天10:12·治「壞了不吭聲」):各管道最後活動超過門檻=疑似靜默停擺→ntfy推Carson

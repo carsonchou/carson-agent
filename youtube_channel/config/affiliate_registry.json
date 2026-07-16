@@ -1,0 +1,304 @@
+{
+  "_meta": {
+    "schema_version": "1.0",
+    "title": "量化阿森 聯盟計畫統一管理登記表 (Affiliate Registry)",
+    "generated": "2026-07-16",
+    "purpose": "把散落在程式碼各處的聯盟連結集中成單一真相來源(master tracker),涵蓋現行 live 連結 + 待申請計畫。每個 program 綁佣金結構、內容觸點、申請狀態,可擴充。",
+    "production_read_path_note": "⚠️ production 現況:autopost.py 的 aff_link() 讀的是 channel_config.json 的 affiliate.pionex_url;各處觸點另讀 channel_config.json 的 affiliates.<id>.url 與 cta.affiliate_links。本 registry 是『管理層』真相來源,不會被 production 自動讀取。",
+    "sync_contract": "當某 program 的 application.status 變 approved 且 affiliate_url 已填入真連結時,才把該連結『手動同步』回 channel_config.json 對應欄位(pionex→affiliate.pionex_url;其餘→affiliates.<id>.url),production 才會真的嵌入。禁止自動送出申請、禁止把 placeholder/空連結寫進 channel_config.json。這步由 funnel 接線任務或 Carson 執行。",
+    "status_values": {
+      "not_applied": "未申請",
+      "submitted": "已送出,審核中",
+      "approved": "已核准,連結可用",
+      "rejected": "被拒(記原因,不影響主軸)",
+      "paused": "暫停/停用"
+    },
+    "leg_strategy": "第一腿=現行 Pionex/加密交易所(頻道既有主題);第二腿=TradingView(30% 終身 recurring)+ClickBank(國際數位商品);第三腿=蝦皮分潤/通路王 iChannels(台灣長線,審核慢早申請)。",
+    "disclosure_rule": "所有聯盟連結對外露出一律附誠實揭露:透過連結註冊/購買不會增加你的成本、我方抽被推薦用戶的分潤%、投資有風險不保證收益、要不要使用請自行評估。"
+  },
+  "programs": {
+    "pionex": {
+      "name": "Pionex 派網 網格交易平台",
+      "market": "global",
+      "leg": 1,
+      "priority": 1,
+      "affiliate_url": "https://accounts.pionex.com/zh-TW/signUp?r=08NAcfvcWna",
+      "signup_url": "https://www.pionex.com/zh-TW/sign/ref/08NAcfvcWna",
+      "invite_code": "08NAcfvcWna",
+      "commission": {
+        "model": "手續費分潤",
+        "rate": "被推薦用戶手續費分潤",
+        "recurring": true,
+        "cookie_days": null,
+        "payout_threshold": null,
+        "payout_method": "平台內帳戶",
+        "notes": "頻道現行主力工具,Carson 本人在用。"
+      },
+      "content_touchpoints": [
+        "autopost.py aff_link() — 所有自動發布短片描述",
+        "channel_config.json cta.affiliate_links[0] — 長片資訊欄",
+        "主題含:網格/機器人/派網/實測 的影片"
+      ],
+      "application": {
+        "status": "approved",
+        "submitted_date": null,
+        "approved_date": "已核准(既有)",
+        "checklist": null,
+        "requirements": [],
+        "eligibility": [],
+        "notes": "已 live,無需申請包。"
+      },
+      "disclosure": "以上為派網聯盟推薦連結,透過連結註冊不會增加你的成本,並能支持本頻道持續產出真數據內容;投資有風險,非投資建議。"
+    },
+    "tradingview": {
+      "name": "TradingView Affiliate / Partner Program",
+      "market": "global",
+      "leg": 2,
+      "priority": 2,
+      "affiliate_url": "",
+      "signup_url": "https://www.tradingview.com/partner-program/",
+      "invite_code": "",
+      "commission": {
+        "model": "訂閱分潤 (recurring)",
+        "rate": "30%",
+        "recurring": true,
+        "recurring_type": "終身制(客戶付多久抽多久)",
+        "cookie_days": null,
+        "payout_threshold": null,
+        "payout_method": "PayPal only(台灣接玉山 PayPal 通路提領)",
+        "notes": "第二腿主力,與看盤/圖表/指標頻道主題完美對口;申請多為秒過,事後有流量來源軟審核(用真實頻道流量,無風險)。"
+      },
+      "content_touchpoints": [
+        "主題含:看盤/圖表/指標/教學 的影片描述",
+        "個股體檢長片(逐檔 10 分鐘)——看圖工具並列 CTA",
+        "TradingView 工具實測/教學影片(誠實實測=頻道定位)",
+        "影片描述模板:與電商商品連結並列"
+      ],
+      "application": {
+        "status": "not_applied",
+        "submitted_date": null,
+        "approved_date": null,
+        "checklist": "quant-service/output/ecommerce_ready/affiliate_checklists/tradingview_affiliate_checklist.md",
+        "requirements": ["PayPal 收款(建議玉山 PayPal 通路)", "頻道/流量來源"],
+        "eligibility": [],
+        "notes": "早申請,秒過即可用。核准後把 affiliate_url 填回並同步到 channel_config.json.affiliates.tradingview.url。"
+      },
+      "disclosure": "以上為 TradingView 聯盟連結,透過連結訂閱不會增加你的成本,我方會獲得分潤以支持頻道;是否付費升級請自行評估需求。"
+    },
+    "clickbank": {
+      "name": "ClickBank Affiliate Marketplace",
+      "market": "intl",
+      "leg": 2,
+      "priority": 3,
+      "affiliate_url": "",
+      "signup_url": "https://www.clickbank.com/",
+      "invite_code": "",
+      "commission": {
+        "model": "數位商品 CPS(依各 offer 而定)",
+        "rate": "各 offer 不同,常見 50-75%",
+        "recurring": false,
+        "cookie_days": 60,
+        "payout_threshold": "可設(預設 $10 起)",
+        "payout_method": "支票/直接存款/Payoneer/wire(依帳戶設定)",
+        "notes": "秒批且官方鼓勵 AI 內容;國際數位商品補充腿,選與量化/交易/理財主題相關的 offer。"
+      },
+      "content_touchpoints": [
+        "英文版/國際向影片描述",
+        "國際數位商品(Gumroad SKU)交叉推薦",
+        "與交易/理財工具實測相關的英文內容"
+      ],
+      "application": {
+        "status": "not_applied",
+        "submitted_date": null,
+        "approved_date": null,
+        "checklist": "quant-service/output/ecommerce_ready/affiliate_checklists/clickbank_affiliate_checklist.md",
+        "requirements": ["ClickBank 帳號", "收款方式設定"],
+        "eligibility": [],
+        "notes": "核准後選定 offer,產生 HopLink 填回 affiliate_url。"
+      },
+      "disclosure": "以上為 ClickBank 聯盟連結,透過連結購買不會增加你的成本,我方會獲得分潤;請自行評估商品是否適合你。"
+    },
+    "shopee_affiliate": {
+      "name": "蝦皮分潤計畫 (Shopee Affiliate Program 台灣)",
+      "market": "tw",
+      "leg": 3,
+      "priority": 4,
+      "affiliate_url": "",
+      "signup_url": "https://affiliate.shopee.tw/",
+      "invite_code": "",
+      "commission": {
+        "model": "站內商品 CPS",
+        "rate": "依類目而定",
+        "recurring": false,
+        "cookie_days": 7,
+        "payout_threshold": "NT$500",
+        "payout_method": "台灣銀行帳戶",
+        "notes": "cookie 7 天、出金門檻 NT$500 已驗證。『無粉絲門檻』存疑:官方曾要求 300 追蹤者、近期疑似取消但無白紙黑字——被要求 300 追蹤者屬政策恢復非系統錯誤。台灣一次性商品導購第三腿。"
+      },
+      "content_touchpoints": [
+        "台灣一次性數位商品(蝦皮站內上架)導購",
+        "台股書單/工具/周邊 相關影片與貼文",
+        "landing page 商品卡旁"
+      ],
+      "application": {
+        "status": "not_applied",
+        "submitted_date": null,
+        "approved_date": null,
+        "checklist": "quant-service/output/ecommerce_ready/affiliate_checklists/shopee_affiliate_checklist.md",
+        "requirements": ["蝦皮帳號", "台灣銀行帳戶(出金)"],
+        "eligibility": ["可能需 300 追蹤者(政策浮動)"],
+        "notes": "被拒不影響主軸,只是第三腿;早申請卡位。"
+      },
+      "disclosure": "以上為蝦皮分潤連結,透過連結購買不會增加你的成本,我方會獲得少額分潤以支持頻道。"
+    },
+    "ichannels": {
+      "name": "通路王 iChannels 聯盟行銷",
+      "market": "tw",
+      "leg": 3,
+      "priority": 5,
+      "affiliate_url": "",
+      "signup_url": "https://www.ichannels.com.tw/",
+      "invite_code": "",
+      "commission": {
+        "model": "各廠商方案 CPS/CPA",
+        "rate": "各方案不同(例:書籍分潤約 3%)",
+        "recurring": false,
+        "cookie_days": null,
+        "payout_threshold": null,
+        "payout_method": "台灣銀行帳戶",
+        "notes": "免費可入會,需中華民國國籍。審核實測可拖近 2 個月——早申請當長線第三腿。書籍分潤約 3%。"
+      },
+      "content_touchpoints": [
+        "台股/投資書單影片(書籍分潤)",
+        "台灣本土廠商相關工具/課程推薦",
+        "landing page 台灣向商品卡"
+      ],
+      "application": {
+        "status": "not_applied",
+        "submitted_date": null,
+        "approved_date": null,
+        "checklist": "quant-service/output/ecommerce_ready/affiliate_checklists/ichannels_affiliate_checklist.md",
+        "requirements": ["中華民國國籍", "台灣銀行帳戶", "身分驗證"],
+        "eligibility": ["需中華民國國籍"],
+        "notes": "審核慢(近 2 個月),務必最早送出。核准後逐廠商申請方案取得分潤連結。"
+      },
+      "disclosure": "以上為通路王聯盟連結,透過連結購買不會增加你的成本,我方會獲得分潤以支持頻道。"
+    },
+    "mexc": {
+      "name": "MEXC 交易所",
+      "market": "global",
+      "leg": 1,
+      "priority": 6,
+      "affiliate_url": "",
+      "signup_url": "",
+      "invite_code": "",
+      "commission": {
+        "model": "手續費分潤",
+        "rate": "最高 70% 終身手續費",
+        "recurring": true,
+        "cookie_days": null,
+        "payout_threshold": null,
+        "payout_method": "平台內帳戶",
+        "notes": "現有 channel_config.affiliates.mexc,url 待 Carson KYC 申請後填。"
+      },
+      "content_touchpoints": ["主題含:網格/機器人/實測/合約 的影片"],
+      "application": {
+        "status": "not_applied",
+        "submitted_date": null,
+        "approved_date": null,
+        "checklist": null,
+        "requirements": ["交易所帳號 + KYC"],
+        "eligibility": [],
+        "notes": "已在 channel_config 佔位,本任務不含 checklist(非計畫指定 4 個)。"
+      },
+      "disclosure": "以上為 MEXC 聯盟連結,透過連結註冊不會增加你的成本;投資有風險,非投資建議。"
+    },
+    "bitget": {
+      "name": "Bitget 交易所",
+      "market": "global",
+      "leg": 1,
+      "priority": 7,
+      "affiliate_url": "",
+      "signup_url": "",
+      "invite_code": "",
+      "commission": {
+        "model": "手續費分潤",
+        "rate": "最高 50% 終身",
+        "recurring": true,
+        "cookie_days": null,
+        "payout_threshold": null,
+        "payout_method": "平台內帳戶",
+        "notes": "現有 channel_config.affiliates.bitget,url 待填。"
+      },
+      "content_touchpoints": ["主題含:網格/機器人/實測 的影片"],
+      "application": {
+        "status": "not_applied",
+        "submitted_date": null,
+        "approved_date": null,
+        "checklist": null,
+        "requirements": ["交易所帳號 + KYC"],
+        "eligibility": [],
+        "notes": "已在 channel_config 佔位。"
+      },
+      "disclosure": "以上為 Bitget 聯盟連結,透過連結註冊不會增加你的成本;投資有風險,非投資建議。"
+    },
+    "bybit": {
+      "name": "Bybit 交易所",
+      "market": "global",
+      "leg": 1,
+      "priority": 8,
+      "affiliate_url": "",
+      "signup_url": "",
+      "invite_code": "",
+      "commission": {
+        "model": "手續費分潤",
+        "rate": "50%+10% 終身",
+        "recurring": true,
+        "cookie_days": null,
+        "payout_threshold": null,
+        "payout_method": "平台內帳戶",
+        "notes": "現有 channel_config.affiliates.bybit,url 待填。"
+      },
+      "content_touchpoints": ["主題含:合約/機器人 的影片"],
+      "application": {
+        "status": "not_applied",
+        "submitted_date": null,
+        "approved_date": null,
+        "checklist": null,
+        "requirements": ["交易所帳號 + KYC"],
+        "eligibility": [],
+        "notes": "已在 channel_config 佔位。"
+      },
+      "disclosure": "以上為 Bybit 聯盟連結,透過連結註冊不會增加你的成本;投資有風險,非投資建議。"
+    },
+    "perplexity": {
+      "name": "Perplexity 官方聯盟 (via dub.co)",
+      "market": "global",
+      "leg": 2,
+      "priority": 9,
+      "affiliate_url": "https://partners.dub.co/programs/perplexity",
+      "signup_url": "https://partners.dub.co/programs/perplexity",
+      "invite_code": "",
+      "commission": {
+        "model": "CPL(每有效名單)",
+        "rate": "$15/有效名單",
+        "recurring": false,
+        "cookie_days": null,
+        "payout_threshold": null,
+        "payout_method": "dub.co 平台",
+        "notes": "官方正版聯盟,AI 工具主題;現有 channel_config.affiliates.perplexity(已填 url)。"
+      },
+      "content_touchpoints": ["主題含:AI/工具/省 的影片(第二變現支柱『聰明用 AI』)"],
+      "application": {
+        "status": "approved",
+        "submitted_date": null,
+        "approved_date": "已核准(既有)",
+        "checklist": null,
+        "requirements": [],
+        "eligibility": [],
+        "notes": "已有連結;非本任務 4 個指定 checklist 之一。"
+      },
+      "disclosure": "以上為 Perplexity 官方聯盟連結,透過連結註冊不會增加你的成本。"
+    }
+  }
+}

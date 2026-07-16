@@ -67,7 +67,10 @@ node_modules/
 #  資料快取（可重新下載，668M，不進版控）
 # ============================================================
 twdata/cache/
+twdata/cache_adj/
 **/cache/*.csv
+# 全市場事實引擎抓取進度紀錄（可重跑重生，見 tw_universe_facts.py）
+twdata/universe_facts_fetch_log.csv
 # 三大法人籌碼本地快取（每交易日一檔 JSON，可由 TWSE/TPEX 重抓）
 twdata/chips/
 # 融資融券/當沖本地快取（每交易日一檔 JSON，可由 TWSE MI_MARGN/TWTB4U 重抓）
@@ -156,3 +159,6 @@ quant-service/data_hunter/state_research.json
 quant-service/data_hunter/state_filing_*.json
 quant-service/data_hunter/state_valuation_*.json
 quant-service/data_hunter/stock_ratios_*.json
+
+# 電商生成物(10 SKU 成品,可由 quant-service/ecommerce/product_factory.py 重生)
+quant-service/output/ecommerce_ready/

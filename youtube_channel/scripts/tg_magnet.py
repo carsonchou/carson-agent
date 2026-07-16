@@ -94,6 +94,8 @@ _UPSELL = (
 # 付費電子報(item A2:經常性收入)。對象=已買過 worksheet(stage>=2,較有付費意願)或名單建立滿 7 天。
 # 誠信:內容原料一律來自現成 STUDIO 真回測/避雷資料,不臨時編數字;不喊單不保證收益,交付走 TG 付費頻道(人工拉群,非自動)。
 _NEWSLETTER_URL = os.environ.get("NEWSLETTER_URL", "").strip()
+# 主金流:Portaly 訂閱連結(台灣本土·自動續訂+自動發票,免人工對帳)。env 未設或仍是 placeholder → 退回舊銀行匯款人工對帳流程。
+_PORTALY_SUBSCRIPTION_URL = os.environ.get("PORTALY_SUBSCRIPTION_URL", "[PORTALY_URL_PLACEHOLDER]").strip()
 _NEWSLETTER_DELAY_SEC = 7 * 24 * 3600  # 名單建立滿 7 天才推(給 worksheet 買家額外快速資格,見 run_newsletter_pitch)
 _NEWSLETTER = (
     "📮 想每週固定收到避雷清單＋真回測數字嗎？\n\n"
@@ -166,8 +168,13 @@ def run_upsell(dry=False) -> int:
 
 
 def _newsletter_pay_instructions():
-    """組電子報訂閱付款指示(NT$99/月):優先讀 payment_info.json(銀行匯款,人工對帳拉群);
-    沒設就退回 NEWSLETTER_URL 連結(Carson 自填 env,例如 TG 付費頻道邀請連結)。"""
+    """組電子報訂閱付款指示(NT$99/月)。
+    主路:Portaly 訂閱連結(自動續訂+自動發票,免人工對帳);env PORTALY_SUBSCRIPTION_URL 未設或仍是 placeholder → 退回舊流程。
+    退路(fallback):payment_info.json 銀行匯款人工對帳拉群 → 再退 NEWSLETTER_URL 連結(Carson 自填 env)。"""
+    if _PORTALY_SUBSCRIPTION_URL and _PORTALY_SUBSCRIPTION_URL != "[PORTALY_URL_PLACEHOLDER]":
+        return (f"點這裡直接訂閱(每月自動續、可隨時取消):\n{_PORTALY_SUBSCRIPTION_URL}\n"
+                "訂閱完成後系統自動把你加進電子報頻道,不用等我人工對帳。")
+    # ── 以下為 Portaly 未設時的退路:舊「銀行匯款人工對帳」流程,刻意保留不刪 ──
     try:
         info = json.loads(_PAYINFO.read_text(encoding="utf-8")) if _PAYINFO.exists() else {}
     except Exception:  # noqa: BLE001
