@@ -107,6 +107,23 @@ def main():
         print("[FATAL] 無 ANTHROPIC_API_KEY", file=sys.stderr); return 2
     ep = load_ep()
     print(f"[info] EP 現況：EP.{ep['current_ep']} 第{ep['day']}天 報酬={ep.get('return_pct','尚無數據')}")
+    # 事實 guard：預告片把 ep_data 的真數字直接當鉤子念出來(見 gen_teaser 的 data_line/hook_seed)，
+    # 事實沒更新就再產一支＝同一件事換句話說。而且下面是 `for _ in range(count)` 拿**同一個 ep**
+    # 連產 count 支，一次跑就是 count 支同事實的片。ep_data 是「單一當前狀態」，pionex_account.py
+    # 沒有 API key 就整支早退不更新它 → 這裡會天天拿同一組數字重產(2026-07 實錄：day=30/-1.19%
+    # 自 07-12 凍結)。有新數字時指紋自然改變 → 自動恢復產出，不需人工解封。
+    # fail-open：guard 自己壞掉就照舊產（不可害整條產線停擺）。
+    try:
+        import ep_engine
+        if not ep_engine.fact_is_fresh(ep):
+            msg = (f"EP 事實未更新(第{ep.get('day')}天/報酬{ep.get('return_pct')}%，這組已經產過片)，"
+                   f"本次不產預告——同一個事實換殼再產一支會侵蝕系列可信度。"
+                   f"Pionex 帶進新數字後自動恢復。")
+            print(f"[skip] {msg}")
+            log_ops("EP預告", f"⚠️ 跳過：{msg}")
+            return 0
+    except Exception as _e:  # noqa: BLE001
+        print(f"[warn] EP 事實 guard 略過：{str(_e)[:80]}", file=sys.stderr)
     made = 0
     for _ in range(args.count):
         try:

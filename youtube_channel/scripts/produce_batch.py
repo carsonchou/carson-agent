@@ -327,6 +327,37 @@ def _fact_dedup(cand, bank):
         return cand
 
 
+def _ep_topic_like(t):
+    """這個候選題會不會被 call_claude 的 is_ep 判定吃進「EP 實測系列」。
+    判定條件刻意與該處(見 call_claude 的 is_ep)保持一模一樣,兩邊漂移的話 guard 就會有破口。"""
+    cat = str(t.get("category", "") or "")
+    if cat in ("AI省錢", "AI工具比較", "AI公司揭密"):
+        return False
+    if any(k in cat for k in ("實測", "實驗")):
+        return True
+    return any(k in str(t.get("title", "") or "") for k in ("EP", "實測", "實驗"))
+
+
+def _ep_stale_filter(cand):
+    """EP 事實 guard：ep_data 的真數字沒更新 → 把會被當成 EP 的候選題濾掉,這批自然抽別的題。
+    這是「不產」而不是「換個標題再產一支」：EP 系列報的是單一真實帳戶,事實沒動就沒有新的一集。
+    擋在選題層(而不是寫稿後)有兩個好處：不燒 LLM token、且 pull_topic 會直接挑到別的乾淨題,
+    產線量不受影響(實測題庫 740 個未用短片候選中只有 88 個會命中,約 12%)。
+    pionex 帶進新數字 → 指紋改變 → fact_is_fresh 回 True → EP 題自動恢復,不需人工解封。
+    fail-open：guard 自己壞掉一律回原 cand——去重壞掉可以接受,把產線弄停不行。"""
+    try:
+        import ep_engine
+        if ep_engine.fact_is_fresh():
+            return cand
+        out = [t for t in cand if not _ep_topic_like(t)]
+        if len(out) < len(cand):
+            log_ops("補產部門", f"EP事實未更新(ep_data 的 day/return_pct 與已產過的同一組),"
+                                f"{len(cand) - len(out)} 題 EP 候選跳過,改抽別的題")
+        return out
+    except Exception:  # noqa: BLE001
+        return cand
+
+
 def pull_topic(kind):
     """從 STUDIO/topic_bank.json 取一個未用、符合格式的題目並標記為已用；無則回 None。
     讀寫一律走 topic_bank.load_bank/save_bank(原子寫+.bak 救命),避免併發寫互毀把整庫洗掉(2026-07 根因修復)。
@@ -355,6 +386,8 @@ def pull_topic(kind):
             (t.get("title", "") or "") + (t.get("angle", "") or ""))]
     # 2026-07-17 事實層去重:同一個 fact_key 近期已產過就換題(見 _fact_dedup 的根因說明)
     cand = _fact_dedup(cand, bank)
+    # 2026-07-17 EP 事實 guard:EP 題沒有 fact_key,上面那道擋不到(見 _ep_stale_filter 的根因說明)
+    cand = _ep_stale_filter(cand)
     # 治本:①乾淨題優先於新聞旁路來源題(修「回測/你的」讓幣圈恐慌題誤命中 _NUM_KW 插隊贏過乾淨題的 bug)
     #       ②同組內再靠「數字戳破直覺」會紅題(完播高)優先;工具教學/純新聞題排後、自然餓死
     # 2026-07 成長衝刺(growth_sprint_plan.md B 段):台股/ETF/0050×定投對比×回測打臉直覺＝
@@ -2535,22 +2568,59 @@ def fact_guard_flags(text):
 
 
 def _long_fact_heal(bodies, facts_ctx, integrity, title):
-    """誠信自癒:組稿後跑 fact_guard,對含旗標的深段各重寫一次(把捏造/未標示數字改成 facts 真數字或假設語氣、
-    中文念法)。回傳(修過的 bodies, 殘留旗標數)。fact_guard 讀不到就原樣回。"""
+    """誠信自癒:組稿後跑守門,對含旗標的深段各重寫一次(把捏造/未標示數字改成 facts 真數字或假設語氣、
+    中文念法)。回傳(修過的 bodies, 殘留旗標數)。守門讀不到就原樣回。
+
+    🔴 2026-07-17 長片產能白燒根因:本函式(產製端自癒)以前只問 fact_guard,但發布端
+    daily_publish._factguard_gate 是用 **fact_source_guard** 擋——兩道用不同判準,而且剛好
+    互補不到:fact_guard 只認阿拉伯數字 `\\d+%`,長片卻一律寫中文唸法(「百分之八十」,見
+    _LONG_DATA_DISCIPLINE ③,那是為了 TTS)→ **產製端結構上看不見發布端會擋什麼**,
+    片整支渲染完才在發布前被打掉。實案:L_AI策略回測勝率90…(「國外研究發現…八成是過度擬合」)、
+    L_AI策略回測贏大盤…(「年化報酬高達百分之八十」)兩支長片全片渲染完才被擋,佔當時長片庫存 18%。
+    這裡把發布端那把尺接進來,讓自癒跟守門同一個判準——**不放寬任何 gate**,是要求產製端達標。
+    """
     try:
         import fact_guard, llm
     except Exception:  # noqa: BLE001
         return bodies, 0
+    # 事實庫數字池太小 = 守門自己壞掉(會誤判全部無憑據),照 daily_publish 的 fail-open 慣例不擋。
+    try:
+        import fact_source_guard as fsg
+        _pool = fsg.fact_pool()
+        if len(_pool) < 10:
+            _pool = None
+    except Exception:  # noqa: BLE001
+        fsg, _pool = None, None
+
+    def _unsourced(text):
+        if not (fsg and _pool):
+            return []
+        try:
+            return fsg.unsourced_claims(text, _pool)
+        except Exception:  # noqa: BLE001
+            return []
+
     for _round in range(2):
         remaining = 0
         for k, para in enumerate(bodies):
             hits = fact_guard.flags_for(para)
             banned = _promo_banned_hits(para)
-            if not hits and not banned:
+            unsourced = _unsourced(para)
+            if not hits and not banned and not unsourced:
                 continue
+            # 重寫不得讓段落縮水,但本函式也被 hook/小結(短文本)複用——固定門檻 100 字會讓
+            # 短文本的修正稿一律被判定失敗丟棄(hook 只有 ~60 字,等於 hook 永遠治不好)。
+            # 改成相對原段落的比例,對正常深段仍是原本的 100 字門檻,對短文本才放行。
+            _min_keep = min(100, max(20, int(_long_chinese_chars(para) * 0.6)))
             try:
                 _issue = (f"疑似捏造/未標示數字:{hits[:6]}；" if hits else "") + \
-                         (f"誇大保證禁語:{banned}(必刪);" if banned else "")
+                         (f"誇大保證禁語:{banned}(必刪);" if banned else "") + \
+                         (f"**查無來源的績效數字:{[c['value'] for c in unsourced[:4]]}**"
+                          f"——事實庫裡根本沒有這些數字(例:「{unsourced[0]['clause'][:28]}」),"
+                          "發布端會直接擋掉整支片。必須擇一處理:①刪掉 ②換成下面 facts 的真數字 "
+                          "③改寫成明講的假設語氣(「假設」「打個比方」「示意」開頭)。"
+                          "尤其**嚴禁掛名不實**——沒有這個研究就不要寫「國外研究發現」「回測顯示」;"
+                          if unsourced else "")
                 hp = (
                     f"你是量化阿森頻道的長片腳本寫手。{GUARD}\n以下段落被守門抓到問題:{_issue}。"
                     "請重寫這一段,維持一樣的長度與子主題,但:把不是下面 facts 給的精確數字全部拿掉或"
@@ -2560,9 +2630,10 @@ def _long_fact_heal(bodies, facts_ctx, integrity, title):
                     "只輸出重寫後的完整段落純文字,不要JSON/小標/前後綴。\n\n【原段落】\n" + para
                 )
                 fixed = _fix_artifacts(_to_traditional(llm.complete(hp, 1800).strip()))
-                if fixed and _long_chinese_chars(fixed) >= 100:
+                if fixed and _long_chinese_chars(fixed) >= _min_keep:
                     bodies[k] = fixed
-                    if fact_guard.flags_for(fixed) or _promo_banned_hits(fixed):
+                    if (fact_guard.flags_for(fixed) or _promo_banned_hits(fixed)
+                            or _unsourced(fixed)):
                         remaining += 1
                 else:
                     remaining += 1
@@ -2715,12 +2786,16 @@ def _densify_long(d, facts_ctx, is_tw, facts=None, topic=None):
                 f"【前面各段重點摘要】\n{_sub}"
             )
             _summary = _fix_artifacts(_to_traditional(llm.complete(sum_prompt, 1300).strip()))
-            if _summary and (fact_guard_flags(_summary) or _promo_banned_hits(_summary)):
+            # 進場條件交給 _long_fact_heal 自己判(它對乾淨段落會直接 continue、不燒 LLM)。
+            # 以前這裡先用 fact_guard_flags 篩一次,等於把「中文唸法的無憑據數字」擋在自癒之外
+            # ——那正是發布端會擋的東西(見 _long_fact_heal docstring)。
+            if _summary:
                 _summary = _long_fact_heal([_summary], facts_ctx, integrity, title)[0][0]
         except Exception:  # noqa: BLE001
             _summary = ""
         # hook 來自 call_claude 主草稿,偶爾也帶禁語/未標示數字 → 一併過自癒(保證整支進審核零禁語)
-        if hook and (fact_guard_flags(hook) or _promo_banned_hits(hook)):
+        # 實案兩支被擋的長片,無憑據數字就是落在 hook(「年化報酬高達百分之八十」)。
+        if hook:
             hook = _long_fact_heal([hook], facts_ctx, integrity, title)[0][0]
         parts = ([hook] if hook else []) + bodies + ([_summary] if _summary and _long_chinese_chars(_summary) >= 80 else [])
         new_voice = "\n".join(p for p in parts if p)
@@ -3109,6 +3184,28 @@ def make_one(kind, no_render=False, topic_override=None, script_override=None):
     d = apply_seo_uplift(d)
     slug = slugify(d["title"], prefix)
     if (OUT / f"{slug}.voice.txt").exists() or (OUT / f"{slug}.mp4").exists():
+        # 撞名有兩種完全不同的情況,不能一律改名硬產:
+        #  ①【已經有成品】同一個標題早就產完過 → 再產一支就是同片兩份。2026-07 實錄:
+        #    「S_0050一次Allinvs每月三千十年差434臺股回」原版 + 3501 + 9235 = 同一支片三份。
+        #    → 乾淨跳過不產。最後一道防線偵測到「已產過」就該停手,不是產第二份。
+        #  ②【上次做到一半死掉】.voice.txt 還在但沒有成品(TTS/渲染失敗) → 這是呼叫端
+        #    `for t in range(2)` 重試路徑的正常狀態(EP/台股真相實驗室/時事/EP.0 都鎖同一題重試,
+        #    標題必然一樣)。改名讓重試寫得出新檔;改成跳過會讓這些重試永遠失敗。→ 維持原本改名。
+        # 「成品」的定義隨模式不同:--no-render(雲端/正式排程走這條)只產到 .mp3,渲染是之後
+        # hybrid_render 的事,故有 .mp3 就算完成;本機全渲染模式才看 .mp4。
+        try:
+            if no_render:
+                _done = (OUT / f"{slug}.mp3").exists()
+            else:
+                _mp4 = OUT / f"{slug}.mp4"
+                _done = _mp4.exists() and _mp4.stat().st_size > 100 * 1024
+        except Exception:  # noqa: BLE001
+            _done = False  # 判不出來就當沒成品 → 沿用舊行為改名,fail-open 不擋產線
+        if _done:
+            # ⚠️ 前綴是必要的:決策中心健康掃描只認 ⚠️/FAIL/失敗/錯誤/FATAL(見下方跳過補產的說明)
+            log_ops("補產部門", f"⚠️ 同標題已有成品,跳過不產第二份:{slug[:30]}")
+            print(f"[skip] 同標題已有成品，跳過不產第二份：{slug}", file=sys.stderr)
+            return None
         slug = f"{slug}{int(time.time()) % 10000}"
     (OUT / f"{slug}.voice.txt").write_text(d["voice_text"], encoding="utf-8")
     (OUT / f"{slug}.md").write_text(build_md(d), encoding="utf-8")

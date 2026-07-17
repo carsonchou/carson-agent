@@ -103,7 +103,15 @@ DEFAULT_STATE = {
     },
     "episodes": [],
     "milestones_hit": [],
+    # 已經產過片的「事實指紋」(見 fact_signature)。EP 系列報的是真實帳戶,同一組
+    # (day, return_pct) 只該有一支片；這裡記住用過的,讓 fact_is_fresh 擋掉換殼重產。
+    "used_fact_sigs": [],
 }
+
+
+# 事實指紋只取 day/return_pct：這兩個既是影片真正宣稱的數字(第N天/報酬X%)，也是 episodes
+# 每筆都有存的欄位——後者讓 used_fact_sigs 能從既有歷史回推，不必先做資料遷移就立即生效。
+FACT_SIG_FIELDS = ("day", "return_pct")
 
 
 def _num(x, default=0.0):
@@ -194,6 +202,58 @@ def check_milestones(return_pct, already_hit=None):
     return hits
 
 
+def fact_signature(src):
+    """把「這集要報的真實帳戶事實」壓成指紋字串。src 可是整個 state,也可是 episodes 裡的單筆紀錄
+    (兩者都有 day/return_pct)。數字正規化到小數 2 位,None 記成空值；抓不到欄位回 ""。"""
+    if not isinstance(src, dict):
+        return ""
+    parts = []
+    for k in FACT_SIG_FIELDS:
+        v = src.get(k)
+        if isinstance(v, bool):
+            v = None
+        if v is None:
+            parts.append(f"{k}=")
+            continue
+        try:
+            parts.append(f"{k}={round(float(v), 2)}")
+        except (TypeError, ValueError):
+            parts.append(f"{k}={v}")
+    return "|".join(parts)
+
+
+def used_fact_sigs(state):
+    """已經產過片的事實指紋集合＝明確記錄的 used_fact_sigs ∪ 從 episodes 歷史回推的指紋。
+    回推是刻意的：舊 ep_data 沒有 used_fact_sigs 欄位,但 episodes 每筆都存了 day/return_pct,
+    所以 guard 對既有存量(2026-07 那 50 集)立即生效,不需要先跑資料遷移。"""
+    sigs = {s for s in (state.get("used_fact_sigs") or []) if isinstance(s, str) and s}
+    for rec in state.get("episodes") or []:
+        if isinstance(rec, dict):
+            sig = fact_signature(rec)
+            if sig:
+                sigs.add(sig)
+    return sigs
+
+
+def fact_is_fresh(state=None):
+    """ep_data 現在的真實帳戶事實是否「還沒被產過片」——EP 系列產片前的事實 guard。
+
+    False ＝ 事實沒更新,呼叫端應**乾淨跳過不產**(不是報錯、更不是換個標題再產一支)。
+    根因(2026-07 實錄)：ep_data.json 是「單一當前狀態」,pionex_account.py 沒有 API key 就整支
+    早退不更新它(見該檔 main() 開頭),於是 day=30/return_pct=-1.19 從 07-12 凍結至今；引擎又沒有
+    「這個事實用過了」的記憶,結果同一組事實被反覆換殼——5 組事實產了 23 支片。
+    判定只看事實指紋,不看標題/集數/季別等包裝層——包裝層判定正是當初失守的原因。
+    帳戶沒 funded(return_pct=None)時回 False：沒有新事實就沒有 EP 可報。
+    pionex 帶進新數字後指紋自然改變 → 回 True → EP 題自動恢復被抽中,不需要人工解封。"""
+    st = state if isinstance(state, dict) else load_state()
+    if st.get("return_pct") is None:
+        return False
+    sig = fact_signature(st)
+    if not sig:
+        return False
+    return sig not in used_fact_sigs(st)
+
+
 def update_cumulative(ep, current, pct):
     """更新累計戰績：峰值/谷值帳戶價值、累計報酬、最佳/最差集數。就地改 ep['cumulative'] 並回傳該 dict。
     best_ep/worst_ep 記成 {ep, return_pct}，依當集報酬更新。"""
@@ -248,7 +308,11 @@ def next_episode_context(state):
 
 
 def _start_new_season(st):
-    """收官升季：季+1、集數歸零、角色/累計/里程碑重置（episodes 保留為跨季歷史）。"""
+    """收官升季：季+1、集數歸零、角色/累計/里程碑重置（episodes 保留為跨季歷史）。
+    ⚠️ used_fact_sigs 刻意**不清空**（與 tw_lab_engine 的 used_keys 相反）：tw_lab 的事實庫會隨
+    as_of 更新，一輪用完換季重測是合理的；EP 報的是單一真實帳戶，同一組 (day, return_pct) 換季
+    再報一次仍然是同一件事換殼。2026-07 實錄正是這樣穿透的——事實凍結在 day=30/-1.19%，季別卻
+    一路 3→4→5→6 滾下去，每滾一次就多產 10 支同事實的片。"""
     st["season"] = int(_num(st.get("season", 1), 1)) + 1
     st["current_ep"] = 0
     st["character_state"] = "cautious"
@@ -277,6 +341,13 @@ def _save_state(st):
                     for k in ("milestones_hit", "character_state", "cumulative"):
                         if disk.get(k) is not None:
                             out[k] = disk[k]
+                # 事實指紋一律取聯集(不分季別、不讓磁碟版覆蓋)：這是「不可遺忘」的帳,
+                # 併發寫入時任一方漏記都會讓同事實再被放行一次,只能加不能減。
+                _dsigs = disk.get("used_fact_sigs")
+                if isinstance(_dsigs, list):
+                    out["used_fact_sigs"] = sorted(
+                        {s for s in _dsigs if isinstance(s, str) and s}
+                        | set(out.get("used_fact_sigs") or []))
     except Exception:
         pass
     try:
@@ -307,6 +378,10 @@ def bump_episode(state, new_metrics=None, persist=True):
         "day": day,
     }
     st["episodes"] = list(st.get("episodes") or []) + [rec]
+    # 記下本集用掉的事實指紋 → 同一組 (day, return_pct) 之後不會再被 fact_is_fresh 放行
+    _sig = fact_signature(rec)
+    if _sig:
+        st["used_fact_sigs"] = sorted(set(st.get("used_fact_sigs") or []) | {_sig})
     st["current_ep"] = new_ep
     st["last_episode"] = {
         "ep": new_ep,
