@@ -38,6 +38,13 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 #   Shorts 留 3 支當曝光/導流(short_to_long 363 筆配對在跑),不再指望它轉換。
 #   target 150 已於 produce_batch 內按格式切(短40%/長60%),不足就補、達標才停,自我調節。
 7 6 * * * /root/yt/run.sh scripts/produce_batch.py --manual --format-focus --shorts 3 --long 5 --target 150 --no-render >> /root/yt/logs/cron.log 2>&1
+# 🔴 2026-07-17 長片保底補產:06:07 主批若被外力中斷(07-16 實錄 exit 1073807364 =
+#   DBG_TERMINATE_PROCESS,疑似電腦睡眠;07-17 又因 queue_size bug 整批跳過)→ 已連兩天零長片,
+#   而長片可發庫存只剩 9 支 = 3 天。再失敗一次就斷炊,發布端會無聲退化成全短片(不崩但翻轉白做)。
+#   這支只補長片(--shorts 0)且用低 target 30(→長片門檻 18 ≈ 6 天緩衝):長片夠就乾淨跳過(冪等,
+#   不會超產),不夠才補。produce_batch **不吃 YouTube 配額**(只走 LLM/OpenRouter),故可安全加班。
+#   注意:電腦真的睡著時這支也不會跑——根治要禁睡眠,那是 Carson 的機器設定,不擅自改。
+30 12 * * * /root/yt/run.sh scripts/produce_batch.py --manual --format-focus --shorts 0 --long 3 --target 30 --no-render >> /root/yt/logs/cron.log 2>&1
 # Short→長片精準連看:建 short_to_long.json(bigram題材相似度對應已發布短→長),發布前跑
 50 6 * * * /root/yt/run.sh scripts/build_short_to_long.py >> /root/yt/logs/cron.log 2>&1
 # Short→Short 同系列/同題材連看:建 short_to_short.json(EP實測系列接上一集、其餘bigram題材相似度
