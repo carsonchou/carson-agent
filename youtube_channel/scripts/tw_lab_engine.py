@@ -36,6 +36,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 from studio_common import save_json_atomic, load_json_safe  # noqa: E402
+# legacy 退役判定的**單一真相來源**（2026-07-17 收斂）：原本這裡自己複製了一份
+# _LEGACY_SUPERSEDED_BY，跟 tw_facts_engine 那份重複 —— 而「同一個規則實作兩次必然 drift」
+# 正是這次一連串誠信事故的共同成因，所以收斂成一份，由 computed 的產生者持有（它最清楚 schema）。
+# 循環 import 檢查：tw_facts_engine 模組層只 import 標準庫（argparse/datetime/json/sys/time/
+# pathlib），pandas/yfinance 都在函式內才 import，且它不 import 本模組 → 無循環、無重量級副作用。
+# 這裡刻意用**模組層 import**（與上面 studio_common 同風格）：萬一它壞了就讓 tw_lab_engine
+# 整支 import 失敗，由 produce_batch 既有的 try/except 攔下(franchise 那批跳過、產線續跑)，
+# 而**不是**靜默退回「沒有去重」把 legacy 放回素材池——誠信 gate 只能 fail-closed，不能 fail-open。
+from tw_facts_engine import drop_superseded_legacy  # noqa: E402
 
 STUDIO = ROOT / "STUDIO"
 TW_LAB_STATE = STUDIO / "tw_lab_state.json"
@@ -73,21 +82,16 @@ WINNER_KW = ("0050", "你猜", "vs", "VS", "剩多少", "小白", "複利", "停
 # (已發布 EP1 講 0050 十年 All-in「813%」，今天同一個 key 已變成 804.5%)，等於已發布影片的
 # 數字事後永遠對不回來、fact_source_guard 溯源必然查無憑據。computed 的 __full 系列是固定起點。
 # 保留 fallback：萬一 computed 缺檔/該組算不出來，legacy 仍可用(總比沒有真數據好)。
-_LEGACY_SUPERSEDED_BY = {
-    "allin_vs_dca_0050_10y":  "dca_vs_allin__0050__10y",
-    "allin_vs_dca_twii_20y":  "dca_vs_allin__TWII__full",
-    "buyhold_vs_timing_twii": "buyhold_vs_timing__TWII",
-    "hidiv_0056_vs_0050":     "hidiv_vs_mktcap__0056_vs_0050",
-    "hidiv_00878_vs_0050":    "hidiv_vs_mktcap__00878_vs_0050",
-}
+# 判定表與實作見 tw_facts_engine.LEGACY_SUPERSEDED_BY / drop_superseded_legacy()（單一真相來源）。
 
 
 def _load_facts():
     """合併讀 tw_stock_facts.json + tw_facts_computed.json，回 ({key: fact_dict}, as_of)。
     邏輯對齊 produce_batch._load_tw_facts()（獨立複製一份，避免 tw_lab_engine ← produce_batch
     互相 import 造成循環依賴）。任何一份缺檔/壞掉都靜默跳過。
-    2026-07-17 起：computed 有對應版本的 legacy key 一律丟棄（見 _LEGACY_SUPERSEDED_BY），
-    確保 franchise 結構上不可能對同一件事引用到兩個互斥的答案。"""
+    2026-07-17 起：computed 有對應版本的 legacy key 一律丟棄
+    （見 tw_facts_engine.drop_superseded_legacy），確保 franchise 結構上不可能對同一件事
+    引用到兩個互斥的答案。"""
     merged_results: dict = {}
     origin: dict = {}          # key -> 來源檔名（決定 as_of 要報哪一份的日期）
     as_of_by_file: dict = {}
@@ -108,10 +112,10 @@ def _load_facts():
         except Exception:  # noqa: BLE001
             continue
 
-    for legacy_key, computed_key in _LEGACY_SUPERSEDED_BY.items():
-        if legacy_key in merged_results and computed_key in merged_results:
-            merged_results.pop(legacy_key, None)
-            origin.pop(legacy_key, None)
+    _before = set(merged_results)
+    merged_results = drop_superseded_legacy(merged_results)
+    for _dropped in _before - set(merged_results):
+        origin.pop(_dropped, None)
 
     # as_of 要如實反映「活下來的事實實際來自哪份檔」——不能再像舊版一樣無腦取第一份
     # (legacy 每天重算 as_of=今天，computed 可能是前幾天算的；報 legacy 的日期會把
@@ -157,20 +161,49 @@ def _dedup_sig(fact):
 
 
 def fact_order():
-    """回傳依贏家關鍵字命中數排序、且已去重(同標的+同比較法只留一筆)的 (key, fact) 清單，
-    命中數同分按 key 字母序排序(確定性)。"""
+    """回傳依贏家關鍵字命中數排序的 (key, fact) 清單；同簽名(同標的+同比較法)的多組事實會被
+    **排到不同輪次**而不是丟掉，命中數同分按 key 字母序排序(確定性)。
+
+    🔴 2026-07-17 修「排序把最好的素材丟進垃圾桶」：
+    上面那段註解一直宣稱同簽名的「其餘讓下一輪/下一季再用」，但舊實作是
+    `if sig in seen_sig: continue` —— 那是**永久丟棄**，不是延後：fact_order() 每次都重算且
+    確定性排序，被丟的永遠是同一批，於是它們**一輪都輪不到**。實測後果：事實池 50 組 →
+    fact_order 只剩 45，被吃掉的 5 組**全是 `__full`**(0050近12年/0056近18年/006208近14年/
+    2330近26年/TWII近29年)——資訊量最大、期間最長的那批，而保留的是較短的 `__10y`。
+    更實際的傷害：seed_topic_bank 的 `skip = used | seeded` 已涵蓋 42/45，franchise
+    **只剩 3 題可種**(素材見底)；那 5 組 `__full` 從沒被 seed 過，卻因為被丟出 order 而
+    **結構上永遠拿不到**。修好後可種題數 3 → 8。
+
+    為什麼是「排到後面」而不是「直接移除這道去重」：
+      · 這道去重**原本的用途**(檔頭註解寫明)是擋 legacy vs computed 的跨檔重複
+        (allin_vs_dca_0050_10y vs dca_vs_allin__0050__10y)——那件事現在已由
+        tw_facts_engine.drop_superseded_legacy() 用 **key 對 key** 結構性解決，
+        而且解得比文字比對正確(文字比對正是當初漏掉 buyhold_vs_timing 那組、釀成
+        Jad4_8skToo/ogQukwzFn1s 兩支片互打臉的原因)。所以它當「丟棄器」已無價值。
+      · 但它編碼的**顧慮仍然成立**：本 franchise 的賣點就是「一集一組新事實」，
+        `dca_vs_allin__0050__10y`(近10年) 與 `__full`(近12年) 分數相同 → 排序後**緊鄰**
+        → 連續兩集講幾乎同一件事，正是檔頭註解怕的那個自砸招牌。
+      · 故保留簽名、只把角色從**丟棄**改成**延後**：第一輪每個簽名各出一組(依分數)，
+        第二輪才輪到同簽名的第二組 → 零損失 + 最大間隔，正是註解一直宣稱的行為。
+    (`_dedup_sig` 洗掉「近N年」在這個新角色下是**正確**的：我們要的就是「同標的同比較法」
+     這個粒度來決定誰該被拉開；期間不同 = 不同事實，所以只拉開、不合併。)
+    """
     facts, _ = _load_facts()
     items = [(k, v) for k, v in facts.items() if isinstance(v, dict) and v.get("summary")]
     items.sort(key=lambda kv: (-_score(kv[0], kv[1]), kv[0]))
-    seen_sig = set()
-    deduped = []
+    groups: dict = {}
     for k, v in items:
-        sig = _dedup_sig(v)
-        if sig in seen_sig:
-            continue
-        seen_sig.add(sig)
-        deduped.append((k, v))
-    return deduped
+        groups.setdefault(_dedup_sig(v), []).append((k, v))
+    # dict 保序(Py3.7+)且 items 已排序 → groups 依「該簽名最高分那組」的分數序排列，確定性。
+    out = []
+    rnd = 0
+    while True:
+        wave = [g[rnd] for g in groups.values() if len(g) > rnd]
+        if not wave:
+            break
+        out.extend(wave)
+        rnd += 1
+    return out
 
 
 DEFAULT_STATE = {
