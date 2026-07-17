@@ -401,9 +401,49 @@ def load_requests() -> dict:
     return {"updated": TODAY.isoformat(), "requests": []}
 
 
+REQUEST_KEEP_DAYS = 180        # 已結案紀錄保留天數(pending 永不裁剪,見 _prune_requests)
+
+
+def _prune_requests(doc: dict, keep_days: int = REQUEST_KEEP_DAYS) -> int:
+    """裁掉過期的**已結案**紀錄,回裁掉幾筆(VERIFY_REPORT_weekly_fixes MINOR-4)。
+
+    佇列原本只 append、fulfilled/failed 永久留存 → 長年累積檔案愈來愈大(功能無誤,
+    屬衛生問題)。裁剪規則刻意保守:
+
+    · **pending 永不裁剪** —— 那是付了錢還沒被服務的訂戶。為了省檔案大小把他的請求
+      丟掉,就是「收了錢沒給東西」,那是本專案最不可接受的一種失敗(見 51b5da1)。
+      即使 pending 卡了兩年也留著:那代表引擎一直算不出來,是該被看見的問題,不是垃圾。
+    · 只裁 fulfilled/failed 且**有日期**且已超過保留期的。日期缺/壞 → 保留(不確定就別刪)。
+    """
+    reqs = doc.get("requests")
+    if not isinstance(reqs, list):
+        return 0
+    cutoff = TODAY - timedelta(days=keep_days)
+    kept = []
+    for r in reqs:
+        if not isinstance(r, dict):
+            continue                                   # 壞資料丟掉(本來就讀不了)
+        if r.get("status") == "pending":
+            kept.append(r); continue                   # 🔴 付錢還沒服務到的,永遠留
+        stamp = r.get("fulfilled_in") or r.get("failed_at") or r.get("requested_at")
+        try:
+            if date.fromisoformat(str(stamp)) >= cutoff:
+                kept.append(r)
+        except (TypeError, ValueError):
+            kept.append(r)                             # 日期讀不出來 → 保留,不確定就別刪
+    n = len(reqs) - len(kept)
+    if n:
+        doc["requests"] = kept
+    return n
+
+
 def save_requests(doc: dict) -> bool:
     """寫回佇列。寫不進去只 log 不炸(週報本身不該因為佇列寫入失敗而產不出來)。"""
     try:
+        n = _prune_requests(doc)
+        if n:
+            print(f"[weekly_v2] 點播佇列:裁掉 {n} 筆逾 {REQUEST_KEEP_DAYS} 天的已結案紀錄"
+                  f"(pending 全數保留)。")
         doc["updated"] = TODAY.isoformat()
         CHECKUP_REQUESTS.parent.mkdir(parents=True, exist_ok=True)
         CHECKUP_REQUESTS.write_text(json.dumps(doc, ensure_ascii=False, indent=2), encoding="utf-8")
