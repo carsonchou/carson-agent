@@ -130,6 +130,18 @@ def load_facts() -> dict:
             v.setdefault("claim", v.get("summary", ""))
             v["_src_file"] = fn
             facts[k] = v
+
+    # 🔴 2026-07-17 事實庫退役第2步:剔除已被 computed 取代的 legacy key。
+    #   legacy 與 computed 是同一組回測的兩份快照但窗口不同、數字互斥(大盤長抱 10.2%/20.1年
+    #   vs 5.7%/29年,結論相反)。這支是**每天 05:40 產題目**的源頭(crontab:40 --min-tw 60),
+    #   兩邊 key 命名不同故合併時不會互相覆蓋 → 同一件事被生成兩個題目 → 產出兩支結論相反的片
+    #   (已發布 Jad4_8skToo vs ogQukwzFn1s 就是這樣來的)。
+    #   fail-open:computed 缺檔時 legacy 原樣保留;整段包 try,絕不讓事實庫問題害這支種不出題。
+    try:
+        import tw_facts_engine
+        facts = tw_facts_engine.drop_superseded_legacy(facts)
+    except Exception:  # noqa: BLE001
+        pass
     return facts
 
 

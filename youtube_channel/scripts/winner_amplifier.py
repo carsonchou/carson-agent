@@ -217,6 +217,17 @@ def load_facts() -> dict:
             v.setdefault("key", k)
             v.setdefault("claim", v.get("summary", ""))
             facts[k] = v
+
+    # 🔴 2026-07-17 事實庫退役第2步:剔除已被 computed 取代的 legacy key(數字互斥,見
+    #   tw_facts_engine.LEGACY_SUPERSEDED_BY)。這支每天 10:40 派生「贏家同題材新切角」題目
+    #   回寫 topic_bank——若拿 legacy 事實去放大一支本來就引用 computed 的贏家,派生題會帶著
+    #   另一組互斥數字,等於把「同一件事兩個答案」複製到更多片。
+    #   fail-open:computed 缺檔時 legacy 原樣保留;整段包 try,不讓事實庫問題害放大迴路掛掉。
+    try:
+        import tw_facts_engine
+        facts = tw_facts_engine.drop_superseded_legacy(facts)
+    except Exception:  # noqa: BLE001
+        pass
     return facts
 
 

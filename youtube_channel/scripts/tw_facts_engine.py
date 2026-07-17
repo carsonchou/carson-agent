@@ -55,6 +55,60 @@ DISCLAIMER = "歷史回測，非未來保證；不構成投資建議、不喊單
 MIN_YEARS = 3.0     # 少於 3 年的區間不產出（樣本太短不可信）
 MIN_BARS = 250
 
+# ── legacy 事實庫退役（2026-07-17 已發布誠信事故的結構性修補）─────────────────────
+# 舊引擎 scripts/tw_stock_data.py 產的 STUDIO/tw_stock_facts.json（5 組）與本引擎產的
+# tw_facts_computed.json（50 組）是**同一組回測的兩份快照，但回測窗口不同 → 數字互斥**：
+#   · legacy `buyhold_vs_timing_twii` ：_fetch_close(^TWII, 20) → 近 20.1 年 → 長抱年化 10.2%、
+#     擇時 8.9% → 結論「長抱贏」
+#   · 本引擎 `buyhold_vs_timing__TWII`：period="max" → 1997-07-02 起 29 年 → 長抱 5.7%、
+#     擇時 6.9% → 結論「擇時贏」
+# 兩邊算術都對，但講的是同一個問題，結論相反。已發布災情：Jad4_8skToo 與 ogQukwzFn1s
+# 兩支片同時在線互相打臉（詳見該次稽核報告）。
+#
+# 為什麼一律以本引擎（computed）為準，四個結構性理由：
+#   ① legacy 是 `today - years*366` 的**滾動窗**，每天 04:00 重算 → **數字每天漂移**。
+#      已發布 -jnJRZUvUzA 講 0050 十年 All-in「813%」，今天同一個 key 已變 804.5% → 對不回來。
+#      本引擎 __full 系列是固定起點，可重現。
+#   ② legacy 每筆**沒有** period/start/end/method/source/computed_at，寫稿端拿不到期間 → 自己編年數。
+#   ③ legacy 沒有 _sanitize_series，不砍 0050 在 2014-01-02 的假跳空（ratio=0.249，1股拆4股
+#      未回溯調整）與 00631L 2015-01-05（ratio=0.046）。
+#   ④ **完全冗餘**：legacy 5 組主題本引擎全都有，且多 45 組。丟掉零損失。
+#
+# ⚠️ fail-open 設計：只有在「computed 對應版本真的存在」時才丟 legacy。萬一本引擎缺檔／該組
+#    算不出來，legacy 仍會被保留使用——有真數據總比沒有好，**絕不可因為缺檔害產線停擺**。
+LEGACY_FACTS_FILE = "tw_stock_facts.json"
+
+LEGACY_SUPERSEDED_BY = {
+    "allin_vs_dca_0050_10y":  "dca_vs_allin__0050__10y",
+    "allin_vs_dca_twii_20y":  "dca_vs_allin__TWII__full",
+    "buyhold_vs_timing_twii": "buyhold_vs_timing__TWII",
+    "hidiv_0056_vs_0050":     "hidiv_vs_mktcap__0056_vs_0050",
+    "hidiv_00878_vs_0050":    "hidiv_vs_mktcap__00878_vs_0050",
+}
+
+
+def drop_superseded_legacy(results):
+    """從合併後的 {fact_key: fact} 拿掉「已被 computed 取代」的 legacy key，回傳新 dict。
+
+    產線各讀取端（produce_batch._load_tw_facts / topics_from_facts.load_facts /
+    winner_amplifier.load_facts / tw_lab_engine._load_facts）合併兩份檔時共用這一份判定，
+    確保**結構上不可能**對同一件事引用到兩個互斥的答案。
+
+    為什麼用 key 對 key 而不是比對 desc 文字：tw_lab_engine 原本的 `_dedup_sig()` 是把 desc
+    正規化後比字串，但兩支引擎的 desc 措辭不同（「大盤 長抱不動 vs 跌破年線就跑的簡單擇時」
+    vs「加權指數（大盤） 長抱不動 vs 簡單擇時（年線）」）→ 簽名不同 → 兩組都活下來 → 各出一集。
+    文字比對本質上防不住這件事，故改用顯式 key 映射。
+
+    fail-open：computed 對應版本不存在時**不動** legacy（見上方說明）。
+    """
+    if not isinstance(results, dict):
+        return results
+    out = dict(results)
+    for legacy_key, computed_key in LEGACY_SUPERSEDED_BY.items():
+        if legacy_key in out and computed_key in out:
+            out.pop(legacy_key, None)
+    return out
+
 # ── 標的清單（皆 yfinance 抓得到；上市 ETF/指數/權值股，来源：Yahoo Finance）────
 SYMBOLS = {
     "0050":   {"ticker": "0050.TW",  "name": "元大台灣50",     "kind": "mktcap"},
@@ -769,8 +823,31 @@ def main():
         return 0
 
     if n == 0 and OUT_FILE.exists():
-        print("[tw_facts_engine] 本次 0 項，保留既有 tw_stock_facts.json 不覆蓋")
+        print("[tw_facts_engine] 本次 0 項，保留既有 tw_facts_computed.json 不覆蓋")
         return 0
+
+    # ── 防「部分抓取」把事實庫縮水（2026-07-17 上排程前補的保險）──────────────────
+    # build_facts() 對抓不到的標的是「略過該項」（誠信鐵則，不編數字）——這在單次手動跑很合理，
+    # 但一旦上了每天的排程就變成風險：yfinance 被限流/暫時故障時，它仍會回傳「算得出來的那幾組」，
+    # 直接覆蓋 → 事實庫從 50 組掉到剩幾組。後果不只是少素材：
+    #   ① 餵料端（produce_batch/_load_tw_facts、topics_from_facts、tw_lab_engine）沒素材可注入；
+    #   ② **更嚴重**：fact_source_guard 的「有憑據」數字池是直接從這份檔攤平出來的
+    #      （fact_source_guard.py:298 fact_pool()），池縮水 → **已經寫好、待發布的稿子**
+    #      會突然變成「查無憑據」被 fail-closed 擋掉 = 產線停擺。
+    # 故：新結果若不到既有的 SHRINK_GUARD_RATIO，判定為抓取異常，保留舊檔不覆蓋。
+    # 舊數字仍是真回測（固定窗、可重現），只是晚一天更新——這比縮水安全得多。
+    SHRINK_GUARD_RATIO = 0.6
+    if OUT_FILE.exists():
+        try:
+            old = json.loads(OUT_FILE.read_text(encoding="utf-8"))
+            old_n = len(old.get("results") or {})
+        except Exception:  # noqa: BLE001
+            old_n = 0
+        if old_n and n < old_n * SHRINK_GUARD_RATIO:
+            print(f"[tw_facts_engine] ⚠ 本次只算出 {n} 組，既有檔有 {old_n} 組"
+                  f"（不到 {SHRINK_GUARD_RATIO:.0%}）→ 判定為抓取異常（yfinance 限流/故障？），"
+                  f"保留舊檔不覆蓋。請查上面的『抓取失敗』行後手動重跑 --refresh。")
+            return 1
 
     try:
         OUT_FILE.parent.mkdir(parents=True, exist_ok=True)

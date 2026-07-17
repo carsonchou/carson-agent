@@ -51,7 +51,27 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # 對應待上架短→已發布短),發布前跑,與 short_to_long 錯開1分避免同時寫 STUDIO
 51 6 * * * /root/yt/run.sh scripts/build_short_to_short.py >> /root/yt/logs/cron.log 2>&1
 # 台股火力:真回測數據引擎(每天更新真數字)+ 四軌台股系列連載(產片前餵)
-0 4 * * * /root/yt/run.sh scripts/tw_stock_data.py >> /root/yt/logs/cron.log 2>&1
+# 🔴 2026-07-17 事實庫退役第1步:tw_facts_engine.py(產 tw_facts_computed.json,50組)本來**零排程**,
+#   只能手動跑,結果越放越舊(as_of 落後 2 天);而它是產線唯一該信的事實庫——固定起點(period="max")、
+#   每筆帶 period/start/end/method/source、有 _sanitize_series 砍假跳空。排在 03:50:
+#   ①早於 topics_from_facts(05:40)/tw_lab 種題與 produce_batch(06:07),當天產的片就吃到新數字
+#   ②早於 snapshot_studio(04:05)與 backups(04:15),新事實庫當天就有快照可回溯
+#   成本實測:單標的走快取 0.8 秒/12 組;全 15 標的主要成本是 yfinance 下載 ~1 分鐘。
+#   **不吃 YouTube 配額、不走 LLM/OpenRouter**(純 yfinance+pandas),故可安全每天跑。
+#   縮水保險:抓取異常(新結果<既有60%)會保留舊檔不覆蓋,見 tw_facts_engine.py main()。
+50 3 * * * /root/yt/run.sh scripts/tw_facts_engine.py >> /root/yt/logs/cron.log 2>&1
+# 🔴 2026-07-17 事實庫退役第3步:tw_stock_data.py(產 legacy tw_stock_facts.json)**已停排程**。
+#   它算的 5 組事實 tw_facts_engine 全都有(50組⊃5組),但它用 `today - years*366` 的**滾動窗**,
+#   每天 04:00 重算 → **同一個 key 的數字每天漂移**。兩個實害:
+#     ①已發布片的數字事後對不回來(-jnJRZUvUzA 講 0050 十年 All-in「813%」,今天同key已變 804.5%;
+#       apply_repackage3.py:34 記錄過同症狀「823.1% 全對不上現行 tw_stock_facts」)。
+#     ②fact_source_guard 的「有憑據」數字池直接從這份檔攤平(fact_source_guard.py:298),
+#       池每天變 → **守門在用一把每天變長度的尺**,今天放行的數字明天就不存在。
+#   停掉這行 = 檔案凍結在 2026-07-17 的值(仍是真回測、仍可被守門當憑據,只是不再變動),
+#   尺就固定了。**故意保留檔案不刪**:已發布/待發布、以及 make_thumbnails.py:284 仍在讀它,
+#   刪檔會讓那些片變「查無憑據」被 fail-closed 擋掉 = 產線停擺。
+#   要復活(不建議)就把下一行的 # 拿掉;真正該做的是讓 make_thumbnails 也改讀 computed。
+# 0 4 * * * /root/yt/run.sh scripts/tw_stock_data.py >> /root/yt/logs/cron.log 2>&1
 52 5 * * * /root/yt/run.sh scripts/tw_stock_series.py --next 3 >> /root/yt/logs/cron.log 2>&1
 # 安全雙模式：雲端每15分渲染待辦(PC開著時平行加速,鎖防雙渲染)
 */15 * * * * flock -n /tmp/hr_cloud.lock /root/yt/run.sh scripts/hybrid_render.py --cloud --max 20 >> /root/yt/logs/cron.log 2>&1

@@ -1421,6 +1421,44 @@ def _load_tw_facts():
             merged.setdefault("disclaimer", d.get("disclaimer", ""))
         except Exception:  # noqa: BLE001
             continue
+
+    # 🔴 2026-07-17 事實庫退役第2步:legacy(tw_stock_facts.json)與 computed 是同一組回測的兩份
+    #   快照但窗口不同、數字互斥(legacy 大盤長抱 10.2%/20.1年 vs computed 5.7%/29年,結論相反)。
+    #   上面的 setdefault 合併擋不住——兩邊 key 命名不同(allin_vs_dca_0050_10y vs
+    #   dca_vs_allin__0050__10y),永遠不會撞在一起,於是**兩個互斥的答案同時進了寫稿素材池**,
+    #   LLM 挑到哪個全看運氣 → 已發布 Jad4_8skToo 與 ogQukwzFn1s 對同一題給出相反結論。
+    #   這裡用 key 對 key 的顯式映射把已被取代的 legacy 剔掉,讓寫稿端結構上拿不到過期那份。
+    #   fail-open:computed 缺檔/該組算不出來時 legacy 原樣保留(見 drop_superseded_legacy),
+    #   且整段包 try——這支是產線主幹,絕不可因為事實庫小問題讓 06:07 整批產不出來。
+    if merged and isinstance(merged.get("results"), dict):
+        try:
+            import tw_facts_engine
+            merged["results"] = tw_facts_engine.drop_superseded_legacy(merged["results"])
+
+            # as_of 誠信修正(同一次退役發現的既有 bug):上面的迴圈用第一份檔(legacy)整個 dict 當底,
+            # 所以 merged["as_of"] 一直是 **legacy 的日期**,但注入 prompt 的數字幾乎全是 computed 的。
+            # _tw_facts_context() 會把它印成「資料截至 {as_of}」餵給寫稿 LLM → 旁白就會對觀眾
+            # 宣告一個**比實際資料還新的日期**(實測:標 2026-07-17,但 computed 資料其實只到 07-13)。
+            # legacy 停排程凍結後這個日期會永遠停在 2026-07-17,錯得更久 → 非修不可。
+            # 修法:只採計「真的還有事實活下來」的檔的 as_of,取其中**最舊**的一個——寧可低報新鮮度,
+            # 也不可宣告一個沒有資料支撐的日期(高報=對觀眾說謊,低報只是保守)。
+            survivors = set(merged["results"])
+            as_ofs = []
+            for _p in (TW_FACTS, TW_FACTS_COMPUTED, STOCK_CHECKUP_FACTS):
+                try:
+                    if not _p.exists():
+                        continue
+                    _d = json.loads(_p.read_text(encoding="utf-8"))
+                    _keys = set(_d.get("results") or _d.get("backtests") or {})
+                    _a = str(_d.get("as_of") or "")
+                    if _a and (_keys & survivors):
+                        as_ofs.append(_a)
+                except Exception:  # noqa: BLE001
+                    continue
+            if as_ofs:
+                merged["as_of"] = min(as_ofs)
+        except Exception:  # noqa: BLE001
+            pass
     return merged
 
 
