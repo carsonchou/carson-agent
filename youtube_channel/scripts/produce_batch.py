@@ -892,8 +892,7 @@ HOOK_RULES = """
    「這招你敢用嗎?留言說說你的顧慮」／也可以自己想一句更貼合本片主題的問句，只要能引導留言互動就算數。
 4b. ★片內訂閱鉤(所有片必留·輕量·接在留言鉤後,不取代留言鉤):留言鉤之後補一句 ≤25 字的訂閱鉤。**硬性要求三件事**：
    ①**必須明確出現「訂閱」二字**——YouTube 按鈕上寫的就是「訂閱」，講「追蹤／關注／追更」是 IG／抖音語彙，
-     觀眾聽完不知道要按哪個鍵(2026-07-17 實測:62% 的 Shorts 只講「追蹤」，Shorts 訂閱轉換僅 0.062%，
-     而長片有 89% 明講「訂閱」、轉換 1.706%＝27.5 倍)。
+     觀眾聽完不知道要按哪個鍵(實測本頻道 62% 的 Shorts 只講「追蹤」，這是錯字級的低級失誤)。
    ②理由必須是**內容價值承諾**——講清楚訂閱之後會拿到什麼具體東西(下一支要拆什麼、下一組數字何時給)。
      **嚴禁**用「不然演算法不會再推你／別讓演算法把你刷走」這類平台操弄的威脅語氣當理由：那是在幫平台
      講話，不是給觀眾好處，而且跟本頻道「誠實、幫你先踩坑」的人設互斥。
@@ -2826,8 +2825,9 @@ def _ensure_loop_hook(text, key):
 # 🔴 2026-07-17 重寫(2026-07-13 已診斷對但只修了 tw_lab 池=2% 產出，這裡是吃 98% 的一般池)：
 # 實測 120 支 voice.txt：Shorts 片尾只有 38% 出現「訂閱」二字，62% 講「追蹤」——那是 IG 語彙，
 # YouTube 的按鈕上寫的是「訂閱」，觀眾聽完不知道要按哪。舊四句還全用「不然演算法不會再推你」
-# 這種平台操弄威脅語氣當理由，而不是內容價值。Analytics 90d 佐證：Shorts 轉換 0.062%、
-# 長片 1.706%(長片 89% 有講「訂閱」，靠 _checkup_finalize 確定性補)。
+# 這種平台操弄威脅語氣當理由，而不是內容價值。
+# (旁證：長片有 89% 明講「訂閱」、轉換也明顯較高——但那組統計 n 小且被單片主導，
+#  只當方向參考，別當因果定論；改用「訂閱」本來就是錯字級的低級失誤，不需要統計背書。)
 # 新池三要素(比照已驗證的 _TW_LAB_SUB_HOOK_POOL)：①明講「訂閱」二字 ②理由=具體價值承諾
 # 而非威脅 ③講得出可辨識的產出。句數 4→6 降低罐頭感(實測 19% 逐字重複)。
 _SUB_HOOK_POOL = [
@@ -2874,9 +2874,13 @@ def _ensure_sub_hook(text, key, pool=None, cues=None):
     return text.rstrip() + " " + _pool[i]
 
 
-def make_one(kind, no_render=False, topic_override=None):
+def make_one(kind, no_render=False, topic_override=None, script_override=None):
     _ex = existing_titles()
-    d = call_claude(kind, _ex, topic_override)
+    # script_override:稿子已經確定性組好(EP.0 開播預告,見 ep0_engine.py),跳過 LLM 直接進後段
+    # (配音/渲染/發布共用同一條路)。搭 topic_override 一起傳,下面的重生型 gate 都被
+    # `not topic_override` 守著會自動跳過——EP.0 刻意比正常長片短、KPI 是訂閱不是完播,
+    # 不該被長片長度/標題重複那幾道 gate 重生掉。
+    d = dict(script_override) if script_override else call_claude(kind, _ex, topic_override)
     # 🔴 個股體檢系列鎖題(2026-07-15 實跑抓到嚴重事故)：make_one 所有品質 gate 的「重生」都是
     # 再 call_claude 一次,而 call_claude 沒帶 topic_override 時=pull_topic 抽**下一題**——
     # 系列題標題共用「個股體檢EPn…」骨架是刻意品牌,skeleton_dup 把它當洗版觸發重生,一口氣
@@ -3160,9 +3164,37 @@ def main() -> int:
     ap.add_argument("--manual", action="store_true", help="手動補產：照 --shorts/--long 數量，不被人事部員額覆蓋")
     ap.add_argument("--tw-lab", action="store_true",
                      help="立刻產 1 支「台股真相實驗室」系列正片（由 tw_lab_engine 依序派下一組真回測事實，繞過題庫）")
+    ap.add_argument("--ep0", default=None, metavar="SERIES",
+                     help="立刻產 1 支系列開播預告 EP.0（確定性模板,不走 LLM;系列代號見 ep0_engine.py --list）")
     args = ap.parse_args()
     if getattr(args, "format_focus", False):
         os.environ["FORMAT_FOCUS"] = "1"  # D2:本批短片走最強格式模板
+
+    # 系列開播預告 EP.0：實測全頻道訂閱轉換最高的格式(3-5%,比 Shorts 高 50-80 倍)。
+    # 稿子由 ep0_engine 確定性組好(不走 LLM,故不需 LLM 金鑰)，承諾的數字全部由題庫真實存量
+    # 算出來；存量不足 build_script 會 fail-closed 回 None → 這裡直接中止，不產空頭支票。
+    if getattr(args, "ep0", None):
+        import ep0_engine
+        _d0 = ep0_engine.build_script(args.ep0)
+        if not _d0:
+            return 2  # 理由已由 ep0_engine 印到 stderr(未知系列 / 存量不足)
+        _tov = ep0_engine.build_topic(args.ep0)
+        slug_made = None
+        for t in range(2):
+            try:
+                slug_made = make_one("long", no_render=args.no_render,
+                                     topic_override=_tov, script_override=_d0)
+                if slug_made:
+                    break
+            except Exception as exc:  # noqa: BLE001
+                print(f"[err EP.0 第{t+1}次] {exc}", file=sys.stderr)
+        _nm = ep0_engine.SERIES[args.ep0]["name"]
+        log_ops("開播預告", f"{'已產出' if slug_made else '⚠️ 失敗'}：{_nm} EP.0")
+        print(f"[{'ok' if slug_made else 'FAIL'}] {_nm} EP.0：{_d0['title'][:40]}")
+        print(f"[存量佐證] {_d0['_ep0_inventory']['detail']}")
+        if slug_made and args.publish and not args.no_render:
+            _publish_now(slug_made)
+        return 0 if slug_made else 3
 
     # 台股真相實驗室：立刻產 1 支系列正片，事實由 tw_lab_engine 依贏家關鍵字排序依序派發。
     if getattr(args, "tw_lab", False):
@@ -3240,8 +3272,9 @@ def main() -> int:
         return 2
 
     # 🔴 2026-07-17 分格式 gate:舊碼 `q >= args.target` 是**不分格式的全批 kill-switch**——
-    # 短片堆滿會連長片一起停產,而長片才是稀缺高價值格式(Analytics 90d 實測:長片訂閱轉換
-    # 1.706% vs Shorts 0.062% = 27.5 倍,且只有長片算 YPP 的 4000 watch hours)。
+    # 短片堆滿會連長片一起停產,而長片才是稀缺高價值格式(**硬理由**:只有長片算 YPP 的
+    # 4,000 watch hours,Shorts 觀看一秒都不計;訂閱轉換長片也明顯較高,但那組統計 n 小
+    # 被單片主導、只當方向參考)。
     # 改成各自獨立判斷:短片滿只停短片、長片滿只停長片,兩者都滿才早退。
     # target 依發布配比切(每天發 2短3長,各留約 30 天緩衝):short 40% / long 60%。
     q = queue_size()
@@ -3296,7 +3329,7 @@ def main() -> int:
     log_ops("補產部門", f"開始補產（庫存 {q}/{args.target}）…")
     # 🔴 2026-07-17 長片先跑:批次被外力中斷時後跑的會全滅——2026-07-16 實錄
     # exit 1073807364(DBG_TERMINATE_PROCESS,疑似電腦睡眠)砍掉整批,當時短片先跑、
-    # 長片只成功 2/4。長片是稀缺高價值格式(轉換 27.5 倍、且是 YPP watch hours 的唯一來源),
+    # 長片只成功 2/4。長片是稀缺高價值格式(是 YPP watch hours 的唯一來源、訂閱轉換也較高),
     # 中斷時該優先保住它,故長片先產、短片墊後。
     made = sum(1 for _ in range(args.long) if attempt("long"))
     made += sum(1 for _ in range(args.shorts) if attempt("short"))

@@ -30,13 +30,13 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # 決策(05:37前)之後、製作(06:07)之前，讓當天製作能自然抽到新種的題。FinMind免費層每天只處理
 # 1檔(--count預設1)，絕不暴衝rate limit；冪等(當天已跑過會跳過，見 stock_checkup_daily_state.json)。
 50 5 * * * /root/yt/run.sh scripts/stock_checkup_daily.py >> /root/yt/logs/cron.log 2>&1
-# 2026-07-17 格式翻轉(Analytics creatorContentType 90d 實測,見 STUDIO/analytics_cache):
-#   Shorts 30,748觀看->19訂閱=0.062% | 長片 1,172觀看->20訂閱=1.706% = 27.5倍
-#   長片用3.7%的觀看換到51%的訂閱;90d內零支Shorts帶來>=2訂閱。且Shorts觀看不算YPP的
-#   4000watch hours(標準路徑66hr/1.7% 已比Shorts路徑25k/1000萬=0.25% 近7倍)——長片是
-#   唯一同時餵「訂閱」與「觀看時數」的雙贏格式,故產出配比 5短3長 -> 3短5長。
-#   Shorts留3支只當曝光/導流用(short_to_long 363筆配對真的在跑),不再指望它轉換。
-#   target 150 配 queue_size() 修好後的真庫存(51支):不足就補產、漲到150才停,自我調節。
+# 2026-07-17 格式翻轉:產出配比 5短3長 -> 3短5長。**承重理由是政策事實,不是統計**:
+#   ①【硬事實】Shorts 觀看**不計入** YPP 的 4,000 watch hours。標準路徑 66hr/4000=1.7%
+#     已比 Shorts 路徑 25k/1000萬=0.25% 近 7 倍 → 長片是唯一同時餵訂閱與觀看時數的格式。
+#   ②【參考·n小勿當定論】Analytics 90d:Shorts 訂閱轉換約 0.080%、長片 0.43–0.96%
+#     (n=13 且單片佔長片訂閱 64%);方向顯著(z=3.81)但倍數不穩 5–12x。
+#   Shorts 留 3 支當曝光/導流(short_to_long 363 筆配對在跑),不再指望它轉換。
+#   target 150 已於 produce_batch 內按格式切(短40%/長60%),不足就補、達標才停,自我調節。
 7 6 * * * /root/yt/run.sh scripts/produce_batch.py --manual --format-focus --shorts 3 --long 5 --target 150 --no-render >> /root/yt/logs/cron.log 2>&1
 # Short→長片精準連看:建 short_to_long.json(bigram題材相似度對應已發布短→長),發布前跑
 50 6 * * * /root/yt/run.sh scripts/build_short_to_long.py >> /root/yt/logs/cron.log 2>&1
