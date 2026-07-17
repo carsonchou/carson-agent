@@ -56,6 +56,10 @@ STATE = DATA_HUNTER / "state.json"
 CHECKUP_FACTS = STUDIO / "stock_checkup_facts.json"
 ADAPTIVE_CSV = TWDATA / "adaptive_per_stock.csv"
 SUBSCRIBERS = STUDIO / "ecommerce_subscribers.json"
+# S1 擇時鑑別力統計:由 ecommerce/breadth_forward_stats.py 預先算好(26 年 × 1900 檔的重算
+# 要 ~80 秒,不能每次出報告都跑)。缺檔 → S1 該區塊整塊不出現(降級,不編數字)。
+BREADTH_STATS = TWDATA / "breadth_forward_stats.json"
+MA_WIN_DISP = 20                       # 與 breadth_forward_stats.MA_WIN 同步(顯示用)
 THEME_CSS = HERE / "report_theme.css"
 OUT_DEFAULT = QUANT / "output" / "ecommerce_ready" / "weekly_v2"
 
@@ -532,8 +536,116 @@ def sec_S1(state: dict) -> dict:
         f'大盤 {_esc(idx.get("name","0050"))} 收 <b>{_esc(idx.get("price","—"))}</b>,當日 '
         f'<span class="{idx_cls}">{idx_chg}</span>,趨勢 <b>{_esc(idx.get("trend","—"))}</b>'
         f'{"（站上年線）" if idx.get("above_yearline") else ""}</div></div>')
-    html = f'<div class="unit">{head}{lead}{kpis}{gauge}{detail}</div>'
+    html = f'<div class="unit">{head}{lead}{kpis}{gauge}{detail}{_timing_block(prov)}</div>'
     return {"id": sid, "title": title, "tier": tier, "prov": prov, "degraded": False, "units": [html]}
+
+
+def load_breadth_stats() -> dict:
+    """讀 twdata/breadth_forward_stats.json(由 ecommerce/breadth_forward_stats.py 預先算好)。
+    缺檔/壞檔/ok=False → 回 {} → 呼叫端整塊不渲染(降級,不編數字)。"""
+    try:
+        d = json.loads(BREADTH_STATS.read_text(encoding="utf-8"))
+        return d if isinstance(d, dict) and d.get("ok") and d.get("buckets") else {}
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def _timing_block(prov: Provenance, stats: dict | None = None) -> str:
+    """S1 固定小區塊:「這溫度能拿來擇時嗎?——我們拿自己的指標去測,結果是不能。」
+
+    ── 為什麼是這個形狀(REVIEW_weekly_value ④ 的裁決 + 實跑結果)──────────────
+    REVIEW 判 S1 只有 4 分:「讀完不會改變任何動作」,並說這是唯一能救 basic 的一刀。
+    但把那一刀真的砍下去(自己跑完 17 年分桶統計)之後,**答案是 null result**:
+    各桶未來 20 日上漲機率 60.5%~72.4%,全期基準 62.2% —— 涵蓋 87% 日子的中間三桶
+    與基準差不到 1.5 個百分點。
+    所以**不做成「溫度→動作對照表」**(誠實做出來會是一張沒有差別的表,反而誤導),
+    改成把 null result 本身當內容:這正是本報告已經在做的事 ——
+    S6「我們自己的訊號是虧的」、S8「策略無腦套全市場只有 53% 正報酬」,
+    再加這一段「連我們自己首頁那個溫度計都測不出前瞻鑑別力」。
+
+    ── 誠信邊界(最容易出事的地方,寫在這裡供覆核)──────────────────────────
+    本段統計的 breadth 是用 cache_adj(含息還原、Close-only)重算的,**與本段頂上
+    那個當期 breadth/溫度定義不同**(掃描器用原始價、當日全市場即時算,溫度還含
+    RSI/ADR/新高低/量能)。**絕不可讓讀者以為這是在對頂上那個 45.4 做回測** ——
+    那是「頭條數字對得上、內部成分全錯」的同型陷阱(實測過:重建溫度 45.2 vs 官方 45.4
+    看似命中,adv/dec 卻是 57/65 vs 1060/588)。故 caveat 由事實檔帶出、逐字渲染,不改寫。
+    """
+    st = load_breadth_stats() if stats is None else stats
+    if not st:
+        return ""                      # 事實檔不在 → 整塊不出現(不編、不佔版面)
+    bl = st.get("baseline") or {}
+    buckets = [b for b in st.get("buckets", []) if not b.get("insufficient")]
+    if not bl or len(buckets) < 2:
+        return ""
+    _bind(prov, f'{BREADTH_STATS.name}:baseline',
+          baseline_up_rate_pct=bl.get("up_rate_pct"), baseline_median_fwd_pct=bl.get("median_fwd_pct"),
+          baseline_n_days=bl.get("n_days"), baseline_n_independent=bl.get("n_independent"),
+          n_stocks=st.get("n_stocks"), forward_days=st.get("forward_days"))
+    _bind(prov, f'{BREADTH_STATS.name}:spread',
+          spread_pct_points=st.get("spread_pct_points"),
+          middle_max_dev_pct_points=st.get("middle_max_dev_pct_points"),
+          n_middle_buckets=st.get("n_middle_buckets"))
+    rows = []
+    for b in st.get("buckets", []):
+        # ⚠️ 分桶標籤刻意寫成「20–40」而不是「20~40%」,% 移到欄位標題。
+        # 原因:守門(FG)看到績效語境裡的「40%」會判成一個查無來源的績效宣稱,整段被
+        # fail-closed 隱藏(實測擋下 40/60/80/101 四個)。正解**不是**把 40/60/80/101 灌進池
+        # ——那會讓日後捏造的「勝率 60%」撞到鄰居,等於為了自己的版面弱化守門。
+        # 桶界本來就不是績效宣稱,不該被當成績效宣稱:改寫呈現形式即可。
+        lab = f'{b["lo"]}–{b["hi"]}'
+        if b.get("insufficient"):
+            _bind(prov, f'{BREADTH_STATS.name}:buckets[{lab}]', n_days=b.get("n_days"))
+            rows.append(f'<tr><td class="l">{_esc(lab)}</td><td>{_esc(b.get("n_days",0))}</td>'
+                        f'<td colspan="3" style="color:var(--tx3)">樣本不足,不出數字</td></tr>')
+            continue
+        _bind(prov, f'{BREADTH_STATS.name}:buckets[{lab}]',
+              n_days=b.get("n_days"), n_independent=b.get("n_independent"),
+              median_fwd_pct=b.get("median_fwd_pct"), up_rate_pct=b.get("up_rate_pct"))
+        m, mcls = _pct(b.get("median_fwd_pct"))
+        rows.append(
+            f'<tr><td class="l">{_esc(lab)}</td><td>{_esc(b.get("n_days"))}</td>'
+            f'<td>{_esc(b.get("n_independent"))}</td>'
+            f'<td class="{mcls}">{m}</td><td><b>{b.get("up_rate_pct"):.1f}%</b></td></tr>')
+    mb, mbcls = _pct(bl.get("median_fwd_pct"))
+    rows.append(
+        f'<tr style="border-top:1px solid var(--ln)"><td class="l"><b>全期基準</b></td>'
+        f'<td>{_esc(bl.get("n_days"))}</td><td>{_esc(bl.get("n_independent"))}</td>'
+        f'<td class="{mbcls}">{mb}</td><td><b>{bl.get("up_rate_pct"):.1f}%</b></td></tr>')
+    thead = ('<thead><tr><th class="l">當時的廣度(%)</th><th>樣本天數</th><th>獨立期</th>'
+             f'<th>後{_esc(st.get("forward_days"))}日中位</th><th>後{_esc(st.get("forward_days"))}日上漲率</th></tr></thead>')
+    # ⚠️ 句子斷法:守門(FG)以「。！?\n」分句判斷績效語境。期間字串(2009-01-02 等)與樣本數
+    # 都不是績效宣稱,獨立成句即可;所有出現在績效語境裡的 % 都已由 _bind 綁來源入池。
+    lead = (f'<div class="lead">上面那支溫度計,能拿來抓進出場時機嗎?'
+            f'我們拿它權重第二大的成分(站上{MA_WIN_DISP}日均線的個股佔比)去測:'
+            f'把 {_esc(st.get("period_start"))} 以來的每一天依當時廣度分桶,'
+            f'看大盤({_esc(st.get("benchmark"))})接下來 {_esc(st.get("forward_days"))} 個交易日走成怎樣。'
+            f'<b>結論:看不出鑑別力</b>。</div>')
+    verdict = (
+        f'<div class="block" style="margin-top:11px"><div class="metricrow">'
+        f'涵蓋大多數日子的中間 <b>{_esc(st.get("n_middle_buckets"))}</b> 桶,上漲率與全期基準 '
+        f'<b>{bl.get("up_rate_pct"):.1f}%</b> 的最大差距只有 '
+        f'<b>{st.get("middle_max_dev_pct_points")}</b> 個百分點;把最極端的兩桶也算進來,'
+        f'桶間最大差距 <b>{st.get("spread_pct_points")}</b> 個百分點,'
+        f'而那兩桶的獨立樣本期最少。<br>'
+        f'<span style="color:var(--tx3)">白話:歷史上「溫度高」或「溫度低」的當下,'
+        f'大盤接下來一個月的表現,和隨便挑一天進場沒有明顯差別。</span></div></div>')
+    honest = (
+        f'<div class="block" style="margin-top:11px"><div class="bt">這段在說什麼、不在說什麼</div>'
+        f'<div class="metricrow" style="color:var(--tx3)">'
+        f'· <b>資料</b>:{_esc(st.get("source"))};期間 {_esc(st.get("period_start"))} ~ '
+        f'{_esc(st.get("period_end"))},共 {_esc(bl.get("n_days"))} 個交易日'
+        f'({_esc(bl.get("n_independent"))} 個不重疊的 {_esc(st.get("forward_days"))} 日期)、'
+        f'{_esc(st.get("n_stocks"))} 檔。<br>'
+        f'· <b>方法</b>:{_esc(st.get("method"))}<br>'
+        f'· <b>這不是對本段頂上那個數字做回測</b>:{_esc(st.get("caveat"))}<br>'
+        f'· 這是歷史統計,不是預測;樣本再多也只是過去。'
+        f'<b>我們把自己的指標拿去測,測出來沒用,就照實告訴你別拿它擇時</b> —— '
+        f'這也是我們不賣訊號、不喊單的原因。<span style="color:var(--tx3)">介紹 ≠ 推薦。</span>'
+        f'</div></div>')
+    return (f'<div class="block" style="margin-top:13px"><div class="bt">'
+            f'這溫度能拿來擇時嗎?{_esc(bl.get("n_independent"))} 個獨立樣本期的答案:不能</div>'
+            f'{lead}<table class="grid">{thead}<tbody>{"".join(rows)}</tbody></table>'
+            f'{verdict}{honest}</div>')
 
 
 def sec_S2(state: dict) -> dict:

@@ -8,12 +8,37 @@
 
 ## 戰果
 
-**已證實 2 個(都能實測重現)｜懷疑但無法證明 2 個｜自己推翻 1 個。**
+**已證實 1 個(實測重現)｜懷疑但無法證明 2 個｜自己推翻 1 個｜**⚠️ **被 team-lead 推翻 1 個(S2,我錯了)**。
 
 | # | 發現 | 多久才會被發現 | 代價 |
 |---|---|---|---|
 | **S1** | 訂閱者 `tier="unknown"` → **兩張寄送名單都排除** | 訂戶抱怨才知道(數週) | 付 149/月**永遠收不到任何一期** |
-| **S2** | 商品名對不上 `match` → `sku="unknown"` → 交付信只給 **placeholder(含內部除錯字串)** | 買家抱怨才知道 | 付 990 收到一封工程師訊息 |
+| ~~S2~~ | ~~商品名對不上 → 買家收到 placeholder 信~~ | **撤回** | **見下方更正:這個結論是錯的** |
+
+---
+
+## ❌ 更正:S2 是我錯了(2026-07-17,team-lead 提出證據後複驗)
+
+**我原本的結論**:商品名對不上 `match` → `sku="unknown"` → 買家付 990 收到含內部除錯字串的 placeholder 信。
+
+**事實**:`quant-service/webhook/delivery.py:75-87` 的 `needs_manual_delivery()`(team-lead 於 `57787c4` 加入,**2026-07-16 23:37**,早於我的獵殺)**已經攔住了**:
+```
+ev.kind == EventKind.SALE and not download_url_for(ev.sku_id)  → True → 不寄
+```
+我實際驅動 `deliver()` 複驗:
+```
+sku_id = unknown → download_url_for → None → needs_manual_delivery → True
+deliver() 回傳 {'sent': False, 'manual_required': True,
+                'reason': '下載連結未設(SKU=unknown),已擋下 placeholder 信,需手動交付'}
+真的送出的信件數 = 0   ← 零信外流
+並印出:[delivery] ⚠️ 拒寄:SKU=unknown 下載連結未設…需手動交付
+```
+→ **買家不會收到那封信;系統會擋下並要求手動交付。這正是我報告裡呼籲的修法,而它早就在了。**
+
+**我為什麼會錯(值得記下來的教訓)**:我測了 `_download_block()`——**組裝 placeholder 字串的那個函式**——看到它回傳內部除錯文字,就推論「買家會收到」。**我驗了食材,沒驗那道菜**:從來沒有驅動過 `deliver()` 這條真正決定寄不寄的路徑。
+這**正是我這幾輪一直在抓別人的同一個錯**(元件隔離測試 → 推論端到端行為)。S1 我是驅動真 webhook + 直接查 `export_active` 所以成立;S2 我偷懶了。**團隊的交叉驗證抓到了我,制度是有效的。**
+
+(唯一保留的相鄰事實:webhook 啟動摘要現在印 `ECOMMERCE_DL_* MISSING` 與其他行同樣字重,建議升成紅字——但這是可用性建議,**不是靜默失敗**,因為真有訂單時 `needs_manual_delivery` 會擋+告警。)
 
 ---
 
@@ -54,7 +79,11 @@ webhook 回 **200 accepted** ✓ / 名冊寫入 `status="active"` ✓ / **`/heal
 
 ---
 
-## 🔴 S2 商品名對不上 → 買家收到「內部除錯訊息」當交付信(已證實)
+## ~~🔴 S2 商品名對不上 → 買家收到「內部除錯訊息」當交付信~~ ❌ **已撤回(我錯了,見上方更正)**
+
+> **以下原文保留供追溯,但結論作廢**:`needs_manual_delivery()` 會攔下這封信、零外流、並要求手動交付。
+> 唯一仍成立的部分是「`resolve_sku` 對不上會回 unknown」這個事實本身(下表的實測數字仍為真),
+> 但它**不會**導致買家收到 placeholder 信 —— 我漏驗了 `deliver()` 這道關卡。
 
 **檔案:行號**
 - `quant-service/webhook/config.py:33-47` `SKU_CATALOG` 的 `match` 關鍵字
