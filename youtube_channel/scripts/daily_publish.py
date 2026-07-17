@@ -358,16 +358,27 @@ def find_candidates(ledger: dict) -> list:
     # 🔴 2026-07-15 修「長片永遠輪不到」:原本 shorts + longs 直接串接,--max 12 的名額
     # 全被 Shorts 吃光——長片(YPP 4000 小時 watch time 的唯一現實路徑)被結構性擠出佇列,
     # 實測 94 分的旗艦長片在佇列躺了一整天發不出去。
-    # 🔴 同日配額重編後二修:發布批縮到 --max 3/1/1(quota 對齊),原「每 5 支短片插 1 長」
-    # 在小批次下前 3 名全是短片,長片又餓死。改成第 1 支短片後就先插 1 支長片
-    # (--max 3 批 = 短+長+短,保底每天 1 長片),之後每 5 支短片再插 1 支。
+    # 🔴 2026-07-17 三修「--max 1 批把長片切掉」:二修版把長片插在 shorts[0] 之後(merged[1]),
+    # 但每日三批是 09:15 --max 1 / 11:00 --max 1 / 18:30 --max 3——兩個 --max 1 批只取
+    # merged[0],永遠是短片,長片實際只有 18:30 那批發得掉 → 實測配比 4短1長。
+    # 依 Analytics creatorContentType 90d 實測(Shorts 30,748觀看->19訂閱=0.062%;
+    # 長片 1,172觀看->20訂閱=1.706%=27.5倍,且 Shorts 觀看不算 YPP 的 4000 watch hours),
+    # 目標配比翻轉成 2短3長。
+    # 排法:「1 長 + 2 短」循環(長片打頭)。每批各自重算候選(已發布的在 ledger 內會被排除),
+    # 故當日實際取用序列 = merged 前 5 名依批次大小切分:
+    #   09:15 max1 -> L1 | 11:00 max1 -> L2(重算後 merged[0]) | 18:30 max3 -> L3,S1,S2
+    #   = 每天 3 長 2 短,正好命中目標配比。
+    # 退化:長片庫存不足時 while 迴圈自然只排短片(反之亦然),不會空手或崩潰。
+    LONG_PER_CYCLE, SHORT_PER_CYCLE = 1, 2
     merged = []
-    li = 0
-    for i, s in enumerate(shorts):
-        merged.append(s)
-        if li < len(longs) and (i == 0 or (i + 1) % 5 == 0):
-            merged.append(longs[li]); li += 1
-    merged.extend(longs[li:])
+    li = si = 0
+    while li < len(longs) or si < len(shorts):
+        for _ in range(LONG_PER_CYCLE):
+            if li < len(longs):
+                merged.append(longs[li]); li += 1
+        for _ in range(SHORT_PER_CYCLE):
+            if si < len(shorts):
+                merged.append(shorts[si]); si += 1
     return merged
 
 

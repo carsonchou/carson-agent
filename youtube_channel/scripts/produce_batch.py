@@ -176,8 +176,11 @@ def existing_titles():
     return out
 
 
-def queue_size():
+def queue_size(kind=None):
     """片庫量＝『未發布』已成片(mp4)或已備妥待渲染(voice.txt)的去重 slug 數。
+
+    kind: None=全部;"short"=只算 S_ 開頭;"long"=只算 L_ 開頭(2026-07-17 加,
+    供分格式 target gate 用——短片堆滿不該把稀缺的長片一起停產)。
     ⚠️排除已發布(在 uploaded_ledger 內)的——否則已發布舊片堆在 output 沒清，
     會讓計數爆滿、誤判『庫存已滿』而停止補產（曾因此整個產線停擺）。
     ⚠️2026-07-17 修:排除 `_ytcta` 副本(append_yt_cta.py 給 IG/TikTok 接片尾卡的跨平台
@@ -198,14 +201,12 @@ def queue_size():
         if not slug.endswith("_ytcta"):
             slugs.add(slug)
 
-    for f in OUT.glob("S_*.mp4"):
-        _add(f.stem)
-    for f in OUT.glob("L_*.mp4"):
-        _add(f.stem)
-    for f in OUT.glob("S_*.voice.txt"):
-        _add(f.name[:-len(".voice.txt")])
-    for f in OUT.glob("L_*.voice.txt"):
-        _add(f.name[:-len(".voice.txt")])
+    pats = {"short": ("S_",), "long": ("L_",), None: ("S_", "L_")}[kind]
+    for p in pats:
+        for f in OUT.glob(f"{p}*.mp4"):
+            _add(f.stem)
+        for f in OUT.glob(f"{p}*.voice.txt"):
+            _add(f.name[:-len(".voice.txt")])
     return len(slugs - published)
 
 
@@ -3238,10 +3239,31 @@ def main() -> int:
         print("[FATAL] 找不到任一 LLM 供應商金鑰(OPENROUTER/ANTHROPIC/DEEPSEEK/GEMINI/GROQ)。", file=sys.stderr)
         return 2
 
+    # 🔴 2026-07-17 分格式 gate:舊碼 `q >= args.target` 是**不分格式的全批 kill-switch**——
+    # 短片堆滿會連長片一起停產,而長片才是稀缺高價值格式(Analytics 90d 實測:長片訂閱轉換
+    # 1.706% vs Shorts 0.062% = 27.5 倍,且只有長片算 YPP 的 4000 watch hours)。
+    # 改成各自獨立判斷:短片滿只停短片、長片滿只停長片,兩者都滿才早退。
+    # target 依發布配比切(每天發 2短3長,各留約 30 天緩衝):short 40% / long 60%。
     q = queue_size()
-    print(f"目前片庫：{q} 支 / 目標 {args.target}")
-    if q >= args.target:
-        print("片庫充足，本次不補產。")
+    tgt_short = max(1, round(args.target * 0.4))
+    tgt_long = max(1, args.target - tgt_short)
+    q_short, q_long = queue_size("short"), queue_size("long")
+    print(f"目前片庫：{q} 支(短 {q_short}/{tgt_short}、長 {q_long}/{tgt_long}) / 總目標 {args.target}")
+    if q_short >= tgt_short and args.shorts:
+        print(f"[skip] 短片庫存已達標({q_short}/{tgt_short})，本次不補短片。", file=sys.stderr)
+        args.shorts = 0
+    if q_long >= tgt_long and args.long:
+        print(f"[skip] 長片庫存已達標({q_long}/{tgt_long})，本次不補長片。", file=sys.stderr)
+        args.long = 0
+    if not args.shorts and not args.long:
+        # 🔴 早退必須「叫得出聲」:local_cron.py:199 用 stdout=DEVNULL,早退只 print 到 stdout
+        # 會被吃掉、exit 0 被記成「✓ 完成」——2026-07-17 06:07 就是這樣整批歸零卻回報成功
+        # (log 顯示啟動與完成同一秒)。故一律同時走 stderr(進 job_stderr.log)與 log_ops
+        # (進決策中心),讓「沒產」看得見。
+        msg = f"片庫充足（短 {q_short}/{tgt_short}、長 {q_long}/{tgt_long}），本次不補產。"
+        print(msg)
+        print(f"[skip] {msg}", file=sys.stderr)
+        log_ops("補產部門", f"跳過補產（短 {q_short}/{tgt_short}、長 {q_long}/{tgt_long} 皆達標）")
         return 0
 
     def attempt(kind):
@@ -3272,8 +3294,12 @@ def main() -> int:
     _set_bucket_plan("long", args.long)
 
     log_ops("補產部門", f"開始補產（庫存 {q}/{args.target}）…")
-    made = sum(1 for _ in range(args.shorts) if attempt("short"))
-    made += sum(1 for _ in range(args.long) if attempt("long"))
+    # 🔴 2026-07-17 長片先跑:批次被外力中斷時後跑的會全滅——2026-07-16 實錄
+    # exit 1073807364(DBG_TERMINATE_PROCESS,疑似電腦睡眠)砍掉整批,當時短片先跑、
+    # 長片只成功 2/4。長片是稀缺高價值格式(轉換 27.5 倍、且是 YPP watch hours 的唯一來源),
+    # 中斷時該優先保住它,故長片先產、短片墊後。
+    made = sum(1 for _ in range(args.long) if attempt("long"))
+    made += sum(1 for _ in range(args.shorts) if attempt("short"))
     log_ops("補產部門", f"完成 補產{made}支，片庫{queue_size()}支")
     print(f"本次補產 {made} 支，片庫現 {queue_size()} 支。")
     return 0
