@@ -52,12 +52,45 @@ WINNER_KW = ("0050", "你猜", "vs", "VS", "剩多少", "小白", "複利", "停
              "一次投入", "ETF", "存股")
 
 
+# ── legacy 事實庫「同一件事、兩個答案」的結構性封鎖（2026-07-17 已發布誠信事故）─────
+# 事故：tw_stock_facts.json(legacy, tw_stock_data.py 產) 與 tw_facts_computed.json
+# (tw_facts_engine.py 產) 是同一組回測的兩份快照，但**回測窗口不同**，故數字互斥：
+#   · legacy buyhold_vs_timing_twii ：_fetch_close(^TWII, 20) → 近 20.1 年 → 長抱年化 10.2%、
+#     擇時 8.9% → 結論「長抱贏」
+#   · computed buyhold_vs_timing__TWII：period="max" → 1997-07-02~ 共 29 年 → 長抱年化 5.7%、
+#     擇時 6.9% → 結論「擇時贏」
+# 兩者各自算術上都對，但講的是同一個問題(台股大盤長抱 vs 跌破年線擇時)，結論卻相反。
+# 已發布災情：Jad4_8skToo(S1EP10, 用 computed 講「長抱 5.7% 輸擇時 6.9%」) 與
+# ogQukwzFn1s(S2EP3, 用 legacy 講「長抱 10.1% 贏擇時 8.8%」) 兩支片同時在線互打臉。
+# 為什麼舊的 _dedup_sig() 沒擋住：它比對 desc 文字，而兩支引擎的 desc 措辭不同
+# ("大盤 長抱不動 vs 跌破年線就跑的簡單擇時" vs "加權指數（大盤） 長抱不動 vs 簡單擇時（年線）")
+# → 簽名不同 → 兩組都進了 seeded_keys → 各自出了一集。文字比對本質上防不住這件事。
+#
+# 修法：改用**結構性**(key 對 key)封鎖，不靠措辭。legacy 全部 5 組事實的主題，computed
+# 都有對應且更完整的版本(50 組 ⊃ legacy 5 組)，且 computed 每筆都帶 period/start/end/
+# method/source/computed_at(legacy 全缺)，故 computed 存在時一律以 computed 為準、丟棄 legacy。
+# 另一個非丟不可的理由：legacy 的窗口是 `today - 20*366 天` 的**滾動窗**，每天重算會漂移
+# (已發布 EP1 講 0050 十年 All-in「813%」，今天同一個 key 已變成 804.5%)，等於已發布影片的
+# 數字事後永遠對不回來、fact_source_guard 溯源必然查無憑據。computed 的 __full 系列是固定起點。
+# 保留 fallback：萬一 computed 缺檔/該組算不出來，legacy 仍可用(總比沒有真數據好)。
+_LEGACY_SUPERSEDED_BY = {
+    "allin_vs_dca_0050_10y":  "dca_vs_allin__0050__10y",
+    "allin_vs_dca_twii_20y":  "dca_vs_allin__TWII__full",
+    "buyhold_vs_timing_twii": "buyhold_vs_timing__TWII",
+    "hidiv_0056_vs_0050":     "hidiv_vs_mktcap__0056_vs_0050",
+    "hidiv_00878_vs_0050":    "hidiv_vs_mktcap__00878_vs_0050",
+}
+
+
 def _load_facts():
-    """合併讀 tw_stock_facts.json + tw_facts_computed.json，回 {key: fact_dict}。
+    """合併讀 tw_stock_facts.json + tw_facts_computed.json，回 ({key: fact_dict}, as_of)。
     邏輯對齊 produce_batch._load_tw_facts()（獨立複製一份，避免 tw_lab_engine ← produce_batch
-    互相 import 造成循環依賴）。任何一份缺檔/壞掉都靜默跳過。"""
+    互相 import 造成循環依賴）。任何一份缺檔/壞掉都靜默跳過。
+    2026-07-17 起：computed 有對應版本的 legacy key 一律丟棄（見 _LEGACY_SUPERSEDED_BY），
+    確保 franchise 結構上不可能對同一件事引用到兩個互斥的答案。"""
     merged_results: dict = {}
-    as_of = ""
+    origin: dict = {}          # key -> 來源檔名（決定 as_of 要報哪一份的日期）
+    as_of_by_file: dict = {}
     for p in (TW_FACTS, TW_FACTS_COMPUTED):
         try:
             if not p.exists():
@@ -68,10 +101,26 @@ def _load_facts():
             res = d.get("results") or d.get("backtests") or {}
             if isinstance(res, dict):
                 for k, v in res.items():
-                    merged_results.setdefault(k, v)
-            as_of = as_of or str(d.get("as_of", ""))
+                    if k not in merged_results:
+                        merged_results[k] = v
+                        origin[k] = p.name
+            as_of_by_file[p.name] = str(d.get("as_of", ""))
         except Exception:  # noqa: BLE001
             continue
+
+    for legacy_key, computed_key in _LEGACY_SUPERSEDED_BY.items():
+        if legacy_key in merged_results and computed_key in merged_results:
+            merged_results.pop(legacy_key, None)
+            origin.pop(legacy_key, None)
+
+    # as_of 要如實反映「活下來的事實實際來自哪份檔」——不能再像舊版一樣無腦取第一份
+    # (legacy 每天重算 as_of=今天，computed 可能是前幾天算的；報 legacy 的日期會把
+    #  computed 的數字標成今天算的，那本身就是一種不實標註)。
+    files_used = {origin[k] for k in merged_results if k in origin}
+    if TW_FACTS_COMPUTED.name in files_used:
+        as_of = as_of_by_file.get(TW_FACTS_COMPUTED.name, "")
+    else:
+        as_of = as_of_by_file.get(TW_FACTS.name, "")
     return merged_results, as_of
 
 
@@ -177,6 +226,37 @@ def pick_next(state=None):
     return key, fact, next_key, next_fact
 
 
+def _fact_period(fact):
+    """回傳這組事實可信的回測期間字串；抓不到回 ""。
+    2026-07-17 事故修補：legacy 事實(tw_stock_data.py 產)完全沒有 period/start/end 欄位，
+    舊版 fact_data_block 遇到就**靜默省略「期間」那一行** → 寫稿 LLM 拿不到任何年數資訊
+    → 自己瞎猜一個。已發布的 ogQukwzFn1s(S2EP3) 就是這樣把 20.1 年的回測數字講成
+    「大盤長抱10年」、標題還寫「10年回測揭真相」。年數是誠信聲稱的一部分，不能靠猜，
+    故這裡從 data.start/end 或 data.years 補算，讓期間永遠有值。"""
+    period = str(fact.get("period") or "").strip()
+    if period and period != "?~?":
+        return period
+    data = fact.get("data")
+    if isinstance(data, dict):
+        start, end = data.get("start"), data.get("end")
+        if start and end:
+            return f"{start}~{end}"
+        # 崩盤類事實(crash_panic_sell__* / crash_buy_the_dip__*)：tw_facts_engine
+        # calc_crash_episode() 回的是 peak_date/trough_date/latest_date，沒有 start/end，
+        # 導致上游 add() 把 period 組成字面上的 "?~?" 餵給寫稿 LLM。這類事實的聲稱其實是
+        # 「崩跌前高點買進 → 抱/賣 → 到最新一天」，故期間＝peak_date~latest_date。
+        peak, latest = data.get("peak_date"), data.get("latest_date")
+        if peak and latest:
+            return f"{peak}~{latest}"
+        years = data.get("years")
+        try:
+            if years is not None and float(years) > 0:
+                return f"回測區間長度 {float(years):.1f} 年（原始事實未記起訖日）"
+        except (TypeError, ValueError):
+            pass
+    return ""
+
+
 def fact_data_block(key, fact, as_of=""):
     """把單一事實格式化成可直接塞進寫稿 prompt 的實證區塊(比 produce_batch._tw_facts_context
     更聚焦——只給『這集要用的這一組』，不是一次塞 6 組讓 LLM 自己選,避免混題)。"""
@@ -184,7 +264,7 @@ def fact_data_block(key, fact, as_of=""):
         return ""
     desc = str(fact.get("desc") or key)
     claim = str(fact.get("claim") or fact.get("summary") or "")
-    period = str(fact.get("period") or "")
+    period = _fact_period(fact)
     source = str(fact.get("source") or "")
     lines = [f"\n【★本集唯一指定實證數據(台股真回測·只能用這一組,不得混用其他標的/期間的數字)】",
              f"  題材：{desc}"]
@@ -192,6 +272,12 @@ def fact_data_block(key, fact, as_of=""):
         lines.append(f"  數字：{claim}")
     if period:
         lines.append(f"  期間：{period}")
+        lines.append("  ★年數硬規則：標題/旁白只要提到回測年數，必須與上面「期間」一致，"
+                     "不得四捨五入到另一個整數年、不得自己另編一個年數(例如期間是 20.1 年就不能講「10年回測」)。")
+    else:
+        # fail-closed：沒有可信期間就明令不准講年數，寧可少一個賣點也不能讓 LLM 掰
+        lines.append("  ★期間：未知(本組事實沒有可信的起訖/年數欄位)——標題與旁白一律"
+                     "不得出現任何回測年數或「近N年」字樣。")
     if as_of:
         lines.append(f"  資料截至：{as_of}")
     if source:
