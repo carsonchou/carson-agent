@@ -36,6 +36,25 @@
      ready=0/planned=1916 → max 過關，實測真的產出「目前體檢完 0 檔」這種荒謬承諾。
      → 改 min():任一邊塌掉就拒產。
 
+★2026-07-17 第二輪誠信稽核(ep0-produce 產前複驗)——又抓到兩句同型假話，全在「規則先講死」：
+  判準升級(比「是不是假話」更好用):**這句宣稱的性質我們實際有嗎?方向是自我設限還是膨脹?**
+  COST_DISCLOSURE 之所以安全，是因為它自我設限(最壞低報自己);以下兩句相反——
+  **它們宣稱一個實際上沒有的嚴謹度 = 膨脹可信度**，跟「手續費都算進去」是同一species。
+  6. 【tw_lab 規則②·標的】舊句宣稱「標的跟區間是機械掃出來的、**不是我挑的**」。
+     複驗:tw_facts_engine.SYMBOLS 是**手寫死的 16 檔**清單，每個家族再手挑子集
+     (dca_targets 6 檔、停利只跑 ["0050","2330","006208"]、miss_best_days 只跑 ["0050","TWII"])，
+     **全檔零行掃市場**。「區間機械」是真的;假的是「標的」那半句。
+     → 改由 _universe() 從 SYMBOLS **算出**真實組成 + 明講「終究是我列的」(自我設限)。
+     ⚠️ 且**不可用 len(SYMBOLS)=16**:其中 4 檔(00934/00936/00939/00940，2024 才掛牌)資料不足
+        MIN_YEARS=3.0，**從來沒跑出任何一組回測**。宣稱 16 = 把沒跑過的算進去 = 膨脹。
+        故取 SYMBOLS ∩ 事實庫實際出現的代號 = 12 檔(保守下界，且那 4 檔資料夠了會自己納入)。
+  7. 【checkup 規則①·缺漏原因】舊句宣稱「最常見的是 **ETF 根本沒有財報**」。
+     複驗:有缺漏的 5 檔裡 **ETF 只有 1 檔**(00878)，另外 **4 檔是個股**(2412/2882/2327/2344)，
+     而且 skipped 的 reason 全部是「**FinMind 查無資料**」= **抓取失敗**，不是「結構上沒有財報」——
+     國巨、華邦電當然有財報。這句把**我自己的資料管線失敗**說成「市場的結構限制」，
+     等於把責任推給標的、順便讓缺漏看起來無可避免 → 膨脹方向。
+     → 改由 _inv_checkup() 算出 gap_by_kind，ETF 與個股**分開講**，並明說個股那部分是我沒抓到。
+
 ★誠信總原則(本檔的存在理由)：
   **宣稱句必須能從真實檔案算出或查證，不可寫死在 SERIES 表當文案。**
   SERIES 表只放「不含數字、且已複驗為真」的靜態素材;所有帶數字/帶定位的句子一律由
@@ -173,6 +192,81 @@ def _fact_keys() -> set:
 
 
 # ─────────────────────────────────────────────────────────────────────
+# 回測標的清單的真實組成(治「標的不是我挑的」這句假話)
+# ─────────────────────────────────────────────────────────────────────
+# 舊句宣稱標的是「機械掃出來的、不是我挑的」——假的。tw_facts_engine.SYMBOLS 是手寫死的
+# 清單，家族子集還是手挑的，全檔零行掃市場。誠實版要講「這是我列的一張固定清單」，
+# 而「幾檔/哪幾類」不可寫死 → 從 SYMBOLS 算出來，未來加標的時稿子自己會跟著變。
+_KIND_LABEL = {
+    "mktcap": "市值型 ETF",
+    "hidiv": "高股息 ETF",
+    "leveraged": "槓桿 ETF",
+    "stock": "個股",
+    "index": "大盤指數",
+}
+
+
+def _universe() -> dict | None:
+    """回測標的清單的真實組成;算不出來回 None(→ 規則段拒產，不硬掰)。
+
+    ⚠️ 為什麼是 SYMBOLS ∩ 事實庫、不是 len(SYMBOLS):
+       SYMBOLS 列了 16 檔，但其中 4 檔(00934/00936/00939/00940，2024 才掛牌)資料不足
+       MIN_YEARS=3.0，**從來沒跑出任何一組回測**。宣稱「16 檔」= 把沒跑過的算進去 = 膨脹方向。
+       取交集 = 保守下界(寧可低報，符合本檔「數字一律取下界」原則)，而且那 4 檔哪天資料夠了
+       跑出回測，這裡會**自己**把它們算進來 —— 稿子跟著真實檔案走，不需要有人記得改文案。
+    """
+    try:
+        import tw_facts_engine as tfe  # noqa: PLC0415
+        symbols = getattr(tfe, "SYMBOLS", None)
+        crash_windows = getattr(tfe, "CRASH_WINDOWS", None) or {}
+    except Exception:  # noqa: BLE001
+        return None
+    if not isinstance(symbols, dict) or not symbols:
+        return None
+
+    keys = _fact_keys()
+    if not keys:
+        return None
+    # 事實 key 裡出現過的 token(大小寫都收:legacy key 寫 twii，SYMBOLS 寫 TWII)
+    toks = set()
+    for k in keys:
+        for t in re.split(r"_+", str(k)):
+            if t:
+                toks.add(t)
+                toks.add(t.upper())
+    covered = [c for c in symbols if c in toks]
+    if not covered:
+        return None
+
+    counts: dict = {}
+    for c in covered:
+        kind = (symbols[c] or {}).get("kind") if isinstance(symbols[c], dict) else None
+        label = _KIND_LABEL.get(kind)
+        if not label:
+            return None  # 認不出的 kind → 不准宣稱組成(fail-closed，寧可拒產)
+        counts[label] = counts.get(label, 0) + 1
+    return {
+        "n": len(covered),
+        "listed": len(symbols),
+        "counts": counts,
+        "n_crash": len(crash_windows),
+    }
+
+
+def _universe_phrase(u: dict) -> str:
+    """把 _universe() 的組成講成人話。順序固定(多的講前面)，不隨 dict 順序飄。"""
+    order = ["高股息 ETF", "市值型 ETF", "槓桿 ETF", "個股", "大盤指數"]
+    parts = []
+    for label in order + [x for x in u["counts"] if x not in order]:
+        n = u["counts"].get(label)
+        if not n:
+            continue
+        # 「1 檔大盤指數」不像人話，大盤就是大盤
+        parts.append("大盤指數" if (label == "大盤指數" and n == 1) else f"{n} 檔{label}")
+    return "、".join(parts)
+
+
+# ─────────────────────────────────────────────────────────────────────
 # 存量查證(誠信命脈:承諾的數字全部從這裡算出來)
 # ─────────────────────────────────────────────────────────────────────
 
@@ -212,9 +306,15 @@ def _inv_checkup() -> dict:
     ⚠️ 兩者差很大是**正常**的(一天一檔)，所以承諾要分開講:
        「已經體檢完 N 檔」用 ready，「清單上有 M 檔」用 total —— 不可拿 total 冒充已完成。
     rubric = 體檢表項目數(n_facts + skipped)。實測 10 檔全部 = 13 → 尺確實是同一把;
-    但填得滿的只有 5 檔(00878 只有 7/13、2327 與 2344 各 8/13、2412 與 2882 各 12/13)，
-    ETF 沒財報就沒營收/EPS/毛利率 → **結構上不可能齊**。故「同一把尺」只能講到
-    「同一份表」，不可暗示「每一檔都填滿」;差額由引擎的 skipped 欄位誠實揭露。"""
+    但填得滿的只有 5 檔(00878 只有 7/13、2327 與 2344 各 8/13、2412 與 2882 各 12/13)。
+    故「同一把尺」只能講到「同一份表」，不可暗示「每一檔都填滿」;差額由 skipped 誠實揭露。
+
+    ⚠️ 2026-07-17 更正:這裡原本寫「ETF 沒財報 → 結構上不可能齊」，**是錯的**，而且
+       規則①照著這個錯誤講成「最常見的是 ETF 根本沒有財報」。複驗 skipped 的 reason:
+       有缺漏的 5 檔裡 ETF 只有 1 檔(00878)，另外 4 檔 2412/2882/2327/2344 **全是個股**，
+       reason 一律是「FinMind 查無資料」= **我的資料源抓取失敗**，不是結構上沒有財報
+       (國巨、華邦電當然有財報)。把自己的管線失敗說成市場的結構限制 = 膨脹方向。
+       → 改回 gap_by_kind，讓規則①把 ETF 與個股**分開講**，個股那部分明說是我沒抓到。"""
     bl = _load(STUDIO / "stock_checkup_backlog.json") or {}
     items = bl.get("items") or []
     todo = [i for i in items if isinstance(i, dict) and not i.get("done")]
@@ -222,12 +322,15 @@ def _inv_checkup() -> dict:
     by = fc.get("by_code") or {}
 
     rubrics, n_skipped_codes = set(), 0
+    gap_by_kind: dict = {}
     for v in by.values():
         if not isinstance(v, dict):
             continue
         sk = v.get("skipped") or []
         if sk:
             n_skipped_codes += 1
+            k = v.get("kind") or "?"
+            gap_by_kind[k] = gap_by_kind.get(k, 0) + 1
         n = v.get("n_facts")
         if isinstance(n, int):
             rubrics.add(n + len(sk))
@@ -241,6 +344,7 @@ def _inv_checkup() -> dict:
         "total": len(items),
         "rubric": rubric,
         "n_skipped_codes": n_skipped_codes,
+        "gap_by_kind": gap_by_kind,   # 缺漏原因要分開講:ETF(結構) vs 個股(我沒抓到)
         "published": _pub_checkup(),
         "detail": (f"backlog n_total {bl.get('n_total')}、已做 {len(items) - len(todo)}、"
                    f"未做 {len(todo)}；facts by_code 已算好 {len(by)} 檔"
@@ -272,7 +376,15 @@ SERIES = {
         "inv": _inv_tw_lab,
         "min_stock": MIN_STOCK,
         # ①敵人
-        "enemy": ("台股的存股常識，幾乎都是這樣傳的:「長期一定賺」「跌了就加碼」「停利落袋為安」。"
+        # ⚠️ 2026-07-17:audit_video 誠信禁語閘擋下這段(「一定賺」判為非破除語境)。gate 是對的——
+        #    它按「同句」判(_SENT_SPLIT_RE)，而舊句把神話**原封不動引在自己的句子裡**，
+        #    破除框架落在下一句 → 那一句單獨看就是在講「長期一定賺」。
+        #    修法是**把稿子講清楚，不是放寬 gate**(gate 門檻一個字沒動):在同一句就講明
+        #    這幾條是「待驗證的說法」。
+        #    ⚠️ 刻意**不**寫成「其實全是迷思」——那會在回測之前就先判它們有罪，
+        #       跟規則③「驗出來是對的我就說對」自相矛盾。用問句保持中立才誠實。
+        "enemy": ("台股的存股常識，幾乎都是這樣傳的:「長期一定賺」「跌了就加碼」「停利落袋為安」"
+                  "——這幾條到底是不是真的，其實沒什麼人真的拿數據去驗過。"
                   "講的人很有信心，但你問他數據呢？沒有。就是「大家都這麼說」。"),
         # ③身分憑證
         "cred": ("這裡是量化阿森，這個頻道只做一件事:把每一個講法拿去回測，用數據說話，不喊單、也不報明牌。"),
@@ -335,9 +447,24 @@ def _turn(key: str, inv: dict) -> str:
 def _rules(key: str, inv: dict) -> list:
     """④規則先講死。這段的全部作用是證明「我值得你訂」——**一個字都不能是假的**。"""
     if key == "tw_lab":
+        u = _universe()
+        if not u:
+            # 標的組成算不出來 → 不准宣稱「標的怎麼來的」→ 整段拒產(build_script 會擋)
+            print("[FATAL] tw_lab:標的清單組成算不到，規則②不可宣稱，拒產。", file=sys.stderr)
+            return []
+        # ⚠️ 「不是我挑的」是假話(SYMBOLS 手寫死)。誠實版:承認清單是我列的，
+        #    並明講這個限制**回答不了什麼問題** —— 自我設限方向，天生安全。
+        second = (
+            "第二，回測跑的是真實歷史行情。區間不是我挑對自己有利的那一段:資料有多長就跑多長，"
+            f"崩盤那種特殊區間也是固定的 {u['n_crash']} 段，每一檔都用同一組。"
+            f"標的我也講清楚——不是整個市場掃一遍，是一張我事先列好的固定清單，"
+            f"目前跑得出數據的有 {u['n']} 檔:{_universe_phrase(u)}。"
+            "清單事先訂好、每一集都用同一張，我不會為了結果好看臨時換標的;"
+            "但它終究是我列的，所以「換一檔冷門股會不會有不同結果」，我的回測回答不了。"
+        ) + COST_DISCLOSURE
         return [
             "第一，每一集只驗一個講法，一次講一件事，不混在一起讓你看不出破綻。",
-            "第二，回測跑的是真實歷史行情，標的跟區間是機械掃出來的、不是我挑的。" + COST_DISCLOSURE,
+            second,
             "第三，結果如實公開。驗出來是對的我就說對，打臉我自己的我也照播，不剪掉。",
             "第四，我不報明牌、不喊進出、不保證任何收益——我只負責把數據攤開，怎麼用是你的決定。",
         ]
@@ -346,10 +473,28 @@ def _rules(key: str, inv: dict) -> list:
         ready, n_skip = int(inv.get("ready", 0)), int(inv.get("n_skipped_codes", 0))
         if rubric:
             # 尺一致(每檔都跑同一份 N 項表)才准這樣講;差額由 skipped 誠實揭露。
+            # ⚠️ 缺漏原因**分開講**:舊句「最常見的是 ETF 根本沒有財報」是假的
+            #    (5 檔缺漏裡 ETF 只有 1 檔，4 檔是個股、reason 全是「FinMind 查無資料」
+            #    = 我抓取失敗)。把管線失敗說成市場結構限制 = 膨脹方向，故照實拆成兩半。
+            gap = inv.get("gap_by_kind") or {}
+            n_etf, n_stock = int(gap.get("etf", 0)), int(gap.get("stock", 0))
+            reason = ""
+            if n_etf or n_stock:
+                bits = []
+                if n_etf:
+                    bits.append(f"{n_etf} 檔是 ETF——它本來就沒有財報，"
+                                f"就沒有營收、毛利率這些欄位，這個我沒辦法")
+                if n_stock:
+                    bits.append(f"{n_stock} 檔是正常的上市公司，財報本來就存在，"
+                                f"是我的資料源沒抓到——那是我的問題，不是它們的問題")
+                reason = "原因我照實講:" + "；".join(bits) + "。"
+            if n_etf + n_stock != n_skip:
+                # 還有別種 kind 沒歸類 → 不准宣稱原因分佈(fail-closed，只講事實不講因)
+                reason = ""
             first = (f"第一，每一檔都跑同一份 {rubric} 項體檢表:營收、獲利、配息、股價走勢、"
                      f"還有它在崩盤時到底跌成什麼樣。同一份表，不換標準。"
                      f"但我要先說清楚:表上的項目不是每一檔都填得滿——已經體檢的 {ready} 檔裡有 {n_skip} 檔"
-                     f"有項目查不到，最常見的是 ETF 根本沒有財報，就沒有營收跟毛利率這些欄位。"
+                     f"有欄位是空的。{reason}"
                      f"查不到的我直接標「查無資料」，不會用估算矇過去。")
         else:
             # 尺不一致 → 不准宣稱「同一份表」。
