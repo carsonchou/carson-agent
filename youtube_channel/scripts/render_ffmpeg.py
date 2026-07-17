@@ -711,7 +711,8 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
         # A vs B 賽跑計分板已整條拆除（理由見 mv.render_race_split docstring）：畫面印的
         # 百分比是「段落進度 × 0.82」的合成值，與本片數據無關，已發布 46 支中鏢。
         try:
-            _is_exp = bool(re.search(r"EP|實測|實驗", title or ""))
+            # 片型判定共用 mv._hud_applies（與 _ep_data_applies 同一份）：非機器人實測片不上 HUD。
+            _is_exp = mv._hud_applies(title or "", getattr(slug_paths, "slug", ""))
             if _is_exp:
                 _vt = mv.read_voice_text(slug_paths) or " ".join(s.narration for s in segments if s.narration)
                 _nums = mv._parse_experiment_numbers(_vt)

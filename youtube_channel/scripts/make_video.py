@@ -1525,6 +1525,26 @@ _ROBOT_SERIES_RE = re.compile(r"機器人|網格|派網|Pionex|自動交易|交�
 _RACE_TITLE_RE = re.compile(r"vs|VS|對決|對打|賽跑")
 
 
+def _hud_applies(title: str, slug: str = "") -> bool:
+    """本片該不該上 EP 招牌 HUD（本金／餘額／報酬／天數那一組）？**片型判定的單一真相來源。**
+
+    🔴 2026-07-17：舊判定是 `re.search(r"EP|實測|實驗", title)`——那是「題材泛用詞」不是「片型」。
+    「個股體檢EP1」只因標題有 EP 就上 HUD，四個欄位全錯（本金抓到旁白「每月投入一萬」但該片
+    實驗本金是一百萬、餘額少 5000、報酬率抓到的是最大跌幅、天數抓到的是最長套牢天數）——
+    根因不是抓取 regex 不夠準，是**這組欄位對「個股體檢」這種片型本來就沒有意義**，
+    抓得再準也只是把不相干的數字燒得更精確。這與「賽跑條整條拆除」是同一個判準。
+
+    收窄成兩道（與 _ep_data_applies 共用，不各寫一份）：
+      1. A vs B 對比片不上：那組欄位描述「一個帳戶隨時間推進」，對「兩個標的比大小」沒有語意。
+      2. 必須是自動交易機器人實測系列：只有那個片型真的有「本金→餘額→第N天」這條時間軸。
+
+    判不出來就不上 HUD——寧可少一個視覺元素，也不要燒錯數字（誠信 fail-closed）。
+    """
+    if _RACE_TITLE_RE.search(title or ""):
+        return False
+    return bool(_ROBOT_SERIES_RE.search(f"{title or ''} {slug or ''}"))
+
+
 def _ep_data_applies(title: str, slug: str = "", narr_nums: Optional[dict] = None) -> bool:
     """本片是否真的屬於 ep_data.json 描述的那個真錢帳戶系列？只有 True 才可把 ep_data 數字燒上 HUD。
 
@@ -1532,17 +1552,19 @@ def _ep_data_applies(title: str, slug: str = "", narr_nums: Optional[dict] = Non
     「臺股真相實驗室」整個系列含『實驗』、大量台股題含『實測』、長片標題大量是『A vs B』，
     全被灌上機器人帳戶的本金/餘額/報酬——畫面對觀眾說謊（已發布 32 支受害，見 scratchpad/hud_fix.md）。
 
-    四道門檻全過才套。判不出來就退回 _parse_experiment_numbers 的旁白數字——那本來就是本片的
-    正確來源，寧可漏套也絕不可誤套：
-      1. A vs B 對比片一律不套：該 HUD 語意是「兩個標的賽跑」，數字必須來自本片旁白。
-         機器人系列自己的對比片（如「網格vs定投 5000元」）講的也是本片的錢，不是那個帳戶。
-      2. ep_data 必須自稱機器人帳戶系列（series_name）：否則不知道那些數字在講什麼，不套。
-      3. 本片 title/slug 要有系列題材特徵：ep_data 的 episodes[] 已被混入台股真相實驗室的 slug，
-         不可拿來當白名單比對，只能靠題材特徵。
-      4. 旁白明講的本金與帳戶本金量級不符（差 5 倍以上）→ 這支不是那個帳戶的片，不套；
+    ⚠️ 本函式與 `_hud_applies` **不是同一個問題**，不可互相取代（2026-07-17 複驗）：
+      - `_hud_applies`：這片型該不該有 HUD（片型問題）
+      - 本函式：HUD 的數字該不該改用 ep_data 的權威值蓋掉旁白值（資料來源問題）
+    本函式 = `_hud_applies` **再加**三道資料面門檻。反過來把 `_hud_applies` 綁成本函式會出事：
+    ep_data.json 讀不到／series_name 改字／本金量級漂移時，**真機器人 EP 片會整個 HUD 消失**
+    ——讓一個資料檔的內容去決定視覺元素存不存在。故只共用片型判定，資料面門檻留在這裡：
+      1. ep_data 必須自稱機器人帳戶系列（series_name）：否則不知道那些數字在講什麼，不套。
+      2. 旁白明講的本金與帳戶本金量級不符（差 5 倍以上）→ 這支不是那個帳戶的片，不套；
          避免 HUD 燒「本金 101」但旁白在講「丟十萬」這種畫面與口白自相矛盾。
+    判不出來就退回 _parse_experiment_numbers 的旁白數字——那本來就是本片的正確來源，
+    寧可漏套也絕不可誤套。
     """
-    if _RACE_TITLE_RE.search(title or ""):
+    if not _hud_applies(title, slug):   # 片型判定共用同一份（含 A vs B 一律不套）
         return False
     try:
         data = json.loads((PROJECT_ROOT / "STUDIO" / "ep_data.json").read_text(encoding="utf-8"))
@@ -1551,8 +1573,6 @@ def _ep_data_applies(title: str, slug: str = "", narr_nums: Optional[dict] = Non
     if not isinstance(data, dict):
         return False
     if not _ROBOT_SERIES_RE.search(str(data.get("series_name") or "")):
-        return False
-    if not _ROBOT_SERIES_RE.search(f"{title or ''} {slug or ''}"):
         return False
     _np, _ep = (narr_nums or {}).get("principal"), _ep_data_numbers().get("principal")
     try:
@@ -1986,7 +2006,8 @@ def build_video(
     # 對「A vs B」沒有意義，硬套就是剛修掉的那個 HUD bug（見 _ep_data_applies）。
     hud_overlays = []
     _title = title or ""
-    _is_exp = bool(re.search(r"EP|實測|實驗", _title))
+    # 片型判定與 _ep_data_applies 共用 _hud_applies（不各寫一份）：非機器人實測片不上 HUD。
+    _is_exp = _hud_applies(_title, getattr(slug_paths, "slug", ""))
     if _is_exp:
         try:
             _vt = read_voice_text(slug_paths) or " ".join(s.narration for s in segments if s.narration)
