@@ -2857,6 +2857,17 @@ _TW_LAB_SUB_HOOK_POOL = [
 _TW_LAB_SUB_CUES = ("訂閱",)
 
 
+# LLM 講錯字時的定點修正表(2026-07-17)：YouTube 按鈕上寫的是「訂閱」，講「追蹤／關注」
+# 是 IG／抖音語彙。這裡**只列明確的 CTA 片語**，不做通則替換——「持續追蹤這個數字」「追蹤這檔股票」
+# 是正常用法，通則替換會改出「持續訂閱這個數字」這種語意錯誤。表外的寫法(如「追蹤頻道」)
+# 不匹配就走附加保底，fail-safe。
+_CTA_WORD_FIXES = (
+    ("先追蹤", "先訂閱"), ("記得追蹤", "記得訂閱"), ("追蹤我", "訂閱我"),
+    ("追蹤一下", "訂閱一下"), ("追蹤起來", "訂閱起來"), ("快追蹤", "快訂閱"),
+    ("追蹤量化阿森", "訂閱量化阿森"), ("關注我", "訂閱我"), ("記得關注", "記得訂閱"),
+)
+
+
 def _ensure_sub_hook(text, key, pool=None, cues=None):
     """LLM 漏訂閱鉤時結尾補一句(有寫就不動);key 用來輪替措辭。
     pool/cues 給 franchise 專屬需求覆寫(如台股真相實驗室要求字面一定要有「訂閱」二字)。"""
@@ -2866,9 +2877,20 @@ def _ensure_sub_hook(text, key, pool=None, cues=None):
     _cues = cues or _SUB_CUES
     # 只掃尾段(比照 _ensure_loop_hook 的 tail 寫法)：訂閱鉤的作用位置在結尾，
     # 掃全文會被中段順口提到的「訂閱」誤判成已寫、於是不補(實測誤判 2 例)。
-    tail = text[max(0, len(text) - 140):]
+    tail_start = max(0, len(text) - 140)
+    tail = text[tail_start:]
     if any(c in tail for c in _cues):
         return text  # 結尾已有訂閱鉤,尊重原文不重複
+    # 🔴 尾段講了「追蹤/關注」卻沒講「訂閱」＝**講錯字**，不是漏講。此時**改寫該詞**優於附加一句：
+    # 附加會產出「…記得追蹤我，下支見。 訂閱起來，我跑完回測第一時間告訴你。」兩句 CTA 並存，
+    # 冗長又語意打架(實測 33% 的稿會落入這條路徑)。prompt 已同步硬性要求明講「訂閱」，
+    # 這條路徑會隨新稿自然縮小，屬過渡期修補。
+    fixed_tail, hit = tail, False
+    for wrong, right in _CTA_WORD_FIXES:
+        if wrong in fixed_tail:
+            fixed_tail, hit = fixed_tail.replace(wrong, right), True
+    if hit:
+        return text[:tail_start] + fixed_tail
     import hashlib
     i = int(hashlib.md5((key or "x").encode("utf-8")).hexdigest(), 16) % len(_pool)
     return text.rstrip() + " " + _pool[i]
@@ -3296,7 +3318,9 @@ def main() -> int:
         msg = f"片庫充足（短 {q_short}/{tgt_short}、長 {q_long}/{tgt_long}），本次不補產。"
         print(msg)
         print(f"[skip] {msg}", file=sys.stderr)
-        log_ops("補產部門", f"跳過補產（短 {q_short}/{tgt_short}、長 {q_long}/{tgt_long} 皆達標）")
+        # ⚠️ 前綴是必要的:決策中心的健康掃描只認 ⚠️/FAIL/失敗/錯誤/FATAL 這幾個關鍵字,
+        # 訊息不含任何一個就不會被列成異常 = 又是一次「查得到但不會叫」。
+        log_ops("補產部門", f"⚠️ 跳過補產（短 {q_short}/{tgt_short}、長 {q_long}/{tgt_long} 皆達標）")
         return 0
 
     def attempt(kind):
