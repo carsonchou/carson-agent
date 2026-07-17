@@ -446,11 +446,15 @@ def _font_setup():
 
 
 def render_concept_chart(width: int, height: int, text: str, accent, seed: str,
-                         dest=None, force: Optional[str] = None):
+                         dest=None, force: Optional[str] = None,
+                         fallback_ticker: Optional[str] = None):
     """回傳滿版深色底 + 置中數據圖的 PIL.Image(RGB)；判不到主題回 None。
 
     圖只佔畫面中段（約 18%~76% 高），上方留給大標題、下方留給字幕。
     accent 目前用於未來擴充；配色已內建紅綠主題。
+    fallback_ticker：整片主題代號(如整支片講 0050)。當「這一段」文字沒點名代號、但整片有,
+        就用整片代號畫真資料 —— 一支 0050 的片每段都能畫真 0050 圖,而不是半數退文字卡。
+        仍要求那代號在 tw_facts_cache 有真 CSV;沒有就退 None(不畫)。
     """
     from PIL import Image
 
@@ -490,7 +494,8 @@ def render_concept_chart(width: int, height: int, text: str, accent, seed: str,
     # ctx.real = (ticker, dates, close) 有真資料 / None 沒有。真資料圖(dca/trend/candle/
     # drawdown)拿不到真資料就回 None → 這裡直接不出圖(fail-safe),絕不畫亂數頂替。
     real = None
-    tk = resolve_ticker(text)
+    tk = resolve_ticker(text) or (fallback_ticker if (fallback_ticker and
+                                  (_FACTS_CACHE / f"{fallback_ticker}.csv").exists()) else None)
     if tk:
         rd = load_real(tk)
         if rd is not None:

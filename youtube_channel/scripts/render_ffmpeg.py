@@ -156,15 +156,17 @@ def _pick_bgm(slug):
 
 
 def _make_seg_card(seg, i, *, width, height, watermark, accent, vid_seed, video_concept, tmp_dir,
-                   force_key=None):
-    """產一段的卡片 PNG(concept → K線 → 字卡 三級降級)。回傳 PNG 路徑。
-    force_key 有值＝硬指定概念圖(用於強制回測對比 beat)。"""
+                   force_key=None, video_ticker=None):
+    """產一段的卡片 PNG(concept → 字卡 二級降級;不再退 rng K線卡)。回傳 PNG 路徑。
+    force_key 有值＝硬指定概念圖(用於強制回測對比 beat)。
+    video_ticker：整片主題代號,傳給 concept 當 fallback,讓沒點名代號的段落也能畫整片的真圖。"""
     card = None
     try:
         card = mv.render_concept_card(
             width, height, heading=seg.heading or "", narration=seg.narration,
             watermark=watermark, accent=accent, seed=f"{vid_seed}_{i}",
-            dest=tmp_dir / f"concept_{i:02d}.png", default_key=video_concept, force_key=force_key)
+            dest=tmp_dir / f"concept_{i:02d}.png", default_key=video_concept, force_key=force_key,
+            fallback_ticker=video_ticker)
     except Exception as exc:  # noqa: BLE001
         print(f"[warn] 概念圖失敗,退 K 線卡:{exc}", file=sys.stderr)
         card = None
@@ -172,16 +174,17 @@ def _make_seg_card(seg, i, *, width, height, watermark, accent, vid_seed, video_
     #   K線卡的底圖是 make_video._render_candles_strip = `rng.randn().cumsum()` 隨機漫步(見該處
     #   「價格隨機walk」註解)—— 那是一張滿版、看起來像真行情的假 K 線圖。concept 剛因為「沒有真資料」
     #   而不畫,若立刻退到另一張亂數假圖,等於 fail-safe 是假的(這正是 concept_visuals.py:47 記的坑)。
-    #   改退純文字卡(render_card_image:標題+品牌底,資訊都在、不宣稱任何行情)。
-    #   註:render_card_image 的底圖仍有一條「淡」的裝飾性 rng 走勢線(make_video._card_background:722),
-    #      那是品牌紋理非資料圖(無座標軸/數字/標的),風險遠低於滿版假 K 線;列為後續清理項,不在本次範圍。
+    #   改退純文字卡(render_card_image:標題+品牌底,資訊都在、不宣稱任何行情),
+    #   且傳 decor_line=False 連底圖那條 rng 裝飾走勢線也一併關掉(見下方呼叫)——徹底零 rng 假圖。
     if card is None:
         # 三級降級的最後一級本身也要防呆:字卡理論上最不該失敗,但若真的失敗(如字型載入炸掉),
         # 不能讓整個 render() 崩潰而拿不到 _encode_and_validate 的重試/不留壞檔機制。
         try:
+            # decor_line=False:這是 concept 無真資料才退下來的卡,底圖不擺 rng 假走勢線(誠信)。
             card = mv.render_card_image(
                 width, height, big_text=seg.heading or "", small_text="",
-                watermark=watermark, dest=tmp_dir / f"card_{i:02d}.png", accent=accent)
+                watermark=watermark, dest=tmp_dir / f"card_{i:02d}.png", accent=accent,
+                decor_line=False)
         except Exception as exc:  # noqa: BLE001
             print(f"[warn] 字卡也失敗,退最小純色保底圖:{exc}", file=sys.stderr)
             card = None
@@ -685,6 +688,12 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
     vid_seed = getattr(slug_paths, "slug", "") or title
 
     video_concept = None
+    # 整片主題代號 video_ticker:plumbing 已備妥(_make_seg_card→render_concept_card→
+    # render_concept_chart 都收 fallback_ticker),但**現在刻意不啟用**(傳 None):
+    # 單獨開啟會讓「整片同一檔、同一 concept key」的多個段落畫出同一張真圖(如一支 0050
+    # 定投片,3 段都是 dca→3 張一模一樣的 0050 圖)→ 反而加重 Carson 講的「同圖輪播」。
+    # 要啟用得配合「每段不同視圖(不同時窗/指標/漸進揭露)」的 ②,否則得不償失。
+    video_ticker = None
     if getattr(mv, "_concept", None) is not None:
         try:
             video_concept = mv._concept.classify(
@@ -697,7 +706,8 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
         # 1) 每段卡片 PNG
         seg_cards = [
             _make_seg_card(seg, i, width=width, height=height, watermark=watermark,
-                           accent=accent, vid_seed=vid_seed, video_concept=video_concept, tmp_dir=tmp_dir)
+                           accent=accent, vid_seed=vid_seed, video_concept=video_concept,
+                           tmp_dir=tmp_dir, video_ticker=video_ticker)
             for i, seg in enumerate(segments)
         ]
 

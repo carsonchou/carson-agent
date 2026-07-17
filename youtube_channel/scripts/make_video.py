@@ -689,8 +689,12 @@ def _ken_burns(clip, width: int, height: int, zoom: float = 0.06):
     return CompositeVideoClip([zoomed], size=(width, height)).set_duration(dur)
 
 
-def _card_background(width: int, height: int, accent, seed: str = "x"):
-    """品牌動態字卡背景：漸層 + 光暈 + 網格 + 發光價格走勢線（量化頻道識別）。回傳 PIL RGB Image。"""
+def _card_background(width: int, height: int, accent, seed: str = "x", decor_line: bool = True):
+    """品牌動態字卡背景：漸層 + 光暈 + 網格 (+ 選配發光走勢線)。回傳 PIL RGB Image。
+
+    decor_line=False：不畫那條發光「價格走勢線」。誠信用途——當這張卡是「concept 沒真資料
+    才退下來的 fallback」時,底圖不能有一條 rng.randn() 走勢線(它有端點光點、像真行情,
+    對量化頻道等於又擺一張假圖)。一般品牌卡/縮圖維持 True(那條線是品牌紋理、不宣稱標的)。"""
     import hashlib
 
     import numpy as np
@@ -720,25 +724,27 @@ def _card_background(width: int, height: int, accent, seed: str = "x"):
         draw.line([(0, gy), (width, gy)], fill=(*ac, 16), width=1)
 
     # 2) 發光價格走勢線（上半部，形狀依 seed 變化）→ 每支影片不同、像真的交易圖
-    rng = np.random.RandomState(int(hashlib.md5(seed.encode("utf-8")).hexdigest(), 16) % (2 ** 32))
-    npt = 24
-    xs = np.linspace(width * 0.03, width * 0.97, npt)
-    walk = rng.randn(npt).cumsum()
-    walk = (walk - walk.min()) / ((walk.max() - walk.min()) or 1)  # 0..1
-    base_y = height * 0.30
-    amp = height * 0.17
-    ys = base_y - walk * amp
-    pts = [(int(a), int(b)) for a, b in zip(xs, ys)]
-    # 線下漸層面積
-    poly = pts + [(int(xs[-1]), int(base_y + amp * 0.6)), (int(xs[0]), int(base_y + amp * 0.6))]
-    draw.polygon(poly, fill=(*ac, 26))
-    # 走勢線本體
-    draw.line(pts, fill=(*ac, 220), width=max(3, int(md * 0.005)), joint="curve")
-    # 端點光點
-    ex, ey = pts[-1]
-    rr = int(md * 0.013)
-    draw.ellipse([ex - rr, ey - rr, ex + rr, ey + rr], fill=(255, 255, 255, 235),
-                 outline=(*ac, 255), width=max(2, int(md * 0.004)))
+    #    decor_line=False 時跳過:見 fn docstring(fallback 卡不擺這條 rng 假走勢線)。
+    if decor_line:
+        rng = np.random.RandomState(int(hashlib.md5(seed.encode("utf-8")).hexdigest(), 16) % (2 ** 32))
+        npt = 24
+        xs = np.linspace(width * 0.03, width * 0.97, npt)
+        walk = rng.randn(npt).cumsum()
+        walk = (walk - walk.min()) / ((walk.max() - walk.min()) or 1)  # 0..1
+        base_y = height * 0.30
+        amp = height * 0.17
+        ys = base_y - walk * amp
+        pts = [(int(a), int(b)) for a, b in zip(xs, ys)]
+        # 線下漸層面積
+        poly = pts + [(int(xs[-1]), int(base_y + amp * 0.6)), (int(xs[0]), int(base_y + amp * 0.6))]
+        draw.polygon(poly, fill=(*ac, 26))
+        # 走勢線本體
+        draw.line(pts, fill=(*ac, 220), width=max(3, int(md * 0.005)), joint="curve")
+        # 端點光點
+        ex, ey = pts[-1]
+        rr = int(md * 0.013)
+        draw.ellipse([ex - rr, ey - rr, ex + rr, ey + rr], fill=(255, 255, 255, 235),
+                     outline=(*ac, 255), width=max(2, int(md * 0.004)))
     return img
 
 
@@ -1023,7 +1029,8 @@ def render_candle_card(width: int, height: int, *, big_text: str, watermark: str
 def render_concept_card(width: int, height: int, *, heading: str, narration: str,
                         watermark: str, accent, seed: str, dest: Path,
                         default_key: Optional[str] = None,
-                        force_key: Optional[str] = None) -> Optional[Path]:
+                        force_key: Optional[str] = None,
+                        fallback_ticker: Optional[str] = None) -> Optional[Path]:
     """主題數據圖卡：依旁白選一張對得上的圖（網格/複利/回撤…），
     標題放頂部小條（不蓋圖），下方留給字幕。
     force_key 有值＝硬指定該圖（用於強制回測對比 beat，不管旁白分類）；
@@ -1035,7 +1042,8 @@ def render_concept_card(width: int, height: int, *, heading: str, narration: str
     key = force_key or _concept.classify(text) or default_key
     if key is None:
         return None
-    img = _concept.render_concept_chart(width, height, text, accent, seed, dest=None, force=key)
+    img = _concept.render_concept_chart(width, height, text, accent, seed, dest=None, force=key,
+                                        fallback_ticker=fallback_ticker)
     if img is None:
         return None
     img = img.convert("RGB")
@@ -1104,11 +1112,14 @@ def render_card_image(
     watermark: str = "",
     dest: Path,
     accent=(255, 210, 63),
+    decor_line: bool = True,
 ) -> Path:
-    """精緻字卡：漸層+強調色光暈底 + 粗體大標(置中, 強調底線) + 簡潔副文 + 浮水印 pill。"""
+    """精緻字卡：漸層+強調色光暈底 + 粗體大標(置中, 強調底線) + 簡潔副文 + 浮水印 pill。
+    decor_line=False：底圖不畫 rng 走勢線(concept 無真資料的 fallback 卡用,見 _card_background)。"""
     from PIL import ImageDraw
 
-    img = _card_background(width, height, accent, seed=big_text or watermark or "x")
+    img = _card_background(width, height, accent, seed=big_text or watermark or "x",
+                           decor_line=decor_line)
     draw = ImageDraw.Draw(img, "RGBA")
 
     md = min(width, height)
@@ -2060,9 +2071,14 @@ def build_video(
         if clip is None:
             try:
                 if card_png is None:
-                    card_png = render_candle_card(
-                        width, height, big_text=seg.heading or title, watermark=watermark,
-                        accent=accent, seed=f"{vid_seed}_{i}", dest=tmp_dir / f"kcard_{i:02d}.png",
+                    # ⚠️ 2026-07-17 誠信:concept 沒真資料回 None 時,**不再退 render_candle_card**
+                    #   (那張是 _render_candles_strip 的 rng 隨機漫步假 K 線,見 concept_visuals.py:47)。
+                    #   退純文字卡(decor_line=False 連底圖 rng 走勢線都不畫),與 render_ffmpeg
+                    #   ._make_seg_card 的降級鏈一致(兩條路徑同步)。
+                    card_png = render_card_image(
+                        width, height, big_text=seg.heading or title, small_text="",
+                        watermark=watermark, dest=tmp_dir / f"card_{i:02d}.png", accent=accent,
+                        decor_line=False,
                     )
                 clip = ImageClip(str(card_png)).set_duration(per_seg)  # 純靜態，渲染快
             except Exception as exc:  # noqa: BLE001 - 失敗退回字卡，不影響出片
