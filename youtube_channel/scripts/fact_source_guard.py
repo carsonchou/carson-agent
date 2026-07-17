@@ -483,11 +483,464 @@ def slug_text(slug: str) -> str:
     return "\n".join(parts)
 
 
+# ============================================================================
+# 觀測模式(2026-07-17 建)——「只報不擋」,零風險量測單位盲區
+# ============================================================================
+# 🔴 被觀測的病(見 docs/fact_pool_unit_blindspot.md,本檔實測複驗過):
+#   fact_pool() 把五個事實庫攤平成 2446 個**無單位 float**。_sourced()/_sourced_strict()
+#   只做純數值比對 → 「多賺 37 萬」(金額)撞上池裡的「36.8 / 37.1」(百分比)就被判「有憑據」。
+#   **這不是漏看,是看見了並替假數字背書**,比漏網嚴重。
+#
+# 本區塊做什麼:**完全不改變放行/擋下的判定**,只額外記錄一個影子判定——
+#   「如果池帶單位、而且只跟**同單位子池**比對,這個宣稱會不會被擋?」
+#
+# 實驗設計(重要):影子判定**刻意沿用production 一模一樣的容差政策**
+#   (假掛名/整十數 → 嚴容差;其餘 → 寬容差)、一樣的 HEDGE、一樣的 PERF_CTX 語境閘。
+#   **唯一被改動的變數就是「單位」**。這樣觀測到的差異才能歸因於單位盲區本身,
+#   而不是「順手把容差也收緊了」造成的混淆。
+#
+# 安全合約(這段跑在 daily_publish 發布路徑上):
+#   ①任何例外一律吞掉(fail-open)——觀測壞掉絕不可影響守門;
+#   ②自我熔斷:累計耗時超 _OBS_TIME_BUDGET 或連續出錯 → 本行程自動停止觀測;
+#   ③只 append 小行到 STUDIO/pool_observe.jsonl,有檔案大小上限;
+#   ④環境變數 FACT_POOL_OBSERVE=0 可完全關閉。
+# ⚠️ 這裡的單位是**守門端「猜」的**,只能拿來當觀測/決策依據。真要收緊,單位必須由
+#   事實庫產生端(tw_facts_engine / stock_checkup_facts)寫入時就標註,否則會製造
+#   第二個 drift 源(同 legacy 事實庫的教訓)。
+
+OBSERVE_LOG = STUDIO / "pool_observe.jsonl"
+_OBS_LOG_MAX_BYTES = 5 * 1024 * 1024
+_OBS_TIME_BUDGET = 2.0          # 每個行程最多花這麼多秒觀測,超過就熄火
+_obs_spent = 0.0
+_obs_errors = 0
+_obs_dead = False
+
+# ---- 事實庫欄位 → 單位(依 2026-07-17 實際 schema 盤點,非臆測)-------------
+# 報酬類欄位存的是**小數**(total_return 8.045 = 804.5%),要 ×100 才是百分比
+_UNIT_PCT_FRACTION = {
+    "total_return", "cagr", "max_drawdown", "return", "year_return", "fwd3y_return",
+    "yoy", "trough_drawdown", "drawdown", "hold_through_return", "reinvest_total_return",
+    "spend_total_return", "reinvest_vs_spend_gap", "ttm_dividend_yield",
+    "total_return_since_listing", "cagr_since_listing", "win_rate", "dca_return",
+    "allin_return", "benchmark_return", "crash_drawdown", "recovery_return",
+}
+# 這些欄位本身就已經是百分比數值(gross_margin 53.2 = 53.2%)
+_UNIT_PCT_PERCENT = {
+    "year_return_pct", "fwd3y_return_pct", "gross_margin", "operating_margin",
+    "net_margin", "roe", "roa", "dividend_yield_pct",
+}
+_UNIT_DURATION_YEAR = {"years", "years_since_listing", "n_full_years", "years_underwater",
+                       "years_covered_n", "duration_years", "period_years"}
+_UNIT_YEAR_LABEL = {"year", "years_covered", "start_year", "end_year", "peak_year",
+                    "trough_year", "listing_year"}
+_UNIT_RATIO = {"calmar", "sharpe", "sortino", "pe", "pb", "per", "pbr", "correlation",
+               "corr", "beta"}
+_UNIT_COUNT = {"n_bars", "n_sample", "n_forward_missing", "n_ttm_distributions",
+               "num_trades", "n_facts", "n_stocks", "n_halvings", "n_events", "count"}
+_UNIT_PRICE_TWD = {"latest_price", "peak_price", "trough_price", "from_peak_price",
+                   "halved_price", "eps", "cash_dividend", "stock_dividend", "price",
+                   "close", "open", "high", "low"}
+_UNIT_AMOUNT_TWD = {"revenue", "net_income", "operating_income", "market_cap"}
+
+
+def _unit_of_field(key: str):
+    """欄位名 → 單位。回傳 (unit, scale);scale=100 表示要 ×100 轉成百分比。
+    認不出來就回 (None, 1) —— **寧可不進子池,也不要猜錯汙染子池**。"""
+    k = (key or "").lower()
+    if k in _UNIT_PCT_FRACTION:
+        return "pct", 100.0
+    if k in _UNIT_PCT_PERCENT:
+        return "pct", 1.0
+    if k in _UNIT_DURATION_YEAR:
+        return "duration_year", 1.0
+    if k in _UNIT_YEAR_LABEL:
+        return "year_label", 1.0
+    if k in _UNIT_RATIO:
+        return "ratio", 1.0
+    if k in _UNIT_COUNT:
+        return "count", 1.0
+    if k in _UNIT_PRICE_TWD:
+        return "price_twd", 1.0
+    if k in _UNIT_AMOUNT_TWD:
+        return "amount_twd", 1.0
+    # 後綴啟發式(只收有把握的)
+    if k.endswith("_pct"):
+        return "pct", 1.0
+    if k.endswith(("_return", "_cagr", "_drawdown", "_yield")):
+        return "pct", 100.0
+    if k.endswith("_price"):
+        return "price_twd", 1.0
+    if k.startswith("n_") or k.endswith("_count"):
+        return "count", 1.0
+    return None, 1.0
+
+
+# 事實庫字串(claim/summary/desc/method)裡的「數字+單位」——這是**權威的口播版數字**
+# (「總報酬 804.5%（年化 24.5%、最大回撤 -33.8%）」),比欄位名更貼近稿子會講的說法。
+# ⚠️ 先把日期遮掉:_walk_numbers 會把 "2026-07-15" 剁成 2026/7/15 三個數丟進池
+#    ——這正是池裡混進一堆無意義小整數的來源之一。
+_RX_DATE_MASK = re.compile(r"\d{4}-\d{1,2}-\d{1,2}")
+_RX_NUM_UNIT_STR = re.compile(r"(-?\d+(?:\.\d+)?)\s*(%|倍|年|檔|支|次|筆|元|萬|億|分)")
+
+
+def _units_from_string(s: str, out: dict) -> None:
+    s = _RX_DATE_MASK.sub(" ", s or "")
+    for m in _RX_NUM_UNIT_STR.finditer(s):
+        try:
+            v = float(m.group(1))
+        except Exception:  # noqa: BLE001
+            continue
+        u = m.group(2)
+        if u == "%":
+            out.setdefault("pct", set()).add(abs(v))
+        elif u == "倍":
+            out.setdefault("multiple", set()).add(abs(v))
+        elif u == "年":
+            # 「2026年」是年份標籤;「10.0 年」是期間長度——兩者是不同單位,別混
+            if v == int(v) and 1900 <= v <= 2100:
+                out.setdefault("year_label", set()).add(abs(v))
+            else:
+                out.setdefault("duration_year", set()).add(abs(v))
+        elif u in ("檔", "支", "次", "筆"):
+            out.setdefault("count", set()).add(abs(v))
+        elif u == "元":
+            out.setdefault("price_twd", set()).add(abs(v))
+        elif u == "萬":
+            out.setdefault("amount_wan", set()).add(abs(v))
+        elif u == "億":
+            out.setdefault("amount_wan", set()).add(abs(v) * 10000.0)
+        elif u == "分":
+            out.setdefault("score", set()).add(abs(v))
+
+
+def _walk_typed_numbers(obj, key: str, out: dict) -> None:
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            _walk_typed_numbers(v, k, out)
+    elif isinstance(obj, list):
+        for v in obj:
+            _walk_typed_numbers(v, key, out)
+    elif isinstance(obj, bool):
+        pass
+    elif isinstance(obj, (int, float)):
+        unit, scale = _unit_of_field(key)
+        if unit:
+            out.setdefault(unit, set()).add(abs(float(obj) * scale))
+        else:
+            out.setdefault("_unknown", set()).add(abs(float(obj)))
+    elif isinstance(obj, str):
+        _units_from_string(obj, out)
+
+
+_TYPED_POOL_CACHE: dict | None = None
+
+
+def typed_fact_pool(refresh: bool = False) -> dict:
+    """帶單位的事實池:{unit: set[float]}。**與 fact_pool() 完全分開,不影響現行判定。**"""
+    global _TYPED_POOL_CACHE  # noqa: PLW0603
+    if _TYPED_POOL_CACHE is not None and not refresh:
+        return _TYPED_POOL_CACHE
+    out: dict = {}
+    for fn in FACT_FILES:
+        p = STUDIO / fn
+        if not p.exists():
+            continue
+        try:
+            _walk_typed_numbers(json.loads(p.read_text(encoding="utf-8")), "", out)
+        except Exception:  # noqa: BLE001
+            pass
+    _TYPED_POOL_CACHE = out
+    return out
+
+
+# ---- 宣稱端:帶單位的影子抽取 ---------------------------------------------
+_OBS_UNIT_SUFFIX = {
+    "萬": "amount_wan", "億": "amount_wan", "元": "price_twd", "塊": "price_twd",
+    "倍": "multiple", "年": "duration_year", "檔": "count", "支": "count",
+    "次": "count", "筆": "count", "分": "score",
+}
+# ⚠️ 中文斷詞陷阱(2026-07-17 第一版實測踩到):「百分之九十」會被
+#    `[…百…]{1,8}` 抓到「百」+ 後綴「分」→ 誤判成 score 單位的「100 分」,
+#    於是每支正常講百分比的片都爆出假的「新增擋下」。兩道防線:
+#    ①「分」加 lookbehind/lookahead 排除 百分之/百分點/分鐘;
+#    ②下方 observe_claims() 會先算出百分比 pass 吃掉的 span,重疊者一律跳過。
+#    ③「年」不可吃到「年化」(0050**年化**報酬 → 曾被解成「0050 年」這個期間宣稱)。
+_RX_OBS_SUFFIXED = re.compile(
+    r"([零一二三四五六七八九十百千兩點]{1,8}|\d+(?:\.\d+)?)\s*"
+    r"(萬|億|元|塊|倍|年(?![化度])|檔|支|次|筆|(?<!百)分(?![之點鐘析]))")
+
+
+def _unit_of_claim(raw: str) -> str:
+    """現行 extract_claims() 產出的宣稱 → 單位。用於「只把池單位化、抽取器完全不動」的量測。"""
+    r = raw or ""
+    if "%" in r or "百分之" in r or "成" in r:
+        return "pct"
+    for suf, unit in (("億", "amount_wan"), ("萬", "amount_wan"), ("倍", "multiple"),
+                      ("檔", "count"), ("支", "count"), ("次", "count")):
+        if suf in r:
+            return unit
+    return "pct"
+
+
+def observe_claims(text: str) -> list[dict]:
+    """影子抽取:抽出**帶單位**的績效宣稱(含現行抽取器看不到的金額/元/年/倍)。
+
+    比 extract_claims() 廣的地方,正是現行三道逃逸口:
+      ①一般句的金額(現行只在「回測顯示」假掛名句內抽金額)
+      ②「元/年/分」不在 _RX_NUM_IN_ATTR 單位表
+      ③假掛名句的預過濾(_sourced_strict 撞無關百分比)會在抽取階段就丟掉宣稱
+    語境閘(PERF_CTX)與 HEDGE 沿用 production,確保差異只來自「單位」這一個變數。
+    """
+    text = text or ""
+    out: list[dict] = []
+    seen: set[tuple[int, int]] = set()
+    pct_spans: list[tuple[int, int]] = []
+
+    def _add(val, raw, unit, i, j):
+        if val is None or (i, j) in seen:
+            return
+        cl = _clause(text, i, j)
+        if not any(w in cl for w in PERF_CTX):
+            return
+        if any(h in cl for h in HEDGE):
+            return
+        seen.add((i, j))
+        out.append({"value": float(val), "raw": raw, "unit": unit,
+                    "clause": cl.strip()[:110],
+                    "attr": any(a in cl for a in _ATTRIBUTION)})
+
+    for m in _RX_PCT_ARABIC.finditer(text):
+        num = m.group(1) or m.group(2)
+        pct_spans.append(m.span())
+        try:
+            _add(float(num), m.group(0), "pct", *m.span())
+        except Exception:  # noqa: BLE001
+            pass
+    for m in _RX_PCT_CN.finditer(text):
+        pct_spans.append(m.span())
+        _add(_cn_num_to_float(m.group(1)), m.group(0), "pct", *m.span())
+    for m in _RX_CN_QUANT.finditer(text):
+        pct_spans.append(m.span())
+        _add(_CN_QUANT_PCT[m.group(1)], m.group(0), "pct", *m.span())
+    for m in _RX_OBS_SUFFIXED.finditer(text):
+        i, j = m.span()
+        # 已被百分比 pass 吃掉的文字不再用後綴規則重解一次(「百分之九十」≠「一百分」)
+        if any(i < pj and pi < j for pi, pj in pct_spans):
+            continue
+        tok, suf = m.group(1), m.group(2)
+        val = float(tok) if re.fullmatch(r"\d+(?:\.\d+)?", tok) else _cn_num_to_float(tok)
+        if val is None:
+            continue
+        unit = _OBS_UNIT_SUFFIX[suf]
+        if suf == "億":
+            val *= 10000.0
+        if suf == "年" and val == int(val) and 1900 <= val <= 2100:
+            unit = "year_label"
+        _add(val, m.group(0), unit, *m.span())
+    return out
+
+
+def _sourced_typed(val: float, unit: str, tpool: dict, strict: bool) -> tuple[bool, list]:
+    """同單位子池溯源。容差政策**與 production 相同**(strict 與否),只多了「單位」這個維度。"""
+    sub = set(tpool.get(unit, ()))
+    if unit == "multiple":
+        # 合法衍生:總報酬 625.1% ⇔ 7.25 倍。不給這條,鴻海「7.3倍」會被誤殺(交接書已警告)
+        sub |= {1.0 + p / 100.0 for p in tpool.get("pct", ()) if p > -100}
+    if unit == "pct":
+        sub |= {(m - 1.0) * 100.0 for m in tpool.get("multiple", ()) if m > 0}
+    if not sub:
+        return False, []
+    ta, tr = (TOL_STRICT_ABS, TOL_STRICT_REL) if strict else (TOL_ABS, TOL_REL)
+    hits = [p for p in sub if abs(p - val) <= max(ta, abs(p) * tr)]
+    return bool(hits), sorted(hits)[:3]
+
+
+def observe_pool_only(text: str, pool: set[float] | None = None) -> list[dict]:
+    """量測 **A:只把池單位化,抽取器一個字都不動**(這才是交接書真正提的修法)。
+
+    🔴 為什麼要跟 observe_text() 分開:第一版把兩件事混在一起量,結論會嚴重高估誤殺——
+       observe_claims() 為了看見「37萬」把抽取面擴大到 元/年/檔/次(一般句也抽),
+       那正是交接書標為 ❌ 錯誤修法 的東西(會抓到「分十次喝湯加鹽」這種比喻、
+       「假設投入五十萬」這種本金舉例)。兩個變數一起動 = 歸因不了。
+       本函式只動「單位」這一個變數:宣稱集合 = 現行 extract_claims() 原封不動的產出。
+    """
+    pool = fact_pool() if pool is None else pool
+    tpool = typed_fact_pool()
+    cur_bad = {round(c["value"], 4) for c in unsourced_claims(text, pool)}
+    out = []
+    for c in extract_claims(text):
+        if any(h in c["clause"] for h in HEDGE):
+            continue
+        unit = _unit_of_claim(c["raw"])
+        is_attr = c["clause"].startswith("【假掛名")
+        strict = is_attr or (c["value"] % 10 == 0 and 10 <= c["value"] <= 100)
+        ok, hits = _sourced_typed(c["value"], unit, tpool, strict)
+        if not ok and round(c["value"], 4) not in cur_bad:
+            out.append({"value": c["value"], "unit": unit, "raw": c["raw"],
+                        "clause": c["clause"], "attr": is_attr,
+                        "subpool_size": len(tpool.get(unit, ())),
+                        "legacy_false_witness": sorted(
+                            [p for p in pool if abs(p - c["value"])
+                             <= max(TOL_STRICT_ABS, abs(p) * TOL_STRICT_REL)])[:3]})
+    return out
+
+
+def observe_text(text: str, pool: set[float] | None = None) -> dict:
+    """影子判定 vs 現行判定的差異。**純計算,無副作用。**
+
+    回傳兩組數字,別混用:
+      newly_blocked      = A+B(池單位化 **且** 抽取面擴大)——上限值,含大量比喻/本金誤抓
+      newly_blocked_pool = A(只把池單位化)——**決策要看這個**
+    """
+    pool = fact_pool() if pool is None else pool
+    tpool = typed_fact_pool()
+    cur_bad = {(round(c["value"], 4)) for c in unsourced_claims(text, pool)}
+    newly, kept = [], []
+    for c in observe_claims(text):
+        strict = c["attr"] or (c["value"] % 10 == 0 and 10 <= c["value"] <= 100)
+        ok, hits = _sourced_typed(c["value"], c["unit"], tpool, strict)
+        rec = {"value": c["value"], "unit": c["unit"], "raw": c["raw"],
+               "clause": c["clause"], "attr": c["attr"],
+               "typed_sourced": ok, "typed_hits": hits,
+               "current_flagged": round(c["value"], 4) in cur_bad,
+               "subpool_size": len(tpool.get(c["unit"], ()))}
+        if not ok and not rec["current_flagged"]:
+            # 現行放行、單位化後會擋 → 這就是「若收緊會新增擋下」的那一筆
+            legacy_hits = sorted([p for p in pool
+                                  if abs(p - c["value"]) <= max(TOL_STRICT_ABS,
+                                                                abs(p) * TOL_STRICT_REL)])[:3]
+            rec["legacy_false_witness"] = legacy_hits   # 現行是被「哪些無關數字」佐證的
+            newly.append(rec)
+        elif ok:
+            kept.append(rec)
+    return {"newly_blocked": newly, "typed_ok": kept,
+            "newly_blocked_pool": observe_pool_only(text, pool),
+            "current_blocked": bool(cur_bad), "typed_blocked": bool(newly) or bool(cur_bad)}
+
+
+def observe_slug(slug: str, pool: set[float] | None = None) -> dict:
+    d = observe_text(slug_text(slug), pool)
+    d["slug"] = slug
+    return d
+
+
+def _obs_write(rec: dict) -> None:
+    try:
+        if OBSERVE_LOG.exists() and OBSERVE_LOG.stat().st_size > _OBS_LOG_MAX_BYTES:
+            return
+        OBSERVE_LOG.parent.mkdir(parents=True, exist_ok=True)
+        with OBSERVE_LOG.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _observe_hook(slug: str, pool, result) -> None:
+    """掛在 check_slug 上的觀測鉤。**絕不 raise、絕不改 result、超支自動熄火。**"""
+    global _obs_spent, _obs_errors, _obs_dead  # noqa: PLW0603
+    if _obs_dead:
+        return
+    import os
+    import time as _t
+    if os.environ.get("FACT_POOL_OBSERVE", "1") == "0":
+        _obs_dead = True
+        return
+    t0 = _t.time()
+    try:
+        d = observe_text(slug_text(slug), pool)
+        # 只在**變數A**(只單位化池,交接書的正解)有差異時落一筆——那才是決策要的訊號。
+        # 變數A+B(擴大抽取面)只記個數:實測 334 支語料會噴 85 支,絕大多數是比喻/本金誤抓,
+        # 全寫進 log 只會把真訊號淹掉。
+        if d["newly_blocked_pool"]:
+            _obs_write({"ts": _t.strftime("%Y-%m-%dT%H:%M:%S"), "kind": "delta", "slug": slug,
+                        "current_blocked": bool(result), "typed_would_block": True,
+                        "newly_blocked_pool": d["newly_blocked_pool"][:6],
+                        "n_extended_only": len(d["newly_blocked"])})
+    except Exception:  # noqa: BLE001
+        _obs_errors += 1
+        if _obs_errors >= 3:
+            _obs_dead = True
+    finally:
+        _obs_spent += _t.time() - t0
+        if _obs_spent > _OBS_TIME_BUDGET:
+            _obs_dead = True
+
+
 def check_slug(slug: str, pool: set[float] | None = None) -> list[dict]:
-    return unsourced_claims(slug_text(slug), pool)
+    out = unsourced_claims(slug_text(slug), pool)
+    try:
+        _observe_hook(slug, pool, out)     # 只記錄,不影響 out
+    except Exception:  # noqa: BLE001
+        pass
+    return out
+
+
+def pending_slugs() -> list[str]:
+    """待發庫存(未發布、未被 publish_skip 擋)——複製 daily_publish.find_candidates 的選片條件。
+    唯讀,不呼叫任何 API。"""
+    led, skip = {}, set()
+    try:
+        led = json.loads((STUDIO / "uploaded_ledger.json").read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        d = json.loads((STUDIO / "publish_skip.json").read_text(encoding="utf-8"))
+        skip = set(d.get("slugs", {}) if isinstance(d, dict) else d)
+    except Exception:  # noqa: BLE001
+        pass
+    out = []
+    for f in list(OUT.glob("S_*.mp4")) + list(OUT.glob("L_*.mp4")):
+        s = f.stem
+        if s.endswith("_ytcta") or s in led or s in skip:
+            continue
+        if f.stat().st_size < 100 * 1024:
+            continue
+        out.append(s)
+    return sorted(out)
+
+
+def observe_report(slugs: list[str] | None = None) -> int:
+    """--observe:只報不擋。回答『若現在就把池單位化收緊,會新增擋下哪幾支』。"""
+    import time as _t
+    pool = fact_pool()
+    tpool = typed_fact_pool()
+    slugs = pending_slugs() if slugs is None else slugs
+    print(f"[observe] 無單位池:{len(pool)} 個")
+    print("[observe] 單位化子池:" + "、".join(
+        f"{u}={len(v)}" for u, v in sorted(tpool.items(), key=lambda x: -len(x[1]))))
+    print(f"[observe] 待發庫存 {len(slugs)} 支\n")
+    newly_a, newly_b, cur_blocked = [], [], 0
+    for s in slugs:
+        d = observe_slug(s, pool)
+        if d["current_blocked"]:
+            cur_blocked += 1
+            continue
+        if d["newly_blocked_pool"]:
+            newly_a.append((s, d["newly_blocked_pool"]))
+            print(f"  🔴 [A·只單位化池] 收緊後會新增擋下  {s[:46]}")
+            for c in d["newly_blocked_pool"][:4]:
+                print(f"      {c['raw']}  單位={c['unit']}(子池{c['subpool_size']}個)"
+                      f"  ←「{c['clause'][:52]}」")
+                if c.get("legacy_false_witness"):
+                    print(f"         ⚠️ 現行是被這些**無關單位**的數字佐證的:"
+                          f"{c['legacy_false_witness']}")
+        if d["newly_blocked"]:
+            newly_b.append(s)
+    print(f"\n[observe] 現行擋下 {cur_blocked} 支")
+    print(f"[observe] 變數A【只把池單位化,抽取器不動 = 交接書的正解】新增擋下 {len(newly_a)} 支")
+    print(f"[observe] 變數A+B【併同擴大抽取面 = 交接書標的錯誤修法】新增擋下 {len(newly_b)} 支"
+          f" ← 實測絕大多數是比喻/本金舉例的誤殺,別走這條")
+    _obs_write({"ts": _t.strftime("%Y-%m-%dT%H:%M:%S"), "kind": "summary",
+                "n_slugs": len(slugs), "n_newly_blocked_pool_only": len(newly_a),
+                "n_newly_blocked_extended": len(newly_b),
+                "newly_pool_only": [s for s, _ in newly_a],
+                "pool": {u: len(v) for u, v in tpool.items()}})
+    return 0
 
 
 def main() -> int:
+    if "--observe" in sys.argv:
+        return observe_report()
     recent = 40
     if "--recent" in sys.argv:
         try:
