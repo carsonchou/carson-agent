@@ -6,6 +6,7 @@
 """
 from __future__ import annotations
 
+import datetime as _dt
 import hashlib
 import os
 import re as _re
@@ -277,14 +278,72 @@ _TW_KW = ["台股", "台積電", "2330", "0050", "0056", "00878", "大盤", "加
 _CRYPTO_KW = ["btc", "eth", "sol", "bnb", "xrp", "doge", "比特幣", "以太幣", "以太坊",
               "加密貨幣", "幣圈", "幣安", "派網", "pionex", "網格機器人", "自動交易機器人",
               "合約交易", "usdt", "虛擬貨幣", "數位貨幣", "現貨交易"]
-# tw_stock_facts.json 目前只有 0050/0056/00878/大盤等 ETF/指數的真回測，沒有個股(如台積電)自己的數字。
-# 標題點名這些個股 → 該股沒有對應真數據，誠信起見絕不拿 ETF/大盤數字冒充該股表現(寧無卡不亂配)。
+# 標題點名個股(如台積電) → 一律不掛數據卡。
+# ⚠️ 2026-07-17 註記：這條原本的理由是「事實庫只有 0050/0056/00878/大盤等 ETF/指數，沒有個股數字，
+#    不可拿 ETF/大盤數字冒充該股表現」。改讀 tw_facts_computed.json 後這個前提已經不成立——computed
+#    確實有 2330 的真回測(dca_vs_allin__2330__full/__10y、stop_profit_vs_hold__2330__*)。
+#    仍維持不掛卡：把個股數字放上封面屬於「點名個股」的內容決策(非本次修的資料同源問題)，
+#    要開放應另行決策，不由縮圖引擎順手放行。保守側＝寧無卡，不會說謊。
 _TW_UNCOVERED_STOCK_KW = ["台積電", "2330"]
 
+# 主來源：tw_facts_computed.json(50 組，每筆帶 period/start/end/method/source，固定起點可重現)。
+# legacy tw_stock_facts.json(5 組)已於 2026-07-17 退役，只在 computed 缺該組時 fail-open 保留使用
+# ——它每天 04:00 用滾動窗重算 → 數字每天漂移，且無 period 欄。詳見 tw_facts_engine.py:58 的退役說明。
 TW_FACTS_JSON = PROJECT_ROOT / "STUDIO" / "tw_stock_facts.json"
+TW_FACTS_COMPUTED_JSON = PROJECT_ROOT / "STUDIO" / "tw_facts_computed.json"
 
+# 分支 key → 中文標籤。legacy 與 computed 同一件事的分支命名不同(legacy: timing_200ma／
+# computed: timing_ma)，兩個都留著才不會有一邊標成英文 key。computed 另有 leveraged/base 兩種分支。
 _TW_BRANCH_LABEL = {"allin": "一次All in", "dca": "定期定額", "buy_hold": "長抱不動",
-                     "timing_200ma": "跌破年線擇時", "hidiv": "高股息", "mktcap": "市值型"}
+                     "timing_200ma": "跌破年線擇時",   # legacy(tw_stock_data.py)分支名
+                     "timing_ma": "跌破年線擇時",       # computed(tw_facts_engine.calc_buyhold_vs_timing)分支名
+                     "hidiv": "高股息", "mktcap": "市值型",
+                     "leveraged": "槓桿ETF", "base": "原型ETF"}
+
+
+def _load_tw_facts_merged():
+    """讀台股真回測事實庫，回 {fact_key: fact_entry}；讀不到/全壞 → {}(呼叫端退回無卡，不崩)。
+
+    與寫稿端(produce_batch._load_tw_facts)**同一套合併規則**，這正是「封面數字與腳本同源」的關鍵：
+    legacy 當底 → computed 用 setdefault 補進來 → 再用 tw_facts_engine.drop_superseded_legacy()
+    把「已被 computed 取代」的 legacy key 剔掉。那份 key 對 key 映射(LEGACY_SUPERSEDED_BY)是唯一
+    真相，這裡只呼叫、不複製第二份——重複實作正是這批同型 bug 的成因。
+
+    為什麼還要讀 legacy：drop_superseded_legacy 是 fail-open 設計，computed 缺該組時 legacy 原樣
+    保留(有真數據總比沒有好)。5 個重疊主題的 computed 版都在，那 5 組 legacy 會被剔掉。
+
+    不讀 stock_checkup_facts.json(寫稿端有讀)：那 112 組的 data 是單股體檢的扁平欄位／年度極值，
+    結構上生不出回測對比卡(_build_tw_card 需要「帶 total_return/cagr 的 dict 分支」)，卻會參與
+    關鍵字競爭 → 贏了關鍵字卻生不出卡 = 平白吃掉本來掛得到卡的片。對縮圖只有壞處。
+    """
+    merged, computed_keys = {}, set()
+    for p in (TW_FACTS_JSON, TW_FACTS_COMPUTED_JSON):
+        try:
+            if not p.exists():
+                continue
+            d = _json.loads(p.read_text(encoding="utf-8"))
+            if not isinstance(d, dict):
+                continue
+            res = d.get("results") or {}
+            if not isinstance(res, dict):
+                continue
+            if p is TW_FACTS_COMPUTED_JSON:
+                computed_keys = set(res)
+            for k, v in res.items():
+                merged.setdefault(k, v)
+        except Exception:  # noqa: BLE001 — 單一檔壞掉不該讓整台縮圖引擎倒，換下一份
+            continue
+    if not merged:
+        return {}
+    try:
+        import tw_facts_engine  # sys.path 已在模組頂插入 scripts/
+        return tw_facts_engine.drop_superseded_legacy(merged)
+    except Exception as e:  # noqa: BLE001
+        # 退役映射載不到：寧可只用 computed(頂多少幾張卡)，也不可讓 legacy 的過期數字混進來跟腳本打臉。
+        # 只有在 computed 也讀不到時才整碗用 legacy——那是「有卡但可能對不上」與「完全沒卡」之間的取捨，
+        # 此時腳本端(produce_batch)同樣拿不到 computed，兩邊仍是同一份 legacy，不會互相矛盾。
+        print(f"[warn] tw_facts_engine 退役映射載入失敗，改用 computed-only：{str(e)[:80]}", file=sys.stderr)
+        return {k: v for k, v in merged.items() if k in computed_keys} or merged
 
 
 def _asset_domain(low: str) -> str:
@@ -399,8 +458,106 @@ def _crypto_card(low: str, slug: str = None):
     return card
 
 
+# ── 標的閘門：卡上的數字必須跟標題講的是同一個標的 ──────────────────────────────
+# 2026-07-17 改讀 computed 時實測抓到的坑（比「數字過期」更嚴重，是張冠李戴）：
+# legacy 的 keywords 帶了「大盤」「加權」，所以標題寫「大盤…20年回測」時 TWII 那筆分數最高、自然勝出；
+# computed 的 keywords 改成代碼「TWII」+ 官方全名「加權指數（大盤）」——兩者都**不會**是標題的子字串，
+# 於是 TWII 與 0050 只能靠「定期定額」「All in」這種通用詞得分 → 平手 → 由排序決定 →
+# **把 0050 的 +762.7% 掛到大盤的片上**。純字串比對治不了，得先確認標的。
+# 作法＝_crypto_card「標題點名某幣就用那個幣的真實結果」的台股版。
+_TW_EXTRA_ALIASES = {   # 只補 tw_facts_engine.SYMBOLS 的 code/name 沒涵蓋、但標題實際會用的口語寫法
+    "TWII":   ["大盤", "加權", "加權指數", "台股大盤", "臺股大盤"],
+    "0050":   ["台灣50", "臺灣50"],
+    "006208": ["富邦台50", "富邦臺50"],
+    "00631L": ["正2", "正二"],
+    "2330":   ["台積電", "臺積電"],
+}
+_TW_ALIAS_CACHE = None
+
+
+def _tw_symbol_aliases() -> dict:
+    """{標的代碼: [比對用別名(小寫)...]}。代碼與官方名稱一律取自 tw_facts_engine.SYMBOLS
+    （唯一真相，日後那邊加新 ETF 這裡自動跟上，不複製第二份清單），只疊上 _TW_EXTRA_ALIASES 的口語別名。
+    SYMBOLS 載不到 → 退回只認 _TW_EXTRA_ALIASES 的幾檔（其餘標題就沒卡，安全側）。"""
+    global _TW_ALIAS_CACHE
+    if _TW_ALIAS_CACHE is not None:
+        return _TW_ALIAS_CACHE
+    base = {}
+    try:
+        import tw_facts_engine
+        for code, info in tw_facts_engine.SYMBOLS.items():
+            base[code] = [code, str(info.get("name") or "")]
+    except Exception:  # noqa: BLE001
+        pass
+    for code, extra in _TW_EXTRA_ALIASES.items():
+        base.setdefault(code, [code]).extend(extra)
+    _TW_ALIAS_CACHE = {c: sorted({a.lower() for a in al if a}) for c, al in base.items()}
+    return _TW_ALIAS_CACHE
+
+
+def _tw_fact_symbols(entry: dict, aliases: dict) -> set:
+    """這筆事實講的是哪些標的。computed 由 tw_facts_engine.add() 統一把 code+name 塞進 keywords，
+    legacy 則是「大盤」這類口語詞——兩邊都用 keywords 逐項**完全比對**別名（不用子字串，
+    免得「0050」誤中「00500」之類）。認不出標的 → 回空集合 → 呼叫端不給上卡。"""
+    kws = {str(k).lower() for k in (entry.get("keywords") or [])}
+    return {c for c, al in aliases.items() if any(a in kws for a in al)}
+
+
+def _years_value(entry: dict):
+    """這筆事實的回測年數(float)；取不到回 None。
+    優先從 computed 的 period(start~end)**真值**反推，確保封面標的年數跟事實庫的期間對得起來；
+    legacy 沒有 period 欄 → 退回 data.years。"""
+    period = str(entry.get("period") or "")
+    if "~" in period:
+        try:
+            a, b = period.split("~", 1)
+            days = (_dt.date.fromisoformat(b.strip()) - _dt.date.fromisoformat(a.strip())).days
+            if days > 0:
+                return days / 365.25
+        except Exception:  # noqa: BLE001 — period 是 '?~?' 或格式怪 → 退回 data.years
+            pass
+    try:
+        v = (entry.get("data") or {}).get("years")
+        return float(v) if v is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _years_text(entry: dict) -> str:
+    """回傳可信的年數字串(如 '29年'/'20.1年'/'12.5年')；取不到 → ''(呼叫端就不標年數)。
+
+    2026-07-17 誠信修正：封面標的年數一律**不可約整**。原本寫死 f'{years:.0f}年'，把 12.5 年印成
+    「12年」、20.1 年印成「20年」——同一晚抓到 4 支已發布片把 20.1 年講成「10 年」，同型錯誤。
+    保留 1 位小數(29.0 → 「29年」，20.1 → 「20.1年」，12.5 → 「12.5年」)。"""
+    yrs = _years_value(entry)
+    if not yrs or yrs <= 0:
+        return ""
+    return f'{f"{yrs:.1f}".rstrip("0").rstrip(".")}年'
+
+
+_TITLE_YEARS_RE = _re.compile(r"(\d+(?:\.\d+)?)\s*年")
+_CN_YEARS = {"三十年": 30, "二十年": 20, "十五年": 15, "十年": 10, "五年": 5, "三年": 3}
+
+
+def _title_horizon_years(low: str):
+    """標題點名的回測年數(「10年」「二十年」)；沒點名回 None。
+    用途：同一標的常有多個窗(如 dca_vs_allin__TWII__10y 與 __full=29年)，關鍵字分數會平手，
+    此時要挑**期間跟標題對得上**的那筆——否則標題喊 20 年、封面卻掛 10 年窗的數字，
+    仍是「封面與內容各說各話」的同型問題。"""
+    m = _TITLE_YEARS_RE.search(low)   # 只認數字緊接「年」，不會誤中「年線」「年化」
+    if m:
+        try:
+            return float(m.group(1))
+        except ValueError:
+            pass
+    for w, v in _CN_YEARS.items():    # 由長到短比，免得「二十年」被「十年」先吃掉
+        if w in low:
+            return float(v)
+    return None
+
+
 def _build_tw_card(r: dict, slug: str = None, stock_key: str = None):
-    """把 tw_stock_facts.json 一筆結果轉成縮圖卡欄位，只用裡面已有的真數字，不外插不編造。
+    """把事實庫(tw_facts_computed.json 為主)一筆結果轉成縮圖卡欄位，只用裡面已有的真數字，不外插不編造。
     挑主數字時跳過近期已用過的組合（往 scored 清單下找第一個沒用過的分支），
     避免同一支股票/ETF反覆掛出同一組百分比——絕不為了避重而竄改數字本身。
 
@@ -451,8 +608,7 @@ def _build_tw_card(r: dict, slug: str = None, stock_key: str = None):
         sk, sv, sval, skind = scored[sec_idx]
         sfx = "總報酬" if skind == "total_return" else "年化"
         range_txt = f'{_TW_BRANCH_LABEL.get(sk, sk)}對照 {"+" if sval >= 0 else ""}{sval * 100:.1f}%（{sfx}）'
-    years = d.get("years")
-    yr_txt = f'{years:.0f}年' if years else ""
+    yr_txt = _years_text(r)   # 用 period 真值反推、不約整（見 _years_text）
     strat = f'{_TW_BRANCH_LABEL.get(pk, pk)}·{yr_txt}' if yr_txt else _TW_BRANCH_LABEL.get(pk, pk)
     card = {
         "label": "台股實測",
@@ -461,7 +617,7 @@ def _build_tw_card(r: dict, slug: str = None, stock_key: str = None):
         "pct": pct,
         "pct_color": "green" if pval >= 0 else "red",
         "mdd": mdd_txt or (range_txt or "歷史回測"),
-        "range": (range_txt if mdd_txt else None) or (f'期間 {years:.0f} 年' if years else "歷史回測"),
+        "range": (range_txt if mdd_txt else None) or (f'期間 {yr_txt}' if yr_txt else "歷史回測"),
         "note": "※歷史回測，非未來獲利保證",
     }
     _record_used_numbers(slug, "tw", stock_key or pk, card)
@@ -469,25 +625,58 @@ def _build_tw_card(r: dict, slug: str = None, stock_key: str = None):
 
 
 def _tw_card(low: str, slug: str = None):
-    """台股/ETF領域確認後才會被呼叫：從 tw_stock_facts.json 找關鍵字明確對上(≥2個)的結果才套卡。
-    標題點名個股(如台積電)→ 該股沒有真數據，一律不套(誠信優先於好看)。"""
+    """台股/ETF領域確認後才會被呼叫：從事實庫找關鍵字明確對上(≥2個)的結果才套卡。
+    標題點名個股(如台積電)→ 一律不套(見 _TW_UNCOVERED_STOCK_KW)。
+
+    2026-07-17：改讀 _load_tw_facts_merged()(computed 為主)，與寫稿端同源——原本只讀 legacy，
+    封面吐 legacy 的舊窗數字、腳本講 computed 的新窗數字，同一支片自己打臉(實測 EP3 大盤長抱：
+    封面 +10.2%/20年 vs 腳本 5.7%/29年)。
+
+    另：改成「照關鍵字分數由高到低試，取第一個真的生得出卡的」而非「只認最高分那一筆」。
+    事實庫從 5 組長到 50 組後，扣款日效應/停利/錯過最佳N天/崩盤這些主題**結構上生不出對比卡**
+    (data 沒有帶 total_return/cagr 的 dict 分支)，若它們搶到最高分就會讓整支片平白無卡。
+    """
     if any(k in low for k in _TW_UNCOVERED_STOCK_KW):
         return None
-    try:
-        data = _json.loads(TW_FACTS_JSON.read_text(encoding="utf-8"))
-        results = data.get("results", {})
-    except Exception:  # noqa: BLE001
-        return None
+    results = _load_tw_facts_merged()
     if not results:
         return None
-    best_key, best_score = None, 0
-    for key, r in results.items():
-        score = sum(1 for k in r.get("keywords", []) if k.lower() in low)
-        if score > best_score:
-            best_key, best_score = key, score
-    if best_score < 2 or not best_key:  # 至少2個關鍵字對上才算可信匹配，避免單一泛用詞誤配
+    aliases = _tw_symbol_aliases()
+    title_syms = {c for c, al in aliases.items() if any(a in low for a in al)}
+    if not title_syms:
+        # 標題沒點名任何標的 → 無從確認卡上的數字跟片講的是不是同一件事 → 不掛卡。
+        # (誠信鐵則同本檔既有規則：數字對不上主題寧可不掛卡；沒卡不等於沒縮圖，圖照出、改貼吉祥物)
         return None
-    return _build_tw_card(results[best_key], slug=slug, stock_key=best_key)
+    cands = []
+    for key, r in results.items():
+        if not isinstance(r, dict):
+            continue
+        fact_syms = _tw_fact_symbols(r, aliases)
+        # 認不出標的、或這筆講到標題沒提的標的 → 不夠格(例如標題只講 0050，就不拿
+        # 「0056 vs 0050」那筆來充數；標題講大盤，就絕不拿 0050 的數字頂替)
+        if not fact_syms or not fact_syms <= title_syms:
+            continue
+        score = sum(1 for k in (r.get("keywords") or []) if str(k).lower() in low)
+        cands.append((score, key))
+    # 排序：關鍵字分數高者優先 → 同分則期間最貼近標題喊的年數者優先(標題沒喊年數就不比這項)
+    # → 再同分用 key 名排序，確保同一支片每次都挑到同一筆(可重現)。
+    # 至少2個關鍵字對上才算可信匹配，避免單一泛用詞誤配。
+    horizon = _title_horizon_years(low)
+
+    def _rank(t):
+        score, key = t
+        if horizon is None:
+            return (-score, 0.0, key)
+        fy = _years_value(results[key])
+        return (-score, abs(fy - horizon) if fy else 99.0, key)
+
+    for score, key in sorted(cands, key=_rank):
+        if score < 2:
+            break
+        card = _build_tw_card(results[key], slug=slug, stock_key=key)
+        if card:
+            return card
+    return None
 
 
 def _real_card(slug: str, title: str):
