@@ -62,17 +62,26 @@ def available():
 
 
 @_dailycache
-def channel_summary(days=28):
-    """近 N 天頻道彙總。回傳 dict 或 None。"""
+def channel_summary(days=28, content_type=None):
+    """近 N 天頻道彙總。回傳 dict 或 None。
+
+    content_type: None=全部;"shorts"/"videoOnDemand"/"liveStream" 則只算該格式。
+    2026-07-17:官方 `creatorContentType` 維度**可以**精準拆 Shorts/長片(已實測),
+    舊註解「API 難精準拆」是錯的。YPP 的 Shorts 路徑門檻只認 Shorts 觀看,
+    拿總觀看當近似會高估進度(= 畫大餅),與本檔「誠實顯示不畫大餅」的初衷相違。
+    """
     ya = _service()
     if ya is None:
         return None
     end = date.today(); start = end - timedelta(days=days)
     try:
-        r = ya.reports().query(
+        q = dict(
             ids="channel==MINE", startDate=start.isoformat(), endDate=end.isoformat(),
             metrics="views,estimatedMinutesWatched,averageViewPercentage,averageViewDuration,subscribersGained",
-        ).execute()
+        )
+        if content_type:
+            q["filters"] = f"creatorContentType=={content_type}"
+        r = ya.reports().query(**q).execute()
         rows = r.get("rows", [])
         if not rows:
             return {"days": days, "views": 0, "minutes": 0, "avg_pct": 0, "avg_dur": 0, "subs_gained": 0}

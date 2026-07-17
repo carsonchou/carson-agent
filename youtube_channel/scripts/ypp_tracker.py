@@ -9,8 +9,10 @@
 資料來源:
   - 總訂閱數:YouTube Data API channels().list(statistics)(走 decision_dept.yt_service,不重造 OAuth)
   - 12個月觀看時數:yt_analytics.channel_summary(365).minutes / 60
-  - 90天觀看數:yt_analytics.channel_summary(90).views(註:API 難精準拆 Shorts/長片,此為總觀看近似,
-                本頻道 83% 觀看來自 Shorts,故當 Shorts 觀看的樂觀上界看,報告會標明是近似)
+  - 90天 Shorts 觀看數:yt_analytics.channel_summary(90, content_type="shorts").views
+                —— 走官方 creatorContentType 維度**精準拆**,只算 Shorts(YPP Shorts 路徑門檻只認 Shorts)。
+                2026-07-17 修正:舊版拿「總觀看」當近似(並宣稱 API 難精準拆——實測是錯的),
+                把長片觀看也算進 Shorts 路徑 = 高估進度、違反本檔「不畫大餅」的初衷。
 
 輸出:STUDIO/ypp_progress.json(決策中心可讀顯示徽章)+ 每週一 ntfy 推播。
 安全:analytics/OAuth 拿不到一律優雅降級回 None,不炸;純讀,不寫任何對外。
@@ -66,12 +68,18 @@ def _watch_hours_12mo():
         return None
 
 
-def _views_90d():
+def _shorts_views_90d():
+    """近 90 天**Shorts** 觀看數(YPP Shorts 路徑門檻只認 Shorts,不含長片)。
+
+    2026-07-17:改用官方 `creatorContentType==shorts` 精準拆。舊碼拿總觀看當近似
+    (註解稱「API 難精準拆」——實測是錯的),會把長片觀看也算進 Shorts 路徑而高估進度。
+    拿不到就回 None(降級不炸),不再用總觀看頂替 —— 寧可顯示「查不到」也不畫大餅。
+    """
     try:
         import yt_analytics as ya
         if not ya.available():
             return None
-        s = ya.channel_summary(days=90)
+        s = ya.channel_summary(days=90, content_type="shorts")
         return (s or {}).get("views")
     except Exception:  # noqa: BLE001
         return None
@@ -86,7 +94,7 @@ def _pct(cur, target):
 def compute():
     subs = _total_subs()
     hours = _watch_hours_12mo()
-    v90 = _views_90d()
+    v90 = _shorts_views_90d()
 
     def tier(name, need_subs, need_hours, need_shorts):
         # 兩條觀看路徑(小時 或 Shorts觀看)擇一達標;取較接近的當主路徑
@@ -106,7 +114,7 @@ def compute():
 
     return {
         "updated": _now(),
-        "note": "Shorts 觀看為總觀看近似(API 難精準拆 Shorts/長片;本頻道約 83% 觀看來自 Shorts)",
+        "note": "Shorts 觀看為 creatorContentType==shorts 精準值(2026-07-17 起;舊版拿總觀看近似會高估)",
         "standard": tier("標準級(廣告分潤)", STD_SUBS, STD_HOURS, STD_SHORTS_90D),
         "early": tier("提前解鎖級(Super Thanks)", EARLY_SUBS, EARLY_HOURS, EARLY_SHORTS_90D),
     }

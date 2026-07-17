@@ -3016,8 +3016,10 @@ def make_one(kind, no_render=False, topic_override=None):
             _seg["heading"] = _fix_artifacts(_seg["heading"])
     # loop 結尾硬性保底(完播工程 2026-07-14):只對非系列 Shorts 補——EP/台股真相實驗室
     # 已有自己的「下集懸念」續集鉤(角色不同,不疊加);長片節奏不同,loop 重播是 Shorts feed
-    # 專屬機制(83% 觀看來自 Shorts feed),不套用長片。要在訂閱鉤之前補,讓結尾順序是
+    # 專屬機制(90.9% 流量來自 Shorts feed),不套用長片。要在訂閱鉤之前補,讓結尾順序是
     # 「呼應開頭數字→訂閱鉤」。
+    # ⚠️ 2026-07-17 認知修正:loop/完播工程買到的是**觀看**不是訂閱(實測完播 80-101% 的
+    # 14 支片 = 0 訂閱)。這段保底仍值得留(Shorts 的曝光靠它),但別再期待它帶訂閱。
     if kind == "short" and not d.get("_is_ep") and not d.get("_is_tw_lab"):
         d["voice_text"] = _ensure_loop_hook(d.get("voice_text", ""), d.get("title", ""))
     # 訂閱鉤硬性保底:LLM 漏掉就結尾補一句(直攻 0.29% 轉換瓶頸;有寫就不動)
