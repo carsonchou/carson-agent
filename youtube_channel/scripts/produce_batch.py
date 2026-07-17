@@ -327,6 +327,49 @@ def _fact_dedup(cand, bank):
         return cand
 
 
+def _legacy_fact_filter(cand):
+    """濾掉『fact_key 指向已退役 legacy 事實』的候選題,回過濾後的 cand。
+
+    根因(2026-07-17 legacy 事實庫退役):STUDIO/tw_stock_facts.json(舊 tw_stock_data.py 產)與
+    tw_facts_computed.json 是同一組回測的兩份快照,但 legacy 用的是 `today - years*366` 的
+    **滾動窗、每天重算** → 同一個 key 的數字每天漂移,且每筆都**沒有 period/source 欄位**
+    (實測 legacy 5 組全部 period=''、source='';computed 50 組全部有)→ 依頻道紅線「數字必須
+    可溯源」,legacy 的數字結構上本來就不該過誠信 gate。
+
+    為什麼上面的 _fact_dedup 擋不到:它比的是 fact_key **字串**且只擋「同 key 近期已產過」。
+    legacy 與 computed 是**同一組回測的兩個名字**(allin_vs_dca_0050_10y ↔ dca_vs_allin__0050__10y),
+    兩邊各自獨立判斷 → 各產一支、數字還不一樣(年化 24.5% vs 24.0%)。實測題庫裡指向 legacy 的
+    題共 9 題,其中 7 題 used=False 可被抽中,標題還把漂移數字寫死了(如「All in年化10.1%」——
+    今天 legacy 自己已經變成 10.2%,對不回來)。_fact_dedup 目前只是**剛好**擋掉其中 3 題
+    (那 3 個 key 剛好有一題 used 且在 90 天窗內),窗一過就全部復活 → 必須照 key 永久擋。
+
+    fail-open(三層):
+      ①只擋「真的已被 computed 取代」的 key——computed 對應版本不在(缺檔/算不出來)就不擋,
+        寧可用舊數字也不要讓題庫餓死;
+      ②任何例外一律回原 cand;
+      ③只收緊不放寬:7 題 / 1772 題,不會餓死產線(抽不到還有 call_claude 自由生題)。
+    """
+    try:
+        import tw_facts_engine
+        merged = _load_tw_facts() or {}
+        results = merged.get("results") or {}
+        if not results:
+            return cand
+        # retired = legacy key 已被 drop_superseded_legacy 拿掉、且 computed 對應版本確實還在
+        retired = {lk for lk, ck in tw_facts_engine.LEGACY_SUPERSEDED_BY.items()
+                   if lk not in results and ck in results}
+        if not retired:
+            return cand
+        out = [t for t in cand if str(t.get("fact_key", "") or "") not in retired]
+        if len(out) < len(cand):
+            log_ops("補產部門", f"legacy 事實退役:{len(cand) - len(out)} 題的 fact_key 指向"
+                                f"已退役的滾動窗事實庫(數字每天漂移、無 period/source 無法溯源),"
+                                f"改抽 computed 的題")
+        return out
+    except Exception:  # noqa: BLE001
+        return cand
+
+
 def _ep_topic_like(t):
     """這個候選題會不會被 call_claude 的 is_ep 判定吃進「EP 實測系列」。
     判定條件刻意與該處(見 call_claude 的 is_ep)保持一模一樣,兩邊漂移的話 guard 就會有破口。"""
@@ -386,6 +429,9 @@ def pull_topic(kind):
             (t.get("title", "") or "") + (t.get("angle", "") or ""))]
     # 2026-07-17 事實層去重:同一個 fact_key 近期已產過就換題(見 _fact_dedup 的根因說明)
     cand = _fact_dedup(cand, bank)
+    # 2026-07-17 legacy 事實退役:fact_key 指向滾動窗舊事實庫的題一律不抽(見 _legacy_fact_filter)。
+    # 排在 _fact_dedup 之後:那道只擋「同 key 近期已產過」,擋不到「同一組回測的另一個名字」。
+    cand = _legacy_fact_filter(cand)
     # 2026-07-17 EP 事實 guard:EP 題沒有 fact_key,上面那道擋不到(見 _ep_stale_filter 的根因說明)
     cand = _ep_stale_filter(cand)
     # 治本:①乾淨題優先於新聞旁路來源題(修「回測/你的」讓幣圈恐慌題誤命中 _NUM_KW 插隊贏過乾淨題的 bug)
