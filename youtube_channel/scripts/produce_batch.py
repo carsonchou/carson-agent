@@ -1600,8 +1600,24 @@ def _tw_facts_context(facts, topic):
         lines = lines[:16]  # 安全上限(一檔最多13組，這只是保險)
     elif isinstance(cand, dict):
         # 各項回測結果都掛在 facts 下（由 tw_stock_data.py 產）；抓不到的項為 None，跳過不用。
-        # 用關鍵字挑與題材相關的項，題材泛台股則全給（限量避免 prompt 爆）。
-        _pick_all = any(k in text for k in ("台股", "大盤", "0050", "存股", "ETF")) or not text.strip()
+        # 🔴 2026-07-17 相關性修復（假憑據的完美形式）：
+        # 舊碼 `_pick_all = any(k in text for k in ("台股","大盤","0050","存股","ETF"))` 是一張
+        # 「題材泛台股就全給」的毯子,**把每組事實自己帶的 keywords 比對整個短路掉**。實測後果:
+        # 題目只要出現「台股/存股/ETF」任一個字 → 無視相關性硬塞 dict 前 6 條(恰好全是 dca_vs_allin)
+        # → 「0056 月月配」「00631L 槓桿」「發薪日扣款」通通拿到「0050 一次All in vs 定期定額」的數字。
+        # 這是**假憑據的完美形式**:數字是真的、溯得到源、fact_source_guard 查了說「有憑據」,
+        # **但它跟那支片毫無關係**,而 prompt 裡還有一塊【本片實證數據】幫它背書。
+        # 實測題庫有 28 支正在吃這種假憑據(當沖勝率/填息天數/AI選股/應收帳款周轉率…全拿 0050 定投數字)。
+        #
+        # 修法**不是新發明一套比對**,而是把既有機制的短路拿掉:50 組事實**全部**自帶 keywords
+        # (由算出該組事實的引擎 curate),讓事實自己認領題目。這與 _densify_long 的
+        # _split_facts_for_segments(病灶A 修復,見上面那支的 docstring ③)**同一套判準**——
+        # 那支早就在逐段分配時用「keywords 命中數排序 + 標的鎖定」,只是 prompt 注入這層一直沒跟上。
+        # 另外把 lines[:6] 從「切 dict 插入順序」改成「命中數排序後才截斷」——原本等於「留前 6 條」
+        # 而不是「留最相干的 6 條」,即使比對對了也會被插入順序洗掉。
+        # topic=None(自由生題路徑,text 為空)沒有題目文字可比對 → 維持原本全給,不動那條路。
+        _pick_all = not text.strip()
+        scored = []
         for key, item in cand.items():
             if not isinstance(item, dict):
                 continue
@@ -1609,12 +1625,13 @@ def _tw_facts_context(facts, topic):
             summary = item.get("summary")
             if not summary:
                 continue
-            # 題材過濾：對比類題材（All in/定投/高股息/擇時）挑對應項，泛台股全給
-            _match = _pick_all or any(
-                kw in text for kw in (item.get("keywords") or []) if isinstance(kw, str))
-            if _match:
-                lines.append(f"  ·{desc}：{summary}")
-        lines = lines[:6]  # 限量：最多 6 條，避免撐爆 token
+            # 題材過濾：讓每組事實用自己的 keywords 認領題目（命中越多＝越貼題）
+            _hits = sum(1 for kw in (item.get("keywords") or [])
+                        if isinstance(kw, str) and kw in text)
+            if _pick_all or _hits:
+                scored.append((_hits, f"  ·{desc}：{summary}"))
+        scored.sort(key=lambda x: -x[0])  # 穩定排序:命中數相同者維持原順序
+        lines = [s for _, s in scored[:6]]  # 限量：最多 6 條，避免撐爆 token
     if not lines:
         return ""
     body = "\n".join(lines)
