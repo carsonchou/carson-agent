@@ -78,8 +78,14 @@ class TestUnknownTierStillDelivered(unittest.TestCase):
 
     # ── 觸發 unknown 的真實情境(證明這不是假想) ──
     def test_realistic_inputs_produce_unknown(self):
+        """會落到 unknown 的真實情境 —— 證明保底規則不是為假想問題而寫。
+
+        註(2026-07-17):原本這裡把 49 當「首月促銷價」的 unknown 範例,但 Carson 已把
+        basic 正價定為 NT$49 → 49 現在**應該**判 basic。當初留的「若已能正確分層,
+        本測試的前提要更新」就是指這一刻。已換成離牌價夠遠的促銷價 19。
+        """
         cases = [(14900, "TWD", "金額以分為單位"), (149, "NTD", "幣別寫 NTD"),
-                 (49, "TWD", "首月促銷價"), (0, "TWD", "amount 欄位名猜錯")]
+                 (19, "TWD", "首月超低促銷價"), (0, "TWD", "amount 欄位名猜錯")]
         for amt, cur, desc in cases:
             with self.subTest(desc=desc):
                 self.assertEqual(classify_tier(amt, cur), "unknown",

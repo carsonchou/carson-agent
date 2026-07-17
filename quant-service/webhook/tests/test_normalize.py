@@ -86,9 +86,17 @@ class TestPortaly(unittest.TestCase):
         self.assertEqual(sale.kind, EventKind.SALE)
         self.assertEqual(sale.sku_id, "C1_fullmarket_pack")
 
+        # 金額讀單一事實來源(原本硬寫 99,Carson 把 basic 降 49 後這裡就成了舊價殘留)
+        import sys
+        from pathlib import Path
+        _E = str(Path(__file__).resolve().parents[2] / "ecommerce")
+        if _E not in sys.path:
+            sys.path.insert(0, _E)
+        import config as ecom
         sub = normalize.parse_portaly({"event": "subscription_created",
                                        "data": {"order_id": "p2", "email": "t@e.com",
-                                       "amount": 99, "currency": "TWD", "product_name": "台股全市場週報"}})
+                                       "amount": ecom.SUBSCRIPTION["basic"]["ntd_month"],
+                                       "currency": "TWD", "product_name": "台股全市場週報"}})
         self.assertEqual(sub.kind, EventKind.SUB_NEW)
         self.assertEqual(sub.tier, "basic")
 
@@ -101,10 +109,23 @@ class TestPortaly(unittest.TestCase):
 
 class TestConfigClassify(unittest.TestCase):
     def test_classify_tier(self):
-        self.assertEqual(classify_tier(99, "TWD"), "basic")
-        self.assertEqual(classify_tier(149, "TWD"), "full")
-        self.assertEqual(classify_tier(1290, "TWD"), "full_annual")
-        self.assertEqual(classify_tier(9, "USD"), "basic")
+        # 金額一律讀 ecommerce/config.SUBSCRIPTION 這個單一事實來源,不在測試裡寫死。
+        # 原本這裡硬寫 99→basic / 1290→full_annual,Carson 一改價(basic 99→49、年繳停售)
+        # 這個測試就變成「釘住舊價」的絆腳石,而真正該紅的地方(classify_tier 認不得新價)
+        # 卻沒人測。改成讀來源後,以後改價測試自動跟上。
+        import sys
+        from pathlib import Path
+        _E = str(Path(__file__).resolve().parents[2] / "ecommerce")
+        if _E not in sys.path:
+            sys.path.insert(0, _E)
+        import config as ecom
+        S = ecom.SUBSCRIPTION
+        self.assertEqual(classify_tier(S["basic"]["ntd_month"], "TWD"), "basic")
+        self.assertEqual(classify_tier(S["full"]["ntd_month"], "TWD"), "full")
+        self.assertEqual(classify_tier(S["basic"]["usd_month"], "USD"), "basic")
+        self.assertEqual(classify_tier(S["full"]["usd_month"], "USD"), "full")
+        # 離任何牌價都夠遠 → unknown(由 export_active 的保底規則接住,見
+        # test_unknown_tier_still_delivered.py)
         self.assertEqual(classify_tier(500, "TWD"), "unknown")
 
     def test_resolve_sku_prefers_kind(self):

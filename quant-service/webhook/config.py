@@ -108,12 +108,37 @@ SKU_CATALOG: list[dict] = [
 ]
 
 # 訂閱層級分類：先比幣別、再取最接近的金額（容差 = 絕對 20 或相對 25%）。
-# 對齊 REDESIGN_SPEC 定價：基礎 NT$99/US$9、完整 NT$149/US$15、完整年繳 NT$1290/US$129。
-SUBSCRIPTION_TIERS: list[dict] = [
-    {"tier": "basic",       "TWD": 99,   "USD": 9},
-    {"tier": "full",        "TWD": 149,  "USD": 15},
-    {"tier": "full_annual", "TWD": 1290, "USD": 129},
-]
+#
+# 🔴 定價**一律從 ecommerce/config.py 的 SUBSCRIPTION 導出**，本檔不自己養一份。
+# 為什麼（2026-07-17 端到端測試抓到）：本檔原本硬寫 basic TWD 99 / full USD 15 /
+# annual USD 129，而 Carson 把 basic 降成 49、full USD 改 9、annual 停售之後，
+# **兩張表靜默分岔** → 付 49 的基礎版訂閱者 classify_tier 判 unknown
+# （|49-99|=50 > 容差 24.75）→ 名冊 tier 全錯。若不是 subscribers.export_active
+# 剛好有「unknown 保底寄 basic」的防線接住，**每一個付 49 的人都會一封都收不到**。
+# 這與 landing 把價格寫死在 HTML 是同型病：多個事實來源 + 不同步時零告警。
+# 導出後，改 ecommerce/config.py 一處，這裡自動跟上；分岔在結構上不可能發生。
+def _tiers_from_single_source() -> list[dict]:
+    import sys
+    _E = str(_QS / "ecommerce")
+    if _E not in sys.path:
+        sys.path.insert(0, _E)
+    import config as _ecom          # quant-service/ecommerce/config.py
+    s = _ecom.SUBSCRIPTION
+    out = []
+    for key, tier in (("basic", "basic"), ("full", "full"), ("annual", "full_annual")):
+        t = s.get(key) or {}
+        if t.get("enabled") is False:
+            continue                # 停售的層級不參與分類（annual 目前暫緩）
+        twd = t.get("ntd_month") or t.get("ntd_year")
+        usd = t.get("usd_month") or t.get("usd_year")
+        if twd or usd:
+            out.append({"tier": tier, "TWD": twd, "USD": usd})
+    if not out:
+        raise RuntimeError("SUBSCRIPTION 導不出任何層級——定價來源壞了，寧可炸也不要靜默判錯 tier")
+    return out
+
+
+SUBSCRIPTION_TIERS: list[dict] = _tiers_from_single_source()
 
 
 def resolve_sku(product: str, kind: EventKind) -> dict:
