@@ -73,10 +73,19 @@ def clean_tags(tags: list[str], limit: int = 13) -> list[str]:
 
 # ── 文案骨架:每個 (platform, sku) 一份。price 一律從 config 取,不寫死 ──────────
 def _sub_prices() -> dict:
+    """訂閱牌價。停售的層級回 None —— 呼叫端必須不印它。
+
+    為什麼(2026-07-17):Carson 拍板年繳暫緩(enabled=False),但本檔原本無條件塞
+    annual_y、文案硬印「完整版年繳 NT$1290」。**這份文案是要貼到 Portaly 商品頁的**
+    —— 貼上去就是在賣一個不存在的方案。config 說停售、文案還在賣,是本專案反覆
+    中招的同型病(單一事實來源沒貫徹到每個消費端)。make_landing._tiers_html()
+    已照 enabled 過濾,這裡跟上。
+    """
     s = config.SUBSCRIPTION
+    annual = s.get("annual") or {}
     return {
         "basic_m": s["basic"]["ntd_month"], "full_m": s["full"]["ntd_month"],
-        "annual_y": s["annual"]["ntd_year"],
+        "annual_y": None if annual.get("enabled") is False else annual.get("ntd_year"),
         "basic_usd": s["basic"]["usd_month"], "full_usd": s["full"]["usd_month"],
     }
 
@@ -104,8 +113,9 @@ def _listings() -> dict:
                 "· S6 訊號追蹤・誠實成績單:公開真實追蹤戰績(含輸單),不挑不藏——這是我們和只曬贏單的最大差別",
                 "· 完整版加碼:法人週籌碼流向、估值位階雷達、當週深度個股體檢、全市場 CSV 下載",
                 "",
-                f"【方案】基礎版 NT${p['basic_m']}/月(★核心章節)｜完整版 NT${p['full_m']}/月(全章節＋數據下載＋深度體檢)｜"
-                f"完整版年繳 NT${p['annual_y']}(約省 28%)。Email＋Telegram 私訊直送。",
+                f"【方案】基礎版 NT${p['basic_m']}/月(★核心章節)｜完整版 NT${p['full_m']}/月(全章節＋數據下載＋深度體檢)"
+                + (f"｜完整版年繳 NT${p['annual_y']}(約省 28%)" if p['annual_y'] else "")
+                + "。Email＋Telegram 私訊直送。",
                 "",
                 "【數據範圍・誠實說】全市場掃描每日更新、週報每週一次出刊;法人籌碼為近數週滾動、估值涵蓋約 1078 檔(缺值略過);"
                 "深度個股體檢目前覆蓋權值股、隨每日累積擴充。回測類基準為歷史快照,非即時、非可交易訊號。",

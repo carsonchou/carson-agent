@@ -27,6 +27,31 @@ OUT = REPO_ROOT / "quant-service" / "output" / "ecommerce_ready" / "v2" / "pinte
 OUT.mkdir(parents=True, exist_ok=True)
 MASCOT = PROJECT_ROOT / "assets" / "mascot"
 
+# ── 價格:一律從 quant-service/ecommerce/config.py 導出,不在本檔手打 ────────────
+# 為什麼(2026-07-17):本檔原本每張 pin 的 price 都是手打字串(旗艦寫死 "NT$99–149 / 月"),
+# 而檔頭註解卻宣稱「價格 = config.py 事實來源」—— 說一套做一套。Carson 把 basic 降成 49 後,
+# **pin 圖仍燒著 NT$99–149 對外貼上 Pinterest = 廣告一個不存在的價格**。
+# 這是同一個病的第四個現場(config/landing/webhook/listing 都修過了),故一併結構性解決。
+_ECOM = REPO_ROOT / "quant-service" / "ecommerce"
+if str(_ECOM) not in sys.path:
+    sys.path.insert(0, str(_ECOM))
+try:
+    import config as _ecom_cfg
+except Exception as e:  # noqa: BLE001
+    raise SystemExit(f"[pinterest] 讀不到定價事實來源 {_ECOM/'config.py'}: {e}")
+
+
+def _sub_price_label() -> str:
+    """旗艦訂閱的價格標籤。停售的層級不出現(年繳 enabled=False)。"""
+    s = _ecom_cfg.SUBSCRIPTION
+    lo, hi = s["basic"]["ntd_month"], s["full"]["ntd_month"]
+    return f"NT${lo}–{hi} / 月"
+
+
+def _one_price(sku: str, usd: bool = False) -> str:
+    o = _ecom_cfg.ONE_OFF[sku]
+    return f"US${o['usd']}" if usd else f"NT${o['ntd']} 一次買斷"
+
 W, H = 1000, 1500                                              # Pinterest 建議 2:3 直式
 BASE_BG = (11, 14, 20)                                         # #0B0E14 v2 主背景(近黑帶藍)
 
@@ -204,7 +229,7 @@ PINS = [
      "kicker": "旗艦訂閱 · 台股全市場週報 · 每週更新",
      "bullets": ["全市場強弱掃描 + 34 板塊輪動", "法人週籌碼 + 估值位階雷達",
                  "真實訊號追蹤(含輸單,不挑不藏)", "介紹 ≠ 推薦,email + Telegram 直送"],
-     "price": "NT$99–149 / 月"},
+     "price": _sub_price_label()},
 
     # L2 core:全市場回測數據包
     {"slug": "數據包_全市場回測", "accent": "gold", "mascot": "smug",
@@ -212,7 +237,7 @@ PINS = [
      "kicker": "全市場回測數據包 · 一次買斷",
      "bullets": ["adaptive + 多空 + Sharpe 合併 CSV", "淨報酬/回撤/勝率/起訖日/最終權益",
                  "方法與清洗過程全公開,附摘要 PDF", "歷史快照,非即時、非可交易訊號"],
-     "price": "NT$990 一次買斷"},
+     "price": _one_price("C1")},
 
     # L2 core:權值股體檢合輯
     {"slug": "體檢_權值股合輯", "accent": "red", "mascot": "neutral",
@@ -220,7 +245,7 @@ PINS = [
      "kicker": "台股權值股體檢合輯 · 深度數據手冊",
      "bullets": ["含息還原總報酬、最大回撤、最長套牢", "2008/2020/2022 三次崩盤韌性",
                  "單筆 vs 定投 vs 0050、估值位階", "只做誠實體檢,不喊多空不報明牌"],
-     "price": "NT$1280 一次買斷"},
+     "price": _one_price("C2")},
 
     # L1 tripwire:定投追蹤模板
     {"slug": "入門_定投追蹤模板", "accent": "green", "mascot": "happy",
@@ -228,7 +253,7 @@ PINS = [
      "kicker": "台股定投追蹤模板 · 低價入門",
      "bullets": ["Excel/CSV 定投模板,自動算平均成本", "10 年真對照:All-in vs 定投 vs 0050",
                  "含息還原,數字取自體檢引擎實算", "工具不是明牌,不含任何買賣訊號"],
-     "price": "NT$99"},
+     "price": f"NT${_ecom_cfg.ONE_OFF['T1']['ntd']}"},
 
     # 國際 EN:數據包英版
     {"slug": "EN_quant_data_pack", "accent": "blue", "mascot": "neutral",
@@ -236,7 +261,7 @@ PINS = [
      "kicker": "Taiwan whole-market backtest data · English",
      "bullets": ["Full-market backtest workbook (CSV)", "Adaptive + long/short + Sharpe merged",
                  "Rare: Taiwan-market data for global quants", "Educational, not financial advice"],
-     "price": "US$35", "cta": "Free sample → get the full data pack"},
+     "price": _one_price("C1", usd=True), "cta": "Free sample → get the full data pack"},
 ]
 
 

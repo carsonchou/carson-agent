@@ -30,7 +30,13 @@
 
 ### 1.1 Portaly(台灣訂閱主柱,**最先開**) ⏱ 30–45 分
 - 註冊:`https://portaly.cc/`(以官方頁面實際為準)。
-- 用途:旗艦**訂閱牆**(基礎版 NT$99 / 完整版 NT$149 / 完整版年繳 NT$1290,見 §4 定價)+ 台灣一次性 SKU(C1/C2)。
+- 用途:旗艦**訂閱牆**(基礎版 **NT$49** / 完整版 **NT$149**)+ 台灣一次性 SKU(C1/C2)。
+  - ⚠️ **只開這兩個方案。年繳暫緩**(2026-07-16 Carson 拍板:續訂殺手會在第 2–3 個月暴露,
+    年繳等於把不滿意的客戶鎖 12 個月;等 S7 點播補完、有真實續訂率再開)。
+  - 🔴 **價格必須與 `quant-service/ecommerce/config.py` 的 `SUBSCRIPTION` 完全一致**——
+    那是全系統唯一的定價事實來源(webhook 的 tier 分類、landing、上架文案、Pinterest pin
+    全部從它導出)。**在 Portaly 設錯價 = 訂閱者金額對不上 → tier 判成 unknown**
+    (系統會保底寄基礎版並告警,但名冊會是錯的)。設之前先看一眼那個檔。
 - KYC/收款:綁台灣本人銀行帳戶(自動續訂+自動發票)。要備:身分證、銀行帳戶。以 Portaly 後台實際欄位為準。
 - **依賴**:後面「訂閱牆設定 + webhook(§3.4)」「landing/tg 換連結(§4 步驟)」都等這個帳號拿到訂閱連結。
 
@@ -165,7 +171,7 @@
 - **⚠️ 官方無第一手 webhook spec,全為暫定**(`normalize.py:152-154`):
   - status→kind 對應:`normalize.py:155 _PORTALY_STATUS_KIND`(`subscription_created/subscribed→SUB_NEW`、`renewed→SUB_RENEW`、`cancelled/unsubscribed→SUB_CANCEL`、`refunded→REFUND`)。
   - 欄位候選鍵:`normalize.py:181-187`(email 取 `email/buyer_email/customer_email`;name 取 `name/buyer_name/姓名`;amount 取 `amount/price/total`;period_end 取 `period_end/next_billing_at`)。
-  - **怎麼校準**:同 Whop —— 拿第一筆真實 Portaly 測試 webhook 的 payload,對照候選鍵補齊/改名,重測到 tier 分層(basic/full/full_annual,金額分類見 `quant-service/webhook/config.py` → `SUBSCRIPTION_TIERS`)正確。
+  - **怎麼校準**:同 Whop —— 拿第一筆真實 Portaly 測試 webhook 的 payload,對照候選鍵補齊/改名,重測到 tier 分層(basic/full;年繳暫緩故不在分類表內)正確。⚠️ `SUBSCRIPTION_TIERS` 已改為**從 `ecommerce/config.py` 的 `SUBSCRIPTION` 自動導出**,不要去手改它——改價一律改 config 那一處。
 - **驗證通了沒**:打 `GET https://<你的公網域名>/health`(`app.py` → `@api.get("/health")`)回 `active_subscribers` 有跟著測試單增加,就是名冊有接上。
 
 ---
