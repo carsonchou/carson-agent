@@ -1763,7 +1763,25 @@ def render_hud_strip(width, height, *, dest: Path, day=None, principal=None,
 
 def render_race_split(width, height, *, dest: Path, labelA="A", labelB="B",
                       progA=0.5, progB=0.5, accent=(255, 210, 63)):
-    """A vs B 賽跑對比：頂部自帶深色面板的計分板（兩條並排進度條），不侵入中央標題/字幕區。"""
+    """A vs B 賽跑對比：頂部自帶深色面板的計分板（兩條並排進度條），不侵入中央標題/字幕區。
+
+    ⚠️ 目前沒有呼叫端，是刻意的——不要因為「有函式沒人用」就把它接回去。
+
+    這塊不是裝飾：兩條條子掛的是本片比較的兩個標的名，條尾還印百分比，觀眾只會讀成
+    「A 拿到 100%、B 只拿到 82%」。所以餵進來的 progA/progB 必須是本片真實數據，
+    禁止餵段落進度、常數、或任何「看起來會動」的合成值。
+
+    以前的呼叫端餵的是 progA=frac, progB=frac*0.82（段落進度 × 常數），畫面因此對每支
+    對比片都宣稱「B 落後 A 18 個百分點」，與本片數據無關：0050 vs 00878 那支旁白講的是
+    815% vs 387%（B 只有 A 的 47%），畫面卻印 82%；AI選股 vs 0050 那支真實是 A 輸，
+    畫面卻讓 A 滿格贏——連輸贏方向都相反。已發布 46 支中鏢，故整條路已拆除。
+
+    要接回去，先有「帶單位的結構化事實來源」給出兩側可比的真值（見 STUDIO fact_pool
+    無單位池待辦）。實測結論：從旁白 regex 硬抓不可行——旁白裡總報酬/年化/最大回撤/
+    配息稅/手續費全是百分比且長得一樣，實測 5 支綁到的有 4 支綁錯（把「手續費吃掉15%」、
+    「最慘賠22.6%」、「配息稅30%」、「第一年賺20%」當成某一側的成績），而且有些片旁白
+    根本沒講到那一側的總報酬——資料不存在，再好的 parser 也生不出來。
+    """
     try:
         from PIL import Image, ImageDraw
     except Exception:  # noqa: BLE001
@@ -1926,12 +1944,15 @@ def build_video(
         seg_cards.append(str(card_png) if card_png else None)
         body_clips.append(clip)
 
-    # ── 實測EP招牌HUD / A vs B 賽跑對比：靜態逐段推進；非實測/非對比片零影響 ──
+    # ── 實測EP招牌HUD：靜態逐段推進；非實測片零影響 ──
+    # A vs B 賽跑計分板已整條拆除（理由見 render_race_split docstring）：它印在畫面上的
+    # 百分比是「段落進度 × 0.82」的合成值，與本片數據無關，已發布 46 支中鏢。對比片現在
+    # 不上任何 HUD——這裡不要退回去改用 render_hud_strip 補位：那組是本金/餘額/天數，
+    # 對「A vs B」沒有意義，硬套就是剛修掉的那個 HUD bug（見 _ep_data_applies）。
     hud_overlays = []
     _title = title or ""
     _is_exp = bool(re.search(r"EP|實測|實驗", _title))
-    _is_race = bool(re.search(r"vs|VS|對決|對打|賽跑", _title))
-    if _is_exp or _is_race:
+    if _is_exp:
         try:
             _vt = read_voice_text(slug_paths) or " ".join(s.narration for s in segments if s.narration)
             _nums = _parse_experiment_numbers(_vt)
@@ -1950,24 +1971,17 @@ def build_video(
             _bal = int(_pr * (1 + _pct / 100.0))
         _has_data = any(v is not None for v in (_pr, _pct, _bal, _dtot))
         _n = max(1, len(seg_cards) or len(segments))
-        if _has_data or _is_race:
+        if _has_data:
             from PIL import Image as _PIH
             for i in range(_n):
                 frac = (i + 1) / _n
                 hud_png = None
                 try:
-                    if _is_race and not _is_exp:
-                        _parts = re.split(r"vs|VS|對決|對打|賽跑", _title)
-                        _la = (_parts[0].strip()[-10:] or "A")
-                        _lb = (_parts[1].strip()[:10] if len(_parts) > 1 and _parts[1].strip() else "B")
-                        hud_png = render_race_split(width, height, dest=tmp_dir / f"hud_{i:02d}.png",
-                                                    labelA=_la, labelB=_lb, progA=frac, progB=frac * 0.82, accent=accent)
-                    else:
-                        _day = int(round((_dtot or _n) * frac)) if (_dtot or _is_exp) else None
-                        _bal_i = int(_pr + (_bal - _pr) * frac) if (_pr is not None and _bal is not None) else _bal
-                        _pct_i = round(_pct * frac, 2) if _pct is not None else None
-                        hud_png = render_hud_strip(width, height, dest=tmp_dir / f"hud_{i:02d}.png",
-                                                   day=_day, principal=_pr, balance=_bal_i, pct=_pct_i, accent=accent)
+                    _day = int(round((_dtot or _n) * frac)) if (_dtot or _is_exp) else None
+                    _bal_i = int(_pr + (_bal - _pr) * frac) if (_pr is not None and _bal is not None) else _bal
+                    _pct_i = round(_pct * frac, 2) if _pct is not None else None
+                    hud_png = render_hud_strip(width, height, dest=tmp_dir / f"hud_{i:02d}.png",
+                                               day=_day, principal=_pr, balance=_bal_i, pct=_pct_i, accent=accent)
                 except Exception:  # noqa: BLE001
                     hud_png = None
                 if hud_png is None:

@@ -707,11 +707,12 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
         except Exception:  # noqa: BLE001
             pass
 
-        # 1.5) 實測EP招牌HUD / A vs B 賽跑對比：烤進段卡（非實測/非對比片零影響）
+        # 1.5) 實測EP招牌HUD：烤進段卡（非實測片零影響）
+        # A vs B 賽跑計分板已整條拆除（理由見 mv.render_race_split docstring）：畫面印的
+        # 百分比是「段落進度 × 0.82」的合成值，與本片數據無關，已發布 46 支中鏢。
         try:
             _is_exp = bool(re.search(r"EP|實測|實驗", title or ""))
-            _is_race = bool(re.search(r"vs|VS|對決|對打|賽跑", title or ""))
-            if _is_exp or _is_race:
+            if _is_exp:
                 _vt = mv.read_voice_text(slug_paths) or " ".join(s.narration for s in segments if s.narration)
                 _nums = mv._parse_experiment_numbers(_vt)
                 # ep_data 權威真數字只在「本片真的屬於該系列」時才蓋（判定與 make_video 共用同一個
@@ -726,27 +727,20 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
                 if _bal is None and _pr is not None and _pct is not None:
                     _bal = int(_pr * (1 + _pct / 100.0))
                 _ns = max(1, len(seg_cards))
-                if any(v is not None for v in (_pr, _pct, _bal, _dtot)) or _is_race:
+                if any(v is not None for v in (_pr, _pct, _bal, _dtot)):
                     for i in range(len(seg_cards)):
                         if not seg_cards[i]:
                             continue
                         frac = (i + 1) / _ns
                         try:
-                            if _is_race and not _is_exp:
-                                _parts = re.split(r"vs|VS|對決|對打|賽跑", title)
-                                _la = (_parts[0].strip()[-10:] or "A")
-                                _lb = (_parts[1].strip()[:10] if len(_parts) > 1 and _parts[1].strip() else "B")
-                                hud_png = mv.render_race_split(width, height, dest=tmp_dir / f"hud_{i:02d}.png",
-                                                              labelA=_la, labelB=_lb, progA=frac, progB=frac * 0.82, accent=accent)
-                            else:
-                                # 用 is not None 而非 or:_dtot==0(合法「第0天」)不該被當 falsy
-                                # 誤退回用段落數 _ns 當總天數,導致 HUD 顯示的天數跟旁白脫鉤。
-                                _day = int(round((_dtot if _dtot is not None else _ns) * frac)) \
-                                    if (_dtot is not None or _is_exp) else None
-                                _bal_i = int(_pr + (_bal - _pr) * frac) if (_pr is not None and _bal is not None) else _bal
-                                _pct_i = round(_pct * frac, 2) if _pct is not None else None
-                                hud_png = mv.render_hud_strip(width, height, dest=tmp_dir / f"hud_{i:02d}.png",
-                                                             day=_day, principal=_pr, balance=_bal_i, pct=_pct_i, accent=accent)
+                            # 用 is not None 而非 or:_dtot==0(合法「第0天」)不該被當 falsy
+                            # 誤退回用段落數 _ns 當總天數,導致 HUD 顯示的天數跟旁白脫鉤。
+                            _day = int(round((_dtot if _dtot is not None else _ns) * frac)) \
+                                if (_dtot is not None or _is_exp) else None
+                            _bal_i = int(_pr + (_bal - _pr) * frac) if (_pr is not None and _bal is not None) else _bal
+                            _pct_i = round(_pct * frac, 2) if _pct is not None else None
+                            hud_png = mv.render_hud_strip(width, height, dest=tmp_dir / f"hud_{i:02d}.png",
+                                                         day=_day, principal=_pr, balance=_bal_i, pct=_pct_i, accent=accent)
                             if hud_png:
                                 _bc = Image.open(seg_cards[i]).convert("RGBA")
                                 _bc.alpha_composite(Image.open(str(hud_png)).convert("RGBA"))
