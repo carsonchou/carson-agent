@@ -67,14 +67,32 @@ _SHORTS_HASHTAGS = "\n\n" + " ".join(["#Shorts", "#量化交易", "#Pionex", "#�
 # 直接回答「憑什麼信你」——我們的 credential 是真的:全市場 1841 檔回測引擎(對手沒有)。
 _SUBSCRIBE_HOOK = ("🔔 我用 Python 把台股 1841 檔全部跑過回測——訂閱看每週全市場實測、"
                    "拆穿話術陷阱，不誇大只看真數據")
+# 一鍵訂閱參數：帶 ?sub_confirmation=1 的頻道連結會直接跳出訂閱確認框，省掉「找頻道→再點訂閱」
+# 兩步流失。2026-07-17 加：訂閱轉換是 YPP 唯一瓶頸(46/1000)，描述那句 credential 本來只是
+# 不可點的純文字，等於叫人訂閱卻不給按鈕。
+_SUB_CONFIRM_PARAM = "?sub_confirmation=1"
 
 
-def _ensure_subscribe_hook(description: str) -> str:
-    """確保每支發布片描述都有清楚的『訂閱理由』句(價值承諾，非空喊)。
-    去重：描述已含「訂閱」字樣(例如逐字稿手寫的 CTA)就不重複加，尊重原文案。"""
-    if "訂閱" in description:
+def _subscribe_hook(cfg: dict | None = None) -> str:
+    """訂閱鉤文案；有 channel_handle 就附一鍵訂閱連結，取不到就退純文字(fail-open，不擋發布)。"""
+    handle = ((cfg or {}).get("channel_handle") or "").lstrip("@")
+    if not handle:
+        return _SUBSCRIBE_HOOK
+    return f"{_SUBSCRIBE_HOOK}\n👉 https://www.youtube.com/@{handle}{_SUB_CONFIRM_PARAM}"
+
+
+def _ensure_subscribe_hook(description: str, cfg: dict | None = None) -> str:
+    """確保每支發布片描述都有清楚的『訂閱理由』句(價值承諾，非空喊)+ 一鍵訂閱連結。
+
+    🔴 2026-07-17 修去重誤判：舊碼用 `if "訂閱" in description` 去重，但描述裡含逐字稿——
+    同日 produce_batch 的 CTA 改成「一律明講『訂閱』二字」後，**每支片的描述都會命中這個判斷**，
+    導致這句 credential 背書(競品逆向驗證過:頭部頻道簡介第一句無例外都是 credential)
+    永遠不再被加上 = 好心的去重直接廢掉整個機制。改成比對「一鍵訂閱連結」是否已存在，
+    那才是這個函式真正負責產出的東西。"""
+    hook = _subscribe_hook(cfg)
+    if _SUB_CONFIRM_PARAM in description or _SUBSCRIBE_HOOK in description:
         return description
-    return f"{description}\n\n{_SUBSCRIBE_HOOK}"
+    return f"{description}\n\n{hook}"
 
 
 def _short_to_long_mapped(slug: str, ledger: dict) -> str:
@@ -157,7 +175,7 @@ def _engage_comment_text(slug: str, vid: str, cfg: dict, ledger: dict) -> str:
         link = _short_to_long_mapped(slug, ledger)
         if link:
             return f"{q}\n\n📺 想看完整拆解？我把長片連結放這 👉 {link}"
-    return f"{q}\n\n{_SUBSCRIBE_HOOK}"
+    return f"{q}\n\n{_subscribe_hook(cfg)}"
 
 
 def _post_engage_comment(yt, vid, slug, ledger=None):
@@ -499,7 +517,7 @@ def upload_one(yt, slug: str, privacy: str) -> str:
             meta["description"] = (f"🔁 接續看同系列 👉 {_slink}\n\n" + meta["description"])[:5000]
 
     # 描述訂閱鉤標準化：每支發布片(短+長)都要有清楚的『訂閱理由』句(價值承諾,非光禿禿求訂閱)。
-    meta["description"] = _ensure_subscribe_hook(meta["description"])[:5000]
+    meta["description"] = _ensure_subscribe_hook(meta["description"], cfg)[:5000]
 
     # Shorts 用 #Shorts 加進標題尾端（字數允許時）；長片 categoryId 用教育(27)
     title = meta["title"]
