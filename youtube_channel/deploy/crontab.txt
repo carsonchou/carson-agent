@@ -57,6 +57,12 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 */15 * * * * flock -n /tmp/hr_cloud.lock /root/yt/run.sh scripts/hybrid_render.py --cloud --max 20 >> /root/yt/logs/cron.log 2>&1
 # 片庫品管評分（produce 後跑，供決策中心『🎬 片庫評分』分頁檢視＋退件重做）
 40 6 * * * /root/yt/run.sh scripts/quality_score.py >> /root/yt/logs/cron.log 2>&1
+# 🔴 2026-07-17 加第二班(18:00,發布前30分):管線本來是 produce(06:07)→render(*/15)
+#   →評分(隔天06:40)→可發 = **~27h 延遲**。這代表 12:30 的長片保底補產要等到隔天才評得到分,
+#   救不了當天的斷炊(長片可發庫存一度只剩 3 天)。這一班讓 12:30 補的長片當天 18:30 就能發。
+#   成本安全:quality_score 冪等(:273 只評「沒有有效 ai 分數」的片,既有片走快取不重評),
+#   且走 OpenRouter **不吃 YouTube 配額**。
+0 18 * * * /root/yt/run.sh scripts/quality_score.py >> /root/yt/logs/cron.log 2>&1
 # 自動記帳·固定成本（每天跑、同月只記一筆，冪等）
 10 3 * * * /root/yt/run.sh scripts/auto_cost.py >> /root/yt/logs/cron.log 2>&1
 # 本機每日快照關鍵 STUDIO json → STUDIO/_snapshots/日期/(留7天;補雲端 backups 被 SKIP 的安全網)
