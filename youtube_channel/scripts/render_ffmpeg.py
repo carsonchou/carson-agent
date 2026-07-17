@@ -714,9 +714,11 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
             if _is_exp or _is_race:
                 _vt = mv.read_voice_text(slug_paths) or " ".join(s.narration for s in segments if s.narration)
                 _nums = mv._parse_experiment_numbers(_vt)
-                # ep_data.json 權威真數字優先於旁白 regex（有值才蓋）→ HUD 與 EP 引擎同一真相
+                # ep_data 權威真數字只在「本片真的屬於該系列」時才蓋（判定與 make_video 共用同一個
+                # _ep_data_applies，不各自複製一份——這個 HUD bug 當初就是兩邊複製貼上同時中鏢）。
                 try:
-                    _nums.update(mv._ep_data_numbers())
+                    if mv._ep_data_applies(title or "", getattr(slug_paths, "slug", ""), _nums):
+                        _nums.update(mv._ep_data_numbers())
                 except Exception:  # noqa: BLE001
                     pass
                 _pr, _pct = _nums.get("principal"), _nums.get("pct")

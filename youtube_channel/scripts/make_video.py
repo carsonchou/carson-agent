@@ -1401,9 +1401,14 @@ def _parse_experiment_numbers(text: str) -> dict:
         if m:
             out["principal"] = int(_cn_num(m.group(1)) * 10000)
     # 報酬%（口語『百分之X』優先；退回『X%』）取最後一個（通常是結果），含正負語意
-    pcs = list(re.finditer(rf"(正|負|賺|獲利|報酬|漲|虧|賠|跌|少)?\s*百分之\s*({_num}|{_cn})", t))
+    # 正負詞與數字間允許短填充詞（「虧『了』百分之二十」「賠『掉』20%」）：舊版只允許空白，
+    # 導致 t="虧了百分之二十" 抓不到『虧』→ HUD 燒 +20% 綠字,但旁白講的是倒賠 20%（號誌翻轉）。
+    # 填充詞不得含數字/百（否則會跨過數字或吃掉「百分之」）,長度上限 2 避免亂攀遠處的正負詞。
+    _sgap = r"[^0-9零〇一二兩三四五六七八九十百%]{0,2}"
+    _sgn = r"正|負|賺|獲利|報酬|漲|虧|賠|跌|少"
+    pcs = list(re.finditer(rf"(?:({_sgn}){_sgap})?\s*百分之\s*({_num}|{_cn})", t))
     if not pcs:
-        pcs = list(re.finditer(rf"(正|負|賺|漲|虧|賠|跌)?\s*({_num})\s*%", t))
+        pcs = list(re.finditer(rf"(?:(正|負|賺|漲|虧|賠|跌){_sgap})?\s*({_num})\s*%", t))
     if pcs:
         g = pcs[-1]
         try:
@@ -1477,6 +1482,50 @@ def _ep_data_numbers() -> dict:
     except Exception:  # noqa: BLE001
         pass
     return out
+
+
+# ep_data.json 只描述「自動交易機器人實測企劃」那一個真錢帳戶（Pionex，本金約 101 美元）。
+# 這組是「系列識別」特徵詞——用來確認本片真的是那個系列，而不是只看標題有沒有 EP/實測/實驗。
+_ROBOT_SERIES_RE = re.compile(r"機器人|網格|派網|Pionex|自動交易|交易機器|\bbots?\b", re.IGNORECASE)
+_RACE_TITLE_RE = re.compile(r"vs|VS|對決|對打|賽跑")
+
+
+def _ep_data_applies(title: str, slug: str = "", narr_nums: Optional[dict] = None) -> bool:
+    """本片是否真的屬於 ep_data.json 描述的那個真錢帳戶系列？只有 True 才可把 ep_data 數字燒上 HUD。
+
+    為什麼不能沿用舊判定（標題命中 EP|實測|實驗|vs 就套）：那些是「題材泛用詞」不是「系列識別」。
+    「臺股真相實驗室」整個系列含『實驗』、大量台股題含『實測』、長片標題大量是『A vs B』，
+    全被灌上機器人帳戶的本金/餘額/報酬——畫面對觀眾說謊（已發布 32 支受害，見 scratchpad/hud_fix.md）。
+
+    四道門檻全過才套。判不出來就退回 _parse_experiment_numbers 的旁白數字——那本來就是本片的
+    正確來源，寧可漏套也絕不可誤套：
+      1. A vs B 對比片一律不套：該 HUD 語意是「兩個標的賽跑」，數字必須來自本片旁白。
+         機器人系列自己的對比片（如「網格vs定投 5000元」）講的也是本片的錢，不是那個帳戶。
+      2. ep_data 必須自稱機器人帳戶系列（series_name）：否則不知道那些數字在講什麼，不套。
+      3. 本片 title/slug 要有系列題材特徵：ep_data 的 episodes[] 已被混入台股真相實驗室的 slug，
+         不可拿來當白名單比對，只能靠題材特徵。
+      4. 旁白明講的本金與帳戶本金量級不符（差 5 倍以上）→ 這支不是那個帳戶的片，不套；
+         避免 HUD 燒「本金 101」但旁白在講「丟十萬」這種畫面與口白自相矛盾。
+    """
+    if _RACE_TITLE_RE.search(title or ""):
+        return False
+    try:
+        data = json.loads((PROJECT_ROOT / "STUDIO" / "ep_data.json").read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return False
+    if not isinstance(data, dict):
+        return False
+    if not _ROBOT_SERIES_RE.search(str(data.get("series_name") or "")):
+        return False
+    if not _ROBOT_SERIES_RE.search(f"{title or ''} {slug or ''}"):
+        return False
+    _np, _ep = (narr_nums or {}).get("principal"), _ep_data_numbers().get("principal")
+    try:
+        if _np and _ep and _np > 0 and _ep > 0 and (_np / _ep > 5 or _ep / _np > 5):
+            return False
+    except Exception:  # noqa: BLE001
+        pass
+    return True
 
 
 def _mascot_enabled() -> bool:
@@ -1888,9 +1937,11 @@ def build_video(
             _nums = _parse_experiment_numbers(_vt)
         except Exception:  # noqa: BLE001
             _nums = {}
-        # ep_data.json 是 EP 引擎/真實帳戶的權威數字，優先於旁白 regex（有值才蓋）→ HUD 與 EP 引擎同一真相
+        # ep_data 是該系列真實帳戶的權威數字，但「只在本片真的屬於那個系列」時才蓋（見 _ep_data_applies）。
+        # 舊版無條件 update → 台股/對比片被灌上不相干的帳戶數字。
         try:
-            _nums.update(_ep_data_numbers())
+            if _ep_data_applies(_title, getattr(slug_paths, "slug", ""), _nums):
+                _nums.update(_ep_data_numbers())
         except Exception:  # noqa: BLE001
             pass
         _pr, _pct = _nums.get("principal"), _nums.get("pct")
