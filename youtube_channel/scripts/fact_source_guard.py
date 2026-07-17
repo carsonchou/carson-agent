@@ -421,6 +421,55 @@ def _approx_kind(clause: str, raw: str) -> str:
     return ""
 
 
+# ── 比較結果數字(2026-07-17,交接書「標題層 +56% 相對差冒充總報酬」的根因修復)──────────
+# 「少賺58%」「高出56%」「差434%」這種數字,宣稱的是**兩個東西之間的關係**(A 比 B 多賺/高出/差 X%),
+# 不是一個獨立的事實數字。舊碼把它們當獨立數字,拿「扁平事實池裡剛好有個一樣的數」背書就放行——
+# 但池裡有 3777 個**無單位**數,幾乎任何兩位數都撞得到鄰居(實測「高出56%」撞到池裡不相干的 56.0
+# 就放行,而真實關係是 0056=377.9% vs 00878=230.8% → 實際高出 63.7%;56 是把相對差算錯/錯印成
+# 另一個值)。這正是交接書講的同一物種:數字「存在於某處」,但**語意是錯的**。
+# 判準改成:比較結果數字**只能由文本內真實操作數算得出來**(差 / 兩個方向的相對比),否則無憑據。
+_CMP_VERB_RX = re.compile(
+    r"(少賺|多賺|高出|多出|少出|落後|領先|贏過|勝過|輸給|超車|拉開|甩開|多領|少領|"
+    r"差距達|差距|相差|差了|竟差|差)\s*"
+    r"(整整|了|約|近|達|高達|足足|竟|還|多|只|大約|將近)*\s*$")
+
+
+def _is_comparison_result(clause: str, raw: str) -> bool:
+    """這個數字是不是**緊貼在比較動詞之後**(= 兩者關係的結果值,而非獨立事實)。
+    只看數字前 9 個字,避免把同句別處的比較詞誤扣到不相干的絕對數字上
+    (「All in 823%…少賺的幅度」裡的 823 不是比較結果,是操作數,不能被擋)。"""
+    i = clause.find(raw)
+    if i <= 0:
+        return False
+    return bool(_CMP_VERB_RX.search(clause[max(0, i - 9): i]))
+
+
+def _rel_derivable(val: float, operands: list, loose: bool) -> bool:
+    """val 是否 = 某一對操作數的『差值 / 相對比(除以任一方)』。
+
+    兩個方向都算:「A 比 B 高出 X%」的基準可能是較大方 A 也可能是較小方 B,(A-B)/A 與 (A-B)/B
+    都是合法算法。舊 _diff_ok 只除以較大方(grounded[j]),會誤殺「0056 高出 00878 63.7%」這種
+    **以基準(較小方)計的真句**——那不是編造,是正確的相對差。容差沿用 production 寬容差
+    (1.0 / 2%,帶口語近似詞放寬 15%)。呼叫端須先把 val 自身從 operands 排除,避免自我循環湊數。
+    ⚠️ 方向只能是**要求算得出來才放行**;算不出來一律當無憑據擋下(fail-safe 拿掉數字,不新增憑據)。"""
+    tol_rel = 0.15 if loose else TOL_REL
+    n = len(operands)
+    for i in range(n):
+        for j in range(i + 1, n):
+            a, b = operands[i], operands[j]
+            d = abs(a - b)
+            if d <= 0:
+                continue
+            if abs(d - val) <= max(TOL_ABS, d * tol_rel):                 # 差值:1050-479.5=570.5
+                return True
+            for base in (a, b):                                          # 相對比(兩向):除以 A 或 B
+                if base > 0:
+                    r = d / base * 100
+                    if abs(r - val) <= max(TOL_ABS, r * tol_rel):
+                        return True
+    return False
+
+
 def _unit_subpool(raw: str, pool: set[float]) -> set:
     """近似詞豁免(「總報酬超過500%」)要查的池:同單位子池 **∩ 原池**。
 
@@ -463,6 +512,9 @@ def unsourced_claims(text: str, pool: set[float] | None = None) -> list[dict]:
     # 「All in 1050% vs 定投479.5%,少賺570.5%」三個數字同場;單獨冒出的「少賺38萬」沒有原料,擋。
     grounded = sorted({c["value"] for c in claims
                        if _sourced_unit(c["value"], c["raw"], pool, False)})
+    # 比較結果數字的操作數只收**嚴容差直接溯源**的真事實(不靠假見證進池),當「會算給你看」的原料。
+    grounded_strict = sorted({c["value"] for c in claims
+                              if _sourced_unit(c["value"], c["raw"], pool, True)})
 
     def _diff_ok_strict(val: float) -> bool:
         """嚴容差版文本內差值(給假掛名句用):組成數字同場 + 精度 max(0.25, 0.5%)。"""
@@ -509,6 +561,18 @@ def unsourced_claims(text: str, pool: set[float] | None = None) -> list[dict]:
             # 「少賺38萬」文內湊不出 38±0.25 的精確差 → 編造照擋)。寬容差差值豁免仍然不給
             # (實測 38 曾被寬容差 1.0 的差值撈回)。
             if _sourced_unit(c["value"], c["raw"], pool, True) or _diff_ok_strict(c["value"]):
+                continue
+            bad.append(c)
+            continue
+        # 🔴 比較結果數字(交接書「標題層 +56% 相對差冒充總報酬」根因):「少賺58%」「高出56%」「差434%」
+        # 宣稱的是**兩者關係**,不是獨立事實。改成只能由文本內真實操作數算得出來(差/兩向相對比,
+        # 嚴容差操作數且排除自身),算不出來 = 無憑據。舊碼在 line「_sourced_unit(...False)」用扁平池
+        # 同數字見證放行(3777 個無單位數幾乎每個兩位數都撞得到)——那正是假憑據來源。這條攔在其前面,
+        # 讓比較數字**繞不過**關係驗證。fail-safe 方向只擋下發布、絕不新增憑據。
+        if _is_comparison_result(c["clause"], c["raw"]):
+            _ops = [o for o in grounded_strict
+                    if abs(o - c["value"]) > max(TOL_STRICT_ABS, o * TOL_STRICT_REL)]
+            if _rel_derivable(c["value"], _ops, loose=bool(kind)):
                 continue
             bad.append(c)
             continue
