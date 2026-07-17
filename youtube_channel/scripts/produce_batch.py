@@ -179,7 +179,12 @@ def existing_titles():
 def queue_size():
     """片庫量＝『未發布』已成片(mp4)或已備妥待渲染(voice.txt)的去重 slug 數。
     ⚠️排除已發布(在 uploaded_ledger 內)的——否則已發布舊片堆在 output 沒清，
-    會讓計數爆滿、誤判『庫存已滿』而停止補產（曾因此整個產線停擺）。"""
+    會讓計數爆滿、誤判『庫存已滿』而停止補產（曾因此整個產線停擺）。
+    ⚠️2026-07-17 修:排除 `_ytcta` 副本(append_yt_cta.py 給 IG/TikTok 接片尾卡的跨平台
+    匯出檔,YT 原片不動)——它們不是待發的 YT 影片。舊碼把它們算進庫存,實測 320 支「庫存」
+    裡 269 支(84%)是 ytcta 衍生檔、其中 239 支原片早就發布了,真庫存只有 51 支。
+    output/ 的其他消費者(daily_publish/stall_watchdog/tiktok_upload/ig_backfill/
+    build_short_to_long)本來就都排除它,只有這裡漏了 → 產能決策全部失真。"""
     published = set()
     try:
         lp = ROOT / "STUDIO" / "uploaded_ledger.json"
@@ -188,14 +193,19 @@ def queue_size():
     except Exception:
         pass
     slugs = set()
+
+    def _add(slug):
+        if not slug.endswith("_ytcta"):
+            slugs.add(slug)
+
     for f in OUT.glob("S_*.mp4"):
-        slugs.add(f.stem)
+        _add(f.stem)
     for f in OUT.glob("L_*.mp4"):
-        slugs.add(f.stem)
+        _add(f.stem)
     for f in OUT.glob("S_*.voice.txt"):
-        slugs.add(f.name[:-len(".voice.txt")])
+        _add(f.name[:-len(".voice.txt")])
     for f in OUT.glob("L_*.voice.txt"):
-        slugs.add(f.name[:-len(".voice.txt")])
+        _add(f.name[:-len(".voice.txt")])
     return len(slugs - published)
 
 
