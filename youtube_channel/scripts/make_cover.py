@@ -7,9 +7,12 @@
 視窗顯示回測數字 + 免責）」風格，收斂到頻道最好那張(『我給機器人1萬跑30天』)的設計語言：
   · 背景：深色交易終端（細網格 + 種子穩定 K 線走勢帶），不再打 Pollinations 生圖 API
     （不再有「同一姿勢的手/手機」問題、不再受限流/超時、離線可跑、100% 是自家視覺語言）
-  · 數據卡：只有 style=real(結果/實測類) 才顯示；優先用 backtest_cards.json 的真回測數字
-    （label=「真回測」），否則用 AI/啟發式抽出的示意數字但誠實標「示意回測」——
-    誠信鐵則：「真實帳戶／真回測」字樣只准蓋在真數據上，絕不蓋在示意/AI 算圖上。
+  · 數據卡：只有 style=real(結果/實測類) 才顯示，且**唯一來源**＝make_thumbnails._real_card()
+    （事實庫 + 領域閘門 + 標的閘門 + 跨片去重）。拿不到真數據 → **不掛卡**，走無卡版面。
+    2026-07-17 拆除「示意回測」保底卡：閘門擋掉錯卡後它會立刻補一張編的數字(甚至寫死 +82.4%)，
+    等於閘門形同虛設。誠信鐵則：寧可封面沒有數字卡，也不要有一個編出來的數字。
+  · 文案數字：LLM 產的 kicker/headline/hook 每一串數字都必須在標題找得到(共用
+    make_thumbnails._numbers_traceable)，否則整包退保底(保底是切標題來的)。
   · style=tech(原理/教學/概念類) 不強塞數字卡，只留 kicker+headline+hook+品牌，同一套
     暗色語言但不編造數據。
   · 品牌浮水印/kicker 固定高對比淺色，不再跟著 sentiment 變成深底看不到的粉紅字。
@@ -190,6 +193,18 @@ def derive(title, narration=""):
         if len(pre) + len(key) + len(post) > 10:
             pre = pre[:max(0, 10 - len(key) - len(post))]
         d["hook_pre"], d["hook_key"], d["hook_post"] = pre, key, post
+        # 數字溯源閘門(2026-07-17 補)：LLM 寫的封面文字裡每一串數字都必須在標題裡找得到，
+        # 否則整包退保底(_heuristic 是切標題來的，數字結構上不可能超出標題)。
+        # 這道閘門 make_thumbnails.derive_cfg 早就有，但 daily_publish 優先走本檔 → 產線上被繞過；
+        # 且本檔 prompt 明示要「比特幣崩盤·18萬人爆倉」這種帶數字 kicker，等於在**鼓勵**它發明數字。
+        # 共用 mt 那支(參數化欄位名)，不在這裡複製第二份判斷邏輯。
+        try:
+            import make_thumbnails as mt
+            if not mt._numbers_traceable(d, title, fields=("kicker", "headline", "hook_pre", "hook_key", "hook_post")):
+                return fb
+        except Exception as e:  # noqa: BLE001 — 閘門載不到就退保底(安全側)，不是放行
+            print(f"[warn] 數字溯源閘門載入失敗({str(e)[:60]})→ 退保底文案", file=sys.stderr)
+            return fb
         return d
     except Exception as e:  # noqa: BLE001
         print(f"[warn] LLM 文案失敗，用保底：{str(e)[:70]}", file=sys.stderr)
@@ -356,34 +371,35 @@ def _market_bg(accent, seed="x", tall_band=False):
 
 # ───────────────────────── 誠實數據卡（只在有真/示意數字時才畫，見 compose_datacard） ─────────────────────────
 def _pick_card(slug, title, t):
-    """誠信鐵則：優先用 backtest_cards.json 的真回測數字(label=真回測)；否則用示意數字但誠實標
-    「示意回測」——絕不把『真實帳戶/真回測』字樣蓋在 AI 算圖或憑空編的數字上(B4④)。"""
+    """唯一的數據卡來源＝make_thumbnails._real_card()(事實庫 + 標的閘門 + 領域閘門 + 跨片去重)。
+    拿不到 → 回 None ＝ **這支片不掛數據卡**，由 compose_datacard 改走無卡版面(同 style=tech，已驗證)。
+
+    2026-07-17 拆除「示意回測」保底卡。它是本檔唯一會生出**沒有憑據的數字**的地方，且正是
+    閘門擋掉錯卡之後立刻補一張假卡的元兇——閘門形同虛設：
+      · pct 從 t["data"] 摳：那是 LLM 從**標題**抽的「亮點數據」，只保證「標題裡有這個數字」，
+        不保證它的**語意**是「回測總報酬」。實案 ydjxUdBRaIk：標題講的是兩檔標的的**相對差**，
+        卡上印成「回測總報酬(示意)+56%」——數字抄對了，意思是編的。
+      · 摳不到就寫死 "+82.4%"／"-32.0%"：純虛構。
+    「示意」二字不是免死金牌：把『真回測』錯卡換成『示意』錯卡是改標籤，不是修好。
+    誠信鐵則＝寧可封面沒有數字卡，也不要有一個編出來的數字。
+
+    label 一律沿用來源卡自己的(crypto→「真回測」/ tw→「台股實測」)，不在這裡覆寫——
+    舊碼無條件蓋成「真回測」，把 _build_tw_card 精挑的誠實標籤洗掉，是同一種 drift。
+    """
+    if t.get("style") != "real":
+        return None
     try:
         import make_thumbnails as mt
         real = mt._real_card(slug, title)
-        if real:
-            real = dict(real)
-            real["label"] = "真回測"
-            return real
-    except Exception:  # noqa: BLE001
-        pass
-    sent = t.get("sentiment", "up")
-    raw = (t.get("data") or "").strip()
-    digits = re.search(r"[\d.]+", raw)
-    if digits:
-        val = digits.group(0)
-        pct = f"{'+' if sent == 'up' else '-'}{val.lstrip('+-')}"
-        if "%" not in pct and "倍" not in pct:
-            pct += "%"
-    else:
-        pct = "+82.4%" if sent == "up" else "-32.0%"
-    return {
-        "label": "示意回測", "strat": "策略回測（示意）",
-        "metric": "回測總報酬（含回撤，示意）",
-        "pct": pct, "pct_color": "red" if sent == "down" else "green",
-        "mdd": "最大回撤　示意值", "range": "※非真實逐筆回測結果",
-        "note": "※示意回測，非真實獲利保證",
-    }
+    except Exception as e:  # noqa: BLE001
+        # 舊碼這裡是 `except: pass` 靜默吞掉 → 閘門一出事就無聲退回假卡。改成出聲+無卡(fail-safe)。
+        print(f"[warn] 取真數據卡失敗({str(e)[:70]})→ 本片不掛數據卡", file=sys.stderr)
+        return None
+    if not real:
+        print(f"[info] {slug}：事實庫/閘門無相符的真數據 → 不掛數據卡(絕不用示意數字頂替)",
+              file=sys.stderr)
+        return None
+    return dict(real)
 
 
 def _draw_vertical_card(img, card, accent):
@@ -392,8 +408,12 @@ def _draw_vertical_card(img, card, accent):
     PANEL, BORDER = (16, 21, 33), (46, 56, 80)
     INK2, GREY = (233, 239, 249), (138, 150, 174)
     GREEN, RED = (38, 214, 134), (240, 86, 96)
-    pct = card.get("pct", "+82.4%")
-    pc = (card.get("pct_color") or ("red" if str(pct).strip().startswith("-") else "green")).lower()
+    # 2026-07-17：舊碼 `card.get("pct", "+82.4%")` 又是一個寫死的保底數字——卡缺 pct 是**程式錯誤**，
+    # 不是可以拿虛構值頂替的情境。改成拋錯，讓呼叫端(make_cover)的 except 退回無數字的 K 線卡保底。
+    pct = str(card.get("pct") or "").strip()
+    if not pct:
+        raise ValueError("數據卡缺 pct——拒絕用保底數字頂替(誠信鐵則：寧可無卡，不可編數字)")
+    pc = (card.get("pct_color") or ("red" if pct.startswith("-") else "green")).lower()
     PCT_COL = RED if pc == "red" else GREEN
     x0, y0, x1, y1 = 90, 640, W - 90, 1500
     shadow = Image.new("RGBA", img.size, (0, 0, 0, 0))
@@ -404,7 +424,7 @@ def _draw_vertical_card(img, card, accent):
     px = x0 + 40
     for i, cc in enumerate([(240, 86, 96), (255, 184, 40), (38, 214, 134)]):
         d.ellipse([px + i * 30, y0 + 34, px + i * 30 + 18, y0 + 34 + 18], fill=cc)
-    d.text((px, y0 + 96), card.get("strat", "策略回測"), font=F(38), fill=INK2)
+    d.text((px, y0 + 96), str(card.get("strat") or "策略回測"), font=F(38), fill=INK2)
     lbl = card.get("label", "回測")
     lf = F(30)
     lb = d.textbbox((0, 0), lbl, font=lf); lw = lb[2] - lb[0]
@@ -417,16 +437,20 @@ def _draw_vertical_card(img, card, accent):
     d = ImageDraw.Draw(img, "RGBA")
     d.rounded_rectangle(pill_box, radius=10, outline=(*accent[:3], 255), width=1)
     d.text((pill_box[0] + 18, y0 + 96), lbl, font=lf, fill=(*accent[:3], 255))
-    d.text((px, y0 + 168), card.get("metric", "回測總報酬（含回撤）"), font=F(30), fill=GREY)
+    d.text((px, y0 + 168), str(card.get("metric") or "回測總報酬"), font=F(30), fill=GREY)
     pf = F(140)
     d.text((px + 3, y0 + 218), pct, font=pf, fill=(0, 0, 0, 130))
     d.text((px, y0 + 214), pct, font=pf, fill=PCT_COL)
     d.line([(px, y0 + 430), (x1 - 46, y0 + 430)], fill=BORDER, width=2)
     ry = y0 + 462
-    for label in (card.get("mdd", "最大回撤 -15.3%"), card.get("range", "夏普 4.8｜勝率 54%")):
-        d.text((px, ry), label, font=F(34), fill=INK2)
+    # 2026-07-17：舊碼的 default 是 "最大回撤 -15.3%" / "夏普 4.8｜勝率 54%" ——**寫死的假數字**，
+    # 卡少一個欄位就會憑空印出一組看起來很真的績效。改成沒有就不印那一行(空行不寫)。
+    for label in (card.get("mdd"), card.get("range")):
+        if not label:
+            continue
+        d.text((px, ry), str(label), font=F(34), fill=INK2)
         ry += 58
-    d.text((px, y1 - 58), card.get("note", "※歷史回測，非未來獲利保證"), font=F(26, False), fill=GREY)
+    d.text((px, y1 - 58), str(card.get("note") or "※歷史回測，非未來獲利保證"), font=F(26, False), fill=GREY)
 
 
 def _brand_footer(img, y):
@@ -463,7 +487,11 @@ def compose_datacard(t, slug, title):
     sent = t.get("sentiment", "up")
     accent, scrim_col = ACCENT, _scrim_tone(sent)
 
-    img = _market_bg(accent, seed=slug or title or "x", tall_band=(t.get("style") != "real")).convert("RGBA")
+    # 先決定有沒有卡，再決定版面：拿不到真數據(_pick_card→None)時走 tall_band 無卡版面，
+    # 讓走勢帶拉高填掉中段——否則會留下一塊 y=640~1500 的空洞(那正是舊碼非得補一張假卡的版面壓力)。
+    card = _pick_card(slug, title, t)
+
+    img = _market_bg(accent, seed=slug or title or "x", tall_band=(card is None)).convert("RGBA")
     _scrim(img, 470, 1330, scrim_col)
     _vignette(img, strength=140)
 
@@ -483,8 +511,7 @@ def compose_datacard(t, slug, title):
     d = ImageDraw.Draw(img, "RGBA")
     _separator(d, hline_y + 80, accent, pad=100)
 
-    if t.get("style") == "real":
-        card = _pick_card(slug, title, t)
+    if card:
         _draw_vertical_card(img, card, accent)
 
     # 底部鉤子(黃底按鈕) + 品牌浮水印+logo（金色統一，見 _brand_footer）

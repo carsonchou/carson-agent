@@ -437,10 +437,11 @@ def _crypto_card(low: str, slug: str = None):
         if chosen is None:
             # 2026-07-13 硬化：全部候選近期都出現過 → 不再「沿用重複數字」(那正是 Carson 抓到的
             # 「兩支不同影片數字一字不差」真實bug的根因)。誠信鐵則二選一都不能編數字，所以改成
-            # 「擋下這張真實數據卡」(回 None)，呼叫端(_real_card→make_cover._pick_card)會優雅
-            # 退回誠實標「示意回測」的卡，絕不會讓兩支影片頂著同一組『真回測』數字出街。
+            # 「擋下這張真實數據卡」(回 None)。
+            # 2026-07-17 更正本註解：舊版寫「呼叫端會優雅退回誠實標『示意回測』的卡」——那正是
+            # 繞過閘門的元兇(擋下真卡→立刻補一張編的數字)。示意卡已拆除，回 None ＝ 這支片不掛卡。
             print(f"[warn] 加密數據卡：近{_DEDUP_WINDOW}支已用完所有未重複的真實候選幣，"
-                  f"硬擋不產真回測卡(退回示意卡)，拒絕輸出重複數字", file=sys.stderr)
+                  f"硬擋不產卡(本片不掛數據卡)，拒絕輸出重複數字", file=sys.stderr)
             return None
     ret = chosen["total_return"] * 100
     mdd = chosen["max_drawdown"] * 100
@@ -591,10 +592,11 @@ def _build_tw_card(r: dict, slug: str = None, stock_key: str = None):
     if chosen_idx is None:
         # 2026-07-13 硬化：全部分支×指標組合近期都出現過 → 不再「沿用重複數字」(那正是
         # 「兩支不同影片縮圖數據卡三個數字一字不差」的真實bug根因)。誠信鐵則不能編數字，
-        # 所以改成「擋下這張真實數據卡」(回 None)，呼叫端優雅退回誠實標「示意回測」的卡，
-        # 絕不讓兩支影片頂著同一組『真回測』數字出街——這正是任務要求的「換指標仍重複就擋下不產」。
+        # 所以改成「擋下這張真實數據卡」(回 None)——「換指標仍重複就擋下不產」。
+        # 2026-07-17 更正本註解：舊版寫「呼叫端優雅退回誠實標『示意回測』的卡」——那是繞過閘門的
+        # 元兇(擋下真卡→立刻補一張編的數字)。示意卡已拆除，回 None ＝ 這支片不掛卡。
         print(f"[warn] 台股數據卡（{stock_key or '?'}）：近{_DEDUP_WINDOW}支已用完所有未重複的真實候選"
-              f"分支×指標組合，硬擋不產真回測卡(退回示意卡)，拒絕輸出重複數字", file=sys.stderr)
+              f"分支×指標組合，硬擋不產卡(本片不掛數據卡)，拒絕輸出重複數字", file=sys.stderr)
         return None
     pk, pv, pval, pkind = scored[chosen_idx]
     pct = f'{"+" if pval >= 0 else ""}{pval * 100:.1f}%'
@@ -973,15 +975,24 @@ def _decorate_debunk(cfg: dict, title: str) -> dict:
 _DIGITS_RE = _re.compile(r"\d+")
 
 
-def _numbers_traceable(d: dict, title: str) -> bool:
+_TRACEABLE_FIELDS = ("l1", "l2", "tag", "myth")   # 本檔 derive_cfg 的文案欄位(預設)
+
+
+def _numbers_traceable(d: dict, title: str, fields=_TRACEABLE_FIELDS) -> bool:
     """LLM 生的縮圖文字裡,每一串數字都必須在標題裡找得到;否則視為**憑空發明**,整包不採用。
 
     為什麼是「整包退回」而不是「把那個數字挖掉」:挖字會產生破碎殘句(本檔上面 hook 那條
     已經踩過一次),而且會**留下一個我們沒驗證過的句子**。退保底最乾淨——保底是切標題來的。
     ⚠️ 只比對數字,不比對文案:LLM 仍可自由發揮文字,它只是不准生數字。
+
+    2026-07-17：加 `fields` 參數讓 make_cover.derive() 能拿自己的欄位名(kicker/headline/hook_*)
+    共用**同一支**閘門。理由＝make_cover 原本完全沒有這道檢查(它的 LLM prompt 甚至明示要
+    「比特幣崩盤·18萬人爆倉」這種帶數字的 kicker),而 daily_publish 優先走 make_cover ——
+    等於這道閘門在產線上是被繞過的。複製第二份實作必然 drift(今晚已數不清第幾個實例),
+    故改成參數化共用。預設值＝本檔原欄位,既有呼叫端行為不變。
     """
     tnums = set(_DIGITS_RE.findall(title or ""))
-    for k in ("l1", "l2", "tag", "myth"):
+    for k in fields:
         for n in _DIGITS_RE.findall(str(d.get(k) or "")):
             if n not in tnums:
                 print(f"[warn] 縮圖 LLM 發明了標題沒有的數字 {n!r}(欄位 {k})→ 退保底,不採用",
