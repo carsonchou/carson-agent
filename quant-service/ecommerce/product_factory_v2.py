@@ -295,6 +295,28 @@ def load_checkup() -> dict:
         return {"results": {}, "by_code": {}}
 
 
+def elig_trusted(d: dict | None) -> bool:
+    """這份當沖適格清單可不可信(= 能不能拿來說「處置股 N 檔」)。
+
+    🔴 這是 M1 的安全線(2026-07-17 修):舊版 daytrade_eligibility.refresh() 是 **fail-OPEN**
+    —— TWSE 掛掉時 `_fetch_json` 吞成 `[]`,refresh() 照樣寫出 `{"disposition": []}`,
+    與「今天真的 0 檔處置股」**在檔案層面完全無法區分**。M1 的賣點是**報單前防呆**,
+    印出「處置股 0 檔」等於告訴當沖客「這檔可以沖」——安全清單上的 fail-open,有實害。
+    (上一版加的「快照日 + 距今 N 天」警語擋不住這個:今天日期、內容全空的檔看起來既新鮮又安全。)
+
+    契約與 data_hunter/daytrade_eligibility.is_trusted() 一致:
+      · 新格式有 `ok` 欄位 → 直接看它;
+      · 舊格式(2026-07-17 前)沒有 ok,而舊 refresh 抓不到也會寫空檔 → 全空一律當**不可信**,
+        有資料才當可信(那顯然是抓成功的)。
+    刻意不 import data_hunter 那支(跨專案硬依賴),但兩邊都有測試釘住同一套判定。
+    """
+    if not isinstance(d, dict) or not d:
+        return False
+    if "ok" in d:
+        return bool(d["ok"])
+    return bool(d.get("disposition") or d.get("attention"))
+
+
 def load_daytrade_elig() -> dict:
     files = sorted(TWDATA.glob("daytrade_eligibility_*.json"))
     if not files:
@@ -685,6 +707,15 @@ def build_M1(ctx) -> list[dict]:
     """L0 磁鐵:當沖適格清單(zh,PDF)。資料=最新 daytrade_eligibility。"""
     dt = ctx["daytrade"]
     if not dt:
+        return []
+    # 🔴 fail-CLOSED:清單不可信就**整支 SKU 不出**,絕不印「處置股 0 檔」。
+    # M1 的賣點就是報單前防呆;給錯的安全訊息比不給更糟(「0 檔」= 告訴人家這檔可以沖)。
+    # 這裡選擇不出檔而非出一份警語 PDF,因為這是**免費磁鐵**——沒有人在等它,
+    # 漏發一天零損失;發一份「查無資料」的空殼反而砸品牌。產線 log 會說明原因。
+    if not elig_trusted(dt):
+        print("  🔴 M1 跳過:當沖適格清單不可信(TWSE 抓取失敗或舊格式空檔)——"
+              "不出檔優於印出「處置股 0 檔」誤導當沖客。"
+              f"（檔案 {dt.get('_file', '?')}，ok={dt.get('ok')}，reason={dt.get('reason')}）")
         return []
     prov = Provenance()
     b = CFG.BRAND

@@ -151,6 +151,10 @@ def _penalties(m: dict, ctx: dict, room_R):
         flags.append("再進場需更強"); mult *= 0.85
     if m.get("disposition"):
         flags.append("處置分盤不可現沖"); critical = True
+    if m.get("elig_unverified"):
+        # 當沖適格清單(TWSE 處置/注意股)本輪抓不到 → 無法確認這檔能不能現沖。
+        # fail-closed:擋單。措辭是「無法確認」不是「處置分盤」——我們不知道,不能假裝知道。
+        flags.append("當沖適格清單抓取失敗·無法確認可否現沖"); critical = True
     if m.get("exec_ok") is False:
         flags.append("流動性不足"); critical = True
     return mult, flags, critical

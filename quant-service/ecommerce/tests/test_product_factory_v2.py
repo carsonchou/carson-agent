@@ -454,3 +454,54 @@ class TestXlsxCorrectness(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestM1FailClosed(unittest.TestCase):
+    """M1 是免費磁鐵、賣點=報單前防呆 —— 清單不可信時**絕不可以印「0 檔」**。
+
+    根因(2026-07-17):daytrade_eligibility.refresh() 舊版是 fail-OPEN,TWSE 掛掉時
+    寫出 `{"disposition": []}`,與「今天真的 0 檔」無法區分 → M1 會告訴當沖客這檔可以沖。
+    上一版加的「快照日+距今 N 天」警語擋不住:今天日期、內容全空的檔看起來既新鮮又安全。
+    """
+
+    def _ctx(self, dt):
+        c = dict(_ctx())
+        c["daytrade"] = dt
+        return c
+
+    def test_untrusted_list_produces_no_sku(self):
+        """ok=False(TWSE 抓取失敗)→ 整支 SKU 不出,不是出一份寫著 0 檔的 PDF。"""
+        dt = {"ok": False, "reason": "TWSE OpenAPI 抓取失敗", "updated": "2026-07-17T09:00:00",
+              "disposition": [], "attention": [], "_file": "daytrade_eligibility_20260717.json"}
+        self.assertEqual(pf.build_M1(self._ctx(dt)), [], "不可信卻照樣出檔 → 會印「處置股 0 檔」")
+
+    def test_legacy_empty_file_produces_no_sku(self):
+        """舊格式(無 ok)且全空 → 無法分辨「真 0 檔」與「抓取失敗」→ fail-closed 不出。"""
+        dt = {"updated": "2026-07-13T09:05:36", "disposition": [], "attention": [],
+              "_file": "daytrade_eligibility_20260713.json"}
+        self.assertEqual(pf.build_M1(self._ctx(dt)), [])
+
+    def test_genuine_zero_with_ok_true_still_ships(self):
+        """TWSE 回哨兵列 = 今天真的 0 檔處置股 → ok=True → **要出檔**(這是真實資訊,不是失敗)。
+        這條防止 fail-closed 過頭變成「永遠不出檔」。"""
+        dt = {"ok": True, "updated": "2026-07-17T09:00:00", "disposition": [], "attention": [],
+              "_file": "daytrade_eligibility_20260717.json"}
+        out = pf.build_M1(self._ctx(dt))
+        self.assertTrue(out, "可信的 0 檔應該正常出貨")
+
+    def test_normal_data_ships(self):
+        dt = {"ok": True, "updated": "2026-07-17T09:00:00",
+              "disposition": ["1101", "2330"], "attention": [],
+              "_file": "daytrade_eligibility_20260717.json"}
+        out = pf.build_M1(self._ctx(dt))
+        self.assertTrue(out)
+        self.assertIn("2330", "".join(out[0]["gate_units"]))
+
+    def test_elig_trusted_contract_matches_data_hunter(self):
+        """與 data_hunter/daytrade_eligibility.is_trusted() 同一套判定(兩邊各自有測試釘住)。"""
+        self.assertFalse(pf.elig_trusted(None))
+        self.assertFalse(pf.elig_trusted({}))
+        self.assertFalse(pf.elig_trusted({"ok": False, "disposition": ["2330"]}))
+        self.assertTrue(pf.elig_trusted({"ok": True, "disposition": []}))
+        self.assertTrue(pf.elig_trusted({"disposition": ["2330"]}))      # 舊格式有資料
+        self.assertFalse(pf.elig_trusted({"disposition": [], "attention": []}))  # 舊格式全空

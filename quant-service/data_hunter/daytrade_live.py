@@ -145,6 +145,8 @@ def build_universe(full: bool = True, use_cache_only: bool = True) -> list[dict]
                 "limit_up": round(pc * 1.1, 2), "limit_down": round(pc * 0.9, 2),
                 "consec_buy_days": crec.get("consec_buy_days") or 0,
                 "attention": st["attention"], "can_daytrade": st["can_daytrade"],
+                # 清單抓不到時 trusted=False → 下游擋單並說「無法確認」(不是謊稱它是處置股)
+                "elig_trusted": st.get("trusted", True),
                 "pscore": round(pscore, 3),
             })
         except Exception:
@@ -472,6 +474,9 @@ def scan_live(pool: list[dict], push: bool = True, now: datetime | None = None,
         m = dict(c)
         m["mkt_align"] = _mkt_align(c["dir"], regime["label"])
         m["disposition"] = not c.get("can_daytrade", True)
+        # 🔴 fail-closed:當沖適格清單抓不到時,**不知道**這檔是不是處置股 → 擋單。
+        # 刻意與 disposition 分開:謊稱 1900 檔全是「處置分盤」是假話,誠實的說法是「無法確認」。
+        m["elig_unverified"] = not c.get("elig_trusted", True)
         m["exec_ok"] = _exec_ok(quotes.get(c["code"]), c["dir"], cfg)
         ctx = {"regime": regime["label"], "tod": tod, "streak": _streak(),
                "minutes_to_close": minutes_to_close}
