@@ -282,6 +282,51 @@ def _set_bucket_plan(kind, total):
     _BUCKET_STATE[kind] = {"tw_stock": 0, "crypto": 0, "ai_tools": 0}
 
 
+# ── 事實層去重(2026-07-17 建)────────────────────────────────────────────────
+# 現況破口(2026-07-17 庫存複驗實測):既有去重**全都在包裝層**——_too_similar 比標題、
+# _ending/_body_too_similar 比旁白句、skeleton_dup_any 比標題骨架、_notorious_metaphor_hit
+# 比比喻——沒有任何一道在問「這支片講的是不是**同一個事實**」。
+# 實測題庫 1736 題裡 78 題帶 fact_key,其中 **26 個 fact_key 各掛著 2-3 個題目**,例如
+# allin_vs_dca_0050_10y 一個 key 掛 3 題:
+#   ①「0050一次All in vs定期定額10年結果大公開！年化24.7% vs 16.9%」
+#   ②「定期定額0050最慘賠22.6% vs All in賠33.8%！哪種適合你？」
+#   ③「『定期定額比較穩』是錯的？0050數據顛覆認知」
+# 三題措辭天差地遠(包裝層每一道都放行),但講的是**同一組回測**。`used` 旗標是**逐題**的、
+# 不是逐 fact_key,所以同一個 key 的第 2、3 題照樣會被抽出來各產一支 → 這就是「換殼不換內容」
+# 的產製端源頭(實測 EP 機器人日記 7 支只講 2 個事實、26天1.76% 一個事實產了 8 支)。
+# 這道在抽題階段就把「同 fact_key 已產過(且還在 window 內)」的題移出候選池 → 自然換下一題。
+# 為什麼是 window 不是永久封鎖:事實會隨資料更新(as_of)有新答案,隔一季拿新資料重測同一組
+# 是合理的連載素材(對齊 tw_lab_engine 每季 reset used_keys 的設計),那不是換殼。
+# 抽不到題不會停產:pull_topic 回 None → call_claude 自由生題(見 1586 行),不會產出重複片。
+_FACT_REUSE_WINDOW_DAYS = 90
+
+
+def _fact_dedup(cand, bank):
+    """濾掉『同 fact_key 近期已產過』的候選題,回過濾後的 cand。
+    fail-open:任何例外一律回原 cand——去重壞掉可以接受,把產線弄停不行。"""
+    try:
+        now = time.time()
+        win = _FACT_REUSE_WINDOW_DAYS * 86400
+        blocked = set()
+        for t in bank:
+            fk = str(t.get("fact_key", "") or "")
+            if not fk or not t.get("used"):
+                continue
+            ua = t.get("used_at")
+            # used_at 缺=舊題庫(標 used 時還沒記時間戳)→ 視為近期,保守擋掉。
+            # 這正是現在要治的那批(題庫全是近一個月的),新題從這版起都會帶 used_at。
+            if not isinstance(ua, (int, float)) or (now - ua) < win:
+                blocked.add(fk)
+        if not blocked:
+            return cand
+        out = [t for t in cand if str(t.get("fact_key", "") or "") not in blocked]
+        if len(out) < len(cand):
+            log_ops("補產部門", f"事實層去重:{len(cand) - len(out)} 題的 fact_key 近期已產過,換題避免換殼不換內容")
+        return out
+    except Exception:  # noqa: BLE001
+        return cand
+
+
 def pull_topic(kind):
     """從 STUDIO/topic_bank.json 取一個未用、符合格式的題目並標記為已用；無則回 None。
     讀寫一律走 topic_bank.load_bank/save_bank(原子寫+.bak 救命),避免併發寫互毀把整庫洗掉(2026-07 根因修復)。
@@ -308,6 +353,8 @@ def pull_topic(kind):
     if _sc.check_topic_frequency("news_liquidation", cap=2):
         cand = [t for t in cand if not _sc.is_liquidation_hijack(
             (t.get("title", "") or "") + (t.get("angle", "") or ""))]
+    # 2026-07-17 事實層去重:同一個 fact_key 近期已產過就換題(見 _fact_dedup 的根因說明)
+    cand = _fact_dedup(cand, bank)
     # 治本:①乾淨題優先於新聞旁路來源題(修「回測/你的」讓幣圈恐慌題誤命中 _NUM_KW 插隊贏過乾淨題的 bug)
     #       ②同組內再靠「數字戳破直覺」會紅題(完播高)優先;工具教學/純新聞題排後、自然餓死
     # 2026-07 成長衝刺(growth_sprint_plan.md B 段):台股/ETF/0050×定投對比×回測打臉直覺＝
@@ -392,6 +439,7 @@ def pull_topic(kind):
     if not chosen.get("bucket"):
         chosen["bucket"] = _chosen_bucket  # 補記錄,讓舊題目一經抽中就補齊 bucket 欄位供日後稽核
     chosen["used"] = True
+    chosen["used_at"] = time.time()  # 供 _fact_dedup 判斷「同 fact_key 是否近期已產過」的時間窗
     try:
         _tb.save_bank(bank)  # 原子寫,不再直接覆蓋
     except Exception:
