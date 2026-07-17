@@ -14,6 +14,8 @@
 from __future__ import annotations
 
 import hashlib
+import re
+from pathlib import Path
 from typing import Optional, Tuple
 
 import matplotlib
@@ -37,6 +39,85 @@ def _seeded_rng(seed: str) -> np.random.RandomState:
     return np.random.RandomState(h)
 
 
+# --------------------------------------------------------------------------- #
+# 真資料層(2026-07-17)
+#
+# 判準沿用 _backtest 拆除案:**圖只要在描繪「市場真實走勢」,就必須來自真資料;
+# 拿不到真資料就不畫那張圖**。絕不畫 rng 亂數線冒充行情。
+#
+# ⚠️ 「不畫」必須真的沒有圖。render_ffmpeg._make_seg_card 的降級鏈原本是
+#    concept → K線卡 → 字卡,而 K線卡(make_video._render_candles_strip)也是
+#    `rng.randn().cumsum()` 隨機漫步 —— 所以舊的「fail-safe 不畫」其實是
+#    「換一張假圖」。該處已同批改成 concept → 字卡(見那邊註解)。
+# --------------------------------------------------------------------------- #
+
+_FACTS_CACHE = Path(__file__).resolve().parent.parent / "STUDIO" / "tw_facts_cache"
+
+# 台股代號:00 開頭 ETF(0050/0056/00878/00631L…)或 4 位數個股(2330/2412…)。
+_TICKER_RE = re.compile(r"(00\d{2,3}[A-Z]?|[1-9]\d{3})")
+
+_REAL_CACHE: dict = {}
+
+
+def resolve_ticker(text: str) -> Optional[str]:
+    """從標題+旁白抓出「在 tw_facts_cache 有真實 CSV」的台股代號;抓不到→None。
+
+    只認**我們手上真的有價格檔**的代號 —— 講到 00929 但沒有 00929.csv 就回 None
+    (→ 不畫圖),不會拿別檔的資料頂替。
+    """
+    if not text:
+        return None
+    for m in _TICKER_RE.findall(text):
+        if (_FACTS_CACHE / f"{m}.csv").exists():
+            return m
+    return None
+
+
+def load_real(ticker: str):
+    """讀真實日收盤。回傳 (dates: np.ndarray[datetime64], close: np.ndarray) 或 None。"""
+    if ticker in _REAL_CACHE:
+        return _REAL_CACHE[ticker]
+    f = _FACTS_CACHE / f"{ticker}.csv"
+    if not f.exists():
+        return None
+    try:
+        import pandas as pd
+        df = pd.read_csv(f)
+        if "Date" not in df.columns or "Close" not in df.columns or len(df) < 30:
+            return None
+        df = df.dropna(subset=["Close"]).sort_values("Date")
+        out = (pd.to_datetime(df["Date"]).to_numpy(), df["Close"].to_numpy(dtype=float))
+    except Exception:  # noqa: BLE001 - 讀檔/解析任何問題一律當「沒有真資料」→ 不畫
+        return None
+    _REAL_CACHE[ticker] = out
+    return out
+
+
+class Ctx:
+    """畫圖上下文。real=(ticker, dates, close) 或 None(沒有真資料)。"""
+
+    __slots__ = ("rng", "direction", "real", "text")
+
+    def __init__(self, rng, direction, real, text):
+        self.rng = rng
+        self.direction = direction
+        self.real = real
+        self.text = text
+
+
+def _year_ticks(ax, dates, n_max=6):
+    """真實年份刻度 —— 有座標軸才能證明這是真資料(舊的裝飾圖 set_xticks([]) 全空)。
+    刻度標籤上色,否則預設黑字在深色底上看不見。"""
+    import pandas as pd
+    yrs = pd.DatetimeIndex(dates).year.to_numpy()
+    uniq = sorted(set(yrs.tolist()))
+    step = max(1, len(uniq) // n_max)
+    picks = uniq[::step]
+    ax.set_xticks([int((yrs == y).argmax()) for y in picks])
+    ax.set_xticklabels([str(y) for y in picks])
+    ax.tick_params(axis="x", colors=MUTED, labelsize=13, length=0)
+
+
 def classify(text: str) -> Optional[str]:
     """依關鍵字判斷主題；回傳概念 key 或 None。順序＝優先序（越專一越前面）。"""
     t = (text or "").lower()
@@ -44,12 +125,13 @@ def classify(text: str) -> Optional[str]:
     # 通用詞（波動/回測/虧損…）排後面，避免把真正主題搶走。
     rules = [
         ("martingale", ("馬丁", "凹單", "加碼攤平", "翻倍下注", "輸了加倍", "馬丁格爾")),
-        ("overfit", ("過擬合", "過度最佳化", "過度優化", "曲線擬合", "參數最佳", "最佳化參數", "90%參數")),
+        # ⚠️ 2026-07-17 移除 "overfit"：見下方 _overfit 拆除說明(與 _backtest 同物種,
+        #    rng 亂數冒充樣本內外驗證)。「過擬合/過度最佳化」現在不對應任何卡 → 不畫。
         ("compound", ("複利", "72法則", "72 法則", "利滾利", "錢滾錢", "本金翻倍")),
         ("dca", ("定投", "定期定額", "dca", "分批買", "攤平成本", "平均成本", "無腦買", "買在高點", "微笑曲線")),
         ("grid", ("網格", "格子單", "高賣低買", "低買高賣", "等差", "等比", "上下限", "區間來回", "震盪行情")),
-        ("winrate", ("勝率", "盈虧比", "期望值", "賺賠比", "賺多賠少", "大賺小賠")),
-        ("sharpe", ("夏普", "sharpe", "風險調整後", "報酬波動比")),
+        # ⚠️ 2026-07-17 移除 "winrate"(硬寫 42/58 假統計)、"sharpe"(rng 亂數線冒充夏普):
+        #    見各自拆除說明。「勝率/盈虧比/夏普」現在不對應任何卡 → 不畫。
         # ⚠️ 2026-07-17 移除 ("backtest", ("樣本外","樣本內","回測","out of sample","驗證期"))：
         #    見下方 _backtest 拆除說明。**不要因為「回測」是本頻道高頻詞就把它接回來**——
         #    那正是它中毒最深的原因(每支長片都講回測 → 每支都被畫上我們沒做過的樣本外驗證)。
@@ -97,15 +179,19 @@ def _direction(text: str) -> int:
 # 各主題畫法（在 ax 上作畫，座標自定，外觀統一在 _new_ax / _finish 處理）
 # --------------------------------------------------------------------------- #
 
-def _grid(ax, rng):
+def _grid(ax, ctx):
+    """網格交易【機制示意圖】—— 確定性,零 rng。
+
+    這不是「某檔的真實走勢」,而是「網格策略怎麼運作」的教學圖(像複利/馬丁那兩張數學圖)。
+    用確定性阻尼正弦波畫一個箱型震盪 —— 正弦波一看就是示意、不會被誤認成真實行情,
+    且完全確定性(不再 `rng.randn()` 假造價格序列)。真實市場走勢一律走 dca/trend/candle
+    /drawdown 那四張真資料圖。"""
     n = 220
     x = np.arange(n)
-    # 區間震盪價格：均值回歸（OU 過程），確保在固定箱型內來回、不漂走
+    # 確定性阻尼正弦:三個頻率疊加,在固定箱型內來回,不 rng
     lo_b, hi_b, mid = 94.0, 106.0, 100.0
-    price = np.empty(n)
-    price[0] = mid
-    for i in range(1, n):
-        price[i] = price[i - 1] + 0.10 * (mid - price[i - 1]) + rng.randn() * 1.1
+    t = x / n
+    price = mid + 5.2 * np.sin(2 * np.pi * 3.0 * t) + 1.6 * np.sin(2 * np.pi * 7.0 * t + 0.9)
     price = np.clip(price, lo_b + 0.3, hi_b - 0.3)
     levels = np.linspace(95, 105, 6)
     for lv in levels:
@@ -137,23 +223,30 @@ def _grid(ax, rng):
     return "區間來回．低買高賣", ("● 低買", GREEN, "● 高賣", RED)
 
 
-def _dca(ax, rng):
-    n = 160
-    x = np.arange(n)
-    dip = -22 * np.exp(-((x - 70) ** 2) / (2 * 26 ** 2))
-    price = 100 + dip + np.cumsum(rng.randn(n) * 0.35)
-    ax.plot(x, price, color=FG, lw=2.2, zorder=3)
-    buys_x = np.arange(8, n, 18)
-    buys_y = price[buys_x]
-    ax.scatter(buys_x, buys_y, s=60, color=GREEN, edgecolors="white",
-               linewidths=0.6, zorder=4)
-    avg = np.cumsum(buys_y) / np.arange(1, len(buys_y) + 1)
-    ax.step(buys_x, avg, where="post", color="#ffd23f", lw=2.0, zorder=3)
-    ax.set_xlim(0, n - 1)
-    return "逢低分批．拉低平均成本", ("● 每期買進", GREEN, "— 平均成本", (1, 0.82, 0.25))
+def _dca(ax, ctx):
+    """真實定期定額:用該檔真實日收盤,每月第一個交易日買進,畫真實平均成本線。
+    沒有真資料(抓不到有 CSV 的代號)→ 回 None → 不畫圖。"""
+    if not ctx.real:
+        return None
+    ticker, dates, px = ctx.real
+    import pandas as pd
+    di = pd.DatetimeIndex(dates)
+    # 每月第一個交易日的索引 = 真實扣款日
+    first = pd.Series(np.arange(len(di)), index=di).groupby([di.year, di.month]).first().to_numpy()
+    units = np.cumsum(1.0 / px[first])          # 每期投入 1 單位金額
+    avg_cost = np.cumsum(np.ones(len(first))) / units   # 真實平均成本
+    ax.plot(np.arange(len(px)), px, color=FG, lw=2.0, zorder=3)
+    ax.scatter(first, px[first], s=18, color=GREEN, edgecolors="none", zorder=4)
+    ax.step(first, avg_cost, where="post", color="#ffd23f", lw=2.2, zorder=5)
+    ax.set_xlim(0, len(px) - 1)
+    _year_ticks(ax, dates)
+    ret = (units[-1] * px[-1]) / len(first) - 1.0
+    return (f"{ticker} 每月定投．實際平均成本 {avg_cost[-1]:.1f} 元(總報酬 {ret*100:+.0f}%)",
+            ("● 每月買進", GREEN, "— 實際平均成本", (1, 0.82, 0.25)))
 
 
-def _compound(ax, rng):
+def _compound(ax, ctx):
+    """複利 vs 單利【機制示意圖】—— 確定性數學,零 rng,不宣稱任何真實標的。"""
     n = 120
     x = np.linspace(0, n, n)
     comp = 100 * (1.022) ** (x / 3)
@@ -166,54 +259,50 @@ def _compound(ax, rng):
     return "複利．時間越久越陡", ("— 複利", GREEN, "-- 單利", MUTED)
 
 
-def _drawdown(ax, rng):
-    n = 200
-    x = np.arange(n)
-    eq = 100 + np.cumsum(rng.randn(n) * 0.9 + 0.18)
-    ax.plot(x, eq, color=FG, lw=2.2, zorder=3)
+def _drawdown(ax, ctx):
+    """真實最大回撤:直接從該檔真實收盤算 peak→trough,標真實日期與跌幅。
+    沒有真資料 → 不畫(舊版是 rng 亂數 equity curve 卻標「最大回撤」,等於編一個沒發生的崩跌)。"""
+    if not ctx.real:
+        return None
+    ticker, dates, eq = ctx.real
+    import pandas as pd
+    x = np.arange(len(eq))
     run_max = np.maximum.accumulate(eq)
-    # 找最大回撤區段
-    dd = (eq - run_max)
+    dd = eq / run_max - 1.0
     trough = int(np.argmin(dd))
     peak = int(np.argmax(eq[: trough + 1])) if trough > 0 else 0
+    ax.plot(x, eq, color=FG, lw=2.0, zorder=3)
     ax.fill_between(x[peak:trough + 1], eq[peak:trough + 1], run_max[peak:trough + 1],
                     color=RED, alpha=0.28, zorder=2)
-    ax.scatter([peak, trough], [eq[peak], eq[trough]], s=60, color=RED,
+    ax.scatter([peak, trough], [eq[peak], eq[trough]], s=52, color=RED,
                edgecolors="white", linewidths=0.6, zorder=4)
-    ax.annotate("最大回撤", xy=(trough, eq[trough]), xytext=(0, -28),
-                textcoords="offset points", ha="center", color=RED, fontsize=15)
-    ax.set_xlim(0, n - 1)
-    return "賺得快不算贏．扛得住才算", None
+    d0 = pd.Timestamp(dates[peak]).date()
+    d1 = pd.Timestamp(dates[trough]).date()
+    ax.annotate(f"{dd[trough]*100:.1f}%", xy=(trough, eq[trough]), xytext=(0, -30),
+                textcoords="offset points", ha="center", color=RED, fontsize=16, fontweight="bold")
+    ax.set_xlim(0, len(eq) - 1)
+    _year_ticks(ax, dates)
+    return f"{ticker} 實際最大回撤 {dd[trough]*100:.1f}%({d0} → {d1})", None
 
 
-def _sharpe(ax, rng):
-    n = 160
-    x = np.arange(n)
-    smooth = 100 + np.cumsum(np.full(n, 0.16) + rng.randn(n) * 0.12)
-    jagged = 100 + np.cumsum(np.full(n, 0.16) + rng.randn(n) * 0.85)
-    ax.plot(x, smooth, color=GREEN, lw=2.6, zorder=3)
-    ax.plot(x, jagged, color=MUTED, lw=1.8, zorder=2)
-    ax.set_xlim(0, n - 1)
-    return "同樣報酬．波動越小越值錢", ("— 高夏普", GREEN, "— 低夏普", MUTED)
+# ─────────────────────────────────────────────────────────────────────────────
+# 🔴 _sharpe / _winrate 已於 2026-07-17 拆除(誠信)——不要重建。
+#
+# _sharpe:畫兩條 `rng.randn()` 隨機漫步,標「高夏普 / 低夏普」。夏普是**算出來的數字**,
+#   不是畫出來的形狀 —— 這張圖等於宣稱「我們算了這兩個策略的夏普」,而那兩條線是亂數。
+#   ⚠️ 若要復活:必須拿兩檔**真實**標的算真實夏普(tw_facts_computed.json 就有真值),
+#      不是畫兩條抖動幅度不同的亂數線。
+#
+# _winrate:硬寫 `vals = [42, 58]` 當「賺的單/賠的單」比例 —— 這是**編造的統計數字**,
+#   和昨晚抓到的「毛利率選股勝率31%」同一物種(見 memory yt-integrity-fabricated-stats-fix)。
+#   沒有任何回測產出過 42/58,它純粹是為了畫面好看填的。
+#
+# 兩者拆除後 classify 不再回這兩個 key → 該段不畫概念圖(fail-safe)。
+# ─────────────────────────────────────────────────────────────────────────────
 
 
-def _winrate(ax, rng):
-    cats = ["賺的單", "賠的單"]
-    vals = [42, 58]
-    colors = [GREEN, RED]
-    bars = ax.bar(cats, vals, color=colors, width=0.55, zorder=3,
-                  edgecolor="white", linewidth=0.5)
-    ax.plot([-0.4, 1.4], [50, 50], color=(1, 1, 1, 0.18), lw=1, zorder=1)
-    # 盈虧比箭頭：賺的單金額更大
-    ax.annotate("但賺的單\n抓更大", xy=(0, 42), xytext=(0, 70),
-                ha="center", color=GREEN, fontsize=15,
-                arrowprops=dict(arrowstyle="->", color=GREEN, lw=1.6))
-    ax.set_ylim(0, 90)
-    ax.set_xlim(-0.6, 1.6)
-    return "勝率低也能賺．靠盈虧比", None
-
-
-def _martingale(ax, rng):
+def _martingale(ax, ctx):
+    """馬丁格爾加倍下注【機制示意圖】—— 確定性數學(2^n),零 rng,不宣稱真實交易紀錄。"""
     n = 9
     x = np.arange(n)
     bet = 2.0 ** x
@@ -226,20 +315,22 @@ def _martingale(ax, rng):
     return "輸了就加倍．遲早一次清光", None
 
 
-def _overfit(ax, rng):
-    n = 160
-    x = np.arange(n)
-    split = 100
-    ins = 100 + np.cumsum(np.full(n, 0.42) + rng.randn(n) * 0.18)
-    out = ins.copy()
-    out[split:] = ins[split] + np.cumsum(np.full(n - split, -0.55) + rng.randn(n - split) * 0.5)
-    ax.axvline(split, color=(1, 1, 1, 0.18), lw=1.2, ls="--", zorder=1)
-    ax.plot(x[: split + 1], ins[: split + 1], color=GREEN, lw=2.6, zorder=3)
-    ax.plot(x[split:], out[split:], color=RED, lw=2.6, zorder=3)
-    ax.text(split * 0.5, ax.get_ylim()[1], "樣本內", ha="center", va="top", color=GREEN, fontsize=14)
-    ax.text(split + (n - split) * 0.5, ins[split], "樣本外", ha="center", color=RED, fontsize=14)
-    ax.set_xlim(0, n - 1)
-    return "回測完美．實盤打回原形", None
+# ─────────────────────────────────────────────────────────────────────────────
+# 🔴 _overfit 已於 2026-07-17 拆除(誠信)——不要重建。
+#
+# **它和 _backtest 是同一物種,昨晚只拆了 _backtest,漏了這支。**
+# 它畫一條 rng 亂數 equity curve,用 axvline 切成「樣本內 | 樣本外」,綠線轉紅,
+# 字卡寫「回測完美．實盤打回原形」。三個致命點與 _backtest 完全一致:
+#   1. **我們根本沒有樣本外驗證**(tw_facts_engine 全是全期間/近10年/固定崩盤區間,
+#      沒有任何一組做樣本內外切分)→ 這張圖在宣稱**一個我們沒有的嚴謹度**。
+#   2. 兩段曲線都是 `rng.randn()` 亂數 —— 純虛構。
+#   3. classify 的 "overfit" 命中詞含「過擬合/過度最佳化/曲線擬合」,而「拆穿過度擬合」
+#      正是本頻道避雷片的高頻主題 → 它會在**講別人造假的那支片裡**替我們造假。
+#
+# 判準同 _backtest(2026-07-17 定):方向是「自我設限」還是「膨脹」?宣稱一個沒有的
+# 嚴謹度 = 膨脹 = 紅線。
+# ⚠️ 若將來真的做了樣本內外切分:要畫的是**真實回測結果**(從事實庫讀),不是亂數。
+# ─────────────────────────────────────────────────────────────────────────────
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -261,46 +352,75 @@ def _overfit(ax, rng):
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def _trend(ax, rng, direction=0):
-    n = 170
-    x = np.arange(n)
-    # 方向跟旁白綁定：偵測到明確漲跌訊號就照旁白畫，沒有才退回原本隨機（A6-a）。
-    up = (direction > 0) if direction != 0 else (rng.rand() > 0.5)
-    drift = 0.42 if up else -0.42
-    price = 100 + np.cumsum(np.full(n, drift) + rng.randn(n) * 0.45)
-    col = GREEN if up else RED
-    ax.plot(x, price, color=col, lw=2.6, zorder=3)
-    ax.fill_between(x, price.min() - 2, price, color=col, alpha=0.10, zorder=1)
-    ax.set_xlim(0, n - 1)
-    return ("單邊噴出．網格反而踏空" if up else "單邊崩跌．網格越攤越深"), None
+def _trend(ax, ctx):
+    """真實單邊行情:從該檔真資料中,挑一段**方向與旁白一致**的真實區間放大。
+
+    舊版用 rng 亂數畫,方向靠擲骰 → 抓到過「圖在跌、旁白在講漲 1050%」。
+    現在改成:旁白說漲就去真資料裡找真實的漲段;找不到符合方向的真實區間 → **不畫**
+    (不會為了配合旁白而捏一段行情出來)。
+    """
+    if not ctx.real:
+        return None
+    ticker, dates, px = ctx.real
+    import pandas as pd
+    win = max(60, len(px) // 12)          # 取約一年的窗
+    if len(px) < win * 2:
+        return None
+    # 掃所有窗,算報酬;依旁白方向挑「最強的真實漲段/跌段」
+    starts = np.arange(0, len(px) - win, max(1, win // 4))
+    rets = np.array([px[s + win - 1] / px[s] - 1.0 for s in starts])
+    want_up = ctx.direction > 0
+    if ctx.direction == 0:
+        return None                        # 旁白沒有明確方向 → 不畫(不猜)
+    cand = rets > 0 if want_up else rets < 0
+    if not cand.any():
+        return None                        # 真資料裡沒有符合方向的區間 → 不畫
+    idx = int(starts[np.argmax(rets)] if want_up else starts[np.argmin(rets)])
+    seg = px[idx:idx + win]
+    col = GREEN if want_up else RED
+    ax.plot(np.arange(len(seg)), seg, color=col, lw=2.6, zorder=3)
+    ax.fill_between(np.arange(len(seg)), seg.min() * 0.98, seg, color=col, alpha=0.10, zorder=1)
+    ax.set_xlim(0, len(seg) - 1)
+    _year_ticks(ax, dates[idx:idx + win], n_max=3)
+    r = seg[-1] / seg[0] - 1.0
+    d0 = pd.Timestamp(dates[idx]).date()
+    d1 = pd.Timestamp(dates[idx + win - 1]).date()
+    return f"{ticker} 實際走勢 {d0} → {d1}({r*100:+.1f}%)", None
 
 
-def _candles(ax, rng):
-    n = 46
-    o = 100.0
-    xs, data = [], []
-    for i in range(n):
-        c = o + rng.randn() * 1.4 + 0.05
-        hi = max(o, c) + abs(rng.randn()) * 0.8
-        lo = min(o, c) - abs(rng.randn()) * 0.8
-        data.append((o, hi, lo, c))
-        xs.append(i)
-        o = c
-    for i, (op, hi, lo, cl) in enumerate(data):
+def _candles(ax, ctx):
+    """真實 K 線:用該檔真實日收盤合成的週線 OHLC(開=區間首日收、收=末日收、高低=區間極值)。
+    沒有真資料 → 不畫(舊版是 rng 隨機漫步蠟燭,純虛構)。"""
+    if not ctx.real:
+        return None
+    ticker, dates, px = ctx.real
+    import pandas as pd
+    tail = px[-260:] if len(px) >= 260 else px   # 近一年
+    dts = dates[-len(tail):]
+    grp = max(3, len(tail) // 46)                # 併成 ~46 根
+    bars = []
+    for i in range(0, len(tail) - grp + 1, grp):
+        w = tail[i:i + grp]
+        bars.append((w[0], w.max(), w.min(), w[-1]))
+    for i, (op, hi, lo, cl) in enumerate(bars):
         up = cl >= op
         col = GREEN if up else RED
         ax.plot([i, i], [lo, hi], color=col, lw=1.2, zorder=2)
-        ax.add_patch(Rectangle((i - 0.32, min(op, cl)), 0.64, max(abs(cl - op), 0.05),
+        ax.add_patch(Rectangle((i - 0.32, min(op, cl)), 0.64, max(abs(cl - op), 0.01),
                                color=col, zorder=3))
-    ax.set_xlim(-1, n)
-    return None, None
+    ax.set_xlim(-1, len(bars))
+    d0 = pd.Timestamp(dts[0]).date()
+    d1 = pd.Timestamp(dts[-1]).date()
+    return f"{ticker} 實際 K 線({d0} → {d1})", None
 
 
 _DISPATCH = {
-    "grid": _grid, "dca": _dca, "compound": _compound, "drawdown": _drawdown,
-    "sharpe": _sharpe, "winrate": _winrate, "martingale": _martingale,
-    # "backtest" 已拆除(2026-07-17,見 _backtest 拆除說明)——不要接回來。
-    "overfit": _overfit, "trend": _trend, "candle": _candles,
+    # 真資料圖(拿不到真 CSV → drawer 回 None → 不畫):
+    "dca": _dca, "drawdown": _drawdown, "trend": _trend, "candle": _candles,
+    # 機制示意圖(確定性數學/幾何,不宣稱真實市場史,零 rng):
+    "grid": _grid, "compound": _compound, "martingale": _martingale,
+    # 已拆除(2026-07-17,誠信):backtest / overfit(rng 假樣本外)、sharpe(rng 假夏普)、
+    # winrate(硬寫 42/58 假統計)。見各自拆除說明,不要接回來。
 }
 
 
@@ -366,13 +486,22 @@ def render_concept_chart(width: int, height: int, text: str, accent, seed: str,
     ax.set_yticks([])
     ax.grid(axis="y", color=(1, 1, 1, 0.06), lw=1)
 
-    # A6-a：偵測旁白正負向，餵給支援方向的圖(trend/backtest)，不支援的圖照舊(2 參數)。
-    direction = _direction(text)
-    import inspect
-    if len(inspect.signature(drawer).parameters) >= 3:
-        caption, legend = drawer(ax, rng, direction)
-    else:
-        caption, legend = drawer(ax, rng)
+    # 統一契約(2026-07-17):所有 drawer 收 (ax, ctx),回 (caption, legend) 或 None。
+    # ctx.real = (ticker, dates, close) 有真資料 / None 沒有。真資料圖(dca/trend/candle/
+    # drawdown)拿不到真資料就回 None → 這裡直接不出圖(fail-safe),絕不畫亂數頂替。
+    real = None
+    tk = resolve_ticker(text)
+    if tk:
+        rd = load_real(tk)
+        if rd is not None:
+            real = (tk, rd[0], rd[1])
+    ctx = Ctx(rng=rng, direction=_direction(text), real=real, text=text)
+
+    result = drawer(ax, ctx)
+    if result is None:            # drawer 判定「沒有真資料可畫」→ 不出概念圖
+        plt.close(fig)
+        return None
+    caption, legend = result
 
     # 圖說（圖下方、字幕安全區之上；見上方 ax 位置註解）。legend 已拿掉，不再畫。
     if caption:

@@ -168,14 +168,13 @@ def _make_seg_card(seg, i, *, width, height, watermark, accent, vid_seed, video_
     except Exception as exc:  # noqa: BLE001
         print(f"[warn] 概念圖失敗,退 K 線卡:{exc}", file=sys.stderr)
         card = None
-    if card is None:
-        try:
-            card = mv.render_candle_card(
-                width, height, big_text=seg.heading or "", watermark=watermark,
-                accent=accent, seed=f"{vid_seed}_{i}", dest=tmp_dir / f"kcard_{i:02d}.png")
-        except Exception as exc:  # noqa: BLE001
-            print(f"[warn] K 線卡失敗,退字卡:{exc}", file=sys.stderr)
-            card = None
+    # ⚠️ 2026-07-17 誠信:concept 回 None(拿不到真資料/主題無對應圖)時,**不再退 render_candle_card**。
+    #   K線卡的底圖是 make_video._render_candles_strip = `rng.randn().cumsum()` 隨機漫步(見該處
+    #   「價格隨機walk」註解)—— 那是一張滿版、看起來像真行情的假 K 線圖。concept 剛因為「沒有真資料」
+    #   而不畫,若立刻退到另一張亂數假圖,等於 fail-safe 是假的(這正是 concept_visuals.py:47 記的坑)。
+    #   改退純文字卡(render_card_image:標題+品牌底,資訊都在、不宣稱任何行情)。
+    #   註:render_card_image 的底圖仍有一條「淡」的裝飾性 rng 走勢線(make_video._card_background:722),
+    #      那是品牌紋理非資料圖(無座標軸/數字/標的),風險遠低於滿版假 K 線;列為後續清理項,不在本次範圍。
     if card is None:
         # 三級降級的最後一級本身也要防呆:字卡理論上最不該失敗,但若真的失敗(如字型載入炸掉),
         # 不能讓整個 render() 崩潰而拿不到 _encode_and_validate 的重試/不留壞檔機制。
