@@ -1342,44 +1342,75 @@ def _fmt_money(v) -> str:
 
 _CN_DIGIT = {"零": 0, "〇": 0, "一": 1, "二": 2, "兩": 2, "三": 3, "四": 4,
              "五": 5, "六": 6, "七": 7, "八": 8, "九": 9}
+_CN_UNIT_SMALL = {"十": 10, "百": 100, "千": 1000}   # 小節內單位（<萬）
+_CN_UNIT_BIG = {"萬": 10 ** 4, "億": 10 ** 8}        # 小節結算單位
 
 
-def _cn_int(s: str) -> int:
-    """中文整數→int（支援到百，如 六十一、一百、三十）。"""
-    s = s.strip()
+def _cn_int(s: str) -> Optional[int]:
+    """中文整數→int（個/十/百/千/萬/億）。**算不出來回 None，絕不回猜的值。**
+
+    🔴 2026-07-17 修：舊版只支援到「百」，且對看不懂的寫法**靜默回錯值而非丟例外**——
+    「一千」→0、「一千零五十」→10、「兩千三百」→100、「一千兩百三十四」→134。
+    根因有二：①完全沒有「千/萬/億」分支；②收尾 `return _CN_DIGIT.get(s, 0)` 把整串
+    當單字查表，查無就回 **0**——一個「查不到」被當成「答案是零」。
+    本頻道稿子一律用中文唸法寫數字餵 TTS（見 produce_batch._LONG_DATA_DISCIPLINE ③），
+    千量級是常態不是邊緣案例，而這條是 EP HUD **燒進畫面的「真數字」**來源。
+    誠信優先於產能：算不出來就回 None 讓 HUD 不顯示該欄，不要猜一個數字燒上畫面。
+    """
+    s = (s or "").strip()
     if not s:
-        return 0
-    if "百" in s:
-        a, _, b = s.partition("百")
-        h = (_CN_DIGIT.get(a, 1) if a else 1) * 100
-        if b.startswith("十"):
-            b = "一" + b
-        return h + _cn_int(b) if b else h
-    if "十" in s:
-        a, _, b = s.partition("十")
-        return (_CN_DIGIT.get(a, 1) if a else 1) * 10 + (_CN_DIGIT.get(b, 0) if b else 0)
-    v = 0
+        return None
+    if re.fullmatch(r"[0-9]+", s):
+        return int(s)
+    total = 0        # 已被 萬/億 結算掉的部分
+    section = 0      # 當前小節（<萬）累計
+    cur: Optional[int] = None   # 待搭配單位的數字
+    got = False
     for ch in s:
         if ch in _CN_DIGIT:
-            v = v * 10 + _CN_DIGIT[ch]
+            cur = _CN_DIGIT[ch]
+            got = True
+        elif ch in _CN_UNIT_SMALL:
+            unit = _CN_UNIT_SMALL[ch]
+            # 「十五」= 15：十 開頭省略的一才補 1；百/千 前面沒數字是壞寫法，別猜。
+            n = cur if cur is not None else (1 if unit == 10 else None)
+            if n is None:
+                return None
+            section += n * unit
+            cur = None
+            got = True
+        elif ch in _CN_UNIT_BIG:
+            section += cur or 0
+            total += (section or 1) * _CN_UNIT_BIG[ch]
+            section = 0
+            cur = None
+            got = True
         else:
-            return _CN_DIGIT.get(s, 0)
-    return v
+            return None   # 看不懂的字 → 回 None（舊版是回 0，那正是靜默錯值的來源）
+    if cur is not None:
+        section += cur
+    return total + section if got else None
 
 
-def _cn_num(s: str) -> float:
-    """中文數字（含『點』小數）→ float，如 八點二→8.2、三點三四→3.34。"""
-    if re.match(r"^[0-9]+(?:\.[0-9]+)?$", s):
+def _cn_num(s: str) -> Optional[float]:
+    """中文數字（含『點』小數）→ float，如 八點二→8.2、一千零五十→1050。
+    **算不出來回 None**（呼叫端必須用 `is not None` 判斷，不可用真假值——0 是合法值）。"""
+    s = (s or "").strip()
+    if re.fullmatch(r"[0-9]+(?:\.[0-9]+)?", s):
         return float(s)
-    if "點" in s:
-        a, _, b = s.partition("點")
-        ip = _cn_int(a) if a else 0
-        frac = "".join(str(_CN_DIGIT[ch]) for ch in b if ch in _CN_DIGIT)
-        try:
-            return float(f"{ip}.{frac}") if frac else float(ip)
-        except Exception:  # noqa: BLE001
-            return float(ip)
-    return float(_cn_int(s))
+    ip_s, dot, fr_s = s.partition("點")
+    ip = _cn_int(ip_s) if ip_s else 0
+    if ip is None:
+        return None
+    if not dot:
+        return float(ip)
+    frac = ""
+    for ch in fr_s:
+        if ch not in _CN_DIGIT:
+            return None   # 小數部分混進十/百/千（「八點二十」）→ 語意不明，別猜
+        frac += str(_CN_DIGIT[ch])
+    # 「百分之二十點，」這種吊尾的點：整數部分仍然確定，回整數不算猜。
+    return float(ip) if not frac else float(f"{ip}.{frac}")
 
 
 def _parse_experiment_numbers(text: str) -> dict:
@@ -1390,8 +1421,11 @@ def _parse_experiment_numbers(text: str) -> dict:
         return out
     t = text
     _num = r"[0-9]+(?:\.[0-9]+)?"
-    _cn = r"[零〇一二兩三四五六七八九十百點]+"
-    _gap = r"[^萬0-9零〇一二兩三四五六七八九十百]{0,3}"  # 填充但不吞數字
+    # 🔴 2026-07-17：字元類補上「千」。舊版漏千 → 「百分之一千七百四十六」只吃到「一」，
+    # HUD 燒 +1%（實案 S_EP6 台積電 All in，旁白講的是 1746%，畫面印 1%，差 1746 倍）。
+    # 「萬」不進字元類：它是量級錨點，在群組外被 `\s*萬` 收掉再乘 10000（「十萬」= _cn「十」×萬）。
+    _cn = r"[零〇一二兩三四五六七八九十百千點]+"
+    _gap = r"[^萬0-9零〇一二兩三四五六七八九十百千]{0,3}"  # 填充但不吞數字（含千，免得吃掉量級）
     # 本金：X萬（阿拉伯或中文）
     m = re.search(rf"(?:本金|丟|投入|拿|押){_gap}({_num})\s*萬", t)
     if m:
@@ -1399,33 +1433,32 @@ def _parse_experiment_numbers(text: str) -> dict:
     else:
         m = re.search(rf"(?:本金|丟|投入|拿|押){_gap}({_cn})\s*萬", t)
         if m:
-            out["principal"] = int(_cn_num(m.group(1)) * 10000)
+            _v = _cn_num(m.group(1))
+            if _v is not None:   # 轉不出來就不填 → HUD 不顯示本金（不猜）
+                out["principal"] = int(_v * 10000)
     # 報酬%（口語『百分之X』優先；退回『X%』）取最後一個（通常是結果），含正負語意
     # 正負詞與數字間允許短填充詞（「虧『了』百分之二十」「賠『掉』20%」）：舊版只允許空白，
     # 導致 t="虧了百分之二十" 抓不到『虧』→ HUD 燒 +20% 綠字,但旁白講的是倒賠 20%（號誌翻轉）。
     # 填充詞不得含數字/百（否則會跨過數字或吃掉「百分之」）,長度上限 2 避免亂攀遠處的正負詞。
-    _sgap = r"[^0-9零〇一二兩三四五六七八九十百%]{0,2}"
+    _sgap = r"[^0-9零〇一二兩三四五六七八九十百千%]{0,2}"
     _sgn = r"正|負|賺|獲利|報酬|漲|虧|賠|跌|少"
     pcs = list(re.finditer(rf"(?:({_sgn}){_sgap})?\s*百分之\s*({_num}|{_cn})", t))
     if not pcs:
         pcs = list(re.finditer(rf"(?:(正|負|賺|漲|虧|賠|跌){_sgap})?\s*({_num})\s*%", t))
     if pcs:
         g = pcs[-1]
-        try:
-            val = _cn_num(g.group(2))
+        val = _cn_num(g.group(2))
+        if val is not None:   # 轉不出來就不填 → HUD 不顯示報酬（不猜）
             if g.group(1) in ("負", "虧", "賠", "跌", "少"):
                 val = -val
             out["pct"] = val
-        except Exception:  # noqa: BLE001
-            pass
     # 天數：第X天 / Day X / X天（阿拉伯或中文）；取最大值（結局天數，避免「第一天」蓋過「第三十天」）
     _days = [int(float(x)) for x in re.findall(rf"(?:第|[Dd]ay)\s*({_num})", t)]
     _days += [int(float(x)) for x in re.findall(rf"({_num})\s*天", t)]
     for x in re.findall(rf"(?:第)?({_cn})\s*天", t):
-        try:
-            _days.append(int(_cn_num(x)))
-        except Exception:  # noqa: BLE001
-            pass
+        _v = _cn_num(x)
+        if _v is not None:   # 轉不出來就跳過這筆（不猜；別讓錯值進 max()）
+            _days.append(int(_v))
     if _days:
         out["days"] = max(_days)
     # 餘額：剩[下]X萬（阿拉伯或中文）
@@ -1435,7 +1468,9 @@ def _parse_experiment_numbers(text: str) -> dict:
     else:
         m = re.search(rf"剩[下]?{_gap}({_cn})\s*萬", t)
         if m:
-            out["balance"] = int(_cn_num(m.group(1)) * 10000)
+            _v = _cn_num(m.group(1))
+            if _v is not None:   # 轉不出來就不填 → HUD 不顯示餘額（不猜）
+                out["balance"] = int(_v * 10000)
     return out
 
 
