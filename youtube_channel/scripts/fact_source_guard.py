@@ -233,7 +233,10 @@ def extract_claims(text: str) -> list[dict]:
                     continue
                 # 假掛名數字的預過濾必須用**嚴容差**——寬容差會讓「38萬」在抽取階段就撞上
                 # 池裡的 38.9 被丟掉,後面的 assertion 嚴檢根本看不到它(2026-07-14 實案)。
-                if _sourced_strict(float(val), fact_pool()):
+                # 🔴 2026-07-17 單位化(A):這道預過濾是交接書「逃逸#2」的所在——
+                # 「少賺38萬」(金額)撞上池裡不相干的 38.9(百分比)就被丟掉,宣稱根本不會產生。
+                # 改成同單位子池後,金額只跟金額比 → 事實庫沒有個人損益級距的金額 → 存活到判定被擋。
+                if _sourced_unit(float(val), raw, fact_pool(), True):
                     continue
                 claims.append({"value": float(val), "raw": raw,
                                "clause": ("【假掛名·" + attr + "】" + cl.strip())[:100]})
@@ -351,11 +354,51 @@ _DIFF_CTX = ("少賺", "多賺", "差距", "相差", "差了", "竟差", "差多
 
 
 def _sourced(val: float, pool: set[float]) -> bool:
-    """這個數字在事實庫裡找得到(容差內)嗎?"""
+    """這個數字在事實庫裡找得到(容差內)嗎?(無單位版,保留作 fail-open 退路)"""
     for f in pool:
         if abs(f - val) <= max(TOL_ABS, f * TOL_REL):
             return True
     return False
+
+
+def _sourced_unit(val: float, raw: str, pool: set[float], strict: bool) -> bool:
+    """**單位感知溯源(2026-07-17 上線,即觀測模式量到的「變數A」)。**
+
+    治什麼:數字撞到**無關單位**的鄰居就被判「有憑據」——
+      實案①「多賺 37 萬」(金額)撞池裡的 36.8/37.1(百分比);
+      實案②已發布片口播台積電總報酬「8285.2%」(真值 8728.8%),被 8358.0/8433.0 佐證。
+    改法:金額只跟金額比、百分比只跟百分比比(同單位子池),容差政策一字不動。
+
+    🔴 **能力邊界——不要以為守門已經好了(這道只補一個洞):**
+      ✅ 治得了:數字**已經被抽取出來**、但撞到無關單位鄰居而誤判有憑據。
+      ❌ 治不了:**壓根沒進抽取器**的宣稱——一般句的金額(無「回測顯示」這類假掛名詞)
+         完全在雷達外(交接書逃逸#1,刻意取捨)。EP1「反而多賺三十七萬」就是這種,**本道抓不到**。
+      ❌ 治不了:被 **HEDGE 救援**的整句(EP6「假設每月投入1萬…多吃掉3.2萬」),
+         以及**子句無 PERF_CTX 詞**就不算績效宣稱(「吃掉」不在表內)。這兩道都在單位判定**之前**。
+      ⇒ EP1/EP6 那類「無假掛名詞的金額宣稱」**本道擋不住**,別把它當成已修。
+
+    🔴 **單調收緊(structurally monotone)——2026-07-17 上線前實測抓到的近失事故:**
+      第一版寫成「直接改用同單位子池判定」,結果 **9 支原本被擋的片變成放行** ——
+      包含「AI策略回測勝率90」「當沖勝率80」這些正是 2026-07-14 事故、被整十數規則擋下的編造片。
+      根因在**本檔自己**:`_UNIT_PCT_FRACTION` 會把 `year_return: 0.7973` ×100 = 79.73 放進 pct 子池,
+      但 79.73 **從來不在無單位池裡**(那裡只有 0.7973)——**單位化憑空製造了新憑據**,反而把守門放寬。
+      故本函式定義為 **`舊判定 AND 單位判定`**:單位化**只能拿掉憑據,永遠不能新增**。
+      這樣「只能收緊或中性」是**結構上保證**的,不必賭我的單位推斷完全正確
+      (推斷錯而多給憑據 → 被 AND 吃掉;推斷錯而少給憑據 → 就是觀測要量的誤殺)。
+
+    fail-open:單位池建不起來/不可信 → 退回舊的無單位行為。**守門自己壞掉絕不可以害停產。**
+    """
+    old = _sourced_strict(val, pool) if strict else _sourced(val, pool)
+    if not old:
+        return False          # 舊的就判無憑據 → 維持,單位化不可能把它救回來
+    try:
+        tp = typed_fact_pool()
+        # 單位池不可信(建置失敗、事實庫壞掉)→ 退回舊行為,而不是把全部片judged成無憑據
+        if sum(len(v) for v in tp.values()) < 10 or len(tp.get("pct", ())) < 10:
+            raise RuntimeError("typed pool 太小/不可信")
+        return _sourced_typed(val, _unit_of_claim(raw), tp, strict)[0]
+    except Exception:  # noqa: BLE001
+        return old
 
 
 _RX_OVER = re.compile(r"(超過|逾|突破|至少|不只)\s*$")   # 「超過五百」:真值須 ≥ 宣稱值
@@ -376,6 +419,22 @@ def _approx_kind(clause: str, raw: str) -> str:
     if _RX_NEAR.search(prefix):
         return "near"
     return ""
+
+
+def _unit_subpool(raw: str, pool: set[float]) -> set:
+    """近似詞豁免(「總報酬超過500%」)要查的池:同單位子池 **∩ 原池**。
+
+    交集是刻意的:同 _sourced_unit 的理由——單位子池含 ×100 正規化後的新值,
+    直接拿去給豁免路徑查會**新增憑據=放寬**。取交集保證這條豁免只會比原本更嚴。
+    壞掉 → 退回無單位池(fail-open)。
+    """
+    try:
+        tp = typed_fact_pool()
+        if sum(len(v) for v in tp.values()) < 10 or len(tp.get("pct", ())) < 10:
+            raise RuntimeError("typed pool 太小/不可信")
+        return set(tp.get(_unit_of_claim(raw), ())) & pool
+    except Exception:  # noqa: BLE001
+        return pool
 
 
 def _sourced_approx(val: float, kind: str, pool: set[float]) -> bool:
@@ -402,7 +461,8 @@ def unsourced_claims(text: str, pool: set[float] | None = None) -> list[dict]:
     # 0.1 步進幾乎連續 → 「少賺38萬」都找得到鄰居,守門變漏勺。
     # 正解:衍生值只有在**組成它的兩個原始數字就在同一篇文本裡**才算合法算術——
     # 「All in 1050% vs 定投479.5%,少賺570.5%」三個數字同場;單獨冒出的「少賺38萬」沒有原料,擋。
-    grounded = sorted({c["value"] for c in claims if _sourced(c["value"], pool)})
+    grounded = sorted({c["value"] for c in claims
+                       if _sourced_unit(c["value"], c["raw"], pool, False)})
 
     def _diff_ok_strict(val: float) -> bool:
         """嚴容差版文本內差值(給假掛名句用):組成數字同場 + 精度 max(0.25, 0.5%)。"""
@@ -448,14 +508,14 @@ def unsourced_claims(text: str, pool: set[float] | None = None) -> list[dict]:
             # (「回測顯示差距達434%」而文內就有 813.7 與 379.9,433.8≈434 精度 0.25 內 → 合法算術;
             # 「少賺38萬」文內湊不出 38±0.25 的精確差 → 編造照擋)。寬容差差值豁免仍然不給
             # (實測 38 曾被寬容差 1.0 的差值撈回)。
-            if _sourced_strict(c["value"], pool) or _diff_ok_strict(c["value"]):
+            if _sourced_unit(c["value"], c["raw"], pool, True) or _diff_ok_strict(c["value"]):
                 continue
             bad.append(c)
             continue
         if is_round10:
-            if _sourced_strict(c["value"], pool):
+            if _sourced_unit(c["value"], c["raw"], pool, True):
                 continue
-        elif _sourced(c["value"], pool):
+        elif _sourced_unit(c["value"], c["raw"], pool, False):
             continue
         in_diff = any(w in c["clause"] for w in _DIFF_CTX)
         # 差值語境 → 文本內驗算(組成數字必須在場);帶近似詞(「少賺近60%」)放寬到 ±15%
@@ -464,7 +524,8 @@ def unsourced_claims(text: str, pool: set[float] | None = None) -> list[dict]:
         # 口語近似詞 → 方向性查原始池,但**只限大數值(>100,報酬率類)**:
         # 「總報酬超過500%」(真值589)是修辭;「超過七成當沖客」(≤100,人群統計)沒有這種豁免
         # ——實測 over 對小數值會撞上池裡不相干的 82 之類,語義錯配放水。
-        if kind and c["value"] > 100 and _sourced_approx(c["value"], kind, pool):
+        if kind and c["value"] > 100 and _sourced_approx(c["value"], kind,
+                                                         _unit_subpool(c["raw"], pool)):
             continue
         bad.append(c)
     return bad
