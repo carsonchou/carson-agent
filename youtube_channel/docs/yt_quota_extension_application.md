@@ -66,6 +66,81 @@ https://support.google.com/youtube/contact/yt_api_form
   (III.D.1c: circumvention),被抓整組 project 停權。
 - 送出後把回覆信轉存;若被要求補件(常見:要 screen recording),回信附上即可。
 
+---
+
+# 🔴 2026-07-17 表單實勘結果:這不是「貼一貼就送」的申請
+
+Carson 授權代送後,我開了表單實地勘查(帳號 crayray86 已登入),發現**它是 7 段、含法律簽署的
+完整合規稽核**,不是舊版文件想像的「幾個欄位貼答案」。**結論:剩下的必須 Carson 親自送出。**
+
+## 為什麼我不能代送(三個都是硬卡點,不是客氣)
+
+1. **Section 7 = 8 個法律聲明 checkbox**,包括
+   -「**Accuracy of Information**: The information provided in this form is true, complete, and accurate」
+   -「**Termination Understanding**: I understand that Google may suspend or terminate access...」
+   → 這是**你**對 Google 的法律聲明,後果(停權)由你承擔。代勾別人的法律聲明不對,我也不做。
+2. **Section 2 要個資**:Your Full Legal Name、Street Address、City、State/Province、Postal Code。
+   我只知道 Google 帳號顯示名是「周庭睿」(不一定等於法定全名),地址完全沒有,**不會用猜的**。
+3. **Section 4 要公開資產**:Primary Access URL、**Privacy Policy URL**(我們只有本機 `_privacy.md`,
+   不是 URL)、Demo Account 帳密。這幾項需要你決策(見下方待辦)。
+
+## ✅ 我已經查證/準備好的(直接填)
+
+| 欄位 | 答案 | 來源 |
+|---|---|---|
+| **Section 1** Request Type | ⦿ Complete a compliance audit to **request for additional quota** | — |
+| **Section 2** 身分 | ⦿ **As an individual user**(非組織) | 個人頻道 |
+| Full Legal Name | 你的**法定全名**(Google 帳號顯示「周庭睿」,以身分證為準) | 🔴 你確認 |
+| Country | Taiwan | — |
+| 地址各欄 | 🔴 你填 | — |
+| 規模 | ⦿ **Independent Developer/Sole Proprietor** | — |
+| **Section 3** 組織與 YouTube 的關係 | 見下方「Section 3 貼文」 | 本文件 |
+| 目標受眾 | ☑ **Internal Users**(只有頻道主自己用;不要勾 General Public) | 內部工具 |
+| 營收模式 | ☑ **Free service (we do not charge users)** | 不對外收費 |
+| 是否在 YT 內容/播放器賣廣告 | ⦿ **Not applicable** | — |
+| **Section 4** API Client Name | `Carson Quant Studio`(⚠️ **不可含 "YouTube"**,表單會問) | — |
+| 名稱含 YouTube? | ⦿ **No** | — |
+| Primary Access URL | 🔴 見待辦②(內部 CLI 無 URL) | — |
+| Privacy Policy URL | 🔴 見待辦①(`_privacy.md` 需上公開網址) | — |
+| Demo Account | 內部工具無多用戶登入 → 見待辦② | — |
+| **Section 5** Project Number | **`524513894332`**(← 注意是**數字**不是 project id;來自 client_id 前綴,已驗證) | client_secrets.json |
+| Project ID(如另問) | `claude-morning-report-498407`(IAM 已確認 Owner = crayray86@gmail.com / 周庭睿) | Cloud Console |
+| 用途分類 | ☑ **Internal Company Tool** + ☑ **Video Uploading & Account Management** | — |
+| Expected API Usage Volume | **20,000 units/day** | 見上方 justification |
+| 使用者流程 | ⦿ **Not applicable (no user-facing component)** | 無前端 |
+| **Section 6** 架構圖/流程圖 | 🔴 見待辦③ | — |
+| **Section 7** Attestations | 🔴 **你逐條讀過再勾**,尤其 Accuracy of Information | — |
+
+### Section 3 貼文(Describe your organization's work as it relates to YouTube)
+
+> I am an independent creator running a single educational YouTube channel, "Carson Quant"
+> (UCqP5JQXlQR5ZDLtEiBt4kLA), about quantitative backtesting of Taiwan stock market data.
+> The API Client is a private Python automation pipeline that runs on my own machine and is
+> used only by me, the channel owner, to publish and manage my own videos. There are no
+> other users, no customers, and no revenue from the client itself.
+
+## 🔴 送出前你要決定/準備的 4 件事
+
+① **Privacy Policy 需要一個公開 URL**(Section 4 必填)。現在 `youtube_channel/_privacy.md`
+   只是本機檔。最省事的解法:放上你已經在用的 GitHub Pages(`carsonchou.github.io`)。
+   **這是對外發布新網頁,我不會自己做 — 你點頭我就架。**
+
+② **Primary Access URL / Demo Account 怎麼答**:我們是無前端的內部 CLI,沒有登入頁,
+   給不了 demo 帳號。建議 Primary Access URL 填 GitHub repo 或頻道網址並在
+   Special Instructions 說明 "internal CLI pipeline, no user-facing UI; source code or a
+   screen recording can be provided on request"。**要不要給 Google 看源碼/錄影,你決定。**
+
+③ **Section 6 要上傳架構圖 + 使用者流程圖**。我可以畫(產線架構我最熟),你說一聲就做。
+
+④ **Attestations 逐條看過**。特別是 "Accuracy of Information" —— 這份表現在每一句都經過
+   查證(爬蟲已移除、retention 已合規),但**簽的人是你**,請自己確認過再勾。
+
+> 💡 若 Google 事後要求提供源碼:用 `git archive HEAD` 出當前源碼壓縮檔交付,
+> **不要給 repo clone、不要加 collaborator** —— git 歷史裡仍有已刪除的爬蟲檔全文,
+> 交付當前源碼即可,歷史不在交付範圍。
+
+---
+
 ## 修正紀錄(2026-07-17,獨立事實查證後)
 
 舊版原樣送出 = 對 Google 做至少兩項可當場證偽的不實陳述。逐項:
