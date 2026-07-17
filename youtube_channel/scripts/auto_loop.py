@@ -234,17 +234,32 @@ def loop_winner(dry: bool) -> dict:
         return {"winners": len(winners), "added": 0, "error": str(e)[:120]}
 
     items = []
+    _forced_short = 0
     for v in variants[:WIN_VARIANTS]:
         title = (v.get("title") or "").strip()
         if not title:
             continue
+        # 🔴 2026-07-17 auto_winner 一律種短片(治「長片題100%沒憑據」的源頭)。
+        # 根因:這支的依據是「完播率贏家的角度」——那是**表現統計**,不是**事實庫的一組數字**;
+        # 它的 prompt 從頭到尾沒有 fact_key 概念、也沒有事實可綁,所以種出來的題結構上不可能有
+        # 憑據。上面 prompt 第③條寫了「查不到數據就選 short」,但那只是**求 LLM 自律**、沒有任何
+        # 程式碼在擋——實測結果:未用長片題 101 支裡 76 支出自 auto_winner 且 100% 無 fact_key,
+        # 被誠信 gate 擋掉的長片也 100% 出自這裡。短片 30-45 秒講一個觀念不必用數據撐滿,
+        # LLM 沒有「湊不滿十分鐘只好編」的壓力(長片才有),故降級成 short 而不是整個不種——
+        # 贏家角度本身是真的有價值的,只是不該拿去餵最會逼出編造的長片路徑。
+        # 要綁事實的贏家放大請走 winner_amplifier.py(它有 related_facts/fact_key 驗證機制)。
+        if str(v.get("format", "short")).lower().startswith("l"):
+            _forced_short += 1
         items.append({
             "title": title,
             "angle": (v.get("angle") or "").strip(),
             "category": (v.get("category") or "").strip(),
-            "format": v.get("format", "short"),
+            "format": "short",
             "priority": "auto_winner",
         })
+    if _forced_short:
+        print(f"① 贏家全押：{_forced_short} 支 LLM 想選 long 的已強制降為 short"
+              f"(auto_winner 無事實可綁,長片必被誠信守門擋→白燒產能;要長片走 winner_amplifier)。")
 
     added = 0
     if items:

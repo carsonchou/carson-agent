@@ -381,13 +381,26 @@ def _ep_topic_like(t):
     return any(k in str(t.get("title", "") or "") for k in ("EP", "實測", "實驗"))
 
 
-def _ep_stale_filter(cand):
+def _ep_stale_filter(cand, kind="short"):
     """EP 事實 guard：ep_data 的真數字沒更新 → 把會被當成 EP 的候選題濾掉,這批自然抽別的題。
     這是「不產」而不是「換個標題再產一支」：EP 系列報的是單一真實帳戶,事實沒動就沒有新的一集。
     擋在選題層(而不是寫稿後)有兩個好處：不燒 LLM token、且 pull_topic 會直接挑到別的乾淨題,
     產線量不受影響(實測題庫 740 個未用短片候選中只有 88 個會命中,約 12%)。
     pionex 帶進新數字 → 指紋改變 → fact_is_fresh 回 True → EP 題自動恢復,不需人工解封。
-    fail-open：guard 自己壞掉一律回原 cand——去重壞掉可以接受,把產線弄停不行。"""
+    fail-open：guard 自己壞掉一律回原 cand——去重壞掉可以接受,把產線弄停不行。
+
+    🔴 2026-07-17 只對 short 生效(修長片路徑的誤殺)。根因＝本檔上面那句「判定條件刻意與
+    call_claude 的 is_ep 保持一模一樣,兩邊漂移的話 guard 就會有破口」——實際上真的漂了,而且
+    是反方向的破口:is_ep 第一個條件就是 `kind == "short"`(EP 實測 franchise 是純 Shorts 系列,
+    長片根本不會套 EP_RULES/ep_engine),但 _ep_topic_like 沒有這個條件,於是長片路徑也被這道
+    guard 篩。後果:個股體檢系列標題是「個股體檢EP7台積電2330：…」,含「EP」→ 命中
+    _ep_topic_like → 被「pionex 帳戶數字沒更新」這個**完全無關**的理由擋掉。而個股體檢綁的是
+    checkup_ 前綴 fact_key(FinMind 基本面),跟 pionex 帳戶毫無關係,是全頻道**唯一可持續的
+    有憑據長片題源**。實測(sim_pull):明天 8 支長片需求裡有憑據題被抽中 0 支,19 題候選被這道
+    誤殺,產線只好全抽 auto_winner 的無憑據題 → 寫稿時編數字 → 渲染完才被發布端擋。
+    對 short 的保護力完全不變(is_ep 只在 short 觸發,那裡才是這道 guard 真正該守的地方)。"""
+    if kind != "short":
+        return cand
     try:
         import ep_engine
         if ep_engine.fact_is_fresh():
@@ -433,7 +446,9 @@ def pull_topic(kind):
     # 排在 _fact_dedup 之後:那道只擋「同 key 近期已產過」,擋不到「同一組回測的另一個名字」。
     cand = _legacy_fact_filter(cand)
     # 2026-07-17 EP 事實 guard:EP 題沒有 fact_key,上面那道擋不到(見 _ep_stale_filter 的根因說明)
-    cand = _ep_stale_filter(cand)
+    # 帶 kind:EP 實測 franchise 只在 short 觸發(call_claude 的 is_ep 第一個條件就是 kind=="short"),
+    # 長片路徑套這道只會誤殺「個股體檢EPn」這種同樣含 EP 但綁 checkup_ fact_key 的有憑據長片題。
+    cand = _ep_stale_filter(cand, kind)
     # 治本:①乾淨題優先於新聞旁路來源題(修「回測/你的」讓幣圈恐慌題誤命中 _NUM_KW 插隊贏過乾淨題的 bug)
     #       ②同組內再靠「數字戳破直覺」會紅題(完播高)優先;工具教學/純新聞題排後、自然餓死
     # 2026-07 成長衝刺(growth_sprint_plan.md B 段):台股/ETF/0050×定投對比×回測打臉直覺＝

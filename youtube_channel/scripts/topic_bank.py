@@ -276,7 +276,13 @@ def add_topics(items, source="", front=False):
         # tw_lab_key/tw_lab_next_key：台股真相實驗室 franchise 用來記「這題對應事實庫哪一組真回測」，
         # produce_batch.py 靠這個 key 精準抓那一組數字注入寫稿 prompt(不是靠關鍵字模糊比對)——
         # 沒有這個透傳，題目一旦從題庫抽出來就跟原始事實斷了連結。
-        for k in ("parent", "news", "priority", "tw_lab_key", "tw_lab_next_key"):
+        # 🔴 2026-07-17 fact_key 補進透傳(治長片編數字的根因之一)：這行原本漏了 fact_key，
+        # 導致**任何**走 add_topics 的來源都會被無聲剝掉 fact_key——winner_amplifier
+        # build_bank_records() 明明驗證過 `fk in facts` 才寫 rec["fact_key"]，卻在 add_topics
+        # 這裡被丟掉,那段驗證等於死碼。唯二有 fact_key 的來源(facts_engine/stock_checkup_daily)
+        # 是因為它們**繞過 add_topics**直接 save_bank 才活下來。fact_key 由呼叫端負責驗證
+        # (winner_amplifier 已驗;沿用既有透傳慣例,不在題庫層再載事實庫增加耦合)。
+        for k in ("parent", "news", "priority", "tw_lab_key", "tw_lab_next_key", "fact_key"):
             if t.get(k):
                 rec[k] = t[k]
         new_recs.append(rec)

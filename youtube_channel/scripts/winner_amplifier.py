@@ -347,7 +347,8 @@ def build_bank_records(cands: list, existing_norms: set, existing_titles: list, 
     """對 LLM 產出的候選逐一過：禁用骨架 → 精確去重 → 骨架相似去重 → fact_source_guard 溯源。
     回傳 (可寫入的 record dict list, rejected dict)。不在此處實際寫檔(main 統一寫，方便 --dry 測)。"""
     keep = []
-    rejected = {"banned": [], "exact_dup": [], "skeleton_dup": [], "unsourced": []}
+    rejected = {"banned": [], "exact_dup": [], "skeleton_dup": [], "unsourced": [],
+                "long_downgraded": []}  # long_downgraded 非拒絕:題目仍入庫,只是被降級成 short
     for c in cands:
         title = str(c.get("title") or "").strip()
         if not title:
@@ -368,7 +369,16 @@ def build_bank_records(cands: list, existing_norms: set, existing_titles: list, 
             continue
         angle = str(c.get("angle") or "").strip()
         category = str(c.get("category") or "").strip()
-        fmt = "long" if str(c.get("format", "")).lower().startswith("l") else "short"
+        fk = str(c.get("fact_key") or "").strip()
+        # LLM 可能幻覺出一個看似合理但不存在的 fact_key，存進題庫前先驗證真的查得到
+        fk_ok = bool(fk and fk in facts)
+        # 🔴 2026-07-17 長片必須綁事實(治長片題無憑據的源頭)。
+        # 上面的 fsg.unsourced_claims() 只驗**標題裡出現的數字**——題目寫成「定投到底該不該停利?」
+        # 這種一個數字都沒有的概念題會直接放行,但它沒有 fact_key,寫稿時 LLM 要撐滿十分鐘、
+        # 手上沒有任何真數據,就自己長出「勝率90%」「年化八十」。短片沒這個壓力(30-45秒講一個
+        # 觀念),故無憑據時降級 short 而不是丟棄,避免白白扔掉已驗證會紅的贏家角度。
+        want_long = str(c.get("format", "")).lower().startswith("l")
+        fmt = "long" if (want_long and fk_ok) else "short"
         rec = {
             "title": title,
             "angle": angle,
@@ -376,9 +386,11 @@ def build_bank_records(cands: list, existing_norms: set, existing_titles: list, 
             "format": fmt,
             "source": "winner_amplifier",
         }
-        fk = str(c.get("fact_key") or "").strip()
-        if fk and fk in facts:  # LLM 可能幻覺出一個看似合理但不存在的 fact_key，存進題庫前先驗證真的查得到
+        if fk_ok:
             rec["fact_key"] = fk
+        if want_long and not fk_ok:
+            # 註:這不是「拒絕」——題目仍以 short 入庫,只是不准走長片路徑,故分開計數不併入拒絕數
+            rejected["long_downgraded"].append(title)
         keep.append(rec)
         existing_norms.add(n)
         existing_titles.append(title)
@@ -482,7 +494,13 @@ def main() -> int:
             print(f"     ✅ [{rec['bucket']}] {rec['title']}")
             print(f"        angle={rec['angle']}  fact_key={rec.get('fact_key','(無)')}  format={rec['format']}")
         rej = r["rejected"]
-        n_rej = sum(len(v) for v in rej.values())
+        if rej.get("long_downgraded"):
+            print(f"     ⬇ {len(rej['long_downgraded'])} 題 LLM 想選 long 但查無對應 fact_key,"
+                  f"已降級為 short(長片必須綁事實,否則寫稿會編數字):")
+            for t in rej["long_downgraded"][:3]:
+                print(f"        · {t}")
+        # long_downgraded 不算拒絕(題目仍入庫),不併入拒絕數
+        n_rej = sum(len(v) for k, v in rej.items() if k != "long_downgraded")
         if n_rej:
             print(f"     拒絕 {n_rej} 題：禁用骨架{len(rej['banned'])} 完全重複{len(rej['exact_dup'])} "
                   f"骨架相似{len(rej['skeleton_dup'])} 數字查無來源{len(rej['unsourced'])}")
