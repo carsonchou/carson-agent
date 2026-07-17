@@ -837,8 +837,11 @@ def sec_S5(valdoc: dict, nmap: dict, imap: dict | None = None) -> dict:
     top_ind = sorted(inds.items(), key=lambda kv: -kv[1])[:2]
     conc = ""
     if top_ind and top_ind[0][1] >= 2:
+        # 印出來的每個數字都要綁 —— 原本只綁了第一名產業,第二名(如「紡織纖維 2 檔」)
+        # 與總檔數印了卻沒進存證。稽核者看到報告上的數字卻在存證檔查不到,就是破口。
         _bind(prov, "derived:Top15 榜單的 twstock 產業別計數",
-              **{f"top15_industry_count[{top_ind[0][0]}]": top_ind[0][1]})
+              **{f"top15_industry_count[{k}]": v for k, v in top_ind})
+        _bind(prov, "derived:S5 殖利率 Top 榜長度", top15_listed_n=len(top_y))
         parts = "、".join(f"{k} {v} 檔" for k, v in top_ind)
         conc = (f'本期 Top 15 的產業分布集中在 <b>{_esc(parts)}</b>(共 {len(top_y)} 檔)。')
     warn = (f'<div class="block" style="margin-top:11px"><div class="bt">讀這張表之前(風險揭露)</div>'
@@ -1272,18 +1275,30 @@ def gate_or_degrade(section: dict) -> dict:
 # ══════════════════════════════════════════════════════════════════════════════
 #  HTML 組裝 + 分頁 + 渲染
 # ══════════════════════════════════════════════════════════════════════════════
-def _cover_html(state: dict, sections: list[dict], week_label: str, tier: str) -> str:
+def _cover_html(state: dict, sections: list[dict], week_label: str, tier: str,
+                prov: Provenance | None = None) -> str:
     g = state.get("gauge", {}) or {}
     n_sec = sum(1 for s in sections if not s.get("degraded"))
     wave_n = len(state.get("wave_top", []) or [])
     sect_n = len(state.get("sectors", []) or [])
+    # 封面上印的數字也要綁 —— 「每個寫進商品的數字都可回查」不能因為它在封面就豁免
+    # (原本 1001 檔 / 34 類 印了卻不在存證檔裡,是稽核破口)。
+    if prov is not None:
+        _bind(prov, "state.json:wave_top/sectors 的筆數",
+              scanned_stocks_n=wave_n, sectors_n=sect_n, sections_ok_n=n_sec)
     tr = state.get("track", {}) or {}
     b = CFG.BRAND
     sub = CFG.SUBSCRIPTION
     tinfo = sub["full"] if tier == "full" else sub["basic"]
-    price = (f'訂閱:{sub["basic"]["name_zh"]} NT${sub["basic"]["ntd_month"]}/月　·　'
-             f'{sub["full"]["name_zh"]} NT${sub["full"]["ntd_month"]}/月　·　'
-             f'{sub["annual"]["name_zh"]} NT${sub["annual"]["ntd_year"]}/年')
+    # 停售的層級不印在封面(年繳 enabled=False)。無條件印 = 每份寄給訂閱者的週報
+    # 封面都在推銷一個 Carson 已拍板停售的方案 —— 與 landing/文案/pin 同一個
+    # 「config 說停售、產物還在賣」的不同步病(2026-07-17 一併結構性收掉)。
+    _tiers = [f'{sub["basic"]["name_zh"]} NT${sub["basic"]["ntd_month"]}/月',
+              f'{sub["full"]["name_zh"]} NT${sub["full"]["ntd_month"]}/月']
+    _ann = sub.get("annual") or {}
+    if _ann.get("enabled") is not False and _ann.get("ntd_year"):
+        _tiers.append(f'{_ann["name_zh"]} NT${_ann["ntd_year"]}/年')
+    price = "訂閱:" + "　·　".join(_tiers)
     return f'''<section class="page cover">
   <div class="frame"></div>
   <div class="inner">
@@ -1384,7 +1399,8 @@ _PAGINATE_JS = '''<script>
 </script>'''
 
 
-def build_html(state: dict, sections: list[dict], week_label: str, tier: str) -> str:
+def build_html(state: dict, sections: list[dict], week_label: str, tier: str,
+               cover_prov: Provenance | None = None) -> str:
     css = THEME_CSS.read_text(encoding="utf-8")
     b = CFG.BRAND
     product = b["product_zh"]
@@ -1395,7 +1411,7 @@ def build_html(state: dict, sections: list[dict], week_label: str, tier: str) ->
     for s in visible:
         unit_html.extend(s["units"])
     unit_html.append(_disclaimer_unit(state, visible))
-    cover = _cover_html(state, visible, week_label, tier)
+    cover = _cover_html(state, visible, week_label, tier, prov=cover_prov)
     pagetpl = _page_template(b, product, week_label)
     return f'''<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8">
 <title>{_esc(b["name_zh"])} {_esc(product)} {_esc(week_label)}</title>
@@ -1570,7 +1586,8 @@ def generate_weekly(tier: str = "full", out_dir: Path | None = None,
 
     d = state.get("date") or TODAY.isoformat()
     week_label = f"{d}(本週)"
-    html = build_html(state, sections, week_label, tier)
+    cover_prov = Provenance()          # 封面自己的存證(併進 dump 的 COVER 段)
+    html = build_html(state, sections, week_label, tier, cover_prov=cover_prov)
 
     stamp = TODAY.isoformat()
     base = out_dir / f"weekly_{stamp}_{tier}"
@@ -1583,6 +1600,8 @@ def generate_weekly(tier: str = "full", out_dir: Path | None = None,
     visible = [s for s in sections
                if tier == "full" or CFG.SECTION_TIERS.get(s["id"]) == "basic"]
     prov_records = []
+    for rec in cover_prov.records:          # 封面的數字也要進稽核檔
+        rec = dict(rec); rec["section"] = "COVER"; prov_records.append(rec)
     for s in visible:
         for rec in s["prov"].records:
             rec = dict(rec); rec["section"] = s["id"]; prov_records.append(rec)
