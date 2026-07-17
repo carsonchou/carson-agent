@@ -27,9 +27,20 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 40 5 * * * /root/yt/run.sh scripts/topics_from_facts.py --min-tw 60 >> /root/yt/logs/cron.log 2>&1
 # 個股體檢每日出集(2026-07-15任務，Carson拍板：台股1900多檔一隻發一集)：backlog依成交值排序
 # 撈下一檔→算基本面(FinMind)+價格體檢事實→種高優先長片題目進題庫，排在補題(05:40)之後、
-# 決策(05:37前)之後、製作(06:07)之前，讓當天製作能自然抽到新種的題。FinMind免費層每天只處理
-# 1檔(--count預設1)，絕不暴衝rate limit；冪等(當天已跑過會跳過，見 stock_checkup_daily_state.json)。
-50 5 * * * /root/yt/run.sh scripts/stock_checkup_daily.py >> /root/yt/logs/cron.log 2>&1
+# 決策(05:37前)之後、製作(06:07)之前，讓當天製作能自然抽到新種的題。
+# 🔴 2026-07-17 實測解封 --count 1 → 8(這是長片供給的命脈:一檔=一個**綁 fact_key、結構上不可能
+#   編造**的長片題,而長片是唯一計入 YPP 4000 小時的格式;backlog 尚有 1911 檔 ≈ 240 天)。
+#   舊註解寫「FinMind免費層每天只處理1檔，絕不暴衝rate limit」是**沒實測過的保守假設**,兩點錯:
+#   ①限制是 **300 requests/小時**不是每天(官方 finmind.github.io/quickstart:無token 300/hr、
+#     有token 600/hr、超量回 HTTP 402;本專案未設 FINMIND_TOKEN → 300/hr 這層)。
+#   ②**一檔只打 4 個 call**(MonthRevenue/FinancialStatements/Dividend/PER;財報那支被 EPS 與
+#     毛利率共用靠快取只打1次。TaiwanStockInfo 全市場表7天快取共用;價格走 yfinance 不吃 FinMind)。
+#   實測(2/3/8 檔各跑一輪,累計 52 個 call):**全 HTTP 200、零 402、零限流**,單次請求 avg 0.31s,
+#   且第52個call與第1個一樣快(無退化)。--count 8 = 32 call = 每小時額度的 **11%**;最壞情況
+#   (8成功+5失敗)=52 call=17%。耗時實測 8 檔 **5.4 分**(05:50→約05:55),離 06:07 製作批 11 分餘裕。
+#   ⚠️ 配套:同時修好 stock_checkup_daily.py 的 MAX_ATTEMPTS(原本把成功也算進「嘗試」預算,
+#      --count>5 會無聲只做5檔,改成 MAX_FAILS 失敗預算)——沒那個修,這裡寫 8 只會拿到 5。
+50 5 * * * /root/yt/run.sh scripts/stock_checkup_daily.py --count 8 >> /root/yt/logs/cron.log 2>&1
 # 2026-07-17 格式翻轉:產出配比 5短3長 -> 3短5長。**承重理由是政策事實,不是統計**:
 #   ①【硬事實】Shorts 觀看**不計入** YPP 的 4,000 watch hours。標準路徑 66hr/4000=1.7%
 #     已比 Shorts 路徑 25k/1000萬=0.25% 近 7 倍 → 長片是唯一同時餵訂閱與觀看時數的格式。

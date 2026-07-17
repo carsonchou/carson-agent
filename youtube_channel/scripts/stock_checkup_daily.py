@@ -18,8 +18,17 @@
      這些題目的 fact_key 天生帶 checkup_ 前綴 → produce_batch.pull_topic() 的 _rank() 已把
      checkup_ 前綴列入 winner 優先層級，當天產線自然優先抽到。
 
-quota/rate 紀律(Carson硬性交代)：FinMind 免費層一天只抓 1-2 檔的量，這支預設 --count 1，
-絕不在單次執行內對 FinMind 連續掃很多檔。
+quota/rate 紀律(2026-07-17 實測校準)：FinMind 免費層的限制是 **300 requests/小時**(不是「每天幾檔」;
+官方 finmind.github.io/quickstart：無 token 300/hr、有 token 600/hr;超量回 HTTP 402
+"Requests reach the upper limit."。本專案 .env 未設 FINMIND_TOKEN → 走 300/hr 這層)。
+實測(--count 2 與 --count 3 各跑一輪,共 20 call,全 HTTP 200 零 402,單次請求 avg 0.29s)：
+  **一檔 = 4 個 FinMind call**(MonthRevenue / FinancialStatements / Dividend / PER;
+  FinancialStatements 被 calc_eps_trend 與 calc_gross_margin 共用,靠 fundamentals_cache 命中
+  只打 1 次 —— 前提是兩者共用 FIN_STMT_FETCH_YEARS 窗口,見 stock_fundamentals.py 的紅字警告)。
+  TaiwanStockInfo 全市場表 7 天快取且全代號共用,平常不打。價格序列走 yfinance,不吃 FinMind。
+故 --count 8 = 32 call = 每小時額度的 11%,離 300/hr 很遠;最壞情況(8 成功 + MAX_FAILS 5 失敗)
+= 13 檔 × 4 = 52 call = 17%。原註解「免費層每天只處理 1 檔，絕不暴衝 rate limit」是**未實測的
+保守假設**,把每小時額度誤當每日額度,已於本次校正。
 
 用法：
   python scripts/stock_checkup_daily.py                # 正式跑：算下一檔 + 種題(每天限跑一次)
@@ -49,7 +58,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 BACKLOG_FILE = STUDIO / "stock_checkup_backlog.json"
 STATE_FILE = STUDIO / "stock_checkup_daily_state.json"
-MAX_ATTEMPTS = 5   # 連續試幾檔資料不足就放棄(防止一路撞到都是新股，整天卡死)
+# 🔴 2026-07-17 實測修正:本意是「資料不足的檔別一路撞下去整天卡死」＝**失敗**預算,但原本寫成
+# 總嘗試預算(attempts < MAX_ATTEMPTS,成功的檔也計數)→ --count 只要 >5 就永遠只做得到 5 檔
+# (--count 8 會回報「完成 5/8」),加量無效且無聲。改成只計失敗:最壞嘗試 count + MAX_FAILS 檔
+# (8+5=13 檔 × 4 個 FinMind call = 52 call,仍遠低於免費層 300/hr,見下方 quota 註解)。
+MAX_FAILS = 5      # 本次執行容許幾檔「資料不足」;超過就收工(防止一路撞到都是新股，整天卡死)
 # Carson拍板：一檔股票=一集10分鐘長片(公司是誰→基本面→價格體檢→估值位置→結尾，見
 # TW_STOCK_CHECKUP_RULES)，不是短片系列。LLM 用通用 prompt 生題時偶爾會判成 short(2026-07-15
 # 實測：13組事實生出15題只有short，因為 topics_from_facts.build_prompt 是共用邏輯不知道這系列
@@ -274,10 +287,11 @@ def main() -> int:
     bl = _load_backlog()
     done_this_run = 0
     attempts = 0
+    fails = 0
     idx = 0
     items = bl.get("items") or []
 
-    while done_this_run < args.count and attempts < MAX_ATTEMPTS:
+    while done_this_run < args.count and fails < MAX_FAILS:
         remaining = [it for i, it in enumerate(items) if i >= idx and not it.get("done") and not it.get("skip")]
         if not remaining:
             print("[stock_checkup_daily] backlog 已無待處理代號(全部 done 或 skip)。"
@@ -293,10 +307,11 @@ def main() -> int:
             continue
         ok, reason = process_one(code, name)
         if not ok:
+            fails += 1
             cand["skip"] = True
             cand["skip_reason"] = reason
             _save_backlog(bl)
-            print(f"[stock_checkup_daily] {code}（{name}）略過：{reason}，試下一檔...")
+            print(f"[stock_checkup_daily] {code}（{name}）略過：{reason}（第 {fails}/{MAX_FAILS} 次），試下一檔...")
             continue
         cand["done"] = True
         cand["done_at"] = today
