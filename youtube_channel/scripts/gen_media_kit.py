@@ -125,7 +125,7 @@ def gather():
 def build_markdown(d: dict, date_str: str) -> str:
     cfg = d["cfg"]
     name = cfg.get("channel_name", "量化阿森｜Carson Quant")
-    handle = cfg.get("channel_handle", "@carson-quant")
+    handle = cfg.get("channel_handle", "@carsonquant")
     niche = cfg.get("niche", "")
     audience = cfg.get("target_audience", "")
     tone = cfg.get("tone", "")

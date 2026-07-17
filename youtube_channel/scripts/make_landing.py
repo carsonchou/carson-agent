@@ -33,7 +33,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 DEST = ROOT / "assets" / "landing" / "index.html"
 CFG = ROOT / "channel_config.json"
-YT = "https://www.youtube.com/@carson-quant"
+YT = "https://www.youtube.com/@carsonquant"
 TG = "https://t.me/CarsonQuant_message_bot"
 
 # 定價一律讀 quant-service/ecommerce/config.py 這個**單一事實來源**,不在本檔寫死。
