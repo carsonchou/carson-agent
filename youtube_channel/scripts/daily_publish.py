@@ -151,7 +151,10 @@ _ENGAGE_QS = [
     "你覺得網格最大的風險是什麼？A 爆倉 / B 套牢 / C 手續費吃光，留字母",
     "有沒有人靠這個真的賺到的？說說你的參數，不說數字沒人信 👇",
     # 懸念型（轉換成訂閱者）
-    "下支我要公開一個 90% 人都設錯的參數——先追蹤，不然找不回來 👇",
+    # 2026-07-17:原文寫「先追蹤，不然找不回來」——這區塊的目的就是轉訂閱，卻用 IG 語彙
+    # 講「追蹤」，而 YouTube 按鈕上寫的是「訂閱」，觀眾不知道要按哪個鍵(同批修正見
+    # produce_batch._CTA_WORD_FIXES)。
+    "下支我要公開一個 90% 人都設錯的參數——先訂閱，不然找不回來 👇",
     "想看完整實測數據的留言『+1』，夠多我就出深度版 👇",
     "你會怎麼做？留言告訴我，下支可能就拍你的問題 👇",
     "猜猜最後是賺還是賠？留言你的答案，揭曉在置頂 👇",
@@ -283,6 +286,101 @@ def _load_skip_set() -> set:
     return set()
 
 
+# ── 系列連載完整性(2026-07-17 建)──────────────────────────────────────────
+# 為什麼要有這道:find_candidates 只照「品質分數 desc」排,對「同一個系列的片該按集數順序發」
+# 完全無知。實測(2026-07-17 庫存複驗)兩個真實破口:
+#   ①【個股體檢】EP1(94)/EP2(84)/EP5(94) 三支待發、一支都還沒發過。照純分數排,佇列實際順序是
+#     EP5 → EP1 → EP2(EP5 與 EP1 同 94 分,由 mtime 新到舊決勝,EP5 較新故插到最前)——
+#     系列會用「EP5」開播,首集就斷裂。
+#   ②【台股真相實驗室】EP1-EP8 已發布,待發的 EP8(94) 是**第二支 EP8**(集數撞號),
+#     照純分數排它會排在 EP9(86)/EP10(79) 前面先發 → 觀眾看到集數倒退。
+# 系列的追更動機是訂閱的核心引擎(EP.0 開播預告 3-5% vs Shorts 0.062%),集數斷裂/跳號/撞號
+# 直接殺掉「訂了會固定拿到下一集」這個承諾。
+#
+# 這道只做兩件事,兩件都是「暫緩(hold)」不是「丟棄」——片子留在 output/ 原地不動,
+# 下一輪 daily_publish 重算候選時,前一集發掉了後一集自然遞補:
+#   ①集數已發布過 → 不重發(擋撞號)
+#   ②同系列只放行「已達品質門檻的集數裡編號最小的那一支」(擋跳號)
+# ⚠️ 刻意只讓「已達門檻(score >= min_score)」的集數擋順序:台股真相實驗室 EP3(70分,reject)
+#    永遠不會被 main() 放行,若讓它擋順序會把 EP9/EP10 永久餓死。品質 gate 不放寬,
+#    但也不讓「發不出去的片」變成整個系列的路障。
+# 全程 fail-open:任何例外一律回原清單(照舊行為),絕不因為這道新閘讓產線停擺。
+_EP_NUM_RE = __import__("re").compile(r"EP\s*\.?\s*(\d{1,3})(?!\d)")
+_CK_EP_RE = __import__("re").compile(r"個股體檢\s*EP\s*\.?\s*(\d{1,3})(?!\d)")
+
+
+def _slug_titles() -> dict:
+    """{slug: title} — 讀 quality_scores 的 published+pending(已發布片的標題只有這裡有)。"""
+    d = load_json_safe(QSCORES, default={}) or {}
+    out = {}
+    for it in (d.get("published") or []) + (d.get("pending") or []):
+        if isinstance(it, dict) and it.get("slug") and it.get("title"):
+            out[it["slug"]] = it["title"]
+    return out
+
+
+def _tw_lab_member_slugs() -> set:
+    """台股真相實驗室的成員名單(權威來源=引擎自己的 state)。
+    不能只靠標題認系列:實測 19 支裡有 7 支標題根本沒帶「真相實驗室」四個字
+    (如「EP3｜大盤長抱 vs 跌破年線就跑…」),只比對標題會漏認一半成員。"""
+    d = load_json_safe(PROJECT_ROOT / "STUDIO" / "tw_lab_state.json", default={}) or {}
+    return {e.get("slug") for e in (d.get("episodes") or []) if isinstance(e, dict) and e.get("slug")}
+
+
+def _series_of(slug: str, title: str, lab_slugs: set):
+    """回 (系列名, 集數) 或 (None, None)＝不是已知連載系列(不受這道閘影響)。"""
+    if _CK_EP_RE.search(title):
+        return "個股體檢", int(_CK_EP_RE.search(title).group(1))
+    if slug in lab_slugs or "真相實驗室" in title:
+        m = _EP_NUM_RE.search(title)
+        if m:
+            return "台股真相實驗室", int(m.group(1))
+    return None, None
+
+
+def _series_order_gate(slugs: list, ledger: dict, qmap: dict, qmin: int) -> tuple[list, dict]:
+    """同系列強制依集數順序發 + 不重發已發布過的集數。回 (keep, held{slug: 原因})。"""
+    try:
+        titles = _slug_titles()
+        lab = _tw_lab_member_slugs()
+        # 已發布過的集數(用真標題認;認不出來就跳過=保守不擋)
+        pub_eps: dict = {}
+        for s in ledger:
+            t = titles.get(s)
+            if not t:
+                continue
+            name, n = _series_of(s, t, lab)
+            if name:
+                pub_eps.setdefault(name, set()).add(n)
+        groups: dict = {}
+        for s in slugs:
+            name, n = _series_of(s, titles.get(s, ""), lab)
+            if name:
+                groups.setdefault(name, []).append((n, s))
+        held: dict = {}
+        for name, items in groups.items():
+            for n, s in items:
+                if n in pub_eps.get(name, set()):
+                    held[s] = f"{name} EP{n} 已發布過(撞號,不重發)"
+            rest = [(n, s) for n, s in items if s not in held]
+            ok = [(n, s) for n, s in rest
+                  if isinstance(qmap.get(s), (int, float)) and qmap[s] >= qmin]
+            if not ok:
+                continue
+            lowest = min(n for n, _ in ok)
+            for n, s in rest:
+                if n > lowest:
+                    held[s] = f"{name} 等 EP{lowest} 先發(維持追更集數順序)"
+        if held:
+            print(f"[series] 系列順序閘:暫緩 {len(held)} 支(留在 output/,前一集發掉就自動遞補)")
+            for s, why in list(held.items())[:8]:
+                print(f"    - {s[:44]}｜{why}")
+        return [s for s in slugs if s not in held], held
+    except Exception as e:  # noqa: BLE001
+        print(f"[series] 系列順序閘異常，本輪不擋({e})", file=sys.stderr)
+        return slugs, {}
+
+
 def _factguard_gate(slugs: list) -> tuple[list, dict]:
     """誠信硬地板(2026-07-13 建):把『績效數字查無來源』的片擋在發布之外。
 
@@ -335,7 +433,7 @@ def _factguard_gate(slugs: list) -> tuple[list, dict]:
 
 def find_candidates(ledger: dict) -> list:
     # 高分先發：Shorts(衝YPP)優先，組內依品質分數由高到低；其次長片同理。
-    qmap, _ = load_quality()
+    qmap, qmin = load_quality()
     priority = _load_priority_set()
     skip = _load_skip_set()
     shorts, longs, mtimes = [], [], {}
@@ -353,6 +451,10 @@ def find_candidates(ledger: dict) -> list:
     # 誠信硬地板:績效數字溯源不到的片,一律不進候選(在排序/配額之前就擋掉)
     shorts, _b1 = _factguard_gate(shorts)
     longs, _b2 = _factguard_gate(longs)
+
+    # 系列連載完整性:同系列強制照集數順序發(擋跳號/撞號)。只暫緩、不丟棄,見 _series_order_gate。
+    shorts, _h1 = _series_order_gate(shorts, ledger, qmap, qmin)
+    longs, _h2 = _series_order_gate(longs, ledger, qmap, qmin)
 
     def _key(s: str):
         # 有分數：一律照真分數 desc 排(維持原行為，已評高分的真好片永遠排該有的位置，
