@@ -712,9 +712,10 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
         # 百分比是「段落進度 × 0.82」的合成值，與本片數據無關，已發布 46 支中鏢。
         try:
             # 片型判定共用 mv._hud_applies（與 _ep_data_applies 同一份）：非機器人實測片不上 HUD。
-            _is_exp = mv._hud_applies(title or "", getattr(slug_paths, "slug", ""))
+            # 逐字稿先讀：第 3 道門檻要看「稿子裡有沒有帳戶」，沒帳戶的片整組 HUD 不上。
+            _vt = mv.read_voice_text(slug_paths) or " ".join(s.narration for s in segments if s.narration)
+            _is_exp = mv._hud_applies(title or "", getattr(slug_paths, "slug", ""), _vt)
             if _is_exp:
-                _vt = mv.read_voice_text(slug_paths) or " ".join(s.narration for s in segments if s.narration)
                 _nums = mv._parse_experiment_numbers(_vt)
                 # ep_data 權威真數字只在「本片真的屬於該系列」時才蓋（判定與 make_video 共用同一個
                 # _ep_data_applies，不各自複製一份——這個 HUD bug 當初就是兩邊複製貼上同時中鏢）。

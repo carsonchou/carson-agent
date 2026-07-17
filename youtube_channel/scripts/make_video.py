@@ -1593,7 +1593,7 @@ _ROBOT_SERIES_RE = re.compile(r"機器人|網格|派網|Pionex|自動交易|交�
 _RACE_TITLE_RE = re.compile(r"vs|VS|對決|對打|賽跑")
 
 
-def _hud_applies(title: str, slug: str = "") -> bool:
+def _hud_applies(title: str, slug: str = "", narration: str = "") -> bool:
     """本片該不該上 EP 招牌 HUD（本金／餘額／報酬／天數那一組）？**片型判定的單一真相來源。**
 
     🔴 2026-07-17：舊判定是 `re.search(r"EP|實測|實驗", title)`——那是「題材泛用詞」不是「片型」。
@@ -1602,15 +1602,25 @@ def _hud_applies(title: str, slug: str = "") -> bool:
     根因不是抓取 regex 不夠準，是**這組欄位對「個股體檢」這種片型本來就沒有意義**，
     抓得再準也只是把不相干的數字燒得更精確。這與「賽跑條整條拆除」是同一個判準。
 
-    收窄成兩道（與 _ep_data_applies 共用，不各寫一份）：
+    收窄成三道（與 _ep_data_applies 共用，不各寫一份）：
       1. A vs B 對比片不上：那組欄位描述「一個帳戶隨時間推進」，對「兩個標的比大小」沒有語意。
       2. 必須是自動交易機器人實測系列：只有那個片型真的有「本金→餘額→第N天」這條時間軸。
+      3. **稿子裡真的要有「帳戶」**：②只看標題，但標題有「網格」的**新聞鉤子評論片**根本沒有
+         自己的帳戶——`S_EP2加密網格回測年化80` 燒 +80%，而那個 80% 是**它正在揭穿的別人的宣稱**。
+         這組欄位的語意是「一個帳戶在時間軸上的狀態」，**沒有帳戶的片，HUD 出現在那裡本身就是錯的，
+         不管數字對不對**。這不是為了保守犧牲視覺，是把元件放回它有意義的地方（同賽跑條拆除案）。
 
+    ⚠️ narration 省略時**跳過第 3 道**（不是預設放行整個判定）：`_ep_data_applies` 拿不到逐字稿，
+    但兩個渲染端都是先過 `_hud_applies(含 narration)` 才會問 `_ep_data_applies`，故實際不可能放寬。
     判不出來就不上 HUD——寧可少一個視覺元素，也不要燒錯數字（誠信 fail-closed）。
     """
     if _RACE_TITLE_RE.search(title or ""):
         return False
-    return bool(_ROBOT_SERIES_RE.search(f"{title or ''} {slug or ''}"))
+    if not _ROBOT_SERIES_RE.search(f"{title or ''} {slug or ''}"):
+        return False
+    if narration and "帳戶" not in narration:
+        return False
+    return True
 
 
 def _ep_data_applies(title: str, slug: str = "", narr_nums: Optional[dict] = None) -> bool:
@@ -2075,10 +2085,14 @@ def build_video(
     hud_overlays = []
     _title = title or ""
     # 片型判定與 _ep_data_applies 共用 _hud_applies（不各寫一份）：非機器人實測片不上 HUD。
-    _is_exp = _hud_applies(_title, getattr(slug_paths, "slug", ""))
+    # 逐字稿要先讀出來才判得了「這片有沒有帳戶」（_hud_applies 第 3 道）→ 讀稿移到判定之前。
+    try:
+        _vt = read_voice_text(slug_paths) or " ".join(s.narration for s in segments if s.narration)
+    except Exception:  # noqa: BLE001
+        _vt = ""
+    _is_exp = _hud_applies(_title, getattr(slug_paths, "slug", ""), _vt)
     if _is_exp:
         try:
-            _vt = read_voice_text(slug_paths) or " ".join(s.narration for s in segments if s.narration)
             _nums = _parse_experiment_numbers(_vt)
         except Exception:  # noqa: BLE001
             _nums = {}
