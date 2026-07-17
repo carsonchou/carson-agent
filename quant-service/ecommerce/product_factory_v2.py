@@ -1389,9 +1389,15 @@ def _build_dca_xlsx(path: Path, refs):
                                            DataBarRule(start_type="min", end_type="max", color="E3B93E"))
     for i, w in enumerate([9, 16, 18, 18, 18], start=1):
         ws2.column_dimensions[chr(64 + i)].width = w
-    ws2.cell(row=last + 2, column=1,
-             value="對照為歷史含息還原(取自體檢引擎),非未來保證;定投不保證獲利。介紹≠推薦。")
-    ws2.cell(row=last + 2, column=1).font = Font(color="8A94A6", size=9, italic=True)
+    # 免責跨 5 欄合併置中,與資料表視覺分離(phase3b MINOR 同型:原本孤零零塞在 A 欄
+    # 單一 cell、看起來像資料的一部分)。合併後它明顯是「表格外的註腳」而非某檔的欄位。
+    from openpyxl.styles import Alignment
+    disc_row = last + 2
+    ws2.merge_cells(start_row=disc_row, start_column=1, end_row=disc_row, end_column=5)
+    dc = ws2.cell(row=disc_row, column=1,
+                  value="對照為歷史含息還原(取自體檢引擎),非未來保證;定投不保證獲利。介紹 ≠ 推薦。")
+    dc.font = Font(color="8A94A6", size=9, italic=True)
+    dc.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
     path.parent.mkdir(parents=True, exist_ok=True)
     wb.save(str(path))
 
