@@ -776,23 +776,58 @@ _GOLD = (255, 205, 66)      # 神話數字＝金(對手宣稱的漂亮數字)
 _KNIFE = (236, 44, 44)      # 紅刀＝把神話一刀切開
 
 
+# ⚠️ 2026-07-17 誠信修:**品牌/系列名不是打假宣稱**。
+#    「台股真相實驗室」內含「真相」→ 舊版 is_debunk() 把**每一支** tw_lab 影片都判成打假片,
+#    於是縮圖去憑空捏一個敵人(「他吹的神話」),還把**我們自己的存量數字**當成對手的神話
+#    一刀切開:實測 EP.0 封面印「他吹的神話 29組」打紅叉 + 「他說29組神/我拆給你看」——
+#    但 29 組是**我自己還沒拍的真回測存量**,不是誰吹的、更不是我要拆穿的東西。語意整個反過來。
+#    修法:比對打假關鍵字前先把品牌/系列名拿掉——它是招牌,不是主張。
+_BRAND_PHRASES = ("台股真相實驗室", "臺股真相實驗室", "真相實驗室", "個股體檢系列", "個股體檢", "量化阿森")
+
+
+def _strip_brand(text: str) -> str:
+    t = text or ""
+    for b in _BRAND_PHRASES:
+        t = t.replace(b, "")
+    return t
+
+
 def is_debunk(text: str) -> bool:
-    """標題含拆穿/真相/打臉/揭穿…等打假關鍵字 → 走《拆穿》縮圖公式。"""
-    return any(k in (text or "") for k in _DEBUNK_KW)
+    """標題含拆穿/真相/打臉/揭穿…等打假關鍵字 → 走《拆穿》縮圖公式。
+    ⚠️ 先去品牌/系列名再比對(見 _BRAND_PHRASES):招牌裡的「真相」不代表這支在打假。"""
+    return any(k in _strip_brand(text) for k in _DEBUNK_KW)
+
+
+def _valid_myth(s) -> str | None:
+    """神話數字必須是**帶結果單位**的數字(% 或 倍)才算數;否則回 None(不掛神話卡)。
+
+    ⚠️ 2026-07-17:本檔原本就有「不要 fallback 亂抓裸數字」的防線(見下方掃描分支的註解),
+       但**LLM 給的 cfg['myth'] 舊版直接採用、繞過那道防線** → 「29組」就這樣被印成
+       「他吹的神話」。裸數字沒有單位就沒有意義,更不可能是對手的績效宣稱。
+       (與 fact_pool 無單位池、hook_card 撈裸數字同一個病:**數字沒有單位就不是事實**。)
+       這裡是 myth 的**唯一驗證點**——LLM 路徑與掃描路徑共用同一把尺(不重複實作)。
+    """
+    s = (str(s) if s is not None else "").strip()
+    if not s or not any(c.isdigit() for c in s):
+        return None
+    if "%" not in s and "倍" not in s:
+        return None
+    return s[:8]
 
 
 def _myth_number(cfg: dict):
-    """抓出被拆穿的『神話數字』(如 812%、88.89%、236倍)。優先 cfg['myth']，否則掃 l1/l2/標題。無則 None。"""
-    m = (cfg.get("myth") or "").strip()
+    """抓出被拆穿的『神話數字』(如 812%、88.89%、236倍)。優先 cfg['myth']，否則掃 l1/l2/標題。無則 None。
+    ⚠️ 所有來源(含 LLM)一律過 _valid_myth：沒有 %／倍 單位的數字不是神話數字。"""
+    m = _valid_myth(cfg.get("myth"))
     if m:
-        return m[:8]
+        return m
     for src in (cfg.get("l1"), cfg.get("l2"), cfg.get("title"), cfg.get("tag")):
         if not src:
             continue
         found = [f.replace(" ", "") for f in _MYTH_NUM_RE.findall(str(src)) if any(c.isdigit() for c in f)]
         pref = [f for f in found if "%" in f or "倍" in f]
         if pref:
-            return pref[0][:8]
+            return _valid_myth(pref[0])
         # 找不到帶 %／倍 的數字就不要 fallback 亂抓裸數字(可能是 EP 集數/年份/K棒價位，
         # 跟「神話數字」毫無關係)，寧可整張圖不掛神話數字卡，也不要張冠李戴。
     return None
@@ -935,6 +970,26 @@ def _decorate_debunk(cfg: dict, title: str) -> dict:
     return cfg
 
 
+_DIGITS_RE = _re.compile(r"\d+")
+
+
+def _numbers_traceable(d: dict, title: str) -> bool:
+    """LLM 生的縮圖文字裡,每一串數字都必須在標題裡找得到;否則視為**憑空發明**,整包不採用。
+
+    為什麼是「整包退回」而不是「把那個數字挖掉」:挖字會產生破碎殘句(本檔上面 hook 那條
+    已經踩過一次),而且會**留下一個我們沒驗證過的句子**。退保底最乾淨——保底是切標題來的。
+    ⚠️ 只比對數字,不比對文案:LLM 仍可自由發揮文字,它只是不准生數字。
+    """
+    tnums = set(_DIGITS_RE.findall(title or ""))
+    for k in ("l1", "l2", "tag", "myth"):
+        for n in _DIGITS_RE.findall(str(d.get(k) or "")):
+            if n not in tnums:
+                print(f"[warn] 縮圖 LLM 發明了標題沒有的數字 {n!r}(欄位 {k})→ 退保底,不採用",
+                      file=sys.stderr)
+                return False
+    return True
+
+
 def derive_cfg(slug: str, title: str) -> dict:
     """從標題自動生縮圖鉤子。優先用共用 llm.complete(OpenRouter 路由,同其他 dept 腳本)，失敗退保底啟發式。
     《拆穿》題自動套打假公式。
@@ -960,6 +1015,15 @@ def derive_cfg(slug: str, title: str) -> dict:
                   "繁體中文。誠信鐵則：不用『穩賺/保證/必賺』。配色：紅=警示/虧損，綠=獲利/實測，黃=疑問/教學，藍=工具/平台。")
         t = llm.complete(prompt, max_tokens=300, json_mode=True, temperature=0.6)
         d = _json.loads(_re.search(r"\{.*\}", t, _re.S).group(0))
+        # 🔴 誠信閘(2026-07-17):**LLM 不准自己發明數字**。
+        #    實測:標題「已經拆完 14 集，還有 29 組真回測排隊中」→ LLM 生出「43組實測」
+        #    (= 14 + 29 自己加起來的)。我們從來沒有「43 組實測」這個數字,它憑空長在**封面**上
+        #    ——而封面是觀眾看最多眼的一個面。這與 hook_card 撈裸數字、fact_pool 無單位池
+        #    同一個病:**數字沒有來源就不是事實**。
+        #    規則:LLM 文字裡出現的每一串數字,都必須在標題裡找得到;找不到 → 整包退保底
+        #    (保底是切標題產生的,數字結構上不可能超出標題)。
+        if not _numbers_traceable(d, title):
+            return fb
         cfg = {"slug": slug, "l1": (d.get("l1") or fb["l1"])[:8], "l2": (d.get("l2") or fb["l2"])[:10],
                "tag": (d.get("tag") or fb["tag"])[:16],
                "accent": ACCENTS.get((d.get("accent") or "yellow").lower(), ACCENTS["yellow"]),

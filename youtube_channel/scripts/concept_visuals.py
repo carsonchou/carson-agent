@@ -50,7 +50,11 @@ def classify(text: str) -> Optional[str]:
         ("grid", ("網格", "格子單", "高賣低買", "低買高賣", "等差", "等比", "上下限", "區間來回", "震盪行情")),
         ("winrate", ("勝率", "盈虧比", "期望值", "賺賠比", "賺多賠少", "大賺小賠")),
         ("sharpe", ("夏普", "sharpe", "風險調整後", "報酬波動比")),
-        ("backtest", ("樣本外", "樣本內", "回測", "out of sample", "out-of-sample", "驗證期")),
+        # ⚠️ 2026-07-17 移除 ("backtest", ("樣本外","樣本內","回測","out of sample","驗證期"))：
+        #    見下方 _backtest 拆除說明。**不要因為「回測」是本頻道高頻詞就把它接回來**——
+        #    那正是它中毒最深的原因(每支長片都講回測 → 每支都被畫上我們沒做過的樣本外驗證)。
+        #    「回測」現在不對應任何概念卡 → classify 回 None → 不畫卡(fail-safe:寧可少一個
+        #    視覺元素,也不要編一個我們沒做過的實驗)。
         ("drawdown", ("最大回撤", "回撤", "drawdown", "套牢", "腰斬", "歸零", "回吐")),
         ("trend", ("單邊行情", "單邊", "趨勢盤", "一路噴", "急漲", "急跌", "破底", "噴出")),
     ]
@@ -238,25 +242,23 @@ def _overfit(ax, rng):
     return "回測完美．實盤打回原形", None
 
 
-def _backtest(ax, rng, direction=0):
-    n = 180
-    x = np.arange(n)
-    split = 120
-    # 方向跟旁白綁定：講虧/跌/賠就別再畫一路上漲的線（A6-a）。中性/無訊號(direction==0)
-    # 不該被 >= 併入正向分支(等於「查無訊號一律偏多」)，比照 _trend() 改成隨機，避免
-    # 中性/避雷敘事的段落被固定畫成「回測成功、一路上漲」的誤導圖。
-    up = (direction > 0) if direction != 0 else (rng.rand() > 0.5)
-    drift = 0.22 if up else -0.22
-    eq = 100 + np.cumsum(np.full(n, drift) + rng.randn(n) * 0.6)
-    ax.axvspan(0, split, color=(1, 1, 1, 0.04), zorder=0)
-    ax.axvline(split, color=(1, 1, 1, 0.20), lw=1.2, ls="--", zorder=1)
-    ax.plot(x[: split + 1], eq[: split + 1], color=FG, lw=2.4, zorder=3)
-    ax.plot(x[split:], eq[split:], color="#ffd23f", lw=2.4, zorder=3)
-    ax.text(split * 0.5, ax.get_ylim()[1], "回測期", ha="center", va="top", color=MUTED, fontsize=14)
-    ax.text(split + (n - split) * 0.5, ax.get_ylim()[1], "驗證期", ha="center", va="top",
-            color="#ffd23f", fontsize=14)
-    ax.set_xlim(0, n - 1)
-    return "真正能信的是樣本外", None
+# ─────────────────────────────────────────────────────────────────────────────
+# 🔴 _backtest 已於 2026-07-17 拆除(誠信)——不要重建。
+#
+# 它畫「回測期 | 驗證期」split-chart，字卡寫「真正能信的是樣本外」。三個致命點：
+#   1. **我們根本沒有樣本外驗證**。tw_facts_engine 全部是全期間/近10年/固定崩盤區間的
+#      回測，沒有任何一組做樣本內外切分。這張圖宣稱的是**一個我們沒有的嚴謹度**。
+#   2. 曲線是 `rng.randn()` 亂數、漲跌方向 `rng.rand() > 0.5` 擲骰 —— 純虛構。
+#   3. 它還被 render_ffmpeg 強制插進**每一支長片**(見該檔「強制回測對比 beat」拆除說明)，
+#      所以這個宣稱是全頻道規模的，不是單片失誤。
+#
+# 判準(2026-07-17 定):**方向是「自我設限」還是「膨脹」?** 誠實揭露限制(如「我的回測
+# 沒算手續費」)最壞只是低報自己 → 安全;宣稱一個沒有的嚴謹度 → 膨脹 → 紅線。
+# 與已拆除的「賽跑條」同 species:**不是圖畫得不準,是圖在替我們宣稱沒做過的事**。
+#
+# ⚠️ 若將來 tw_facts_engine 真的做了樣本內外切分:也**不可**復活這支——那時要畫的是
+#    **真實回測結果**(從事實庫 data 讀),不是 rng 亂數。亂數圖沒有任何情況下是對的。
+# ─────────────────────────────────────────────────────────────────────────────
 
 
 def _trend(ax, rng, direction=0):
@@ -297,7 +299,8 @@ def _candles(ax, rng):
 _DISPATCH = {
     "grid": _grid, "dca": _dca, "compound": _compound, "drawdown": _drawdown,
     "sharpe": _sharpe, "winrate": _winrate, "martingale": _martingale,
-    "overfit": _overfit, "backtest": _backtest, "trend": _trend, "candle": _candles,
+    # "backtest" 已拆除(2026-07-17,見 _backtest 拆除說明)——不要接回來。
+    "overfit": _overfit, "trend": _trend, "candle": _candles,
 }
 
 

@@ -227,15 +227,21 @@ def _render_hook_card(title, width, height, accent, tmp_dir):
     """開場大數字衝擊卡(階段1炫炮):抽 title 最衝擊的數字滿屏砸出——視覺衝擊鉤子,降前3秒滑走。抽不到數字回 None。"""
     import re
     from PIL import Image, ImageDraw
-    # 挑「最衝擊的短數字」當主視覺:優先 %/倍/萬,取數值最大那個(常是 punchline);再退次/天/年
+    # 挑「最衝擊的短數字」當主視覺——**只認帶『結果單位』的數字**。
+    #
+    # ⚠️ 2026-07-17 誠信修:舊版抓不到 %/倍/萬 就退而用 `\d+\s*[次天年]|\d{2,}`,
+    #    那是**無單位的裸數字撈取**,撈到什麼就把什麼演成「砸臉大紅字 + 你猜是多少？」:
+    #      · 「已經拆完 14 集」→ 巨大紅色「14」壓在上升淨值曲線上 = 把**集數**演成績效;
+    #      · 「0050定期定額…」→ `\d{2,}` 會撈到**股票代號 0050** 當衝擊數字。
+    #    根因與 fact_pool 無單位池同一個:**數字沒有單位就沒有意義**,撈到的東西不是 punchline。
+    #    判準(2026-07-17 定):集數不是績效,它就不該長得像績效 → 方向錯的那邊(膨脹)。
+    # 修法:只有帶「結果單位」(%/倍/萬/成/億)的數字才配當衝擊主視覺;
+    #      撈不到 → 回 None → **不畫這張卡**(fail-safe:寧可少一張卡,不要把集數演成報酬)。
     cands = re.findall(r'\d+\.?\d*\s*[%倍萬]', title)
     if cands:
         num = max(cands, key=lambda s: float(re.findall(r'[\d.]+', s)[0])).replace(" ", "")
-    else:
-        m = re.search(r'\d+\s*[次天年]|\d{2,}', title)
-        num = m.group(0).replace(" ", "") if m else None
-    if not num:  # 阿拉伯抓不到→抓中文數字(十年/一萬/三倍/九成)
-        m = re.search(r'[一二三四五六七八九十百千兩]+\s*[%倍萬年天次成億]', title)
+    else:  # 阿拉伯抓不到→抓中文數字結果詞(三倍/九成/一萬);**不含**年/天/次(那是區間與次數,不是結果)
+        m = re.search(r'[一二三四五六七八九十百千兩]+\s*[%倍萬成億]', title)
         num = m.group(0).replace(" ", "") if m else None
     if not num:
         return None
@@ -267,8 +273,27 @@ def _render_hook_card(title, width, height, accent, tmp_dir):
     # 的破碎中文(量詞「檔」失去前面的數字就不成句)。兩種都是「暴力砍字串」的產物。
     # 改法:鉤子句不再嘗試從 title 挖數字,完整保留 title(下方大紅字數字重複出現一次無傷
     # 大雅,遠比破碎殘句安全);只做原本就有的 hashtag 清理。
+    # ⚠️ 2026-07-17:舊版 `[:14]` 是**硬切字元**,把「台股真相實驗室｜已經拆完 14 集」
+    #    切成「台股真相實驗室｜已經拆完 1」——螢幕上印的是**錯的數字**(1 vs 真實 14)。
+    #    切字 bug 一旦切在數字中間就直接變成假話,不是排版瑕疵。
+    #    修法:①先在「｜」這種天然分隔處收尾(比硬切乾淨);②真的還太長才切,且**絕不切在
+    #    數字中間**;③字級本來就會自適應縮到不爆框(見下),所以限長只是最後一道保險。
     hook = re.sub(r'#\S+', '', title).strip("？?，,。、 ")
-    hook = re.split(r'[，,。]', hook)[0][:14] or "你知道嗎"  # 取第一段、限長
+    hook = re.split(r'[，,。]', hook)[0].strip()
+    _LIM = 16
+    if len(hook) > _LIM:
+        for _sep in ("｜", "|"):
+            if _sep in hook:
+                _head = hook.split(_sep)[0].strip()
+                if _head:
+                    hook = _head
+                break
+    if len(hook) > _LIM:
+        _cut = _LIM
+        while _cut > 1 and hook[_cut - 1].isdigit() and hook[_cut].isdigit():
+            _cut -= 1  # 退到數字串邊界,不把 14 切成 1
+        hook = hook[:_cut].strip()
+    hook = hook or "你知道嗎"
     hfs = int(height * 0.048)
     hf = mv._load_font(hfs, bold=True)
     while hfs > 28:  # 鉤子句也自適應防爆框
@@ -677,35 +702,16 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
             for i, seg in enumerate(segments)
         ]
 
-        # 1.2) 強制一個「回測期 vs 驗證期」對比 beat：每支片至少出現一次 split-chart。
-        # 挑一個最像資料/回測的 body 段（非首非尾）硬渲染 backtest 概念卡蓋回；
-        # concept_visuals 不可用、產不出、或無合適段落 → 安靜跳過保留原卡，絕不強塞到崩。
-        try:
-            if getattr(mv, "_concept", None) is not None and n >= 2:
-                _DATA_RE = re.compile(r"回測|驗證|樣本|勝率|夏普|數據|實測|績效|歷史|\d+\.?\d*\s*[%倍]")
-                _cand = None
-                for _i in range(1, len(segments) - 1):  # 保留片頭尾語氣，挑中間 body 段
-                    _txt = (segments[_i].heading or "") + " " + (segments[_i].narration or "")
-                    if _DATA_RE.search(_txt):
-                        _cand = _i
-                        break
-                if _cand is None and len(segments) >= 3:
-                    _cand = len(segments) // 2  # 沒明顯資料段就挑正中段
-                if _cand is not None and seg_cards[_cand]:
-                    _btp = None
-                    try:
-                        _btp = mv.render_concept_card(
-                            width, height, heading=segments[_cand].heading or "",
-                            narration=segments[_cand].narration or "", watermark=watermark,
-                            accent=accent, seed=f"{vid_seed}_{_cand}",
-                            dest=tmp_dir / f"forcebt_{_cand:02d}.png", force_key="backtest")
-                    except Exception:  # noqa: BLE001
-                        _btp = None
-                    if _btp:  # 產得出才蓋；產不出（回 None）保留原卡
-                        seg_cards[_cand] = str(_btp)
-                        print(f"[ffmpeg後端] 強制回測對比 beat：段 {_cand}")
-        except Exception:  # noqa: BLE001
-            pass
+        # 1.2)【已拆除 2026-07-17·誠信】「強制回測對比 beat」——不要重建。
+        # 舊行為：每支長片都硬插一張 concept_visuals._backtest 的「回測期 | 驗證期」split-chart，
+        # 字卡寫「真正能信的是樣本外」。三個致命點：
+        #   1. **我們根本沒有樣本外驗證**(tw_facts_engine 全是全期間/近10年/固定崩盤區間)，
+        #      這張圖是在宣稱**一個我們沒有的嚴謹度**。
+        #   2. 曲線是 rng.randn() 亂數、漲跌 rng.rand()>0.5 擲骰 —— 純虛構。
+        #   3. 「強制、每支片至少一次」→ 這個假宣稱是**全頻道規模**的。
+        # 判準：方向是自我設限還是膨脹?誠實揭露限制(「我的回測沒算手續費」)最壞只是低報自己；
+        # 宣稱沒有的嚴謹度 = 膨脹 = 紅線。**與下方賽跑計分板同 species，同樣整條拆除。**
+        # (_backtest 本體也已從 concept_visuals 移除，見該檔拆除說明。)
 
         # 1.5) 實測EP招牌HUD：烤進段卡（非實測片零影響）
         # A vs B 賽跑計分板已整條拆除（理由見 mv.render_race_split docstring）：畫面印的
