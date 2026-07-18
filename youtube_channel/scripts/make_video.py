@@ -1030,7 +1030,8 @@ def render_concept_card(width: int, height: int, *, heading: str, narration: str
                         watermark: str, accent, seed: str, dest: Path,
                         default_key: Optional[str] = None,
                         force_key: Optional[str] = None,
-                        fallback_ticker: Optional[str] = None) -> Optional[Path]:
+                        fallback_ticker: Optional[str] = None,
+                        reveal: float = 1.0) -> Optional[Path]:
     """主題數據圖卡：依旁白選一張對得上的圖（網格/複利/回撤…），
     標題放頂部小條（不蓋圖），下方留給字幕。
     force_key 有值＝硬指定該圖（用於強制回測對比 beat，不管旁白分類）；
@@ -1043,7 +1044,7 @@ def render_concept_card(width: int, height: int, *, heading: str, narration: str
     if key is None:
         return None
     img = _concept.render_concept_chart(width, height, text, accent, seed, dest=None, force=key,
-                                        fallback_ticker=fallback_ticker)
+                                        fallback_ticker=fallback_ticker, reveal=reveal)
     if img is None:
         return None
     img = img.convert("RGB")

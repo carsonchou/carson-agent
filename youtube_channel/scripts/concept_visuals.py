@@ -94,15 +94,27 @@ def load_real(ticker: str):
 
 
 class Ctx:
-    """畫圖上下文。real=(ticker, dates, close) 或 None(沒有真資料)。"""
+    """畫圖上下文。real=(ticker, dates, close) 或 None(沒有真資料)。
+    reveal=漸進揭露比例 0<r<=1:1.0=畫完整資料(等同舊行為),<1.0=只畫到資料的前 r 比例
+    (「講到哪個數字就畫到哪」)。② 子段切分靠這個把一段 130s 的靜態卡拆成多張漸進圖。"""
 
-    __slots__ = ("rng", "direction", "real", "text")
+    __slots__ = ("rng", "direction", "real", "text", "reveal")
 
-    def __init__(self, rng, direction, real, text):
+    def __init__(self, rng, direction, real, text, reveal=1.0):
         self.rng = rng
         self.direction = direction
         self.real = real
         self.text = text
+        self.reveal = reveal
+
+
+def _reveal_k(n: int, reveal: float, minpts: int) -> int:
+    """把「揭露比例 reveal」換算成「畫前 k 個資料點」。
+    reveal>=1.0 → k=n(完整,與舊行為 byte-identical);<1.0 → k=前 r 比例,但不少於 minpts、不多於 n。
+    minpts 是這張圖「有意義」的最少點數(如 dca 至少要幾個月、drawdown 要夠算峰谷)。"""
+    if reveal >= 1.0:
+        return n
+    return max(min(minpts, n), min(n, int(round(n * reveal))))
 
 
 def _year_ticks(ax, dates, n_max=6):
@@ -199,7 +211,9 @@ def _grid(ax, ctx):
     # 上下界（網格範圍）較亮
     ax.axhline(hi_b, color=(*RED, 0.5), lw=1.4, ls="--", zorder=2)
     ax.axhline(lo_b, color=(*GREEN, 0.5), lw=1.4, ls="--", zorder=2)
-    ax.plot(x, price, color=FG, lw=2.2, zorder=3)
+    # 漸進揭露:價格線由左至右長出來(reveal=1.0→全部,byte-identical);超出已揭露處的買賣點不畫。
+    k = _reveal_k(n, ctx.reveal, minpts=12)
+    ax.plot(x[:k], price[:k], color=FG, lw=2.2, zorder=3)
     # 觸網買賣點：跌破網格線→買(綠)，漲破→賣(紅)。
     # 蒐集所有觸網點後做稀疏化（去掉太靠近的、總量上限），避免畫面太雜。
     pts = []
@@ -216,6 +230,8 @@ def _grid(ax, ctx):
         step = len(kept) / 14.0
         kept = [kept[int(i * step)] for i in range(14)]
     for px_, lv, up in kept:
+        if px_ >= k:            # 只畫已揭露範圍內的觸網點
+            continue
         ax.scatter([px_], [lv], s=72, zorder=4,
                    color=RED if up else GREEN, edgecolors="white", linewidths=0.7)
     ax.set_xlim(0, n - 1)
@@ -230,9 +246,14 @@ def _dca(ax, ctx):
         return None
     ticker, dates, px = ctx.real
     import pandas as pd
+    # 漸進揭露:只畫真實資料的前 k 個交易日(講到哪一年就畫到哪一年)。reveal=1.0→k=全部(等同舊行為)。
+    k = _reveal_k(len(px), ctx.reveal, minpts=60)   # 至少 ~3 個月才畫得出定投均線
+    px, dates = px[:k], dates[:k]
     di = pd.DatetimeIndex(dates)
     # 每月第一個交易日的索引 = 真實扣款日
     first = pd.Series(np.arange(len(di)), index=di).groupby([di.year, di.month]).first().to_numpy()
+    if len(first) < 2:
+        return None                              # 揭露太少、湊不出兩個扣款日 → 不畫(退卡)
     units = np.cumsum(1.0 / px[first])          # 每期投入 1 單位金額
     avg_cost = np.cumsum(np.ones(len(first))) / units   # 真實平均成本
     ax.plot(np.arange(len(px)), px, color=FG, lw=2.0, zorder=3)
@@ -251,9 +272,11 @@ def _compound(ax, ctx):
     x = np.linspace(0, n, n)
     comp = 100 * (1.022) ** (x / 3)
     lin = 100 + (comp[-1] - 100) * (x / n) * 0.42
-    ax.plot(x, lin, color=MUTED, lw=2.0, ls="--", zorder=2)
-    ax.plot(x, comp, color=GREEN, lw=2.8, zorder=3)
-    ax.fill_between(x, lin, comp, color=GREEN, alpha=0.12, zorder=1)
+    # 漸進揭露:曲線由左至右長出來(reveal=1.0→全部,byte-identical)。軸固定在完整範圍,揭露時不跳。
+    k = _reveal_k(n, ctx.reveal, minpts=8)
+    ax.plot(x[:k], lin[:k], color=MUTED, lw=2.0, ls="--", zorder=2)
+    ax.plot(x[:k], comp[:k], color=GREEN, lw=2.8, zorder=3)
+    ax.fill_between(x[:k], lin[:k], comp[:k], color=GREEN, alpha=0.12, zorder=1)
     ax.set_xlim(0, n)
     ax.set_ylim(80, comp[-1] * 1.05)
     return "複利．時間越久越陡", ("— 複利", GREEN, "-- 單利", MUTED)
@@ -266,6 +289,9 @@ def _drawdown(ax, ctx):
         return None
     ticker, dates, eq = ctx.real
     import pandas as pd
+    # 漸進揭露:只看真實資料的前 k 天,標「到目前為止」的真實最大回撤(峰谷都在已揭露範圍內)。
+    k = _reveal_k(len(eq), ctx.reveal, minpts=40)
+    eq, dates = eq[:k], dates[:k]
     x = np.arange(len(eq))
     run_max = np.maximum.accumulate(eq)
     dd = eq / run_max - 1.0
@@ -306,10 +332,13 @@ def _martingale(ax, ctx):
     n = 9
     x = np.arange(n)
     bet = 2.0 ** x
-    ax.bar(x, bet, color=RED, width=0.6, zorder=3, edgecolor="white", linewidth=0.5)
-    ax.annotate("一次爆倉\n全部歸零", xy=(n - 1, bet[-1]), xytext=(n - 3.2, bet[-1] * 0.9),
-                ha="center", color=RED, fontsize=15,
-                arrowprops=dict(arrowstyle="->", color=RED, lw=1.6))
+    # 漸進揭露:加碼長條一根根疊上去(reveal=1.0→全部,byte-identical);「爆倉歸零」註解等最後一根出現才標。
+    kb = _reveal_k(n, ctx.reveal, minpts=2)
+    ax.bar(x[:kb], bet[:kb], color=RED, width=0.6, zorder=3, edgecolor="white", linewidth=0.5)
+    if kb >= n:
+        ax.annotate("一次爆倉\n全部歸零", xy=(n - 1, bet[-1]), xytext=(n - 3.2, bet[-1] * 0.9),
+                    ha="center", color=RED, fontsize=15,
+                    arrowprops=dict(arrowstyle="->", color=RED, lw=1.6))
     ax.set_xlim(-0.7, n - 0.3)
     ax.set_ylim(0, bet[-1] * 1.18)
     return "輸了就加倍．遲早一次清光", None
@@ -363,6 +392,9 @@ def _trend(ax, ctx):
         return None
     ticker, dates, px = ctx.real
     import pandas as pd
+    # 漸進揭露:只在真實資料的前 k 天裡挑符合旁白方向的真實區間(不會揭露到未來)。
+    k = _reveal_k(len(px), ctx.reveal, minpts=140)
+    px, dates = px[:k], dates[:k]
     win = max(60, len(px) // 12)          # 取約一年的窗
     if len(px) < win * 2:
         return None
@@ -402,6 +434,9 @@ def _candles(ax, ctx):
     for i in range(0, len(tail) - grp + 1, grp):
         w = tail[i:i + grp]
         bars.append((w[0], w.max(), w.min(), w[-1]))
+    # 漸進揭露:由左至右逐根顯示 K 棒(reveal=1.0→全部,byte-identical)。
+    kb = _reveal_k(len(bars), ctx.reveal, minpts=6)
+    bars = bars[:kb]
     for i, (op, hi, lo, cl) in enumerate(bars):
         up = cl >= op
         col = GREEN if up else RED
@@ -410,7 +445,8 @@ def _candles(ax, ctx):
                                color=col, zorder=3))
     ax.set_xlim(-1, len(bars))
     d0 = pd.Timestamp(dts[0]).date()
-    d1 = pd.Timestamp(dts[-1]).date()
+    _last = len(dts) - 1 if ctx.reveal >= 1.0 else min(len(dts) - 1, kb * grp - 1)
+    d1 = pd.Timestamp(dts[_last]).date()
     return f"{ticker} 實際 K 線({d0} → {d1})", None
 
 
@@ -447,7 +483,7 @@ def _font_setup():
 
 def render_concept_chart(width: int, height: int, text: str, accent, seed: str,
                          dest=None, force: Optional[str] = None,
-                         fallback_ticker: Optional[str] = None):
+                         fallback_ticker: Optional[str] = None, reveal: float = 1.0):
     """回傳滿版深色底 + 置中數據圖的 PIL.Image(RGB)；判不到主題回 None。
 
     圖只佔畫面中段（約 18%~76% 高），上方留給大標題、下方留給字幕。
@@ -500,7 +536,8 @@ def render_concept_chart(width: int, height: int, text: str, accent, seed: str,
         rd = load_real(tk)
         if rd is not None:
             real = (tk, rd[0], rd[1])
-    ctx = Ctx(rng=rng, direction=_direction(text), real=real, text=text)
+    ctx = Ctx(rng=rng, direction=_direction(text), real=real, text=text,
+              reveal=max(0.05, min(1.0, float(reveal))))
 
     result = drawer(ax, ctx)
     if result is None:            # drawer 判定「沒有真資料可畫」→ 不出概念圖

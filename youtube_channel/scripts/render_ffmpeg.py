@@ -710,6 +710,10 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
                            tmp_dir=tmp_dir, video_ticker=video_ticker)
             for i, seg in enumerate(segments)
         ]
+        # ② 漸進揭露(PROGRESSIVE_REVEAL)重合成用:記住每段疊了哪些 overlay,好在段內逐切片
+        # 重畫「揭露到不同程度」的真資料圖時,把同一組 HUD 條/吉祥物原封不動再疊回去(段內這兩者不變)。
+        seg_hud_png = [None] * len(seg_cards)
+        seg_mascot_path = [None] * len(seg_cards)
 
         # 1.2)【已拆除 2026-07-17·誠信】「強制回測對比 beat」——不要重建。
         # 舊行為：每支長片都硬插一張 concept_visuals._backtest 的「回測期 | 驗證期」split-chart，
@@ -764,6 +768,7 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
                                 _op = tmp_dir / f"cardhud_{i:02d}.png"
                                 _bc.convert("RGB").save(str(_op))
                                 seg_cards[i] = str(_op)
+                                seg_hud_png[i] = str(hud_png)  # ② reveal 段內重合成用
                         except Exception:  # noqa: BLE001
                             pass
         except Exception:  # noqa: BLE001
@@ -794,6 +799,7 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
                         _mout = tmp_dir / f"cardmas_{i:02d}.png"
                         _mimg.convert("RGB").save(str(_mout))
                         seg_cards[i] = str(_mout)
+                        seg_mascot_path[i] = _mp  # ② reveal 段內重合成用(同段吉祥物表情不變)
                     except Exception:  # noqa: BLE001
                         pass
             except Exception:  # noqa: BLE001
@@ -861,9 +867,24 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
                 except Exception:  # noqa: BLE001
                     pass
 
-        # 2.5) b-roll 路徑:有 Pexels key 且段有 broll → 走 b-roll(影片段);失敗自動退卡片靜態切片
+        # ② 漸進揭露旗標(PROGRESSIVE_REVEAL,預設關)。**提前算**,因為它會改路徑選擇。
+        # 為什麼要改路徑:長片在 render_watcher.render_one() 會設 PEXELS_API_KEY → 走下面的
+        # _render_with_broll;而長片 per_seg>30 讓 b-roll「一段 footage 都抓不到」(閘門 per_seg<=30
+        # 永遠 False),只是把 seg_cards[i] 當**一張靜態卡 Ken Burns 播 130s** —— 這正是 Carson
+        # 「同一張圖播兩分鐘」的病灶本身,且 b-roll 成功就 return、根本到不了下面能漸進揭露的靜態切片。
+        # 所以 reveal 開時**刻意跳過 b-roll**,讓長片落到靜態切片路徑吃到段內漸進揭露。
+        # (且「真資料圖表 > 通用實拍空景」本來就是本頻道護城河,長片跳過 b-roll 無損失。)
+        # 關=完全走舊路徑(有 PEXELS 照走 b-roll),明天產線零變化。
+        _reveal_on = bool(os.environ.get("PROGRESSIVE_REVEAL"))
+        if not _reveal_on:
+            try:
+                _reveal_on = bool(mv._design_system().get("progressive_reveal", False))
+            except Exception:  # noqa: BLE001
+                _reveal_on = False
+
+        # 2.5) b-roll 路徑:有 Pexels key 且非 reveal 模式 → 走 b-roll(影片段);失敗自動退卡片靜態切片
         pexels_key = os.environ.get("PEXELS_API_KEY", "").strip() or None
-        if pexels_key:  # 有 pexels key 就全片走 b-roll 動態影片(Carson 要影片、不要靜態卡)
+        if pexels_key and not _reveal_on:  # 有 pexels key 就全片走 b-roll 動態影片(Carson 要影片、不要靜態卡)
             if _render_with_broll(slug_paths, segments=segments, seg_cards=seg_cards,
                                   intro_png=intro_png, outro_png=outro_png, cues=cues,
                                   audio_duration=audio_duration, per_seg=per_seg, width=width,
@@ -872,6 +893,8 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
                                   tmp_dir=Path(tempfile.mkdtemp(prefix="carson_ffb_")), ff=_ffmpeg_exe()):
                 return True
             print("[ffmpeg後端] b-roll 路徑未成,改用卡片靜態切片", file=sys.stderr)
+        elif pexels_key and _reveal_on:
+            print("[ffmpeg後端] PROGRESSIVE_REVEAL 開:跳過 b-roll,走靜態切片(段內漸進揭露真資料圖)", file=sys.stderr)
 
         # 3) body 切片邊界(段邊界 ∪ 字幕邊界),每片合成「卡+當下字幕」PNG
         marks = {0.0, float(audio_duration)}
@@ -882,6 +905,52 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
             marks.add(min(max(cu.end, 0.0), audio_duration))
         bounds = sorted(marks)
 
+        # ② 子段切分／漸進揭露(_reveal_on 已於 b-roll 決策前算好)。
+        # 病灶:一段 per_seg≈130s,段內每個字幕切片都拿**同一張** seg_cards[seg_idx],
+        #   只有字幕在變 → Carson 講的「幾張圖輪著播、同一張圖播兩分鐘」。
+        # 修法:開關打開時,依「切片在段內的相對位置」把真資料圖**漸進揭露**(講到 2018 就畫到
+        #   2018、講到 464% 就畫到 464%),段內從 1 張變 8 張、張張不同且切題。
+        # **關=完全走舊路徑**(base=seg_cards[seg_idx],bucket 恆 -1,輸出 byte-identical)。
+        # fail-safe:reveal 圖只來自真 CSV(render_concept_card 拿不到真資料→回 None)→退回 seg_cards
+        #   原卡,**絕不畫亂數**;文字卡段落 render_concept_card 也回 None → 一樣退原卡,不受影響。
+        _REVEAL_BUCKETS = 8
+        reveal_base_cache = {}   # (seg_idx, bucket) -> png 路徑 或 None(該段非真資料圖,退回 seg_cards)
+
+        def _reveal_base(seg_idx, bucket):
+            """回傳該段揭露到 bucket 級別的底卡(concept@reveal + 同段 HUD/吉祥物重合成);
+            該段不是真資料圖(concept 回 None)→ 回 None,呼叫端退回 seg_cards[seg_idx]。"""
+            ck = (seg_idx, bucket)
+            if ck in reveal_base_cache:
+                return reveal_base_cache[ck]
+            out = None
+            try:
+                seg = segments[seg_idx]
+                r = (bucket + 1) / _REVEAL_BUCKETS      # bucket 0→1/8 揭露 … 7→完整
+                card = mv.render_concept_card(
+                    width, height, heading=seg.heading or "", narration=seg.narration,
+                    watermark=watermark, accent=accent, seed=f"{vid_seed}_{seg_idx}",
+                    dest=tmp_dir / f"reveal_{seg_idx:02d}_{bucket}.png",
+                    default_key=video_concept, fallback_ticker=video_ticker, reveal=r)
+                if card is not None:
+                    bimg = Image.open(str(card)).convert("RGBA")
+                    if seg_hud_png[seg_idx]:            # 疊回同段那張 HUD 條(段內不變)
+                        try:
+                            bimg.alpha_composite(Image.open(seg_hud_png[seg_idx]).convert("RGBA"))
+                        except Exception:  # noqa: BLE001
+                            pass
+                    if seg_mascot_path[seg_idx]:        # 疊回同段吉祥物表情(段內不變)
+                        try:
+                            bimg = mv.paste_mascot(bimg, seg_mascot_path[seg_idx], position="br", scale=0.16)
+                        except Exception:  # noqa: BLE001
+                            pass
+                    op = tmp_dir / f"revealbase_{seg_idx:02d}_{bucket}.png"
+                    bimg.convert("RGB").save(str(op))
+                    out = str(op)
+            except Exception:  # noqa: BLE001 - 任何失敗都退回 seg_cards,渲染永不因 reveal 崩
+                out = None
+            reveal_base_cache[ck] = out
+            return out
+
         sub_cache = {}
         timeline = [(intro_png, mv.INTRO_DURATION)]  # (png, dur)
         for a, b in zip(bounds, bounds[1:]):
@@ -891,10 +960,17 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
             mid = (a + b) / 2.0
             seg_idx = min(int(mid / per_seg) if per_seg else 0, n - 1)
             base = seg_cards[seg_idx]
+            bucket = -1
+            if _reveal_on and per_seg > 0:
+                pos = (mid - seg_idx * per_seg) / per_seg    # 段內相對位置 0..1
+                bucket = min(max(int(pos * _REVEAL_BUCKETS), 0), _REVEAL_BUCKETS - 1)
+                rb = _reveal_base(seg_idx, bucket)
+                if rb is not None:                           # 只有真資料圖段落才換;否則保留原卡
+                    base = rb
             cue = next((c for c in cues if c.start <= mid < c.end), None)
             png = base
             if cue is not None:
-                key = (seg_idx, cue.text)
+                key = (seg_idx, bucket, cue.text)  # bucket 進 key:同段不同揭露級別的字幕卡要分開快取
                 if key not in sub_cache:
                     composed = base
                     sub_png = mv._render_subtitle_image(width, height, cue.text, tmp_dir, accent=accent)
