@@ -86,16 +86,51 @@ def _subscribe_hook(cfg: dict | None = None) -> str:
     return f"{_SUBSCRIBE_HOOK}\n👉 https://www.youtube.com/@{handle}{_SUB_CONFIRM_PARAM}"
 
 
-def _ensure_subscribe_hook(description: str, cfg: dict | None = None) -> str:
+# ── 系列化訂閱鉤(2026-07-19 訂閱轉換診斷落地)────────────────────────────────
+# 通用訂閱鉤講「每週全市場實測」是泛泛承諾;連載片(如台股真相實驗室)應該給**這個系列**的具體
+# 訂閱理由——「訂了會固定拿到什麼」。數字(還有幾組沒拆)必須真實可查、不可變空頭誘餌:直接複用
+# ep0_engine 已做過誠信稽核的『未拍真回測組數』(語意去重後的保守下界,used_keys ∪ episodes[].key
+# 都算進去,不會灌水),算不出來就 fail-open 退通用鉤,絕不擋發布、絕不編數字。
+_TW_LAB_SERIES_NAME = "台股真相實驗室"
+
+
+def _tw_lab_series_hook(cfg: dict | None = None) -> str | None:
+    """台股真相實驗室專屬訂閱鉤;存量算不出來(<1 組)回 None → 呼叫端退通用鉤。"""
+    try:
+        import ep0_engine
+        inv = ep0_engine.inventory("tw_lab") or {}
+        ready = int(inv.get("ready", 0) or 0)
+        if ready < 1:
+            return None
+        base = (f"🔔 訂閱追《{_TW_LAB_SERIES_NAME}》——我手上還有 {ready} 組已經跑好的台股真回測還沒拆，"
+                f"一集拆一組，訂閱才收得到下一組數字，不誇大只看真數據")
+        handle = ((cfg or {}).get("channel_handle") or "").lstrip("@")
+        if handle:
+            return f"{base}\n👉 https://www.youtube.com/@{handle}{_SUB_CONFIRM_PARAM}"
+        return base
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _ensure_subscribe_hook(description: str, cfg: dict | None = None,
+                           slug: str = "", title: str = "") -> str:
     """確保每支發布片描述都有清楚的『訂閱理由』句(價值承諾，非空喊)+ 一鍵訂閱連結。
+
+    2026-07-19:連載片給**系列專屬**訂閱鉤(具體理由=這系列還有幾組真回測沒拆,訂閱才收得到);
+    非連載片維持通用 credential 鉤。系列鉤的數字由 ep0_engine 誠信稽核過的存量算出,fail-open。
 
     🔴 2026-07-17 修去重誤判：舊碼用 `if "訂閱" in description` 去重，但描述裡含逐字稿——
     同日 produce_batch 的 CTA 改成「一律明講『訂閱』二字」後，**每支片的描述都會命中這個判斷**，
     導致這句 credential 背書(競品逆向驗證過:頭部頻道簡介第一句無例外都是 credential)
     永遠不再被加上 = 好心的去重直接廢掉整個機制。改成比對「一鍵訂閱連結」是否已存在，
     那才是這個函式真正負責產出的東西。"""
-    hook = _subscribe_hook(cfg)
-    if _SUB_CONFIRM_PARAM in description or _SUBSCRIBE_HOOK in description:
+    hook = None
+    if _TW_LAB_SERIES_NAME in (slug + " " + title) or "臺股真相實驗室" in (slug + " " + title):
+        hook = _tw_lab_series_hook(cfg)
+    if not hook:
+        hook = _subscribe_hook(cfg)
+    if (_SUB_CONFIRM_PARAM in description or _SUBSCRIBE_HOOK in description
+            or f"訂閱追《{_TW_LAB_SERIES_NAME}》" in description):
         return description
     return f"{description}\n\n{hook}"
 
@@ -736,7 +771,9 @@ def upload_one(yt, slug: str, privacy: str) -> str:
             meta["description"] = (f"🔁 接續看同系列 👉 {_slink}\n\n" + meta["description"])[:5000]
 
     # 描述訂閱鉤標準化：每支發布片(短+長)都要有清楚的『訂閱理由』句(價值承諾,非光禿禿求訂閱)。
-    meta["description"] = _ensure_subscribe_hook(meta["description"], cfg)[:5000]
+    # 連載片(台股真相實驗室)給系列專屬鉤(還有幾組沒拆,訂閱才拿得到);故帶 slug/title 供判系列。
+    meta["description"] = _ensure_subscribe_hook(meta["description"], cfg,
+                                                 slug=slug, title=meta.get("title", ""))[:5000]
 
     # Shorts 用 #Shorts 加進標題尾端（字數允許時）；長片 categoryId 用教育(27)
     title = meta["title"]

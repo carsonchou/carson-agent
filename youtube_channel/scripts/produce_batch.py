@@ -1275,6 +1275,10 @@ TW_LAB_LONG_RULES = """
   只能出自本次注入的【本片實證數據】與【系列連貫設定】區塊**。注入區塊沒有的數字,寧可不講也**絕不
   自己編、不自己換算、不自己估**(例:注入給你年化,就不要自己乘出「十年總報酬」;要嘛用注入的總報酬、
   要嘛不講)。這條牴觸任何「講得更具體」的衝動時,以這條為準。
+- ★標題與開場的「差距數字」(少賺X%、差X趴、多賺X倍)只能是【本集主軸實證數據】兩個原始數字**實際
+  相減/相除算出**的值(連「趴」和中文數字寫法都算),嚴禁湊一個沒算過的整數;全片同一個差距數字、標題
+  與正文一致;標題若寫年數就用那個年數的那組數字(近10年/近12年別混)。(此條另有確定性守門硬擋,見
+  _fix_tw_lab_title_fabrication:標題含查無憑據的數字會被自動換成不含編造差值的安全標題。)
 - ★講「差多少/差距」必須連同兩邊原始數字一起講(例「一邊 813%、一邊 379%,差了 434%」),不准裸講差值
   ——①觀眾要兩邊數字才有震撼與可驗證 ②發布守門 fact_source_guard 的差值驗算要求組成數字同場,裸講差值
   會被判無憑據擋下不發。
@@ -1730,6 +1734,32 @@ def _fix_tw_lab_symbol_mislabel(result, fact):
     return result
 
 
+def _fix_tw_lab_title_fabrication(result, fact):
+    """台股真相實驗室標題誠信安全網(2026-07-19 訂閱轉換·長片變體落地時實測抓到):
+    LLM 在標題湊一個沒算過的差距整數是**已知累犯**——dca_vs_allin 這組連兩次生成都吐「少賺430%」,
+    但真實差距是 321.7 分點(697.4% vs 375.7%);純 prompt 提示擋不住(同 tw_lab 診斷『軟性提示擋不住
+    LLM,已知累犯要硬擋』)。故照本檔既有『確定性後處理』模式(對齊 _fix_tw_lab_symbol_mislabel/
+    _checkup_finalize)硬擋:標題若含發布守門 fact_source_guard 查無憑據的數字,就換成由本集主軸事實
+    desc 生成的確定性安全標題(不含任何編造差值,仍含標的/主題可搜尋)。
+    fail-open:任何例外或無 desc 素材一律保留原標題——下游 fact_source_guard 仍會 fail-closed 擋下,
+    絕不會因為這道沒生效就漏發假數字(安全網,不是唯一防線)。短片/長片同樣適用:只在標題真的含編造
+    數字時才觸發,乾淨標題(常態)完全不動,故不影響短片既有行為。"""
+    try:
+        import fact_source_guard as _fsg
+        title = str(result.get("title", ""))
+        if not title or not _fsg.unsourced_claims(title):
+            return result  # 標題乾淨(常態)→ 不動
+        desc = str((fact or {}).get("desc") or "").strip()
+        if not desc:
+            return result  # 無安全標題素材 → 保留原標題交給發布守門 fail-closed
+        safe = f"{desc}？回測揭真相"  # 與 tw_lab_engine.build_topic 同格式,由真事實生成、零編造
+        result["_title_fabrication_fixed"] = {"old": title, "new": safe}
+        result["title"] = safe
+    except Exception:  # noqa: BLE001
+        pass
+    return result
+
+
 # ── 病灶A根因(2026-07-13 長片內容審查實測)：_tw_facts_context 只挑最多 6 條相關事實組成
 # 一份「文字區塊」，而舊版 _densify_long 把這同一份文字**原封不動塞進每一段 deep-segment prompt**——
 # 4-5 段全部拿到一模一樣的 2-6 組數字，LLM 除了換比喻/換人物重講同一組數字，沒有別的素材可用，
@@ -2119,6 +2149,7 @@ hashtags 規則：給 4-6 個「精準且利基相關」的標籤(第一個必�
         result["_tw_lab_key"] = _tw_lab_actual_key or (topic.get("tw_lab_key") or "")
         result["_tw_lab_ep"] = _tw_lab_ep_no
         result = _fix_tw_lab_symbol_mislabel(result, _tw_lab_fact_used)
+        result = _fix_tw_lab_title_fabrication(result, _tw_lab_fact_used)  # 標題編造數字→確定性換安全標題
     result["_is_tw_stock"] = bool(is_tw_stock)  # A2:供 make_one 判斷本片是否有 tw_stock_facts 真數據佐證
     if is_checkup:
         result["_is_checkup"] = True
@@ -3769,9 +3800,12 @@ def main() -> int:
     # 台股真相實驗室：每批開跑前先把接下來幾集的真回測事實種進題庫(category=台股真相實驗室)，
     # 讓 pull_topic() 日常補產時能自然抽到本系列，不必每次都靠 --tw-lab 手動觸發。已種過的事實
     # key 不重複種(tw_lab_engine 自己追蹤)，失敗靜默跳過不影響本批正常出片。
+    # 2026-07-19:franchise 改走長片(tw_lab_engine.FRANCHISE_FORMAT)後,seed 的是**長片**題並 front
+    # 插隊——n 從 6 降到 2,把長片產製名額讓給 Carson 指定「一天一部」的個股體檢連載(d2fca80),
+    # 避免 tw_lab 前插把 checkup 每日那部擠掉。每批 2 支 tw_lab 長片攻訂閱已足夠。
     try:
         import tw_lab_engine
-        tw_lab_engine.seed_topic_bank(6)
+        tw_lab_engine.seed_topic_bank(2)
     except Exception as exc:  # noqa: BLE001
         print(f"[warn] 台股真相實驗室種題略過：{str(exc)[:80]}", file=sys.stderr)
 

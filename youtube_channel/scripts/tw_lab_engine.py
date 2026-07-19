@@ -54,6 +54,19 @@ TW_FACTS_COMPUTED = STUDIO / "tw_facts_computed.json"
 SERIES_NAME = "台股真相實驗室"
 EPISODES_PER_SEASON = 10  # 對齊 ep_engine：每 10 集收一季，重新排序(反映事實庫可能已更新 as_of)
 
+# ── franchise 產出格式(2026-07-19 訂閱轉換診斷落地)──────────────────────────
+# 診斷(STUDIO/quality_scores.json 188 支有數據片逐支核對 + Analytics creatorContentType 90d):
+#   · 173 支 Short 訂閱數上限就是 1；拿到 2/3/4/9 訂閱的片**全部**是長片或開播預告,沒有例外。
+#   · 帶「追劇鉤」的 EP/系列/實測 Shorts 66 支只換 2 訂閱;同題材長片 10 支換 4 訂閱(1/6 片數、2 倍訂閱)。
+#   · 產線自己早算過(daily_publish.py:588):Shorts 訂閱轉換 0.080% vs 長片 0.43–0.96%,
+#     去離群值後雙比例 z=3.81 p=0.0001。方向鐵證。
+# 結論:這個 franchise 的**存在理由就是訂閱轉換**(見檔頭),卻一直產成 Shorts=結構上換不到訂閱。
+# 故 franchise 正片改走長片。長片走【多事實 bundle】(produce_batch 既有的 _tw_facts_context
+# 已為台股題注入多組相關真回測)撐 8-10 分鐘深段,不是把單一事實硬拉長;誠信不變:每個數字都來自
+# 注入的真事實、不得自行編造或換算(見 produce_batch.TW_LAB_LONG_RULES)。
+# ⚠️ 這是「franchise 主力格式」的單一開關;要回短片或做長短混排,只改這一個常數即可。
+FRANCHISE_FORMAT = "long"
+
 # 上週贏家分析(STUDIO/REPORTS/2026-07-13_每週贏家分析.md)：含這些詞的片平均觀看 ≥ 全站115%。
 # 拿來給 40 組事實排優先序，讓 franchise 前幾集就是已驗證會被看的角度，不是隨機順序。
 WINNER_KW = ("0050", "你猜", "vs", "VS", "剩多少", "小白", "複利", "停損", "差多少",
@@ -290,17 +303,27 @@ def _fact_period(fact):
     return ""
 
 
-def fact_data_block(key, fact, as_of=""):
+def fact_data_block(key, fact, as_of="", long_mode=False):
     """把單一事實格式化成可直接塞進寫稿 prompt 的實證區塊(比 produce_batch._tw_facts_context
-    更聚焦——只給『這集要用的這一組』，不是一次塞 6 組讓 LLM 自己選,避免混題)。"""
+    更聚焦——只給『這集要用的這一組』，不是一次塞 6 組讓 LLM 自己選,避免混題)。
+
+    long_mode(2026-07-19 訂閱轉換診斷·長片變體):長片(8-10 分鐘)拿單一事實會被迫灌水→低完播→
+    換不到訂閱。長片模式下,這組事實是本集**主軸**(脊椎),但允許搭配 produce_batch 另注入的
+    【本片實證數據】多組同題材真回測充實深段——把「只能用這一組」放寬成「主軸這組必用、其餘限注入的
+    真數字」。誠信不放寬:一個數字都不能自己編/換算/估,period 的年數硬規則照樣生效。
+    long_mode=False(預設)行為與舊版 byte-identical,短片路徑零變化。"""
     if not fact:
         return ""
     desc = str(fact.get("desc") or key)
     claim = str(fact.get("claim") or fact.get("summary") or "")
     period = _fact_period(fact)
     source = str(fact.get("source") or "")
-    lines = [f"\n【★本集唯一指定實證數據(台股真回測·只能用這一組,不得混用其他標的/期間的數字)】",
-             f"  題材：{desc}"]
+    if long_mode:
+        header = ("\n【★本集主軸實證數據(台股真回測·本集的脊椎,必用;其餘細節限用另一區塊"
+                  "【本片實證數據】的注入真數字,一律不得自行編造/換算/估計)】")
+    else:
+        header = "\n【★本集唯一指定實證數據(台股真回測·只能用這一組,不得混用其他標的/期間的數字)】"
+    lines = [header, f"  題材：{desc}"]
     if claim:
         lines.append(f"  數字：{claim}")
     if period:
@@ -386,7 +409,7 @@ def build_topic(state=None):
         "title": f"{desc}？回測揭真相",
         "angle": angle,
         "category": SERIES_NAME,
-        "format": "short",
+        "format": FRANCHISE_FORMAT,
         "tw_lab_key": key,
         "tw_lab_next_key": next_key,
     }
@@ -414,7 +437,7 @@ def seed_topic_bank(n=8):
             "title": f"{desc}？回測揭真相",
             "angle": f"{SERIES_NAME}系列一集：{claim}。用『你猜』式懸念開場、系列訂閱鉤收尾。",
             "category": SERIES_NAME,
-            "format": "short",
+            "format": FRANCHISE_FORMAT,
             "tw_lab_key": k,
         })
     try:
