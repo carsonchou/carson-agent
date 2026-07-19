@@ -446,7 +446,10 @@ def _next_checkup_ep() -> int:
                 max_ep = max(max_ep, int(m.group(1)))
     except Exception:  # noqa: BLE001
         pass
-    return max_ep + 1
+    # ep_floor:Carson 權威錨點(線上已到 EPn → 設 n+1)。防舊跳號 bug 記進 ledger 的高號、或保底
+    # 掃到「已理順前的舊 EP 號」污染 max,把下一集壓到 floor 以下。發布後 ledger 自然連號超過 floor。
+    floor = int(led.get("ep_floor", 0) or 0)
+    return max(max_ep + 1, floor)
 
 
 def _record_checkup_ep(slug: str, ep_n: int) -> None:

@@ -1539,7 +1539,7 @@ def _checkup_context(topic):
     return "\n".join(lines)
 
 
-def _normalize_checkup_title(title: str) -> str:
+def _normalize_checkup_title(title: str, code=None, name=None) -> str:
     """個股體檢標題的確定性正規化:①去掉 EP 數字(編號改由發布時掛,見 daily_publish);②把系列名
     「個股體檢」擺到**最前面**(前綴式)。為什麼要前綴:slug 由 slugify(標題前段)產生,系列名在尾端
     (…｜個股體檢)會被截掉→slug 不含「個股體檢」→playlist_engine._match_stock_checkup 認不到→連載
@@ -1549,12 +1549,29 @@ def _normalize_checkup_title(title: str) -> str:
       '鴻海…｜個股體檢EP2'   → '個股體檢鴻海…'
       '個股體檢EP2鴻海2317：' → '個股體檢鴻海2317：'
       '力積電…(無系列名)'    → '個股體檢力積電…'(順帶補上品牌,發布/播放清單都認得)
-    只動 4 字『個股體檢』與其 EP 數字,不誤傷『體檢報告』這種一般詞。"""
+    只動 4 字『個股體檢』與其 EP 數字,不誤傷『體檢報告』這種一般詞。
+
+    ③標的醒目化(2026-07-19 Carson:『標題要讓人家知道我在講這隻股票、要明顯一點』):給了 code/name
+    就把『【名稱 代號】』提到鉤子最前,觀眾一眼看出本集講哪支;鉤子開頭若已是裸代號(00878存股…)先去掉
+    避免與前綴重複;冪等(已【】開頭不重加);發布端 _strip_checkup_ep 只剝系列名/EP、不碰【】,故此前綴
+    會原樣保留進線上標題『【名稱 代號】…｜個股體檢EPn』。code/name 取自本集 checkup fact 的確定性資料,
+    無(舊調用/取不到)則退回原行為,不影響既有片。"""
     t = title or ""
     t = re.sub(r"[\s｜|·:：]*個股體檢\s*EP\s*\.?\s*\d+", "", t)   # 個股體檢EP2 / 個股體檢 EP1
     t = re.sub(r"[\s｜|·:：]*個股體檢", "", t)                     # 裸系列名(待會補到最前面)
     t = re.sub(r"[\s｜|·]*\bEP\s*\.?\s*\d+(?!\d)", "", t)         # 殘留裸 EPn
     hook = t.strip(" ｜|·:：，,、-　\t")
+    if code:
+        code = str(code).strip()
+        nm = str(name).strip() if name else ""
+        # 原鉤子開頭是裸代號/裸名稱/名稱代號連寫 → 去掉,避免與【】前綴重複(從長到短比對,先吃連寫)
+        for lead in (f"{nm}{code}", f"{code}{nm}", code, nm):
+            if lead and hook.startswith(lead):
+                hook = hook[len(lead):].lstrip(" ：:，,、-　！!。")
+                break
+        tag = f"【{nm} {code}】" if (nm and nm != code) else f"【{code}】"
+        if code and not hook.startswith("【"):   # 冪等:已加過【】就不重加
+            hook = f"{tag}{hook}"
     return f"個股體檢{hook}" if hook else "個股體檢"
 
 
@@ -3494,7 +3511,17 @@ def make_one(kind, no_render=False, topic_override=None, script_override=None):
     # slug 皆無編號、且都帶系列名(slug 帶系列名才進得了播放清單連播)。發布時再掛號、改後綴式公開標題,
     # 三處(YT標題/封面/slug衍生)一致、且「發一支進一號、永不跳」。見 _normalize_checkup_title。
     if d.get("_is_checkup") and d.get("title"):
-        d["title"] = _normalize_checkup_title(d["title"])
+        # 抽本集標的 code/name(確定性,同 _ck_setup_block 來源)給標題醒目化;取不到就退回原正規化
+        _ck_tp = d.get("_ck_topic") or {}
+        _ck_code = _checkup_extract_code(str(_ck_tp.get("fact_key", ""))) if _ck_tp else None
+        _ck_name = None
+        if _ck_code:
+            try:
+                _cd = json.loads(STOCK_CHECKUP_FACTS.read_text(encoding="utf-8"))
+                _ck_name = (_cd.get("by_code") or {}).get(_ck_code, {}).get("name")
+            except Exception:  # noqa: BLE001
+                pass
+        d["title"] = _normalize_checkup_title(d["title"], code=_ck_code, name=_ck_name)
     slug = slugify(d["title"], prefix)
     if (OUT / f"{slug}.voice.txt").exists() or (OUT / f"{slug}.mp4").exists():
         # 撞名有兩種完全不同的情況,不能一律改名硬產:
