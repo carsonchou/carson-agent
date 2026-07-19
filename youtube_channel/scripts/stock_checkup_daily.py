@@ -128,43 +128,17 @@ def _next_candidates(bl, limit):
     return [it for it in items if not it.get("done") and not it.get("skip")][:limit]
 
 
-def _next_ep_number() -> int:
-    """推下一集 EP 編號:掃題庫標題+output/*.md+uploaded_ledger key 的「個股體檢EP(\\d+)」取
-    max+1(確定性推導,不另存計數器免 drift)。掃不到=1。"""
-    import re
-    max_ep = 0
-    pat = re.compile(r"個股體檢EP(\d+)")
-    try:
-        for t in tb.load_bank():
-            m = pat.search(str(t.get("title", "")))
-            if m:
-                max_ep = max(max_ep, int(m.group(1)))
-    except Exception:  # noqa: BLE001
-        pass
-    try:
-        for p in (ROOT / "output").glob("*體檢EP*.md"):
-            m = pat.search(p.stem)
-            if m:
-                max_ep = max(max_ep, int(m.group(1)))
-    except Exception:  # noqa: BLE001
-        pass
-    try:
-        import json as _json
-        led = _json.loads((ROOT / "STUDIO" / "uploaded_ledger.json").read_text(encoding="utf-8"))
-        for k in led:
-            m = pat.search(str(k))
-            if m:
-                max_ep = max(max_ep, int(m.group(1)))
-    except Exception:  # noqa: BLE001
-        pass
-    return max_ep + 1
+# 🔴 舊 _next_ep_number()(掃題庫/output/ledger 的「個股體檢EP(\d+)」取 max+1)已於 2026-07-19 移除:
+# 它在「種題」當下就把 EP 號寫死,而種題進度≠發布進度 → 跳號。EP 號改由發布端 daily_publish
+# ._next_checkup_ep()按「已發布集數 max+1」在**發布時**確定性推導,種題/產製一律不寫號。
 
 
 def seed_topics_for_code(code: str, name: str = "", dry_run: bool = False) -> int:
     """只對這一檔『新產生』的 checkup_ fact_key 生題(不重跑全部歷史事實，控 LLM 成本)。
     重用 topics_from_facts.py 的 prompt 組裝/去重/誠信溯源邏輯(唯讀 import，不改那支)。
-    🔴 2026-07-15:標題強制掛「個股體檢EPn{name}{code}:」連載前綴——LLM 生的裸標題會讓
-    EP 鏈在 EP7 後斷掉(franchise 品牌/播放清單歸類/連看全靠它)。回傳實際新增的題目數。"""
+    🔴 2026-07-19:標題掛「個股體檢{name}{code}:」連載前綴,**只留系列名不帶 EP 編號**——
+    EP 號改由發布時按已發布集數 max+1 連號(治「種題進度≠發布進度」的跳號,見
+    daily_publish._next_checkup_ep)。回傳實際新增的題目數。"""
     all_facts = tff.load_facts()
     code_facts = {k: v for k, v in all_facts.items()
                   if k.endswith(f"__{code}") or f"__{code}__" in k}
@@ -212,14 +186,17 @@ def seed_topics_for_code(code: str, name: str = "", dry_run: bool = False) -> in
             rejected["unsourced"] += 1
             print(f"  ✗ 溯源失敗（不該發生，人工複查）：{title}  無憑據數字={bad_nums}")
             continue
-        # 連載前綴:個股體檢EPn{name}{code}:{LLM鉤子}。LLM 標題若以股名/代號開頭先剝掉,
-        # 避免「個股體檢EP8南亞科2408:南亞科…」疊字。
+        # 🔴 連載前綴改為「個股體檢{name}{code}：{hook}」——**不帶 EP 編號**(2026-07-19)。
+        # 舊法在種題當下用 _next_ep_number()寫死 EP 號(掃題庫最大號+1),但題庫每天種一檔就+1、
+        # 種到 EP39,實際只發布了 EP1/EP7 → EP 號跟著「種題進度」跳號,觀眾看 EP1 下一支卻是 EP40,
+        # 連載追劇/播放清單全斷。改成:種題只留系列名不留號、產製端(produce_batch._strip_checkup_ep_number)
+        # 也剝號、發布時(daily_publish._apply_checkup_ep)才按「已發布集數 max+1」掛號 →「發一支進一號、
+        # 永不跳」。LLM 標題若以股名/代號開頭先剝掉,避免「個股體檢南亞科2408：南亞科…」疊字。
         hook = title
         for lead in (name, code):
             if lead and hook.startswith(lead):
                 hook = hook[len(lead):].lstrip("：:，,、 ")
-        ep_n = _next_ep_number()
-        title = f"個股體檢EP{ep_n}{name}{code}：{hook}" if name else f"個股體檢EP{ep_n}{code}：{hook}"
+        title = f"個股體檢{name}{code}：{hook}" if name else f"個股體檢{code}：{hook}"
         n = tb._norm(title)  # 前綴改變了標題,去重指紋要跟著重算
         angle = str(c.get("angle") or "").strip()
         category = str(c.get("category") or "").strip()

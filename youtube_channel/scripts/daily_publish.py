@@ -44,6 +44,11 @@ THUMBS = PROJECT_ROOT / "assets" / "thumbnails"
 LEDGER = PROJECT_ROOT / "STUDIO" / "uploaded_ledger.json"
 REPORTS = PROJECT_ROOT / "STUDIO" / "REPORTS"
 QSCORES = PROJECT_ROOT / "STUDIO" / "quality_scores.json"
+# 個股體檢系列 EP 編號的**單一真相來源**：{slug: ep_n}。EP 號在「發布時」按「已發布集數 max+1」
+# 編定(見 _next_checkup_ep / _apply_checkup_ep),不再於種題/產製階段寫死——那會讓 EP 號跟著
+# 「種題進度」跳號(觀眾看到 EP1→下一支卻是 EP40)。這支帳本讓「發一支進一號、永不跳」可確定性推導,
+# 且不受 quality_scores 裡殘留的舊 EP 數字污染(存量待發片的 title 仍帶舊號)。
+CHECKUP_EP_LEDGER = PROJECT_ROOT / "STUDIO" / "checkup_ep_ledger.json"
 PUBLISH_PRIORITY = PROJECT_ROOT / "STUDIO" / "publish_priority.json"  # 選填：礦脈/新片優先旗標(slug清單)
 PUBLISH_SKIP = PROJECT_ROOT / "STUDIO" / "publish_skip.json"  # 選填：跳過發布清單({slug:理由})，可逆
 IG_LEDGER = PROJECT_ROOT / "STUDIO" / "ig_ledger.json"
@@ -329,10 +334,103 @@ def _tw_lab_member_slugs() -> set:
     return {e.get("slug") for e in (d.get("episodes") or []) if isinstance(e, dict) and e.get("slug")}
 
 
+# ── 個股體檢連載：EP 編號在「發布時」按已發布集數 +1 編定 ─────────────────────────
+# 為什麼在這裡編號、而不是種題/產製時編：EP 號原本由 stock_checkup_daily._next_ep_number 在
+# 「種題」當下寫死(掃題庫最大號 +1),而題庫每天種一檔就 +1、種到 EP39,但實際只發布了 EP1、EP7
+# ——EP 號跟著「種題進度」跳號,觀眾看到 EP1 下一支卻可能是 EP40,連載追劇/播放清單全斷。
+# 改成：種題/產製一律**不寫 EP 數字**(只留系列名「個股體檢」),發布時才按「已發布 EP max+1」掛號,
+# 於是「發一支進一號、永不跳」。narration 早已不唸編號(靠「下一集輪到某某」串連,見 produce_batch
+# _checkup_finalize),片頭卡/縮圖的標題在此改號前生成,故三者一致。
+_CK_SERIES = "個股體檢"
+_CK_EP_IN_TITLE = __import__("re").compile(r"個股體檢\s*EP\s*\.?\s*(\d+)")
+
+
+def _is_checkup_title(title: str) -> bool:
+    """本片是否屬於『個股體檢』連載(唯一標記＝標題含系列名『個股體檢』；產製端保證保留系列名、
+    只去掉 EP 數字)。散落的個股片(力積電/廣達…)標題都帶此四字,故一併納入連號。"""
+    return _CK_SERIES in (title or "")
+
+
+def _strip_checkup_ep(title: str) -> str:
+    """去掉標題裡的系列名+EP 數字,留下乾淨鉤子(供重新掛號)。只動 4 字『個股體檢』與其 EP 數字,
+    不誤傷『體檢報告』這種一般詞。"""
+    re_ = __import__("re")
+    t = title or ""
+    t = re_.sub(r"[\s｜|·:：]*個股體檢\s*EP\s*\.?\s*\d+", "", t)   # 個股體檢EP2 / 個股體檢 EP1
+    t = re_.sub(r"[\s｜|·:：]*個股體檢", "", t)                     # 裸系列名
+    t = re_.sub(r"[\s｜|·]*EP\s*\.?\s*\d+(?!\d)", "", t)           # 殘留 EPn
+    return t.strip(" ｜|·:：，,、-　\t")
+
+
+def _apply_checkup_ep(title: str, ep_n: int, maxlen: int = 98) -> str:
+    """把標題重新掛成連載後綴『…｜個股體檢EP{n}』(對齊已公開的 EP1 格式)。冪等：重複套用結果不變。
+    先剝掉任何既有系列/EP 標記再掛,故對前綴式(個股體檢EP2鴻海…)或後綴式(…｜個股體檢EP2)輸入都一致。
+    hook 過長時截斷 hook(不截後綴),保證 EP 號一定留在 100 字上限內。"""
+    hook = _strip_checkup_ep(title)
+    suffix = f"｜{_CK_SERIES}EP{int(ep_n)}"
+    room = maxlen - len(suffix)
+    if room > 0 and len(hook) > room:
+        hook = hook[:room].rstrip(" ｜|·:：，,、-　\t")
+    return f"{hook}{suffix}"
+
+
+def _load_checkup_ep_ledger() -> dict:
+    d = load_json_safe(CHECKUP_EP_LEDGER, default={}) or {}
+    if not isinstance(d, dict):
+        return {"assigned": {}}
+    d.setdefault("assigned", {})
+    return d
+
+
+def _next_checkup_ep() -> int:
+    """下一集 EP＝已發布個股體檢集數的最大號 +1(確定性推導,免計數器 drift)。
+    真相來源＝checkup_ep_ledger(發布時逐支寫入);另掃 quality_scores 已發布標題當**保底**,
+    抓在本帳本建立之前就已公開、或手動發布的集數(但排除已在帳本內的 slug,避免存量待發片
+    quality_scores 裡的舊 EP 數字污染 max)。掃不到＝0 → 第一集 EP1。"""
+    led = _load_checkup_ep_ledger()
+    assigned = led.get("assigned") or {}
+    max_ep = 0
+    for v in assigned.values():
+        try:
+            max_ep = max(max_ep, int(v))
+        except Exception:  # noqa: BLE001
+            pass
+    try:  # 保底：掃 quality_scores 已發布標題,抓帳本建立前就上線的集數(EP1/EP7)。兩道防污染:
+        #     ①排除已在帳本內的 slug(帳本權威)；②只認**真的在 uploaded_ledger** 的 slug——
+        #     存量待發片的 quality_scores title 仍帶舊 EP 數字(EP20/23…),但它們不在 ledger,不算數。
+        qs = load_json_safe(QSCORES, default={}) or {}
+        real_pub = load_json_safe(LEDGER, default={}) or {}
+        for it in (qs.get("published") or []):
+            if not isinstance(it, dict):
+                continue
+            slug = it.get("slug")
+            if slug in assigned or slug not in real_pub:
+                continue
+            m = _CK_EP_IN_TITLE.search(str(it.get("title", "")))
+            if m:
+                max_ep = max(max_ep, int(m.group(1)))
+    except Exception:  # noqa: BLE001
+        pass
+    return max_ep + 1
+
+
+def _record_checkup_ep(slug: str, ep_n: int) -> None:
+    """發布成功後把 slug→ep_n 寫進連載帳本(同一批下一支即讀到、拿到 +1，保證批內也連號)。"""
+    try:
+        led = _load_checkup_ep_ledger()
+        led.setdefault("assigned", {})[slug] = int(ep_n)
+        led["updated"] = tw_today()
+        save_json_atomic(CHECKUP_EP_LEDGER, led)
+    except Exception as e:  # noqa: BLE001 — 帳本寫入失敗不可拖累已成功的發布
+        print(f"[checkup-ep] 連載帳本寫入失敗 {slug}: {e}", file=sys.stderr)
+
+
 def _series_of(slug: str, title: str, lab_slugs: set):
-    """回 (系列名, 集數) 或 (None, None)＝不是已知連載系列(不受這道閘影響)。"""
-    if _CK_EP_RE.search(title):
-        return "個股體檢", int(_CK_EP_RE.search(title).group(1))
+    """回 (系列名, 集數) 或 (None, None)＝不是已知連載系列(不受這道閘影響)。
+
+    個股體檢**刻意不在此登記**：它的 EP 號改為發布時才掛(見 _next_checkup_ep),產製階段標題不帶
+    EP 數字,天生就是「發一支進一號」連號,不需要這道順序閘擋跳號;而存量待發片的 quality_scores
+    標題還殘留舊 EP 數字,若在此認號反而會用**舊號**排序、擋錯片。故這道閘只管台股真相實驗室。"""
     if slug in lab_slugs or "真相實驗室" in title:
         m = _EP_NUM_RE.search(title)
         if m:
@@ -610,6 +708,17 @@ def upload_one(yt, slug: str, privacy: str) -> str:
     meta = up.enforce_youtube_limits(meta)
     is_short = slug.startswith("S_")
 
+    # 個股體檢連載：EP 號在此(發布時)按「已發布集數 max+1」掛上,不在種題/產製時寫死(治跳號,見上方
+    # _next_checkup_ep 區塊)。只認長片且標題帶系列名「個股體檢」的片;散落個股片(力積電/廣達…標題同樣
+    # 帶此四字)一併納入連號。改後的 meta["title"] 之後同時流向 YT 標題、封面(make_cover 用同一 title)、
+    # SEO 檔名,三者一致;成功上傳後才寫連載帳本(見函式尾),同批下一支即讀到 +1。冪等:重跑不會重複掛號。
+    _ck_ep = None
+    if not is_short and _is_checkup_title(meta.get("title", "")):
+        _ck_ep = _next_checkup_ep()
+        meta["title"] = _apply_checkup_ep(meta["title"], _ck_ep)
+        meta = up.enforce_youtube_limits(meta)  # 掛號後再過一次長度上限(理論上已 <=98,保險)
+        print(f"[checkup-ep] {slug} → 連載 EP{_ck_ep}｜{meta['title']}")
+
     # Shorts 必須有 #Shorts 才能進 Shorts shelf（YouTube 分類依據）
     if is_short and "#shorts" not in meta["description"].lower():
         meta["description"] = (meta["description"] + _SHORTS_HASHTAGS)[:5000]
@@ -661,6 +770,8 @@ def upload_one(yt, slug: str, privacy: str) -> str:
     finally:
         _cleanup_mp4()   # 清關鍵字名硬連結(不動原 mp4);即使 MediaFileUpload/insert 拋例外也清
     vid = resp["id"]
+    if _ck_ep is not None:  # 個股體檢連載：上傳成功才記帳(同批下一支讀到 +1；EP1/EP7 已由 bootstrap 記入)
+        _record_checkup_ep(slug, _ck_ep)
     # 精準 SRT 字幕（演算法判主題＋中文金融術語正確；非致命）
     try:
         import make_video as _mv

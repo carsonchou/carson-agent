@@ -1209,8 +1209,9 @@ TW_STOCK_CHECKUP_RULES = """
 【★「個股體檢」系列·10分鐘長片結構模板(逐段照走，順序不可打亂)】
 - 系列定位：量化阿森=數據體檢師，不是選股老師。每集單獨介紹一檔台股，**只陳述公開數據，不推薦、不喊單**。
   「介紹一家公司」跟「叫你買」是兩件事，本系列只做前者——這條是本系列生死線，比任何一集的爆點都重要。
-- ★片頭必帶集數與系列名：本次注入的【本集個股體檢設定】區塊會給代號/名稱/集數(EP幾)，
-  片名或旁白開場其中一處要自然帶出「個股體檢」系列名與集數，不必生硬複誦。
+- ★片頭必帶系列名(但**不要**帶集數編號)：片名或旁白開場其中一處要自然帶出「個股體檢」系列名，
+  不必生硬複誦。集數(EP幾)**一律不寫**——連載編號在發布時按已發布集數自動連號決定(寫死會跳號)，
+  標題與旁白都不得出現「EP幾／第幾集」；片尾接下一集只用「下一集輪到某某」點名，不用集數。
 - 五段固定順序(每段都要有，不可省略任何一段，可依內容多寡調整字數配比但順序不可換)：
   ①【公司是誰】用本次注入的產業分類(FinMind官方分類，非猜測)講一句「這家公司是做什麼的」，
      不誇大、不下「護城河很深/前景無限」這類無憑據評語，純陳述所屬產業。
@@ -1255,6 +1256,35 @@ TW_LAB_RULES = """
   ③下集預告——用本次注入區塊給的「下一集題材」懸念句，不洩露具體數字答案。
 - 誠信：全部數字標「歷史回測，非未來保證」；不喊單、不報明牌、不喊目標價、不保證獲利；
   不得把「你猜」包裝成保證答案或明牌。
+"""
+
+# 台股真相實驗室·**長片**變體(2026-07-19 訂閱轉換診斷落地)——為什麼長片要另一套規則:
+#   短片版 TW_LAB_RULES 命令「數字只能用【本集唯一指定實證數據】那一組」,那是 30-45 秒單一數字
+#   的正確作法;但長片(A4 LONG_RULES:每 60 秒要一個新數據點、4-5 個深段)拿單一事實只能靠贅字灌水
+#   → 低完播 → 反而換不到訂閱(實測 18-20% 完播的長片 0 訂閱)。故長片改走【多事實 bundle】:
+#   以本集主軸比較為脊椎,搭配 produce_batch._tw_facts_context 已注入的【本片實證數據】多組**同題材真
+#   回測**充實各深段。誠信不放寬、只是把「唯一一組」放寬成「注入的這幾組真數字」——一個字都不能自己編。
+TW_LAB_LONG_RULES = """
+【★台股真相實驗室 franchise·長片變體(2026-07-19 訂閱轉換診斷落地,逐條照走)】
+- 本片是「台股真相實驗室」系列的一集**長片**(8-10 分鐘)。系列連貫設定(上集回顧/本集定位/下集懸念/
+  訂閱鉤)以本次注入的【★台股真相實驗室系列連貫設定】區塊為準,務必照它走。
+- ★脊椎=標題那個比較:整支片圍繞標題點名的那一組主軸比較展開(那也是【本片實證數據】區塊裡最相關的
+  那一條)。其餘注入的真回測數字**不是拿來混題**,是拿來把主軸的各個面向講深講透(對照組、不同期間、
+  不同標的的同類現象、反直覺的延伸),讓每個深段都有**真數字**撐,不是靠形容詞灌水。
+- ★數字硬規(誠信命脈,長片最容易翻車):所有具體績效數字(報酬率/年化/回撤/差距/勝率/百分位…)**一律
+  只能出自本次注入的【本片實證數據】與【系列連貫設定】區塊**。注入區塊沒有的數字,寧可不講也**絕不
+  自己編、不自己換算、不自己估**(例:注入給你年化,就不要自己乘出「十年總報酬」;要嘛用注入的總報酬、
+  要嘛不講)。這條牴觸任何「講得更具體」的衝動時,以這條為準。
+- ★講「差多少/差距」必須連同兩邊原始數字一起講(例「一邊 813%、一邊 379%,差了 434%」),不准裸講差值
+  ——①觀眾要兩邊數字才有震撼與可驗證 ②發布守門 fact_source_guard 的差值驗算要求組成數字同場,裸講差值
+  會被判無憑據擋下不發。
+- ★深段結構沿用 A4 LONG_RULES:4-5 個各自展開的深段,每段一個子面向、段內走「具體真數據→原理→反直覺
+  轉折/對比」的完整弧線,段間用承接語。嚴禁清單體一句帶過。
+- ★結尾三件事都要有(順序:留言題 → 系列訂閱鉤 → 下集預告,各一句不敷衍):①對本集數字的看法/選邊
+  ②**明確出現「訂閱」二字**(不是只用「追蹤」),理由=本系列已排好一整組台股真回測要拆、訂閱是唯一會
+  收到下一組數字通知的方式(不用「不然演算法不推你」這種操弄語氣)③用注入區塊給的下一集題材懸念,不洩數字。
+- 誠信:全部數字標「歷史回測,非未來保證」;不喊單、不報明牌、不喊目標價、不保證獲利;不得把「你猜」
+  包裝成保證答案或明牌。介紹/驗證一個講法 ≠ 推薦任何操作。
 """
 
 
@@ -1489,19 +1519,39 @@ def _checkup_context(topic):
         return ""
     name = rec.get("name", code)
     industry = (rec.get("profile") or {}).get("industry", "")
-    # 集數＝這檔在 by_code(插入順序＝體檢先後順序)裡的序位；抓不到就不顯示集數，不硬湊假數字。
-    codes_in_order = list(by_code.keys())
-    ep_no = (codes_in_order.index(code) + 1) if code in codes_in_order else None
+    # 🔴 EP 集數改由「發布時」按已發布集數自動連號(見 daily_publish._next_checkup_ep):產製階段一律
+    # 不給、也不可寫死集數編號。舊法用 by_code 序位當集數餵給 LLM,LLM 把它寫進標題→燒進 slug/片頭卡,
+    # 但那個號跟著「種題/算事實進度」跑、不跟「發布進度」跑=跳號(觀眾看 EP1 下一支卻 EP40)。這裡改成
+    # 明確叫 LLM **不要**寫集數;narration 本來就不唸集數(靠下方「下一集輪到某某」串連),故無縫。
     next_name = _checkup_next_name(code, by_code)
     lines = [f"\n【本集個股體檢設定】", f"- 本集標的：{name}（{code}）"]
     if industry:
         lines.append(f"- 所屬產業(FinMind官方分類，非猜測)：{industry}")
-    if ep_no:
-        lines.append(f"- 本集集數：個股體檢 EP{ep_no}")
+    lines.append("- 集數編號：**不要**在標題或旁白寫死「EP幾／第幾集」——集數於發布時自動連號決定；"
+                 "片名與開場只需自然帶出系列名「個股體檢」即可(例：『…｜個股體檢』)。")
     if next_name:
         lines.append(f"- 下一集候選(片尾點名用，勿劇透數字)：{next_name}")
     lines.append("- 誠信提醒：本段設定僅供敘事使用，所有財務數字仍以【本片實證數據】區塊為準，不得自創。")
     return "\n".join(lines)
+
+
+def _normalize_checkup_title(title: str) -> str:
+    """個股體檢標題的確定性正規化:①去掉 EP 數字(編號改由發布時掛,見 daily_publish);②把系列名
+    「個股體檢」擺到**最前面**(前綴式)。為什麼要前綴:slug 由 slugify(標題前段)產生,系列名在尾端
+    (…｜個股體檢)會被截掉→slug 不含「個股體檢」→playlist_engine._match_stock_checkup 認不到→連載
+    片不進「個股體檢」播放清單,追劇連播斷。前綴式讓 slug 一定帶系列名,播放清單自動歸類。
+    發布時 daily_publish._apply_checkup_ep 會把前綴剝掉、改掛成公開用的後綴式「…｜個股體檢EPn」
+    (對齊已公開的 EP1 格式),故公開標題品質不變,但 slug/片頭卡都帶系列名、無編號。
+      '鴻海…｜個股體檢EP2'   → '個股體檢鴻海…'
+      '個股體檢EP2鴻海2317：' → '個股體檢鴻海2317：'
+      '力積電…(無系列名)'    → '個股體檢力積電…'(順帶補上品牌,發布/播放清單都認得)
+    只動 4 字『個股體檢』與其 EP 數字,不誤傷『體檢報告』這種一般詞。"""
+    t = title or ""
+    t = re.sub(r"[\s｜|·:：]*個股體檢\s*EP\s*\.?\s*\d+", "", t)   # 個股體檢EP2 / 個股體檢 EP1
+    t = re.sub(r"[\s｜|·:：]*個股體檢", "", t)                     # 裸系列名(待會補到最前面)
+    t = re.sub(r"[\s｜|·]*\bEP\s*\.?\s*\d+(?!\d)", "", t)         # 殘留裸 EPn
+    hook = t.strip(" ｜|·:：，,、-　\t")
+    return f"個股體檢{hook}" if hook else "個股體檢"
 
 
 def _load_tw_facts():
@@ -1917,7 +1967,12 @@ def call_claude(kind, avoid, topic_override=None):
     _tw_lab_actual_key = ""  # 供 result["_tw_lab_key"] 用(不能只信 topic.get，備援路徑會換一組)
     _tw_lab_fact_used = {}  # 供產出後做「標的誤植」安全網比對用(見 _fix_tw_lab_symbol_mislabel)
     if is_tw_lab:
-        hook_rules = hook_rules + TW_LAB_RULES
+        # 2026-07-19 訂閱轉換診斷:franchise 正片改走長片(見 tw_lab_engine.FRANCHISE_FORMAT)。
+        # 長片用多事實 bundle 撐深段(TW_LAB_LONG_RULES + 下面 fact_data_block(long_mode=True) 只當脊椎、
+        # 其餘深段吃 is_tw_stock 那條已注入的 _tw_facts_context 多組真回測);短片維持單一事實鐵律,
+        # 走 TW_LAB_RULES,byte-identical 零變化。
+        _tw_lab_long = (kind == "long")
+        hook_rules = hook_rules + (TW_LAB_LONG_RULES if _tw_lab_long else TW_LAB_RULES)
         try:
             import tw_lab_engine
             _tlst = tw_lab_engine.load_state()
@@ -1935,7 +1990,7 @@ def call_claude(kind, avoid, topic_override=None):
                 _tl_next_key, _tl_next_fact = tw_lab_engine.next_after(_tl_key, _tlst)
                 _tl_next_fact = _tl_next_fact or {}
             assign += tw_lab_engine.context_block(_tlst, _tl_key, _tl_fact, _tl_next_key, _tl_next_fact)
-            assign += tw_lab_engine.fact_data_block(_tl_key, _tl_fact, _tl_as_of)
+            assign += tw_lab_engine.fact_data_block(_tl_key, _tl_fact, _tl_as_of, long_mode=_tw_lab_long)
             _tw_lab_ep_no = int(_tlst.get("current_ep", 0) or 0) + 1
             _tw_lab_actual_key = _tl_key
             _tw_lab_fact_used = _tl_fact
@@ -3367,6 +3422,12 @@ def make_one(kind, no_render=False, topic_override=None, script_override=None):
     # 常青搜尋流量修復(2026-07):標題/旁白都定案後才做 SEO 加值(雙軌標題+描述首段+精準tags),
     # 確保 seo_suffix 誠信驗證吃到的是「最終會發布的旁白」。三步驟各自 fail-open,見 apply_seo_uplift。
     d = apply_seo_uplift(d)
+    # 個股體檢連載:標題定案後、切 slug 前,確定性正規化成「個股體檢{鉤子}」前綴式且無 EP 數字。
+    # EP 號改由發布時按已發布集數 max+1 掛(daily_publish._apply_checkup_ep),故產製端不留號→片頭卡/
+    # slug 皆無編號、且都帶系列名(slug 帶系列名才進得了播放清單連播)。發布時再掛號、改後綴式公開標題,
+    # 三處(YT標題/封面/slug衍生)一致、且「發一支進一號、永不跳」。見 _normalize_checkup_title。
+    if d.get("_is_checkup") and d.get("title"):
+        d["title"] = _normalize_checkup_title(d["title"])
     slug = slugify(d["title"], prefix)
     if (OUT / f"{slug}.voice.txt").exists() or (OUT / f"{slug}.mp4").exists():
         # 撞名有兩種完全不同的情況,不能一律改名硬產:
@@ -3518,6 +3579,9 @@ def main() -> int:
                      help="立刻產 1 支「台股真相實驗室」系列正片（由 tw_lab_engine 依序派下一組真回測事實，繞過題庫）")
     ap.add_argument("--ep0", default=None, metavar="SERIES",
                      help="立刻產 1 支系列開播預告 EP.0（確定性模板,不走 LLM;系列代號見 ep0_engine.py --list）")
+    ap.add_argument("--belief", default=None, metavar="ID",
+                     help="立刻產「台股流言終結者」迷思終結片（確定性模板,不走 LLM;ID 見 belief_buster_engine.py --list;"
+                          "填 all 產全部 3 支）")
     args = ap.parse_args()
     if getattr(args, "format_focus", False):
         os.environ["FORMAT_FOCUS"] = "1"  # D2:本批短片走最強格式模板
@@ -3548,6 +3612,42 @@ def main() -> int:
             _publish_now(slug_made)
         return 0 if slug_made else 3
 
+    # 台股流言終結者：立刻產迷思終結片(確定性模板,不走 LLM;每個數字由 belief_buster_engine
+    # 從 tw_facts_computed 的真 fact_key 算出、判決由真回測數字決定)。走與 EP.0 完全相同的
+    # script_override 路徑(配音/渲染共用同一條既有產線,不另造產線)。存量/事實缺失時
+    # build_script 會 fail-closed 回 None → 該支跳過。刻意**不接 --publish**：本 franchise 首批
+    # 一律人眼驗過畫面(渲染期假數字/渐进揭露)再由 Carson 定奪發布,不自動上架。
+    if getattr(args, "belief", None):
+        import belief_buster_engine as bbe
+        _bids = bbe.BELIEF_ORDER if args.belief == "all" else [args.belief]
+        _made = []
+        for _bid in _bids:
+            _db = bbe.build_script(_bid)
+            if not _db:
+                print(f"[FAIL] 台股流言終結者 {_bid}:build_script 回 None(事實缺失/未知迷思)", file=sys.stderr)
+                continue
+            _tovb = bbe.build_topic(_bid)
+            _slug = None
+            for t in range(2):
+                try:
+                    _slug = make_one("long", no_render=args.no_render,
+                                     topic_override=_tovb, script_override=_db)
+                    if _slug:
+                        break
+                except Exception as exc:  # noqa: BLE001
+                    print(f"[err 流言終結者 {_bid} 第{t+1}次] {exc}", file=sys.stderr)
+            _v = (_db.get("_belief_verdict") or {}).get("verdict", "?")
+            log_ops("流言終結者", f"{'已產出' if _slug else '⚠️ 失敗'}：{_bid}（判決 {_v}）")
+            print(f"[{'ok' if _slug else 'FAIL'}] 流言終結者 {_bid}（判決 {_v}）：{_db['title'][:38]}")
+            if _slug:
+                _made.append(_slug)
+                try:
+                    bbe.bump_state(_bid, _slug)
+                except Exception:  # noqa: BLE001
+                    pass
+        print(f"[流言終結者] 完成 {len(_made)}/{len(_bids)} 支：{'、'.join(_made) or '無'}")
+        return 0 if _made else 3
+
     # 台股真相實驗室：立刻產 1 支系列正片，事實由 tw_lab_engine 依贏家關鍵字排序依序派發。
     if getattr(args, "tw_lab", False):
         if not _has_llm_key():
@@ -3559,10 +3659,13 @@ def main() -> int:
             print("[FATAL] 台股真相實驗室事實庫是空的(STUDIO/tw_stock_facts.json / tw_facts_computed.json 都讀不到)。",
                   file=sys.stderr)
             return 2
+        # 2026-07-19:franchise 已改走長片(tw_lab_engine.FRANCHISE_FORMAT),CLI 一律照題目自帶的 format
+        # 走,不再寫死 "short"(否則長片題會被硬產成短片,反而回到換不到訂閱的老路)。
+        _tl_kind = _tov.get("format", "short")
         slug_made = None
         for t in range(2):
             try:
-                slug_made = make_one("short", no_render=args.no_render, topic_override=_tov)
+                slug_made = make_one(_tl_kind, no_render=args.no_render, topic_override=_tov)
                 if slug_made:
                     break
             except Exception as exc:  # noqa: BLE001

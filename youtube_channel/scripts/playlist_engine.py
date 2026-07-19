@@ -68,6 +68,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 STUDIO = ROOT / "STUDIO"
 LEDGER = STUDIO / "uploaded_ledger.json"
 STATE_PATH = STUDIO / "playlist_engine.json"  # 獨立狀態檔，見檔頭說明（避免跟 build_playlists.py 互撞）
+QSCORES = STUDIO / "quality_scores.json"       # slug→title 對照(個股體檢連載用標題認系列，不只靠 slug)
 
 try:
     from ops import log_ops
@@ -120,12 +121,34 @@ def _match_debunk(slug: str) -> bool:
     return any(k in slug for k in kws)
 
 
+_QS_TITLE_MAP = None
+
+
+def _qs_title(slug: str) -> str:
+    """slug→發布標題(讀 quality_scores 的 published+pending,單次載入快取)。個股體檢連載用它補認:
+    存量待發片(2026-07-19 前產)標題把「個股體檢」放尾端(…｜個股體檢EPn),slugify 截前段→slug 不含
+    系列名,只靠 slug 會漏認整批。標題一定帶系列名,故用標題補一刀。"""
+    global _QS_TITLE_MAP
+    if _QS_TITLE_MAP is None:
+        _QS_TITLE_MAP = {}
+        try:
+            d = load_json_safe(QSCORES, default={}) or {}
+            for it in (d.get("published") or []) + (d.get("pending") or []):
+                if isinstance(it, dict) and it.get("slug") and it.get("title"):
+                    _QS_TITLE_MAP[it["slug"]] = it["title"]
+        except Exception:  # noqa: BLE001
+            pass
+    return _QS_TITLE_MAP.get(slug, "")
+
+
 def _match_stock_checkup(slug: str) -> bool:
-    """2026-07-15 新系列「個股體檢」:同 _match_truth_lab 的截斷防範精神——slugify()
-    只留標題前 26 字(見 produce_batch.slugify),系列名務必落在標題**前段**才不會被切掉。
-    本系列的產線慣例(見 scripts/stock_checkup_facts.py)固定把「個股體檢」放在標題最前面
-    (如「個股體檢EP1台積電2330：…」)，故用完整 4 字子字串比對即可，不需要再退化。"""
-    return "個股體檢" in slug
+    """「個股體檢」連載歸類。兩路認系列(缺一漏片):
+      ① slug 含「個股體檢」——2026-07-19 起產製端把系列名正規化到標題**最前面**
+         (produce_batch._normalize_checkup_title),slugify 取前段故 slug 一定帶系列名。
+      ② 標題含「個股體檢」——涵蓋存量待發片(系列名在標題尾端、被 slugify 截掉→slug 不含),
+         標題永遠帶系列名(發布時 daily_publish._apply_checkup_ep 也保證後綴「｜個股體檢EPn」)。
+    ①短路優先(不讀檔),①不中才查標題。"""
+    return "個股體檢" in slug or "個股體檢" in _qs_title(slug)
 
 
 PLAYLIST_DEFS: list[dict] = [
