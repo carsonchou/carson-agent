@@ -862,6 +862,9 @@ def main() -> int:
     ap.add_argument("--privacy", default="public", choices=["public", "unlisted", "private"])
     ap.add_argument("--ig-max", type=int, default=8, help="每輪最多跨發幾支到 IG Reels")
     ap.add_argument("--no-ig", action="store_true", help="本輪不跨發 IG")
+    ap.add_argument("--series", default=None, choices=["checkup"],
+                    help="只發指定連載系列(checkup=個股體檢)。配 --max 1 = 每天發一部個股體檢連載"
+                         "(EP 號由發布時自動連號,見 _next_checkup_ep)。其餘系列/一般片本輪跳過。")
     args = ap.parse_args()
 
     # 老闆控制台指令（暫停 / 隱私 / 發布時段）
@@ -890,6 +893,26 @@ def main() -> int:
     date = tw_today()
     ledger = load_ledger()
     cands = find_candidates(ledger)
+
+    # --series checkup:只留個股體檢連載片(識別＝標題含系列名「個股體檢」,由產製端 _normalize_checkup_title
+    # 對 checkup_ fact_key 片保證掛上,見 produce_batch;等價於 fact_key 判定,且不誤收無關個股片)。
+    # 供「每天發一部個股體檢」排程:daily_publish.py --series checkup --max 1。
+    if args.series == "checkup":
+        _titles = _slug_titles()
+
+        def _title_of(s):
+            t = _titles.get(s, "")
+            if not t:
+                try:
+                    t = (OUTPUT / f"{s}.md").read_text(encoding="utf-8", errors="replace").splitlines()[0]
+                except Exception:  # noqa: BLE001
+                    t = ""
+            return t
+        _before = len(cands)
+        cands = [s for s in cands if _is_checkup_title(_title_of(s))]
+        print(f"[series] --series checkup：候選 {_before}→{len(cands)} 支(只發個股體檢連載)")
+        if not cands:
+            print("[series] 目前沒有待發的個股體檢連載成片(output/ 無或全已發布)。")
 
     # 【審核部門】逐支品管+誠信把關 + 品質門檻(fail-CLOSED)；收集 PASS 直到達每日上限
     qmap, qmin = load_quality()
