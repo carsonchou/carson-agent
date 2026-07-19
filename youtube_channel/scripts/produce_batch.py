@@ -1760,6 +1760,41 @@ def _fix_tw_lab_title_fabrication(result, fact):
     return result
 
 
+def _fix_tw_lab_desc_fabrication(result, fact):
+    """台股真相實驗室『描述』誠信安全網(2026-07-19 #26，補 _fix_tw_lab_title_fabrication 的漏)：
+    標題安全網只清洗 title，但 LLM 在 description 同樣編造差值數字——dca_vs_allin 那支標題被硬擋
+    後、描述又編了一個「竟差 430% 報酬」(真值 321.7 分點)，發布守門 fact_source_guard 對描述一樣
+    fail-closed，整支被擋下發不出去。描述是多句跨行 SEO 文字，不能像標題那樣逐句刪：句級清洗會誤刪
+    「兩者差 X 個百分點」這種**跨句比較**的真數字句(單句看不到 697.4/375.7 兩個 operand→誤判無憑據)。
+    故照標題同款『確定性整段重生』：描述一旦含查無憑據數字，就換成由真事實 desc + 已清洗 title 生成的
+    安全描述(關鍵字鉤子+不含任何編造差值+訂閱 CTA+風險聲明，全部確定性、零 LLM)。
+    ★ 自檢：安全版本身再過一次 unsourced_claims，連安全版都命中(鉤子素材帶了數字)就 fail-open 保留原
+    描述交給發布守門擋——絕不因這道而漏放假數字。乾淨描述(數字都有憑據，常態)零命中→byte-identical
+    完全不動，不影響短片/既有行為。"""
+    try:
+        import fact_source_guard as _fsg
+        desc = str(result.get("description", ""))
+        if not desc or not _fsg.unsourced_claims(desc):
+            return result  # 描述乾淨(常態)→ byte-identical 不動
+        topic_desc = str((fact or {}).get("desc") or "").strip()
+        title = str(result.get("title", "")).strip()  # 此時 title 已過 _fix_title_fabrication，乾淨
+        hook = topic_desc or (title.split("｜")[0].split("？")[0] if title else "") or "本集用真實回測拆解關鍵差異"
+        safe = (
+            f"{hook}？臺股真相實驗室用真實回測資料給它判決，判決由數字算出、不由立場定。\n\n"
+            "看完你將知道：兩種策略的實際績效比較、風險指標的差異、以及該如何依自身風險承受度做選擇。\n\n"
+            "訂閱《臺股真相實驗室》，下一集繼續用真回測，拆解一條你以為天經地義的投資常識。\n\n"
+            "⚠️ 風險聲明：本影片為資訊與觀念分享，不構成任何投資建議。過去績效不代表未來表現，"
+            "回測不含手續費與滑價，投資請自行承擔決策後果。"
+        )
+        if _fsg.unsourced_claims(safe):
+            return result  # 連安全版都命中(鉤子素材帶數字)→ fail-open 保留原描述交給發布守門
+        result["_desc_fabrication_fixed"] = {"old": desc[:120]}
+        result["description"] = safe
+    except Exception:  # noqa: BLE001
+        pass
+    return result
+
+
 # ── 病灶A根因(2026-07-13 長片內容審查實測)：_tw_facts_context 只挑最多 6 條相關事實組成
 # 一份「文字區塊」，而舊版 _densify_long 把這同一份文字**原封不動塞進每一段 deep-segment prompt**——
 # 4-5 段全部拿到一模一樣的 2-6 組數字，LLM 除了換比喻/換人物重講同一組數字，沒有別的素材可用，
@@ -2150,6 +2185,7 @@ hashtags 規則：給 4-6 個「精準且利基相關」的標籤(第一個必�
         result["_tw_lab_ep"] = _tw_lab_ep_no
         result = _fix_tw_lab_symbol_mislabel(result, _tw_lab_fact_used)
         result = _fix_tw_lab_title_fabrication(result, _tw_lab_fact_used)  # 標題編造數字→確定性換安全標題
+        result = _fix_tw_lab_desc_fabrication(result, _tw_lab_fact_used)   # #26 描述編造數字→確定性換安全描述
     result["_is_tw_stock"] = bool(is_tw_stock)  # A2:供 make_one 判斷本片是否有 tw_stock_facts 真數據佐證
     if is_checkup:
         result["_is_checkup"] = True
