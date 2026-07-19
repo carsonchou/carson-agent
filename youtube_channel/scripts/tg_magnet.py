@@ -75,7 +75,7 @@ _MAGNET_AI = (
     f"{_PREMLOGIN}\n"
     "（第三方共享·非官方·可能被停用·透過連結註冊不增加你成本但請自負風險評估；本表為資訊比較非推銷。）"
 )
-_AI_KW = ("省ai", "省 ai", "便宜", "共享", "合租", "拼車", "claude", "chatgpt", "gemini", "ai帳號", "ai 帳號")
+_AI_KW = ("省ai", "省 ai", "合租", "拼車", "claude", "chatgpt", "gemini", "ai帳號", "ai 帳號", "ai訂閱", "共享帳號")
 
 # 數位產品 upsell(item12):免費檢核表送出滿 24h 的名單,追加一則低價試算表 upsell(收款連結 Carson 自填 env WORKSHEET_URL)。
 # 誠信:只賣真有內容的東西、不誇大不保證收益;價格對得起內容量(NT$149-249 一杯手搖等級破冰價)。
