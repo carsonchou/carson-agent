@@ -160,6 +160,15 @@ def _cn_num_to_float(s: str) -> float | None:
 _RX_PCT_ARABIC = re.compile(r"(?:百分之\s*)?(\d{1,4}(?:\.\d+)?)\s*%|百分之\s*(\d{1,4}(?:\.\d+)?)")
 _RX_PCT_CN = re.compile(r"百分之([零一二三四五六七八九十百千兩點]+)")
 
+# 🔴 2026-07-22 #13 產生端根治·趴/百分點盲區(實測坐實):舊版只抓「%/百分之」,但口語/書面的
+# 「趴」(18趴)、「個百分點」(差314個百分點)都不帶這兩個前綴 → 整類滑過守門(元大台灣50 描述「差430趴」、
+# 我重產 All-in 片「314個百分點」都落在這盲區)。這兩種是 % 的同義變體,一樣是績效宣稱、一樣要溯源。
+# 只補「趴」與「(個)百分點」,不碰「倍/夏普/填息」(非%指標,溯源邏輯不同,#13④另處理)。
+# 靠 extract_claims 的 PERF_CTX 語境限制 + seen_spans 去重,避免誤抓「這一點/重點」等非數字語境。
+_RX_PCT_PA_ARABIC = re.compile(r"(\d{1,4}(?:\.\d+)?)\s*(?:趴|個?百分點|个?百分点)")
+# 單字數字+趴 加負向 lookbehind:「這一趴/那一趴/第一趴」是口語(這方面),不是 1%,排除;多字數字(十八/三百一十四)照抓
+_RX_PCT_PA_CN = re.compile(r"(?<![這那哪第])([零一二三四五六七八九十百千兩])\s*(?:趴|個?百分點|个?百分点)|([零一二三四五六七八九十百千兩點]{2,})\s*(?:趴|個?百分點|个?百分点)")
+
 # 🔴 2026-07-13 用產線剛產的新片實測抓到的破口:
 # 「回測顯示...其實**七成**被手續費吃掉」「一年就少賺**三十八萬**」——
 # 舊版只抓百分比,中文**成數**(七成/九成)與**金額**(三十八萬)完全在雷達外,
@@ -220,6 +229,14 @@ def extract_claims(text: str) -> list[dict]:
             pass
     for m in _RX_PCT_CN.finditer(text):
         _add(_cn_num_to_float(m.group(1)), m.group(0), *m.span())
+    # #13 趴/百分點(% 的同義變體):「18趴」「差314個百分點」「三百一十四個百分點」——一樣要溯源
+    for m in _RX_PCT_PA_ARABIC.finditer(text):
+        try:
+            _add(float(m.group(1)), m.group(0), *m.span())
+        except Exception:  # noqa: BLE001
+            pass
+    for m in _RX_PCT_PA_CN.finditer(text):
+        _add(_cn_num_to_float(m.group(1) or m.group(2)), m.group(0), *m.span())
     # 中文成數:「七成被手續費吃掉」「九成散戶會虧」——換算成百分比一樣要溯源
     for m in _RX_CN_QUANT.finditer(text):
         _add(_CN_QUANT_PCT[m.group(1)], m.group(0), *m.span())
