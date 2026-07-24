@@ -2157,6 +2157,17 @@ def call_claude(kind, avoid, topic_override=None):
     # D2 格式 All-in:FORMAT_FOCUS=1 時,短片(非旗艦/非時事)強制走最強格式模板
     if os.environ.get("FORMAT_FOCUS") == "1" and kind == "short" and not is_flagship and not topic_override:
         hook_rules = hook_rules + WINNING_FORMAT
+    # 標籤格式化(2026-07-24 治「自動產製長片被硬塞 #Shorts 首標→搜尋 reach 自殺」):短片必掛 #Shorts
+    # (它就是 Short);長片嚴禁掛——長片靠搜尋流量,#Shorts 會被 YouTube 當短片處理、扼殺搜尋 reach。
+    if kind == "long":
+        _ht_example = '["#台股","#定期定額","#..."]'
+        _ht_rule = ("hashtags 規則：給 4-6 個「精準且利基相關」的標籤（**長片嚴禁 #Shorts**——長片靠搜尋流量，"
+                    "掛 #Shorts 會被 YouTube 當短片處理、扼殺搜尋 reach；第一個放最核心的可搜尋詞，如標的代號／"
+                    "主題詞），不要硬塞 20 個——精準勝過熱門，乾淨又利於演算法分類。")
+    else:
+        _ht_example = '["#Shorts","#量化交易","#..."]'
+        _ht_rule = ("hashtags 規則：給 4-6 個「精準且利基相關」的標籤(第一個必為 #Shorts)，不要硬塞 20 個——"
+                    "精準勝過熱門，乾淨又利於演算法分類。")
     prompt = f"""你是量化阿森頻道的專業腳本寫手。{GUARD}
 {QUANT_STANDARD}
 {playbook}{training}
@@ -2178,8 +2189,8 @@ def call_claude(kind, avoid, topic_override=None):
 {avoid_block}
 ⚠️【語言鐵律】全程一律「繁體中文（台灣用字）」，**嚴禁任何簡體字**（例：要寫「網格、帳戶、獲利、為什麼、機器」，不可寫「网格、账户、获利、为什么、机器」）。標題、旁白、說明、小標全部繁體。
 只輸出 JSON（不要任何其他文字、不要 markdown 圍欄），格式：
-{{"title":"有點擊慾的標題","seo_suffix":"8-14字搜尋詞組(含標的代號或主題詞+動作詞,只能用片中真的講到的標的/主題;沒有合適的就留空字串)","voice_text":"完整旁白逐字稿(口語、適合中文TTS)","segments":[{{"heading":"段落小標","broll":["english keyword","english keyword"]}}],"description":"YouTube 說明欄：前 3 行＝①核心可搜尋關鍵字短語②一句鉤子摘要③價值承諾(看完能拿走什麼)；接 1-2 句補充、自然含關鍵字與同義詞(別硬塞)；**再加一行變現漏斗 CTA：『📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」，免費領新手回測避雷檢核表』**(Telegram bot 會自動把檢核表送到觀眾手上+養名單再自然導向 Pionex；比「留言領」更能真的交付資源、也把觀眾沉澱成可觸及的名單)；結尾含風險聲明『投資有風險，不構成投資建議』","hashtags":["#Shorts","#量化交易","#..."]}}
-hashtags 規則：給 4-6 個「精準且利基相關」的標籤(第一個必為 #Shorts)，不要硬塞 20 個——精準勝過熱門，乾淨又利於演算法分類。"""
+{{"title":"有點擊慾的標題","seo_suffix":"8-14字搜尋詞組(含標的代號或主題詞+動作詞,只能用片中真的講到的標的/主題;沒有合適的就留空字串)","voice_text":"完整旁白逐字稿(口語、適合中文TTS)","segments":[{{"heading":"段落小標","broll":["english keyword","english keyword"]}}],"description":"YouTube 說明欄：前 3 行＝①核心可搜尋關鍵字短語②一句鉤子摘要③價值承諾(看完能拿走什麼)；接 1-2 句補充、自然含關鍵字與同義詞(別硬塞)；**再加一行變現漏斗 CTA：『📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」，免費領新手回測避雷檢核表』**(Telegram bot 會自動把檢核表送到觀眾手上+養名單再自然導向 Pionex；比「留言領」更能真的交付資源、也把觀眾沉澱成可觸及的名單)；結尾含風險聲明『投資有風險，不構成投資建議』","hashtags":{_ht_example}}}
+{_ht_rule}"""
     import llm  # 共用路由：主供應商→失敗退回 fallback，換模型只改 env
     # 長片要吐 2600+ 中文字的 voice_text(中文 token 貴),3500 會被截斷成短長片(A4 根因之一)。
     # 2026-07-13:6500 又不夠了——實測長片產製吐 "[err long 第2次] LLM 回應非 JSON" 直接 0 支。
@@ -3505,6 +3516,12 @@ def make_one(kind, no_render=False, topic_override=None, script_override=None):
     # 常青搜尋流量修復(2026-07):標題/旁白都定案後才做 SEO 加值(雙軌標題+描述首段+精準tags),
     # 確保 seo_suffix 誠信驗證吃到的是「最終會發布的旁白」。三步驟各自 fail-open,見 apply_seo_uplift。
     d = apply_seo_uplift(d)
+    # 確定性安全網(2026-07-24):長片絕不帶 #Shorts——寫檔前的唯一總入口後、切 slug 前機械剝除,
+    # 就算 LLM 沒遵守 prompt 的「長片嚴禁 #Shorts」也擋得掉(記憶:別只靠 LLM 遵守,加確定性防線)。
+    # 只剝 shorts/short 標籤,其餘可搜尋 tags 原樣保留;短片不動(它本該掛 #Shorts)。
+    if kind == "long":
+        d["hashtags"] = [h for h in (d.get("hashtags") or [])
+                         if str(h).lstrip("#").strip().lower() not in ("shorts", "short")]
     # 個股體檢連載:標題定案後、切 slug 前,確定性正規化成「個股體檢{鉤子}」前綴式且無 EP 數字。
     # EP 號改由發布時按已發布集數 max+1 掛(daily_publish._apply_checkup_ep),故產製端不留號→片頭卡/
     # slug 皆無編號、且都帶系列名(slug 帶系列名才進得了播放清單連播)。發布時再掛號、改後綴式公開標題,

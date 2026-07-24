@@ -784,11 +784,18 @@ def upload_one(yt, slug: str, privacy: str) -> str:
         title = title + " #Shorts"
     category_id = "28" if is_short else "27"  # Shorts=科技(28), Long=教育(27)
 
+    # 確定性安全網(2026-07-24):長片絕不帶 #Shorts 標籤——YouTube 會據此當短片處理、扼殺長片搜尋流量。
+    # 這是上 YouTube 前的最後一道:涵蓋「produce 端修法之前已生成的 backlog .md」(舊產物仍帶 #Shorts)
+    # 與任何漏網;短片不動(它本該掛 #Shorts)。根因修在 produce_batch,此處是 belt-and-suspenders。
+    _tags = meta.get("tags", []) or []
+    if not is_short:
+        _tags = [t for t in _tags if str(t).lstrip("#").strip().lower() not in ("shorts", "short")]
+
     body = {
         "snippet": {
             "title": title,
             "description": meta["description"],
-            "tags": meta.get("tags", []),
+            "tags": _tags,
             "categoryId": category_id,
             "defaultLanguage": "zh-Hant",
         },
