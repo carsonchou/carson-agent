@@ -124,7 +124,10 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # 平日跑 → 週末退化成 2長2短。長片是唯一計入 YPP 4,000 watch hours 的格式,沒理由週末少發一支。
 # 配額檢查:週末 5支×1650=8,250,加當日輪值維運(週六 intel 600 / 週日 outlier 800)
 # = 8,850 / 9,050,均 <10,000 有餘裕。
-15 9 * * * /root/yt/run.sh scripts/daily_publish.py --max 1 >> /root/yt/logs/cron.log 2>&1
+# 2026-07-19 Carson 要「一天一部個股體檢連載」:用早上這個既有名額專發 checkup(不增總上傳數=不超
+# quota),EP 號發布時自動連號(d2fca80 --series checkup + 596c088 發布時挂号),供給 11 支 pending
+# 夠發 10 天+、後面 38 檔已種+1900 backlog。晚間 18:30×3 + 11:00×1 照發流言終結者/一般片(4 名額)。
+15 9 * * * /root/yt/run.sh scripts/daily_publish.py --series checkup --max 1 >> /root/yt/logs/cron.log 2>&1
 # 播放清單自動化(每日一次,排在當天最後一批上架之後,把新發布的片依三主軸建/補進 YT 播放清單):
 # --max 40 跟 daily_publish 共用同一組每日 quota,設上限防一次跑光擋到隔天上架;冪等(items_in
 # 跳過已加過的),沒加完下次自動接續
