@@ -100,6 +100,10 @@ youtube_channel/STUDIO/
 **/output/*.mp3
 **/output/*.mp4
 **/output/*.wav
+# 純副產物,由渲染/配音管線重生(各 0 個被追蹤,列出時已驗證):字幕、字級時間軸、抽幀/縮圖jpg
+**/output/*.srt
+**/output/*.wordtimes.json
+**/output/*.jpg
 **/assets/cache/
 !**/output/*.md
 !**/output/*.voice.txt
@@ -170,3 +174,10 @@ quant-service/output/ecommerce_ready/
 quant-service/ecommerce/mockup/*.pdf
 quant-service/ecommerce/mockup/*.png
 quant-service/ecommerce/mockup/*.xlsx
+
+# 根目錄散落的 session 抓圖/暫存(正式圖都在子目錄且已追蹤;root 這些 0 個被追蹤=全是 scratch)
+# 只擋 repo 根層(前導 /),不影響任何子目錄的圖。防未來 git add -A 誤把截圖推進共用私有 repo。
+/*.png
+/*.jpeg
+/*.jpg
+/*.webp
