@@ -383,7 +383,15 @@ _CK_EP_IN_TITLE = __import__("re").compile(r"個股體檢\s*EP\s*\.?\s*(\d+)")
 def _is_checkup_title(title: str) -> bool:
     """本片是否屬於『個股體檢』連載(唯一標記＝標題含系列名『個股體檢』；產製端保證保留系列名、
     只去掉 EP 數字)。散落的個股片(力積電/廣達…)標題都帶此四字,故一併納入連號。"""
-    return _CK_SERIES in (title or "")
+    t = title or ""
+    # 🔴 EP0/系列說明片豁免(2026-07-25):它雖含系列名『個股體檢』,但是系列「說明片」不是正片——
+    # 不可掛 EP 號、也不可被 _next_checkup_ep 當一集計數。否則標題會標「個股體檢EP14」而旁白正說
+    # 「這支不是第幾集」=標題與旁白自相矛盾=前門片說謊(誠信紅線)。通用簽名＝EP0 標題結尾『規則
+    # 先講死』(ep0_engine._title 的 tw_lab/checkup 各式皆帶),或 checkup EP0 特有『個股體檢系列』。
+    # 正片標題(台積電2330體檢報告…/個股體檢【世界5347】…/個股體檢EP1…)絕不含這兩者。
+    if "規則先講死" in t or "個股體檢系列" in t:
+        return False
+    return _CK_SERIES in t
 
 
 def _strip_checkup_ep(title: str) -> str:
