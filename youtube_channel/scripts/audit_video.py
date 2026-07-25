@@ -41,10 +41,22 @@ QUESTION = "？?嗎吗"
 _SENT_SPLIT_RE = re.compile(r"[。！？!?\n]")
 
 
-def _probe(mp4: Path):
+def _ffmpeg_exe() -> str:
+    """robust ffmpeg 解析(對齊 render_ffmpeg._ffmpeg_exe):imageio_ffmpeg 模組缺失時
+    退回環境變數或系統 PATH 的 ffmpeg——**不可**讓「探測工具找不到」被誤當「影片壞掉」。
+    2026-07-25 血案:系統 python 沒裝 imageio_ffmpeg → 舊 _probe 直接 except 回 (0,False,False)
+    → 一支剛渲染好的合格 27.4MB 成片被判『0s/無軌』刪除。fail-DELETE-closed 會靜默摧毀正式產出。"""
     try:
         import imageio_ffmpeg
-        ff = imageio_ffmpeg.get_ffmpeg_exe()
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:  # noqa: BLE001
+        import os
+        return os.environ.get("IMAGEIO_FFMPEG_EXE") or "ffmpeg"
+
+
+def _probe(mp4: Path):
+    try:
+        ff = _ffmpeg_exe()
         out = subprocess.run([ff, "-i", str(mp4)], capture_output=True, text=True,
                              encoding="utf-8", errors="replace")
         txt = out.stderr or ""
