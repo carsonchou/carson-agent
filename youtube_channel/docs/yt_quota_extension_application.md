@@ -119,7 +119,43 @@ Carson 授權代送後,我開了表單實地勘查(帳號 crayray86 已登入),�
 > used only by me, the channel owner, to publish and manage my own videos. There are no
 > other users, no customers, and no revenue from the client itself.
 
-## 🔴 送出前你要決定/準備的 4 件事
+---
+
+# 🟢 2026-07-28 進度更新:①③ 的素材我已備妥,剩下只有「你親手做」的部分
+
+**為什麼今晚做這個**:Carson 說「流量大幅下降,全力優化」。當晚 quota 稽核算出——
+**5 支/日是 10,000 配額下的數學天花板**(6 支×1,750 = 10,500 > 10,000,連維運全砍都超過)。
+也就是說:**想同時養長片 watch-time 又補回 Shorts reach,唯一的路就是這張提額表。**
+它不是行政雜事,是流量容量的硬瓶頸。(當晚已另外回收 ~1,029 units/日當安全邊際,
+但那不足以多發一支;細節見 commit 2a0c55f。)
+
+| 待辦 | 狀態 | 說明 |
+|---|---|---|
+| ① Privacy Policy 公開 URL | 🟡 **檔案已備妥,待你發布** | `_privacy.md` 已改寫為**屬實版本**(見下),內容可直接貼上 GitHub Pages。發布仍是你的決定。 |
+| ② Primary Access URL / Demo | 🔴 待你決定 | 同下方原文,要不要給 Google 看源碼/錄影是你的判斷 |
+| ③ 架構圖 | ✅ **已完成** | `docs/quota_architecture_diagram.png`(1760×1080),內容與本文件逐項對齊 |
+| ④ Attestations 親簽 | 🔴 只能你本人 | 見下方原文 |
+
+### ⚠️ ① 附帶查出一個必須先修的誠信問題(已修)
+
+原 `_privacy.md` 寫著「does **not** access, collect, scrape, or store data from any other
+users or **third-party channels**」——**與產線實況不符**:`intel_dept.py:104` 與
+`outlier_scan.py:75` 都在呼叫 `search().list()` 取他人影片的公開 metadata 做選題研究,
+本文件自己的 use-case 描述也誠實寫了這件事。**兩份要送同一個審查者的文件互相矛盾**,
+而隱私政策是要當公開 URL 提交的那一份。
+
+已改寫為屬實版本:明確區分「自家頻道資料」與「他人影片的公開 metadata(僅選題研究)」,
+寫明不下載/不轉錄/不轉載他人內容、不刷互動、30 天自動清除。
+
+同時查出**真實的政策違規並修掉**(commit cf23638):Developer Policies **III.E.4.d** 要求
+API 取得的資料 30 天內刷新或刪除,但清除邏輯只掃 `*_競品情報.md`、且掛在每週六才跑的
+intel_dept 上 → `*_異常爆款.md`(同樣含他人頻道名)**從未被清**,實測 17 份逾期、最舊到 06-16。
+已建 `scripts/purge_api_data.py` 每日 04:20 跑(純本機刪檔、不耗配額,保留 25 天留安全邊際),
+首次執行清掉 24 份,複驗逾 30 天檔案為 0。**送件前這個洞就補起來了,不是帶著違規去申請。**
+
+---
+
+## 🔴 送出前你要決定/準備的 4 件事(原文,①③ 狀態見上表)
 
 ① **Privacy Policy 需要一個公開 URL**(Section 4 必填)。現在 `youtube_channel/_privacy.md`
    只是本機檔。最省事的解法:放上你已經在用的 GitHub Pages(`carsonchou.github.io`)。
@@ -130,7 +166,12 @@ Carson 授權代送後,我開了表單實地勘查(帳號 crayray86 已登入),�
    Special Instructions 說明 "internal CLI pipeline, no user-facing UI; source code or a
    screen recording can be provided on request"。**要不要給 Google 看源碼/錄影,你決定。**
 
-③ **Section 6 要上傳架構圖 + 使用者流程圖**。我可以畫(產線架構我最熟),你說一聲就做。
+③ **Section 6 要上傳架構圖 + 使用者流程圖**。~~我可以畫(產線架構我最熟),你說一聲就做。~~
+   ✅ **已完成:`docs/quota_architecture_diagram.png`**。內容含:單人本機執行環境、
+   非 YouTube 的資料來源(FinMind/OpenRouter/Pexels)、產製鏈(TTS→ffmpeg→誠信閘)、
+   逐項列出用到的 Data API method 與 units、Analytics API 另計配額、
+   以及三條合規聲明(無人工互動/無爬蟲·yt-dlp 已於 2026-07 移除/單頻道內部使用)。
+   本圖同時就是「使用者流程圖」——因為只有一個使用者(頻道主),流程即架構。
 
 ④ **Attestations 逐條看過**。特別是 "Accuracy of Information" —— 這份表現在每一句都經過
    查證(爬蟲已移除、retention 已合規),但**簽的人是你**,請自己確認過再勾。
