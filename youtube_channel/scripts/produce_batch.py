@@ -2537,7 +2537,14 @@ def _build_seo_desc_line(d: dict) -> str:
         if not kws:
             return ""
         kw_text = "、".join(kws[:3])
-        return f"【{kw_text}】本片用真回測拆解{kw_text}，看完你能自己判斷該怎麼配置。"
+        # 🔴 2026-07-28:舊版把同一串關鍵詞在一句話裡塞兩次——
+        # 「【友達2409 20年回測、存股、大盤】本片用真回測拆解友達2409 20年回測、存股、大盤,…」
+        # 讀起來像垃圾訊息,而**搜尋是本頻道長片唯一有效的發現引擎**(實測近28天搜尋詞 top20
+        # 幾乎全是個股名/代號),description 前段正是搜尋結果的摘要,塞詞反而有 keyword-stuffing
+        # 的反效果。改成關鍵詞只出現一次(留在句首的【】裡,搜尋權重不變),後半寫成人話。
+        _lead = kws[0]
+        return (f"【{kw_text}】用真實歷史回測數字拆解{_lead}，"
+                f"完整過程與數據來源都在影片裡，看完你能自己判斷該怎麼配置。")
     except Exception:  # noqa: BLE001
         return ""
 
