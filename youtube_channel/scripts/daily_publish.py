@@ -602,6 +602,28 @@ def find_candidates(ledger: dict) -> list:
     shorts, _h1 = _series_order_gate(shorts, ledger, qmap, qmin)
     longs, _h2 = _series_order_gate(longs, ledger, qmap, qmin)
 
+    # 🔴 2026-07-28 題材降級(用 173 支 Shorts 的真實觀看回歸,不是憑感覺):
+    # 標題含幣圈/機器人詞的 Shorts,觀看中位數只有其他題材的 0.60~0.65x —— 含「網格」89 vs 149
+    # (p=0.009)、「機器人」95 vs 147(p=0.039)、「比特幣/BTC」94.5 vs 146.5(p=0.033);拆成三個
+    # 時段各自重算全部同向(不是單片帶偏);機制是完播中位數 35.5% vs 47.2%(標題一出現幣圈詞,
+    # 陌生觀眾判定「跟我無關」直接滑走)。
+    # 為什麼要動排序:品質分數是 LLM 給的內容分,**結構上看不到題材對觀看的影響**,於是高分幣圈
+    # 短片會排擠掉觀看多 1.6~2 倍的台股短片。而庫存有 400+ 支、每天只發得掉 2 支(配額天花板),
+    # 「挑哪 2 支」就是零成本的最大槓桿。
+    # 這是**降級不是封殺**:非幣圈題發完了,幣圈題照樣輪得到,只是排在後面。
+    # 只作用於 Shorts —— 那份回歸只涵蓋 Shorts,長片不外推(長片的發現管道是搜尋,機制不同)。
+    _CRYPTO_KWS = ("網格", "機器人", "派網", "比特幣", "BTC", "btc", "爆倉", "加密", "幣圈")
+    try:
+        _titles_for_topic = _slug_titles()      # slug→真標題(slug 會被截斷,判題材要用真標題)
+    except Exception:  # noqa: BLE001
+        _titles_for_topic = {}                  # 取不到就退回用 slug 判(fail-open,不擋發布)
+
+    def _topic_tier(s: str) -> int:
+        if not s.startswith("S_"):
+            return 0
+        t = _titles_for_topic.get(s) or s
+        return 1 if any(k in t for k in _CRYPTO_KWS) else 0
+
     def _key(s: str):
         # 有分數：一律照真分數 desc 排(維持原行為，已評高分的真好片永遠排該有的位置，
         # 優先旗標不會讓分數更低的片插隊到它前面)。
@@ -614,6 +636,7 @@ def find_candidates(ledger: dict) -> list:
         has_score = score is not None
         return (
             0 if has_score else 1,
+            _topic_tier(s),          # 幣圈題 Shorts 降一級(見上方回歸數據);長片恆 0 不受影響
             -(float(score)) if has_score else 0.0,
             0 if s in priority else 1,
             -mtimes.get(s, 0.0),
