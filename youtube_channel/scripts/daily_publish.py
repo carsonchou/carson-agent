@@ -634,11 +634,15 @@ def find_candidates(ledger: dict) -> list:
         # 隨機順序，讓 winner_vein/新片在報表與審核序中最先被看見、不被舊庫存埋沒。
         score = qmap.get(s)
         has_score = score is not None
+        # 🔴 2026-07-28 二修(獨立審查抓到):第一版把 _topic_tier 排在 priority **之前**,
+        # 於是任何被 publish_priority.json 手動標記的幣圈 Short,會被壓到所有非幣圈 Short 後面
+        # → **手動優先旗標對該類片靜默失效**。手動覆寫的語意就是「我知道我在做什麼,先發這支」,
+        # 它必須贏過「資料統計出來的題材偏好」。→ priority 提到 _topic_tier 之前。
         return (
             0 if has_score else 1,
-            _topic_tier(s),          # 幣圈題 Shorts 降一級(見上方回歸數據);長片恆 0 不受影響
+            0 if s in priority else 1,   # 手動優先旗標最大(覆寫一切自動偏好)
+            _topic_tier(s),              # 幣圈題 Shorts 降一級(見上方回歸數據);長片恆 0
             -(float(score)) if has_score else 0.0,
-            0 if s in priority else 1,
             -mtimes.get(s, 0.0),
         )
 
