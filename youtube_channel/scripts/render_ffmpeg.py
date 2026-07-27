@@ -130,12 +130,20 @@ def _pick_codec(ff: str):
     預設 libx264:純字卡編碼非瓶頸,純 ffmpeg 架構下 libx264 已快 ~13x(本機 22s)。
     NVENC 本機 RTX4050 驅動在 filter 鏈後開不了 encoder(-40),且純字卡省不了多少,故不自動用;
     要用 GPU 設 MV_CODEC=h264_nvenc(留待 Phase 2 b-roll 大量編碼時再解驅動相容)。"""
+    # 🔴 2026-07-28 連續運鏡後的編碼調整:舊設定 `-preset ultrafast -b:v 3500k` 是為「純靜態字卡」
+    # 選的(靜止幀壓縮到幾乎不花位元,實測舊片只有 1279kb/s)。改成連續運鏡後每一幀都不同,
+    # ultrafast(壓縮效率最差的檔位)直接把 3500k 吃滿 → 同一支 9m34s 片 92MB 暴增到 246MB,
+    # 每日 5 支 = 1.2GB 上傳,會拖慢/卡住上架排程。
+    # 改用品質導向(CRF)+ 效率合理的 preset:同畫質下位元率大幅下降,且位元率隨內容自適應
+    # (慢速圖表段自動省、資訊密集段自動給),maxrate/bufsize 封頂避免尖峰爆量。
+    # veryfast 相對 ultrafast 編碼慢一些但壓縮效率高得多;此管線瓶頸在合成不在編碼,可接受。
+    _q = ["-preset", "veryfast", "-crf", "21", "-maxrate", "5000k", "-bufsize", "10000k"]
     forced = os.environ.get("MV_CODEC", "").strip()
     if forced:
         if "nvenc" in forced:
             return forced, ["-preset", "p4", "-b:v", "3500k", "-pix_fmt", "yuv420p"]
-        return forced, ["-preset", "ultrafast", "-b:v", "3500k"]
-    return "libx264", ["-preset", "ultrafast", "-b:v", "3500k"]
+        return forced, _q
+    return "libx264", _q
 
 
 def _pick_bgm(slug):
