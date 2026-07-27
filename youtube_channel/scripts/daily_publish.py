@@ -866,17 +866,40 @@ def upload_one(yt, slug: str, privacy: str) -> str:
                                upload_name=up.seo_asset_name(meta.get("title", slug), meta.get("tags"), "srt", slug))
     except Exception as _e:  # noqa: BLE001
         print(f"[caption] 字幕步驟略過（{str(_e)[:60]}）", file=sys.stderr)
-    if slug.startswith(("L_", "S_")) and not (THUMBS / f"{slug}.jpg").exists():
-        try:  # 高質感封面：科技機器人/真人手機(依主題自動選)+AI生圖+金字鉤子，失敗退回設計卡
-            import make_cover as _mc
-            _mc.make_cover(slug, meta.get("title", slug))
-        except Exception as _e:
-            print(f"[warn] make_cover 失敗，退回 make_thumbnails：{_e}", file=sys.stderr)
-            try:
-                import make_thumbnails as _mt
-                _mt.make_auto(slug, meta.get("title", slug))
-            except Exception as _e2:
-                print(f"[warn] 自動生縮圖失敗 {slug}: {_e2}", file=sys.stderr)
+    # 🔴 2026-07-28 縮圖長寬比修復(系統性 bug,直接殺長片點擊率):
+    # make_cover.py:50 寫死 `W, H = 1080, 1920`(直式 9:16)且**沒有長短片分支**,而 daily_publish
+    # 優先呼叫它 → **所有長片都拿到直式縮圖**(實測近期 5 支長片縮圖全是 1080x1920,橫式 0 支)。
+    # YouTube 長片縮圖規格是 16:9,傳直式圖會被補黑邊塞進 16:9 框 → 實際內容只佔中間一小條,
+    # 在搜尋結果與首頁列表裡幾乎看不清 = 點擊率被結構性壓死。這很可能是長片拿不到瀏覽/搜尋
+    # 點擊(冠軍長片 894 觀看裡 856 來自訂閱者、搜尋僅 6)的原因之一。
+    # 實測把 make_cover 畫布改成 1280x720 會**版面崩掉**(標題被截、下半空白)——它的版面邏輯
+    # 假設高瘦畫布。而 make_thumbnails.py 原生就是 1280x720 且產出品質好(金色大字+問句鉤子+
+    # 品牌標+吉祥物+真 K 線底)。故改成**依格式選產生器**,不硬改任一支的版面。
+    # 另補:舊碼「檔案已存在就不產」會讓庫存裡既有的錯比例縮圖永遠沿用 → 加一道比例檢查,
+    # 比例不符本格式才重產(比例正確的一律不動,不浪費也不覆蓋人工調過的圖)。
+    if slug.startswith(("L_", "S_")):
+        _tp = THUMBS / f"{slug}.jpg"
+        _need = not _tp.exists()
+        if not _need:
+            try:    # 既有檔比例不符本格式 → 重產(長片要 w>h,Shorts 要 h>w)
+                from PIL import Image as _PILImg
+                _w, _h = _PILImg.open(_tp).size
+                _need = (_w <= _h) if not is_short else (_h <= _w)
+                if _need:
+                    print(f"[thumb] {slug}:既有縮圖 {_w}x{_h} 比例不符"
+                          f"{'Shorts 9:16' if is_short else '長片 16:9'},重產")
+            except Exception:  # noqa: BLE001
+                _need = False      # 讀不到就不動它(fail-safe,絕不因判斷失敗而毀掉現有縮圖)
+        if _need:
+            _gens = ([("make_cover", "make_cover"), ("make_thumbnails", "make_auto")] if is_short
+                     else [("make_thumbnails", "make_auto"), ("make_cover", "make_cover")])
+            for _mod, _fn in _gens:      # 主選符合本格式比例的產生器,失敗才退另一支
+                try:
+                    _m = __import__(_mod)
+                    getattr(_m, _fn)(slug, meta.get("title", slug))
+                    break
+                except Exception as _e:  # noqa: BLE001
+                    print(f"[warn] {_mod}.{_fn} 失敗:{str(_e)[:60]}", file=sys.stderr)
     thumb = THUMBS / f"{slug}.jpg"
     if thumb.exists():
         _seo_jpg = up.seo_asset_name(meta.get("title", slug), meta.get("tags"), "jpg", slug)
