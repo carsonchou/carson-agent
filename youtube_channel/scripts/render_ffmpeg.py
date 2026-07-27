@@ -355,14 +355,14 @@ def _seg_clip(ff, *, src, is_video, dur, subs, fade_in, width, height, fps, tmp_
         # 之一。改成 -stream_loop -1 先把來源無限循環，仍由 -t dur 裁到精確長度，保證這段
         # 輸出永遠等於 dur，絕不再因素材太短而截斷。
         inputs += ["-stream_loop", "-1", "-t", f"{dur:.3f}", "-i", src]
-        # 完播節奏(2026-07-15 二修):b-roll 分支原本**完全沒有**脈衝——只有卡片分支有。
-        # 旗艦2(全片 Pexels b-roll)實測 scene=0:慢鏡/空拍素材+短素材循環,自身畫面變化
-        # 量不到 gt(scene,0.1)。補上與卡片同週期同相位的亮度脈衝(±8%,每 3.5 秒),
-        # 讓 b-roll 段也有可量測、人眼可感的節奏跳動。
+        # 🔴 2026-07-28:b-roll 分支的亮度方波一併移除(獨立審查指出電影感修復漏了這條)。
+        # 舊碼疊 `brightness='0.08*mod(floor((t+seg_start)/3.5),2)'` = 每 3.5 秒整段畫面閃一階,
+        # 目的同樣只是為了讓 scene detection 量得到分數(而沒有任何閘門在讀那個分數)。
+        # 若只修卡片路徑,混合片會變成「卡片段平滑漂移 / b-roll 段每 3.5 秒閃一下」的割裂感,
+        # 比全片一致地閃更糟。b-roll 是**實拍影片本來就在動**,不需要外加節奏,直接拿掉脈衝即可。
         base = (f"[0:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
                 f"crop={width}:{height},setsar=1,fps={fps},format=yuv420p,"
-                f"trim=0:{dur:.3f},setpts=PTS-STARTPTS,"
-                f"eq=eval=frame:brightness='0.08*mod(floor((t+{seg_start:.3f})/3.5)\\,2)'")
+                f"trim=0:{dur:.3f},setpts=PTS-STARTPTS")
     else:
         # 卡片不再靜止:Ken Burns 緩推鏡(先放大 2x→zoompan 縮回,讓位移是次像素、字幕不抖)。
         # 有影片感、又 100% 是自家數據/圖表(護城河),解決「靜態卡」+「素材脫題」兩難。
@@ -403,13 +403,14 @@ def _seg_clip(ff, *, src, is_video, dur, subs, fade_in, width, height, fps, tmp_
         # 亮度脈衝(beq)整條移除:那是閃爍源,不是呼吸感。渲染成本不變(同一條 filter)。
         _start_frame = int(round(seg_start * fps))
         _gt = f"((on+{_start_frame})/{fps})"   # 全片絕對時間(秒)
-        zexpr = f"1.06+0.025*sin(2*PI*{_gt}/20)"
-        # 推鏡 1.035~1.085:預縮放 2x 後裁切餘裕遠大於位移振幅(不會被夾邊卡住),
-        # 且保住卡片燒入的浮水印(別被放大切到底邊)
+        # 🔴 2026-07-28 二修:同下方靜態路徑,第一版振幅開太大會把燒入的浮水印切掉
+        # (make_video.py:1096 浮水印右/下緣在 0.97,只留 3% 邊界)。
+        # z ∈ [1.016, 1.036] → 最大裁切 (1-1/1.036)/2 = 1.74%;位移 0.5%/0.4% → 最壞 2.24% < 3% ✓
+        zexpr = f"1.026+0.010*sin(2*PI*{_gt}/20)"
         base = (f"[0:v]scale={width*2}:{height*2}:flags=lanczos,"
                 f"zoompan=z='{zexpr}':d={frames}:"
-                f"x='iw/2-(iw/zoom/2)+(iw*0.010)*sin(2*PI*{_gt}/27)':"
-                f"y='ih/2-(ih/zoom/2)+(ih*0.008)*cos(2*PI*{_gt}/33)':s={width}x{height}:fps={fps},"
+                f"x='iw/2-(iw/zoom/2)+(iw*0.005)*sin(2*PI*{_gt}/27)':"
+                f"y='ih/2-(ih/zoom/2)+(ih*0.004)*cos(2*PI*{_gt}/33)':s={width}x{height}:fps={fps},"
                 f"setsar=1,format=yuv420p")
     if fade_in:
         # P-封面修:純 fade=t=in:st=0 讓輸出的 t=0 那一幀是 100% 純黑(fade 從 alpha=0
@@ -1070,12 +1071,21 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
         # 夾邊而卡住。t 用 on/fps 算(zoompan 保證支援 on);此 filter 作用在 concat **之後**的整條
         # 串流,故 on 是全片絕對幀號——運鏡跨越所有切片邊界連續,不會每片重來(那又會變鋸齒跳)。
         # 成本:同樣一次 ffmpeg pass、同樣一個 filter,渲染時間不變。
+        # 🔴 2026-07-28 二修(獨立審查抓到):第一版 z 基線 1.06(峰值 1.085)每邊裁掉
+        # (1-1/1.085)/2 = **3.9%**,再加位移 1.0% = 4.9%;而 make_video.py:1096 把燒入的浮水印
+        # 右/下緣放在 **0.97W / 0.97H**(只留 3% 邊界)→ 實測重渲成片在 zoom 峰值時
+        # 「量化阿森｜Carson Quant」被切成「…Carson Quan」,每 20 秒週期性切一次品牌標。
+        # 舊的方波 z∈{1.0, 1.045} 反而從不裁到它——我把運鏡做連續的同時把振幅開太大了。
+        # 重算預算:最大裁切 (1-1/z_max)/2 + 位移振幅 **必須 < 3%**。
+        # z ∈ [1.016, 1.036] → 最大裁切 1.74%;位移 0.5%/0.4% → 最壞 2.24% < 3% ✓
+        # 代價是運鏡幅度變小(2% 縮放而非 8.5%),但那本來就該是「緩慢漂移」不是「推鏡」,
+        # 而且真正治好投影片感的是**連續**(去掉每 3.5 秒的跳與閃),不是幅度大。
         _t = f"(on/{fps})"
         vf = (f"fps={fps},scale={width}:{height}:force_original_aspect_ratio=decrease,"
               f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1,"
-              f"zoompan=z='1.06+0.025*sin(2*PI*{_t}/20)':d=1:"
-              f"x='iw/2-(iw/zoom/2)+(iw*0.010)*sin(2*PI*{_t}/27)':"
-              f"y='ih/2-(ih/zoom/2)+(ih*0.008)*cos(2*PI*{_t}/33)':s={width}x{height}:fps={fps},"
+              f"zoompan=z='1.026+0.010*sin(2*PI*{_t}/20)':d=1:"
+              f"x='iw/2-(iw/zoom/2)+(iw*0.005)*sin(2*PI*{_t}/27)':"
+              f"y='ih/2-(ih/zoom/2)+(ih*0.004)*cos(2*PI*{_t}/33)':s={width}x{height}:fps={fps},"
               f"tpad=start_duration=0.35:start_mode=clone,fade=t=in:st=0:d=0.5,"
               f"trim=start=0.35,setpts=PTS-STARTPTS,format=yuv420p")
         af = f"adelay={intro_ms}:all=1,apad,atrim=0:{total:.3f}"

@@ -166,21 +166,40 @@ def _reply_budget_left() -> int:
 
 
 def _reply_budget_consume(n: int) -> None:
-    """把本輪實際發出的則數計入今日用量。失敗只印警告——記帳失敗不可拖累已成功的回覆。"""
+    """把本輪實際發出的則數計入今日用量。
+
+    🔴 2026-07-28 二修(獨立審查抓到我第一版的洞):舊寫法把 `json.loads` 和寫檔放在同一個
+    try 內,檔案一旦壞掉(半寫入/磁碟異常),loads 直接 raise → except 只印警告、**不修檔** →
+    用量永遠記不進去、額度每輪都是滿的 → 退化回「每輪 8 則 × 12 輪 = 96 則/日 ≈ 4,800 units」,
+    **正是這次要拆的那顆地雷**。我第一版只測了「壞檔時讀取回滿額度」就宣稱安全,沒測連續多輪。
+    修法:讀取失敗一律**重建**檔案(self-heal),讓計數從本輪開始累積,壞檔最多只放過一輪。
+    另改用 save_json_atomic(studio 標準,見 memory 併發洗檔修法),避免自己變成壞檔來源。
+    """
     if n <= 0:
         return
+    import datetime as _dt
+    today = _dt.date.today().isoformat()
+    d = None
     try:
-        import datetime as _dt
-        today = _dt.date.today().isoformat()
-        d = {}
         if _REPLY_BUDGET_FILE.exists():
-            d = json.loads(_REPLY_BUDGET_FILE.read_text(encoding="utf-8")) or {}
-        if d.get("date") != today:
-            d = {"date": today, "used": 0}
+            d = json.loads(_REPLY_BUDGET_FILE.read_text(encoding="utf-8"))
+    except Exception as e:  # noqa: BLE001 — 壞檔:不沿用,直接重建
+        print(f"[warn] 留言預算檔損壞,重建:{str(e)[:50]}", file=sys.stderr)
+        d = None
+    if not isinstance(d, dict) or d.get("date") != today:
+        d = {"date": today, "used": 0}
+    try:
         d["used"] = int(d.get("used", 0)) + n
-        _REPLY_BUDGET_FILE.write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
-    except Exception as e:  # noqa: BLE001
-        print(f"[warn] 留言預算記帳失敗:{str(e)[:60]}", file=sys.stderr)
+    except Exception:  # noqa: BLE001
+        d["used"] = n
+    try:
+        from studio_common import save_json_atomic as _sja
+        _sja(_REPLY_BUDGET_FILE, d)
+    except Exception:  # noqa: BLE001 — 沒有 studio_common 就退回直寫,但仍要把數字寫進去
+        try:
+            _REPLY_BUDGET_FILE.write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
+        except Exception as e2:  # noqa: BLE001
+            print(f"[warn] 留言預算寫檔失敗:{str(e2)[:60]}", file=sys.stderr)
 
 
 def auto_reply_safe(yt, max_replies: int = 10, dry_run: bool = False, use_haiku: bool = False) -> int:

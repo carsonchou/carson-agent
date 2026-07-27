@@ -50,6 +50,17 @@ THIRD_PARTY_PATTERNS = (
 )
 RETENTION_DAYS = 25
 
+# 🔴 2026-07-28 二修(獨立審查抓到第一版漏掉的):同類第三方資料還躺在兩個 **JSON** 裡,
+# 而它們**沒有任何刪除或刷新機制**——只有在產生它的部門重跑時才被覆寫,而 intel_dept 是
+# 每週六才跑。只要連續幾週沒跑(電腦關機/job 失敗),就會靜默超過 30 天。
+#   · STUDIO/outliers.json — outlier_scan.py:169 寫,含 id/title/**channel**/views(他人頻道名)
+#   · STUDIO/intel.json    — intel_dept.py:143 寫,含 "channel": "LuxAlgo" 等他人頻道名
+# 這跟這支腳本一開始要修的根因**一模一樣**(產生的人不負責刪)。而改寫後的 _privacy.md 已經
+# 對外承諾「30 天自動清除」,那份是要當公開 URL 送 Google 稽核的 → 不補完就是不實陳述。
+# 用**檔案 mtime** 判齡(這兩個檔是整份覆寫,mtime 即該批資料的取得時間)。
+# 消費端(parasite_titles.py:60-80、trend_hijack)讀取都包在 try/except 內,缺檔不會壞。
+THIRD_PARTY_JSONS = ("outliers.json", "intel.json")
+
 
 def purge(days: int = RETENTION_DAYS, dry_run: bool = False) -> tuple[int, list]:
     """刪除檔名日期早於 cutoff 的第三方資料報告。回 (刪除數, 檔名清單)。
@@ -62,6 +73,16 @@ def purge(days: int = RETENTION_DAYS, dry_run: bool = False) -> tuple[int, list]
         for p in REPORTS.glob(pat):
             if p.name[:10] < cutoff:
                 hit.append(p)
+    # 第三方 metadata 的 JSON(見 THIRD_PARTY_JSONS 註解):用 mtime 判齡
+    import time as _time
+    cutoff_ts = _time.time() - days * 86400
+    for fn in THIRD_PARTY_JSONS:
+        jp = ROOT / "STUDIO" / fn
+        try:
+            if jp.exists() and jp.stat().st_mtime < cutoff_ts:
+                hit.append(jp)
+        except OSError:
+            pass
     n = 0
     for p in hit:
         if dry_run:
