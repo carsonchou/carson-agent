@@ -828,9 +828,16 @@ def upload_one(yt, slug: str, privacy: str) -> str:
     if _ck_ep is not None:  # 個股體檢連載：上傳成功才記帳(同批下一支讀到 +1；EP1/EP7 已由 bootstrap 記入)
         _record_checkup_ep(slug, _ck_ep)
     # 精準 SRT 字幕（演算法判主題＋中文金融術語正確；非致命）
+    # 🔴 2026-07-28 配額:`captions.insert` 每支 **400 units**(crontab 的每支 1,650 預算從未算過它,
+    # 真實單支成本是 1,750~2,150)。5 支/日 = 2,000 units,而最壞日實測已用到 9,940/10,000(99.4%)。
+    # 只給長片上字幕:長片的發現管道是**搜尋**(實測近28天搜尋詞 top20 幾乎全是個股名/代號,
+    # 是本頻道唯一有效的長片發現引擎),精準字幕幫演算法判主題有價值;Shorts 靠 feed 分發、
+    # 不吃搜尋,自動字幕已足夠 → 省下 2 支×400 = 800 units/日,換成上架的安全餘裕。
+    if is_short:
+        print(f"[caption] {slug}:Shorts 跳過字幕上傳(省 400 units,靠 feed 分發不吃搜尋)")
     try:
         import make_video as _mv
-        _srt = _mv.write_srt_for_slug(slug)
+        _srt = _mv.write_srt_for_slug(slug) if not is_short else None
         if _srt and Path(_srt).exists():
             up.upload_captions(yt, vid, _srt,
                                upload_name=up.seo_asset_name(meta.get("title", slug), meta.get("tags"), "srt", slug))

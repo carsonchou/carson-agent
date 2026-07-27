@@ -139,6 +139,50 @@ def save_replied(replied: set) -> None:
 
 # ── 安全模板自動回覆主邏輯 ───────────────────────────────────────────────────
 
+# 🔴 2026-07-28 配額地雷拆除(來自當日 quota 稽核):`max_replies` 是**每一輪**的上限,而本支
+# 由 crontab 每 2 小時跑一次(12 輪/日)→ 10×12×50 units = **6,000 units/日理論上限**。
+# 頻道最壞日配額實測已用到 9,940/10,000(99.4%),只要哪天有片起飛、留言變多,這支會直接
+# 把當日配額吃穿 → 隔天的上架(每支 1,600+)全部失敗,而且日誌會被併發覆蓋、很難察覺。
+# 修法:把上限綁在「每日」而不是「每輪」。留言互動本身是好事(留言權重>訂閱),故不是關掉它,
+# 而是給一個明確的每日預算;用完當日就停,隔天自動重置。
+_DAILY_REPLY_CAP = 8            # 8 × 50 = 400 units/日,佔配額 4%,可控
+_REPLY_BUDGET_FILE = STUDIO / "comment_reply_budget.json"
+
+
+def _reply_budget_left() -> int:
+    """今日還能回幾則(讀 STUDIO/comment_reply_budget.json;跨日自動重置)。壞檔一律回滿額度
+    但不超過上限——這條路徑壞掉不可以讓留言功能整個失效(fail-open),但也絕不可以放大支出。"""
+    try:
+        import datetime as _dt
+        today = _dt.date.today().isoformat()
+        d = {}
+        if _REPLY_BUDGET_FILE.exists():
+            d = json.loads(_REPLY_BUDGET_FILE.read_text(encoding="utf-8")) or {}
+        if d.get("date") != today:
+            return _DAILY_REPLY_CAP
+        return max(0, _DAILY_REPLY_CAP - int(d.get("used", 0)))
+    except Exception:  # noqa: BLE001
+        return _DAILY_REPLY_CAP
+
+
+def _reply_budget_consume(n: int) -> None:
+    """把本輪實際發出的則數計入今日用量。失敗只印警告——記帳失敗不可拖累已成功的回覆。"""
+    if n <= 0:
+        return
+    try:
+        import datetime as _dt
+        today = _dt.date.today().isoformat()
+        d = {}
+        if _REPLY_BUDGET_FILE.exists():
+            d = json.loads(_REPLY_BUDGET_FILE.read_text(encoding="utf-8")) or {}
+        if d.get("date") != today:
+            d = {"date": today, "used": 0}
+        d["used"] = int(d.get("used", 0)) + n
+        _REPLY_BUDGET_FILE.write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
+    except Exception as e:  # noqa: BLE001
+        print(f"[warn] 留言預算記帳失敗:{str(e)[:60]}", file=sys.stderr)
+
+
 def auto_reply_safe(yt, max_replies: int = 10, dry_run: bool = False, use_haiku: bool = False) -> int:
     """安全模板自動回覆主迴圈。回傳本輪實際回覆數。
 
@@ -178,6 +222,13 @@ def auto_reply_safe(yt, max_replies: int = 10, dry_run: bool = False, use_haiku:
         return 0
 
     acted = 0
+    # 每日預算閘(見 _DAILY_REPLY_CAP):本輪可回數 = min(每輪上限, 今日剩餘預算)
+    if not dry_run:
+        _left = _reply_budget_left()
+        if _left <= 0:
+            print(f"[quota] 今日留言回覆已達每日上限 {_DAILY_REPLY_CAP} 則,本輪跳過(保護上架配額)")
+            return 0
+        max_replies = min(max_replies, _left)
     for c in candidates[:max_replies]:
         text = c["text"]
         # 分類：優先零成本關鍵字；interaction 最模糊時若開 --use-haiku 再確認
@@ -206,6 +257,7 @@ def auto_reply_safe(yt, max_replies: int = 10, dry_run: bool = False, use_haiku:
 
     if not dry_run and acted > 0:
         save_replied(replied)
+        _reply_budget_consume(acted)   # 計入今日配額預算(見 _DAILY_REPLY_CAP)
         log_ops("社群留言", f"安全模板自動回 {acted} 則")
     return acted
 
