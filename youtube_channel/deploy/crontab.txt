@@ -146,6 +146,12 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # 排**週五**:週輪值稽核出各日負擔為 六601/日808/二510/三765/四507/一64/**五0**,五最空,
 # 把這 267 放進唯一沒有輪值 job 的日子,不疊加到任何一個尖峰。
 45 9 * * 5 /root/yt/run.sh scripts/organize_dept.py >> /root/yt/logs/cron.log 2>&1
+# 2026-07-28 合規控制(Developer Policies III.E.4.d:API 取得的資料須 30 天內刷新或刪除)。
+# 稽核發現舊清除只掛在週六的 intel_dept、且只掃 *_競品情報.md,導致 outlier_scan 產出的
+# *_異常爆款.md(同樣含他人頻道標題/名稱)從未被清 —— 實測有 17 份逾 30 天、最舊到 06-16。
+# 改成獨立**每日**控制,與產生資料的部門解耦(產生的人不負責刪 = 原本那個洞的根因)。
+# 純本機檔案刪除,不耗任何 API 配額;保留 25 天(政策上限 30,留 5 天安全邊際)。
+20 4 * * * /root/yt/run.sh scripts/purge_api_data.py >> /root/yt/logs/cron.log 2>&1
 48 9 * * * /root/yt/run.sh scripts/promo_dept.py >> /root/yt/logs/cron.log 2>&1
 51 9 * * * /root/yt/run.sh scripts/thumbnail_dept.py >> /root/yt/logs/cron.log 2>&1
 # 2026-07-16 配額預算輪值制:每小時→每2小時,降無上限曝險
