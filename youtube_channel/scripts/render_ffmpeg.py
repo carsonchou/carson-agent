@@ -385,15 +385,24 @@ def _seg_clip(ff, *, src, is_video, dur, subs, fade_in, width, height, fps, tmp_
         # 才是真正讓數值躍過去的關鍵——實測卡片 0.08 亮度脈衝 + 0.07 縮放,分數穩定落在
         # 0.20~0.29(深色圖表卡+亮色大數字卡都測過),對 gt(scene,0.1) 有 2 倍安全margin。
         # 亮度脈衝幅度小(±8%,一瞬間)人眼觀感是「呼吸感」不是閃爍。
+        # 🔴 2026-07-28 電影感修復(Carson:「不要一幕一幕的出現,我要像電影不是投影片」):
+        # 舊碼同下方靜態切片路徑,是**方波**:zoom 在 1.0/1.07 兩級硬跳 + 每 3.5 秒亮度閃一階。
+        # 上面那句「人眼觀感是呼吸感不是閃爍」從來沒被人眼驗證過(整段推導全繞著 scene_score
+        # 這個**沒有任何閘門在讀**的指標),而觀眾實際看到的就是每 3.5 秒跳一格投影片。
+        # 改成連續運鏡:三條不同週期(20/27/33s,互質故軌跡長時間不重複)的正弦疊加=有機緩慢
+        # 漂移。相位一律用「整支片絕對時間」((on+_start_frame)/fps)——每個 _seg_clip 是獨立
+        # ffmpeg 行程,相位若各自歸零,concat 後會在每個段邊界看到運鏡瞬間跳回原點(鋸齒)。
+        # 亮度脈衝(beq)整條移除:那是閃爍源,不是呼吸感。渲染成本不變(同一條 filter)。
         _start_frame = int(round(seg_start * fps))
-        zexpr = f"1.0+0.07*mod(floor((on+{_start_frame})/({fps}*3.5)),2)"
-        beq = f"eq=eval=frame:brightness='0.08*mod(floor((t+{seg_start:.3f})/3.5)\\,2)'"
-        # 推鏡上限 1.06(僅供參考,脈衝公式本身封在 1.0~1.07 內):邊緣裁切夠小,
-        # 保住卡片燒入的浮水印(別被放大切到底邊)
+        _gt = f"((on+{_start_frame})/{fps})"   # 全片絕對時間(秒)
+        zexpr = f"1.06+0.025*sin(2*PI*{_gt}/20)"
+        # 推鏡 1.035~1.085:預縮放 2x 後裁切餘裕遠大於位移振幅(不會被夾邊卡住),
+        # 且保住卡片燒入的浮水印(別被放大切到底邊)
         base = (f"[0:v]scale={width*2}:{height*2}:flags=lanczos,"
                 f"zoompan=z='{zexpr}':d={frames}:"
-                f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s={width}x{height}:fps={fps},"
-                f"setsar=1,format=yuv420p,{beq}")
+                f"x='iw/2-(iw/zoom/2)+(iw*0.010)*sin(2*PI*{_gt}/27)':"
+                f"y='ih/2-(ih/zoom/2)+(ih*0.008)*cos(2*PI*{_gt}/33)':s={width}x{height}:fps={fps},"
+                f"setsar=1,format=yuv420p")
     if fade_in:
         # P-封面修:純 fade=t=in:st=0 讓輸出的 t=0 那一幀是 100% 純黑(fade 從 alpha=0
         # 起跳),TikTok/IG 自動抓片頭幀當封面 → 全部抓到黑。改用 tpad 在最前面複製墊
@@ -1040,11 +1049,25 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
         # 秒週期、同相位,這裡是單一 ffmpeg pass 處理整支已 concat 的片,'t' 本來就是
         # 全片絕對時間、不用另外算 offset)。實測 0.08 亮度脈衝穩定量到 0.20~0.29,
         # 對 gt(scene,0.1) 有 2 倍安全margin。
+        # 🔴 2026-07-28 電影感修復(Carson:「不要一幕一幕的出現,我要像電影不是投影片」):
+        # 舊碼是**方波**——zoom `mod(floor(on/(fps*3.5)),2)` 在 1.0/1.045 兩級間硬跳、外加
+        # `brightness 0.08*mod(floor(t/3.5),2)` 每 3.5 秒整張畫面閃一階。那不是運鏡,是每 3.5 秒
+        # 「跳一格投影片+閃一下」,正是觀眾說的「一幕一幕的出現」。它當初純粹是為了讓
+        # ffmpeg scene detection(gt(scene,0.3))量得到數字而加的——**而全產線沒有任何閘門在讀
+        # 那個分數**(已 grep 確認 audit_video/quality_score 都不檢查),等於為了討好一個沒人看的
+        # 指標,犧牲了人眼唯一看得到的東西。教訓同 memory「指標量像素不量畫面,只能人眼驗」。
+        # 改成真正的連續運鏡:三條**不同週期**的正弦(20s 推拉 / 27s 橫移 / 33s 直移)疊加,
+        # 週期互質故軌跡長時間不重複=有機的緩慢漂移(慢推鏡+微幅浮動),永遠不跳、不閃。
+        # zoom 基線 1.06 保證恆有裁切餘裕(最低 1.035),位移振幅 (1.0%/0.8%) 遠小於餘裕故不會被
+        # 夾邊而卡住。t 用 on/fps 算(zoompan 保證支援 on);此 filter 作用在 concat **之後**的整條
+        # 串流,故 on 是全片絕對幀號——運鏡跨越所有切片邊界連續,不會每片重來(那又會變鋸齒跳)。
+        # 成本:同樣一次 ffmpeg pass、同樣一個 filter,渲染時間不變。
+        _t = f"(on/{fps})"
         vf = (f"fps={fps},scale={width}:{height}:force_original_aspect_ratio=decrease,"
               f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1,"
-              f"zoompan=z='1.0+0.045*mod(floor(on/({fps}*3.5)),2)':d=1:"
-              f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s={width}x{height}:fps={fps},"
-              f"eq=eval=frame:brightness='0.08*mod(floor(t/3.5)\\,2)',"
+              f"zoompan=z='1.06+0.025*sin(2*PI*{_t}/20)':d=1:"
+              f"x='iw/2-(iw/zoom/2)+(iw*0.010)*sin(2*PI*{_t}/27)':"
+              f"y='ih/2-(ih/zoom/2)+(ih*0.008)*cos(2*PI*{_t}/33)':s={width}x{height}:fps={fps},"
               f"tpad=start_duration=0.35:start_mode=clone,fade=t=in:st=0:d=0.5,"
               f"trim=start=0.35,setpts=PTS-STARTPTS,format=yuv420p")
         af = f"adelay={intro_ms}:all=1,apad,atrim=0:{total:.3f}"
