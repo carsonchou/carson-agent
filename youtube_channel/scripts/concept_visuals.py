@@ -307,13 +307,11 @@ def _drawdown(ax, ctx):
     d1 = pd.Timestamp(dates[trough]).date()
     # 🔴 2026-07-28 可讀性:最大回撤這個數字**就是這張圖的主角**,原本 fontsize=16 在 1080p 上
     # 只有 ~21px,手機上根本看不見。放大到 34 並加深色描邊(圖線可能穿過它),讓它一眼可讀。
-    # 標註放上或放下,依谷底在軸內的相對高度決定:谷底靠近軸底時往下放會壓到年份刻度
-    # (實測 2376 的 -82.4% 正好壓在 2008/2012 上)。谷底低於軸高 35% → 改放谷底上方。
-    _lo, _hi = float(np.min(eq)), float(np.max(eq))
-    _rel = (eq[trough] - _lo) / (_hi - _lo) if _hi > _lo else 0.5
-    _dy, _va = ((46, "bottom") if _rel < 0.35 else (-46, "top"))
-    ax.annotate(f"{dd[trough]*100:.1f}%", xy=(trough, eq[trough]), xytext=(0, _dy),
-                textcoords="offset points", ha="center", va=_va, color=RED,
+    # 標註**一律放谷底上方**:谷底依定義是這段的最低點,上方必然有空間(而且正是回撤陰影區,
+    # 配深色描邊很好讀);往下放則會壓到年份刻度——第一版依相對高度決定上下,實測仍有兩張中招
+    # (視窗不同時谷底相對位置會變),索性拿掉這個判斷,永遠往上,行為可預測。
+    ax.annotate(f"{dd[trough]*100:.1f}%", xy=(trough, eq[trough]), xytext=(0, 52),
+                textcoords="offset points", ha="center", va="bottom", color=RED,
                 fontsize=34, fontweight="bold",
                 path_effects=[_pe.withStroke(linewidth=4, foreground=BG)], zorder=6)
     ax.set_xlim(0, len(eq) - 1)

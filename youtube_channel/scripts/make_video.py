@@ -1750,12 +1750,17 @@ def paste_mascot(base_png, mascot_path, position: str = "br", scale: float = 0.1
     mh = max(1, int(m.height * mw / max(1, m.width)))
     m = m.resize((mw, mh))
     pad = int(min(W, H) * 0.03)
+    # 🔴 2026-07-28:底部兩個位置要**再往上讓出浮水印帶**。燒入的浮水印基線在 height*0.97
+    # (見 _draw_watermark),而吉祥物底部原本也是 H-pad(1080p 時同樣落在 ~1048)→ 兩者重疊,
+    # 實測成片機器人的腳直接壓在「量化阿森｜Carson Quant」上,把品牌字擋成「…Carso? Quan?」。
+    # 抬高 5.5% 畫面高(1080p ≈ 59px),足以完整讓開浮水印膠囊(字高+內距約 40px)且不吃到字幕帶。
+    _wm_band = int(H * 0.055)
     pos = {
-        "br": (W - mw - pad, H - mh - pad),
-        "bl": (pad, H - mh - pad),
+        "br": (W - mw - pad, H - mh - pad - _wm_band),
+        "bl": (pad, H - mh - pad - _wm_band),
         "tr": (W - mw - pad, pad),
         "tl": (pad, pad),
-    }.get(position, (W - mw - pad, H - mh - pad))
+    }.get(position, (W - mw - pad, H - mh - pad - _wm_band))
     try:
         base.alpha_composite(m, pos)
     except Exception:  # noqa: BLE001

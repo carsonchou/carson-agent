@@ -969,7 +969,11 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
             out = None
             try:
                 seg = segments[seg_idx]
-                r = (bucket + 1) / _REVEAL_BUCKETS      # bucket 0→1/8 揭露 … 7→完整
+                # 🔴 2026-07-28:舊式 (bucket+1)/N 讓第一格只揭露 1/8 = 12.5%,26 年的走勢只畫出
+                # 最左邊約 3 年 → **每一段開頭都是一條細線、畫面近乎空白**(抽幀實測第 1、9 幀都是)。
+                # 漸進揭露的用意是「講到哪畫到哪」,不是「開場什麼都沒有」。改成從 35% 起跳:
+                # 一開場就有看得懂的圖,之後仍持續長到 100%(生長感保留,只是不再從近乎零開始)。
+                r = 0.35 + 0.65 * (bucket + 1) / _REVEAL_BUCKETS
                 card = mv.render_concept_card(
                     width, height, heading=seg.heading or "", narration=seg.narration,
                     watermark=watermark, accent=accent, seed=f"{vid_seed}_{seg_idx}",
