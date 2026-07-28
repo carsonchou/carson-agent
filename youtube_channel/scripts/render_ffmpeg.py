@@ -728,6 +728,12 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
                 title + " " + " ".join(s.heading for s in segments if s.heading))
         except Exception:  # noqa: BLE001
             video_concept = None
+    # 🔴 2026-07-28:整片概念抓不到、但有真實標的時,退到 "trend"(現在的 _trend 在旁白沒有明確
+    # 方向時會畫**完整真實走勢**、不挑區間也不做方向宣稱)。實測有一支 0056 vs 00878 的片,
+    # 標題與所有小標都不含任何概念關鍵字 → video_concept=None → 5 段有 4 段完全空白。
+    # 「認不出主題」不該等於「整支片沒有畫面」——把該檔的真實歷史攤開是最保守的誠實選項。
+    if video_concept is None and video_ticker:
+        video_concept = "trend"
 
     tmp_dir = Path(tempfile.mkdtemp(prefix="carson_ff_"))
     try:

@@ -411,10 +411,30 @@ def _trend(ax, ctx):
     rets = np.array([px[s + win - 1] / px[s] - 1.0 for s in starts])
     want_up = ctx.direction > 0
     if ctx.direction == 0:
-        return None                        # 旁白沒有明確方向 → 不畫(不猜)
+        # 🔴 2026-07-28:旁白沒有明確方向時,舊碼直接不畫 → 實測一支 0050 長片 **9 段有 5 段全空白**。
+        # 但「不知道該挑哪一段」不等於「什麼都不能畫」:改成畫**完整的真實走勢**——不挑區間、
+        # 不做任何方向宣稱,就是把這檔的真實歷史攤開。誠信上比挑一段更保守(挑區間才是有立場的),
+        # 畫面上則從空白變成有內容。原本的「不猜方向」精神保留:只是把它從「不畫」改成「不挑」。
+        ax.plot(np.arange(len(px)), px, color=FG, lw=2.2, zorder=3)
+        ax.fill_between(np.arange(len(px)), float(np.min(px)) * 0.98, px,
+                        color=FG, alpha=0.07, zorder=1)
+        ax.set_xlim(0, len(px) - 1)
+        _year_ticks(ax, dates)
+        _r = px[-1] / px[0] - 1.0
+        _d0 = pd.Timestamp(dates[0]).date()
+        _d1 = pd.Timestamp(dates[-1]).date()
+        return f"{ticker} 實際走勢 {_d0} → {_d1}({_r*100:+.1f}%)", None
     cand = rets > 0 if want_up else rets < 0
     if not cand.any():
-        return None                        # 真資料裡沒有符合方向的區間 → 不畫
+        # 同上:真資料裡找不到符合旁白方向的區間 → 不強行挑,改畫完整真實走勢(不做方向宣稱)
+        ax.plot(np.arange(len(px)), px, color=FG, lw=2.2, zorder=3)
+        ax.fill_between(np.arange(len(px)), float(np.min(px)) * 0.98, px,
+                        color=FG, alpha=0.07, zorder=1)
+        ax.set_xlim(0, len(px) - 1)
+        _year_ticks(ax, dates)
+        _r = px[-1] / px[0] - 1.0
+        return (f"{ticker} 實際走勢 {pd.Timestamp(dates[0]).date()} → "
+                f"{pd.Timestamp(dates[-1]).date()}({_r*100:+.1f}%)"), None
     idx = int(starts[np.argmax(rets)] if want_up else starts[np.argmin(rets)])
     seg = px[idx:idx + win]
     col = GREEN if want_up else RED
