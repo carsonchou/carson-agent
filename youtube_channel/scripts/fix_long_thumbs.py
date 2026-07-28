@@ -148,9 +148,18 @@ def main() -> int:
             print(f"[ok] {w}x{h} → {nw}x{nh}  {vid}  {slug[:44]}")
         except Exception as e:  # noqa: BLE001
             fail += 1
+            # 🔴 2026-07-28 修回滾 bug(紅線驗證抓到):舊條件多了 `and not p.exists()`,
+            # 導致兩條主要失敗路徑**都走不到回滾**——(a) 重產出仍是直式(主動 raise)時 p 已存在;
+            # (b) 上傳失敗(403/網路/配額)時 p 也已存在。後果比「沒回滾」更陰:本機檔案已變橫式
+            # 而 YouTube 上還是直式 → 下次再跑,`_targets()` 的 `if w > h: continue` 會把它濾掉
+            # → **這支片永久從待修清單消失、線上永遠留著直式縮圖,而且沒有任何錯誤留存**。
+            # 配額中途用罄時會整批這樣靜默漏掉。改成:失敗一律用備份覆蓋回去(不管 p 在不在)。
             bk = BACKUP / f"{slug}.jpg"
-            if bk.exists() and not p.exists():
-                shutil.copy2(bk, p)                      # 失敗回滾原圖
+            if bk.exists():
+                try:
+                    shutil.copy2(bk, p)                  # 失敗一律回滾原圖,保證下次還撿得到
+                except Exception as e2:  # noqa: BLE001
+                    print(f"[warn] 回滾失敗 {slug[:36]}:{str(e2)[:60]};原圖仍在 {bk}", file=sys.stderr)
             print(f"[fail] {slug[:44]}:{str(e)[:90]}", file=sys.stderr)
     print(f"\n完成:成功 {ok} / 失敗 {fail};耗約 {ok * 50} quota units。原圖備份在 {BACKUP}")
     if ok:
