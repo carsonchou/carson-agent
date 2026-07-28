@@ -6,7 +6,16 @@
   - 讀 deploy/crontab.txt 的排程（＝雲端同步版），每 60 秒檢查哪些 job 到點就跑。
   - 把 `/root/yt/run.sh scripts/X.py args` 翻譯成本機 `.venv python scripts/X.py args`。
   - 先把專案根 .env 載入環境（OPENROUTER/GEMINI/PEXELS…金鑰），子程序才吃得到。
-  - 只跑「本機能跑」的 job；雲端專屬（fileserver.sh/self_heal.sh/flock/純 shell 備份）自動略過。
+  - 只跑「本機能跑」的 job；雲端專屬（fileserver.sh/self_heal.sh/純 shell 備份）自動略過。
+    ⚠️ 2026-07-28 更正:本行原本寫「flock 自動略過」——**與實作不符**,SKIP_MARKERS 從來沒有
+    收 "flock"(見下方定義)。後果:crontab 的 `*/15 flock -n /tmp/hr_cloud.lock hybrid_render
+    --max 20` 在本機**照跑且完全沒有鎖**(flock 是 Linux 指令,Windows 上不存在),每 15 分鐘
+    疊加一個實例 → 實測 09:40 同時 20 個 hybrid_render + 16 個 make_video + 27 個 ffmpeg,
+    15.7GB 記憶體剩 0.4GB,產線連續 MemoryError / ffmpeg 逾時、當天渲染全滅。
+    **修法沒有加進 SKIP_MARKERS**(hybrid_render 是本機真正的渲染器,produce_batch 都帶
+    --no-render,略過它等於停掉渲染),而是讓 hybrid_render **自己單例化**(見該檔 _acquire_proc_lock)。
+    教訓:cron 行裡任何 Linux-only 的防護(flock/timeout/setsid…)搬到本機都是**靜默失效**,
+    防護要做在腳本自己身上。
   - 每個 job 各自 subprocess、非阻塞、逾時保護、寫 logs/local_cron.log。電腦睡著/關機時該時段的 job 會漏（本機跑的先天限制）。
 
 用法：

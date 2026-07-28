@@ -95,6 +95,13 @@ def run_cloud(maxn: int) -> int:
     todo = cloud_pending()[:maxn]
     done = 0
     for slug in todo:
+        # 單例鎖心跳:一輪 --max 20 可能跑超過 _PROC_LOCK_STALE,不更新的話鎖會被判過期、
+        # 下一個排程實例就會接手 → 又變成兩個一起渲。每支片更新一次 mtime 即可。
+        try:
+            if _PROC_LOCK.exists():
+                _PROC_LOCK.write_text(f"{os.getpid()} {_now():.0f}", encoding="utf-8")
+        except Exception:  # noqa: BLE001
+            pass
         if not _claim_local(slug):
             continue
         try:
@@ -177,6 +184,38 @@ def run_pc(maxn: int) -> int:
     return done
 
 
+# 🔴 2026-07-28 產線事故修復:**行程級單例鎖**。
+# 本檔原本只有 per-slug 鎖(output/{slug}.lock,防兩邊渲同一支),但**沒有任何東西限制
+# 同時有幾個 hybrid_render 在跑**。crontab 那行靠 `flock -n /tmp/hr_cloud.lock` 防重入——
+# 那是 **Linux 指令,搬到本機 Windows 後根本不存在**,而 local_cron 的 SKIP_MARKERS 也沒有
+# 收 "flock"(檔頭 docstring 宣稱會略過 flock,**與實作不符**),於是每 15 分鐘就疊加一個實例。
+# 實測 2026-07-28 09:40:同時 20 個 hybrid_render + 16 個 make_video + 27 個 ffmpeg,
+# 15.7GB 記憶體只剩 0.4GB(3%),產線連續噴 MemoryError 與 ffmpeg 逾時 600s、當天渲染全數失敗。
+# per-slug 鎖擋不住這種:每個實例各自挑不同影片,誰也沒違規,合起來把機器壓垮。
+_PROC_LOCK = OUT / ".hybrid_render.proc.lock"
+_PROC_LOCK_STALE = 3600     # 秒;超過視為上個實例已崩潰,可接手
+
+
+def _acquire_proc_lock() -> bool:
+    """同時只准一個 hybrid_render 在跑。回 True=拿到鎖。心跳用 mtime,崩潰後 1 小時自動可接手。"""
+    try:
+        if _PROC_LOCK.exists() and (_now() - _PROC_LOCK.stat().st_mtime) < _PROC_LOCK_STALE:
+            return False
+        _PROC_LOCK.parent.mkdir(parents=True, exist_ok=True)
+        _PROC_LOCK.write_text(f"{os.getpid()} {_now():.0f}", encoding="utf-8")
+        return True
+    except Exception:  # noqa: BLE001 — 鎖機制自己壞掉不可以擋住渲染(fail-open,回到舊行為)
+        return True
+
+
+def _release_proc_lock() -> None:
+    try:
+        if _PROC_LOCK.exists():
+            _PROC_LOCK.unlink()
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--cloud", action="store_true", help="雲端模式：渲本機待辦")
@@ -187,6 +226,12 @@ def main() -> int:
     args = ap.parse_args()
     if not (args.cloud or args.pc):
         print("請指定 --cloud 或 --pc"); return 2
+    if not _acquire_proc_lock():
+        _age = _now() - _PROC_LOCK.stat().st_mtime
+        print(f"[hybrid] 已有實例在跑({_age:.0f}s 前),本次跳過(防記憶體耗盡)。")
+        return 0
+    import atexit
+    atexit.register(_release_proc_lock)
     fn = run_cloud if args.cloud else run_pc
     if not args.loop:
         fn(args.max); return 0

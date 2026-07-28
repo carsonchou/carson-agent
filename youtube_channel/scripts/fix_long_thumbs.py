@@ -118,9 +118,12 @@ def main() -> int:
 
     BACKUP.mkdir(parents=True, exist_ok=True)
     import make_thumbnails as mt
-    import upload_youtube as up
     from googleapiclient.http import MediaFileUpload
-    yt = up.get_authenticated_service()
+    # 直接重用 daily_publish.get_service():它讀 token_manage.json + client_secrets.json,
+    # 與產線上架走的是**同一組憑證與 scope**(自己另外呼叫 upload_youtube.get_authenticated_service
+    # 要傳 client_secrets/token_path 兩個 keyword,容易傳錯成另一組 token)。
+    import daily_publish as dp
+    yt = dp.get_service()
 
     qs = {}
     try:
