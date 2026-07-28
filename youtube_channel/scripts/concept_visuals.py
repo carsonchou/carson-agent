@@ -21,6 +21,7 @@ from typing import Optional, Tuple
 import matplotlib
 matplotlib.use("Agg")  # 無視窗後端
 import matplotlib.pyplot as plt
+import matplotlib.patheffects as _pe   # 2026-07-28:給關鍵數字加描邊,避免被圖線穿過看不清
 import numpy as np
 from matplotlib.patches import Rectangle
 
@@ -127,7 +128,7 @@ def _year_ticks(ax, dates, n_max=6):
     picks = uniq[::step]
     ax.set_xticks([int((yrs == y).argmax()) for y in picks])
     ax.set_xticklabels([str(y) for y in picks])
-    ax.tick_params(axis="x", colors=MUTED, labelsize=13, length=0)
+    ax.tick_params(axis="x", colors=MUTED, labelsize=16, length=0)
 
 
 def classify(text: str) -> Optional[str]:
@@ -304,8 +305,17 @@ def _drawdown(ax, ctx):
                edgecolors="white", linewidths=0.6, zorder=4)
     d0 = pd.Timestamp(dates[peak]).date()
     d1 = pd.Timestamp(dates[trough]).date()
-    ax.annotate(f"{dd[trough]*100:.1f}%", xy=(trough, eq[trough]), xytext=(0, -30),
-                textcoords="offset points", ha="center", color=RED, fontsize=16, fontweight="bold")
+    # 🔴 2026-07-28 可讀性:最大回撤這個數字**就是這張圖的主角**,原本 fontsize=16 在 1080p 上
+    # 只有 ~21px,手機上根本看不見。放大到 34 並加深色描邊(圖線可能穿過它),讓它一眼可讀。
+    # 標註放上或放下,依谷底在軸內的相對高度決定:谷底靠近軸底時往下放會壓到年份刻度
+    # (實測 2376 的 -82.4% 正好壓在 2008/2012 上)。谷底低於軸高 35% → 改放谷底上方。
+    _lo, _hi = float(np.min(eq)), float(np.max(eq))
+    _rel = (eq[trough] - _lo) / (_hi - _lo) if _hi > _lo else 0.5
+    _dy, _va = ((46, "bottom") if _rel < 0.35 else (-46, "top"))
+    ax.annotate(f"{dd[trough]*100:.1f}%", xy=(trough, eq[trough]), xytext=(0, _dy),
+                textcoords="offset points", ha="center", va=_va, color=RED,
+                fontsize=34, fontweight="bold",
+                path_effects=[_pe.withStroke(linewidth=4, foreground=BG)], zorder=6)
     ax.set_xlim(0, len(eq) - 1)
     _year_ticks(ax, dates)
     return f"{ticker} 實際最大回撤 {dd[trough]*100:.1f}%({d0} → {d1})", None
@@ -483,7 +493,8 @@ def _font_setup():
 
 def render_concept_chart(width: int, height: int, text: str, accent, seed: str,
                          dest=None, force: Optional[str] = None,
-                         fallback_ticker: Optional[str] = None, reveal: float = 1.0):
+                         fallback_ticker: Optional[str] = None, reveal: float = 1.0,
+                         variant: int = 0):
     """回傳滿版深色底 + 置中數據圖的 PIL.Image(RGB)；判不到主題回 None。
 
     圖只佔畫面中段（約 18%~76% 高），上方留給大標題、下方留給字幕。
@@ -518,7 +529,9 @@ def render_concept_chart(width: int, height: int, text: str, accent, seed: str,
     # 拉高到 0.46(騰出更多下方淨空),caption 挪到 0.42(留 ~0.04 安全margin 在最壞情境
     # 2 行長片字幕框頂之上);legend(圖例圓點文字)直接拿掉——顏色語意本來就在圖上用
     # 紅/綠點畫出來,legend 文字是錦上添花,兩害相權不留它,徹底消除這條重疊來源。
-    ax = fig.add_axes([0.06, 0.46, 0.88, 0.34])
+    # 2026-07-28 質感:圖表原本只佔畫面高 34%,上方留白過多。**只把上緣從 0.80 抬到 0.86**
+    # (下緣 0.46 一動不動——那是為避開 2 行字幕框算出來的安全邊距,見上方註解),面積 +18%。
+    ax = fig.add_axes([0.06, 0.46, 0.88, 0.40])
     ax.set_facecolor(BG)
     for s in ax.spines.values():
         s.set_visible(False)
@@ -530,12 +543,32 @@ def render_concept_chart(width: int, height: int, text: str, accent, seed: str,
     # ctx.real = (ticker, dates, close) 有真資料 / None 沒有。真資料圖(dca/trend/candle/
     # drawdown)拿不到真資料就回 None → 這裡直接不出圖(fail-safe),絕不畫亂數頂替。
     real = None
-    tk = resolve_ticker(text) or (fallback_ticker if (fallback_ticker and
-                                  (_FACTS_CACHE / f"{fallback_ticker}.csv").exists()) else None)
+    # 🔴 2026-07-28 標的錯置修復:原本一律 `resolve_ticker(段落文字)` 優先,於是段落旁白只要
+    # 順口提到別檔(常見:拿 0050 當對照),整張圖就會變成那一檔——實測技嘉 2376 的體檢片,
+    # 有一段旁白主要在講技嘉的回撤,卻因為文中提到 0050 而畫出「0050 實際最大回撤」的圖,
+    # 畫面與旁白講的標的對不上(觀眾看到的是別檔的走勢)。
+    # 規則:**當整片有明確主題標的(fallback_ticker,取自標題)時,主題標的優先**;
+    # 段落文字解析只在整片沒有主題標的時才作主(如「0056 vs 0050」這類比較片,標題解不出
+    # 單一主體,維持舊行為讓各段自己決定)。
+    _seg_tk = resolve_ticker(text)
+    _vid_tk = fallback_ticker if (fallback_ticker and
+                                  (_FACTS_CACHE / f"{fallback_ticker}.csv").exists()) else None
+    tk = _vid_tk or _seg_tk
     if tk:
         rd = load_real(tk)
         if rd is not None:
-            real = (tk, rd[0], rd[1])
+            # 🔴 2026-07-28 同圖輪播防治(這是解封 video_ticker 的必要配套):
+            # 解封整片主題標的後,同一支片裡兩個都被判成 drawdown 的段落會畫出**一模一樣**的圖
+            # (實測技嘉片 seg1/seg2 完全重複)——正是舊註解警告、也是 Carson 抱怨過的「同圖輪播」。
+            # 修法給每段一個 variant(呼叫端用「這個概念在本片第幾次出現」帶進來):
+            # variant=0 走完整歷史;variant>=1 改看**近期窗**(依序 45% / 25% 的尾段),
+            # 於是同一檔的同一種圖會呈現「長期全景 → 近期特寫」的不同視角,既有變化也多給資訊。
+            _d, _c = rd[0], rd[1]
+            if variant and len(_c) > 120:
+                _frac = (0.45, 0.25)[min(int(variant), 2) - 1]
+                _k = max(120, int(len(_c) * _frac))
+                _d, _c = _d[-_k:], _c[-_k:]
+            real = (tk, _d, _c)
     ctx = Ctx(rng=rng, direction=_direction(text), real=real, text=text,
               reveal=max(0.05, min(1.0, float(reveal))))
 
@@ -548,7 +581,7 @@ def render_concept_chart(width: int, height: int, text: str, accent, seed: str,
     # 圖說（圖下方、字幕安全區之上；見上方 ax 位置註解）。legend 已拿掉，不再畫。
     if caption:
         fig.text(0.5, 0.42, caption, ha="center", va="center",
-                 color=FG, fontsize=21, weight="bold")
+                 color=FG, fontsize=26, weight="bold")
 
     fig.canvas.draw()
     buf = np.asarray(fig.canvas.buffer_rgba())

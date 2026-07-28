@@ -164,7 +164,7 @@ def _pick_bgm(slug):
 
 
 def _make_seg_card(seg, i, *, width, height, watermark, accent, vid_seed, video_concept, tmp_dir,
-                   force_key=None, video_ticker=None):
+                   force_key=None, video_ticker=None, variant=0):
     """產一段的卡片 PNG(concept → 字卡 二級降級;不再退 rng K線卡)。回傳 PNG 路徑。
     force_key 有值＝硬指定概念圖(用於強制回測對比 beat)。
     video_ticker：整片主題代號,傳給 concept 當 fallback,讓沒點名代號的段落也能畫整片的真圖。"""
@@ -174,7 +174,7 @@ def _make_seg_card(seg, i, *, width, height, watermark, accent, vid_seed, video_
             width, height, heading=seg.heading or "", narration=seg.narration,
             watermark=watermark, accent=accent, seed=f"{vid_seed}_{i}",
             dest=tmp_dir / f"concept_{i:02d}.png", default_key=video_concept, force_key=force_key,
-            fallback_ticker=video_ticker)
+            fallback_ticker=video_ticker, variant=variant)
     except Exception as exc:  # noqa: BLE001
         print(f"[warn] 概念圖失敗,退 K 線卡:{exc}", file=sys.stderr)
         card = None
@@ -706,12 +706,22 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
     vid_seed = getattr(slug_paths, "slug", "") or title
 
     video_concept = None
-    # 整片主題代號 video_ticker:plumbing 已備妥(_make_seg_card→render_concept_card→
-    # render_concept_chart 都收 fallback_ticker),但**現在刻意不啟用**(傳 None):
-    # 單獨開啟會讓「整片同一檔、同一 concept key」的多個段落畫出同一張真圖(如一支 0050
-    # 定投片,3 段都是 dca→3 張一模一樣的 0050 圖)→ 反而加重 Carson 講的「同圖輪播」。
-    # 要啟用得配合「每段不同視圖(不同時窗/指標/漸進揭露)」的 ②,否則得不償失。
+    # 🔴 2026-07-28 解封 video_ticker(舊註解的啟用條件已經成立,但沒人回來重新評估):
+    # 舊註解說「plumbing 已備妥但刻意不啟用,因為多段同 concept 會畫出同一張圖 → 加重同圖輪播;
+    # **要啟用得配合『每段不同視圖(漸進揭露)』的 ②**」。而 ② 早已上線(design_system
+    # progressive_reveal=True),前提條件滿足了,封印卻留著。
+    # 實測代價比想像大得多:抽幀顯示 9 幀有 3 幀**完全空白**(只有標題+字幕,整片無視覺)——
+    # 因為 `_drawdown`/`_dca` 這類圖沒有真資料就 return None → 退純文字卡。而 fallback_ticker
+    # 是它們拿到真資料的唯一途徑(該段文字沒點名代號時)。實測同一段:傳 "2376" → 有圖;
+    # 傳 None → 空白卡。**空白卡比「相似的圖」糟得多**,這個取捨在漸進揭露上線後已經反轉。
+    # 代號取自**標題**(整片主題;個股體檢的標題一定帶標的與代號),不是旁白——旁白順口提到
+    # 別檔(如比較用的 0050)不該蓋掉整片主題;段內文字若真的點名代號,resolve_ticker 仍優先。
     video_ticker = None
+    try:
+        if getattr(mv, "_concept", None) is not None:
+            video_ticker = mv._concept.resolve_ticker(title or "")
+    except Exception:  # noqa: BLE001 — 取不到就維持 None(退回舊行為,不影響渲染)
+        video_ticker = None
     if getattr(mv, "_concept", None) is not None:
         try:
             video_concept = mv._concept.classify(
@@ -722,10 +732,26 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
     tmp_dir = Path(tempfile.mkdtemp(prefix="carson_ff_"))
     try:
         # 1) 每段卡片 PNG
+        # 🔴 2026-07-28 同圖輪播防治(解封 video_ticker 的必要配套):整片統一用主題標的之後,
+        # 兩個都被判成同一種圖(如都是 drawdown)的段落會畫出**一模一樣**的圖。
+        # 先算出每段的概念 key,同一個 key 第 n 次出現就給 variant=n —— concept_visuals 會據此
+        # 改看不同時間窗(完整歷史 → 近 45% → 近 25%),讓同一檔的同種圖呈現「長期全景→近期特寫」。
+        _seen_key: dict = {}
+        _variants = []
+        for seg in segments:
+            try:
+                _k = (mv._concept.classify((seg.heading or "") + " " + (seg.narration or ""))
+                      or video_concept) if getattr(mv, "_concept", None) else None
+            except Exception:  # noqa: BLE001
+                _k = None
+            _n = _seen_key.get(_k, 0) if _k else 0
+            _variants.append(_n)
+            if _k:
+                _seen_key[_k] = _n + 1
         seg_cards = [
             _make_seg_card(seg, i, width=width, height=height, watermark=watermark,
                            accent=accent, vid_seed=vid_seed, video_concept=video_concept,
-                           tmp_dir=tmp_dir, video_ticker=video_ticker)
+                           tmp_dir=tmp_dir, video_ticker=video_ticker, variant=_variants[i])
             for i, seg in enumerate(segments)
         ]
         # ② 漸進揭露(PROGRESSIVE_REVEAL)重合成用:記住每段疊了哪些 overlay,好在段內逐切片
