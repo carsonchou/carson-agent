@@ -62,6 +62,66 @@ def num(n) -> str:
     return f"{n:,.0f}" if isinstance(n, (int, float)) else PLACEHOLDER
 
 
+_PUB_CACHE = STUDIO / "_media_kit_public_cache.json"
+
+
+def public_video_ids(ledger: dict, max_age_h: int = 24) -> set:
+    """回傳 ledger 裡**目前仍為 public** 的 videoId 集合(查不到就回 None 代表無法判定)。
+
+    🔴 2026-07-29 送贊助商前的獨立查證抓到:媒體包直接數 `uploaded_ledger` 的鍵當「總影片數」,
+    報出 **812 支**——但實測其中 **165 支已改為私人、35 支已刪除**,真正公開的只有 **612 支**,
+    對外**多報 200 支(+33%)**。ledger 記的是「我們曾經上傳過什麼」,不是「現在對外有什麼」,
+    拿它當對外數字是把內部帳本誤當公開事實。代表作清單同樣中招(附了兩條私人片連結,對方點不開)。
+
+    用 `videos.list(part=status)` 逐批 50 支查真實 privacyStatus:812 支 = 17 次呼叫 = **17 units**
+    (相對於一次上傳 1,600,可忽略)。結果快取 24 小時,避免每次重產都打 API。
+    任何失敗一律回 None → 呼叫端退回舊行為並在文件上標明「未能核實」,絕不因此少報或多報。
+    """
+    import time as _t
+    try:
+        if _PUB_CACHE.exists():
+            c = json.loads(_PUB_CACHE.read_text(encoding="utf-8"))
+            if _t.time() - float(c.get("ts", 0)) < max_age_h * 3600 and c.get("public"):
+                return set(c["public"])
+    except Exception:  # noqa: BLE001
+        pass
+    ids = [v for v in ledger.values() if isinstance(v, str) and len(v) == 11]
+    if not ids:
+        return None
+    try:
+        import sys as _s
+        _s.path.insert(0, str(Path(__file__).resolve().parent))
+        import daily_publish as _dp
+        yt = _dp.get_service()
+        pub = []
+        for i in range(0, len(ids), 50):
+            r = yt.videos().list(part="status", id=",".join(ids[i:i + 50]), maxResults=50).execute()
+            for it in r.get("items", []):
+                if (it.get("status") or {}).get("privacyStatus") == "public":
+                    pub.append(it["id"])
+        _PUB_CACHE.write_text(json.dumps({"ts": _t.time(), "public": pub}, ensure_ascii=False),
+                              encoding="utf-8")
+        return set(pub)
+    except Exception as e:  # noqa: BLE001
+        print(f"[warn] 公開狀態查不到({str(e)[:60]}) → 影片數改標「未能核實」", file=sys.stderr)
+        return None
+
+
+
+def _subs_total():
+    """訂閱總數改**現拉 API**。原本留 PLACEHOLDER 等人手填,結果就是永遠沒填、
+    對外文件掛著「〔待補〕」——媒體包最基本的一個數字反而是空的。channels.list = 1 unit。"""
+    try:
+        import sys as _s
+        from pathlib import Path as _P
+        _s.path.insert(0, str(_P(__file__).resolve().parent))
+        import daily_publish as _dp
+        r = _dp.get_service().channels().list(part="statistics", mine=True).execute()
+        return int(r["items"][0]["statistics"]["subscriberCount"])
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def gather():
     """把各資料源拉成媒體包要用的扁平結構，缺的欄位一律留佔位，不編數字。"""
     cfg = load(CFG, {}) or {}
@@ -72,7 +132,14 @@ def gather():
     tiktok_ledger = load(STUDIO / "tiktok_ledger.json", {}) or {}
     ig_ledger = load(STUDIO / "ig_ledger.json", {}) or {}
 
-    keys = list(ledger.keys())
+    # 只算「現在對外看得到」的片(見 public_video_ids 的說明:ledger 含已下架/已刪除)
+    pub_ids = public_video_ids(ledger)
+    if pub_ids is not None:
+        keys = [k for k, v in ledger.items() if isinstance(v, str) and v in pub_ids]
+        n_private = len([1 for v in ledger.values() if isinstance(v, str) and len(v) == 11]) - len(keys)
+    else:
+        keys = list(ledger.keys())
+        n_private = None
     n_shorts = sum(1 for k in keys if k.startswith("S_"))
     n_longs = sum(1 for k in keys if k.startswith("L_"))
     n_other = len(keys) - n_shorts - n_longs
@@ -86,7 +153,38 @@ def gather():
         / max(1, sum(1 for v in with_views if isinstance(v.get("retention"), (int, float))))
     ) if with_views else None
 
-    top = sorted(with_views, key=lambda v: v["views"], reverse=True)[:6]
+    # 代表作只挑**目前公開**的片:實測舊版挑出的 6 支裡有 2 支已改私人,附給贊助商的連結點不開
+    _pub_only = ([v for v in with_views if v.get("videoId") in pub_ids] if pub_ids is not None
+                 else with_views)
+    top = sorted(_pub_only, key=lambda v: v["views"], reverse=True)[:6]
+
+    # 🔴 2026-07-29:流量結構與受眾輪廓一律**現拉 Analytics**,不用文案寫死。
+    # 查證抓到兩句寫死的假話:①「觀眾多半是主動搜尋進來、而非被動滑到的泛流量」——實測
+    # **82.6% 來自 Shorts 推薦流、搜尋只有 4.7%**,講反了;②「鎖定 25-45 歲」——實測
+    # **45 歲以上佔 65.2%**,也是反的(而且 45+ 男性台灣散戶資產部位更大,誠實寫反而更好賣)。
+    # 兩者都是「把目標受眾當成實測受眾」講給要付錢的人聽。拿不到就留 None,文件標「未測」。
+    traffic_mix = audience = None
+    try:
+        import sys as _s
+        _s.path.insert(0, str(Path(__file__).resolve().parent))
+        from datetime import date as _d, timedelta as _td
+        import yt_analytics as _ya
+        _svc = _ya._service()
+        if _svc is not None:
+            _e = _d.today() - _td(days=3)          # 讓開 Analytics 2~4 天延遲
+            _s28 = (_e - _td(days=27)).isoformat()
+            rows = _svc.reports().query(ids="channel==MINE", startDate=_s28, endDate=_e.isoformat(),
+                                        dimensions="insightTrafficSourceType", metrics="views",
+                                        sort="-views").execute().get("rows", [])
+            tot = sum(r[1] for r in rows) or 1
+            traffic_mix = [(r[0], r[1], round(r[1] / tot * 100, 1)) for r in rows[:5]]
+            _s90 = (_e - _td(days=89)).isoformat()
+            arows = _svc.reports().query(ids="channel==MINE", startDate=_s90, endDate=_e.isoformat(),
+                                         dimensions="ageGroup", metrics="viewerPercentage",
+                                         sort="-viewerPercentage").execute().get("rows", [])
+            audience = [(r[0].replace("age", ""), round(r[1], 1)) for r in arows]
+    except Exception as e:  # noqa: BLE001
+        print(f"[warn] 流量結構/受眾拉取失敗({str(e)[:60]}),文件將標「未測」", file=sys.stderr)
 
     fin_summary = finance.get("summary", {}) or {}
 
@@ -101,7 +199,11 @@ def gather():
 
     return {
         "cfg": cfg,
+        "subs_total": _subs_total(),
         "n_videos": len(keys),
+        "n_private": n_private,
+        "traffic_mix": traffic_mix,
+        "audience": audience,
         "n_shorts": n_shorts,
         "n_longs": n_longs,
         "n_other": n_other,
@@ -120,6 +222,41 @@ def gather():
         "ig_reach": ig_reach,
         "cross_platform_total_reach": cross_platform_total_reach,
     }
+
+
+_TRAFFIC_ZH = {"SHORTS": "Shorts 推薦流", "SUBSCRIBER": "訂閱者", "YT_SEARCH": "YouTube 搜尋",
+               "RELATED_VIDEO": "推薦影片", "YT_CHANNEL": "頻道頁", "PLAYLIST": "播放清單",
+               "EXT_URL": "站外連結", "NO_LINK_OTHER": "其他", "YT_OTHER_PAGE": "站內其他頁"}
+
+
+def _audience_line(d: dict) -> str:
+    """受眾一律用**實測**;拿不到才誠實標成「目標設定」。
+
+    🔴 2026-07-29:舊文案寫死「鎖定 25-45 歲」,實測 **45 歲以上佔 65.2%**——講反了,
+    而且是講給要付錢的人聽。誠實寫反而更好賣(45+ 台灣男性散戶資產部位更大)。
+    """
+    a = d.get("audience")
+    if not a:
+        return ("〔未測〕以下為**目標設定**而非實測:有資金、想自動化交易但怕被割韭菜的台灣散戶"
+                "(受眾實測數據尚未接上，不以目標當實績)。")
+    top = "、".join(f"{g} {p}%" for g, p in a[:4])
+    old = sum(p for g, p in a if g in ("45-54", "55-64", "65-"))
+    return (f"近 90 天 YouTube Analytics 實測年齡分佈:{top}"
+            + (f"(45 歲以上合計約 {old:.0f}%)" if old else "")
+            + "——屬資產部位較大的中高齡台灣散戶,對「先幫你試過再決定」的內容接受度高。")
+
+
+def _traffic_mix_block(d: dict) -> str:
+    """流量結構誠實揭露。舊文案宣稱「觀眾多半主動搜尋進來、而非被動滑到的泛流量」,
+    實測 **Shorts 推薦流 82.6%、搜尋僅 4.7%**,完全講反。改成把真實比例攤開,
+    再點出「搜尋雖佔比小但意圖明確」——這句才站得住。"""
+    m = d.get("traffic_mix")
+    if not m:
+        return "〔流量來源分佈未測〕"
+    rows = "\n".join(f"| {_TRAFFIC_ZH.get(k, k)} | {v:,} | {p}% |" for k, v, p in m)
+    return ("| 流量來源（近 28 天） | 觀看 | 佔比 |\n|---|---|---|\n" + rows +
+            "\n\n> 誠實說明：主要流量來自 Shorts 推薦流，屬演算法分發；"
+            "搜尋佔比雖小，但搜尋詞幾乎都是具體標的（個股名／代號＋回測），是意圖最明確的一群。")
 
 
 def _conversion_bullet(d: dict) -> str:
@@ -144,11 +281,7 @@ def _conversion_bullet(d: dict) -> str:
     if rev > 0:
         return (f"**已驗證能導購**：現有 Pionex 聯盟返佣已產生實際入帳（約 NT${num(rev)}），"
                 f"證明這頻道的觀眾真的會點連結、真的會行動。")
-    return ("**高意向搜尋流量**：觀眾多半是主動搜尋「特定個股／ETF 代號＋回測」找進來的"
-            "（近期帶量關鍵字見上表），屬於已有明確投資意圖的受眾，而非被動滑到的泛流量。"
-            "｜**誠實揭露**：聯盟連結雖已佈署，但目前**尚未有可查證的返佣入帳或點擊轉換數據**"
-            "（我們不拿沒發生的成效當賣點）；建議首檔合作以成效制／試用交換起步，"
-            "由實際數據決定後續。")
+    return ("**誠實揭露成效現況**：聯盟連結雖已佈署，但目前**尚未有可查證的返佣入帳或點擊轉換數據**（我們不拿沒發生的成效當賣點）。流量結構與受眾實測見上方表格；建議首檔合作以成效制／試用交換起步，由實際數據決定後續。")
 
 
 def build_markdown(d: dict, date_str: str) -> str:
@@ -192,14 +325,16 @@ def build_markdown(d: dict, date_str: str) -> str:
 
 | 指標 | 數值 |
 |---|---|
-| 總影片數 | {num(d['n_videos'])}（Shorts {num(d['n_shorts'])}／長片 {num(d['n_longs'])}／其他系列 {num(d['n_other'])}） |
-| 訂閱總數 | {PLACEHOLDER} |
+| 公開影片數 | {num(d['n_videos'])}（Shorts {num(d['n_shorts'])}／長片 {num(d['n_longs'])}／其他系列 {num(d['n_other'])}）{('｜另有 ' + num(d['n_private']) + ' 支已下架為私人，未計入') if d.get('n_private') else ''} |
+| 訂閱總數 | {num(d['subs_total']) if d.get('subs_total') else PLACEHOLDER} |
 | 近 28 天頻道觀看數 | {num(d['views_28d'])} |
 | 近 28 天平均完播率 | {pct(d['avg_pct_28d'])} |
 | 近 28 天新增訂閱 | {num(d['subs_gained_28d'])} |
-| 已同步 analytics 片單觀看數合計 | {num(d['total_tracked_views'])}（{d['n_tracked']} 支影片有數據，其餘尚待 YouTube 後台同步） |
+| 近 180 天有觀看紀錄的影片合計觀看 | {num(d['total_tracked_views'])}（{d['n_tracked']} 支；其餘公開影片近 180 天無觀看紀錄，非「尚未同步」） |
 | 已同步片單平均完播率 | {pct(d['avg_retention'])} |
-| 目前吃流量的關鍵字 | {kw} |
+| 高表現題材關鍵字（由影片標題反推，**非**觀眾實際搜尋詞） | {kw} |
+
+{_traffic_mix_block(d)}
 
 **更新頻率**：近乎每日產出（Shorts + 長片並行），內容全誠實回測/實測導向，不喊單、不誇大報酬（廣告主友善的合規紅線）。
 
@@ -216,7 +351,7 @@ def build_markdown(d: dict, date_str: str) -> str:
 
 ---
 
-## 受眾輪廓
+## 受眾輪廓（**目標設定**，非實測；實測年齡分佈見下方「受眾實測」）
 
 {audience or PLACEHOLDER}
 
@@ -232,8 +367,8 @@ def build_markdown(d: dict, date_str: str) -> str:
 
 - **每支影片都是「我先幫你試」的實測/回測敘事**——不是純業配腔，觀眾信任度高、轉換路徑自然。
 - {_conversion_bullet(d)}
-- **內容產線可規模化**：頻道背後是一套自動化內容產線，能穩定、高頻率地產出符合品牌調性的置入內容，不受限於單人創作者的產能天花板。
-- **利基精準**：鎖定 25-45 歲、有資金、想自動化交易但怕被割韭菜的台灣散戶——量化工具、券商、AI 生產力工具的高意向受眾。
+- **產出穩定可排期**：每日固定排程產製，腳本、回測數據與旁白皆為原創自製，可配合檔期穩定交付。
+- **受眾實測**：{_audience_line(d)}
 
 ---
 
@@ -255,7 +390,7 @@ def build_markdown(d: dict, date_str: str) -> str:
 
 - 頻道：{handle}（YouTube 搜尋「{name}」）
 - 聯絡窗口：{PLACEHOLDER}
-- 合作提案請參考：`STUDIO/REPORTS/接案開發信模板.md`
+- **合作限制**：僅承接工具／平台功能介紹型置入；**不承接特定金融商品之績效宣傳或收益保證類內容**（依主管機關對金融商品推廣之規範自我設限）。
 
 ---
 

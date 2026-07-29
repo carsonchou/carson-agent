@@ -42,7 +42,7 @@ EMAIL_TARGETS = [
     {
         "name": "Pionex(升級 Creator 專案)",
         "to": "service@pionex.com",
-        "subject": "量化阿森 Carson Quant｜現有合作夥伴，想請教升級 Creator 專案",
+        "subject": "量化阿森 Carson Quant｜長期使用派網的台灣量化頻道，想請教 Creator 專案",
         "kind": "pionex_upgrade",
     },
 ]
@@ -68,7 +68,7 @@ def _media_stats():
         m = re.search(r"近 28 天平均完播率\s*\|\s*([\d.]+%)", txt)
         if m:
             stats["avgpct"] = m.group(1)
-        m = re.search(r"總影片數\s*\|\s*([\d,]+)", txt)
+        m = re.search(r"公開影片數\s*\|\s*([\d,]+)", txt)
         if m:
             stats["total"] = m.group(1)
     return stats
@@ -79,14 +79,14 @@ def build_email(target, stats):
     if target["kind"] == "pionex_upgrade":
         body = f"""Pionex 團隊 您好，
 
-我是「量化阿森 Carson Quant」的經營者 Carson，我們是既有的 Pionex 聯盟合作夥伴，頻道主題是量化交易、自動交易機器人與台股技術分析，用真實回測數據跟觀眾溝通，不喊單、不誇大報酬。
+我是「量化阿森 Carson Quant」的經營者 Carson。我們長期在影片說明欄中使用並推薦 Pionex（邀請碼 08NAcfvcWna），目前尚未有推薦成交紀錄。頻道主題是量化交易、自動交易機器人與台股技術分析，用真實回測數據跟觀眾溝通，不喊單、不誇大報酬。
 
 寫信是想請教：我們近期是否符合升級到 **Creator 專案** 的資格？
 
 - 頻道已累積 {stats['total']} 支影片，內容全誠實回測/實測導向
 - 近 28 天頻道觀看 {stats['views28']}、平均完播率 {stats['avgpct']}
-- 近期熱門影片單支觀看已達 500+（符合 Creator 專案門檻之一）
-- 觀眾多為主動搜尋「個股／ETF 代號＋回測」進來的高意向受眾，而非被動滑到的泛流量
+- 近期熱門影片單支最高觀看 906（近期影片平均觀看仍低於貴專案 500 的門檻，這點先誠實說明）
+- 流量結構誠實揭露：近 28 天約 83% 觀看來自 Shorts 推薦流、10% 來自訂閱者、5% 來自搜尋；搜尋佔比雖小，但搜尋詞幾乎都是具體標的（個股名／代號＋回測），是意圖最明確的一群
 - 坦白說：目前聯盟連結雖已佈署，但尚未累積出有意義的轉換數據；這也正是想請教 Creator 專案的原因——希望透過更合適的素材與佣金結構，把既有的精準流量真正轉成成效
 
 我們仍是成長中的頻道，但受眾精準——想自動化交易又怕被割的台灣散戶。想了解 Creator 專案的佣金結構與素材支援，看能否讓合作更長期、更有效。
