@@ -143,6 +143,46 @@ def _judge(headlines, want):
         return items
 
 
+
+# 🔴 2026-07-29 流量修復:幣圈題在源頭封頂。
+# 實測(近14天已發布 Shorts):幣圈題 60 支**平均觀看 36**,非幣圈 121 支**平均觀看 93**——差 2.6 倍。
+# 而題庫 2,518 個未用題裡有 1,153 個(46%)是幣圈,其中 **788 個來自本部門**(每 3 小時跑一次,
+# 專撈加密新聞)。等於產線近一半產能被灌進「平均只有 36 觀看」的題材,擠掉台股題。
+# 對應的流量後果:近 7 天 SHORTS 來源觀看 7,416 → 3,831(**-48%**),而同期搜尋 +56%、訂閱者 +12%
+# ——跌的全部集中在 Shorts,而 Shorts 正是被幣圈題稀釋的那一塊。
+#
+# **不是禁掉**:幣圈是本頻道既有題材,也是 Pionex 聯盟的內容基礎(說明欄 640/641 支都放邀請碼),
+# 完全不做會斷掉變現線。改成**封頂佔比**:每輪最多 1/4 是幣圈題,其餘名額讓給台股/通用觀念題。
+# 若本輪撈到的全是幣圈,寧可少收幾則,也不要整輪都灌幣圈(少收的名額下輪自然補上)。
+_CRYPTO_KW = ("網格", "機器人", "派網", "比特幣", "BTC", "btc", "爆倉", "加密", "幣圈",
+              "Pionex", "以太", "ETH", "合約", "山寨")
+_CRYPTO_MAX_RATIO = 0.25
+
+
+def _is_crypto(p) -> bool:
+    t = f"{p.get('title', '')} {p.get('angle', '')} {p.get('q', '')}"
+    return any(k in t for k in _CRYPTO_KW)
+
+
+def _cap_crypto(picks: list) -> list:
+    """把本輪選中的熱點裡的幣圈題壓到 <=25%(見上方說明)。順序維持原本的優先序。"""
+    if not picks:
+        return picks
+    cap = max(1, int(len(picks) * _CRYPTO_MAX_RATIO))
+    out, n_cry, dropped = [], 0, 0
+    for p in picks:
+        if _is_crypto(p):
+            if n_cry >= cap:
+                dropped += 1
+                continue
+            n_cry += 1
+        out.append(p)
+    if dropped:
+        print(f"[熱點] 幣圈題封頂:本輪 {len(picks)} 則中丟棄 {dropped} 則幣圈題"
+              f"(保留 {n_cry}/{cap};實測幣圈 Shorts 平均觀看 36 vs 非幣圈 93)")
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--max", type=int, default=5, help="本輪最多撈幾則熱點進題庫")
@@ -174,6 +214,7 @@ def main() -> int:
 
     seen |= ids_now  # 不論採不採用，這批標題都記為看過，避免下次重判
     picks = [p for p in picks if (p.get("title") or "").strip()][:args.max]
+    picks = _cap_crypto(picks)
     if not picks:
         _save_seen(seen)
         log_ops("熱點偵測", "本輪無夠份量熱點，未進題庫")
