@@ -163,7 +163,7 @@ def gather():
     # **82.6% 來自 Shorts 推薦流、搜尋只有 4.7%**,講反了;②「鎖定 25-45 歲」——實測
     # **45 歲以上佔 65.2%**,也是反的(而且 45+ 男性台灣散戶資產部位更大,誠實寫反而更好賣)。
     # 兩者都是「把目標受眾當成實測受眾」講給要付錢的人聽。拿不到就留 None,文件標「未測」。
-    traffic_mix = audience = None
+    traffic_mix = audience = search_terms = search_views_total = tw_share = None
     try:
         import sys as _s
         _s.path.insert(0, str(Path(__file__).resolve().parent))
@@ -183,6 +183,24 @@ def gather():
                                          dimensions="ageGroup", metrics="viewerPercentage",
                                          sort="-viewerPercentage").execute().get("rows", [])
             audience = [(r[0].replace("age", ""), round(r[1], 1)) for r in arows]
+            # 真實搜尋詞(不做任何歸類/形容,原樣列出)
+            srows = _svc.reports().query(ids="channel==MINE", startDate=_s28, endDate=_e.isoformat(),
+                                         dimensions="insightTrafficSourceDetail", metrics="views",
+                                         filters="insightTrafficSourceType==YT_SEARCH",
+                                         sort="-views", maxResults=25).execute().get("rows", [])
+            search_terms = [(r[0], r[1]) for r in srows]
+            _sv = _svc.reports().query(ids="channel==MINE", startDate=_s28, endDate=_e.isoformat(),
+                                       metrics="views",
+                                       filters="insightTrafficSourceType==YT_SEARCH"
+                                       ).execute().get("rows", [[0]])
+            search_views_total = _sv[0][0] if _sv else None
+            # 地區佔比(台灣)
+            grows = _svc.reports().query(ids="channel==MINE", startDate=_s28, endDate=_e.isoformat(),
+                                         dimensions="country", metrics="views", sort="-views",
+                                         maxResults=10).execute().get("rows", [])
+            _gt = sum(r[1] for r in grows) or 1
+            _tw = next((r[1] for r in grows if r[0] == "TW"), 0)
+            tw_share = f"台灣 {_tw / _gt * 100:.0f}%"
     except Exception as e:  # noqa: BLE001
         print(f"[warn] 流量結構/受眾拉取失敗({str(e)[:60]}),文件將標「未測」", file=sys.stderr)
 
@@ -203,6 +221,9 @@ def gather():
         "n_videos": len(keys),
         "n_private": n_private,
         "traffic_mix": traffic_mix,
+        "search_terms": search_terms,
+        "search_views_total": search_views_total,
+        "tw_share": tw_share,
         "audience": audience,
         "n_shorts": n_shorts,
         "n_longs": n_longs,
@@ -229,6 +250,31 @@ _TRAFFIC_ZH = {"SHORTS": "Shorts 推薦流", "SUBSCRIBER": "訂閱者", "YT_SEAR
                "EXT_URL": "站外連結", "NO_LINK_OTHER": "其他", "YT_OTHER_PAGE": "站內其他頁"}
 
 
+
+def _search_terms_line(d: dict) -> str:
+    """把**真實搜尋詞**列出來,不下任何斷言。
+
+    🔴 2026-07-29 第三輪修正:前兩版都試圖「形容」搜尋詞是什麼樣子,兩次都寫錯——
+    最新一版寫「搜尋詞幾乎都是具體標的(個股名／代號**＋回測**)」,實測 Top 25 裡
+    「回測」出現 **0 次**、第一名是「比特幣」148 次、且 Top 25 只涵蓋 31% 的搜尋觀看,
+    卻下了「幾乎都是」的全稱斷言。
+    **教訓:我連續三次在同一個地方犯同一種錯——寫「聽起來對但沒量過」的解釋句。**
+    所以這版不解釋、不形容、不下全稱:直接把量到的搜尋詞與其涵蓋率列出來,讓對方自己看。
+    """
+    t = d.get("search_terms")
+    if not t:
+        return "搜尋詞資料未取得。"
+    shown = sum(n for _, n in t)
+    # 母數一律取上方流量表的 YT_SEARCH 值(同一份文件不可出現兩個互相矛盾的母數)。
+    # 舊寫法另打一次 API 拿到 583(=前 25 名加總),於是算出「583 的 100%」,把「前 25 名」
+    # 講成了全部——真實搜尋總觀看是 1,859,前 25 名只涵蓋 31%。
+    total = next((v for k, v, _ in (d.get("traffic_mix") or []) if k == "YT_SEARCH"), None) or shown
+    terms = "、".join(f"{w}({n})" for w, n in t[:12])
+    return (f"搜尋進站的實際關鍵詞（近 28 天，前 12 名，括號為觀看數）：{terms}。"
+            f"（此處列出的詞合計 {shown:,} 次，佔搜尋總觀看 {total:,} 的 "
+            f"{shown / total * 100:.0f}%，其餘為長尾未列出。）")
+
+
 def _audience_line(d: dict) -> str:
     """受眾一律用**實測**;拿不到才誠實標成「目標設定」。
 
@@ -243,7 +289,7 @@ def _audience_line(d: dict) -> str:
     old = sum(p for g, p in a if g in ("45-54", "55-64", "65-"))
     return (f"近 90 天 YouTube Analytics 實測年齡分佈:{top}"
             + (f"(45 歲以上合計約 {old:.0f}%)" if old else "")
-            + "——屬資產部位較大的中高齡台灣散戶,對「先幫你試過再決定」的內容接受度高。")
+            + f"。地區以台灣為主（{d.get('tw_share') or '—'}）。")
 
 
 def _traffic_mix_block(d: dict) -> str:
@@ -255,8 +301,8 @@ def _traffic_mix_block(d: dict) -> str:
         return "〔流量來源分佈未測〕"
     rows = "\n".join(f"| {_TRAFFIC_ZH.get(k, k)} | {v:,} | {p}% |" for k, v, p in m)
     return ("| 流量來源（近 28 天） | 觀看 | 佔比 |\n|---|---|---|\n" + rows +
-            "\n\n> 誠實說明：主要流量來自 Shorts 推薦流，屬演算法分發；"
-            "搜尋佔比雖小，但搜尋詞幾乎都是具體標的（個股名／代號＋回測），是意圖最明確的一群。")
+            "\n\n> 說明：主要流量來自 Shorts 推薦流（演算法分發）。"
+            + _search_terms_line(d))
 
 
 def _conversion_bullet(d: dict) -> str:
@@ -308,7 +354,7 @@ def build_markdown(d: dict, date_str: str) -> str:
 
     md = f"""# {name} — 媒體合作資訊（Media Kit）
 
-*更新日期：{date_str}｜頻道：{handle}｜本檔由 `scripts/gen_media_kit.py` 自動產生，數據直讀頻道後台快取，如需最新請重新執行*
+*更新日期：{date_str}｜頻道：{handle}｜數據取自 YouTube 官方 Analytics／Data API，如需最新版本請告知*
 
 ---
 
@@ -325,13 +371,13 @@ def build_markdown(d: dict, date_str: str) -> str:
 
 | 指標 | 數值 |
 |---|---|
-| 公開影片數 | {num(d['n_videos'])}（Shorts {num(d['n_shorts'])}／長片 {num(d['n_longs'])}／其他系列 {num(d['n_other'])}）{('｜另有 ' + num(d['n_private']) + ' 支已下架為私人，未計入') if d.get('n_private') else ''} |
+| 公開影片數 | {num(d['n_videos'])}（Shorts {num(d['n_shorts'])}／長片 {num(d['n_longs'])}／其他系列 {num(d['n_other'])}）{('｜另有 ' + num(d['n_private']) + ' 支已非公開（下架為私人或已刪除），未計入') if d.get('n_private') else ''} |
 | 訂閱總數 | {num(d['subs_total']) if d.get('subs_total') else PLACEHOLDER} |
 | 近 28 天頻道觀看數 | {num(d['views_28d'])} |
 | 近 28 天平均完播率 | {pct(d['avg_pct_28d'])} |
 | 近 28 天新增訂閱 | {num(d['subs_gained_28d'])} |
-| 近 180 天有觀看紀錄的影片合計觀看 | {num(d['total_tracked_views'])}（{d['n_tracked']} 支；其餘公開影片近 180 天無觀看紀錄，非「尚未同步」） |
-| 已同步片單平均完播率 | {pct(d['avg_retention'])} |
+| 觀看數前段影片合計觀看 | {num(d['total_tracked_views'])}（{d['n_tracked']} 支；為 YouTube Analytics 單次查詢上限所取的觀看前段片單，非全頻道加總） |
+| 上列前段片單的平均完播率 | {pct(d['avg_retention'])}（逐片未加權；**全頻道近 28 天觀看加權完播率為上表的 {pct(d['avg_pct_28d'])}**，兩者口徑不同） |
 | 高表現題材關鍵字（由影片標題反推，**非**觀眾實際搜尋詞） | {kw} |
 
 {_traffic_mix_block(d)}
