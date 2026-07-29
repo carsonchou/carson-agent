@@ -42,7 +42,7 @@ EMAIL_TARGETS = [
     {
         "name": "Pionex(升級 Creator 專案)",
         "to": "service@pionex.com",
-        "subject": "量化阿森 Carson Quant｜每支影片皆置入派網邀請碼的台灣量化頻道，想請教 Creator 專案",
+        "subject": "量化阿森 Carson Quant｜說明欄長期置入派網邀請碼的台灣量化頻道，想請教 Creator 專案",
         "kind": "pionex_upgrade",
     },
 ]
@@ -59,17 +59,17 @@ FORM_TARGETS = [
 def _media_stats():
     """從最新媒體包抽近28天觀看/完播/總片數(找不到就回佔位,誠實標『待補』)。"""
     stats = {"views28": "〔近28天觀看·待補〕", "avgpct": "〔完播率·待補〕", "total": "〔總片數·待補〕",
-             "top1": "〔最高觀看·待補〕", "mix": "〔流量結構·待補〕", "kw": "〔搜尋詞·待補〕"}
+             "top1": "〔最高觀看·待補〕", "mix": "〔流量結構·待補〕", "kw": "〔搜尋詞·待補〕", "aff": "〔置入數·待補〕", "aud": "〔受眾·待補〕"}
     kits = sorted(REPORTS.glob("媒體包_*.md"), reverse=True)
     if kits:
         txt = kits[0].read_text(encoding="utf-8", errors="replace")
-        m = re.search(r"近 28 天頻道觀看數\s*\|\s*([\d,]+)", txt)
+        m = re.search(r"近 28 天頻道觀看數[^|]*\|\s*([\d,]+)", txt)
         if m:
             stats["views28"] = m.group(1)
-        m = re.search(r"近 28 天平均完播率\s*\|\s*([\d.]+%)", txt)
+        m = re.search(r"近 28 天平均完播率[^|]*\|\s*([\d.]+%)", txt)
         if m:
             stats["avgpct"] = m.group(1)
-        m = re.search(r"公開影片數\s*\|\s*([\d,]+)", txt)
+        m = re.search(r"公開影片數[^|]*\|\s*([\d,]+)", txt)
         if m:
             stats["total"] = m.group(1)
         m = re.search(r"—\s*([\d,]+) 次觀看", txt)      # 代表作第一列 = 最高觀看
@@ -83,6 +83,12 @@ def _media_stats():
         if m and m2:
             stats["mix"] = (f"近 28 天約 {m.group(2)}% 觀看來自 Shorts 推薦流、"
                             f"{m2.group(2)}% 來自 YouTube 搜尋（搜尋詞前幾名：{stats['kw']}）")
+        maf = re.search(r"說明欄置入 Pionex 邀請碼[^|]*\|\s*([\d,]+)", txt)
+        if maf:
+            stats["aff"] = maf.group(1)
+        ma = re.search(r"受眾實測\*\*：([^\n]+)", txt)
+        if ma:
+            stats["aud"] = ma.group(1).strip().rstrip("。")
     return stats
 
 
@@ -91,7 +97,7 @@ def build_email(target, stats):
     if target["kind"] == "pionex_upgrade":
         body = f"""Pionex 團隊 您好，
 
-我是「量化阿森 Carson Quant」的經營者 Carson。自頻道開台起，每一支影片的說明欄都置入 Pionex 邀請碼（08NAcfvcWna），目前尚未有推薦成交紀錄。頻道主題是量化交易、自動交易機器人與台股技術分析，用真實回測數據跟觀眾溝通，不喊單、不誇大報酬。
+我是「量化阿森 Carson Quant」的經營者 Carson。自頻道開台起，絕大多數影片的說明欄都置入 Pionex 邀請碼（08NAcfvcWna）——目前 {stats['total']} 支公開影片中有 {stats['aff']} 支，目前尚未有推薦成交紀錄。頻道主題是量化交易、自動交易機器人與台股技術分析，用真實回測數據跟觀眾溝通，不喊單、不誇大報酬。
 
 寫信是想請教：我們近期是否符合升級到 **Creator 專案** 的資格？
 
@@ -99,9 +105,9 @@ def build_email(target, stats):
 - 近 28 天頻道觀看 {stats['views28']}、平均完播率 {stats['avgpct']}
 - 單支最高觀看 {stats['top1']}（近期影片**平均**觀看仍低於貴專案 500 的門檻，這點先誠實說明）
 - 流量結構誠實揭露：{stats['mix']}
-- 坦白說：目前聯盟連結雖已佈署，但尚未累積出有意義的轉換數據；這也正是想請教 Creator 專案的原因——希望透過更合適的素材與佣金結構，把既有的精準流量真正轉成成效
+- 坦白說：目前聯盟連結雖已佈署，但尚未累積出有意義的轉換數據；這也正是想請教 Creator 專案的原因——希望透過更合適的素材與佣金結構，把現有流量真正轉成成效
 
-我們仍是成長中的頻道，但受眾精準——想自動化交易又怕被割的台灣散戶。想了解 Creator 專案的佣金結構與素材支援，看能否讓合作更長期、更有效。
+我們仍是成長中的頻道。實測受眾輪廓：{stats['aud']}。想了解 Creator 專案的佣金結構與素材支援，看能否讓合作更長期、更有效。
 
 謝謝撥冗，期待回覆。
 

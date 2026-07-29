@@ -63,6 +63,7 @@ def num(n) -> str:
 
 
 _PUB_CACHE = STUDIO / "_media_kit_public_cache.json"
+_AFF_CODE = "08NAcfvcWna"   # Pionex 邀請碼(用來實測有幾支說明欄真的置入)
 
 
 def public_video_ids(ledger: dict, max_age_h: int = 24) -> set:
@@ -82,29 +83,36 @@ def public_video_ids(ledger: dict, max_age_h: int = 24) -> set:
         if _PUB_CACHE.exists():
             c = json.loads(_PUB_CACHE.read_text(encoding="utf-8"))
             if _t.time() - float(c.get("ts", 0)) < max_age_h * 3600 and c.get("public"):
-                return set(c["public"])
+                return set(c["public"]), set(c.get("aff") or [])
     except Exception:  # noqa: BLE001
         pass
     ids = [v for v in ledger.values() if isinstance(v, str) and len(v) == 11]
     if not ids:
-        return None
+        return None, None
     try:
         import sys as _s
         _s.path.insert(0, str(Path(__file__).resolve().parent))
         import daily_publish as _dp
         yt = _dp.get_service()
-        pub = []
+        pub, aff = [], []
         for i in range(0, len(ids), 50):
-            r = yt.videos().list(part="status", id=",".join(ids[i:i + 50]), maxResults=50).execute()
+            r = yt.videos().list(part="status,snippet", id=",".join(ids[i:i + 50]),
+                                 maxResults=50).execute()
             for it in r.get("items", []):
                 if (it.get("status") or {}).get("privacyStatus") == "public":
                     pub.append(it["id"])
-        _PUB_CACHE.write_text(json.dumps({"ts": _t.time(), "public": pub}, ensure_ascii=False),
+                    # 🔴 實測「有幾支說明欄真的放了邀請碼」——信裡原本寫「**每一支**都置入」,
+                    # 實查 641 支公開片有 1 支沒有(p-ZWvx2qTo0)。收件人是 Pionex,
+                    # 隨機點一支就能推翻全稱斷言。改成報實際支數。
+                    if _AFF_CODE in ((it.get("snippet") or {}).get("description") or ""):
+                        aff.append(it["id"])
+        _PUB_CACHE.write_text(json.dumps({"ts": _t.time(), "public": pub, "aff": aff},
+                                         ensure_ascii=False),
                               encoding="utf-8")
-        return set(pub)
+        return set(pub), set(aff)
     except Exception as e:  # noqa: BLE001
         print(f"[warn] 公開狀態查不到({str(e)[:60]}) → 影片數改標「未能核實」", file=sys.stderr)
-        return None
+        return None, None
 
 
 
@@ -133,7 +141,7 @@ def gather():
     ig_ledger = load(STUDIO / "ig_ledger.json", {}) or {}
 
     # 只算「現在對外看得到」的片(見 public_video_ids 的說明:ledger 含已下架/已刪除)
-    pub_ids = public_video_ids(ledger)
+    pub_ids, aff_ids = public_video_ids(ledger)
     if pub_ids is not None:
         keys = [k for k, v in ledger.items() if isinstance(v, str) and v in pub_ids]
         n_private = len([1 for v in ledger.values() if isinstance(v, str) and len(v) == 11]) - len(keys)
@@ -164,6 +172,7 @@ def gather():
     # **45 歲以上佔 65.2%**,也是反的(而且 45+ 男性台灣散戶資產部位更大,誠實寫反而更好賣)。
     # 兩者都是「把目標受眾當成實測受眾」講給要付錢的人聽。拿不到就留 None,文件標「未測」。
     traffic_mix = audience = search_terms = search_views_total = tw_share = None
+    win_views = win_pct = win_subs = win_label = None
     try:
         import sys as _s
         _s.path.insert(0, str(Path(__file__).resolve().parent))
@@ -183,17 +192,21 @@ def gather():
                                          dimensions="ageGroup", metrics="viewerPercentage",
                                          sort="-viewerPercentage").execute().get("rows", [])
             audience = [(r[0].replace("age", ""), round(r[1], 1)) for r in arows]
+            # 頻道層級 28 天總量也在這裡一起拉,和上面的流量結構**共用同一個視窗**——
+            # 否則文件裡會出現兩個『近 28 天』(舊版一個來自 traffic_signals 快取、一個來自
+            # 這裡),母數差 2,163,贊助商自己一除就對不起來。
+            _cs = _svc.reports().query(ids="channel==MINE", startDate=_s28,
+                                       endDate=_e.isoformat(),
+                                       metrics="views,averageViewPercentage,subscribersGained"
+                                       ).execute().get("rows", [[None, None, None]])[0]
+            win_views, win_pct, win_subs = _cs[0], _cs[1], _cs[2]
+            win_label = f"{_s28} ~ {_e.isoformat()}"
             # 真實搜尋詞(不做任何歸類/形容,原樣列出)
             srows = _svc.reports().query(ids="channel==MINE", startDate=_s28, endDate=_e.isoformat(),
                                          dimensions="insightTrafficSourceDetail", metrics="views",
                                          filters="insightTrafficSourceType==YT_SEARCH",
                                          sort="-views", maxResults=25).execute().get("rows", [])
             search_terms = [(r[0], r[1]) for r in srows]
-            _sv = _svc.reports().query(ids="channel==MINE", startDate=_s28, endDate=_e.isoformat(),
-                                       metrics="views",
-                                       filters="insightTrafficSourceType==YT_SEARCH"
-                                       ).execute().get("rows", [[0]])
-            search_views_total = _sv[0][0] if _sv else None
             # 地區佔比(台灣)
             grows = _svc.reports().query(ids="channel==MINE", startDate=_s28, endDate=_e.isoformat(),
                                          dimensions="country", metrics="views", sort="-views",
@@ -220,7 +233,12 @@ def gather():
         "subs_total": _subs_total(),
         "n_videos": len(keys),
         "n_private": n_private,
+        "n_aff": (len(aff_ids) if aff_ids is not None else None),
         "traffic_mix": traffic_mix,
+        "win_views": win_views,
+        "win_pct": win_pct,
+        "win_subs": win_subs,
+        "win_label": win_label,
         "search_terms": search_terms,
         "search_views_total": search_views_total,
         "tw_share": tw_share,
@@ -373,11 +391,12 @@ def build_markdown(d: dict, date_str: str) -> str:
 |---|---|
 | 公開影片數 | {num(d['n_videos'])}（Shorts {num(d['n_shorts'])}／長片 {num(d['n_longs'])}／其他系列 {num(d['n_other'])}）{('｜另有 ' + num(d['n_private']) + ' 支已非公開（下架為私人或已刪除），未計入') if d.get('n_private') else ''} |
 | 訂閱總數 | {num(d['subs_total']) if d.get('subs_total') else PLACEHOLDER} |
-| 近 28 天頻道觀看數 | {num(d['views_28d'])} |
-| 近 28 天平均完播率 | {pct(d['avg_pct_28d'])} |
-| 近 28 天新增訂閱 | {num(d['subs_gained_28d'])} |
+| 說明欄置入 Pionex 邀請碼 | {num(d['n_aff']) if d.get('n_aff') else PLACEHOLDER} 支（共 {num(d['n_videos'])} 支公開影片） |
+| 近 28 天頻道觀看數（{d['win_label'] or '視窗未標'}） | {num(d['win_views'] or d['views_28d'])} |
+| 近 28 天平均完播率（同上視窗） | {pct(d['win_pct'] if d['win_pct'] is not None else d['avg_pct_28d'])} |
+| 近 28 天新增訂閱（同上視窗） | {num(d['win_subs'] if d['win_subs'] is not None else d['subs_gained_28d'])} |
 | 觀看數前段影片合計觀看 | {num(d['total_tracked_views'])}（{d['n_tracked']} 支；為 YouTube Analytics 單次查詢上限所取的觀看前段片單，非全頻道加總） |
-| 上列前段片單的平均完播率 | {pct(d['avg_retention'])}（逐片未加權；**全頻道近 28 天觀看加權完播率為上表的 {pct(d['avg_pct_28d'])}**，兩者口徑不同） |
+| 上列前段片單的平均完播率 | {pct(d['avg_retention'])}（逐片未加權；**全頻道近 28 天觀看加權完播率為上表的 {pct(d['win_pct'] if d['win_pct'] is not None else d['avg_pct_28d'])}**，兩者口徑不同） |
 | 高表現題材關鍵字（由影片標題反推，**非**觀眾實際搜尋詞） | {kw} |
 
 {_traffic_mix_block(d)}
