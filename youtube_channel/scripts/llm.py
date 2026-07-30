@@ -93,7 +93,6 @@ def _call_openai_compat(provider, prompt, max_tokens, model=None, tries=3, json_
     if json_mode:  # 強制只吐合格 JSON（Groq/DeepSeek/Gemini OpenAI 相容端點都支援）
         body["response_format"] = {"type": "json_object"}
     last = None
-    _waited_long = False   # 每次呼叫只允許一次「跨過限流視窗」的長等(見下方 429 分支)
     for t in range(tries):
         r = requests.post(url, headers={"Authorization": f"Bearer {key}",
                                         "Content-Type": "application/json"}, json=body, timeout=150)
