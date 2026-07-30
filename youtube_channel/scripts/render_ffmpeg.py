@@ -600,10 +600,16 @@ def _render_animated(slug_paths, *, segments, seg_cards, intro_png, outro_png, c
             clip = None
             try:
                 if fx == "smash" and payload:
+                    # 🔴 2026-07-30 拿掉 sub_label=「他吹的神話」。payload 是 detect_fx 從
+                    # **本片自己的 heading/narration** 用 _MYTH_RE 抓的第一個帶 %／倍 的數字,
+                    # 而本頻道旁白全由自家 fact_key 產生 → 那是**我們自己算出來的數字**,
+                    # 掛上「他吹的神話」等於發明一個講過這句話的人,再把自己的真數據劃掉。
+                    # (縮圖同型事故有照片存證:自家回測 824%／「少賺58%」被印成「他說能賺」,
+                    #  見 commit f0e4138。)紅刀/轉紅的視覺保留——那表達的是「這說法被推翻」,
+                    # 不是「某人講過」;但指名道姓的標籤不能由產線自己憑空生出來。
                     clip = afx.number_smash_clip(payload, dur=per_seg, subs=subs, width=width, height=height,
                                                  fps=fps, accent=accent, seed=seed, tmp_dir=tmp_dir, idx=i + 1,
-                                                 mascot_png=mp, watermark_png=wm_png, debunk=is_debunk,
-                                                 sub_label=("他吹的神話" if is_debunk else None))
+                                                 mascot_png=mp, watermark_png=wm_png, debunk=is_debunk)
                 elif fx == "knife" and payload:
                     clip = afx.knife_slash_clip(payload, dur=per_seg, subs=subs, width=width, height=height,
                                                 fps=fps, accent=(255, 96, 96), seed=seed, tmp_dir=tmp_dir,

@@ -327,8 +327,19 @@ def number_smash_clip(number, *, dur, subs, width, height, fps, accent, seed, tm
 # C. 紅刀劃數字（《拆穿》招牌）
 # --------------------------------------------------------------------------- #
 def knife_slash_clip(number, *, dur, subs, width, height, fps, accent, seed, tmp_dir, idx,
-                     mascot_png=None, watermark_png=None, sub_label="他吹的神話") -> str | None:
-    """金色神話數字，紅刀由左下→右上劃過（progress 0→1），刀過處數字變暗+刀光。失敗回 None。"""
+                     mascot_png=None, watermark_png=None, sub_label=None) -> str | None:
+    """金色數字，紅刀由左下→右上劃過（progress 0→1），刀過處數字變暗+刀光。失敗回 None。
+
+    🔴 2026-07-30 `sub_label` 預設值原本寫死成「他吹的神話」,已改成 None。
+    為什麼:那句話是在斷言**某個外部的人講過這個數字**。而 render_ffmpeg 呼叫本函式時
+    **根本沒傳這個參數**(見 render_ffmpeg.py 的 knife 分支)→ 一路吃預設值,
+    等於每支 debunk 片都印,連「到底有沒有外部宣稱」都沒判斷過。
+    更關鍵:這裡的 number 是 detect_fx 用 _MYTH_RE 從**我們自己的 heading/narration**
+    抓的第一個帶 %／倍 的數字——本頻道旁白全部由自家 fact_key 產生,不可能是別人的宣稱。
+    同型事故:縮圖把自家回測結果 824% 印成「他吹的神話」劃紅刀(commit f0e4138 已修);
+    以及 _draw_vertical_card 預設值寫死憑空印績效。**捏造性文字不可以是預設值。**
+    要印就由呼叫端明確傳入,且該處必須自己保證那真的是外部宣稱。
+    """
     if Image is None or mv is None or not number:
         return None
     try:
