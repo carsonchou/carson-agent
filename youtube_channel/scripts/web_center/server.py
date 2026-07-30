@@ -605,6 +605,10 @@ def _local_produced_today():
     n = 0
     try:
         for p in list(OUT.glob("S_*.mp4")) + list(OUT.glob("L_*.mp4")):
+            # 排除 _ytcta 跨平台衍生檔:它和原片同一天產生,不排除會把同一支片算兩次
+            # (實測今日顯示 7 支、真實只有 6 支,虛增 17%)。同 output/ 的其他消費者作法。
+            if "_ytcta" in p.stem:
+                continue
             if datetime.fromtimestamp(p.stat().st_mtime, TW).strftime("%Y-%m-%d") == today:
                 n += 1
     except Exception:
@@ -761,7 +765,8 @@ def _out_today(prefix):
     today = _today_tw()
     try:
         return sum(1 for p in OUT.glob(f"{prefix}*.mp4")
-                   if datetime.fromtimestamp(p.stat().st_mtime, TW).strftime("%Y-%m-%d") == today)
+                   if "_ytcta" not in p.stem      # 衍生檔同日產生,會讓今日產出重複計數
+                   and datetime.fromtimestamp(p.stat().st_mtime, TW).strftime("%Y-%m-%d") == today)
     except Exception:
         return 0
 
