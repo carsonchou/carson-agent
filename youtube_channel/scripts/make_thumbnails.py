@@ -832,22 +832,51 @@ def _valid_myth(s) -> str | None:
     return s[:8]
 
 
+_LEAD_SYM_RE = _re.compile(
+    r"^\s*(?:【\s*)?"                      # 可能有【】包住
+    r"([一-鿿]{0,4}?\s*\d{4,6}[A-Z]?"   # 台股/ETF 代號:0050、00878、00631L、2330
+    r"(?:\s*(?:vs|VS|對比|比)\s*\d{4,6}[A-Z]?)?)")   # 也吃「0050 vs 00631L」對比題
+
+
+def _lead_symbol(title: str) -> str:
+    """從標題開頭抽出標的代號(0050 / 00878 / 00631L / 2330,含「A vs B」)。抽不到回 ""。
+
+    用途:debunk 保底文案要換掉碎片化的 l1 時,**不要連標的一起丟掉**。
+    這批 ETF/個股長片靠代號的長尾搜尋持續拿曝光,縮圖上留著代號才對得上搜尋意圖。
+    純字串規則、零 LLM 依賴(LLM 掛掉時正是最需要它的時候)。
+    """
+    m = _LEAD_SYM_RE.match(title or "")
+    if not m:
+        return ""
+    s = " ".join(m.group(1).split())
+    if not any(c.isdigit() for c in s):
+        return ""
+    # ⚠️ 不可用 s[:10] 硬切——「0050 vs 00631L」會被切成「0050 vs 00」,
+    # 那正是本次要修的「斷在半個代號」。太長就整段丟掉 vs 部分,只留第一個代號。
+    if len(s) > 12:
+        first = _re.match(r"^\s*[一-鿿]{0,4}?\s*\d{4,6}[A-Z]?", s)
+        s = " ".join(first.group(0).split()) if first else ""
+    return s
+
+
 def _myth_number(cfg: dict):
-    """抓出被拆穿的『神話數字』(如 812%、88.89%、236倍)。優先 cfg['myth']，否則掃 l1/l2/標題。無則 None。
-    ⚠️ 所有來源(含 LLM)一律過 _valid_myth：沒有 %／倍 單位的數字不是神話數字。"""
-    m = _valid_myth(cfg.get("myth"))
-    if m:
-        return m
-    for src in (cfg.get("l1"), cfg.get("l2"), cfg.get("title"), cfg.get("tag")):
-        if not src:
-            continue
-        found = [f.replace(" ", "") for f in _MYTH_NUM_RE.findall(str(src)) if any(c.isdigit() for c in f)]
-        pref = [f for f in found if "%" in f or "倍" in f]
-        if pref:
-            return _valid_myth(pref[0])
-        # 找不到帶 %／倍 的數字就不要 fallback 亂抓裸數字(可能是 EP 集數/年份/K棒價位，
-        # 跟「神話數字」毫無關係)，寧可整張圖不掛神話數字卡，也不要張冠李戴。
-    return None
+    """抓出被拆穿的『神話數字』。**只認明確給進來的 cfg['myth']**,無則 None(不掛神話卡)。
+
+    🔴 2026-07-30 拿掉「掃 l1/l2/title/tag 找 %／倍 數字」的 fallback。實測照片存證:
+       - 《0050定投10年賺824%?回測拆穿「微笑曲線」陷阱》→ 縮圖印「他吹的神話 **824%**」+紅刀
+       - 《0050定期定額vs美股ETF:10年回測**少賺**58%?拆穿躺賺迷思》→ 印「**他說能賺** 58%」+紅刀
+       兩個數字都是**我們自己的真回測結果**,卻被指派給一個不存在的「他」再劃掉。
+       第二張還把「少賺58%」反轉成「他說能賺58%」——結論被講成相反的意思。
+
+    為什麼不能用更聰明的規則救:「他吹的神話」是在斷言**某個外部的人講過這個數字**。
+    這件事**不可能從我們自己的標題推導出來**——標題裡的數字是我們算的。
+    所以正解是拿掉推論能力,不是再加判斷字詞。被拆穿的是「微笑曲線」「躺賺迷思」這類
+    *說法*,不是某個人;沒有可指認的外部宣稱時,整張圖不掛神話卡即可(這是既有的優雅降級)。
+
+    歷史:先前兩次修補都是窄補——①要求帶 %／倍 單位(_valid_myth) ②豁免「個股體檢」系列
+    (_NEUTRAL_SERIES)。結構洞一直在:任何自家標題帶「拆穿/崩/打臉」又含數字的片都會再踩。
+    """
+    return _valid_myth(cfg.get("myth"))
 
 
 def _paste_mascot(img, mood="smug", target_h=300):
@@ -974,15 +1003,52 @@ def _decorate_debunk(cfg: dict, title: str) -> dict:
     cfg["debunk"] = True
     cfg["accent"] = ACCENTS["red"]
     cfg.setdefault("title", title)
-    if not cfg.get("myth"):
-        m = _myth_number({"title": title, "l1": cfg.get("l1"), "l2": cfg.get("l2")})
-        if m:
-            cfg["myth"] = m
+    # 🔴 2026-07-30 這裡原本會呼叫 _myth_number({"title": title, ...}) 從**自己的標題**
+    # 推一個「神話數字」塞進 cfg["myth"]。已移除——理由見 _myth_number 的說明(照片存證:
+    # 自家真回測結果 824%／少賺58% 被標成「他吹的神話」「他說能賺」再劃紅刀)。
+    # 現在 cfg["myth"] 只可能來自明確供給的外部宣稱;沒有就不掛神話卡。
     # 保底啟發式會把「《拆穿》｜…」原標題硬切成 l1/l2(醜且和金數字重複)；偵測到切片痕跡就換乾淨的打假標語
-    _slice_marks = ("拆穿", "｜", "|", "「", "」", "《", "》")
-    if any(ch in (cfg.get("l1") or "") for ch in _slice_marks) or (cfg.get("myth") and cfg.get("myth") in (cfg.get("l2") or "")):
-        cfg["l1"] = "他說能賺"
-        cfg["l2"] = "我拆給你看"
+    # 注意:**不要**把「?／？」放進來當切片訊號——正常鉤子很常帶問號
+    # (「真的能賺?」),那會把 LLM 寫的好文案誤判成碎片換掉。
+    # 「整行照抄標題」那條判準已經足夠可靠,不需要靠問號。
+    _slice_marks = ("拆穿", "｜", "|", "「", "」", "《", "》", "『", "』")
+    _tclean = _strip_brand(title).replace(" ", "")
+
+    def _is_sliced(s) -> str:
+        """判斷這一行是不是『把原標題硬切出來的碎片』(而非寫好的鉤子)。
+
+        兩個訊號:①含切片痕跡符號 ②整行是原標題的字面子串。
+        LLM 寫的鉤子是改寫、不會整行照抄標題,所以②很可靠;而 LLM 掛掉時走的保底
+        路徑就是照抄+截斷,會被②抓到。
+        """
+        s = (s or "").strip()
+        if not s:
+            return ""
+        if any(ch in s for ch in _slice_marks):
+            return "有切片符號"
+        if s.replace(" ", "") in _tclean and len(s) >= 4:
+            return "整行照抄標題"
+        return ""
+
+    # 🔴 2026-07-30 改成**逐行**判斷。舊版只看 l1,而且實際上是靠「myth 出現在 l2」
+    # 這條副作用才誤觸發替換;我把 myth 推論拿掉後,壞掉的 l2 就沒人接手了,
+    # 實測產出「回測拆穿『微」「10年回測少」——斷在半句(照片存證)。
+    # 逐行修的好處:l1 常常是乾淨且帶標的的(「0050定投」),整組換掉會犧牲搜尋辨識度。
+    _r1, _r2 = _is_sliced(cfg.get("l1")), _is_sliced(cfg.get("l2"))
+    if _r1 or _r2 or (cfg.get("myth") and cfg.get("myth") in (cfg.get("l2") or "")):
+        if cfg.get("myth"):
+            # 有可指認的外部宣稱數字,才能用「他說」這種指人的說法。
+            if _r1:
+                cfg["l1"] = "他說能賺"
+            cfg["l2"] = "我拆給你看"
+        else:
+            # 沒有外部宣稱 → **不可發明一個說話的人**。指向「說法」本身,不指人、不掛數字。
+            # (被拆穿的是「微笑曲線」「躺賺迷思」這類信仰,講「這說法」才是真的。)
+            if _r1:
+                # 但別把標的一起丟掉:這批是靠個股/ETF 代號長尾搜尋吃曝光的常青片,
+                # 縮圖上沒有代號等於少一個辨識點。開頭有代號就留著(確定性抽取,不靠 LLM)。
+                cfg["l1"] = _lead_symbol(title) or "這說法"
+            cfg["l2"] = "回測拆給你看"
         cfg["tag"] = "我幫你避雷，不賣你夢"   # 底條也一併換招牌簽名(蓋掉切片痕跡)
     return cfg
 
