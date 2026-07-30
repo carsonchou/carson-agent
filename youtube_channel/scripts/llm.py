@@ -40,6 +40,38 @@ def _strip_think(t: str) -> str:
     return re.sub(r"<think>.*?</think>", "", t, flags=re.S).strip()
 
 
+def _retry_after(body: str) -> float:
+    """從 429 回應裡讀出「該等幾秒」。讀不到回 0(交給呼叫端用遞增退避)。
+
+    Gemini 的 429 body 長這樣:
+      "... limit: 20, model: gemini-2.5-flash\nPlease retry in 59.990786042s."
+    也可能帶 RetryInfo: {"@type": ".../RetryInfo", "retryDelay": "59s"}
+    """
+    for pat in (r"retry in\s*([\d.]+)\s*s", r'"retryDelay"\s*:\s*"([\d.]+)s"'):
+        m = re.search(pat, body or "", re.I)
+        if m:
+            try:
+                return float(m.group(1))
+            except ValueError:
+                pass
+    return 0.0
+
+
+# 🔴 2026-07-30 產線全停事故的實測記錄(避免下次重走同一條死路)。
+# 當天 OpenRouter 餘額用罄(-US$0.20),402 原文「This request requires more credits,
+# or fewer max_tokens」——實測只有 max_tokens ≤ 約 200~400 的請求能過,而各部門
+# 都用 1500~3500,等於選題/判斷/寫稿全停。
+#
+# 曾嘗試靠 fallback=gemini 免費層續命,**實測不可行**:
+#   ①Gemini 429 本文寫 metric=generate_content_free_tier_requests、limit=20、
+#     retryDelay 約 54s,且 max_tokens 200 與 3500 一樣被擋(是請求數限制,不是 token)。
+#   ②一度以為「舊碼只等 24s、跨不過 60s 視窗」是根因,改成聽 API 給的秒數後仍 0/3 成功。
+#   ③關鍵反證:**靜置 80 秒完全不發任何請求**,再打一次仍 429(retry_in 36.8s)
+#     → 名額不是被自己的重試佔掉的,等更久拿不到。
+# 結論:免費層撐不住這個產線的量,只有儲值主供應商能解。快速失敗(維持 4/8/12s)
+# 讓下一輪 cron 再試,比長等造成工作堆積更安全。
+
+
 def _call_openai_compat(provider, prompt, max_tokens, model=None, tries=3, json_mode=False, temperature=None):
     url, envk, default_model = _OPENAI_COMPAT[provider]
     key = _key(envk)
@@ -56,6 +88,14 @@ def _call_openai_compat(provider, prompt, max_tokens, model=None, tries=3, json_
         r = requests.post(url, headers={"Authorization": f"Bearer {key}",
                                         "Content-Type": "application/json"}, json=body, timeout=150)
         if r.status_code == 429:  # 免費版限流→退避重試
+            # 註:2026-07-30 曾把這裡改成「聽 API 給的 retry in Ns」(最長等 70s),
+            # 想讓 OpenRouter 沒錢時靠 Gemini 免費層續命。**實測無效已回退**:
+            # 靜置 80 秒完全不發請求後再打,仍然 429(limit:20、retry_in 36.8s),
+            # 也就是名額不是被自己的重試佔掉的,等更久並不會拿到。
+            # 而副作用是實在的:單次呼叫從「最多等 24s 就失敗」變成「等 180s 才失敗」,
+            # 18 個部門同時慢 7 倍 → cron 工作堆積(hybrid_render 吃爆記憶體就是這個模式)。
+            # 結論:免費層撐不住這個產線,快速失敗讓下一輪 cron 再試才是對的。
+            # 診斷工具 _retry_after 留著,它讀限流資訊有用,只是不拿來當等待依據。
             last = f"429 rate limit"; time.sleep(4 * (t + 1)); continue
         if r.status_code != 200:
             raise RuntimeError(f"{provider} HTTP {r.status_code}: {r.text[:140]}")
