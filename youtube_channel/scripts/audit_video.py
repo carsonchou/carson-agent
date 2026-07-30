@@ -3,7 +3,7 @@
 """audit_video.py — 【審核部門】發布前自動品管 + 誠信把關。
 
 規則式審核(不需 AI、可無人值守)。PASS 才允許上架；FAIL 隔離並記錄原因。
-檢查：①技術(檔案存在/不過小/有影音軌/片長合理/Shorts<60s) ②誠信(禁語：保證賺、
+檢查：①技術(檔案存在/不過小/有影音軌/片長合理/Shorts≤3分鐘平台上限) ②誠信(禁語：保證賺、
 穩賺不賠等) ③合規(有標題、有風險聲明)。
 """
 from __future__ import annotations
@@ -89,8 +89,19 @@ def audit(slug: str):
     dur, has_v, has_a = _probe(mp4)
     if dur < 5:
         reasons.append(f"片長過短（{dur:.0f}s）")
-    if is_short and dur > 65:
-        reasons.append(f"Shorts 超過 60 秒（{dur:.0f}s）")
+    # 🔴 2026-07-30 這條原本是 `dur > 65` + 訊息「Shorts 超過 60 秒」,兩個問題:
+    #   ①閾值與訊息不一致(65 vs 60),看訊息會誤判成平台規則。
+    #   ②**60 秒這個上限早就過期了**:YouTube Shorts 自 2024-10 起放寬到 **3 分鐘**。
+    #     65~68 秒的直式片是完全合法的 Short,YouTube 照樣當 Short 推。
+    # 後果不小:quality_score.DEDUCT 對這條硬扣 **18 分**,實測有 2 支底分 86／90 的片
+    # 被扣成 68／72,卡死在門檻 75 下不能發——用一個不存在的違規擋掉兩支好片。
+    # 現在改成真實的平台上限(留一點探測誤差餘裕)。超過 3 分鐘才是真違規:
+    # 那種長度 YouTube 不會當 Short,#Shorts 標籤形同虛設,-18 分是應該的。
+    # ⚠️ 這個改動會讓**更多**片通過,方向上是紅旗——所以講清楚為什麼安全:
+    #    它修的是一個**過期的事實**,不是放寬安全閘。誠信類閘門(禁語等)完全沒動。
+    #    生成端的 30-45 秒偏好(produce_batch 的甜蜜點)也沒動,那是表現偏好、不是硬傷。
+    if is_short and dur > 185:
+        reasons.append(f"Shorts 超過 3 分鐘上限（{dur:.0f}s）— YouTube 不會當 Short 推")
     if not has_v:
         reasons.append("無視訊軌")
     if not has_a:

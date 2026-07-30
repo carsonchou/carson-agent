@@ -221,11 +221,27 @@ def score_one(slug, ai):
 
 
 def all_slugs():
+    """要評分的成片 slug。**排除 `_ytcta` 衍生檔**。
+
+    🔴 2026-07-30 本檔是唯一沒排除衍生檔的地方,代價很具體:
+      `append_yt_cta.py` 會產 `output/<slug>_ytcta.mp4`——那是給 IG/TikTok 接不同片尾卡的
+      **衍生檔**,沒有自己的 .md／.voice.txt，所以審核永遠回「.md 腳本不存在」、
+      AI 也永遠評不出分。實測 output 下有 **371** 個,造成三個後果:
+        ①「未發布候選」被灌水:470 → 真實只有 **99**(而 daily_publish.find_candidates
+          **有**排除衍生檔,算出 44——兩邊數字長期打架就是這個原因)。
+        ②「未評分」373 支看起來像大災情,其中 371 是衍生檔,**真正未評分只有 2 支**。
+        ③每輪評分空轉:未評分的片每支會 `ai_score` 失敗→sleep 6s→重試→再 sleep 1.5s,
+          371 × 7.5s ≈ **46 分鐘純等待**,每次跑都白燒。
+      而 daily_publish / produce_batch / ig_backfill / fact_source_guard / stall_watchdog /
+      build_short_to_long **六支都已經排除**了——只有這裡漏掉。典型的「同一規則多份實作,
+      漏一處就等於沒做」(同 memory yt-duplicate-impl-gate-bypass)。
+    """
     slugs = set()
-    for f in OUT.glob("S_*.mp4"):
-        slugs.add(f.stem)
-    for f in OUT.glob("L_*.mp4"):
-        slugs.add(f.stem)
+    for pat in ("S_*.mp4", "L_*.mp4"):
+        for f in OUT.glob(pat):
+            if "_ytcta" in f.stem:      # 衍生檔(可能疊成 _ytcta_ytcta),用 in 不用 endswith
+                continue
+            slugs.add(f.stem)
     return sorted(slugs)
 
 
