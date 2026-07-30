@@ -43,6 +43,24 @@ QUERIES = ["比特幣 OR 以太幣 OR 加密貨幣", "美聯儲 OR 升息 OR 降
 FRESH_HOURS = 18
 MAX_PER_DAY = 8  # 安全上限(防爆衝/bug 洗版)，非品質限制；真正重要的事很少一天 >5 件，所以幾乎不會卡到
 
+# 🔴 2026-07-30 幣圈新聞每日封頂。實測(同齡區間 24~96h 比較,避開「老片累積多」的量尺陷阱):
+#   幣圈/網格 Shorts 平均 32 觀看(n=9) vs 台股觀念 Shorts 162(n=2)、其他台股 84(n=3)。
+#   而本部門近 14 支裡 **13 支是幣圈(93%)**,唯一那支台股題拿到 101 觀看——是 14 支裡最高的。
+# 為什麼 QUERIES 已經 4 幣圈 + 4 台股卻還是 93%:幣圈新聞的**數量**遠大於台股新聞,
+#   彙整後的標題池被幣圈淹沒,LLM 挑「最大條的」就一直挑到幣圈。**平衡查詢不會產生平衡輸出。**
+# 既有的 is_liquidation_hijack 週上限只抓「爆倉/清算」——那 13 支裡只有 1 支帶「爆倉」,
+#   等於幾乎全數漏過。所以這裡把範圍放寬到「幣圈新聞」整類,並改成**每日**上限。
+# 不是禁掉:幣圈是 Pionex 聯盟的內容基礎(說明欄放邀請碼),斷掉會斷變現線。
+# 達標後的處理=把幣圈標題**從池子濾掉**,讓 LLM 去挑最大的台股新聞(而不是整輪放棄浪費產能);
+#   濾完真的沒東西才跳過該輪。
+# 界線刻意畫在「**幣圈資產**新聞」,不含「網格」這個技法:
+#   ①「爆倉/清算」在台股新聞也會出現(融資相關),放進來會在達標後誤濾掉合法台股題
+#     ——而且爆倉/清算本來就有 is_liquidation_hijack 那道週上限在管,不需重複。
+#   ②「網格」是 Pionex 的產品、也是變現內容的核心;實測那支「Fed放鷹…**臺股**網格避雷」
+#     拿到 49 觀看,比幣圈平均(32)好——技法本身沒問題,是幣圈資產題材拖累表現。
+_CRYPTO_NEWS_RE = re.compile(r"比特幣|BTC|以太幣|ETH|加密貨幣|加密|幣安|穩定幣|山寨幣|幣圈")
+_CRYPTO_NEWS_CAP = 2      # 每日最多 2 支幣圈時事片
+
 
 def _fetch(query: str):
     url = (f"https://news.google.com/rss/search?q={quote(query)}+when:1d"
@@ -163,6 +181,19 @@ def main() -> int:
         print(f"[時事] {len(uniq)} 則新聞無「大事」關鍵字，零成本略過(不燒 LLM)。")
         return 0
 
+    # 幣圈每日封頂(見檔頭 _CRYPTO_NEWS_CAP 說明):達標就把幣圈標題濾出池子,
+    # 讓 LLM 去挑最大的台股新聞。放在 LLM 判斷**之前**,才真的能改變它挑什麼。
+    if sc.check_topic_frequency("news_crypto", cap=_CRYPTO_NEWS_CAP, window_days=1):
+        _n0 = len(hot)
+        hot = [h for h in hot if not _CRYPTO_NEWS_RE.search(h["title"])]
+        print(f"[時事] 幣圈今日已達 {_CRYPTO_NEWS_CAP} 支上限 → 池子 {_n0}→{len(hot)} 則"
+              f"(只留非幣圈;實測幣圈 Shorts 平均 32 觀看 vs 台股題 84~162)")
+        if not hot:
+            seen["ids"].extend(ids_now); _save_seen(seen)
+            log_ops("時事部", f"幣圈已達每日上限({_CRYPTO_NEWS_CAP}支)且無非幣圈大事，本輪不產片")
+            print("[時事] 幣圈已達上限、又沒有非幣圈的大事 → 本輪不產片(把產能讓給台股題)。")
+            return 0
+
     # 產標題若命中洗版骨架/與近期語意重複→重判(最多 3 次),仍不行就不產(2026-07 止血新聞旁路洗版)
     hot_titles = [h["title"] for h in hot]
     recent = sc.recent_titles(80)
@@ -212,6 +243,13 @@ def main() -> int:
                         cwd=str(ROOT)).returncode
     if rc == 0:
         seen["dates"].append(datetime.now(TW).strftime("%Y-%m-%d"))
+        # 幣圈計數:只有真的產出才記一筆,供上面的每日封頂計算(記在共用計數器,
+        # 和 produce_batch 的 news_liquidation 是不同 tag,不互相干擾)。
+        if _CRYPTO_NEWS_RE.search(f"{title} {d.get('news', '') or ''}"):
+            try:
+                sc.record_topic_produced("news_crypto")
+            except Exception:  # noqa: BLE001  記帳失敗不該讓已產出的片流程炸掉
+                pass
         log_ops("時事部", f"蹭時事產片：{title[:40]}")
     _save_seen(seen)
     return 0
