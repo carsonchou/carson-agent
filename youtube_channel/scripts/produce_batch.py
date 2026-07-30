@@ -229,11 +229,61 @@ def queue_size(kind=None):
             published = set(json.loads(lp.read_text(encoding="utf-8")).keys())
     except Exception:
         pass
+    # 🔴 2026-07-30 再扣一類「永遠不會發」的:publish_skip.json 的跳過名單。
+    # 實測(短片):queue_size 看到 55,真正過得了發布端閘門的只有 **11** 支——高估 5 倍。
+    # 差額主因就是這份名單:77 支裡有 48 支正落在這個「庫存」集合內,而它們的理由都是
+    # 永久性的(跨平台 _ytcta 衍生檔、2026-07-14「信口捏數(38萬/90% 查無來源)」事故片、
+    # 命中 is_banned_skeleton 禁用洗版骨架、與已入庫題目數字/主題高度重複)。
+    # 後果:補產拿 55 去比目標 12 → 判定「短片達標」而停手,但真實 11 支**低於**目標
+    #   → **該補的時候不補**。這正是本函式註解已經記過的失效模式(已發布舊片堆積→誤判滿→
+    #   整個產線停擺),只是換了一個新來源。
+    # 只扣「便宜且確定」的兩類(帳本、跳過名單);不在這裡跑 audit/品質分,那要對每支片
+    #   跑 ffmpeg,會把一個計數函式變成幾分鐘的工作。
+    skipped = set()
+    try:
+        _sp = ROOT / "STUDIO" / "publish_skip.json"
+        if _sp.exists():
+            _d = json.loads(_sp.read_text(encoding="utf-8")) or {}
+            _sl = _d.get("slugs") if isinstance(_d, dict) else None
+            if isinstance(_sl, dict):
+                skipped = set(_sl.keys())
+            elif isinstance(_sl, list):
+                skipped = set(_sl)
+    except Exception:  # noqa: BLE001  讀不到就當空集合=行為回到修改前,不會更糟
+        pass
+    # 再扣「已經被評為退件」的:理由**早就存在 quality_scores.json 裡**(score 低於門檻、
+    # 或 audit 抓到禁語等硬傷),讀一個 JSON 就有,不必在計數函式裡對每支片跑 ffmpeg。
+    # 刻意**不扣** score=None 的「未評分」:那是暫時狀態(LLM 停機時新片評不出分),
+    # 片子本身沒問題,重評後就會變成可發庫存——把它當缺貨會催出不必要的產能。
+    rejected = set()
+    try:
+        _qp = ROOT / "STUDIO" / "quality_scores.json"
+        if _qp.exists():
+            _q = json.loads(_qp.read_text(encoding="utf-8")) or {}
+            _min = _q.get("min_score")
+            _min = float(_min) if isinstance(_min, (int, float)) else None
+            for _it in (_q.get("pending") or []):
+                if not isinstance(_it, dict):
+                    continue
+                _s = _it.get("slug")
+                if not _s:
+                    continue
+                if _it.get("status") in ("reject", "rejected_manual", "degraded"):
+                    rejected.add(_s); continue
+                _v = _it.get("score")
+                if isinstance(_v, (int, float)) and not isinstance(_v, bool) \
+                        and _min is not None and _v < _min:
+                    rejected.add(_s)
+    except Exception:  # noqa: BLE001  讀不到就當空集合=退回修改前行為,不會更糟
+        pass
     slugs = set()
 
     def _add(slug):
-        if not slug.endswith("_ytcta"):
-            slugs.add(slug)
+        # 用 `in` 不用 endswith:實測 output 下存在 `_ytcta_ytcta` 雙重後綴的檔,
+        # endswith 抓得到單層卻漏掉疊層(同日在 quality_score.all_slugs 修過同一個坑)。
+        if "_ytcta" in slug or slug in skipped or slug in rejected:
+            return
+        slugs.add(slug)
 
     pats = {"short": ("S_",), "long": ("L_",), None: ("S_", "L_")}[kind]
     for p in pats:
