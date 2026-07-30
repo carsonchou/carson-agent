@@ -985,7 +985,46 @@ def _make_debunk(cfg: dict):
     return out
 
 
-_CLAUSE_SPLIT_RE = _re.compile(r"[？?！!，,。、：:；;\-—－\s]+")
+# 🔴 2026-07-30 空白不再一律當子句邊界。
+# 實測:《0050定期定額vs一次All in十年回測:哪個賺更多…》→ 「All in」被中間那個空格
+# 切開,l1 拿到「0050定期定額」、l2 變成孤零零的「**in**十年回測」(照片存證)。
+# 中文標題裡的空白多半只是排版,而英文詞組(All in / Dollar Cost / vs 兩側)靠空白連著。
+# 改法:①先用標點斷句 ②空白只有在**兩側不是英數字**時才算邊界
+#   (?<![A-Za-z0-9])\s+(?![A-Za-z0-9]) → 「All in」不斷,「額 vs」也不會被空白拆碎。
+_CLAUSE_SPLIT_RE = _re.compile(
+    r"[？?！!，,。、：:；;\-—－]+|(?<![A-Za-z0-9])\s+|\s+(?![A-Za-z0-9])")
+
+
+_SOFT_BREAK = ("的", "了", "與", "和", "或", "跟", "在", "把", "vs", "VS", "、",
+               "，", ",", "·", " ", "：", ":")
+_DANGLING = "『「《（(【〈“‘"    # 只開沒關的引號/括號,留在結尾就是切壞的痕跡
+
+
+def _clean_cut(s: str, limit: int) -> str:
+    """把 s 切到 limit 字以內,但**不切在詞中間**,也不留懸空的開引號。
+
+    🔴 2026-07-30 為什麼要有這支:_heuristic 的 docstring 寫著「不從單一子句『中間』硬切」,
+    但它的實作是 clauses[0][:8] / clauses[1][:10]——子句一旦超過字數就是從中間硬切。
+    照片存證:《0056填息天數暴增3倍!存股族最該怕的『高股息陷阱』十年回測》
+    → 縮圖第二行印成「存股族最該怕的『高股」,「高股息」被切一半、引號只開沒關。
+    (註解宣稱了程式沒做的事——和 make_video 那個「保住浮水印」的假註解同型。)
+
+    策略:先在 limit 內找最後一個自然斷點(的/與/、/空白…)且不要切太短(至少留 limit 的 6 成);
+    找不到就退回硬切,但一律清掉結尾的懸空開引號。**寧可短一點,也不要斷在半個詞。**
+    """
+    s = (s or "").strip()
+    if len(s) <= limit:
+        return s.rstrip(_DANGLING).strip()
+    head = s[:limit]
+    best = -1
+    for b in _SOFT_BREAK:
+        i = head.rfind(b)
+        if i > best:
+            best = i + (len(b) if b not in ("的", "了", "在", "把") else 1)
+    # 斷點太靠前會切到剩沒幾個字,反而看不出主題 → 那就寧可硬切後清尾
+    if best >= max(2, int(limit * 0.6)):
+        head = head[:best]
+    return head.rstrip(_DANGLING).rstrip("".join(_SOFT_BREAK)).strip()
 
 
 def _heuristic(slug: str, title: str) -> dict:
@@ -997,11 +1036,15 @@ def _heuristic(slug: str, title: str) -> dict:
     clauses = [c for c in _CLAUSE_SPLIT_RE.split(t) if c]
     if not clauses:
         clauses = [t] if t else [slug or "看完秒懂"]
-    l1 = clauses[0][:8] or t[:8] or "看完秒懂"
-    l2 = clauses[1][:10] if len(clauses) > 1 and clauses[1] else "看完秒懂"
+    # 一律走 _clean_cut:不切在詞中間、不留懸空開引號(舊版 [:8]/[:10] 硬切,
+    # 實測把「高股息陷阱」切成「高股」、引號只開沒關)。
+    l1 = _clean_cut(clauses[0], 8) or _clean_cut(t, 8) or "看完秒懂"
+    l2 = (_clean_cut(clauses[1], 10) if len(clauses) > 1 and clauses[1] else "") or "看完秒懂"
     tag_src = "".join(clauses[2:]) if len(clauses) > 2 else t
-    tag = (tag_src or t)[:14] or "量化阿森"
-    return {"slug": slug, "l1": l1[:8], "l2": l2[:10], "tag": tag, "accent": ACCENTS["yellow"], "mark": "?"}
+    # 底條也清掉開頭/結尾的分隔符——實測產出過「|0056填息天數十年回測」這種孤立豎線。
+    tag = _clean_cut((tag_src or t).strip("｜|/·-—　 "), 14) or "量化阿森"
+    return {"slug": slug, "l1": l1, "l2": l2, "tag": tag,
+            "accent": ACCENTS["yellow"], "mark": "?"}
 
 
 def _decorate_debunk(cfg: dict, title: str) -> dict:
