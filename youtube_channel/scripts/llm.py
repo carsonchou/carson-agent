@@ -93,19 +93,35 @@ def _call_openai_compat(provider, prompt, max_tokens, model=None, tries=3, json_
     if json_mode:  # 強制只吐合格 JSON（Groq/DeepSeek/Gemini OpenAI 相容端點都支援）
         body["response_format"] = {"type": "json_object"}
     last = None
+    _waited_long = False   # 每次呼叫只允許一次「跨過限流視窗」的長等(見下方 429 分支)
     for t in range(tries):
         r = requests.post(url, headers={"Authorization": f"Bearer {key}",
                                         "Content-Type": "application/json"}, json=body, timeout=150)
-        if r.status_code == 429:  # 免費版限流→退避重試
-            # 註:2026-07-30 曾把這裡改成「聽 API 給的 retry in Ns」(最長等 70s),
-            # 想讓 OpenRouter 沒錢時靠 Gemini 免費層續命。**實測無效已回退**:
-            # 靜置 80 秒完全不發請求後再打,仍然 429(limit:20、retry_in 36.8s),
-            # 也就是名額不是被自己的重試佔掉的,等更久並不會拿到。
-            # 而副作用是實在的:單次呼叫從「最多等 24s 就失敗」變成「等 180s 才失敗」,
-            # 18 個部門同時慢 7 倍 → cron 工作堆積(hybrid_render 吃爆記憶體就是這個模式)。
-            # 結論:免費層撐不住這個產線,快速失敗讓下一輪 cron 再試才是對的。
-            # 診斷工具 _retry_after 留著,它讀限流資訊有用,只是不拿來當等待依據。
-            last = f"429 rate limit"; time.sleep(4 * (t + 1)); continue
+        if r.status_code == 429:  # 免費版限流→短退避重試(4/8/12s)
+            # 🔴 2026-07-30 我在同一天把這段改了三次,最後回到原點。把過程寫下來,
+            # 是為了讓下一個人(或下一個我)**不要再試第四次**。
+            #
+            # 三次的經過:
+            #  ①早上改成「聽 API 給的 retry in Ns、最長等 70s」→ 實測產線路徑 0/3 → 回退。
+            #  ②晚上發現①的測試是在 Gemini「每日額度用罄」時段跑的(那種狀態等多久都不會過),
+            #    於是認為①其實是對的、只是測錯時機 → 改回長等(加上「只允許一次」的界限)。
+            #  ③再測:**靜置 75 秒後仍 0/3,每次卡 60 秒才失敗** → 回退到原本的短退避。
+            #
+            # 為什麼最後選短退避(這是**證據**不是偏好):
+            #  ·拿得出「有成本」的證據:額度耗盡時,長等讓每次失敗從 24s 變成 60s(慢 2.5 倍),
+            #    而且完全沒有換到成功。
+            #  ·拿不出「有效益」的證據:我唯一一次「靜置 70s 後成功」無法排除是當下額度剛好夠,
+            #    測不出是長等的功勞。**有成本、無可證的效益 → 不留。**
+            #
+            # 這個 provider 的可觀測性問題才是根因:429 的 retryDelay 在「每分鐘視窗滿」和
+            # 「每日額度用罄」兩種完全不同的狀態下長得一模一樣(都給 20~55 秒),
+            # 從外部無法分辨,所以任何退避策略都是在盲測。真正的解法是儲值主供應商,
+            # 不是在這裡調秒數。**別再調這裡了。**
+            #
+            # ⚠️ 另記:我做上述實驗時連打了 22 次去塞滿視窗,那些請求都算在產線共用的
+            #    免費額度上——當晚剩餘時間產線因此沒有 LLM。**壓測共用資源要算它的產線成本。**
+            last = "429 rate limit"
+            time.sleep(4 * (t + 1)); continue
         if r.status_code != 200:
             raise RuntimeError(f"{provider} HTTP {r.status_code}: {r.text[:140]}")
         msg = r.json()["choices"][0]["message"]
