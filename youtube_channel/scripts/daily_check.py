@@ -128,15 +128,47 @@ def check_cron():
 
 def check_publish():
     led = _load(LEDGER, {})
-    mp4 = [Path(p).stem for p in glob.glob(str(OUT / "*.mp4"))]
-    cand = [s for s in mp4 if s not in led]
+    # 🔴 2026-07-30 「可發布候選」原本是 `glob("*.mp4") 扣掉帳本`,結果報 **474**,
+    # 而發布端真正發得出去的只有 **42**——差 11 倍。灌水來源:
+    #   ①`_ytcta` 跨平台衍生檔(output 下 371 個,沒有自己的腳本,永遠發不出去)
+    #   ②publish_skip.json 的永久跳過名單(77 支:捏數事故片/禁用洗版骨架/重複題)
+    #   ③品質未達門檻、審核未過、誠信溯源閘擋下的
+    # 一個灌水 11 倍的數字放在健檢報告上,比不放更糟(會讓人以為庫存很厚)。
+    #
+    # 修法刻意**不再實作一次排除規則**——那會變成第四份(produce_batch.queue_size、
+    # quality_score.all_slugs、daily_publish.find_candidates 各有一份,而歷史事故都是
+    # 「多份實作漏一處」)。這裡直接呼叫發布端的權威函式,報的就是它會發的那個數。
+    # find_candidates 只讀檔+讀 JSON,不打任何 API(符合本健檢「不花 API」的前提),
+    # 但會 print 一堆明細 → 用 redirect_stdout 吞掉,別汙染報告輸出。
+    cand = None
+    try:
+        import contextlib
+        import io as _io
+        sys.path.insert(0, str(SCRIPTS))
+        import daily_publish as _dp
+        _buf = _io.StringIO()
+        with contextlib.redirect_stdout(_buf):
+            cand = _dp.find_candidates(_dp.load_ledger())
+    except Exception as e:  # noqa: BLE001
+        cand = None
+        _fallback_note = str(e)[:40]
+    if cand is None:
+        # 退回舊算法但**明確標示這是粗估**,不要讓人以為是可發數(至少排掉衍生檔)
+        mp4 = [Path(p).stem for p in glob.glob(str(OUT / "*.mp4"))]
+        rough = [s for s in mp4 if s not in led and "_ytcta" not in s]
+        return ("⚠️", f"已發布 {len(led)}、未發布成片（粗估，非可發數）{len(rough)}"
+                      f"、今日上架相關紀錄 ?（候選查詢失敗）",
+                ["可發候選查詢失敗，數字僅為粗估"])
     txt = _logtext()
     pub_today = len([l for l in txt.splitlines() if _is_today(l) and ("上架" in l or "即時發布" in l)])
     issues = []
     if not cand and not led:
         issues.append("無候選也無已發布（產線可能沒在跑）")
+    if led and not cand:
+        issues.append("可發候選為 0（庫存見底或全被閘門擋下，明天可能無片可發）")
     return ("✅" if cand or led else "⚠️",
-            f"已發布 {len(led)}、可發布候選 {len(cand)}、今日上架相關紀錄 {pub_today} 筆", issues)
+            f"已發布 {len(led)}、**可發布候選 {len(cand)}**（過完所有閘門的真實可發數）"
+            f"、今日上架相關紀錄 {pub_today} 筆", issues)
 
 
 def check_library():
