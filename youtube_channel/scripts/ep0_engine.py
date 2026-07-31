@@ -430,8 +430,49 @@ def _title(key: str, inv: dict) -> str:
     if key == "checkup":
         if pub <= 0:
             return "個股體檢系列開播｜台股一檔一集，我用同一份體檢表量完整個市場｜規則先講死"
+        # 🔴 2026-07-31 舊標題「台股 N 檔一檔一集，已經體檢完 M 檔」是平的:只報進度、沒有張力,
+        # 實測 AI 標題分只有 15/25(對照 tw_lab 的「已拆完 X 集、還有 Y 組排隊中」拿 20/25——
+        # 差別在它有「還沒拆的在排隊」這個懸念)。
+        # 改成把**資料缺口**放進標題:那是這個系列真正獨特的地方——沒有別的頻道會在標題上
+        # 承認自己抓不到資料。數字全部來自 inv(ready / n_skipped_codes),一個都不寫死。
+        _gap = int(inv.get("n_skipped_codes", 0) or 0)
+        if _gap > 0:
+            return (f"個股體檢系列｜已體檢 {inv['ready']} 檔台股，"
+                    f"其中 {_gap} 檔資料有缺口——我照樣標出來｜規則先講死")
         return f"個股體檢系列｜台股 {inv['total']} 檔一檔一集，已經體檢完 {inv['ready']} 檔｜規則先講死"
     return ""
+
+
+def _hook_fact(key: str, inv: dict) -> str:
+    """開場前的「自曝缺口」段(只有算得出缺口時才出現;算不出就回空字串)。
+
+    🔴 2026-07-31 為什麼加這段:個股體檢 EP.0 的 AI hook 分只有 12/25(tw_lab 是 18),
+    因為 SERIES['checkup']['enemy'] 是純敘述——泛泛抱怨「別人都只講那幾檔」,零具體零數字。
+    而引擎其實握著一個很有衝擊力、而且對自己不利的真事實沒用上。
+    **這不是為了衝分數改文案,是那段開場本來就該講這件事**:主動承認自己的管線有洞,
+    正是這個頻道的護城河;分數過不過是附帶結果。
+
+    ⚠️ 措辭嚴格遵守 _inv_checkup 的既有警告:那些缺口是「**我的資料源抓取失敗**」,
+    **不是**市場結構上沒有財報(gap 幾乎全是個股,個股當然有財報)。
+    把自己的管線失敗說成市場的限制 = 膨脹方向,這裡明文寫死不准那樣講。
+    所有數字一律來自 inv,不接受任何寫死的字面數字(EP.0 出過「假話寫死在 SERIES 表繞過
+    事實溯源」的事故,那個坑不再踩)。
+    """
+    if key != "checkup":
+        return ""
+    ready = int(inv.get("ready", 0) or 0)
+    gap = int(inv.get("n_skipped_codes", 0) or 0)
+    kinds = inv.get("gap_by_kind") or {}
+    n_stock = int(kinds.get("stock", 0) or 0)
+    if ready <= 0 or gap <= 0:
+        return ""
+    s = (f"先講一件對我自己不好看的事。我已經把 {ready} 檔台股的體檢事實算完，"
+         f"其中 {gap} 檔有欄位是空的。")
+    if n_stock > 0:
+        s += (f"那不是那些公司沒有財報——這 {gap} 檔裡有 {n_stock} 檔是個股，財報都在，"
+              f"是我的資料源抓不到。")
+    s += "我沒有把那幾檔跳過去假裝沒事，缺口就標在報告上，你看得到我少了什麼。"
+    return s
 
 
 def _turn(key: str, inv: dict) -> str:
@@ -610,7 +651,8 @@ def build_script(key: str, mode: str = "auto") -> dict | None:
     cta = (f"{_join(key, inv)}{s['cta_reason']}，"
            f"那就先按個訂閱，跟著這個系列一起看下去。我們下支見。")
 
-    voice = "\n\n".join([
+    voice = "\n\n".join([p for p in [
+        _hook_fact(key, inv),       # ⓪自曝缺口(算得出才有;見 _hook_fact 說明)
         s["enemy"],                 # ①敵人
         _turn(key, inv),            # ②宣告系列存在(定位由已發布集數算出來)
         s["cred"],                  # ③身分憑證
@@ -619,7 +661,7 @@ def build_script(key: str, mode: str = "auto") -> dict | None:
         _promise(key, inv),         # ⑤規模承諾(存量算出來的)
         s["why"],                   # ⑥為什麼你該追
         cta,                        # ⑦CTA
-    ])
+    ] if p])
     # 去掉 markdown 粗體記號(給人看的 ** 配音不能唸出來)
     voice = voice.replace("**", "")
 
