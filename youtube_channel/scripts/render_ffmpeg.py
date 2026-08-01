@@ -690,6 +690,16 @@ MIN_FPS = 30  # A5：短片 15fps 太頓、廉價感傷完播；不論呼叫端�
 
 def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> bool:
     """純 ffmpeg 組片。回傳 True=成功;False=此片不適用(交回 moviepy 備案)。"""
+    # 🔴 2026-08-02 健檢必須放在**這裡**,不能放在 main()。
+    # 我第一版把它加在 main()(命令列入口),結果完全沒生效——因為產線是
+    # `make_video.py:2659` **直接呼叫 render()**,根本不經過 main()。
+    # 證據:加了守門之後同一支壞片照樣再撞一次 600s 逾時。
+    # 這正是本專案反覆出現的「同一規則多份實作/修在沒人走的路上」——這次是我自己犯。
+    # ⚠️ 回傳 False 的語意在這裡剛好對:呼叫端會把它當「此片不適用 ffmpeg 路徑」,
+    #    但 make_video 的 moviepy 備案是**逐幀 PIL(float32 1080x1920)**,更吃記憶體,
+    #    實測那支壞片掉進備案後直接噴 MemoryError。所以**備案端也要擋**(見 make_video)。
+    if not _speech_rate_sane(slug_paths):
+        return False
     from PIL import Image
 
     fps = max(int(fps or 0), MIN_FPS)

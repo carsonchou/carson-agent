@@ -2651,6 +2651,19 @@ def run(args: argparse.Namespace) -> int:
     # 手動建暫存夾，改用「容忍 Windows 檔案鎖」的清理，避免 moviepy/ffmpeg 尚未釋放
     # 的 B-roll 檔 handle 在自動清理時拋 PermissionError，連帶把已產出的 mp4 也判成失敗。
     # 自我修復：渲染失敗自動重試一次（吸收 ffmpeg/網路抖動等暫時性錯誤）
+    # 🔴 2026-08-02 旁白/語速健檢:兩條渲染路徑**都要**擋,不能只擋 ffmpeg 那條。
+    # 血淚:先只在 render_ffmpeg 加健檢,結果壞片被擋出 ffmpeg 路徑後**掉進下面的 moviepy 備案**
+    # ——那條是逐幀 PIL(float32 1080x1920),更吃記憶體,實測直接噴
+    # `MemoryError: Unable to allocate 23.7 MiB ... (1080,1920,3) float32`。
+    # 也就是說「只擋一條路」比不擋更糟:把壞片推去了更危險的那一條。
+    try:
+        import render_ffmpeg as _rf_gate
+        if not _rf_gate._speech_rate_sane(slug_paths):
+            print("[make_video] 旁白健檢未過 → 兩條渲染路徑都不跑"
+                  "(避免掉進更吃記憶體的 moviepy 備案)。", file=sys.stderr)
+            return 1
+    except Exception:  # noqa: BLE001  健檢自己壞掉不可以擋住產線
+        pass
     # ── 純 ffmpeg 後端優先(本機/雲端都快 ~10x):純字卡 + b-roll 都走它;
     #    任何失敗自動回 moviepy 備案(Phase 2:b-roll 已支援) ──
     if not os.environ.get("MV_FORCE_MOVIEPY"):
