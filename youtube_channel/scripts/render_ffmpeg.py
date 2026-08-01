@@ -1170,6 +1170,67 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
+# 🔴 2026-08-02 渲染前的語速健檢。起因是一支個股體檢片(玉晶光3406)連續兩次撞 600s 渲染逾時,
+# 追下去發現**稿子完全正常、壞的是語音**:
+#     全體長片語速中位 **312 中文字/分**(n=26,正常範圍 279~333)
+#     那支                **175 字/分** ← 同樣字數被拉成 1.8 倍長的音檔(3,412 字 → 19.5 分鐘)
+# 它的稿長 3,412 字落在正常區間內(中位 2,768、最大 3,741),所以**任何「稿長上限」都攔不到它**
+# ——我一開始就是照那個方向猜,查了才發現猜錯。
+# 代價是實打實的:渲染器為一個壞掉的音檔燒掉兩次 600 秒逾時才放棄,而且沒有任何一層說得出原因
+# (只會看到「逾時」,看不到「音檔本來就不對」)。
+# 這裡不去追那個難重現的 TTS bug,而是**在燒機器時間之前先擋**,並且把原因講清楚。
+_RATE_MIN = 200.0   # 中文字/分。比實測最慢的正常片(279)再放寬約 3 成,只抓真正離譜的
+_RATE_MAX = 460.0   # 上限同樣留餘裕:真的講太快也是壞掉(音檔被截斷/加速),一樣不該進渲染
+
+
+def _speech_rate_sane(slug_paths) -> bool:
+    """比對旁白字數與音檔長度,語速離譜就擋下(回 False = 不要渲染)。
+
+    fail-**open** 是刻意的:任何一項資料缺失(沒有 voice.txt、沒有 mp3、探測失敗、字數太少)
+    一律放行。這道檢查的目的是攔「明確壞掉」的音檔,不是多加一道會誤殺的關卡——
+    渲染本身還有 min_dur / 旁白截斷 等既有 fail-closed 防線在後面守著。
+    """
+    try:
+        mp3 = getattr(slug_paths, "audio", None) or getattr(slug_paths, "mp3", None)
+        voice = getattr(slug_paths, "voice", None)
+        if voice is None:
+            voice = Path(str(getattr(slug_paths, "out_mp4", ""))).with_suffix("")
+            voice = voice.parent / (voice.name + ".voice.txt")
+        if not mp3 or not Path(mp3).exists() or not Path(voice).exists():
+            return True
+        import re as _re
+        txt = Path(voice).read_text(encoding="utf-8", errors="replace")
+        n = len(_re.findall(r"[一-鿿]", txt))
+        if n < 500:                      # 太短的片(如系列說明片)語速估計不穩,不判
+            return True
+        ff = _ffmpeg_exe()
+        r = subprocess.run([ff, "-i", str(mp3)], capture_output=True, text=True,
+                           encoding="utf-8", errors="replace")
+        m = _re.search(r"Duration:\s*(\d+):(\d+):(\d+\.?\d*)", r.stderr or "")
+        if not m:
+            return True
+        secs = int(m.group(1)) * 3600 + int(m.group(2)) * 60 + float(m.group(3))
+        if secs < 30:
+            return True
+        rate = n / (secs / 60.0)
+        if _RATE_MIN <= rate <= _RATE_MAX:
+            return True
+        print(f"[語速健檢] ✗ 拒絕渲染 {Path(str(mp3)).name}:"
+              f"旁白 {n} 中文字 / 音檔 {secs/60:.1f} 分 = **{rate:.0f} 字/分**,"
+              f"超出正常區間 {_RATE_MIN:.0f}~{_RATE_MAX:.0f}(全體中位約 312)。"
+              f"稿子字數正常時,這代表**語音合成壞了**(過慢多半是長靜音/重複段,過快多半是截斷)。"
+              f"請重產語音後再渲染——先擋下來,免得白燒兩次 600 秒逾時。", file=sys.stderr)
+        try:
+            from ops import log_ops
+            log_ops("語速健檢", f"⚠️ 擋下語速異常片({rate:.0f}字/分,正常約312):"
+                                f"{Path(str(mp3)).stem[:34]}")
+        except Exception:  # noqa: BLE001
+            pass
+        return False
+    except Exception:  # noqa: BLE001  健檢自己壞掉不可以擋住產線
+        return True
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="純 ffmpeg 渲染後端(本機 GPU 主力)")
     ap.add_argument("--slug", required=True)
@@ -1186,6 +1247,8 @@ def main(argv=None) -> int:
 
     branding = mv.load_branding(Path(args.config) if args.config else None)
     slug_paths = mv.resolve_slug_paths(args)
+    if not _speech_rate_sane(slug_paths):
+        return 1
     ok = render(slug_paths, branding, width=args.width, height=args.height,
                 fps=args.fps, no_subtitles=args.no_subtitles)
     return 0 if ok else 1
