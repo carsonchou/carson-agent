@@ -1212,6 +1212,32 @@ def _speech_rate_sane(slug_paths) -> bool:
         secs = int(m.group(1)) * 3600 + int(m.group(2)) * 60 + float(m.group(3))
         if secs < 30:
             return True
+        # 🔴 2026-08-02 追加:旁白稿混入 LLM 內部思考(英文)。
+        # 實例:玉晶光3406 那支的 voice.txt 有 3,412 中文字**但 5,174 個英文字母**,內容是
+        #   「We need to produce a single paragraph … of 520-620 Chinese characters, as a
+        #    script for a long video」「Also we may talk about percentages like annualized
+        #    return? Not given. But we can compute…」——**LLM 的思考過程被當成旁白寫進檔案**,
+        #   TTS 照著唸,所以 19.5 分鐘。
+        # ⚠️ 這條**必須獨立於語速檢查**:當初我只數中文字(3,412,看起來完全正常)就以為稿子沒問題,
+        #    差點修錯方向。中文字數這把尺看不見混進來的英文。
+        # ⚠️ 更要緊的是:這支是**剛好撞到渲染逾時才被發現**的。稿子短一點就會渲染成功、直接發布,
+        #    觀眾會聽到一段英文的 AI 內心獨白。不能靠運氣攔。
+        # 門檻 0.35 取得寬鬆:全庫掃描 n=全部 voice.txt,唯一命中的那支比值 1.52,
+        #   其餘全部低於 0.35(正常稿只會零星出現 ETF 代號、vs、Fed 這類英文)。
+        _en = len(_re.findall(r"[A-Za-z]", txt))
+        if _en / max(1, n) > 0.35:
+            print(f"[旁白健檢] ✗ 拒絕渲染:{Path(str(voice)).name} 有 {n} 中文字但 "
+                  f"**{_en} 個英文字母**(比值 {_en/max(1,n):.2f} > 0.35)。"
+                  f"這通常代表 **LLM 的內部思考被寫進旁白稿**(TTS 會照著唸出來)。"
+                  f"請重產腳本後再渲染。", file=sys.stderr)
+            try:
+                from ops import log_ops
+                log_ops("旁白健檢", f"⚠️ 擋下混入英文思考的稿({_en}英文/{n}中文):"
+                                    f"{Path(str(voice)).stem[:30]}")
+            except Exception:  # noqa: BLE001
+                pass
+            return False
+
         rate = n / (secs / 60.0)
         if _RATE_MIN <= rate <= _RATE_MAX:
             return True
