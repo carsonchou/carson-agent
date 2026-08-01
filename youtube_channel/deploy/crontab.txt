@@ -41,6 +41,14 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 #   ⚠️ 配套:同時修好 stock_checkup_daily.py 的 MAX_ATTEMPTS(原本把成功也算進「嘗試」預算,
 #      --count>5 會無聲只做5檔,改成 MAX_FAILS 失敗預算)——沒那個修,這裡寫 8 只會拿到 5。
 50 5 * * * /root/yt/run.sh scripts/stock_checkup_daily.py --count 8 >> /root/yt/logs/cron.log 2>&1
+# 2026-08-01 需求偵測(週三 06:10,週三是排程最空的一天)。只做一件事:讀自己 Analytics 的
+#   真實搜尋詞,若出現「有人在搜、但 backlog 還沒做」的股票,就把那幾檔提到最前面。
+#   依據:近28天只有搜尋在漲(+95%),而搜尋詞前25名裡個股名/代號佔 64%(459/718 觀看);
+#   最大叢集頎邦6147合計122觀看,其中「頎邦檢調」洩漏機制=**新聞事件把人推去搜**,
+#   這種需求有時效性,錯過就沒了。首次實測 10 檔被搜的股票全部已做過 → 回報「不需重排」,
+#   證明這條線本來就在運作;此排程是為了接住**未來新出現**的需求尖峰。
+#   只在有未做的熱門股時才動 backlog,否則零改動;成交值排序仍是預設。
+10 6 * * 3 /root/yt/run.sh scripts/checkup_demand_sort.py --apply >> /root/yt/logs/cron.log 2>&1
 # 2026-07-17 格式翻轉:產出配比 5短3長 -> 3短5長。**承重理由是政策事實,不是統計**:
 #   ①【硬事實】Shorts 觀看**不計入** YPP 的 4,000 watch hours。標準路徑 66hr/4000=1.7%
 #     已比 Shorts 路徑 25k/1000萬=0.25% 近 7 倍 → 長片是唯一同時餵訂閱與觀看時數的格式。
