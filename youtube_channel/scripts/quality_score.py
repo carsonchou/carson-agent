@@ -109,11 +109,29 @@ def ai_score(slug):
         "・中段區(13-19)：有到位但不出色——hook 有帶到主題卻不夠尖、title 有關鍵字但平、content 正確清楚卻沒 loop/記憶點、honesty 沒踩雷但也沒特別點風險。\n"
         "・不合格區(0-12)：平淡慢熱開場、空泛抽象標題、純說教無記憶點、或出現誇大用語(躺賺/穩賺/保證/包賺→honesty ≤8)。\n"
         f"標題：{title}\n旁白逐字稿：{voice}\n\n"
-        '只輸出 JSON（不要其他字）：{"hook":N,"title":N,"content":N,"honesty":N,"note":"一句最該改的具體建議"}'
+        # 🔴 2026-08-01 這行原本是 '…{"hook":N,"title":N,…}'。**`N` 不是合法 JSON**,
+        # 模型照抄就產出不合法的內容。OpenRouter/DeepSeek 寬鬆所以放過,但 Groq 的
+        # json_mode 會嚴格驗證 → HTTP 400「Failed to validate JSON」→ ai_score 的
+        # `except: return None` 把錯吞掉 → status=unrated → daily_publish fail-closed
+        # → **片子永遠不會發布,而且沒有任何告警**。實測 7 支已渲染長片就是這樣卡住的。
+        # 改成用文字描述結構、**不給範例數字**:給具體數字會造成錨定
+        # (本檔歷史上出過「一堆 82 分」的錨定問題,靠去錨定+溫度 0.1 才修好),
+        # 所以寧可讓模型自己生 JSON,也不要塞一組會被照抄的示範分數。
+        "只輸出一個 JSON 物件，不要任何其他文字、不要 markdown 圍欄。"
+        "鍵:hook、title、content、honesty(四個值都是 0 到 25 的整數)，"
+        "以及 note(字串，一句最該改的具體建議)。"
     )
     try:
         import llm  # 走共用路由(OpenRouter DeepSeek)，不再打死掉的 Anthropic
-        txt = llm.complete(prompt, 400, json_mode=True, temperature=0.1)  # 評分要穩、近決定性,不能用預設高溫亂漂
+        # 🔴 2026-08-01 max_tokens 從 400 → 1200。400 太小:模型吐中文 note 時會
+        # **在 JSON 中途被截斷** → 產出不合法 JSON。舊供應商(OpenRouter/DeepSeek)寬鬆,
+        # 拿到截斷字串後下面的 regex 還能勉強撈到;但 Groq 的 json_mode 會嚴格驗證,
+        # 直接回 HTTP 400「Failed to validate JSON」→ 被下面 `except: return None` 吞掉
+        # → status=unrated → daily_publish fail-closed → **片子永遠不會發布,零告警**。
+        # 實測:同一個 prompt,400 必失敗、1200 穩定成功。
+        # ⚠️ 這是「靜默失敗」的教科書案例:錯誤被吞、狀態變成合法值(unrated)、
+        #    沒有任何一層會叫——7 支已渲染好的長片就這樣卡了一整天沒人發現。
+        txt = llm.complete(prompt, 1200, json_mode=True, temperature=0.1)  # 評分要穩、近決定性,不能用預設高溫亂漂
         m = re.search(r"\{.*\}", txt, re.S)
         if not m:
             return None

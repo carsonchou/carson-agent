@@ -27,6 +27,24 @@ _OPENAI_COMPAT = {
     "groq":     ("https://api.groq.com/openai/v1/chat/completions", "GROQ_API_KEY",     "openai/gpt-oss-120b"),
     "deepseek": ("https://api.deepseek.com/chat/completions",       "DEEPSEEK_API_KEY", "deepseek-chat"),
     "gemini":   ("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", "GEMINI_API_KEY", "gemini-2.5-flash"),
+    # 🔴 2026-08-01 本機 Ollama(OpenAI 相容端點)。**零成本、零限流、不用網路**——
+    # 加它的原因是很具體的:當天 OpenRouter 餘額用罄(402)、Gemini 免費層每分鐘 20 次
+    # 且每日會用罄,結果是**7 支已渲染好的長片卡在「未評分」**(評分失敗 → status=unrated
+    # → daily_publish fail-closed → 永遠不會發布),而且沒有任何告警。
+    # 評分是「判斷/分類」不是創意寫作,本機模型完全夠用(同 memory api-credits-frugal
+    # 「分類工作用便宜模型、創意才用貴的」)。**創意寫稿仍走雲端**,別用本機模型寫稿。
+    # key 欄位刻意留空字串:Ollama 是本機服務、不驗金鑰。下面 _call_openai_compat 對
+    # 空 envk 會跳過金鑰檢查(而不是要求我們去 .env 塞一個假 key 騙過檢查)。
+    #
+    # ⚠️ 模型大小是被機器逼出來的,不是隨便選的:這台是筆電,**RTX 4050 Laptop 只有 4GB
+    #    VRAM**,而 qwen2.5:7b(Q4)要 4.2GB → 塞不進顯卡 → 退回 CPU,而當下可用記憶體
+    #    只剩 0.4GB(Chrome 吃掉大半)→ 整台開始硬碟交換,連 80 token 的請求都 >90 秒無回應。
+    #    改用 3b(約 2GB)才裝得進 VRAM。**別再把 7b 以上的模型設成預設**,除非換機器。
+    # ⚠️ 更重要的原則:本機模型會**跟影片渲染搶同一份記憶體/顯卡**,而渲染是這條產線的
+    #    核心功能(記憶 yt-healthcheck-concurrency:曾有渲染程序把 15.7GB 吃到 0.4GB 的事故)。
+    #    所以本機路只當**離線保險**,不當主力;主力應該是雲端免費層(如 Groq,額度遠大於
+    #    Gemini 的每分鐘 20 次,且不佔本機資源)。
+    "ollama":   ("http://localhost:11434/v1/chat/completions", "", "qwen2.5:3b"),
 }
 _ANTHROPIC = ("https://api.anthropic.com/v1/messages", "ANTHROPIC_API_KEY", "claude-haiku-4-5-20251001")
 
@@ -83,8 +101,10 @@ def _retry_after(body: str) -> float:
 
 def _call_openai_compat(provider, prompt, max_tokens, model=None, tries=3, json_mode=False, temperature=None):
     url, envk, default_model = _OPENAI_COMPAT[provider]
-    key = _key(envk)
-    if not key:
+    key = _key(envk) if envk else ""
+    # envk 為空 = 該供應商不需金鑰(目前只有本機 Ollama)。其餘一律仍要 key,
+    # 免得雲端供應商因為環境變數沒設就靜默用空 key 去打、拿到看不懂的 401。
+    if envk and not key:
         raise RuntimeError(f"{provider}: 缺 {envk}")
     mdl = model or default_model
     body = {"model": mdl, "max_tokens": max_tokens,
