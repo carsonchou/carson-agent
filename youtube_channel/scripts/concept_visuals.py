@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 from pathlib import Path
 from typing import Optional, Tuple
@@ -26,6 +27,8 @@ import numpy as np
 from matplotlib.patches import Rectangle
 
 # 深色主題（與 K 線卡一致）
+_LOG_RATIO = 8.0    # 最高/最低價超過這個倍數就改對數座標(見 _maybe_log_y)
+
 BG = (10 / 255, 14 / 255, 26 / 255)
 PANEL = (16 / 255, 21 / 255, 38 / 255)
 GRID = (1, 1, 1, 0.07)
@@ -116,6 +119,37 @@ def _reveal_k(n: int, reveal: float, minpts: int) -> int:
     if reveal >= 1.0:
         return n
     return max(min(minpts, n), min(n, int(round(n * reveal))))
+
+
+def _maybe_log_y(ax, series) -> str:
+    """漲幅太大就改對數座標;回傳要接在圖說後面的註記(沒改回空字串)。
+
+    ## 為什麼(2026-08-03 實測)
+    旺矽 6223 的體檢片,「最大回撤 -81.7%」發生在 2008 年。但這檔 18 年漲了 116 倍,
+    在線性座標上 2008 年的價位貼著 x 軸——**那個 -81.7% 的崩跌在圖上完全看不見**,
+    紅色「-81.7%」標註旁邊是一片空白,整張圖就是「一條平線 + 末端爆衝」。
+    圖在數學上完全正確,但傳達不出它要講的那件事。
+
+    本頻道長片幾乎都是「存 N 年」這種跨十幾二十年的題目,線性座標會把前面 80% 的歷史
+    壓成一條線。倍數超過 _LOG_RATIO 就改對數,早年的波動才看得見。
+
+    誠信:對數座標會讓漲幅在視覺上變溫和,不標示等於誤導 → 一律在圖說標「對數座標」。"""
+    try:
+        lo, hi = float(np.nanmin(series)), float(np.nanmax(series))
+    except Exception:  # noqa: BLE001
+        return ""
+    if lo <= 0 or hi / lo < _LOG_RATIO:
+        return ""
+    ax.set_yscale("log")
+    # set_yscale 會自己把 y 刻度加回來(外層本來 set_yticks([]) 關掉了),預設是 10¹/10² 這種
+    # 科學記號。本頻道受眾是新手(見 memory yt-beginner-repositioning),科學記號等於看不懂,
+    # 改成一般數字並調暗,只當背景參考。
+    from matplotlib.ticker import FuncFormatter
+    ax.yaxis.set_major_formatter(FuncFormatter(
+        lambda v, _p: (f"{v:,.0f}" if v >= 1 else f"{v:g}")))
+    ax.yaxis.set_minor_formatter(FuncFormatter(lambda *_a: ""))
+    ax.tick_params(axis="y", colors=MUTED, labelsize=15, length=0)
+    return "（縱軸為對數座標）"
 
 
 def _year_ticks(ax, dates, n_max=6):
@@ -261,9 +295,12 @@ def _dca(ax, ctx):
     ax.scatter(first, px[first], s=18, color=GREEN, edgecolors="none", zorder=4)
     ax.step(first, avg_cost, where="post", color="#ffd23f", lw=2.2, zorder=5)
     ax.set_xlim(0, len(px) - 1)
+    # 定投圖同樣要對數(見 _maybe_log_y):線性座標下橘色平均成本線會整條貼在底部,
+    # 「成本被拉高/壓低」這件事——也就是這張圖唯一要講的事——完全看不出來。
+    _note = _maybe_log_y(ax, px)
     _year_ticks(ax, dates)
     ret = (units[-1] * px[-1]) / len(first) - 1.0
-    return (f"{ticker} 每月定投．實際平均成本 {avg_cost[-1]:.1f} 元(總報酬 {ret*100:+.0f}%)",
+    return (f"{ticker} 每月定投．實際平均成本 {avg_cost[-1]:.1f} 元(總報酬 {ret*100:+.0f}%){_note}",
             ("● 每月買進", GREEN, "— 實際平均成本", (1, 0.82, 0.25)))
 
 
@@ -315,8 +352,10 @@ def _drawdown(ax, ctx):
                 fontsize=34, fontweight="bold",
                 path_effects=[_pe.withStroke(linewidth=4, foreground=BG)], zorder=6)
     ax.set_xlim(0, len(eq) - 1)
+    # 對數座標要在畫完之後設(fill_between 已經吃過線性座標的數值,設 yscale 只影響呈現)。
+    note = _maybe_log_y(ax, eq)
     _year_ticks(ax, dates)
-    return f"{ticker} 實際最大回撤 {dd[trough]*100:.1f}%({d0} → {d1})", None
+    return f"{ticker} 實際最大回撤 {dd[trough]*100:.1f}%({d0} → {d1}){note}", None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -419,11 +458,12 @@ def _trend(ax, ctx):
         ax.fill_between(np.arange(len(px)), float(np.min(px)) * 0.98, px,
                         color=FG, alpha=0.07, zorder=1)
         ax.set_xlim(0, len(px) - 1)
+        _note = _maybe_log_y(ax, px)
         _year_ticks(ax, dates)
         _r = px[-1] / px[0] - 1.0
         _d0 = pd.Timestamp(dates[0]).date()
         _d1 = pd.Timestamp(dates[-1]).date()
-        return f"{ticker} 實際走勢 {_d0} → {_d1}({_r*100:+.1f}%)", None
+        return f"{ticker} 實際走勢 {_d0} → {_d1}({_r*100:+.1f}%){_note}", None
     cand = rets > 0 if want_up else rets < 0
     if not cand.any():
         # 同上:真資料裡找不到符合旁白方向的區間 → 不強行挑,改畫完整真實走勢(不做方向宣稱)
@@ -431,10 +471,11 @@ def _trend(ax, ctx):
         ax.fill_between(np.arange(len(px)), float(np.min(px)) * 0.98, px,
                         color=FG, alpha=0.07, zorder=1)
         ax.set_xlim(0, len(px) - 1)
+        _note = _maybe_log_y(ax, px)
         _year_ticks(ax, dates)
         _r = px[-1] / px[0] - 1.0
         return (f"{ticker} 實際走勢 {pd.Timestamp(dates[0]).date()} → "
-                f"{pd.Timestamp(dates[-1]).date()}({_r*100:+.1f}%)"), None
+                f"{pd.Timestamp(dates[-1]).date()}({_r*100:+.1f}%){_note}"), None
     idx = int(starts[np.argmax(rets)] if want_up else starts[np.argmin(rets)])
     seg = px[idx:idx + win]
     col = GREEN if want_up else RED
@@ -478,9 +519,162 @@ def _candles(ax, ctx):
     return f"{ticker} 實際 K 線({d0} → {d1})", None
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# 個股體檢專用的兩張真財報圖(2026-08-03)
+#
+# 為什麼加:實測一支 9 分 08 秒的體檢長片,**整片視覺只有 5 張不同畫面,其中一張佔 67%**
+# (從 15s 一路播到 540s)。根因是段落標題「公司是誰／基本面資料／價格體檢／估值位置」
+# 四段 classify() 全部回 None → 全部退回整片共用的同一張圖。
+# 體檢片的段落是固定模板,靠關鍵字猜本來就猜不到;而真正該畫的東西(財報、估值)
+# 以前根本沒有對應的圖。
+#
+# ⚠️ 這兩個 key **故意不加進 classify() 的關鍵字表**——只能由呼叫端明確指定(force)。
+# 「營收/毛利/本益比」是本頻道的高頻詞,一旦進了關鍵字表,任何片只要順口提到就會被
+# 畫上別檔公司的財報圖(和 _backtest 當年中毒的路徑一模一樣,見上方拆除說明)。
+#
+# 資料一律取自 STUDIO/stock_checkup_facts.json 的真實事實,零 rng;取不到 → 回 None 不畫。
+# ─────────────────────────────────────────────────────────────────────────────
+_CHECKUP_FACTS: Optional[dict] = None
+
+
+def _checkup_facts() -> dict:
+    """讀個股體檢事實庫(整支 process 只讀一次)。讀不到回 {},呼叫端據此不畫。"""
+    global _CHECKUP_FACTS
+    if _CHECKUP_FACTS is None:
+        p = Path(__file__).resolve().parent.parent / "STUDIO" / "stock_checkup_facts.json"
+        try:
+            _CHECKUP_FACTS = (json.loads(p.read_text(encoding="utf-8")) or {}).get("results") or {}
+        except Exception:  # noqa: BLE001
+            _CHECKUP_FACTS = {}
+    return _CHECKUP_FACTS
+
+
+def _fact_for(ctx, slug: str) -> Optional[dict]:
+    """拿這一段所屬標的的某組體檢事實的 data;沒有真價格資料(認不出標的)就回 None。"""
+    if not ctx.real:
+        return None
+    code = ctx.real[0]
+    f = _checkup_facts().get(f"checkup_{slug}__{code}")
+    return (f or {}).get("data") if isinstance(f, dict) else None
+
+
+def _history(ax, ctx):
+    """完整真實走勢——**不挑區間、不做方向宣稱**,就是把這檔的一生攤開。
+
+    為什麼要跟 _trend 分開:_trend 會去掃「最強的真實漲段」放大(那是為了配合旁白說
+    「一路噴」的段落)。但個股體檢的「公司是誰」段講的是產業,拿最漂亮的一段窗口當門面
+    ——實測旺矽被挑出 2024-11→2026-06 的 +634%——對一個以誠實避雷定位的頻道是反效果,
+    而且和旁白內容無關。這張圖只呈現完整歷史,沒有挑選,也就沒有立場。"""
+    if not ctx.real:
+        return None
+    ticker, dates, px = ctx.real
+    import pandas as pd
+    k = _reveal_k(len(px), ctx.reveal, minpts=140)
+    px, dates = px[:k], dates[:k]
+    if len(px) < 60:
+        return None
+    x = np.arange(len(px))
+    ax.plot(x, px, color=FG, lw=2.2, zorder=3)
+    ax.fill_between(x, float(np.min(px)) * 0.98, px, color=FG, alpha=0.07, zorder=1)
+    ax.set_xlim(0, len(px) - 1)
+    note = _maybe_log_y(ax, px)
+    _year_ticks(ax, dates)
+    r = px[-1] / px[0] - 1.0
+    d0, d1 = pd.Timestamp(dates[0]).date(), pd.Timestamp(dates[-1]).date()
+    return f"{ticker} 完整真實走勢 {d0} → {d1}（{r*100:+.0f}%）{note}", None
+
+
+def _fundamentals(ax, ctx):
+    """年度營收長條 + 年度EPS折線(雙軸),全部取自真實財報事實,零 rng。"""
+    rev = _fact_for(ctx, "revenue_trend") or {}
+    eps = _fact_for(ctx, "eps_trend") or {}
+    rs = [r for r in (rev.get("series") or []) if r.get("revenue")]
+    es = [e for e in (eps.get("series") or []) if e.get("eps") is not None]
+    if len(rs) < 2 and len(es) < 2:
+        return None
+    code = ctx.real[0]
+    base = rs if len(rs) >= len(es) else es
+    k = _reveal_k(len(base), ctx.reveal, minpts=2)
+    rs, es = rs[:k], es[:k]
+
+    cap = []
+    if len(rs) >= 2:
+        yrs = [r["year"] for r in rs]
+        vals = [r["revenue"] / 1e8 for r in rs]          # 元 → 億元
+        ax.bar(yrs, vals, color=GREEN, alpha=0.55, width=0.62, zorder=2)
+        ax.annotate(f"{vals[-1]:,.0f}億", xy=(yrs[-1], vals[-1]), xytext=(0, 10),
+                    textcoords="offset points", ha="center", va="bottom", color=GREEN,
+                    fontsize=30, fontweight="bold",
+                    path_effects=[_pe.withStroke(linewidth=4, foreground=BG)], zorder=6)
+        # 刻度最多 6 個。圖說畫在軸下方僅約 43px 處(那個位置是為了避開字幕框算出來的,
+        # 不能動),年份標籤太密就會被圖說壓住——實測 10 根柱每根都標,2019~2021 直接糊成一團。
+        step = max(1, -(-len(yrs) // 6))     # 無條件進位:10 年 → step 2 → 5 個標籤(整除會算成 1)
+        picks = yrs[::step]
+        ax.set_xticks(picks)
+        ax.set_xticklabels([str(y) for y in picks])
+        ax.tick_params(axis="x", colors=MUTED, labelsize=16, length=0)
+        ax.tick_params(axis="y", colors=(1, 1, 1, 0.0))
+        cap.append(f"年度營收 {yrs[0]}→{yrs[-1]}")
+    if len(es) >= 2:
+        ax2 = ax.twinx()
+        ax2.set_facecolor(BG)
+        for s in ax2.spines.values():
+            s.set_visible(False)
+        ax2.set_yticks([])
+        ey = [e["year"] for e in es]
+        ev = [e["eps"] for e in es]
+        ax2.plot(ey, ev, color=RED, lw=2.6, marker="o", ms=7,
+                 markeredgecolor="white", markeredgewidth=0.6, zorder=5)
+        ax2.annotate(f"EPS {ev[-1]:.2f}元", xy=(ey[-1], ev[-1]), xytext=(0, -34),
+                     textcoords="offset points", ha="center", va="top", color=RED,
+                     fontsize=28, fontweight="bold",
+                     path_effects=[_pe.withStroke(linewidth=4, foreground=BG)], zorder=6)
+        cap.append(f"年度EPS {ey[0]}→{ey[-1]}")
+    # 圖說要短。它和年份刻度只差 ~43px,長句子橫向鋪開就會蓋掉刻度(實測整行壓在 2019~2021 上)。
+    span = f"{rs[0]['year']}→{rs[-1]['year']}" if len(rs) >= 2 else f"{es[0]['year']}→{es[-1]['year']}"
+    return f"{code} 真實財報 {span}：綠柱=營收／紅線=EPS", None
+
+
+def _valuation(ax, ctx):
+    """本益比在自身歷史區間的位置:畫 P25~P75 區間帶 + 中位數 + 目前值,只陳述位置。"""
+    d = _fact_for(ctx, "valuation_position") or {}
+    p25, p50, p75 = d.get("p25"), d.get("median"), d.get("p75")
+    cur, rank = d.get("latest_per"), d.get("percentile_rank")
+    if None in (p25, p50, p75, cur, rank):
+        return None
+    code = ctx.real[0]
+    lo = min(p25, cur) * 0.85
+    hi = max(p75, cur) * 1.12
+    ax.set_xlim(lo, hi)
+    ax.set_ylim(0, 1)
+    ax.axhspan(0.36, 0.64, xmin=(p25 - lo) / (hi - lo), xmax=(p75 - lo) / (hi - lo),
+               color=FG, alpha=0.16, zorder=2)
+    ax.plot([p50, p50], [0.30, 0.70], color=FG, lw=2.4, zorder=4)
+    for v, lab in ((p25, f"P25 {p25:.0f}"), (p50, f"中位數 {p50:.0f}"), (p75, f"P75 {p75:.0f}")):
+        ax.annotate(lab, xy=(v, 0.24), ha="center", va="top", color=FG, fontsize=16, zorder=5)
+    # 漸進揭露:區間先出現,目前值最後才落點(reveal=1.0 時與舊行為一致)。
+    if ctx.reveal >= 0.55:
+        colr = RED if rank >= 50 else GREEN
+        ax.scatter([cur], [0.5], s=340, color=colr, edgecolors="white",
+                   linewidths=1.2, zorder=6)
+        ax.annotate(f"目前 {cur:.0f} 倍", xy=(cur, 0.5), xytext=(0, 46),
+                    textcoords="offset points", ha="center", va="bottom", color=colr,
+                    fontsize=32, fontweight="bold",
+                    path_effects=[_pe.withStroke(linewidth=4, foreground=BG)], zorder=7)
+        ax.annotate(f"落在自身歷史第 {rank:.0f} 百分位", xy=(cur, 0.5), xytext=(0, -46),
+                    textcoords="offset points", ha="center", va="top", color=FG,
+                    fontsize=19, zorder=7)
+    ax.set_xticks([])
+    ax.grid(False)
+    yrs = d.get("years") or "?"
+    return f"{code} 本益比 vs 自身近{yrs}年區間（只陳述位置）", None
+
+
 _DISPATCH = {
     # 真資料圖(拿不到真 CSV → drawer 回 None → 不畫):
     "dca": _dca, "drawdown": _drawdown, "trend": _trend, "candle": _candles,
+    # 個股體檢真財報圖(只能 force 指定,沒有 classify 關鍵字——見上方說明):
+    "fundamentals": _fundamentals, "valuation": _valuation, "history": _history,
     # 機制示意圖(確定性數學/幾何,不宣稱真實市場史,零 rng):
     "grid": _grid, "compound": _compound, "martingale": _martingale,
     # 已拆除(2026-07-17,誠信):backtest / overfit(rng 假樣本外)、sharpe(rng 假夏普)、

@@ -1026,6 +1026,34 @@ def render_candle_card(width: int, height: int, *, big_text: str, watermark: str
     return dest
 
 
+_SEG_KEY_RULES = (
+    # (概念圖 key, 段落標題裡出現任一詞就採用)。順序＝優先序,越專一越前面。
+    ("valuation",    ("估值", "本益比", "貴還是便宜", "評價")),
+    ("fundamentals", ("基本面", "財報", "營收", "eps", "獲利", "毛利", "配息", "股利")),
+    ("dca",          ("買法", "定期定額", "定投", "分批", "all in", "all-in")),
+    ("drawdown",     ("價格體檢", "回撤", "套牢", "腰斬", "崩")),
+    ("history",      ("公司是誰", "這家公司", "做什麼", "什麼公司", "長期走勢", "這檔是")),
+)
+
+
+def _seg_concept_key(heading: str) -> Optional[str]:
+    """依**段落標題**判這段該畫哪張圖;判不出來回 None(交回原本的 classify 鏈)。
+
+    只看 heading 不看 narration:旁白會順口提到別的主題(「估值位置」那段講到回撤就被搶走),
+    標題才是這一段的主題宣告。
+
+    安全性:就算非體檢影片誤中規則也不會出事——valuation/fundamentals 這兩張圖沒有該檔的
+    真實事實就回 None、自動往下退;trend/drawdown/dca 本來就只吃真 CSV。所以最壞情況是
+    「換一張同樣真實的圖」,不會生出假資料。"""
+    h = (heading or "").strip().lower()
+    if not h:
+        return None
+    for key, words in _SEG_KEY_RULES:
+        if any(w in h for w in words):
+            return key
+    return None
+
+
 def render_concept_card(width: int, height: int, *, heading: str, narration: str,
                         watermark: str, accent, seed: str, dest: Path,
                         default_key: Optional[str] = None,
@@ -1041,12 +1069,23 @@ def render_concept_card(width: int, height: int, *, heading: str, narration: str
         return None
     from PIL import ImageDraw
     text = f"{heading} {narration}"
-    key = force_key or _concept.classify(text) or default_key
-    if key is None:
+    # 段落標題優先(2026-08-03):個股體檢是固定五段模板,靠關鍵字猜旁白本來就猜不到——
+    # 實測一支 9 分 08 秒的體檢片,五段裡有四段 classify() 回 None、全部退回**整片共用的
+    # 同一張圖**,結果整片視覺只有 5 張不同畫面,其中一張佔 67%(從 15s 播到 540s)。
+    # 標題才是那一段真正的主題,拿它決定畫什麼比讀旁白可靠。
+    keys = [k for k in (force_key, _seg_concept_key(heading), _concept.classify(text), default_key) if k]
+    if not keys:
         return None
-    img = _concept.render_concept_chart(width, height, text, accent, seed, dest=None, force=key,
-                                        fallback_ticker=fallback_ticker, reveal=reveal,
-                                        variant=variant)
+    # 依序試:指定的圖畫不出來(那檔沒有對應真資料 → drawer 回 None)就往下退,
+    # 不可以讓某一段從「重複的圖」變成「完全沒有圖」——那是把畫面問題換成另一個畫面問題。
+    img = key = None
+    for k in keys:
+        img = _concept.render_concept_chart(width, height, text, accent, seed, dest=None, force=k,
+                                            fallback_ticker=fallback_ticker, reveal=reveal,
+                                            variant=variant)
+        if img is not None:
+            key = k
+            break
     if img is None:
         return None
     img = img.convert("RGB")
