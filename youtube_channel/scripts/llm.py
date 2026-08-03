@@ -22,6 +22,11 @@ import time
 import requests
 
 # 各供應商：OpenAI 相容端點(Groq/DeepSeek/Gemini 都支援) + Anthropic 原生
+# 推理型模型:思考過程佔用 max_tokens,額度太小會回空字串(見 _call_openai_compat 的實測註解)
+_REASONING_MODELS = ("gpt-oss", "deepseek-r1", "qwq", "o1", "o3")
+_REASONING_MIN_TOKENS = 1000    # 實測 gpt-oss-120b:300 不夠、900 夠
+_MAX_TOKENS_CAP = 8000          # 加倍重試的上限,免得無限往上加
+
 _OPENAI_COMPAT = {
     "openrouter": ("https://openrouter.ai/api/v1/chat/completions", "OPENROUTER_API_KEY", "deepseek/deepseek-chat"),
     "groq":     ("https://api.groq.com/openai/v1/chat/completions", "GROQ_API_KEY",     "openai/gpt-oss-120b"),
@@ -99,7 +104,8 @@ def _retry_after(body: str) -> float:
 #   快速失敗讓下一輪 cron 再試才對。要全速穩定運轉,還是得儲值主供應商。
 
 
-def _call_openai_compat(provider, prompt, max_tokens, model=None, tries=3, json_mode=False, temperature=None):
+def _call_openai_compat(provider, prompt, max_tokens, model=None, tries=3, json_mode=False,
+                        temperature=None, _retried_longer=False):
     url, envk, default_model = _OPENAI_COMPAT[provider]
     key = _key(envk) if envk else ""
     # envk 為空 = 該供應商不需金鑰(目前只有本機 Ollama)。其餘一律仍要 key,
@@ -107,11 +113,25 @@ def _call_openai_compat(provider, prompt, max_tokens, model=None, tries=3, json_
     if envk and not key:
         raise RuntimeError(f"{provider}: 缺 {envk}")
     mdl = model or default_model
+    # 推理型模型的思考過程也吃 max_tokens,額度太小會「還沒開始寫答案就被截斷」(見下方實測)。
+    # 實測 gpt-oss-120b:300 不夠、900 夠 → 給 1000 的地板。呼叫端有十幾個、不少只給 400~800,
+    # 與其逐一去改(漏一個就再壞一次),不如在這裡統一保底。
+    if any(m in mdl.lower() for m in _REASONING_MODELS):
+        max_tokens = max(max_tokens, _REASONING_MIN_TOKENS)
     body = {"model": mdl, "max_tokens": max_tokens,
             "temperature": 0.8 if temperature is None else temperature,  # 評分等任務可傳低溫(近決定性、不亂漂)
             "messages": [{"role": "user", "content": prompt}]}
     if json_mode:  # 強制只吐合格 JSON（Groq/DeepSeek/Gemini OpenAI 相容端點都支援）
         body["response_format"] = {"type": "json_object"}
+        # ⚠️ 2026-08-03:Groq(以及 OpenAI 相容端點的 json_object 模式)**規定訊息裡必須
+        # 出現 "json" 這個字**,否則直接 HTTP 400:
+        #   'messages' must contain the word 'json' in some form, to use 'response_format'
+        # 實測時事部因此連續三班(02:00/06:01/09:35)「所有 LLM 供應商都失敗」→ 該部門整天
+        # 產出 0。這種錯誤和「模型判斷不出來」在上層長得一樣,查不到真因。
+        # 修在這裡而不是叫各部門改文案:呼叫端有十幾個,漏一個就再壞一次,而且沒有任何一層
+        # 會告訴你是漏了哪個字。
+        if "json" not in prompt.lower():
+            body["messages"][0]["content"] = prompt + "\n\n（請直接輸出 JSON 物件，不要有其他文字。）"
     last = None
     for t in range(tries):
         r = requests.post(url, headers={"Authorization": f"Bearer {key}",
@@ -143,8 +163,29 @@ def _call_openai_compat(provider, prompt, max_tokens, model=None, tries=3, json_
             time.sleep(4 * (t + 1)); continue
         if r.status_code != 200:
             raise RuntimeError(f"{provider} HTTP {r.status_code}: {r.text[:140]}")
-        msg = r.json()["choices"][0]["message"]
-        txt = (msg.get("content") or "") or (msg.get("reasoning") or "")
+        j = r.json()
+        choice = j["choices"][0]
+        msg = choice["message"]
+        txt = msg.get("content") or ""
+        # 🔴 2026-08-03 拆掉 `or msg.get("reasoning")` 的退路。
+        #
+        # 現行主力 groq 的預設模型 openai/gpt-oss-120b 是**推理型模型**:思考過程會佔用
+        # max_tokens,而且放在獨立的 `reasoning` 欄位。實測同一個提示:
+        #   max_tokens=300 → finish_reason=length、content='' 、reasoning 裝著整段英文思考
+        #   max_tokens=900 → finish_reason=stop  、content='投資台股定期定額,穩健累積財富…'
+        # 也就是 token 不夠時,模型**還沒開始寫答案就被截斷**。
+        #
+        # 舊碼在 content 空時退回 reasoning,等於把「模型的英文自言自語」當成答案送出去,
+        # 一路寫進旁白稿——先前那支旁白冒出英文、被渲染閘門擋下的片就是這樣來的。
+        # 拿思考過程冒充答案比誠實失敗糟得多:失敗會換下一個供應商,冒充則靜靜污染成品。
+        if not txt.strip():
+            if choice.get("finish_reason") == "length" and not _retried_longer:
+                # 純粹是預算不夠,不是模型不會答 → 加倍重試一次(見上方實測)
+                return _call_openai_compat(provider, prompt, min(max_tokens * 3, _MAX_TOKENS_CAP),
+                                           model, tries, json_mode, temperature,
+                                           _retried_longer=True)
+            raise RuntimeError(f"{provider}: 回應為空(finish_reason={choice.get('finish_reason')}),"
+                               f"換下一個供應商")
         return _strip_think(txt)
     raise RuntimeError(f"{provider}: {last}（重試 {tries} 次仍限流）")
 
