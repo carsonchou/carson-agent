@@ -162,7 +162,19 @@ def _call_openai_compat(provider, prompt, max_tokens, model=None, tries=3, json_
             last = "429 rate limit"
             time.sleep(4 * (t + 1)); continue
         if r.status_code != 200:
-            raise RuntimeError(f"{provider} HTTP {r.status_code}: {r.text[:140]}")
+            # 🔴 2026-08-03 把「真正的原因」提到訊息最前面。
+            # 實測產線連續三班 400,ops_log 只留下:
+            #   所有 LLM 供應商都失敗:groq: groq HTTP 400: {"error":{"message":"Failed to vali
+            # ——55 個字的樣板把 70 字的截斷視窗吃光,原因剛好被切掉。各部門有 34 處
+            # `str(exc)[:70]` 這類截斷,改不完也不該改(下一個人還會再加一處);
+            # 正解是**讓前 70 個字就有資訊量**:把 API 回的 error.message 抽出來擺前面,
+            # 樣板往後放。一處修好,34 個呼叫端全部受惠。
+            detail = r.text
+            try:
+                detail = ((r.json() or {}).get("error") or {}).get("message") or r.text
+            except Exception:  # noqa: BLE001
+                pass
+            raise RuntimeError(f"{str(detail)[:400]}〔{provider} HTTP {r.status_code}〕")
         j = r.json()
         choice = j["choices"][0]
         msg = choice["message"]
