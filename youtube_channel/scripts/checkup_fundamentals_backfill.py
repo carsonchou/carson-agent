@@ -52,6 +52,8 @@ OUT = ROOT / "output"
 FACTS = STUDIO / "stock_checkup_facts.json"
 BANK = STUDIO / "topic_bank.json"
 
+_RETRY_GAP = 8      # 重試輪的每檔間隔(秒)。第一輪是連打,被 Yahoo 限流的就靠這輪放慢救回來
+
 
 def _targets():
     """回傳待補代號清單(缺基本面 且 沒成品 且 未發布)。"""
@@ -109,26 +111,56 @@ def main() -> int:
         return 0
 
     import stock_checkup_facts as CF
-    ok = fail = 0
-    for i, (code, name) in enumerate(todo, 1):
+
+    def _one(code, name, tag):
+        """算一檔並寫回。成功回 True。"""
         t0 = time.time()
         try:
             facts = CF.build_checkup(code)
-            if isinstance(facts, tuple):
+            if isinstance(facts, tuple):        # build_checkup 回 (facts, warnings)
                 facts = facts[0]
+            if not isinstance(facts, dict):
+                # ⚠️ 這裡不能讓它變成一句看不懂的 AttributeError。實測 42 檔連跑時有 15 檔
+                # 回 None,單獨重跑卻完全正常 → 是**批次連打 Yahoo 被限流**(每檔要價格+
+                # income_stmt+quarterly+dividends+info 五個以上請求,42 檔就是 200 多次),
+                # 不是那些股票沒資料。錯誤訊息要講出這件事,否則下次看到只會以為資料真的沒有。
+                print("%s %-6s ⚠ 事實計算回 %s(多半是 Yahoo 短時間請求太多被限流,稍後重試)"
+                      % (tag, code, type(facts).__name__), file=sys.stderr)
+                return False
             n_fund = sum(1 for k in (facts.get("results") or {})
                          if any(s in k for s in ("revenue_trend", "eps_trend", "gross_margin",
                                                  "dividend_history", "valuation_position")))
             CF.merge_and_write(facts)
-            ok += 1
-            print("[%d/%d] %-6s %-8s 基本面 %d/5 組  %.0fs"
-                  % (i, len(todo), code, name[:8], n_fund, time.time() - t0))
+            print("%s %-6s %-8s 基本面 %d/5 組  %.0fs" % (tag, code, name[:8], n_fund, time.time() - t0))
+            return True
         except Exception as exc:  # noqa: BLE001
-            fail += 1
-            print("[%d/%d] %-6s ❌ %s: %s" % (i, len(todo), code, type(exc).__name__, str(exc)[:60]),
-                  file=sys.stderr)
+            print("%s %-6s ❌ %s: %s" % (tag, code, type(exc).__name__, str(exc)[:70]), file=sys.stderr)
+            return False
+
+    ok, retry = 0, []
+    for i, (code, name) in enumerate(todo, 1):
+        if _one(code, name, "[%d/%d]" % (i, len(todo))):
+            ok += 1
+        else:
+            retry.append((code, name))
+
+    # 限流是暫時的,失敗的隔久一點再試一輪就救得回來(實測單獨重跑 100% 成功)。
+    if retry:
+        print()
+        print("第一輪失敗 %d 檔 → 放慢重試一輪(每檔間隔 %d 秒)" % (len(retry), _RETRY_GAP))
+        time.sleep(_RETRY_GAP)
+        again = []
+        for i, (code, name) in enumerate(retry, 1):
+            if _one(code, name, "[retry %d/%d]" % (i, len(retry))):
+                ok += 1
+            else:
+                again.append(code)
+            time.sleep(_RETRY_GAP)
+        retry = again
+    fail = len(retry)
     print()
-    print("完成:成功 %d 檔 / 失敗 %d 檔" % (ok, fail))
+    print("完成:成功 %d 檔 / 失敗 %d 檔%s"
+          % (ok, fail, ("(%s)" % ",".join(map(str, retry)) if retry else "")))
     try:
         from ops import log_ops
         log_ops("體檢基本面回補", "重算 %d 檔(FinMind 斷料 16 天的殘缺紀錄),失敗 %d" % (ok, fail))
