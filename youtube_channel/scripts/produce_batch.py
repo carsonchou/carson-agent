@@ -2085,9 +2085,17 @@ def call_claude(kind, avoid, topic_override=None):
                 "segments 給 4–5 段，每段標題對應一個真正展開的子主題。")
     # playbook/training/avoid 限長：原本 playbook 近萬字，會撐爆 token(成本高、Groq 免費版直接 413)。
     # 取前段(最重要的爆款心法在前)即可，省 token 又不破品質。可用 LLM_PB_CHARS 調整。
-    _pbmax = int(os.environ.get("LLM_PB_CHARS", "3200"))
+    # 🔴 2026-08-04 再縮:playbook 3200→1600、training 1200→400。
+    # 理由是**產能不是品味**:實測長片提示 16,461 字 ≈ 10,300 tokens,加上 max_tokens
+    # 後合計約 13,500,而 Groq 免費層單一請求必須塞進「每分鐘 token 桶」
+    # (llama-3.3-70b 是 12,000)→ 請求**直接被拒**(Request too large),不是慢,是沒送出去。
+    # 長片產能長期 1~2 支/日、08-03 整天 0 支,根因就在這裡。
+    # 砍的是「參考資料」(競品心法/進修洞察)不是「內容規則與事實」——後者是誠信與品質的
+    # 承重牆,寧可少參考也不動它。縮後提示約 14,000 字 ≈ 8,800 tokens,配 max_tokens 2800
+    # 合計約 11,600,留約 3% 餘裕。
+    _pbmax = int(os.environ.get("LLM_PB_CHARS", "1600"))
     playbook = (load_playbook() or "")[:_pbmax]   # 每支腳本即時讀最新競品 playbook(限長)
-    training = (load_training() or "")[:1200]      # 每週進修洞察(限長)
+    training = (load_training() or "")[:400]       # 每週進修洞察(限長)
     avoid_block = "\n".join(f"  · {t}" for t in (avoid or [])[:30]) if avoid else "  （無）"
     hook_rules = HOOK_RULES if kind == "short" else LONG_RULES
     hook_rules = hook_rules + _retention_insight()  # P1:把最新完播診斷結論回灌進 prompt(檔不在則優雅跳過)
@@ -2268,7 +2276,17 @@ def call_claude(kind, avoid, topic_override=None):
     # 2026-07-13:6500 又不夠了——實測長片產製吐 "[err long 第2次] LLM 回應非 JSON" 直接 0 支。
     # 根因同一個:輸出撞 token 上限被截斷 → JSON 少了結尾的 } → 下面的 re.search 抓不到 → 整支作廢。
     # 資訊密度規則上線後內容更長更容易撞。拉到 8000(DeepSeek 輸出上限附近)並加截斷修復。
-    _maxtok = 8000 if kind == "long" else 3500
+    # 🔴 2026-08-04 長片 8000 → 3200。這個數字**不是品質旋鈕,是產能開關**。
+    # Groq 免費層限制是「每分鐘 token 桶」,而且**單一請求的 (輸入 + max_tokens) 也必須
+    # 塞得進那個桶**:llama-3.3-70b 是 12,000/分。長片提示約 6,000 tokens,
+    # 配 max_tokens=8000 → 約 14,000 > 12,000 → 請求**直接被拒**(Request too large),
+    # 不是慢、是根本沒送出去。長片產能長期只有 1~2 支/日、08-03 整天 0 支,就是這樣來的。
+    #
+    # 原本要 8000 是為了配推理型模型 gpt-oss-120b(它先燒掉一大半 token 在我們丟掉的
+    # reasoning 上)。改用 llama 後不需要那個緩衝:實測 llama 每 token 產出 1.18 個中文字,
+    # 要 2600 字約需 2200 tokens,3200 已有 45% 餘裕。
+    # ⚠️ 要往上調之前先算:輸入 + max_tokens 必須 < 該模型的每分鐘桶,否則整批產不出來。
+    _maxtok = 2800 if kind == "long" else 2000
     txt = llm.complete(prompt, _maxtok, json_mode=True)  # 強制合格 JSON
     obj = _loads_lenient(txt)
     if obj is None:
@@ -3250,7 +3268,9 @@ def _expand_long_script(d, kind, topic_override):
             '{"voice_text":"展開加深後的完整旁白逐字稿"}\n\n'
             f"【原始草稿】\n{cur_voice}"
         )
-        txt = llm.complete(prompt, 7000, json_mode=True)  # 加深要吐 2600+ 字,token 要給足否則被截斷
+        # 7000 → 3200:同上,輸入+max_tokens 必須塞進每分鐘桶(見 _maxtok 的說明)。
+        # 加深要吐 2600+ 字 ≈ 2200 tokens(llama 實測 1.18 字/token),3200 夠且有餘裕。
+        txt = llm.complete(prompt, 3200, json_mode=True)
         m = re.search(r"\{.*\}", txt, re.S)
         if not m:
             return d

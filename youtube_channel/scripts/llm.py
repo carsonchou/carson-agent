@@ -26,10 +26,31 @@ import requests
 _REASONING_MODELS = ("gpt-oss", "deepseek-r1", "qwq", "o1", "o3")
 _REASONING_MIN_TOKENS = 1000    # 實測 gpt-oss-120b:300 不夠、900 夠
 _MAX_TOKENS_CAP = 8000          # 加倍重試的上限,免得無限往上加
+# 超過這個估算 token 數就算「大請求」,改把桶比較大的供應商排前面(見 complete() 的分流說明)。
+# 中文約 1 字 1 token,這裡用 1.1 保守估;10,000 大約是 Groq 免費層 12,000 桶扣掉安全邊際。
+_BIG_REQUEST_TOKENS = 10000
 
 _OPENAI_COMPAT = {
     "openrouter": ("https://openrouter.ai/api/v1/chat/completions", "OPENROUTER_API_KEY", "deepseek/deepseek-chat"),
-    "groq":     ("https://api.groq.com/openai/v1/chat/completions", "GROQ_API_KEY",     "openai/gpt-oss-120b"),
+    # 🔴 2026-08-04 預設模型 openai/gpt-oss-120b → llama-3.3-70b-versatile。
+    # 這不是換個口味,是**解除整條產線的產能瓶頸**。
+    #
+    # 症狀:produce_batch 每天要產 5 支長片,實測近五天只產出 5→1→1→2→0 支,
+    # 08-03 整天 0 支。實跑診斷:4 次嘗試 8 次重試**全部 429**,產出 0。
+    #
+    # 根因:Groq 免費層的限制是 **每分鐘 8,000 tokens**(x-ratelimit-limit-tokens=8000,
+    # 690ms 重置;每日請求數 1000 反而很寬鬆)。而 gpt-oss-120b 是**推理型模型**——
+    # 它把大量 token 花在我們**丟掉不用**的 reasoning 欄位上,那些 token 一樣吃這個桶。
+    #
+    # 同一個提示實測(2026-08-04):
+    #   散文 150字旁白 : gpt-oss 花 1000 token 產出 **0 字**(全燒在推理)/ llama 224 token 產出 265 字
+    #   產線 JSON 判斷 : gpt-oss **485** token / llama **65** token,兩者結構都正確
+    # → 每分鐘 8,000 的桶下,JSON 任務是 16 次 vs 120 次的差別。
+    #
+    # 品質驗證:llama 輸出**零簡體字**、JSON 欄位正確、且不再吐英文思考過程
+    #   (順帶根治「旁白冒出英文」——見下方 content/reasoning 那段的說明)。
+    # 要換回推理型模型前,先想清楚它會把每分鐘額度燒在你丟掉的東西上。
+    "groq":     ("https://api.groq.com/openai/v1/chat/completions", "GROQ_API_KEY",     "llama-3.3-70b-versatile"),
     "deepseek": ("https://api.deepseek.com/chat/completions",       "DEEPSEEK_API_KEY", "deepseek-chat"),
     "gemini":   ("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", "GEMINI_API_KEY", "gemini-2.5-flash"),
     # 🔴 2026-08-01 本機 Ollama(OpenAI 相容端點)。**零成本、零限流、不用網路**——
@@ -252,8 +273,25 @@ def complete(prompt: str, max_tokens: int = 3500, json_mode: bool = False, tempe
                 return cp.read_text(encoding="utf-8")
         except Exception:  # noqa: BLE001
             pass
+    # ── 依請求大小分流(2026-08-04)────────────────────────────────────────────
+    # Groq 免費層的限制是「每分鐘 token 桶」,而且**單一請求的 (輸入+max_tokens) 也必須
+    # 塞得進那個桶**(llama-3.3-70b = 12,000)。實測長片產稿的提示是 **14,500~17,100 字**
+    # (中文約 1 字 1 token)→ 光提示就撐爆,Groq 直接回 `Request too large`,不是慢是沒送出去。
+    # 這就是長片產能長期 1~2 支/日、08-03 整天 0 支的根因。
+    #
+    # 但**小請求**(JSON 判斷、評分、分類)在 Groq 上又快又省(實測同一個判斷 llama 65 tokens
+    # vs gpt-oss 485)。所以不該一刀切換供應商,該**照請求大小分流**:
+    #   小請求 → Groq 優先(快、額度多),Gemini 當備援
+    #   大請求 → **直接走 Gemini**(免費層的桶大得多),不要先去 Groq 撞一次必死的牆
+    # 順序反轉之後,兩邊的免費額度才不會互相排擠——原本小請求把 Gemini 的每日額度耗光,
+    # 輪到長片時只剩 Groq,而 Groq 又吃不下。
+    #
+    # ⚠️ 這只是把兩個免費層用好,**沒有變出額度**。長片提示 ~14k tokens 這件事本身,
+    #    在任何免費層都是勉強的;真正的解法是主供應商儲值(見 memory 的 429 段落結論)。
+    _big = (len(prompt) // 1.1 + max_tokens) > _BIG_REQUEST_TOKENS
+    order = (fallback, primary) if (_big and fallback) else (primary, fallback)
     chain, seen = [], set()
-    for p in (primary, fallback):
+    for p in order:
         if p and p not in seen:
             seen.add(p); chain.append(p)
     errs = []

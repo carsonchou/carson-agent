@@ -149,7 +149,11 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 #      撞頂的代價是隔天完全發不出去。所以只做組成轉移,不做增量。
 #   ⚠️ 若哪天個股體檢庫存見底,這格會空手(--series 濾不到候選)→ 那時應改回無 --series。
 0 11 * * * /root/yt/run.sh scripts/daily_publish.py --series checkup --max 1 >> /root/yt/logs/cron.log 2>&1
-30 18 * * * /root/yt/run.sh scripts/daily_publish.py --max 3 >> /root/yt/logs/cron.log 2>&1
+# 2026-08-04 --max 3 → 5:配額實測上限 >=18,000、單支約 2,050,原本一天只發 5 支(約
+# 10,250)有近 3 支的餘裕閒置。改後一天 09:15(1長)+11:00(1長)+18:30(4長1短)=6長1短,
+# 約 14,350 units 仍在上限內。理由與 per-video 實測數字見 daily_publish.py 的
+# LONG_PER_CYCLE 註解(長片每支訂閱產出是 Shorts 的 7.7 倍,且只有長片算 YPP 分鐘)。
+30 18 * * * /root/yt/run.sh scripts/daily_publish.py --max 5 >> /root/yt/logs/cron.log 2>&1
 # 台股收盤後覆盤情緒黃金窗口 —— 2026-07-13 依實測改停靠早盤強桶(09:00 時段 retention 49.75%/
 # n=26,views_per_day 2.34/n=27,樣本夠大且表現佳,優於原 13:40)
 # 2026-07-17 由「只交易日 1-5」改成每天:新的 interleave 讓三批取到 L,L,(L,S,S),但這批只在
