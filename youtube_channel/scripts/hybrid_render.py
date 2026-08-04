@@ -91,8 +91,53 @@ def _claim_local(slug) -> bool:
         return False
 
 
+# ── 渲染失敗計數 / 隔離(2026-08-04)──────────────────────────────────────────
+# cloud_pending() 的判準是「有 voice.txt+mp3 但沒 mp4」,所以**永遠失敗的片會永遠留在
+# 待渲染清單裡**。實測 L_個股體檢南亞1303 那支被語速健檢連續擋下 **32 次**(每 15 分鐘
+# 一次、整夜不停),每輪都排在最前面,把渲染名額吃掉。
+# 「不會壞、只會少做一件事」的反面:**會叫、但叫了 32 次還是沒人處理**——一樣是白燒。
+# 連續失敗 _FAIL_QUARANTINE 次就隔離,不再重試,並在 ops_log 留一筆給人看。
+# 解除方式:修好那支之後,從 STUDIO/render_failures.json 拿掉該 slug(或整支渲成功會自動清)。
+_FAILS = ROOT / "STUDIO" / "render_failures.json"
+_FAIL_QUARANTINE = 3
+
+
+def _load_fails() -> dict:
+    try:
+        return json.loads(_FAILS.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def _save_fails(d: dict) -> None:
+    try:
+        _FAILS.parent.mkdir(parents=True, exist_ok=True)
+        _FAILS.write_text(json.dumps(d, ensure_ascii=False, indent=1), encoding="utf-8")
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _note_fail(slug: str) -> None:
+    d = _load_fails()
+    n = int(d.get(slug, 0)) + 1
+    d[slug] = n
+    _save_fails(d)
+    if n == _FAIL_QUARANTINE:
+        log_ops("渲染隔離", f"連續失敗 {n} 次 → 暫停重試(修好後從 render_failures.json 移除):{slug[:44]}")
+
+
+def _note_ok(slug: str) -> None:
+    d = _load_fails()
+    if d.pop(slug, None) is not None:
+        _save_fails(d)
+
+
+def _quarantined(slug: str) -> bool:
+    return int(_load_fails().get(slug, 0)) >= _FAIL_QUARANTINE
+
+
 def run_cloud(maxn: int) -> int:
-    todo = cloud_pending()[:maxn]
+    todo = [x for x in cloud_pending() if not _quarantined(x)][:maxn]
     done = 0
     for slug in todo:
         # 單例鎖心跳:一輪 --max 20 可能跑超過 _PROC_LOCK_STALE,不更新的話鎖會被判過期、
@@ -107,7 +152,10 @@ def run_cloud(maxn: int) -> int:
         try:
             if _render_local(slug):
                 done += 1
+                _note_ok(slug)
                 log_ops("雲端渲染", f"渲染完成：{slug}")
+            else:
+                _note_fail(slug)
         finally:
             try:
                 (OUT / f"{slug}.lock").unlink()
