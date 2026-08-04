@@ -75,6 +75,17 @@ def _log_ops(stage: str, msg: str) -> None:
         pass
 
 
+def _encode_timeout(total_sec: float) -> int:
+    """依成品長度換算渲染逾時。**不要改回固定值。**
+
+    2026-08-04:逾時原本寫死 600s,不看片長。長片產稿接上 OpenRouter 後 max_tokens 從
+    2800 還原成 7000,稿子變長 → 片長從約 8 分鐘變成 **11.8 分鐘**,600s 只剩 0.85 倍
+    實時,第一支就撞逾時(L_大家說網格穩賺…)。片長會隨稿子浮動,固定值必然遲早不夠。
+    給 1.5 倍實時 + 240s 開銷,並保底 600s(短片維持原行為)。
+    """
+    return int(max(600, total_sec * 1.5 + 240))
+
+
 def _encode_and_validate(cmd, final_out: Path, tmp_dir: Path, *, stage: str, timeout: int,
                          min_dur: float = 1.0) -> bool:
     """執行組片 cmd（cmd 最後一個元素會被改寫成暫存輸出路徑，呼叫端傳入的原值僅供參考）。
@@ -672,7 +683,7 @@ def _render_animated(slug_paths, *, segments, seg_cards, intro_png, outro_png, c
                "-t", f"{total:.3f}", "-movflags", "+faststart", str(slug_paths.out_mp4)]
         print(f"[ffmpeg後端·動畫] 特效={fx_count}  字幕={len(cues)}  BGM={'有' if bgm else '無'}  總長={total:.1f}s")
         # P0 止血：成品長度必須 ≥ 旁白長度，否則 fail-closed 不留壞檔(見 _encode_and_validate 註解)。
-        ok = _encode_and_validate(cmd, slug_paths.out_mp4, tmp_dir, stage="動畫", timeout=600,
+        ok = _encode_and_validate(cmd, slug_paths.out_mp4, tmp_dir, stage="動畫", timeout=_encode_timeout(total),
                                   min_dur=max(1.0, total * 0.95))
         if ok:
             mb = slug_paths.out_mp4.stat().st_size / (1024 * 1024)
@@ -1167,7 +1178,7 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
         # P0 止血(2026-07-13)：成品長度必須 ≥ 旁白長度(0.95 容錯)，否則 fail-closed 不留壞檔——
         # 根因是 04_0056 事故：舊版 min_dur 預設只查 >=1.0s，任何遠比旁白短的斷尾片都能通過驗證、
         # 被搬進正式路徑、甚至發布到 YouTube(旁白 218.9s、成品僅 61.7s 也照樣 PASS)。
-        ok = _encode_and_validate(cmd, slug_paths.out_mp4, tmp_dir, stage="靜態", timeout=600,
+        ok = _encode_and_validate(cmd, slug_paths.out_mp4, tmp_dir, stage="靜態", timeout=_encode_timeout(total),
                                   min_dur=max(1.0, total * 0.95))
         if ok:
             mb = slug_paths.out_mp4.stat().st_size / (1024 * 1024)
