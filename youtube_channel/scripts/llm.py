@@ -288,8 +288,16 @@ def complete(prompt: str, max_tokens: int = 3500, json_mode: bool = False, tempe
     #
     # ⚠️ 這只是把兩個免費層用好,**沒有變出額度**。長片提示 ~14k tokens 這件事本身,
     #    在任何免費層都是勉強的;真正的解法是主供應商儲值(見 memory 的 429 段落結論)。
+    # LLM_BIG_PROVIDER:專門承接大請求的供應商(2026-08-04 起 = openrouter,Carson 已儲值)。
+    # 大請求排它第一(免費層根本吃不下長片的 ~14k tokens,先去撞是浪費時間);
+    # 小請求排它**最後**當付費安全網——免費層雙雙掛掉時,寧可花 $0.0001 也不要讓某個部門
+    # 整天產出 0(先前時事部就是這樣連掛三班)。沒設這個變數時行為與之前完全一致。
+    big_prov = os.environ.get("LLM_BIG_PROVIDER", "").strip().lower()
     _big = (len(prompt) // 1.1 + max_tokens) > _BIG_REQUEST_TOKENS
-    order = (fallback, primary) if (_big and fallback) else (primary, fallback)
+    if _big:
+        order = ((big_prov, fallback, primary) if big_prov else (fallback, primary))
+    else:
+        order = ((primary, fallback, big_prov) if big_prov else (primary, fallback))
     chain, seen = [], set()
     for p in order:
         if p and p not in seen:
@@ -297,7 +305,15 @@ def complete(prompt: str, max_tokens: int = 3500, json_mode: bool = False, tempe
     errs = []
     for i, prov in enumerate(chain):
         try:
-            out = _one(prov, prompt, max_tokens, model if i == 0 else None, json_mode, temperature)
+            # LLM_BIG_MODEL:大請求供應商要用哪個模型。**模型選錯會讓長片永遠產不出來**——
+            # 實測同一個提示、同樣 max_tokens=7000:
+            #   deepseek/deepseek-chat  → 旁白 885 字(天生寫得短,給再多額度也一樣)
+            #   google/gemini-2.5-flash → 旁白 2,362 字 ✅
+            # 而長度 gate 要求 voice_text >= 2200 字,不達標會「重生或補寫」→ 無限重試、
+            # 20 分鐘 0 產出且不報錯。選模型時要看的是**它願不願意寫長**,不只是便宜。
+            _m = (os.environ.get("LLM_BIG_MODEL", "").strip() or None) if (big_prov and prov == big_prov) \
+                else (model if i == 0 else None)
+            out = _one(prov, prompt, max_tokens, _m, json_mode, temperature)
             if cacheable and ck and out:
                 try:
                     _cache_path(ck).write_text(out, encoding="utf-8")

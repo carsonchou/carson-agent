@@ -2286,7 +2286,13 @@ def call_claude(kind, avoid, topic_override=None):
     # reasoning 上)。改用 llama 後不需要那個緩衝:實測 llama 每 token 產出 1.18 個中文字,
     # 要 2600 字約需 2200 tokens,3200 已有 45% 餘裕。
     # ⚠️ 要往上調之前先算:輸入 + max_tokens 必須 < 該模型的每分鐘桶,否則整批產不出來。
-    _maxtok = 2800 if kind == "long" else 2000
+    # 2026-08-04 晚:2800 → 7000(長片)。前面把它砍到 2800 的唯一理由是「要塞進 Groq
+    # 免費層的 12,000 每分鐘桶」;現在長片這種大請求走 OpenRouter(Carson 已儲值),
+    # 那個桶的限制不存在了,而 2800 反而變成新的瓶頸——實測各模型在 2800 上限下
+    # 最多只寫到 2,088 中文字,**卡在長度 gate 的 2200 門檻**,於是無限「重生或補寫」,
+    # 20 分鐘 5 次嘗試 0 產出且不報錯。
+    # ⚠️ 要再調小之前先確認長片走哪個供應商:若哪天改回免費層,這裡必須連同提示一起重新算。
+    _maxtok = 7000 if kind == "long" else 2000
     txt = llm.complete(prompt, _maxtok, json_mode=True)  # 強制合格 JSON
     obj = _loads_lenient(txt)
     if obj is None:
@@ -3270,7 +3276,7 @@ def _expand_long_script(d, kind, topic_override):
         )
         # 7000 → 3200:同上,輸入+max_tokens 必須塞進每分鐘桶(見 _maxtok 的說明)。
         # 加深要吐 2600+ 字 ≈ 2200 tokens(llama 實測 1.18 字/token),3200 夠且有餘裕。
-        txt = llm.complete(prompt, 3200, json_mode=True)
+        txt = llm.complete(prompt, 7000, json_mode=True)  # 同上:走 OpenRouter 後不再受免費層桶限制
         m = re.search(r"\{.*\}", txt, re.S)
         if not m:
             return d
