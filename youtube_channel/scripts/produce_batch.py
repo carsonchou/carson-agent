@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -3378,6 +3379,49 @@ _META_RE = re.compile(r"(講完開場鉤子[，,、]?|開場鉤子[，,、]?|以
 _LIST_NUM = {"1": "第一，", "2": "第二，", "3": "第三，", "4": "第四，", "5": "第五，"}
 
 
+# ── 片中訂閱鉤(2026-08-06 留存×CTA 位置實測)──────────────────────────────
+# 實測 112 支長片:**101 支把第一次訂閱呼籲放在影片的 90%~100% 處**,中位數 98%。
+# 而留存曲線顯示影片播到 90% 時只剩 0.05~0.38 的觀眾
+# → **我們在 62%~95% 的人已經離開之後才開口要訂閱。**
+# 影片走到 30~40% 時留存還有 0.5~0.6,同一句話放在那裡聽得到的人多 2~10 倍。
+#
+# 為什麼做成確定性插入而不是寫進提示:結尾訂閱鉤的規則早就寫在 LONG_RULES 裡,
+# 實測遵從度還是讓 101/112 擠在結尾。這種「每支都該有、位置固定」的東西,
+# 用程式保證比用提示請求可靠(同 _LOOP_HOOK_POOL 的判斷)。
+#
+# 誠信:不寫「演算法不會再推你」這類平台操弄語氣(本檔 1248 行已明令禁止),
+# 只講「訂閱能拿到什麼」。也不假裝有結局懸念——長片不是連載。
+_MID_SUB_POOL = [
+    "如果這個數字跟你原本想的不一樣，這個頻道每天用真實回測拆一個台股迷思，訂閱就不會錯過。",
+    "會這樣拆數據的頻道不多，我每天挑一個台股說法用真回測驗一次，訂閱可以跟著看。",
+    "這種算法你在別的地方不太會看到。我固定用真實回測拆台股迷思，訂閱就能一直收到。",
+    "先講一句：後面還有更反直覺的部分。這個頻道專門用真數據拆台股說法，訂閱不會漏掉。",
+]
+_SUB_WORD = re.compile(r"訂閱")
+
+
+def _insert_mid_sub_hook(text, slug=""):
+    """在旁白約 35% 處插入一句訂閱鉤(長片專用)。已經有早期訂閱呼籲就不插。"""
+    if not isinstance(text, str) or len(text) < 900:
+        return text
+    # 前 60% 已經有訂閱呼籲 → 不重複插
+    early = text[: int(len(text) * 0.6)]
+    if _SUB_WORD.search(early):
+        return text
+    target = int(len(text) * 0.35)
+    # 找最接近 35% 的句尾(只在句號/問號/驚嘆號後切,不切在句子中間)
+    best, bestd = None, len(text)
+    for m in re.finditer(r"[。！？!?]", text):
+        d = abs(m.end() - target)
+        if d < bestd:
+            best, bestd = m.end(), d
+    if best is None or best <= 0 or best >= len(text):
+        return text
+    h = int(hashlib.md5((slug or text[:40]).encode("utf-8")).hexdigest(), 16)
+    line = _MID_SUB_POOL[h % len(_MID_SUB_POOL)]
+    return text[:best] + "\n\n" + line + "\n\n" + text[best:]
+
+
 def _clean_narration(text):
     """把 LLM 的「文件式」輸出洗成「說出來會順」的旁白。只清形式,不動內容。"""
     if not isinstance(text, str) or not text:
@@ -3755,6 +3799,10 @@ def make_one(kind, no_render=False, topic_override=None, script_override=None):
     # 還有幾支直接把「(以中文口語念出)」「講完開場鉤子」念給觀眾聽。
     # 寫進 d 再落檔,讓 build_md 產的 .md 與 voice.txt 內容一致(字幕/選圖都吃得到乾淨版)。
     d["voice_text"] = _clean_narration(d.get("voice_text", ""))
+    if slug.startswith("L_"):
+        # 長片專用:在 35% 處補一句訂閱鉤(見 _insert_mid_sub_hook 的實測說明)。
+        # 短片太短、結尾 CTA 幾乎人人聽得到,不需要。
+        d["voice_text"] = _insert_mid_sub_hook(d["voice_text"], slug)
     (OUT / f"{slug}.voice.txt").write_text(d["voice_text"], encoding="utf-8")
     (OUT / f"{slug}.md").write_text(build_md(d), encoding="utf-8")
     _record_used_phrases(d, slug)  # A1b:把本支已用比喻句/CTA 結尾記進 STUDIO/used_phrases.json(供稽核)
