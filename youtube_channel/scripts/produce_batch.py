@@ -2412,7 +2412,16 @@ def build_md(d):
               "## 📝 YouTube 影片描述", "",
               d.get("description", "量化交易教學與觀念分享。投資有風險，不構成投資建議。"), "",
               f"**Hashtags：** {' '.join(d.get('hashtags') or ['#量化交易', '#自動交易'])}", ""]
-    return "\n".join(lines)
+    # 風險聲明結構性保底(2026-08-05)。上面 description 的**預設值**含風險聲明,但模型有給
+    # description 時就用模型的——模型漏寫,.md 就沒有,audit_video 判「缺風險聲明」退件。
+    # 實測:一夜產 9 支長片,其中 2 支就是栽在這裡(換 gemini-2.5-flash 後更常漏)。
+    # 下游雖有「事後補寫再重審」的補救,但那是先違規再修;讓稿子**出生就帶著**它更乾淨,
+    # 而且這句話本來就該在每支片裡。判斷條件與 audit_video 一致(含「風險」或
+    # 「不構成投資建議」即可),不重複補。
+    _body = "\n".join(lines)
+    if "風險" not in _body and "不構成投資建議" not in _body:
+        _body += "\n⚠️ 投資有風險，本影片為資訊與觀念分享，不構成投資建議。\n"
+    return _body
 
 
 def _design():
