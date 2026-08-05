@@ -3334,6 +3334,43 @@ _ARTIFACT_FIXES = {
 }
 
 
+# ── 旁白清理(2026-08-06)────────────────────────────────────────────────────
+# 為什麼:voice.txt **就是 TTS 的輸入**,裡面有什麼就念什麼。掃描 419 支已產旁白:
+#   markdown 殘留(`**粗體**`、`1. 2. 3.` 清單) **43 支 = 10.3%**
+#   括號舞台指示(「(轉場語氣)」)4 支、講稿結構外洩(「講完開場鉤子」「第一段」)9 支
+# 實例:`1. **錢能放超過十年**→優先選0050` —— 這是**把文件念出來**,不是說話;
+# 還有一支旁白直接念出「(以中文口語念出) 好,講完開場鉤子,我們來看看具體資料」。
+# 十支裡有一支這樣,而且觀眾聽得出來——這是「影片很爛」最直接的成因之一。
+#
+# 原本的 _fix_artifacts 只是一張字面替換表,不處理這些結構性殘留。
+# ⚠️ 只清「表現形式」,不動任何內容字句:不刪句子、不改數字。唯一整段移除的是
+#    舞台指示與講稿結構語,那些本來就不該被念出來。
+_STAGE_RE = re.compile(r"[（(][^）)]{0,26}?(念出|口語|語氣|停頓|畫面|旁白|配音|音效|轉場|插入|字幕)[^）)]{0,26}?[）)]")
+_META_RE = re.compile(r"(講完開場鉤子[，,、]?|開場鉤子[，,、]?|以下是[^。，]{0,10}[：:]|"
+                       r"第[一二三四五六七八九十]段[，,、：:]|段落[一二三四五][，,、：:])")
+_LIST_NUM = {"1": "第一，", "2": "第二，", "3": "第三，", "4": "第四，", "5": "第五，"}
+
+
+def _clean_narration(text):
+    """把 LLM 的「文件式」輸出洗成「說出來會順」的旁白。只清形式,不動內容。"""
+    if not isinstance(text, str) or not text:
+        return text
+    t = text
+    t = _STAGE_RE.sub("", t)                              # (轉場語氣) 這類舞台指示
+    t = _META_RE.sub("", t)                               # 講稿結構外洩
+    t = re.sub(r"\*\*(.+?)\*\*", r"\1", t, flags=re.S)    # **粗體** → 粗體(內容保留)
+    t = re.sub(r"__(.+?)__", r"\1", t, flags=re.S)
+    t = re.sub(r"(?m)^\s{0,3}#{1,6}\s*", "", t)           # ## 標題
+    t = re.sub(r"(?m)^\s{0,3}[-*•]\s+", "", t)       # - 條列
+    t = re.sub(r"(?m)^\s{0,3}([1-5])[.、)]\s+",
+               lambda m: _LIST_NUM[m.group(1)], t)        # 1. → 第一，
+    t = re.sub(r"(?m)^\s{0,3}\d{1,2}[.、)]\s+", "", t)  # 其餘編號直接拿掉
+    t = t.replace("→", "，").replace("⇒", "，").replace("~", "到")
+    t = re.sub(r"[ \t]{2,}", " ", t)
+    t = re.sub(r"\n{3,}", "\n\n", t)
+    return t.strip()
+
+
 def _fix_artifacts(text):
     if not isinstance(text, str):
         return text
@@ -3686,6 +3723,11 @@ def make_one(kind, no_render=False, topic_override=None, script_override=None):
             print(f"[skip] 同標題已有成品，跳過不產第二份：{slug}", file=sys.stderr)
             return None
         slug = f"{slug}{int(time.time()) % 10000}"
+    # 落檔前洗掉「文件式」殘留(見 _clean_narration 的說明)。voice.txt 就是 TTS 的輸入,
+    # 這裡有什麼就念什麼——實測 419 支已產旁白裡 10.3% 帶 markdown 清單/粗體,
+    # 還有幾支直接把「(以中文口語念出)」「講完開場鉤子」念給觀眾聽。
+    # 寫進 d 再落檔,讓 build_md 產的 .md 與 voice.txt 內容一致(字幕/選圖都吃得到乾淨版)。
+    d["voice_text"] = _clean_narration(d.get("voice_text", ""))
     (OUT / f"{slug}.voice.txt").write_text(d["voice_text"], encoding="utf-8")
     (OUT / f"{slug}.md").write_text(build_md(d), encoding="utf-8")
     _record_used_phrases(d, slug)  # A1b:把本支已用比喻句/CTA 結尾記進 STUDIO/used_phrases.json(供稽核)
