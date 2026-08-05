@@ -3569,8 +3569,13 @@ def make_one(kind, no_render=False, topic_override=None, script_override=None):
                 return "主題跑題(後段整段變成另一支片的主題)"
             return ""
         _lk = 0
+        # 每次重生都是一次完整的 LLM 大呼叫(約 US$0.01、耗時數分鐘)。這些迴圈原本
+        # **完全不記錄是哪一道閘門觸發的**——實測 `--long 1` 連燒 4 次大呼叫、
+        # 每次都產出 2,000~3,000 字的合格長稿,卻始終沒有成品,而 log 一片空白。
+        # 先讓它可見:記下每次重生的原因與次數,才知道是哪一道 gate 在過度開火。
         while _long_bad(d) and _lk < 4:
             _lk += 1
+            log_ops("補產·重生", f"A4長片第{_lk}次重生:{_long_bad(d)}｜{d.get('title','')[:20]}")
             d = call_claude(kind, _ex, topic_override)
         _why = _long_bad(d)
         if _why:
@@ -3588,6 +3593,10 @@ def make_one(kind, no_render=False, topic_override=None, script_override=None):
                or _body_too_similar(d.get("voice_text", ""), _recent_bodies_l)
                or _notorious_metaphor_hit(d.get("voice_text", ""))) and _lc < 2:
             _lc += 1
+            _r = ("結尾與近期雷同" if _ending_too_similar(d.get("voice_text", ""), _recent_ends_l)
+                  else "內文與近期雷同" if _body_too_similar(d.get("voice_text", ""), _recent_bodies_l)
+                  else "命中濫用比喻")
+            log_ops("補產·重生", f"A1b長片第{_lc}次重生:{_r}｜{d.get('title','')[:20]}")
             d = call_claude(kind, _ex, topic_override)
         if _ending_too_similar(d.get("voice_text", ""), _recent_ends_l) or _body_too_similar(d.get("voice_text", ""), _recent_bodies_l):
             log_ops("補產部門", f"⚠️ A1b長片內文/CTA與近期重複度高·重生{_lc}次仍命中,已放行需人工複查:{d.get('title','')[:26]}")

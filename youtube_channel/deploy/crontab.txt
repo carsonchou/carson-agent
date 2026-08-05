@@ -40,7 +40,15 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 #   (8成功+5失敗)=52 call=17%。耗時實測 8 檔 **5.4 分**(05:50→約05:55),離 06:07 製作批 11 分餘裕。
 #   ⚠️ 配套:同時修好 stock_checkup_daily.py 的 MAX_ATTEMPTS(原本把成功也算進「嘗試」預算,
 #      --count>5 會無聲只做5檔,改成 MAX_FAILS 失敗預算)——沒那個修,這裡寫 8 只會拿到 5。
-50 5 * * * /root/yt/run.sh scripts/stock_checkup_daily.py --count 8 >> /root/yt/logs/cron.log 2>&1
+# 2026-08-05 --count 8 → 16(Carson 拍板方向 A:長片只做「有真實事實」的題目)。
+# 事故經過:一夜產 10 支長片把 43 個未使用的 checkup 題**全部消耗光**(剩 0 個),
+# 產線只好退去抽「網格穩賺嗎」這種**沒有 fact_key 的通用題**——模型沒素材可講就
+# 重複同一組數字灌水撐長度,被資訊密度閘門擋下 → 重生 → 再灌水。今天的燒錢、變慢、
+# 產不出來,全是這條的下游症狀(實測 `--long 1` 連燒 4 次大呼叫仍無成品)。
+# 每天 16 個有事實的長片題,供 6 支/日發布仍有餘裕。backlog 尚有 1,778 檔可做。
+# ⚠️ 別再往上加太多:每檔要打 yfinance 約 5 次,實測 42 檔連跑會被 Yahoo 限流
+#    (見 checkup_fundamentals_backfill.py 的重試說明)。
+50 5 * * * /root/yt/run.sh scripts/stock_checkup_daily.py --count 16 >> /root/yt/logs/cron.log 2>&1
 # 2026-08-01 需求偵測(週三 06:10,週三是排程最空的一天)。只做一件事:讀自己 Analytics 的
 #   真實搜尋詞,若出現「有人在搜、但 backlog 還沒做」的股票,就把那幾檔提到最前面。
 #   依據:近28天只有搜尋在漲(+95%),而搜尋詞前25名裡個股名/代號佔 64%(459/718 觀看);
