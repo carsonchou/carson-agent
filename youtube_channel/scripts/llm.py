@@ -301,8 +301,22 @@ def complete(prompt: str, max_tokens: int = 3500, json_mode: bool = False, tempe
     # 預設仍為 1(保留安全網,免得某部門整天產出 0);嫌貴就設 0,代價是免費層掛掉那幾輪
     # 該部門會空手,下一輪 cron 再試。
     _small_paid = os.environ.get("LLM_BIG_FOR_SMALL", "1").strip() != "0"
+    # LLM_RESERVE_FALLBACK=1 → 把 fallback(免費 Gemini)**保留給大請求**,小請求只走 primary。
+    #
+    # 為什麼(2026-08-05 追查「為什麼一定要付費」的結論):
+    # 長片請求約 13,000 tokens。Groq 免費層的限制是「每分鐘 token 桶」(llama-3.3-70b=12,000),
+    # 而且**單一請求的輸入+max_tokens 也必須塞進那個桶** → 長片在 Groq 是直接被拒,不是慢。
+    # 但 **Gemini 免費層吃得下**,而且它本來就做了好幾個月。真正的問題是它的**每日額度**
+    # 被那 18 個部門的小請求(每小時的評分/判斷/選題)吃光——長片一天只要 12~24 次大呼叫,
+    # 對免費層是零頭。**等於用大砲的額度去餵蒼蠅。**
+    # 保留之後大請求先試免費的 Gemini,真的用完才落到付費供應商。
+    # 代價:Groq 掛掉那幾輪,小請求的部門會空手,下一輪 cron 再試。
+    _reserve = os.environ.get("LLM_RESERVE_FALLBACK", "0").strip() == "1"
     if _big:
-        order = ((big_prov, fallback, primary) if big_prov else (fallback, primary))
+        # 大請求:先免費(fallback)、真的不行才付費(big_prov)。付費是安全網不是首選。
+        order = ((fallback, big_prov, primary) if big_prov else (fallback, primary))
+    elif _reserve:
+        order = (primary, big_prov) if (big_prov and _small_paid) else (primary,)
     elif big_prov and _small_paid:
         order = (primary, fallback, big_prov)
     else:
