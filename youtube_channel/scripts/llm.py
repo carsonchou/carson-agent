@@ -294,10 +294,19 @@ def complete(prompt: str, max_tokens: int = 3500, json_mode: bool = False, tempe
     # 整天產出 0(先前時事部就是這樣連掛三班)。沒設這個變數時行為與之前完全一致。
     big_prov = os.environ.get("LLM_BIG_PROVIDER", "").strip().lower()
     _big = (len(prompt) // 1.1 + max_tokens) > _BIG_REQUEST_TOKENS
+    # LLM_BIG_FOR_SMALL=0 → 小請求**不**退到付費供應商(只走免費層)。
+    # 2026-08-05:Carson 反映太貴。實測單次大呼叫只要 US$0.009、一支長片約兩次,
+    # 但帳戶同時服務 18 個部門——小請求在免費層雙掛時退到付費供應商,那些**每天上百次**
+    # 的判斷/評分才是額外花費的主要來源(長片本身反而便宜)。
+    # 預設仍為 1(保留安全網,免得某部門整天產出 0);嫌貴就設 0,代價是免費層掛掉那幾輪
+    # 該部門會空手,下一輪 cron 再試。
+    _small_paid = os.environ.get("LLM_BIG_FOR_SMALL", "1").strip() != "0"
     if _big:
         order = ((big_prov, fallback, primary) if big_prov else (fallback, primary))
+    elif big_prov and _small_paid:
+        order = (primary, fallback, big_prov)
     else:
-        order = ((primary, fallback, big_prov) if big_prov else (primary, fallback))
+        order = (primary, fallback)
     chain, seen = [], set()
     for p in order:
         if p and p not in seen:
