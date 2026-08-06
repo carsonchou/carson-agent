@@ -16,7 +16,7 @@
       STUDIO/comment_replied.json（--auto-reply-safe 去重紀錄）
 """
 from __future__ import annotations
-import argparse, json, os, sys, time
+import argparse, json, os, re, sys, time
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 try:
@@ -202,6 +202,126 @@ def _reply_budget_consume(n: int) -> None:
             print(f"[warn] 留言預算寫檔失敗:{str(e2)[:60]}", file=sys.stderr)
 
 
+_LEDGER_CACHE = {}
+
+
+def _ledger_map() -> dict:
+    """{videoId: slug} —— 給 smart_reply 判斷這支片有沒有結構化事實可引用。"""
+    if _LEDGER_CACHE:
+        return _LEDGER_CACHE
+    try:
+        sys.path.insert(0, str(ROOT / "scripts"))
+        import daily_publish as dp
+        _LEDGER_CACHE.update({v: k for k, v in dp.load_ledger().items()})
+    except Exception:  # noqa: BLE001
+        pass
+    return _LEDGER_CACHE
+
+
+# ── 內容感知回覆(2026-08-06 Carson 指出「留言都用自動回覆」)──────────────────
+# 實測全頻道 331 則留言,其中 **322 則(97%)是我們自己貼的 CTA**,真實觀眾留言只有 9 則。
+# 那 9 則**全部**收到罐頭回覆,而且五則不同的留言回同一句:
+#   👤「所以版主的結論就是這支股票一點都不適合,當初他只適合做區間短期的來回價差…」
+#   ↳ 我們:「你目前是還在觀望、還是已經進場了?」
+# 他已經看完、已經有結論、還講出自己的操作,我們卻問他進場了沒 —— **比不回還傷**。
+#
+# 這支的作法:
+#  ① 真的讀留言在講什麼(不是三分類貼罐頭)
+#  ② **能引用該片的真實數據就引用**——體檢片有 13 組真事實躺在 STUDIO,
+#     這是別的頻道回不出來的東西,也是這個頻道唯一的護城河
+#  ③ 誠信硬規:不喊單、不報明牌、不保證收益、**不編造任何數字**
+#     (只能用注入的事實;沒有事實就只講觀念,絕不臨場生一個數字出來)
+#  ④ 產出後過一次機械檢查,沒過就退回安全模板(fail-safe:寧可平淡,不可違規)
+
+_REPLY_BANNED = ("保證", "穩賺", "必漲", "必跌", "包贏", "一定會", "穩賺不賠",
+                 "建議買進", "建議賣出", "可以進場", "現在買", "快買", "快賣",
+                 "目標價", "報明牌", "無腦買", "閉著眼睛")
+_REPLY_MAXLEN = 160
+
+
+def _video_facts_for_reply(video_id: str, ledger: dict) -> str:
+    """取這支片的真實事實(只給體檢片;其他片回空字串)。回覆只能引用這裡的數字。"""
+    slug = ledger.get(video_id) or ""
+    if "個股體檢" not in slug:
+        return ""
+    m = re.search(r"(\d{4})", slug)
+    if not m:
+        return ""
+    code = m.group(1)
+    try:
+        facts = json.loads((ROOT / "STUDIO" / "stock_checkup_facts.json")
+                           .read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return ""
+    res = facts.get("results") or {}
+    bits = []
+    for k, v in res.items():
+        if k.endswith("__%s" % code) and isinstance(v, dict):
+            s = str(v.get("summary") or "").strip()
+            if s:
+                bits.append("・" + s[:120])
+    return "\n".join(bits[:8])
+
+
+def _reply_is_safe(text: str) -> bool:
+    """機械檢查:違規詞、長度、空白。過不了就退回安全模板。"""
+    if not text or len(text) < 6 or len(text) > _REPLY_MAXLEN:
+        return False
+    if any(b in text for b in _REPLY_BANNED):
+        return False
+    # 不可自稱幫對方做決定
+    if re.search(r"(你|妳)(應該|該)(買|賣|進|出|加碼|減碼)", text):
+        return False
+    return True
+
+
+def smart_reply(comment_text: str, video_id: str, ledger: dict) -> str:
+    """讀懂留言、能引用真實數據就引用,產出一則回覆。失敗或違規回空字串。"""
+    if not sc.has_llm_key():
+        return ""
+    facts = _video_facts_for_reply(video_id, ledger)
+    fact_block = (("\n【這支影片的真實數據(**只能用這裡的數字**,沒有的就別提數字)】\n" + facts)
+                  if facts else
+                  "\n（這支影片沒有可引用的結構化數據 → **整則回覆不要出現任何數字**）")
+    prompt = f"""{sc.PERSONA}
+
+你是量化阿森頻道的主持人,親自回覆一則觀眾留言。
+{fact_block}
+
+【觀眾留言】
+{comment_text[:400]}
+
+【怎麼回】
+1. **先真的回應他說的那件事**。他有結論就承接他的結論、有問題就正面回答、
+   分享經驗就回應那個經驗。**嚴禁**答非所問地反問「你進場了嗎」這種罐頭。
+2. 上面有真實數據且跟他講的相關,就引用一個具體數字回他(這是本頻道的價值)。
+   沒有數據就只講觀念,**絕對不要自己生一個數字**。
+3. 語氣:理性、平視、像作者本人在回,不諂媚不說教。可以同意他、也可以補充不同角度。
+4. 長度 **40~90 個中文字**,一到兩句。不要開場白、不要「感謝支持」這種場面話。
+
+【誠信鐵則(違反就是廢稿)】
+不喊單、不報明牌、不給目標價、不保證收益、不說「應該買/該賣」;
+不編造任何數字;不承諾未來走勢。只陳述數據與觀念。
+**絕對不要替頻道宣稱「有提供」或「沒有提供」任何東西**(邀請碼、優惠、課程、社群、
+一對一諮詢…)——你不知道頻道當下實際提供什麼,猜錯就是對觀眾說謊。
+實測踩過:有人問「有沒有邀請碼」,模型回「沒有提供任何邀請碼喔」,但頻道其實有。
+這類問題一律只回:相關連結與資訊都放在影片說明欄,請到那邊看最新的。
+
+只輸出回覆本文,不要引號、不要任何解釋。"""
+    try:
+        # 1500 不是隨手給的:gemini-2.5-flash 是思考型模型,推理會先吃掉大半預算。
+        # 實測 400 → finish_reason=length、只吐 21 字;1200 才完整。留餘裕給長一點的留言。
+        out = llm.complete(prompt, 1500, temperature=0.6).strip()
+    except Exception as exc:  # noqa: BLE001
+        print("[smart_reply] LLM 失敗:%s" % str(exc)[:80], file=sys.stderr)
+        return ""
+    out = out.strip().strip('"').strip("「").strip("」").split("\n")[0].strip()
+    if not _reply_is_safe(out):
+        print("[smart_reply] 產出未過安全檢查,退回模板:%s" % out[:60], file=sys.stderr)
+        return ""
+    return out
+
+
 def auto_reply_safe(yt, max_replies: int = 10, dry_run: bool = False, use_haiku: bool = False) -> int:
     """安全模板自動回覆主迴圈。回傳本輪實際回覆數。
 
@@ -235,6 +355,8 @@ def auto_reply_safe(yt, max_replies: int = 10, dry_run: bool = False, use_haiku:
                 "comment_id": comment_id,
                 "text": top["snippet"].get("textDisplay", "")[:300],
                 "author": top["snippet"].get("authorDisplayName", "")[:30],
+                # videoId:讓 smart_reply 取得「這支片的真實數據」才能引用具體數字
+                "video_id": it["snippet"].get("videoId", ""),
             })
     except Exception as e:
         print(f"[warn] 抓留言失敗：{e}", file=sys.stderr)
@@ -254,7 +376,9 @@ def auto_reply_safe(yt, max_replies: int = 10, dry_run: bool = False, use_haiku:
         category = classify_by_keywords(text)
         if use_haiku and category == "interaction":
             category = classify_with_haiku(text)
-        template = pick_template(category)
+        # 先試「讀懂留言」的回覆(見 smart_reply 的實測說明);
+        # 失敗或沒過安全檢查才退回安全模板 —— fail-safe:寧可平淡,不可違規。
+        template = smart_reply(text, c.get("video_id", ""), _ledger_map()) or pick_template(category)
 
         if dry_run:
             print(f"[dry-run] @{c['author']} → [{category}] 「{template}」")

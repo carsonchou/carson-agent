@@ -23,7 +23,15 @@ import requests
 
 # 各供應商：OpenAI 相容端點(Groq/DeepSeek/Gemini 都支援) + Anthropic 原生
 # 推理型模型:思考過程佔用 max_tokens,額度太小會回空字串(見 _call_openai_compat 的實測註解)
-_REASONING_MODELS = ("gpt-oss", "deepseek-r1", "qwq", "o1", "o3")
+# ⚠️ 2026-08-06 補上 gemini-2.5-flash / gemini-2.5-pro:它們**也是思考型模型**,
+# 而且推理 token 一樣吃 max_tokens。實測同一個 60 字回覆請求:
+#   max_tokens=400  → finish_reason=**length**、只吐 21 字(截在句子中間)
+#   max_tokens=1200 → finish_reason=stop、完整 45 字
+# 症狀跟 gpt-oss 一模一樣,但因為它不在這張清單裡,保底沒生效 → 留言回覆全被腰斬
+# (「你說的沒錯，從數據來看，聯鈞確實有」就沒了)。
+# **判斷一個模型要不要進這張清單,看的是它會不會產生 reasoning,不是它叫什麼名字。**
+_REASONING_MODELS = ("gpt-oss", "deepseek-r1", "qwq", "o1", "o3",
+                     "gemini-2.5-flash", "gemini-2.5-pro", "gemini-3")
 _REASONING_MIN_TOKENS = 1000    # 實測 gpt-oss-120b:300 不夠、900 夠
 _MAX_TOKENS_CAP = 8000          # 加倍重試的上限,免得無限往上加
 # 超過這個估算 token 數就算「大請求」,改把桶比較大的供應商排前面(見 complete() 的分流說明)。
