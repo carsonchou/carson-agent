@@ -29,6 +29,10 @@ if not PY.exists():
     PY = Path(sys.executable)
 OUT = ROOT / "output"
 LOCK_STALE = 1500  # 秒；鎖超過此時間視為過期(渲染崩潰)
+# 黑窗彈跳修復(2026-08-07):這支被 local_cron 用 CREATE_NO_WINDOW 無視窗啟動,
+# 但 _render_local 起的 make_video.py 子程序沒帶同一個旗標——父程序沒主控台時,
+# 子程序沒指定旗標會自己新開一個可見主控台。每次渲染就跳一次(每 15 分鐘一班)。
+_NO_WINDOW = {"creationflags": 0x08000000} if os.name == "nt" else {}
 sys.path.insert(0, str(ROOT / "scripts"))
 try:
     from ops import log_ops
@@ -48,7 +52,7 @@ def _render_local(slug: str, env=None) -> bool:
         args = ["--slug", slug, "--width", "1080", "--height", "1920", "--fps", "15"]
     else:
         args = ["--slug", slug]
-    subprocess.run([str(PY), "scripts/make_video.py", *args], cwd=str(ROOT), env=env)
+    subprocess.run([str(PY), "scripts/make_video.py", *args], cwd=str(ROOT), env=env, **_NO_WINDOW)
     mp4 = OUT / f"{slug}.mp4"
     return mp4.exists() and mp4.stat().st_size > 100 * 1024
 

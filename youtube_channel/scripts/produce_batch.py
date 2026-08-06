@@ -38,6 +38,13 @@ OUT = ROOT / "output"
 _py_win = ROOT / ".venv" / "Scripts" / "python.exe"
 _py_nix = ROOT / ".venv" / "bin" / "python"
 PY = _py_win if _py_win.exists() else (_py_nix if _py_nix.exists() else Path(sys.executable))
+# 黑窗彈跳修復(2026-08-07,Carson 截圖抓到):這支被 local_cron 用 CREATE_NO_WINDOW
+# 無視窗啟動,但它自己內部起的子程序(TTS/渲染)沒帶同一個旗標——Windows 的規則是
+# 「父程序沒有主控台時,子程序若沒指定旗標會自己新開一個可見主控台」,所以每次配音
+# /渲染就跳一個黑窗。_run_tts 對每支腳本都會呼叫,是最高頻的觸發點。
+# 同一支修法先前在 local_cron.py 用過(見 memory studio-black-window-popups-fix),
+# 這裡是同一個坑在另一個呼叫點重演,不是新問題。
+_NO_WINDOW = {"creationflags": 0x08000000} if os.name == "nt" else {}
 API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
 MODEL = "claude-haiku-4-5-20251001"  # 便宜、寫腳本夠用
 
@@ -2506,26 +2513,26 @@ def _run_tts(slug):
             _kw = ROOT / "_ttsenv" / "Scripts" / "python.exe"
             _kn = ROOT / "_ttsenv" / "bin" / "python"
             kpy = _kw if _kw.exists() else (_kn if _kn.exists() else PY)
-            subprocess.run([str(kpy), "scripts/tts_kokoro.py", vp], cwd=str(ROOT))
+            subprocess.run([str(kpy), "scripts/tts_kokoro.py", vp], cwd=str(ROOT), **_NO_WINDOW)
         except Exception as _e:  # noqa: BLE001
             log_ops("配音", f"⚠️ Kokoro 呼叫失敗({_e})，退回 edge：{slug}")
         if mp3.exists() and mp3.stat().st_size > 0:
             return
         log_ops("配音", f"⚠️ Kokoro 配音失敗，退回 edge：{slug}")
     if _tts_engine() == "minimax":
-        subprocess.run([str(PY), "scripts/tts_minimax.py", vp], cwd=str(ROOT))
+        subprocess.run([str(PY), "scripts/tts_minimax.py", vp], cwd=str(ROOT), **_NO_WINDOW)
         if mp3.exists() and mp3.stat().st_size > 0:
             return
         log_ops("配音", f"⚠️ MiniMax 配音失敗，退回 edge：{slug}")
     _ds = _design()  # Edge 聲音/語速吃 design_system(換聲音只改設定檔)
     subprocess.run([str(PY), "scripts/tts_edge.py", vp,
                     "--voice", _ds.get("edge_voice", "zh-TW-YunJheNeural"),
-                    "--rate", _ds.get("edge_rate", "+12%")], cwd=str(ROOT))
+                    "--rate", _ds.get("edge_rate", "+12%")], cwd=str(ROOT), **_NO_WINDOW)
 
 
 def _run_render(args, env, timeout=720):
     """跑 make_video，逾時就連同子程序(ffmpeg)整組殺掉 —— 防殭屍 ffmpeg 卡死整批製作。"""
-    kw = {"cwd": str(ROOT), "env": env}
+    kw = {"cwd": str(ROOT), "env": env, **_NO_WINDOW}
     if os.name == "posix":
         kw["start_new_session"] = True  # 自成 process group，逾時可整組 kill
     p = subprocess.Popen([str(PY)] + args, **kw)

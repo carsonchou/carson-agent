@@ -39,6 +39,10 @@ ROOT = Path(__file__).resolve().parent.parent
 PY = ROOT / ".venv" / "Scripts" / "python.exe"
 if not PY.exists():  # Linux/其他環境退回當前直譯器
     PY = Path(sys.executable)
+# 黑窗彈跳修復(2026-08-07,同 hybrid_render.py 的說明):父程序無主控台時,子程序
+# 沒帶這個旗標會自己新開一個可見主控台。這支目前沒在排程裡,但同一模式先修掉,
+# 避免哪天重新啟用又踩一次。
+_NO_WINDOW = {"creationflags": 0x08000000} if os.name == "nt" else {}
 OUT = ROOT / "output"
 
 try:
@@ -107,7 +111,7 @@ def render_one(slug: str) -> bool:
                 pass
         args = ["--slug", slug]
     mp4 = OUT / f"{slug}.mp4"
-    subprocess.run([str(PY), "scripts/make_video.py", *args], cwd=str(ROOT), env=env)
+    subprocess.run([str(PY), "scripts/make_video.py", *args], cwd=str(ROOT), env=env, **_NO_WINDOW)
     ok = mp4.exists() and mp4.stat().st_size > 100 * 1024
     log_ops("渲染看守", f"{'渲染完成' if ok else '渲染失敗'}：{slug}")
     return ok
