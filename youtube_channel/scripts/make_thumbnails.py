@@ -1157,6 +1157,53 @@ def _numbers_traceable(d: dict, title: str, fields=_TRACEABLE_FIELDS) -> bool:
     return True
 
 
+def _force_stock_identity(cfg: dict, slug: str, title: str) -> dict:
+    """個股體檢的縮圖:**主標一定要出現股票名或代號**。
+
+    ## 為什麼(2026-08-06 實測)
+    抓兩支實際線上縮圖來看:
+      聯鈞那支 → 主標「4322%報酬 / 真相大拆解」,**整張圖沒有「聯鈞」也沒有「3450」**
+                 (870 觀看 / 6 訂閱 = 0.7%)
+      00878 那支 → 主標「00878存股 / 但套牢1.4年」
+                 (737 觀看 / 10 訂閱 = **1.4%**)
+    這是一個**靠搜尋起家**的頻道:搜尋詞前 25 名幾乎全是個股名與代號,
+    體檢片有 49% 流量來自搜尋。**搜「聯鈞」的人,看到一張不寫聯鈞的圖。**
+    對他來說那張圖跟他要找的東西對不起來,自然不點。
+
+    做成確定性注入而不是寫進提示:LLM 每次都在「哪個數字最吸睛」上打轉,
+    而「這是哪一檔」對搜尋流量來說是必要資訊,不能靠它想起來。
+    ⚠️ 只在**兩行主標都沒有**識別資訊時才動,已經有的不改(不破壞好鉤子)。
+    """
+    if "個股體檢" not in (slug or "") and "個股體檢" not in (title or ""):
+        return cfg
+    m = _re.search(r"個股體檢([一-鿿]{2,6}?)(\d{4})", slug or "")
+    if not m:
+        m = _re.search(r"個股體檢([一-鿿]{2,6}?)(\d{4})", title or "")
+    if not m:
+        return cfg
+    name, code = m.group(1), m.group(2)
+    l1 = str(cfg.get("l1") or ""); l2 = str(cfg.get("l2") or "")
+    # 🔴 「已經有識別資訊」不等於「排版是對的」。實測保底路徑會直接截標題前 8 字,
+    #    產出第一行 =「個股體檢【頎邦」——**括號斷在一半**,而且「個股體檢」四個字
+    #    白白佔掉最大字級的一半空間(那是系列名,不是這支片的識別)。
+    #    所以除了「有沒有」,還要檢查「乾不乾淨」:帶系列前綴或殘缺括號的一律重寫。
+    _dirty = ("個股體檢" in l1 or "【" in l1 or "】" in l1
+              or l1.endswith(("(", "（", "[", "「")))
+    if (name in l1 or name in l2 or code in l1 or code in l2) and not _dirty:
+        return cfg          # 已經看得出是哪一檔、而且排版乾淨 → 不動
+    # 把識別資訊放進第一行(最大字),原本的 l1 往下擠掉 l2 的位置太亂 →
+    # 改成前綴接在 l1 前面,長度仍受 make_one 的排版限制保護。
+    # l1 換成識別資訊,但**原本那行通常是全圖最有力的數字**(如「4322%報酬」),
+    # 不能丟掉 → 把它擠到第二行。第二行原本的內容(多半是「真相大拆解」這種
+    # 沒有資訊量的裝飾句)才是可以捨棄的那個。
+    cfg["l1"] = ("%s%s" % (name, code))[:8]
+    # 原本的 l1 通常是全圖最有力的數字(如「4322%報酬」)→ 擠到第二行保留。
+    # 但如果它本身就是髒的(系列前綴/殘缺括號),**丟掉**而不是搬到第二行去繼續髒;
+    # 這時第二行維持原本的 l2(那多半是「但79.9%暴跌風險」這種有內容的鉤子)。
+    cfg["l2"] = ((l2 or l1) if _dirty else (l1 or l2))[:10]
+    return cfg
+
+
 def derive_cfg(slug: str, title: str) -> dict:
     """從標題自動生縮圖鉤子。優先用共用 llm.complete(OpenRouter 路由,同其他 dept 腳本)，失敗退保底啟發式。
     《拆穿》題自動套打假公式。
@@ -1209,7 +1256,7 @@ def derive_cfg(slug: str, title: str) -> dict:
                "mark": (d.get("mark") or "?")[:2]}
         if d.get("myth"):
             cfg["myth"] = str(d["myth"])[:8]
-        return _decorate_debunk(cfg, title)
+        return _force_stock_identity(_decorate_debunk(cfg, title), slug, title)
     except Exception as e:
         print(f"[warn] llm 生鉤子失敗，用保底：{str(e)[:80]}", file=sys.stderr)
         return fb
