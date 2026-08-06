@@ -1557,6 +1557,32 @@ def _checkup_next_name(code, by_code=None):
     return ""
 
 
+def _checkup_progress():
+    """回傳 (已完成檔數, 全市場檔數)。任何一項算不出來就回 (0, 0) → 呼叫端整句不加。
+
+    ⚠️ 誠信:這兩個數字**每次從真實檔案現算**,不可寫死也不可用約略值——
+    「已體檢 N 檔」是對觀眾的事實宣稱,寫死的話某天就會變成假話
+    (見 memory yt-integrity-methodology-claims-blindspot:EP.0 把假話寫死在表裡繞過守門)。
+    來源:STUDIO/stock_checkup_facts.json 的 by_code(已算出事實的檔數)
+          STUDIO/stock_checkup_backlog.json 的全市場名單長度
+    """
+    try:
+        _sd = ROOT / "STUDIO"
+        facts = json.loads((_sd / "stock_checkup_facts.json").read_text(encoding="utf-8"))
+        done = len(facts.get("by_code") or {})
+        bl = json.loads((_sd / "stock_checkup_backlog.json").read_text(encoding="utf-8"))
+        # backlog 的鍵是 items(不是 rows),而且檔案自帶 n_total —— 優先用它自己算好的數字。
+        if isinstance(bl, dict):
+            total = int(bl.get("n_total") or 0) or len(bl.get("items") or [])
+        else:
+            total = len(bl or [])
+    except Exception:  # noqa: BLE001
+        return (0, 0)
+    if done < 1 or total < done:
+        return (0, 0)
+    return (done, total)
+
+
 def _checkup_finalize(result, next_name):
     """個股體檢片產出後的確定性補強(同 _ai_savings_desc_block 的「確定性附加，保證不被 LLM 吞」
     慣例)——2026-07-15 實跑 EP2 抓到：模板雖注入，LLM 仍把片尾下集點名寫成自由發揮的
@@ -1589,6 +1615,20 @@ def _checkup_finalize(result, next_name):
         tail_bits.append(f"下一集個股體檢，輪到{nx}上體檢台，訂閱頻道才不會錯過。")
     elif "訂閱" not in v:
         tail_bits.append("訂閱頻道，下一集體檢報告出爐第一時間收到。")
+    # ── 全市場連載承諾(2026-08-06 訂閱實測)───────────────────────────────────
+    # 為什麼要多這一句:體檢片有 **49% 流量來自搜尋**,而搜尋來的人**幾乎不訂閱**
+    # (金像電那支搜尋排第 1、351 觀看、**0 訂閱**;76% 的體檢片訂閱數是 0)。
+    # 原因很直白——他為了「金像電」而來,拿到答案就走;片尾告訴他「下一集輪到旺矽」,
+    # 那跟他無關,不構成訂閱理由。
+    # 對搜尋訪客真正有說服力的是:**他自己手上那幾檔遲早會輪到**。
+    # 而這件事是真的:backlog 有全台股名單,已完成數從事實庫算得出來。
+    # ⚠️ 誠信:數字**當場從真實檔案算**,絕不寫死(見 memory yt-integrity-methodology-claims)。
+    #    算不出來就整句不加,不用約略值糊弄。
+    _done, _total = _checkup_progress()
+    if _done and _total and "全台股" not in v and "整個台股" not in v:
+        tail_bits.append(
+            f"這個系列會把全台股{_total}檔一檔一檔體檢完，目前完成{_done}檔，"
+            f"你手上那幾檔遲早會輪到，訂閱就不會錯過自己的股票。")
     if tail_bits:
         result["voice_text"] = v + ("" if v.endswith(("。", "！", "？")) else "。") + "".join(tail_bits)
     elif v != str(result.get("voice_text", "") or "").rstrip():
