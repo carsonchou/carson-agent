@@ -43,6 +43,7 @@ from __future__ import annotations
 import argparse
 import datetime as _dt
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -151,11 +152,23 @@ def seed_topics_for_code(code: str, name: str = "", dry_run: bool = False) -> in
         return 0
 
     batch = list(code_facts.values())
+    # 種題允許退到免費 Gemini(2026-08-10 實測):批量種 32 檔時,**15 檔的財報 13 組
+    # 全部算好寫入了,卻卡在 LLM 生題的 groq 429**,等於白算一次(資料有留、下次重試,
+    # 但批量時一半浪費)。llm.py 的 LLM_RESERVE_FALLBACK=1 是為了把 Gemini 額度留給
+    # 長片產稿而把小請求鎖死在 Groq——種題一天只跑一次、量不大,值得放行。
+    # 只在這個函式的作用域內暫時放行,不影響其他部門的省額度策略。
+    _prev_reserve = os.environ.get("LLM_RESERVE_FALLBACK")
+    os.environ["LLM_RESERVE_FALLBACK"] = "0"
     try:
         cands = tff.gen_topics_for_batch(batch)
     except Exception as exc:  # noqa: BLE001
         print(f"[stock_checkup_daily] LLM 生題失敗：{str(exc)[:160]}")
         return 0
+    finally:
+        if _prev_reserve is None:
+            os.environ.pop("LLM_RESERVE_FALLBACK", None)
+        else:
+            os.environ["LLM_RESERVE_FALLBACK"] = _prev_reserve
 
     bank = tb.load_bank()
     existing_norms = {tb._norm(t.get("title", "")) for t in bank} | {tb._norm(t) for t in tb.existing_titles()}
