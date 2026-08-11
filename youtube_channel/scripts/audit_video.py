@@ -242,7 +242,7 @@ def audit(slug: str):
     if is_short and voice.exists():
         _vtext = voice.read_text(encoding="utf-8")
         _vn = len(re.findall(r"[一-鿿]", _vtext))
-        if 0 < _vn < 120:
+        if _vn < 120:   # 含 0 字:voice.txt 存在但整檔空白=更徹底的空殼,不可放過
             reasons.append(f"旁白過短({_vn}字)疑似空殼——內容被剝除後只剩骨架")
 
     # ② 誠信禁語（辨識否定詞，避免把「不保證收益」這種誠實聲明誤判）
