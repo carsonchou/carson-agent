@@ -392,6 +392,9 @@ def build_funnel_block() -> str:
     """
     return (
         "📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」領避雷檢核表\n"
+        # 一鍵訂閱確認連結(2026-08-12):?sub_confirmation=1 點開直接彈訂閱確認框,
+        # 搜尋型頻道標配——搜尋觀眾看完就走,給他一個零摩擦的訂閱入口。
+        "⭐ 訂閱看每天一檔台股體檢:\nhttps://www.youtube.com/@carsonquant?sub_confirmation=1\n"
         "投資有風險，不構成投資建議"
     )
 
