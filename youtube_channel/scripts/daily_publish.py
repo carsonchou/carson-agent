@@ -49,6 +49,8 @@ QSCORES = PROJECT_ROOT / "STUDIO" / "quality_scores.json"
 # 「種題進度」跳號(觀眾看到 EP1→下一支卻是 EP40)。這支帳本讓「發一支進一號、永不跳」可確定性推導,
 # 且不受 quality_scores 裡殘留的舊 EP 數字污染(存量待發片的 title 仍帶舊號)。
 CHECKUP_EP_LEDGER = PROJECT_ROOT / "STUDIO" / "checkup_ep_ledger.json"
+# 幣圈題材關鍵字(module-level:排序降級與聯盟區塊題材對位共用)
+_CRYPTO_KWS = ("網格", "機器人", "派網", "比特幣", "BTC", "btc", "爆倉", "加密", "幣圈")
 PUBLISH_PRIORITY = PROJECT_ROOT / "STUDIO" / "publish_priority.json"  # 選填：礦脈/新片優先旗標(slug清單)
 PUBLISH_SKIP = PROJECT_ROOT / "STUDIO" / "publish_skip.json"  # 選填：跳過發布清單({slug:理由})，可逆
 IG_LEDGER = PROJECT_ROOT / "STUDIO" / "ig_ledger.json"
@@ -629,7 +631,6 @@ def find_candidates(ledger: dict) -> list:
     # 「挑哪 2 支」就是零成本的最大槓桿。
     # 這是**降級不是封殺**:非幣圈題發完了,幣圈題照樣輪得到,只是排在後面。
     # 只作用於 Shorts —— 那份回歸只涵蓋 Shorts,長片不外推(長片的發現管道是搜尋,機制不同)。
-    _CRYPTO_KWS = ("網格", "機器人", "派網", "比特幣", "BTC", "btc", "爆倉", "加密", "幣圈")
     try:
         _titles_for_topic = _slug_titles()      # slug→真標題(slug 會被截斷,判題材要用真標題)
     except Exception:  # noqa: BLE001
@@ -822,7 +823,14 @@ def _tiktok_crosspost(slug: str) -> None:
 
 def upload_one(yt, slug: str, privacy: str) -> str:
     cfg = up.load_channel_config()
-    meta = up.assemble_metadata(slug=slug, md_path=OUTPUT / f"{slug}.md", channel_config=cfg, append_affiliate=True)
+    # 聯盟區塊題材對位(2026-08-12 稽核):Pionex 是加密自動交易平台,掛在台股體檢/ETF
+    # 回測片的描述裡=對搜尋來的台股觀眾零轉化+信任傷害(和頻道頁舊簡介同款定位錯位)。
+    # 只在幣圈題材片附 Pionex;台股片不掛(移除不相關廣告=純信任增益)。
+    # ⚠️ 刻意**不**替換成其他聯盟連結——換/增變現連結屬對外+動錢決策,留給 Carson。
+    _title_probe = up.parse_markdown_metadata(OUTPUT / f"{slug}.md").get("title") or slug
+    _is_crypto = any(k in _title_probe or k in slug for k in _CRYPTO_KWS)
+    meta = up.assemble_metadata(slug=slug, md_path=OUTPUT / f"{slug}.md", channel_config=cfg,
+                                append_affiliate=_is_crypto)
     meta = up.enforce_youtube_limits(meta)
     is_short = slug.startswith("S_")
 

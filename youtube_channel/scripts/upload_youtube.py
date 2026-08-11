@@ -305,6 +305,63 @@ def build_affiliate_block(channel_config: dict[str, Any]) -> tuple[str, list[str
     return "\n".join(parts), unreplaced
 
 
+def build_chapters_block(slug: str, md_path: Path) -> str:
+    """長片自動章節:md 段落小標 × wordtimes 句時間戳 → 描述章節行。
+
+    時間對映:每段旁白的前 12 字去 wordtimes 找該句的真實開始秒數(TTS 的 normalize
+    會把 % 轉口語但一般數字保留,段首句通常對得到);對不到的段退回等分估算。
+    YouTube 章節規則:第一個必須 0:00、至少 3 個、每章 ≥10 秒——不滿足回空字串。
+    重用 make_video.parse_script_md(產線同一份解析器,不重刻;閘門兩份=歷史血案)。
+    任何例外回空字串(fail-open,章節是加分項不是必需品)。"""
+    try:
+        if not slug.startswith("L_"):
+            return ""
+        wt_path = md_path.parent / f"{slug}.wordtimes.json"
+        if not wt_path.exists():
+            return ""
+        wt = json.loads(wt_path.read_text(encoding="utf-8"))
+        if not isinstance(wt, list) or len(wt) < 5:
+            return ""
+        total = max(w.get("t", 0) + w.get("d", 0) for w in wt)
+        if total < 180:
+            return ""
+        from make_video import parse_script_md
+        _, segments = parse_script_md(md_path)
+        segs = [s for s in segments if s.heading and s.narration]
+        if len(segs) < 3:
+            return ""
+
+        def _find_time(narr: str):
+            probe = narr[:12].strip()
+            if not probe:
+                return None
+            for w in wt:
+                if probe in (w.get("text") or ""):
+                    return float(w.get("t", 0))
+            return None
+
+        chapters = [(0.0, "開場")]
+        for i, s in enumerate(segs):
+            t = _find_time(s.narration)
+            if t is None:
+                t = total * (i + 0.6) / (len(segs) + 1)   # 對不到 → 等分估(開場佔一份)
+            chapters.append((t, s.heading.strip()[:40]))
+        # 單調遞增且每章 ≥10s;違反的章直接丟掉(寧缺勿錯)
+        clean = [chapters[0]]
+        for t, h in chapters[1:]:
+            if t >= clean[-1][0] + 10 and t < total - 5:
+                clean.append((t, h))
+        if len(clean) < 3:
+            return ""
+        lines = ["📖 章節"]
+        for t, h in clean:
+            m, s = int(t) // 60, int(t) % 60
+            lines.append(f"{m}:{s:02d} {h}")
+        return "\n".join(lines)
+    except Exception:  # noqa: BLE001
+        return ""
+
+
 def build_funnel_block() -> str:
     """組裝確定性附加的『導流漏斗＋風險聲明』區塊（比照 build_affiliate_block 的設計）。
 
@@ -408,6 +465,20 @@ def assemble_metadata(
 
     if top_blocks:
         description = _insert_near_top(description, "\n\n".join(top_blocks))
+
+    # 描述整形(2026-08-12 包裝稽核):①YouTube 不渲染 markdown,「**Hashtags：**」會原字面
+    # 露出在描述裡;②長片描述/tags 帶 #Shorts 是 md 模板殘留的格式誤標,會干擾分類與搜尋。
+    description = description.replace("**Hashtags：**", "").replace("**Hashtags:**", "")
+    if slug.startswith("L_"):
+        description = re.sub(r"#[Ss]horts\s*", "", description)
+        clean_tags = [t for t in clean_tags if t.lower() != "shorts"]
+
+    # 自動章節(2026-08-12 成長包裝):長片描述附「0:00 開場」章節行——YouTube 會把章節
+    # 切成 key moments 進搜尋索引(Google 搜尋直接深連到某一章),對搜尋型頻道是免費曝光面;
+    # 觀眾也能跳著看,對長片留存是加分不是扣分。任何失敗回空字串,不影響上傳。
+    ch_block = build_chapters_block(slug, md_path)
+    if ch_block and "0:00" not in description:
+        description = (description.rstrip() + "\n\n" + ch_block)
 
     return {
         "title": str(title),
