@@ -2457,11 +2457,15 @@ def build_video(
 
 
 def _wrap_to_width(draw, text: str, font, max_w: int) -> list:
-    """依像素寬度把字串折成多行（適合中文逐字折行），每行不超過 max_w。"""
+    """依像素寬度把字串折成多行（中文逐字折行），每行不超過 max_w。
+
+    2026-08-12 抽檢抓到:純逐字折行會把英文單字從中間切開——結尾卡的
+    「量化阿森｜Carson Quant」被折成「…Carson Qua / nt」。改成英數詞
+    (Carson/Quant/0050/ETF/28.5%)當**不可分割 token**,中文仍逐字。"""
     lines: list = []
     cur = ""
-    for ch in text:
-        test = cur + ch
+    for tk in re.findall(r"[0-9A-Za-z%.]+|.", text):
+        test = cur + tk
         try:
             w = draw.textlength(test, font=font)
         except Exception:  # noqa: BLE001
@@ -2470,7 +2474,7 @@ def _wrap_to_width(draw, text: str, font, max_w: int) -> list:
             cur = test
         else:
             lines.append(cur)
-            cur = ch
+            cur = tk
     if cur:
         lines.append(cur)
     return lines or [text]
