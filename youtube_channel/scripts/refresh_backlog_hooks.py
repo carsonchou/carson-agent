@@ -115,8 +115,30 @@ def main() -> int:
             new = with_hook
             acts.append("補片中鉤")
         if new == voice:
-            skipped += 1
-            continue
+            # 冪等盲點修補(2026-08-11 實測):上一輪在 TTS 中途被砍,「文字沒變」不代表
+            # mp3 完好——實測留下 302s 殘骸配 425s 的稿(7.9字/秒,正常 4~5.5),而 audit
+            # 只比 mp4 vs mp3 長度,若用殘骸重渲兩者一致照樣放行。兩個訊號判殘骸:
+            # ①mp3 比 voice.txt 舊(改稿後沒配完) ②語速 >6.5 字/秒(截斷)。
+            mp3c = OUT / f"{slug}.mp3"
+            bak = OUT / f"{slug}.voice.txt.prehook.bak"
+            broken = ""
+            if bak.exists():   # 只檢查本腳本動過的(有備份=改過稿),別誤傷正常產線件
+                if not mp3c.exists() or mp3c.stat().st_mtime + 1 < vt.stat().st_mtime:
+                    broken = "mp3比稿舊"
+                else:
+                    try:
+                        from audit_video import _probe
+                        adur, _, _ = _probe(mp3c)
+                        ncjk = len(CJK.findall(new))
+                        if adur > 0 and ncjk / adur > 6.5:
+                            broken = f"語速{ncjk / adur:.1f}字/秒"
+                    except Exception:  # noqa: BLE001
+                        pass
+            if not broken:
+                skipped += 1
+                continue
+            print(f"🔧 {slug[:40]} 文字已回填但配音是殘骸({broken}),重配音")
+            acts = ["修殘骸"]
         if _fragmented(new):
             print(f"⚠️ {slug[:40]} 併句後仍碎,跳過不動")
             skipped += 1

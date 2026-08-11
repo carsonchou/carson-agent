@@ -210,6 +210,19 @@ def audit(slug: str):
             ratio = dur / adur
             if ratio < 0.9:
                 reasons.append(f"旁白疑似截斷（成品{dur:.1f}s / 旁白{adur:.1f}s，比值{ratio:.2f}<0.9）")
+            # ①c mp3 本身截斷(2026-08-11 實測抓到的盲區):TTS 中途被砍留下 302s 殘骸
+            # 配 2388 字的稿(7.9字/秒)。上面的比值檢查抓不到——殘骸 mp3 渲出的 mp4 兩者
+            # 長度一致(ratio=1.0)照樣放行,觀眾聽到旁白講到一半戛然而止。
+            # 用語速判:中文旁白正常 4~5.5 字/秒(edge +12%/kokoro 實測),>6.5=稿比音長=截斷。
+            # 產線端 _speech_rate_sane 只在 produce_batch 生產時跑,重渲路徑(hybrid_render
+            # 拿既有 mp3)完全繞過——這裡是發布前最後兜底。fail-closed。
+            if voice.exists():
+                try:
+                    _cjk = len(re.findall(r"[一-鿿]", voice.read_text(encoding="utf-8")))
+                    if _cjk > 200 and _cjk / adur > 6.5:
+                        reasons.append(f"配音疑似截斷（{_cjk}字/{adur:.0f}s={_cjk / adur:.1f}字/秒>6.5，稿比音長）")
+                except Exception:  # noqa: BLE001
+                    pass
 
     # ② 誠信禁語（辨識否定詞，避免把「不保證收益」這種誠實聲明誤判）
     blob = ""
