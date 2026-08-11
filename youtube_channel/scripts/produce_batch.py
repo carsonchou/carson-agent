@@ -2738,6 +2738,19 @@ def _build_seo_desc_line(d: dict) -> str:
         # 幾乎全是個股名/代號),description 前段正是搜尋結果的摘要,塞詞反而有 keyword-stuffing
         # 的反效果。改成關鍵詞只出現一次(留在句首的【】裡,搜尋權重不變),後半寫成人話。
         _lead = kws[0]
+        # 2026-08-12 問答式檢索升級:描述首行盡量是「含具體數字的完整結論句」——
+        # 官方 Ask YouTube(對話式搜尋)已上線,語意問答時代「一句講出答案」比關鍵詞堆疊值錢;
+        # 對傳統搜尋這行也是搜尋結果摘要。做法=**直接引用**旁白裡第一句帶數字的陳述句
+        # (已過全部誠信閘門的原文,不重寫不改寫=零編造風險);抽不到才退回通用句。
+        _concl = ""
+        for _s in re.split(r"[。!?！？\n]", (d.get("voice_text") or "")[:800]):
+            _s = _s.strip()
+            if (len(_s) >= 12 and not _s.endswith(("嗎", "呢"))
+                    and re.search(r"[0-9〇一二三四五六七八九十百千萬億]+(?:%|％|倍|年|趴|萬|元)", _s)):
+                _concl = _s[:70]
+                break
+        if _concl:
+            return f"【{kw_text}】{_concl}。完整回測過程與數據來源都在影片裡，看完你能自己判斷。"
         return (f"【{kw_text}】用真實歷史回測數字拆解{_lead}，"
                 f"完整過程與數據來源都在影片裡，看完你能自己判斷該怎麼配置。")
     except Exception:  # noqa: BLE001
