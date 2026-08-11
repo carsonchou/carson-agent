@@ -4108,6 +4108,31 @@ def main() -> int:
         log_ops("開播預告", f"{'已產出' if slug_made else '⚠️ 失敗'}：{_nm} EP.0")
         print(f"[{'ok' if slug_made else 'FAIL'}] {_nm} EP.0：{_d0['title'][:40]}")
         print(f"[存量佐證] {_d0['_ep0_inventory']['detail']}")
+        # 汰舊(2026-08-11):EP0 的「已播出 N 集」是產片當下快照,舊版未發布=數字過期=
+        # 發出去對觀眾說謊。實測 3 支 stale checkup EP0(13集/28集/…)疊在庫存 11 天。
+        # 產新**成功後**才汰舊(失敗保留舊版,寧stale勿斷貨);只動未發布(不在 ledger)、
+        # 搬進 _retired_ep0/ 可還原,不是刪除。
+        _sig = ep0_engine.SERIES[args.ep0].get("slug_sig")
+        if slug_made and _sig:
+            try:
+                _led = json.loads((ROOT / "STUDIO" / "uploaded_ledger.json").read_text(encoding="utf-8"))
+            except Exception:  # noqa: BLE001
+                _led = None   # ledger 讀不到就不汰舊(分不清誰已發布,寧可不動)
+            if _led is not None:
+                _ret = OUT / "_retired_ep0"
+                # ⚠️ 不可用 name.split(".") 取 slug:標題帶小數(「5.7年報酬」)slug 就含點。
+                _olds = {p.name[:-len(".voice.txt")] for p in OUT.glob(_sig + "*.voice.txt")}
+                _olds |= {p.name[:-len(".mp4")] for p in OUT.glob(_sig + "*.mp4")}
+                for _old in _olds:
+                    if _old == slug_made or _old in _led:
+                        continue
+                    _ret.mkdir(exist_ok=True)
+                    for _ext in (".md", ".voice.txt", ".mp3", ".mp4", ".jpg", ".png"):
+                        _p = OUT / (_old + _ext)
+                        if _p.exists():
+                            _p.rename(_ret / _p.name)
+                    print(f"[EP0汰舊] 已退役過期版:{_old[:44]}")
+                    log_ops("開播預告", f"汰舊過期 EP0:{_old[:40]}")
         if slug_made and args.publish and not args.no_render:
             _publish_now(slug_made)
         return 0 if slug_made else 3

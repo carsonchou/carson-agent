@@ -394,6 +394,23 @@ def _is_checkup_title(title: str) -> bool:
     return _CK_SERIES in t
 
 
+_EP0_TITLE_CACHE = {}
+
+
+def _is_ep0_title(slug: str) -> bool:
+    """EP0/系列說明片簽名(判準同 _is_checkup_title 的豁免註解:標題含『規則先講死』或
+    『個股體檢系列』)。slug 會截斷標題尾端,優先查真標題,查不到才退回 slug 比對。"""
+    if slug in _EP0_TITLE_CACHE:
+        return _EP0_TITLE_CACHE[slug]
+    try:
+        t = _slug_titles().get(slug) or slug
+    except Exception:  # noqa: BLE001
+        t = slug
+    r = ("規則先講死" in t) or ("個股體檢系列" in t)
+    _EP0_TITLE_CACHE[slug] = r
+    return r
+
+
 def _strip_checkup_ep(title: str) -> str:
     """去掉標題裡的系列名+EP 數字,留下乾淨鉤子(供重新掛號)。只動 4 字『個股體檢』與其 EP 數字,
     不誤傷『體檢報告』這種一般詞。"""
@@ -1088,10 +1105,17 @@ def main() -> int:
             print(f"[低於地板] {slug}：{sc} 分 < 地板 {floor}，不發布")
             continue
         # 較嚴門檻：min_score 若設得比地板高，從嚴（保留原本較嚴門檻邏輯）。
-        if qmin and scv < qmin:
+        # EP0/系列說明片豁免較嚴門檻(2026-08-11):實測 79檔 EP0 掛優先旗標 11 天發不出去,
+        # 卡的就是這關(67 < 75)。豁免的依據是兩份實測:①品質分與觀看相關 -0.084(排名無效,
+        # 見 memory yt-quality-score-not-predictive)②EP0 是全頻道訂閱轉換最高格式(3-5%)。
+        # EP0 稿子=確定性模板+存量 fail-closed,hook 評分天生吃虧不代表片爛。
+        # ⚠️ 只豁免 qmin 這一關:硬地板 FLOOR(擋壞片)與 audit(誠信)照過——不是放寬安全閘。
+        if qmin and scv < qmin and not _is_ep0_title(slug):
             quarantined.append((slug, [f"品質 {sc} 分 < 門檻 {qmin}"]))
             print(f"[品質未達門檻] {slug}：{sc} 分 < {qmin}，暫不發布")
             continue
+        if qmin and scv < qmin:
+            print(f"[EP0豁免] {slug}：{sc} 分 < {qmin} 但屬系列說明片,豁免較嚴門檻(硬地板/審核已過)")
         todo.append(slug)
         if len(todo) >= args.max:
             break

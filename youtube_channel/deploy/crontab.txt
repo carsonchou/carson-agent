@@ -96,6 +96,19 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 #   不會超產),不夠才補。produce_batch **不吃 YouTube 配額**(只走 LLM/OpenRouter),故可安全加班。
 #   注意:電腦真的睡著時這支也不會跑——根治要禁睡眠,那是 Carson 的機器設定,不擅自改。
 30 12 * * * /root/yt/run.sh scripts/produce_batch.py --manual --format-focus --shorts 0 --long 3 --target 30 --no-render >> /root/yt/logs/cron.log 2>&1
+# 🔴 2026-08-11 EP0 常態化:EP0/系列說明片是實測訂閱轉換最高格式(3-5%,tw_lab EP0
+#   17.5訂閱/千觀看=均值3倍),但先前**沒有任何排程**——只有 session 想到才手動產,產了又
+#   卡品質門檻(67<75,已豁免)+數字過期(已加汰舊),3 支 stale 疊庫存 11 天、最大系列
+#   checkup 的 EP0 從未發布過。每週一支、兩系列隔週輪替(週三 07:20,錯開主產批 06:07):
+#   數字由 ep0_engine 從 ledger/題庫當場算(fail-closed),產新自動汰舊未發布舊版。
+#   ⚠️ 輪替不可用 shell 條件寫(`[ $((週數%2)) ] &&`):local_cron 的解析 regex 只抽
+#   `scripts/X.py args`,前綴條件會被**靜默丟棄**→兩支同天全跑。改用純 cron 欄位:
+#   checkup=每月第1/3個週三,tw_lab=第2/4個週三。
+#   ⚠️ 語義注意:local_cron.due() 對全欄位取 AND(日窗∧週三=第N個週三,正確);
+#   標準 cron 對「日+週」同時限定是 **OR**(會變成 1-7 每天+每週三都跑)——若未來搬回
+#   真 crontab,這兩行要改寫(如日窗+腳本內判週幾),不能照搬。現行產線=本機 local_cron。
+20 7 1-7,15-21 * 3 /root/yt/run.sh scripts/produce_batch.py --ep0 checkup --no-render >> /root/yt/logs/cron.log 2>&1
+20 7 8-14,22-28 * 3 /root/yt/run.sh scripts/produce_batch.py --ep0 tw_lab --no-render >> /root/yt/logs/cron.log 2>&1
 # Short→長片精準連看:建 short_to_long.json(bigram題材相似度對應已發布短→長),發布前跑
 50 6 * * * /root/yt/run.sh scripts/build_short_to_long.py >> /root/yt/logs/cron.log 2>&1
 # Short→Short 同系列/同題材連看:建 short_to_short.json(EP實測系列接上一集、其餘bigram題材相似度

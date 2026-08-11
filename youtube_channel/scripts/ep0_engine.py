@@ -373,6 +373,10 @@ COST_DISCLOSURE = (
 SERIES = {
     "tw_lab": {
         "name": "台股真相實驗室",
+        # slug 簽名:同系列 EP0 的 slug 開頭(slugify 保留標題前段)。供產線產新 EP0 時
+        # 汰舊——EP0 的「已播出 N 集」是產片當下快照,舊版未發布=數字已過期=發出去說謊;
+        # 實測 3 支 stale checkup EP0(13集/28集/…)疊在庫存就是沒有這個機制。
+        "slug_sig": "L_台股真相實驗室",
         "inv": _inv_tw_lab,
         "min_stock": MIN_STOCK,
         # ①敵人
@@ -399,6 +403,7 @@ SERIES = {
     },
     "checkup": {
         "name": "個股體檢系列",
+        "slug_sig": "L_個股體檢系列",   # 見 tw_lab.slug_sig 說明;正片 slug 是「個股體檢+股名」不含「系列」
         "inv": _inv_checkup,
         "min_stock": MIN_STOCK,
         "enemy": ("你有沒有發現，網路上講個股的影片，幾乎都在講同樣那幾檔？"
