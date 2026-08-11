@@ -88,7 +88,9 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # 而歷史成品是 816 支 Shorts vs 146 支長片 —— 算力長期押在幾乎零回報的那邊。
 # ⚠️ 保留 1 支 Shorts 不歸零:Shorts 仍是頻道的探路/曝光面(佔總觀看仍過半),
 #    完全砍掉會失去這個發現題材的管道,但不該再是主力。
-7 6 * * * /root/yt/run.sh scripts/produce_batch.py --manual --format-focus --shorts 1 --long 6 --target 150 --no-render >> /root/yt/logs/cron.log 2>&1
+# 🔬 2026-08-12 節奏實驗配套:發布 3/天,生產同步 --long 6→3(庫存 39 支已夠 2 週,
+#   續產 6 支/天會無限堆積;省下的 LLM 額度讓密度規則(段落留存ⓕ~ⓙ)有更多重生預算)。
+7 6 * * * /root/yt/run.sh scripts/produce_batch.py --manual --format-focus --shorts 1 --long 3 --target 150 --no-render >> /root/yt/logs/cron.log 2>&1
 # 🔴 2026-07-17 長片保底補產:06:07 主批若被外力中斷(07-16 實錄 exit 1073807364 =
 #   DBG_TERMINATE_PROCESS,疑似電腦睡眠;07-17 又因 queue_size bug 整批跳過)→ 已連兩天零長片,
 #   而長片可發庫存只剩 9 支 = 3 天。再失敗一次就斷炊,發布端會無聲退化成全短片(不崩但翻轉白做)。
@@ -189,12 +191,16 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 #   ⚠️ 刻意**不加新時段**:配額實測上限約 18,000/日,目前已用到約 16,000,再加量會撞頂,
 #      撞頂的代價是隔天完全發不出去。所以只做組成轉移,不做增量。
 #   ⚠️ 若哪天個股體檢庫存見底,這格會空手(--series 濾不到候選)→ 那時應改回無 --series。
-0 11 * * * /root/yt/run.sh scripts/daily_publish.py --series checkup --max 1 >> /root/yt/logs/cron.log 2>&1
+# 🔬 2026-08-12 節奏實驗:11:00 checkup 檔位停用 14 天(總量 7→3/天,證據見
+#   daily_publish.LONG_PER_CYCLE 註解;09:15 檔位保留=訂閱鉤「每天一檔體檢」承諾不破壞)。
+#   回滾=取消下行註解。
+# 0 11 * * * /root/yt/run.sh scripts/daily_publish.py --series checkup --max 1 >> /root/yt/logs/cron.log 2>&1
 # 2026-08-04 --max 3 → 5:配額實測上限 >=18,000、單支約 2,050,原本一天只發 5 支(約
 # 10,250)有近 3 支的餘裕閒置。改後一天 09:15(1長)+11:00(1長)+18:30(4長1短)=6長1短,
 # 約 14,350 units 仍在上限內。理由與 per-video 實測數字見 daily_publish.py 的
 # LONG_PER_CYCLE 註解(長片每支訂閱產出是 Shorts 的 7.7 倍,且只有長片算 YPP 分鐘)。
-30 18 * * * /root/yt/run.sh scripts/daily_publish.py --max 5 >> /root/yt/logs/cron.log 2>&1
+# 🔬 2026-08-12 節奏實驗:max 5→2(配 LONG_PER_CYCLE=1,1 → 1長1短)。回滾=改回 --max 5。
+30 18 * * * /root/yt/run.sh scripts/daily_publish.py --max 2 >> /root/yt/logs/cron.log 2>&1
 # 台股收盤後覆盤情緒黃金窗口 —— 2026-07-13 依實測改停靠早盤強桶(09:00 時段 retention 49.75%/
 # n=26,views_per_day 2.34/n=27,樣本夠大且表現佳,優於原 13:40)
 # 2026-07-17 由「只交易日 1-5」改成每天:新的 interleave 讓三批取到 L,L,(L,S,S),但這批只在
