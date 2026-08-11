@@ -487,6 +487,23 @@ def assemble_metadata(
     except Exception:  # noqa: BLE001  漏斗附加失敗不可影響 metadata 組裝
         pass
 
+    # 個股搜尋 tag 補強(2026-08-12):近 28 天搜尋詞 Top25 幾乎全是裸股名/代號(金像電/
+    # 6147/世芯ky)——觀眾就是這樣找到我們。標題帶股名+代號的片自動補齊變體 tags。
+    # 只認兩種高置信 pattern:【股名 代號】(體檢系列標準格式)或標題開頭「股名代號」緊鄰;
+    # 通用 CJK+4碼數字會誤抓「報酬4714」這種,不用。
+    try:
+        # (?!\d) 不用 \b:CJK 也是 word char,「2330體」之間沒有 \b 邊界,match 會靜默失敗
+        _m = (re.search(r"【([一-鿿A-Za-z\-]{2,8})\s+(\d{4,6})】", str(title))
+              or re.match(r"^([一-鿿]{2,6})(\d{4})(?!\d)", str(title)))
+        if _m:
+            _nm, _cd = _m.group(1), _m.group(2)
+            for _t in (_nm, _cd, f"{_nm}{_cd}", f"{_cd}{_nm}", f"{_nm}股價", f"{_nm}分析"):
+                if _t.lower() not in seen:
+                    seen.add(_t.lower())
+                    clean_tags.append(_t)
+    except Exception:  # noqa: BLE001
+        pass
+
     # 系列連看引導(2026-08-12):放 top_blocks 尾(仍在折疊點上方),配不到題材就沒有
     try:
         _sb = build_series_block(str(title), slug)
