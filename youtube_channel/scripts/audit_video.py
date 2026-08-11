@@ -37,6 +37,9 @@ NEG_CHARS = "不沒別非勿未拒避免絕毋"
 # 這類避雷片標題——改成掃整句(標點斷句)才不漏。
 DEBUNK = ("以為", "迷思", "真的", "真能", "真會", "別信", "別再", "騙", "假象", "謊",
           "難道", "憑什麼", "怎麼可能", "拆穿", "打臉", "揭穿", "神話", "騙局",
+          # 2026-08-11 補:南亞1303「揭露『長期投資必賺』背後的殘酷真相」被誤擋——
+          # 「揭露/真相」是本頻道避雷片的招牌句式,和「揭穿/拆穿」同義卻不在表上。
+          "揭露", "真相",
           # 2026-07-26 補「流言終結者」franchise 框迷思詞:引用被驗的信仰標籤(「崩盤抄底穩賺
           # (對照信仰:…)」)、「本集要終結的流言:…穩賺不賠」——這些是**被拆的迷思名**非本片保證。
           # 兩詞天生只出現在破除語境(對照信仰=被驗的對照假說、流言=待終結的傳言),不會出現在真喊單句。
@@ -51,9 +54,88 @@ DEBUNK = ("以為", "迷思", "真的", "真能", "真會", "別信", "別再", 
           # ⚠️ 這些詞單獨看很中性,之所以安全是因為判定條件是**同句內同時出現禁語**——
           #    真喊單句(「跟著我穩賺」)不會同句出現「這可不一定」這種自我否定。
           "觀念", "觀唸", "可不一定", "不一定", "真實情況", "往往", "事實上",
-          "很多人", "多數人", "常聽到", "都說", "號稱", "宣稱", "所謂")
+          "並不能", "不代表")
+# 引述詞:「大家都在說X」「擁護者認為X」——只證明**在引用別人的說法**,不證明本片在破除它。
+# 喊單片一樣會用(「大家都說這檔穩賺,快上車」),所以不能放進 DEBUNK 無條件放行;
+# 必須同句或下一句出現轉折/反駁(REBUT)才算破除語境。
+# 「都說/號稱/很多人」這批原本躺在 DEBUNK 裡,有同樣的漏洞,一併移過來收緊。
+QUOTE_MARKERS = ("很多人", "多數人", "常聽到", "都說", "號稱", "宣稱", "所謂",
+                 "大家都", "大家常", "擁護者", "認為", "有人說", "聽說")
+REBUT = ("但", "然而", "其實", "事實", "回測", "資料", "數據", "未必", "並不",
+         "不一定", "不是這樣", "真相", "揭露", "殘酷", "錯", "迷思", "驗證")
 QUESTION = "？?嗎吗"
 _SENT_SPLIT_RE = re.compile(r"[。！？!?\n]")
+
+
+def find_banned_hits(blob: str) -> list:
+    """回傳 blob 裡「當真宣稱在用」的禁語清單(破除/否定/反問語境不算)。
+
+    2026-08-11 從 audit() 的巢狀函式抽出來:之前每輪驗證都在測試腳本裡**重刻**這段
+    邏輯,重刻版和正式版走岔了兩次(整句掃 NEG 放行真喊單、右側掃 ？ 放行假反問),
+    測過=假象。抽成 module-level 之後,測試 import 的就是產線在跑的同一份。
+
+    語境放行規則(按序):
+      ①窄窗:前 8 字有否定字、或後 2 字有問號/嗎 —— 歷史行為,保留。
+      ②同句左側(禁語前)有否定字:「並不能代表它是一檔穩賺不賠的股票」。
+        ⚠️ 只掃左側:禁語「穩賺不賠」自含「不」,掃整句=無條件放行。
+      ③同句右側(禁語後)有疑問詞「嗎/吗」:「你還會覺得穩賺不賠嗎?」。
+        ⚠️ 只認嗎/吗,**不認光禿問號**——「這檔穩賺不賠?我跟你保證翻倍」
+        是假反問真喊單,光禿問號要走⑥(下一句必須有破除詞)才放行。
+      ④同句有破除詞(DEBUNK):「打臉穩賺神話」。
+      ⑤同句有引述詞(QUOTE_MARKERS)**且**同句或下一句有轉折反駁(REBUT):
+        「大家都在說X穩賺不賠,但回測顯示…」。引述詞單獨出現不放行
+        (喊單也會寫「大家都說這檔穩賺」)。
+      ⑥本句以問號結尾且下一句有破除詞:「是否代表穩賺不賠?這可不一定…」。
+      ⑦「穩定獲利」緊鄰「公司/企業/本業」=財務描述非收益承諾:
+        「穩定的毛利率是公司穩定獲利的重要基礎」。
+    """
+    def _ok_context(i, b):
+        pre = blob[max(0, i - 8):i]
+        post = blob[i + len(b): i + len(b) + 2]
+        if any(n in pre for n in NEG_CHARS):       # ① 不/沒保證…
+            return True
+        if any(q in post for q in QUESTION):       # ① 穩賺？ 反問
+            return True
+        _l = 0
+        for _m in _SENT_SPLIT_RE.finditer(blob[:i]):
+            _l = _m.end()
+        _rm = _SENT_SPLIT_RE.search(blob, i + len(b))
+        _left = blob[_l:i]                                          # 同句、禁語之前
+        _right = blob[i + len(b): _rm.start() if _rm else len(blob)]  # 同句、禁語之後
+        sentence = _left + b + _right
+        if any(n in _left for n in NEG_CHARS):     # ②
+            return True
+        if "嗎" in _right or "吗" in _right:        # ③
+            return True
+        if any(dk in sentence for dk in DEBUNK):   # ④
+            return True
+        nxt = ""
+        if _rm:
+            _nm = _SENT_SPLIT_RE.search(blob, _rm.end())
+            nxt = blob[_rm.end(): _nm.start() if _nm else len(blob)]
+        if any(qm in sentence for qm in QUOTE_MARKERS):   # ⑤
+            if any(rb in sentence for rb in REBUT) or any(rb in nxt for rb in REBUT):
+                return True
+        if _rm and _rm.group() in "？?":            # ⑥
+            if any(dk in nxt for dk in DEBUNK):
+                return True
+        if b == "穩定獲利" and _left[-6:] and any(   # ⑦
+                w in _left[-6:] for w in ("公司", "企業", "本業")):
+            return True
+        return False
+
+    hits = []
+    for b in BANNED:
+        start = 0
+        while True:
+            i = blob.find(b, start)
+            if i == -1:
+                break
+            if not _ok_context(i, b):
+                hits.append(b)  # 真正當作宣稱在用 → 違規
+                break
+            start = i + len(b)
+    return hits
 
 
 def _ffmpeg_exe() -> str:
@@ -135,47 +217,9 @@ def audit(slug: str):
         blob += voice.read_text(encoding="utf-8")
     if md.exists():
         blob += "\n" + md.read_text(encoding="utf-8")
-    def _ok_context(i, b):
-        pre = blob[max(0, i - 8):i]
-        post = blob[i + len(b): i + len(b) + 2]
-        if any(n in pre for n in NEG_CHARS):       # 不/沒保證…
-            return True
-        if any(q in post for q in QUESTION):       # 穩賺？ 反問
-            return True
-        # 破除詞不侷限窄窗，掃「同句」(標點斷句)——「打臉穩賺神話」的「打臉」「神話」
-        # 才抓得到；同句沒有真宣稱在用才擋（「跟著我穩賺」這種仍會擋）
-        left = 0
-        for m in _SENT_SPLIT_RE.finditer(blob[:i]):
-            left = m.end()
-        right_m = _SENT_SPLIT_RE.search(blob, i + len(b))
-        right = right_m.start() if right_m else len(blob)
-        sentence = blob[left:right]
-        if any(dk in sentence for dk in DEBUNK):   # 打臉/拆穿/揭穿/神話/騙局/你以為/迷思…
-            return True
-        # 2026-08-11:反問句的「答案」天生落在**下一句**,只掃同句會漏。
-        # 實例(晶技3042):「是否就代表穩賺不賠？| 這可不一定,因為股利只是…」
-        # 破除詞「這可不一定」被句號切到下一句 → 誤判成本片在宣稱。
-        # (原本的 post 窄窗只看禁語後 2 字,而「穩賺不賠？」的問號落在第 3 字,也接不到。)
-        # 只在「本句以問號結尾」時才延伸——一般陳述句不放寬,避免把
-        # 「跟著我穩賺。這檔我很看好」這種真喊單放行。
-        if right_m and right_m.group() in "？?":
-            nxt_m = _SENT_SPLIT_RE.search(blob, right_m.end())
-            nxt = blob[right_m.end(): nxt_m.start() if nxt_m else len(blob)]
-            if any(dk in nxt for dk in DEBUNK):
-                return True
-        return False
-
-    hits = []
-    for b in BANNED:
-        start = 0
-        while True:
-            i = blob.find(b, start)
-            if i == -1:
-                break
-            if not _ok_context(i, b):
-                hits.append(b)  # 真正當作宣稱在用 → 違規
-                break
-            start = i + len(b)
+    # 判定邏輯抽到 module-level find_banned_hits(),讓測試能 import 產線同一份;
+    # 語境放行規則與歷次血案全記在該函式 docstring。
+    hits = find_banned_hits(blob)
     if hits:
         reasons.append("含誇大/保證禁語（非破除語境）：" + "、".join(hits))
 
