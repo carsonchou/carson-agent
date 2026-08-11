@@ -161,6 +161,12 @@ def main() -> int:
             print(f"❌ {slug[:40]} 重配音失敗,已還原原稿")
             failed += 1
             continue
+        # 過期字幕時間軸比沒有更糟(tts_edge 2026-08-11 血案:節流退回時舊 sidecar 殘留,
+        # make_video 拿舊時間軸配新音檔=後 2/3 字幕錯位)。tts_edge 已自刪,這裡兜底其他引擎。
+        wt = OUT / f"{slug}.wordtimes.json"
+        if wt.exists() and wt.stat().st_mtime + 1 < mp3.stat().st_mtime:
+            wt.unlink()
+            print(f"   ⤷ 已刪過期字幕時間軸 sidecar({slug[:30]})")
         mp4 = OUT / f"{slug}.mp4"
         if mp4.exists():
             shutil.move(str(mp4), str(BAK / mp4.name))

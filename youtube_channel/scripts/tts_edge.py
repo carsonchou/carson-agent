@@ -139,12 +139,24 @@ def main() -> int:
         try:
             words = asyncio.run(_synth(text, voice, args.rate, out))
             if out.exists() and out.stat().st_size > 0:
-                # 寫逐字時間戳 sidecar(供 make_video 精準字幕);串流被節流退回 .save 時 words 為空,靜默略過。
+                # 寫逐字時間戳 sidecar(供 make_video 精準字幕)。
+                # 🔴 2026-08-11 血案:被節流退回 .save 時 words 為空,舊版「靜默略過」——
+                # 但**上一版 mp3 的舊 sidecar 還在磁碟上**,make_video 拿舊時間軸配新音檔,
+                # 實測重配音的片(片中多插一句訂閱鉤,+15s)後 2/3 字幕整段錯位。
+                # fail-safe 方向=拿掉:新 mp3 拿不到時間戳,就把過期 sidecar 刪掉,
+                # 讓 make_video 退回按字數估算(略有漂移但大致同步),絕不能留著精準地錯。
+                wt = out.parent / f"{out.stem}.wordtimes.json"
                 if words:
                     try:
                         import json as _json
-                        wt = out.parent / f"{out.stem}.wordtimes.json"
                         wt.write_text(_json.dumps(words, ensure_ascii=False), encoding="utf-8")
+                    except Exception:  # noqa: BLE001
+                        pass
+                else:
+                    try:
+                        if wt.exists():
+                            wt.unlink()
+                            print(f"[warn] 無詞時戳(節流退回),已刪過期 sidecar:{wt.name}", file=sys.stderr)
                     except Exception:  # noqa: BLE001
                         pass
                 print(f"[ok] 配音完成：{out}（{out.stat().st_size/1024:.0f} KB）voice={voice} chars={len(text)} 詞時戳={len(words)} 第{attempt+1}次")
