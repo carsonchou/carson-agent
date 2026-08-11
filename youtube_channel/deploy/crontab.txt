@@ -109,6 +109,13 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 #   真 crontab,這兩行要改寫(如日窗+腳本內判週幾),不能照搬。現行產線=本機 local_cron。
 20 7 1-7,15-21 * 3 /root/yt/run.sh scripts/produce_batch.py --ep0 checkup --no-render >> /root/yt/logs/cron.log 2>&1
 20 7 8-14,22-28 * 3 /root/yt/run.sh scripts/produce_batch.py --ep0 tw_lab --no-render >> /root/yt/logs/cron.log 2>&1
+# 每週人眼抽檢(2026-08-12):抽3支近期發布片產contact sheet(6格畫面+語速/音畫比探針)
+#   → STUDIO/REPORTS/<date>_每週抽檢.jpg,Carson掃10秒抓黑畫面/字幕錯位/圖表崩版。
+#   起因=字幕錯位事故證明「渲染完成≠片是好的」,機器閘門總有下一種靜默失敗。
+0 8 * * 0 /root/yt/run.sh scripts/weekly_qa_sample.py >> /root/yt/logs/cron.log 2>&1
+# 留存×段落對映月更(2026-08-12):83支實測得出風險句1.60x/說教句懸崖等規則已進LONG_RULES,
+#   每月重跑刷新洞察(新片累積後樣本更大,規則要跟著數據走)。
+40 7 1 * * /root/yt/run.sh scripts/retention_segments.py >> /root/yt/logs/cron.log 2>&1
 # Short→長片精準連看:建 short_to_long.json(bigram題材相似度對應已發布短→長),發布前跑
 50 6 * * * /root/yt/run.sh scripts/build_short_to_long.py >> /root/yt/logs/cron.log 2>&1
 # Short→Short 同系列/同題材連看:建 short_to_short.json(EP實測系列接上一集、其餘bigram題材相似度
