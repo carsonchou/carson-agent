@@ -88,7 +88,10 @@ def main() -> int:
     from audit_video import find_banned_hits
 
     led = json.loads((ROOT / "STUDIO" / "uploaded_ledger.json").read_text(encoding="utf-8"))
-    slugs = sorted({p.name[:-4] for p in OUT.glob("L_*.mp4")} - set(led))
+    # ⚠️ 枚舉基準=voice.txt 不是 mp4(2026-08-11 二修):用 mp4 列舉會漏掉「mp4 被搬走
+    # 待重渲」與「殘骸 mp3 被語速健檢擋住從沒渲成」的件——實測 2 支截斷殘骸就是這樣
+    # 逃過整輪修復。voice.txt 是產製的源頭,有它就該進治理範圍。
+    slugs = sorted({p.name[:-len(".voice.txt")] for p in OUT.glob("L_*.voice.txt")} - set(led))
     BAK.mkdir(exist_ok=True)
     changed = skipped = failed = 0
     for slug in slugs:
