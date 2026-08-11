@@ -2112,6 +2112,29 @@ def build_video(
                 )
                 if card_png is not None:
                     stats["concept_used"] = stats.get("concept_used", 0) + 1
+                    # 漸進揭露(2026-08-12 抽檢後啟用):reveal/variant 參數管線早就接到
+                    # render_concept_card 卻從沒被主迴圈用過——長段落(≥18s)一張靜態圖
+                    # 掛整段,畫面死死不動(每週抽檢 6 格裡 4 格同圖)。改成前半段先給
+                    # reveal=0.55 的「畫到一半」版,後半段換完整版:同一份真數據、兩張
+                    # 靜態幀,零額外素材、渲染成本只多一張 PNG,但畫面有了「圖在長出來」
+                    # 的推進感。任何失敗就維持單卡(fail-open,不影響出片)。
+                    if per_seg >= 18:
+                        try:
+                            half_png = render_concept_card(
+                                width, height, heading=seg.heading or title,
+                                narration=seg.narration, watermark=watermark, accent=accent,
+                                seed=f"{vid_seed}_{i}",
+                                dest=tmp_dir / f"concept_{i:02d}_half.png",
+                                default_key=video_concept, reveal=0.55,
+                            )
+                            # 有些 drawer 忽略 reveal → 兩張內容一樣,比 bytes 不比路徑
+                            if (half_png is not None and Path(half_png).exists()
+                                    and Path(half_png).read_bytes() != Path(card_png).read_bytes()):
+                                _h = ImageClip(str(half_png)).set_duration(per_seg * 0.45)
+                                _f = ImageClip(str(card_png)).set_duration(per_seg * 0.55)
+                                clip = concatenate_videoclips([_h, _f])
+                        except Exception:  # noqa: BLE001
+                            clip = None  # 漸進版失敗 → 走原本單卡路徑
             except Exception as exc:  # noqa: BLE001
                 print(f"[warn] 概念圖失敗，退回 K 線卡：{exc}", file=sys.stderr)
                 card_png = None
