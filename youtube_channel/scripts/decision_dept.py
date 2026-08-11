@@ -497,7 +497,10 @@ pending_decisions：**不設數量上限** —— 凡是「真正需要老闆拍
 數據太少時方向就給「保持多元測試、衝Shorts量、累積數據」這類務實方向,不要硬掰假洞察。"""
     last = None
     for attempt in range(2):  # json_mode 強制合格 JSON,3→2 次夠;截斷才是真因(見下 max_tokens 降量)
-        txt = llm.complete(prompt, 4500, json_mode=True)  # 8000→4500(實測輸出遠小於8000)+共用路由+強制 JSON
+        # 2026-08-12:4500→7000。「輸出遠小於8000」是非推理模型時代量的;現在大請求走
+        # OpenRouter gemini-2.5-flash(推理模型,thinking 吃同一份 max_tokens 預算),實測
+        # 05:37 連 3 次只回「{」就斷=thinking 燒光預算正文被截。7000 給 thinking 留空間。
+        txt = llm.complete(prompt, 7000, json_mode=True)
         parsed = _extract_json(txt)
         if parsed is not None:
             return parsed
