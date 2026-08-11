@@ -109,6 +109,10 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 #   真 crontab,這兩行要改寫(如日窗+腳本內判週幾),不能照搬。現行產線=本機 local_cron。
 20 7 1-7,15-21 * 3 /root/yt/run.sh scripts/produce_batch.py --ep0 checkup --no-render >> /root/yt/logs/cron.log 2>&1
 20 7 8-14,22-28 * 3 /root/yt/run.sh scripts/produce_batch.py --ep0 tw_lab --no-render >> /root/yt/logs/cron.log 2>&1
+# 描述章節回填餘量(2026-08-12):108支已發布長片回填章節+清殘留,首批60支已完成;
+#   每天16:10(配額15:00重置後)續跑60支,冪等(done名單),全部做完自動no-op、之後
+#   只會接住「本地有md+wordtimes但線上還沒章節」的新漏網件。獨立驗證已放行(5/5)。
+10 16 * * * /root/yt/run.sh scripts/desc_chapters_backfill.py --apply --max 60 >> /root/yt/logs/cron.log 2>&1
 # 每週人眼抽檢(2026-08-12):抽3支近期發布片產contact sheet(6格畫面+語速/音畫比探針)
 #   → STUDIO/REPORTS/<date>_每週抽檢.jpg,Carson掃10秒抓黑畫面/字幕錯位/圖表崩版。
 #   起因=字幕錯位事故證明「渲染完成≠片是好的」,機器閘門總有下一種靜默失敗。
