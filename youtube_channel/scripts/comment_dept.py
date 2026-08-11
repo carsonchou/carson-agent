@@ -366,6 +366,7 @@ def auto_reply_safe(yt, max_replies: int = 10, dry_run: bool = False, use_haiku:
         return 0
 
     acted = 0
+    n_smart = 0   # 智慧回覆命中數(2026-08-11:日誌不分流就看不出 smart_reply 是不是一直在靜默退模板)
     # 每日預算閘(見 _DAILY_REPLY_CAP):本輪可回數 = min(每輪上限, 今日剩餘預算)
     if not dry_run:
         _left = _reply_budget_left()
@@ -381,10 +382,13 @@ def auto_reply_safe(yt, max_replies: int = 10, dry_run: bool = False, use_haiku:
             category = classify_with_haiku(text)
         # 先試「讀懂留言」的回覆(見 smart_reply 的實測說明);
         # 失敗或沒過安全檢查才退回安全模板 —— fail-safe:寧可平淡,不可違規。
-        template = smart_reply(text, c.get("video_id", ""), _ledger_map()) or pick_template(category)
+        _smart = smart_reply(text, c.get("video_id", ""), _ledger_map())
+        template = _smart or pick_template(category)
+        _mode = "智慧" if _smart else "模板"
+        n_smart += bool(_smart)
 
         if dry_run:
-            print(f"[dry-run] @{c['author']} → [{category}] 「{template}」")
+            print(f"[dry-run] @{c['author']} → [{category}/{_mode}] 「{template}」")
             print(f"          留言：{text[:80]}")
             continue
 
@@ -396,7 +400,7 @@ def auto_reply_safe(yt, max_replies: int = 10, dry_run: bool = False, use_haiku:
             ).execute()
             replied.add(c["comment_id"])
             acted += 1
-            print(f"[ok] 已回 @{c['author']} → [{category}] 「{template}」")
+            print(f"[ok] 已回 @{c['author']} → [{category}/{_mode}] 「{template}」")
             time.sleep(1.5)  # 禮貌間隔，避免 quota 連打
         except Exception as e:
             print(f"[warn] 發回覆失敗（@{c['author']}）：{e}", file=sys.stderr)
@@ -404,7 +408,7 @@ def auto_reply_safe(yt, max_replies: int = 10, dry_run: bool = False, use_haiku:
     if not dry_run and acted > 0:
         save_replied(replied)
         _reply_budget_consume(acted)   # 計入今日配額預算(見 _DAILY_REPLY_CAP)
-        log_ops("社群留言", f"安全模板自動回 {acted} 則")
+        log_ops("社群留言", f"自動回 {acted} 則(智慧 {n_smart}/模板 {acted - n_smart})")
     return acted
 
 
