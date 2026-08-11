@@ -72,20 +72,32 @@ _SHORTS_HASHTAGS = "\n\n" + " ".join(["#Shorts", "#量化交易", "#Pionex", "#�
 # 訂閱鉤標準化：價值承諾句，不是光禿禿求訂閱(誠信鐵則：不誇大、不保證收益)。
 # 2026-07-15 競品逆向:頭部頻道(股添樂/股乾爹/阿格力)簡介第一句無例外都是 credential 背書,
 # 直接回答「憑什麼信你」——我們的 credential 是真的:全市場 1841 檔回測引擎(對手沒有)。
-_SUBSCRIBE_HOOK = ("🔔 我用 Python 把台股 1841 檔全部跑過回測——訂閱看每週全市場實測、"
-                   "拆穿話術陷阱，不誇大只看真數據")
+# 2026-08-12 整改:①「1841 檔」是舊全市場回測的數字,體檢宇宙已是 1925 檔;「每週全市場
+# 實測」也不是現在的產出節奏(實際=每天多支體檢/回測片)——宣稱要對得上現實。
+# ②每則留言掛**同一條**尾巴=spam 簽名(實測近 100 則頂層留言 95% 是自家 bot,同款尾巴讓它
+# 看起來像機器蓋版)。改成變體池,發留言時輪替;描述用第一條(穩定)。
+_SUBSCRIBE_HOOKS = [
+    "🔔 台股 1925 檔,我一檔一檔用真數據體檢——訂閱之後,你的清單每天多一檔完整體檢",
+    "🔔 這個頻道每天用真回測拆台股說法,不喊單不報明牌——訂閱跟著看數據",
+    "🔔 不誇大、只看回測數據。訂閱後每天收到台股個股的完整體檢報告",
+]
+_SUBSCRIBE_HOOK = _SUBSCRIBE_HOOKS[0]
 # 一鍵訂閱參數：帶 ?sub_confirmation=1 的頻道連結會直接跳出訂閱確認框，省掉「找頻道→再點訂閱」
 # 兩步流失。2026-07-17 加：訂閱轉換是 YPP 唯一瓶頸(46/1000)，描述那句 credential 本來只是
 # 不可點的純文字，等於叫人訂閱卻不給按鈕。
 _SUB_CONFIRM_PARAM = "?sub_confirmation=1"
 
 
-def _subscribe_hook(cfg: dict | None = None) -> str:
-    """訂閱鉤文案；有 channel_handle 就附一鍵訂閱連結，取不到就退純文字(fail-open，不擋發布)。"""
+def _subscribe_hook(cfg: dict | None = None, seed: str = "") -> str:
+    """訂閱鉤文案；有 channel_handle 就附一鍵訂閱連結，取不到就退純文字(fail-open，不擋發布)。
+    seed(如 video id)決定用哪條變體——留言尾巴輪替,避免同款尾巴的機器蓋版簽名。"""
+    # crc32 不用 ord-sum:實測 video id 的 ASCII 和 mod 3 幾乎全撞同格,輪替失效
+    import zlib
+    hook = _SUBSCRIBE_HOOKS[zlib.crc32(seed.encode()) % len(_SUBSCRIBE_HOOKS)] if seed else _SUBSCRIBE_HOOK
     handle = ((cfg or {}).get("channel_handle") or "").lstrip("@")
     if not handle:
-        return _SUBSCRIBE_HOOK
-    return f"{_SUBSCRIBE_HOOK}\n👉 https://www.youtube.com/@{handle}{_SUB_CONFIRM_PARAM}"
+        return hook
+    return f"{hook}\n👉 https://www.youtube.com/@{handle}{_SUB_CONFIRM_PARAM}"
 
 
 # ── 系列化訂閱鉤(2026-07-19 訂閱轉換診斷落地)────────────────────────────────
@@ -185,31 +197,25 @@ _ENGAGE_QS = [
     # 回測數據/實測表,但交付機制從未運作(comment_dept:293 自認 tg_leads 累計 0 筆)、且很多片
     # 根本沒真數據可給=用**不存在的**東西當誘餌(同 produce_batch CTA 池那句)。其餘互動句(設定/
     # 回撤/踩坑/評分)純誘導討論、無交付承諾,保留。
+    # 2026-08-12 二次整改,同罪名再砍 6 句:「我統計結果下支公布」「下支公開90%人都設錯的參數
+    # ——先訂閱不然找不回來」(假specific承諾+操弄語氣)「夠多我就出深度版」「揭曉在置頂」(API
+    # 根本不能置頂)「下支我幫你回測哪個十年贏」「我出一支怎麼省的」——全是**產線沒有兌現機制**
+    # 的承諾。判準:句子裡承諾的後續動作,產線做不做得到?做不到=空頭支票=砍。
     "同意的留言『+1』，不同意的說說你怎麼看 👇",
     "你現在的策略最大回撤是多少？留下數字，我看有沒有辦法壓低",
     "說說你踩過最貴的坑，讓大家參考，一起少虧點 💀",
-    "這招你知道幾分？0-10 分留個數字，我統計結果下支公布",
     # 引戰型（製造討論、拉留言數）
     "這題你站哪邊？同意的 +1，有不同看法的留言戰起來 👇",
     "你踩過這個坑嗎？分享一下慘痛經驗，我看能不能幫你拆 👇",
     "你覺得網格最大的風險是什麼？A 爆倉 / B 套牢 / C 手續費吃光，留字母",
     "有沒有人靠這個真的賺到的？說說你的參數，不說數字沒人信 👇",
-    # 懸念型（轉換成訂閱者）
-    # 2026-07-17:原文寫「先追蹤，不然找不回來」——這區塊的目的就是轉訂閱，卻用 IG 語彙
-    # 講「追蹤」，而 YouTube 按鈕上寫的是「訂閱」，觀眾不知道要按哪個鍵(同批修正見
-    # produce_batch._CTA_WORD_FIXES)。
-    "下支我要公開一個 90% 人都設錯的參數——先訂閱，不然找不回來 👇",
-    "想看完整實測數據的留言『+1』，夠多我就出深度版 👇",
-    "你會怎麼做？留言告訴我，下支可能就拍你的問題 👇",
-    "猜猜最後是賺還是賠？留言你的答案，揭曉在置頂 👇",
     # 台股/定投題材(對齊主軸)
-    "你定投的是 0050 還是 0056？留言告訴我，下支我幫你回測哪個十年贏 👇",
+    "你定投的是 0050 還是 0056？留言說說你當初為什麼選它 👇",
     "台股這位置你是加碼、抱著、還是跑？A 加 / B 抱 / C 跑，留字母 👇",
     "你存股被套過最深幾成？留個數字，讓新手知道這條路真的會痛 👇",
     "除權息你都參加還是避開？留言你的做法，我用數據幫你驗對不對 👇",
     # AI 題材
     "你敢讓 AI 幫你選股/下單嗎？敢的 +1，不敢的說說你怕什麼 👇",
-    "你一個月花多少錢在 AI 工具？留個數字，我出一支怎麼省的 👇",
 ]
 
 
@@ -222,7 +228,7 @@ def _engage_comment_text(slug: str, vid: str, cfg: dict, ledger: dict) -> str:
         link = _short_to_long_mapped(slug, ledger)
         if link:
             return f"{q}\n\n📺 想看完整拆解？我把長片連結放這 👉 {link}"
-    return f"{q}\n\n{_subscribe_hook(cfg)}"
+    return f"{q}\n\n{_subscribe_hook(cfg, seed=vid)}"
 
 
 def _post_engage_comment(yt, vid, slug, ledger=None):
