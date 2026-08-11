@@ -305,6 +305,27 @@ def build_affiliate_block(channel_config: dict[str, Any]) -> tuple[str, list[str
     return "\n".join(parts), unreplaced
 
 
+# 系列播放清單(2026-08-12 成長包裝):把單片觀眾導進系列連看=session time+訂閱動機。
+# ID 已於 2026-08-12 用 playlists().list(mine=True) 線上驗證存在且有片。順序=先中先贏。
+_SERIES_PLAYLISTS = [
+    (("個股體檢", "體檢"), "PLUYgyV8FsN5c", "個股體檢｜台股個股歷史數據連載"),
+    (("真相實驗室",), "PLVsS_a65Tqfw", "台股真相實驗室｜真回測連載"),
+    (("定期定額", "0050", "0056", "ETF", "存股", "定投"), "PLJp7y2jl2p64", "0050/ETF 定期定額實驗"),
+    (("迷思", "拆穿", "打臉", "避雷", "真相"), "PLRzEVFXw1kT8", "新手避雷·迷思拆穿"),
+]
+
+
+def build_series_block(title: str, slug: str) -> str:
+    """依標題/slug 題材配對系列播放清單,回「整個系列連著看」引導行;配不到回空。"""
+    probe = f"{title} {slug}"
+    for kws, pid, name in _SERIES_PLAYLISTS:
+        if any(k in probe for k in kws):
+            # URL 獨立成行、後面不黏任何字元(黏了會干擾 YouTube 的自動連結解析)
+            return (f"▶ 這是「{name}」連載的其中一集,整個系列照順序看:\n"
+                    f"https://www.youtube.com/playlist?list={pid}")
+    return ""
+
+
 def build_chapters_block(slug: str, md_path: Path) -> str:
     """長片自動章節:md 段落小標 × wordtimes 句時間戳 → 描述章節行。
 
@@ -461,6 +482,14 @@ def assemble_metadata(
         if add_lines:
             top_blocks.append("\n".join(add_lines))
     except Exception:  # noqa: BLE001  漏斗附加失敗不可影響 metadata 組裝
+        pass
+
+    # 系列連看引導(2026-08-12):放 top_blocks 尾(仍在折疊點上方),配不到題材就沒有
+    try:
+        _sb = build_series_block(str(title), slug)
+        if _sb and "playlist?list=" not in (base_description or ""):
+            top_blocks.append(_sb)
+    except Exception:  # noqa: BLE001
         pass
 
     if top_blocks:
