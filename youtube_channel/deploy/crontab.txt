@@ -79,7 +79,16 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 #     (n=13 且單片佔長片訂閱 64%);方向顯著(z=3.81)但倍數不穩 5–12x。
 #   Shorts 留 3 支當曝光/導流(short_to_long 363 筆配對在跑),不再指望它轉換。
 #   target 150 已於 produce_batch 內按格式切(短40%/長60%),不足就補、達標才停,自我調節。
-7 6 * * * /root/yt/run.sh scripts/produce_batch.py --manual --format-focus --shorts 3 --long 5 --target 150 --no-render >> /root/yt/logs/cron.log 2>&1
+# 2026-08-11 產製配比 3短5長 → 1短6長。依據(近30天 per-video 實測):
+#   長片   129支:每支帶 **0.60 訂閱 / 152 觀看分鐘**
+#   Shorts 200支:每支帶 **0.04 訂閱 /  12 觀看分鐘**
+#   → 長片訂閱效率是 Shorts 的 **15 倍**、YPP 分鐘 **12.7 倍**。
+# 四週趨勢更明確:Shorts 觀看 9683→6875→2486→3459(跌 64%),四週合計只帶 9 個訂閱;
+# 同期長片 1757→3259→2175→6328(漲 260%)、帶 86 個訂閱。
+# 而歷史成品是 816 支 Shorts vs 146 支長片 —— 算力長期押在幾乎零回報的那邊。
+# ⚠️ 保留 1 支 Shorts 不歸零:Shorts 仍是頻道的探路/曝光面(佔總觀看仍過半),
+#    完全砍掉會失去這個發現題材的管道,但不該再是主力。
+7 6 * * * /root/yt/run.sh scripts/produce_batch.py --manual --format-focus --shorts 1 --long 6 --target 150 --no-render >> /root/yt/logs/cron.log 2>&1
 # 🔴 2026-07-17 長片保底補產:06:07 主批若被外力中斷(07-16 實錄 exit 1073807364 =
 #   DBG_TERMINATE_PROCESS,疑似電腦睡眠;07-17 又因 queue_size bug 整批跳過)→ 已連兩天零長片,
 #   而長片可發庫存只剩 9 支 = 3 天。再失敗一次就斷炊,發布端會無聲退化成全短片(不崩但翻轉白做)。
