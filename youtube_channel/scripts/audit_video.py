@@ -235,6 +235,16 @@ def audit(slug: str):
                 except Exception:  # noqa: BLE001
                     pass
 
+    # ①d 空殼旁白(2026-08-12 實測抓到):時事片的無憑據數字被剝掉後,整支只剩 77 字
+    # 骨架——「升息機率高達 (數字沒了)」+ loop 鉤 + 訂閱 CTA,沒有任何內容。
+    # 上游哪條路徑產的都一樣在這裡兜底:Shorts 旁白 <120 中文字=空殼,fail-closed。
+    # (正常 Shorts 30-45 秒 ≈ 200-350 字;長片有 A4 長度 gate 這裡不重複管。)
+    if is_short and voice.exists():
+        _vtext = voice.read_text(encoding="utf-8")
+        _vn = len(re.findall(r"[一-鿿]", _vtext))
+        if 0 < _vn < 120:
+            reasons.append(f"旁白過短({_vn}字)疑似空殼——內容被剝除後只剩骨架")
+
     # ② 誠信禁語（辨識否定詞，避免把「不保證收益」這種誠實聲明誤判）
     blob = ""
     if voice.exists():
