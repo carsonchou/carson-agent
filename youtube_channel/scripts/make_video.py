@@ -1079,10 +1079,11 @@ def render_concept_card(width: int, height: int, *, heading: str, narration: str
     # 依序試:指定的圖畫不出來(那檔沒有對應真資料 → drawer 回 None)就往下退,
     # 不可以讓某一段從「重複的圖」變成「完全沒有圖」——那是把畫面問題換成另一個畫面問題。
     img = key = None
+    _meta = {}   # 2026-08-12:圖表層把 caption/關鍵數字經 out-param 傳出(誠信安全數字來源)
     for k in keys:
         img = _concept.render_concept_chart(width, height, text, accent, seed, dest=None, force=k,
                                             fallback_ticker=fallback_ticker, reveal=reveal,
-                                            variant=variant)
+                                            variant=variant, meta=_meta)
         if img is not None:
             key = k
             break
@@ -1142,6 +1143,17 @@ def render_concept_card(width: int, height: int, *, heading: str, narration: str
 
     dest.parent.mkdir(parents=True, exist_ok=True)
     img.save(dest, format="PNG")
+    # 關鍵數字 sidecar(2026-08-12 v2 地基):渲染端(數字爆現 overlay)之後從這裡拿真數字,
+    # 絕不從旁白的中文數字模糊轉換。寫失敗不影響出卡。
+    # ⚠️ 教訓:第一版用「存檔樣板字串」做 replace 打到別的函式還被 try 吞掉 NameError——
+    # 同款存檔樣板全檔有 4 處,錨點必須含所屬函式特有內容。
+    try:
+        if _meta.get("key_numbers"):
+            import json as _json
+            Path(str(dest) + ".meta.json").write_text(
+                _json.dumps({**_meta, "concept_key": key}, ensure_ascii=False), encoding="utf-8")
+    except Exception:  # noqa: BLE001
+        pass
     return dest
 
 

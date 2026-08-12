@@ -712,7 +712,7 @@ def _font_setup():
 def render_concept_chart(width: int, height: int, text: str, accent, seed: str,
                          dest=None, force: Optional[str] = None,
                          fallback_ticker: Optional[str] = None, reveal: float = 1.0,
-                         variant: int = 0):
+                         variant: int = 0, meta: Optional[dict] = None):
     """回傳滿版深色底 + 置中數據圖的 PIL.Image(RGB)；判不到主題回 None。
 
     圖只佔畫面中段（約 18%~76% 高），上方留給大標題、下方留給字幕。
@@ -815,6 +815,19 @@ def render_concept_chart(width: int, height: int, text: str, accent, seed: str,
     buf = np.asarray(fig.canvas.buffer_rgba())
     img = Image.fromarray(buf, "RGBA").convert("RGB")
     plt.close(fig)
+
+    # 關鍵數字 out-param(2026-08-12 純ffmpeg動畫v2地基):caption 是本模組剛從**真實
+    # 資料**算出並印在圖上的字,從它抽數字=誠信安全的單一事實來源(旁白是中文數字,
+    # 模糊轉換有印錯數字的風險,絕不走那條)。呼叫端(make_video.render_concept_card)
+    # 自己決定要不要落 sidecar;失敗不影響出圖。
+    if meta is not None:
+        try:
+            import re as _re
+            nums = _re.findall(r"[+-]?\d+(?:,\d{3})*(?:\.\d+)?\s*(?:%|倍)", caption or "")
+            meta["caption"] = caption or ""
+            meta["key_numbers"] = [n.replace(" ", "") for n in nums][:3]
+        except Exception:  # noqa: BLE001
+            pass
 
     if dest is not None:
         from pathlib import Path
