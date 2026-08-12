@@ -625,8 +625,14 @@ def _fundamentals(ax, ctx):
         ev = [e["eps"] for e in es]
         ax2.plot(ey, ev, color=RED, lw=2.6, marker="o", ms=7,
                  markeredgecolor="white", markeredgewidth=0.6, zorder=5)
-        ax2.annotate(f"EPS {ev[-1]:.2f}元", xy=(ey[-1], ev[-1]), xytext=(0, -34),
-                     textcoords="offset points", ha="center", va="top", color=RED,
+        # 2026-08-12 抽幀抓到:EPS 末點在低檔時,固定 -34pt 的下方標籤會壓到 x 軸年份
+        # 與圖說(訊芯-KY 那張「EPS 0.40元」直接疊在圖說上)。末點在軸下半 → 標籤改放上方。
+        _lo2, _hi2 = ax2.get_ylim()
+        _above = (ev[-1] - _lo2) < (_hi2 - _lo2) * 0.45 if _hi2 > _lo2 else False
+        ax2.annotate(f"EPS {ev[-1]:.2f}元", xy=(ey[-1], ev[-1]),
+                     xytext=(0, 12 if _above else -34),
+                     textcoords="offset points", ha="center",
+                     va="bottom" if _above else "top", color=RED,
                      fontsize=28, fontweight="bold",
                      path_effects=[_pe.withStroke(linewidth=4, foreground=BG)], zorder=6)
         cap.append(f"年度EPS {ey[0]}→{ey[-1]}")
@@ -789,6 +795,16 @@ def render_concept_chart(width: int, height: int, text: str, accent, seed: str,
         plt.close(fig)
         return None
     caption, legend = result
+
+    # 2026-08-12 抽幀實錘:x 軸年份刻度畫在軸下 ~43px,與 y=0.42 的圖說同一水平帶,
+    # 圖說一長必壓年份(訊芯基本面圖 2022~2024 全被蓋)。統一把年份刻度**移入圖內**
+    # (負 pad)+描邊保可讀——刻度與圖說徹底分層,所有 drawer 一次受益。
+    try:
+        ax.tick_params(axis="x", pad=-30)
+        for _tl in ax.get_xticklabels():
+            _tl.set_path_effects([_pe.withStroke(linewidth=4, foreground=BG)])
+    except Exception:  # noqa: BLE001
+        pass
 
     # 圖說（圖下方、字幕安全區之上；見上方 ax 位置註解）。legend 已拿掉，不再畫。
     if caption:
