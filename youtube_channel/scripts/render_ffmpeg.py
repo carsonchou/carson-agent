@@ -1208,9 +1208,22 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
         # 代價是運鏡幅度變小(2% 縮放而非 8.5%),但那本來就該是「緩慢漂移」不是「推鏡」,
         # 而且真正治好投影片感的是**連續**(去掉每 3.5 秒的跳與閃),不是幅度大。
         _t = f"(on/{fps})"
+        # ③c 換卡拉遠 punch(2026-08-12 純ffmpeg動畫v1):每個卡片邊界做 0.45s 的
+        # 「拉遠再回」——讓換卡是一個有重量的剪輯 beat,不是幻燈片翻頁。方向用**拉遠**
+        # 不用推近:推近會瞬間超出 3% 裁切預算切到浮水印(2026-07-28 血案);拉遠時裁切
+        # 只會更少,永遠安全。z 下限 clamp 1.002(zoompan z<1 非法)。邊界用 ③b 的真實
+        # 旁白時間(對齊模式),退化時用等分;最多 8 個 punch 項防表達式爆長。
+        _pz = []
+        _bnds = ([mv.INTRO_DURATION + s for s in seg_starts[1:]] if seg_starts is not None
+                 else [mv.INTRO_DURATION + k * per_seg for k in range(1, n)])
+        for _b in _bnds[:8]:
+            _pz.append(f"0.022*max(0,1-abs({_t}-{_b:.2f})/0.45)")
+        _punch = ("-(" + "+".join(_pz) + ")") if _pz else ""
+        # 引號內逗號受 filtergraph 引號保護,不需反斜線跳脫(跳脫反而把 \\ 塞進運算式)
+        _zexpr = f"max(1.002,1.026+0.010*sin(2*PI*{_t}/20){_punch})"
         vf = (f"fps={fps},scale={width}:{height}:force_original_aspect_ratio=decrease,"
               f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1,"
-              f"zoompan=z='1.026+0.010*sin(2*PI*{_t}/20)':d=1:"
+              f"zoompan=z='{_zexpr}':d=1:"
               f"x='iw/2-(iw/zoom/2)+(iw*0.005)*sin(2*PI*{_t}/27)':"
               f"y='ih/2-(ih/zoom/2)+(ih*0.004)*cos(2*PI*{_t}/33)':s={width}x{height}:fps={fps},"
               f"tpad=start_duration=0.35:start_mode=clone,fade=t=in:st=0:d=0.5,"
