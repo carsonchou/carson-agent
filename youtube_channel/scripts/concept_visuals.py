@@ -782,10 +782,12 @@ def render_concept_chart(width: int, height: int, text: str, accent, seed: str,
             # variant=0 走完整歷史;variant>=1 改看**近期窗**(依序 45% / 25% 的尾段),
             # 於是同一檔的同一種圖會呈現「長期全景 → 近期特寫」的不同視角,既有變化也多給資訊。
             _d, _c = rd[0], rd[1]
-            if variant and len(_c) > 120:
-                _frac = (0.45, 0.25)[min(int(variant), 2) - 1]
-                _k = max(120, int(len(_c) * _frac))
-                _d, _c = _d[-_k:], _c[-_k:]
+            # 🔴 2026-08-12 tail-window 廢除(數字爆現樣張抓包的三方矛盾):variant≥1 的
+            # 近期窗圖會算出**跟旁白不同的數字**——旁白引用的 fact_key 全是全歷史
+            # (「最大回撤69.3%」),近期窗圖卻標 -57.0%,觀眾聽到 69 看到 57 = 畫面在
+            # 打臉自己的旁白,這比「兩段圖一樣」嚴重得多。鐵律:**圖表的資料窗口必須
+            # 跟旁白引用的窗口一致**;variant 之後只准拿來變樣式,不准變窗口。
+            # (同圖輪播的視覺問題現由「卡片邊界對齊+段內漸進揭露+換卡punch」緩解。)
             real = (tk, _d, _c)
     ctx = Ctx(rng=rng, direction=_direction(text), real=real, text=text,
               reveal=max(0.05, min(1.0, float(reveal))))
