@@ -32,7 +32,7 @@ import subprocess
 import sys
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -248,6 +248,7 @@ def main() -> int:
     # bug 修復(2026-07-09)：jobs 原本只在啟動時 parse 一次，crontab.txt 之後的改動(如新增
     # tiktok_upload 跨發排程)在本實例存活期間永遠不會生效，只能靠人手動重啟才會吃到——
     # 排程「看起來對」實際上不會跑，很難察覺。改成每分鐘連同 .env 一起重讀 crontab.txt。
+    _prev_dt = datetime.now()
     while True:
         now = datetime.now()
         cur = now.strftime("%Y%m%d%H%M")
@@ -256,6 +257,28 @@ def main() -> int:
             last_min = cur
             env = load_env()     # 每分鐘重讀 .env（金鑰換了即生效）
             jobs = parse_jobs()  # 每分鐘重讀 crontab.txt（排程改動免重啟即生效）
+            # 🔴 斷檔補跑(2026-08-13):實錄 08-12 17:30~19:30 電腦睡眠兩小時,18:00 評分
+            # 與 18:30 發布批(EP0 首發!)被無聲吞掉——本排程器只判「當下那分鐘」,錯過不補。
+            # 補法:偵測心跳斷檔 >3 分鐘時,回掃斷檔期間每一分鐘的 due 任務,**只補白名單
+            # 關鍵任務**(發布/評分/種題/產製),同一 job 只補一次;斷檔上限回掃 12 小時
+            # (更久=隔天排程自己會跑,不重複)。非白名單(tg輪詢/渲染巡邏)天生高頻,不需補。
+            _gap = (now - _prev_dt).total_seconds()
+            if _gap > 180:
+                _CRITICAL = ("daily_publish.py", "quality_score.py",
+                             "stock_checkup_daily.py", "produce_batch.py")
+                _from = max(_prev_dt, now - timedelta(hours=12))
+                _t = _from + timedelta(minutes=1)
+                _fired = set()
+                while _t < now:
+                    for j in jobs:
+                        _script = j[5][0] if j[5] else ""
+                        if (Path(_script).name in _CRITICAL and due(j, _t)
+                                and tuple(j[5]) not in _fired):
+                            _fired.add(tuple(j[5]))
+                            _log(f"⏰ 斷檔補跑({_gap/60:.0f}分斷檔,原定 {_t:%H:%M}):{' '.join(j[5])[:60]}")
+                            run_job(j[5], env)
+                    _t += timedelta(minutes=1)
+            _prev_dt = now
             for j in jobs:
                 if due(j, now):
                     run_job(j[5], env)
