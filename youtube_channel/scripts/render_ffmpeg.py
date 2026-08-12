@@ -1295,7 +1295,9 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
         # (cmd 與舊版逐字節相同)。長片限定;素材=卡片 sidecar 的真實數字(誠信管線)。
         # 動畫=滑入 24px+淡入 0.28s+停 1.5s+淡出;任何失敗退回無 overlay(fail-open)。
         pop_specs = []
-        if (os.environ.get("RENDER_NUM_POP") == "1" and width > height
+        # 2026-08-12 Carson授權自行決策→預設開(opt-out:RENDER_NUM_POP=0 可關)。
+        # 上線前已過:樣張四方一致(pop=圖=圖說=旁白)、fail-open、每週抽檢兜底。
+        if (os.environ.get("RENDER_NUM_POP", "1") != "0" and width > height
                 and seg_starts is not None):
             try:
                 pop_specs = _build_num_pops(segments, seg_cards, seg_starts,
