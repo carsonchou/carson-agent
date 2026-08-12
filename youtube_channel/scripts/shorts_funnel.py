@@ -71,7 +71,20 @@ def _save_seen(seen):
 
 
 def _long_scripts(seen):
-    """找尚未切過的長片腳本：output/L_*.md，回傳 [(slug, title, content)]。"""
+    """找尚未切過的長片腳本：output/L_*.md，回傳 [(slug, title, content)]。
+
+    2026-08-12 贏家優先:舊版 sorted(glob) = **字母序**,切到哪支全看檔名。跨頻道研究
+    (20 頻道實抓)的結論是:同行 Shorts 成功的全是「從已成功的長片切出的結論」,獨立產
+    的 Shorts 就是我們自己量到的 0.04 訂閱/支。改成:已發布且有觀看的長片按觀看數
+    降冪排最前(贏家先切),未發布/查無觀看的排後(字母序維持穩定)。"""
+    views = {}
+    try:
+        _q = json.loads((STUDIO / "quality_scores.json").read_text(encoding="utf-8"))
+        for it in (_q.get("published") or []):
+            if it.get("slug"):
+                views[it["slug"]] = it.get("views") or 0
+    except Exception:  # noqa: BLE001
+        pass
     res = []
     for f in sorted(OUT.glob("L_*.md")):
         slug = f.stem
@@ -84,6 +97,7 @@ def _long_scripts(seen):
             res.append((slug, title or slug, txt))
         except Exception:
             continue
+    res.sort(key=lambda r: -views.get(r[0], 0))
     return res
 
 
