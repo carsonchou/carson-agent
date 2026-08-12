@@ -486,6 +486,55 @@ def _broll_query(seg, title, idx):
     return [GENERIC[idx % len(GENERIC)]]
 
 
+def _build_num_pops(segments, seg_cards, seg_starts, tmp_dir, width, height, accent):
+    """數字爆現 overlay 素材(2026-08-12 v2 原型):每段的關鍵數字(來自卡片 sidecar=
+    圖表層印在圖上的真實數字,見 concept_visuals meta out-param)畫成透明 PNG,
+    回 [(png, t_start_秒)],供 filter_complex 疊 overlay。最多 3 個;任何缺料就跳過該段。"""
+    import json as _json
+    from PIL import Image, ImageDraw
+    specs = []
+    seen_nums = set()
+    for i in range(1, len(segments)):
+        if len(specs) >= 3:
+            break
+        card = seg_cards[i] if i < len(seg_cards) else None
+        if not card:
+            continue
+        mp = Path(str(card) + ".meta.json")
+        if not mp.exists():
+            # 吉祥物合成會把 seg_cards[i] 換成 cardmas_XX.png,sidecar 在原始 concept_XX.png 旁
+            mp = Path(str(card).replace("cardmas_", "concept_") + ".meta.json")
+        if not mp.exists():
+            continue
+        try:
+            meta = _json.loads(mp.read_text(encoding="utf-8"))
+            num = (meta.get("key_numbers") or [None])[0]
+        except Exception:  # noqa: BLE001
+            continue
+        if not num or num in seen_nums:
+            continue
+        seen_nums.add(num)
+        # 透明底大數字:負數紅、正數金;粗描邊保任何底圖上可讀
+        w, h = int(width * 0.62), int(height * 0.30)
+        img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        dr = ImageDraw.Draw(img)
+        fs = int(height * 0.185)
+        font = mv._load_font(fs, bold=True)
+        col = (255, 92, 92, 255) if num.startswith("-") else (255, 210, 63, 255)
+        try:
+            tw = dr.textlength(num, font=font)
+        except Exception:  # noqa: BLE001
+            tw = w * 0.8
+        x = (w - tw) / 2
+        y = (h - fs) / 2
+        dr.text((x, y), num, font=font, fill=col,
+                stroke_width=max(3, fs // 22), stroke_fill=(8, 10, 16, 235))
+        outp = tmp_dir / f"numpop_{i}.png"
+        img.save(outp, "PNG")
+        specs.append((outp, mv.INTRO_DURATION + seg_starts[i] + 0.10))
+    return specs
+
+
 def _narration_seg_starts(segments, cues, audio_duration):
     """各段旁白在音軌上的真實起點(秒),供卡片邊界對齊旁白(2026-08-12 留存工程)。
 
@@ -1071,11 +1120,15 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
                 # 漸進揭露的用意是「講到哪畫到哪」,不是「開場什麼都沒有」。改成從 35% 起跳:
                 # 一開場就有看得懂的圖,之後仍持續長到 100%(生長感保留,只是不再從近乎零開始)。
                 r = 0.35 + 0.65 * (bucket + 1) / _REVEAL_BUCKETS
+                # 🔴 2026-08-12:必須帶 variant——漏帶時 variant≥1 的段落(同概念第二段=
+                # 近期窗圖)揭露版會畫回**全歷史窗**,和原卡/sidecar 的數字不一致(實測
+                # 卡說 -57.0% 揭露版畫 -69.3%,數字爆現樣張當場對不上被抓包)。
                 card = mv.render_concept_card(
                     width, height, heading=seg.heading or "", narration=seg.narration,
                     watermark=watermark, accent=accent, seed=f"{vid_seed}_{seg_idx}",
                     dest=tmp_dir / f"reveal_{seg_idx:02d}_{bucket}.png",
-                    default_key=video_concept, fallback_ticker=video_ticker, reveal=r)
+                    default_key=video_concept, fallback_ticker=video_ticker, reveal=r,
+                    variant=(_variants[seg_idx] if seg_idx < len(_variants) else 0))
                 if card is not None:
                     bimg = Image.open(str(card)).convert("RGBA")
                     if seg_hud_png[seg_idx]:            # 疊回同段那張 HUD 條(段內不變)
@@ -1238,11 +1291,48 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
                       f"[voice][bgm]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[a]")
         else:
             filt_a = f"[1:a]{af}[a]"
+        # ③d 數字爆現 overlay(2026-08-12 v2 原型):RENDER_NUM_POP=1 才開,預設完全關
+        # (cmd 與舊版逐字節相同)。長片限定;素材=卡片 sidecar 的真實數字(誠信管線)。
+        # 動畫=滑入 24px+淡入 0.28s+停 1.5s+淡出;任何失敗退回無 overlay(fail-open)。
+        pop_specs = []
+        print(f"[ffmpeg後端] numpop gate: env={os.environ.get('RENDER_NUM_POP')!r} "
+              f"wh={width}x{height} starts={'ok' if seg_starts is not None else 'none'}",
+              file=sys.stderr)
+        if (os.environ.get("RENDER_NUM_POP") == "1" and width > height
+                and seg_starts is not None):
+            try:
+                pop_specs = _build_num_pops(segments, seg_cards, seg_starts,
+                                            tmp_dir, width, height, accent)
+                if pop_specs:
+                    print(f"[ffmpeg後端] 數字爆現:{len(pop_specs)} 個 overlay", file=sys.stderr)
+            except Exception as _npe:  # noqa: BLE001
+                print(f"[ffmpeg後端] 數字爆現略過({_npe})", file=sys.stderr)
+                pop_specs = []
+        pop_inputs = []
+        if pop_specs:
+            _base_idx = 3 if bgm else 2
+            graph = f"[0:v]{vf}[v0];"
+            _cur = "v0"
+            for _j, (_png, _ts) in enumerate(pop_specs):
+                pop_inputs += ["-loop", "1", "-t", "2.2", "-i", str(_png)]
+                graph += (
+                    f"[{_base_idx + _j}:v]format=rgba,"
+                    f"fade=t=in:st=0:d=0.28:alpha=1,fade=t=out:st=1.8:d=0.35:alpha=1,"
+                    f"setpts=PTS+{_ts:.2f}/TB[p{_j}];"
+                    f"[{_cur}][p{_j}]overlay=x=(W-w)/2:"
+                    f"y='H*0.30-24*min(1,(t-{_ts:.2f})/0.28)':"
+                    f"enable='between(t,{_ts:.2f},{_ts + 2.2:.2f})'[v{_j + 1}];")
+                _cur = f"v{_j + 1}"
+            graph += f"[{_cur}]format=yuv420p[v];" + filt_a
+            filter_complex = graph
+        else:
+            filter_complex = f"[0:v]{vf}[v];{filt_a}"
         cmd = [
             ff, "-y", "-hide_banner", "-loglevel", "error",
             "-f", "concat", "-safe", "0", "-i", str(list_txt),
             *audio_inputs,
-            "-filter_complex", f"[0:v]{vf}[v];{filt_a}",
+            *pop_inputs,
+            "-filter_complex", filter_complex,
             "-map", "[v]", "-map", "[a]",
             "-c:v", codec, *enc_args,
             "-c:a", "aac", "-b:a", "128k",
