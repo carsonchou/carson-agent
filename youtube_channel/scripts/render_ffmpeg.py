@@ -1295,9 +1295,6 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
         # (cmd 與舊版逐字節相同)。長片限定;素材=卡片 sidecar 的真實數字(誠信管線)。
         # 動畫=滑入 24px+淡入 0.28s+停 1.5s+淡出;任何失敗退回無 overlay(fail-open)。
         pop_specs = []
-        print(f"[ffmpeg後端] numpop gate: env={os.environ.get('RENDER_NUM_POP')!r} "
-              f"wh={width}x{height} starts={'ok' if seg_starts is not None else 'none'}",
-              file=sys.stderr)
         if (os.environ.get("RENDER_NUM_POP") == "1" and width > height
                 and seg_starts is not None):
             try:
