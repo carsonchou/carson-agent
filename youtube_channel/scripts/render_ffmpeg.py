@@ -486,6 +486,47 @@ def _broll_query(seg, title, idx):
     return [GENERIC[idx % len(GENERIC)]]
 
 
+def _narration_seg_starts(segments, cues, audio_duration):
+    """各段旁白在音軌上的真實起點(秒),供卡片邊界對齊旁白(2026-08-12 留存工程)。
+
+    對映:每段旁白前 8 字去字幕 cues 找包含它的那句的 start(字幕本來就跟 TTS 時間戳
+    對齊,是現成的真實時間軸)。對不到的段用相鄰錨點線性插值。
+    fail-open 條件(回 None=呼叫端走原本 per_seg 等分,行為與舊版一致):
+      ·段數 <2 或無 cues ·錨到的段少於一半 ·邊界洞在頭尾 ·相鄰邊界 <1.5s(對映錯亂)
+      ·最後一段起點貼到音軌尾(明顯錯位)。"""
+    try:
+        n = len(segments)
+        if n < 2 or not cues:
+            return None
+        starts = [0.0] + [None] * (n - 1)
+        for i in range(1, n):
+            probe = (segments[i].narration or "").strip()[:8]
+            if len(probe) < 6:
+                continue
+            for cu in cues:
+                if probe in (cu.text or ""):
+                    starts[i] = float(cu.start)
+                    break
+        idxs = [i for i, t in enumerate(starts) if t is not None]
+        if len(idxs) < max(2, (n + 1) // 2):
+            return None
+        for i in range(n):
+            if starts[i] is None:
+                prev = max((j for j in idxs if j < i), default=None)
+                nxt = min((j for j in idxs if j > i), default=None)
+                if prev is None or nxt is None:
+                    return None
+                starts[i] = starts[prev] + (starts[nxt] - starts[prev]) * (i - prev) / (nxt - prev)
+        for a, b in zip(starts, starts[1:]):
+            if b <= a + 1.5:
+                return None
+        if starts[-1] >= float(audio_duration) - 1.5:
+            return None
+        return starts
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def _render_with_broll(slug_paths, *, segments, seg_cards, intro_png, outro_png, cues,
                        audio_duration, per_seg, width, height, fps, pexels_key, accent,
                        watermark, tmp_dir, ff) -> bool:
@@ -974,9 +1015,32 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
             print("[ffmpeg後端] PROGRESSIVE_REVEAL 開:跳過 b-roll,走靜態切片(段內漸進揭露真資料圖)", file=sys.stderr)
 
         # 3) body 切片邊界(段邊界 ∪ 字幕邊界),每片合成「卡+當下字幕」PNG
+        # ③b 卡片邊界對齊旁白(2026-08-12 留存工程):字幕逐句跟時間戳對齊,但**卡片邊界**
+        # 一直是等分切(k*per_seg)——旁白各段長短不一時,講回撤時畫面還停在基本面圖。
+        # 用「段首句在字幕 cues 的真實開始時間」當卡片邊界;錨點不足/亂序 → 回 None,
+        # 下面全部走原本的 per_seg 等分(行為與舊版一致,fail-open)。
+        seg_starts = _narration_seg_starts(segments, cues, audio_duration)
+        if seg_starts is not None:
+            print(f"[ffmpeg後端] 卡片邊界對齊旁白:{len(seg_starts)} 段錨到真實時間", file=sys.stderr)
+
+        def _seg_at(t):
+            """t 秒落在第幾段 + 該段起訖(對齊模式用真邊界,否則等分)。"""
+            if seg_starts is not None:
+                import bisect as _bs
+                si = min(max(_bs.bisect_right(seg_starts, t) - 1, 0), n - 1)
+                s0 = seg_starts[si]
+                s1 = seg_starts[si + 1] if si + 1 < n else float(audio_duration)
+                return si, s0, s1
+            si = min(int(t / per_seg) if per_seg else 0, n - 1)
+            return si, si * per_seg, (si + 1) * per_seg
+
         marks = {0.0, float(audio_duration)}
         for k in range(n + 1):
-            marks.add(min(max(k * per_seg, 0.0), audio_duration))
+            if seg_starts is not None:
+                _mk = seg_starts[k] if k < n else float(audio_duration)
+            else:
+                _mk = k * per_seg
+            marks.add(min(max(_mk, 0.0), audio_duration))
         for cu in cues:
             marks.add(min(max(cu.start, 0.0), audio_duration))
             marks.add(min(max(cu.end, 0.0), audio_duration))
@@ -1039,11 +1103,11 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
             if dur < 0.04:
                 continue
             mid = (a + b) / 2.0
-            seg_idx = min(int(mid / per_seg) if per_seg else 0, n - 1)
+            seg_idx, _s0, _s1 = _seg_at(mid)
             base = seg_cards[seg_idx]
             bucket = -1
-            if _reveal_on and per_seg > 0:
-                pos = (mid - seg_idx * per_seg) / per_seg    # 段內相對位置 0..1
+            if _reveal_on and (_s1 - _s0) > 0:
+                pos = (mid - _s0) / (_s1 - _s0)              # 段內相對位置 0..1
                 bucket = min(max(int(pos * _REVEAL_BUCKETS), 0), _REVEAL_BUCKETS - 1)
                 rb = _reveal_base(seg_idx, bucket)
                 if rb is not None:                           # 只有真資料圖段落才換;否則保留原卡
