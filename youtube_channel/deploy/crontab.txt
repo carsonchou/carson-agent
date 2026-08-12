@@ -291,7 +291,10 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # 放大飛輪：贏家全押/好問題即產/輸家汰(每3小時,只動內部可逆檔)
 30 */3 * * * /root/yt/run.sh scripts/auto_loop.py >> /root/yt/logs/cron.log 2>&1
 # A/B 建議產生器(只產建議+本地變體圖,套用 live 需決策中心一鍵;絕不自動改標題/縮圖)
-0 3 * * * /root/yt/run.sh scripts/ab_title.py >> /root/yt/logs/cron.log 2>&1
+# 2026-08-12 降頻每天→每週一:53輪建議零套用(迴圈裡沒有人),且抽查發現8支裡7支
+#   變體為空、唯一有貨的含「我花20年回測」不實自述——重修變體品質前禁用--auto-apply,
+#   每週產一輪供決策中心人工圈選即可,省每日LLM成本。
+0 3 * * 1 /root/yt/run.sh scripts/ab_title.py >> /root/yt/logs/cron.log 2>&1
 # 2026-07-16 配額預算輪值制:每天→週五一次
 20 3 * * 5 /root/yt/run.sh scripts/ab_thumbnail.py --limit 6 >> /root/yt/logs/cron.log 2>&1
 # 每日工作室健檢(每天 09:00:憑證/json完整性/cron失敗/名單/洗版洩漏 → ntfy)
