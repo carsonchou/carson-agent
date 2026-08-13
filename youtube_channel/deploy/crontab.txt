@@ -119,6 +119,10 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 #   每天16:10(配額15:00重置後)續跑60支,冪等(done名單),全部做完自動no-op、之後
 #   只會接住「本地有md+wordtimes但線上還沒章節」的新漏網件。獨立驗證已放行(5/5)。
 10 16 * * * /root/yt/run.sh scripts/desc_chapters_backfill.py --apply --max 60 >> /root/yt/logs/cron.log 2>&1
+# 灘頭指標(2026-08-13):每日記錄「非訂閱者來源觀看」(取4天前單日,避開Analytics延遲)。
+#   依據memory yt-subscriber-feed-pollution:總觀看被157訂閱者重複觀看污染,
+#   外部分發≈0是頻道真瓶頸——這個數字才是北極星。
+35 6 * * * /root/yt/run.sh scripts/beachhead_tracker.py >> /root/yt/logs/cron.log 2>&1
 # 每週人眼抽檢(2026-08-12):抽3支近期發布片產contact sheet(6格畫面+語速/音畫比探針)
 #   → STUDIO/REPORTS/<date>_每週抽檢.jpg,Carson掃10秒抓黑畫面/字幕錯位/圖表崩版。
 #   起因=字幕錯位事故證明「渲染完成≠片是好的」,機器閘門總有下一種靜默失敗。
