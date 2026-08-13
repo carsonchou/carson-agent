@@ -156,11 +156,25 @@ def _ai_score_inner(slug):
         # 實測:同一個 prompt,400 必失敗、1200 穩定成功。
         # ⚠️ 這是「靜默失敗」的教科書案例:錯誤被吞、狀態變成合法值(unrated)、
         #    沒有任何一層會叫——7 支已渲染好的長片就這樣卡了一整天沒人發現。
-        txt = llm.complete(prompt, 1200, json_mode=True, temperature=0.1)  # 評分要穩、近決定性,不能用預設高溫亂漂
+        # 🔴 2026-08-13 三修 max_tokens 1200 → 3000。付費備援解封後小請求會退到
+        # OpenRouter 的 **gemini-2.5-flash=推理模型**,thinking 與正文共用同一份預算
+        # → 1200 被 thinking 吃光,實測回傳是 `{"hook":23,..."honesty":22`(**沒有收尾
+        # 大括號**),下面 `\{.*\}` 比不到 → return None → 又回到靜默停產。
+        # 同型教訓見 llm.py _REASONING_MODELS 與 decision_dept 的 4500→7000。
+        txt = llm.complete(prompt, 3000, json_mode=True, temperature=0.1)  # 評分要穩、近決定性,不能用預設高溫亂漂
         m = re.search(r"\{.*\}", txt, re.S)
-        if not m:
-            return None
-        d = json.loads(m.group(0))
+        if m:
+            d = json.loads(m.group(0))
+        else:
+            # 截斷修復(fail-soft):四個分數是我們唯一需要的東西,note 只是附註。
+            # 只要四項都撈得到就照常評分,不讓一個沒收尾的大括號鎖死整支片的發布。
+            d = {}
+            for k in ("hook", "title", "content", "honesty"):
+                _mk = re.search(rf'"{k}"\s*:\s*(\d+)', txt or "")
+                if not _mk:
+                    return None
+                d[k] = int(_mk.group(1))
+            d["note"] = "(評分回傳截斷,已從片段還原四項分數)"
         for k in ("hook", "title", "content", "honesty"):
             d[k] = max(0, min(25, int(d.get(k, 0))))
         d["total"] = d["hook"] + d["title"] + d["content"] + d["honesty"]
