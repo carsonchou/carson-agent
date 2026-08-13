@@ -59,7 +59,17 @@ RETENTION_DAYS = 25
 # 對外承諾「30 天自動清除」,那份是要當公開 URL 送 Google 稽核的 → 不補完就是不實陳述。
 # 用**檔案 mtime** 判齡(這兩個檔是整份覆寫,mtime 即該批資料的取得時間)。
 # 消費端(parasite_titles.py:60-80、trend_hijack)讀取都包在 try/except 內,缺檔不會壞。
-THIRD_PARTY_JSONS = ("outliers.json", "intel.json")
+# 🔴 2026-08-14 三修(對 Google 合規回信前的獨立查核抓到):同一個根因**第三次**復發。
+# 又有兩個檔存著第三方 metadata、同樣沒人刪也沒人刷新:
+#   · STUDIO/keyword_winnability.json — keyword_winnability.py 寫,top3 存他人頻道名
+#     (實測含「USTV 非凡電視」「57東森財經新聞」);該腳本**不在任何排程**,檔齡 10 天
+#     且不會再被覆寫 → 放著就會自己越過 30 天。
+#   · STUDIO/trend_hijacked.json — trend_hijack 寫,存 12 個**他人 videoId**,檔齡 18.7 天。
+# 這批是要在給 Google 的合規回信裡具名宣稱「30 天自動清除」的範圍,宣稱前必須先讓它成立。
+# ⚠️ 給未來的人:新寫任何「存他人頻道/影片資料」的 JSON,**同一個 commit 就要加進這個 tuple**。
+#    這條註解已經是第三次寫同樣的話了。
+THIRD_PARTY_JSONS = ("outliers.json", "intel.json",
+                     "keyword_winnability.json", "trend_hijacked.json")
 
 
 def purge(days: int = RETENTION_DAYS, dry_run: bool = False) -> tuple[int, list]:
