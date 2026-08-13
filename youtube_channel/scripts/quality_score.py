@@ -420,6 +420,28 @@ def scan(rescore_ai=False):
     sc.save_json_atomic(SCORES, payload)
     s = payload["summary"]
     log_ops("倉庫評分", f"未發布 {s['pending']}(pass{s['pass']}/退{s['reject']})、已發布 {s['published']}（門檻{min_score}、新評AI{new_ai}）")
+    # 🔴 靜默停產告警(2026-08-13):AI 評分失敗→score=None→daily_publish fail-closed
+    # →片子永遠發不出去,而**這條路徑歷史上兩次都是無聲的**(JSON格式那次、Groq限流這次,
+    # 後者實測積了 22 支成片)。有成片卻沒分數 = 產能被鎖死,必須看得見。
+    try:
+        _out = ROOT / "output"
+        _led = json.loads((STUDIO / "uploaded_ledger.json").read_text(encoding="utf-8"))
+        _stuck = [it for it in (payload.get("pending") or [])
+                  if it.get("score") is None and it.get("slug") not in _led
+                  and (_out / f"{it.get('slug','')}.mp4").exists()]
+        if _stuck:
+            log_ops("倉庫評分", f"⚠️ {len(_stuck)} 支已渲染成片卡在未評分(發布閘 fail-closed 擋著)"
+                                f"——檢查 LLM 供應商是否限流:{_stuck[0]['slug'][:28]}…")
+            if len(_stuck) >= 5:
+                try:
+                    import notify
+                    notify.push("量化阿森｜產能鎖死",
+                                f"{len(_stuck)} 支成片因 AI 評分失敗發不出去(通常是 LLM 限流)",
+                                tag="warning")
+                except Exception:  # noqa: BLE001
+                    pass
+    except Exception:  # noqa: BLE001
+        pass
     print(f"[ok] 倉庫評分：未發布 {s['pending']} 支(pass {s['pass']}／退件 {s['reject']})、已發布 {s['published']} 支，"
           f"門檻 {min_score}，新評 AI {new_ai} → quality_scores.json")
     return payload
