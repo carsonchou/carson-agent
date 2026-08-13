@@ -231,6 +231,19 @@ def main() -> int:
     if _lock_fresh():
         _log("另一個 local_cron 已在跑(心跳鎖 60s 內),本實例退出避免雙發。")
         return 0
+    # 🔴 持久化心跳(2026-08-13 二修):昨晚的斷檔補跑只治「程序活著但機器睡」,今晨實錄
+    # =機器醒來排程器被**重啟**(08:52 新 pid),_prev_dt 重置→補跑沒開火,06:40 評分再次
+    # 被吞。LOCK mtime 每圈都在更新=天然的持久化心跳:啟動時先讀它(必須在下面
+    # _touch_lock 覆寫 mtime **之前**),重啟/重開機後第一個分鐘刻就會對斷檔期補跑。
+    _resume_from = None
+    try:
+        if LOCK.exists():
+            _lm = datetime.fromtimestamp(LOCK.stat().st_mtime)
+            if (datetime.now() - _lm).total_seconds() > 180:
+                _resume_from = _lm
+                _log(f"⏰ 偵測到上次心跳停在 {_lm:%m-%d %H:%M},啟動後將補跑斷檔關鍵任務")
+    except Exception:  # noqa: BLE001
+        pass
     _touch_lock()
 
     env = load_env()
@@ -248,7 +261,7 @@ def main() -> int:
     # bug 修復(2026-07-09)：jobs 原本只在啟動時 parse 一次，crontab.txt 之後的改動(如新增
     # tiktok_upload 跨發排程)在本實例存活期間永遠不會生效，只能靠人手動重啟才會吃到——
     # 排程「看起來對」實際上不會跑，很難察覺。改成每分鐘連同 .env 一起重讀 crontab.txt。
-    _prev_dt = datetime.now()
+    _prev_dt = _resume_from or datetime.now()
     while True:
         now = datetime.now()
         cur = now.strftime("%Y%m%d%H%M")
