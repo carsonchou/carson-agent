@@ -85,7 +85,32 @@ def _read_script(slug):
 
 
 def ai_score(slug):
-    """Claude 真讀腳本，依四面向各 0–25 評分（鉤子/標題CTR/內容/誠信），回 dict 或 None。"""
+    """Claude 真讀腳本，依四面向各 0–25 評分（鉤子/標題CTR/內容/誠信），回 dict 或 None。
+
+    🔴 2026-08-13 付費備援解封(實測損害:**22 支已渲染成片發不出去**)。
+    根因鏈:評分是小請求 → llm.py 路由在 LLM_BIG_FOR_SMALL=0 下**只走免費 Groq** →
+    Groq 429 限流 → 下面的 `except: return None` → score=None → daily_publish
+    fail-closed 擋下 → 片子永遠不發、**零告警**。這正是本檔 28-31 行註解警告過的同一條
+    死路(當時的觸發原因是 JSON 格式,這次是限流),證明「AI 評分失敗=靜默停產」是結構問題,
+    不是單一 bug。
+    修法:評分**是發布閘的前置**,不能靠免費層的運氣。這裡臨時開 LLM_BIG_FOR_SMALL=1,
+    讓它 Groq 失敗後退 OpenRouter(付費但一支約 US$0.0005,只在免費層掛掉時才觸發,
+    且 scan() 冪等只評沒分數的片)。try/finally 還原,不影響其他 dept 的成本策略。
+    """
+    if not sc.has_llm_key():
+        return None
+    _prev_small = os.environ.get("LLM_BIG_FOR_SMALL")
+    os.environ["LLM_BIG_FOR_SMALL"] = "1"
+    try:
+        return _ai_score_inner(slug)
+    finally:
+        if _prev_small is None:
+            os.environ.pop("LLM_BIG_FOR_SMALL", None)
+        else:
+            os.environ["LLM_BIG_FOR_SMALL"] = _prev_small
+
+
+def _ai_score_inner(slug):
     if not sc.has_llm_key():
         return None
     title, voice = _read_script(slug)
