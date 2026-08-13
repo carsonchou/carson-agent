@@ -90,11 +90,15 @@ def _analysis_tail(chars=2500):
 
     2026-07-17：來源檔 competitor_analysis.md（yt-dlp 抓字幕的產物）已因違反 YouTube API
     ToS III.E.6 刪除，此處固定回空字串，prompt 會自動略過該區塊。保留函式以免動到呼叫端。
+
+    🔴 2026-08-13 補實作：上面這段 docstring 從 07-17 起就寫著「固定回空字串」，但**程式碼
+    其實還在 read_text**——只是因為檔案不存在才回空。等於「合規保證」只靠一個檔案剛好
+    不在,那個檔一旦重新出現(手動放、舊備份還原、任何人重跑舊腳本)違規行為就自動復活,
+    而且沒有任何告警。這是在對 Google 的合規審查回信裡要具名宣稱的事項,
+    不能只靠巧合成立 → 改成真正的無條件 return ""。
+    (docstring 說一套、程式碼做一套 = 同一類病灶,見 memory yt-duplicate-impl-gate-bypass。)
     """
-    try:
-        return ANALYSIS.read_text(encoding="utf-8")[-chars:]
-    except Exception:
-        return ""
+    return ""
 
 
 def gen(count, comps, tail):
