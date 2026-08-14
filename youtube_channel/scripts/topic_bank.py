@@ -225,6 +225,13 @@ def _to_trad(t):
         return t
 
 
+# 標題禁用的專有名詞(見 add_topics 裡的說明)。刻意只放「一般觀眾不會懂、且我們
+# 自己的規則早就禁止在片頭出現」的統計術語;像「回撤」「年化」這種已經被本頻道
+# 標題大量使用且觀眾看得懂的詞不列入。
+_JARGON_TITLE = ("卡瑪", "夏普", "標準差", "貝塔", "CAGR", "索提諾", "波動率",
+                 "Sharpe", "Calmar", "Sortino")
+
+
 def _norm(t):
     t = _to_trad(t or "")
     return re.sub(r"[\s，。！？、：；…·\-—()（）]+", "", t).lower()
@@ -249,6 +256,16 @@ def add_topics(items, source="", front=False):
         if not title:
             continue
         if sc.is_banned_skeleton(title):
+            _blocked += 1
+            continue
+        # 🔴 2026-08-14 術語閘(裝在題庫寫入層,所有生產者共用):標題帶專有名詞
+        # (卡瑪/夏普/標準差/波動率…)對本頻道受眾=陌生人直接滑走,LONG_RULES ⓐ 早就
+        # 禁止,但那條規則只作用在**寫稿階段**——標題一旦帶術語進了題庫,寫稿時只能照著寫。
+        # 一次性清理實測:題庫裡累積 42 題術語題,來自 **12 個不同部門**
+        # (auto_winner/hotspot/growth_agent/facts_engine/funnel…),不是單一管線的問題,
+        # 所以閘門要裝在這個所有人都會經過的入口。
+        # ⚠️ 只擋**標題**;內文要解釋這些概念完全可以(講的時候用白話即可)。
+        if any(j in title for j in _JARGON_TITLE):
             _blocked += 1
             continue
         if _crypto_src and sc.topic_gate(title, _recent_gate):
