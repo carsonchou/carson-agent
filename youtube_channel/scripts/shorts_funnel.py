@@ -291,7 +291,13 @@ def main() -> int:
                   "angle": (s.get("angle", "") + "｜片尾導流：" + s.get("cta", "")).strip("｜"),
                   "category": "市場觀念", "format": "short",
                   "parent": slug} for s in shorts]
-        n = add_topics(items, source="funnel", front=False)
+        # 🔴 2026-08-15 front=True:題庫裡積了 111 支未用切片題,而產線每天只產 1 支 Shorts
+        # → 新題排在隊尾要等 100 天以上才輪得到。而本工具現在**只從已發布的贏家長片**切
+        # (2026-08-12 起依觀看數排序),這批題正是我們現在最想測的東西(Shorts feed 每天
+        # 1,200+ 次外部觸及是頻道最大的非訂閱者來源,而贏家切片是研究實證唯一能轉化它的作法)。
+        # pull_topic 的 sort 是穩定排序,同 rank 保留題庫順序 → front=True 讓新切片題
+        # 在同層內排最前面。量很小(每次 2~5 支),不會淹掉旗艦/體檢那兩個更高的優先層。
+        n = add_topics(items, source="funnel", front=True)
         total_short += n
         total_long += 1
         _write_sop(slug, title, shorts)
