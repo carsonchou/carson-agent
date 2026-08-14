@@ -143,7 +143,22 @@ def plan(per, title, body):
 只輸出 JSON 陣列（不要其他字、不要 markdown 圍欄）：
 [{{"title":"這支Short的標題","angle":"切哪個新手雷/誤解＋鉤子","cta":"片尾導流文案一句"}}]"""
     import llm  # 共用路由：主供應商→失敗退回 fallback，換模型只改 env
-    txt = llm.complete(prompt, 1800, json_mode=True)
+    # 🔴 2026-08-14:這支每天都被 Groq 免費層 429 打掉(08-13、08-14 連兩天「規劃失敗:
+    # groq 429 rate limit」→ 切片漏斗連續產出 0 支)。而它是目前最重要的一條管線:
+    # Shorts feed 每天帶進 1,200+ 次**外部**觸及(頻道最大的非訂閱者來源),而贏家切片
+    # 是研究實證唯一能把那些觸及轉成訂閱的作法。
+    # 它一天只打 1~2 次小呼叫,走付費(OpenRouter)的成本約 $0.0001/次——為了省這個
+    # 而讓整條戰略管線每天掛掉,是明顯錯誤的取捨。故此處局部覆寫 LLM_BIG_FOR_SMALL,
+    # 讓小呼叫也能用付費供應商;用完還原,不影響其他部門的省錢設定。
+    _prev_small = os.environ.get("LLM_BIG_FOR_SMALL")
+    os.environ["LLM_BIG_FOR_SMALL"] = "1"
+    try:
+        txt = llm.complete(prompt, 1800, json_mode=True)
+    finally:
+        if _prev_small is None:
+            os.environ.pop("LLM_BIG_FOR_SMALL", None)
+        else:
+            os.environ["LLM_BIG_FOR_SMALL"] = _prev_small
     m = re.search(r"\[.*\]", txt, re.S)
     if m:
         try:
