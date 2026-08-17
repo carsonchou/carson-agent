@@ -417,11 +417,14 @@ def _seg_clip(ff, *, src, is_video, dur, subs, fade_in, width, height, fps, tmp_
         # 🔴 2026-07-28 二修:同下方靜態路徑,第一版振幅開太大會把燒入的浮水印切掉
         # (make_video.py:1096 浮水印右/下緣在 0.97,只留 3% 邊界)。
         # z ∈ [1.016, 1.036] → 最大裁切 (1-1/1.036)/2 = 1.74%;位移 0.5%/0.4% → 最壞 2.24% < 3% ✓
-        zexpr = f"1.026+0.010*sin(2*PI*{_gt}/20)"
+        # 🔴 2026-08-17 同下方靜態路徑一起移除持續運鏡:觀眾實際回報「畫面一直抖」,
+        # 逐幀量測是整幅畫面每隔幾幀跳 1~2 px(zoompan 的 x/y 含 iw/zoom/2,zoom 一動
+        # 該項就漂移,取整即跳)。這條是卡片/b-roll 的單段路徑,同款表達式=同款病灶。
+        zexpr = "1.026"
         base = (f"[0:v]scale={width*2}:{height*2}:flags=lanczos,"
                 f"zoompan=z='{zexpr}':d={frames}:"
-                f"x='iw/2-(iw/zoom/2)+(iw*0.005)*sin(2*PI*{_gt}/27)':"
-                f"y='ih/2-(ih/zoom/2)+(ih*0.004)*cos(2*PI*{_gt}/33)':s={width}x{height}:fps={fps},"
+                f"x='iw/2-(iw/zoom/2)':"
+                f"y='ih/2-(ih/zoom/2)':s={width}x{height}:fps={fps},"
                 f"setsar=1,format=yuv420p")
     if fade_in:
         # P-封面修:純 fade=t=in:st=0 讓輸出的 t=0 那一幀是 100% 純黑(fade 從 alpha=0
@@ -1273,12 +1276,24 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
             _pz.append(f"0.022*max(0,1-abs({_t}-{_b:.2f})/0.45)")
         _punch = ("-(" + "+".join(_pz) + ")") if _pz else ""
         # 引號內逗號受 filtergraph 引號保護,不需反斜線跳脫(跳脫反而把 \\ 塞進運算式)
-        _zexpr = f"max(1.002,1.026+0.010*sin(2*PI*{_t}/20){_punch})"
+        # 🔴 2026-08-17 移除持續運鏡——**真實觀眾兩人獨立回報「畫面會一直抖」**。
+        # 逐幀量測坐實:同一段落內連續 12 幀裡有 3 次跳動,其中一次是**整幅畫面垂直位移
+        # 2 像素**(連標題區都在動,不是局部內容變化)。根因是 zoompan 的整數運算:
+        # x/y 表達式含 `iw/zoom/2`,zoom 隨正弦變動時該項連續漂移,取整後就每隔幾幀
+        # 跳 1~2 px;三條不同週期的正弦疊加讓跳動時機不規則 = 觀眾眼中的「一直抖」。
+        # 為什麼直接砍掉而不是調小幅度:幅度越小,取整跳動佔比反而越高(位移全在小數點
+        # 附近來回),治不好。而當初加運鏡是為了治「畫面死掉」——那個判斷來自 scene
+        # detection 分數,7/28 的註解自己就寫了「全產線沒有任何閘門在讀那個分數」。
+        # 現在畫面的動態已經由**真的有資訊量**的東西提供:卡片邊界對齊旁白、段內漸進
+        # 揭露、數字爆現、字幕逐句。用一個沒人看的指標換真實觀眾的觀看體驗是錯的取捨。
+        # 保留換卡 punch(段落邊界 0.45s 的刻意拉遠):那是**離散的轉場動作**,觀眾讀作
+        # 剪輯節奏而非抖動,且段落內 z 恆定不產生逐幀漂移。
+        _zexpr = f"max(1.002,1.026{_punch})" if _punch else "1.026"
         vf = (f"fps={fps},scale={width}:{height}:force_original_aspect_ratio=decrease,"
               f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1,"
               f"zoompan=z='{_zexpr}':d=1:"
-              f"x='iw/2-(iw/zoom/2)+(iw*0.005)*sin(2*PI*{_t}/27)':"
-              f"y='ih/2-(ih/zoom/2)+(ih*0.004)*cos(2*PI*{_t}/33)':s={width}x{height}:fps={fps},"
+              f"x='iw/2-(iw/zoom/2)':"
+              f"y='ih/2-(ih/zoom/2)':s={width}x{height}:fps={fps},"
               f"tpad=start_duration=0.35:start_mode=clone,fade=t=in:st=0:d=0.5,"
               f"trim=start=0.35,setpts=PTS-STARTPTS,format=yuv420p")
         af = f"adelay={intro_ms}:all=1,apad,atrim=0:{total:.3f}"

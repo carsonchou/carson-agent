@@ -467,12 +467,45 @@ def write_srt_for_slug(slug: str, out_dir=None):
         return None
     if dur <= 0:
         return None
-    cues = build_subtitle_cues(split_subtitle_units(voice), dur)
-    if not cues:
+    # 🔴 2026-08-17 觀眾實際回報「字幕跟解說不同步」,追出兩個疊加的錯:
+    #   ①用 **mp4 總長度**(含片頭 INTRO 3s + 片尾 OUTRO)去分配字幕,但旁白只佔中間那段
+    #     → 字幕被拉長攤平,越到後面偏差越大。
+    #   ②**完全沒有片頭位移**:字幕從 0s 起跑,而語音 3s 後才開始 → 全片系統性早 3 秒。
+    # 而且它用的是 build_subtitle_cues(**估算**時間軸),明明 TTS 已經產出逐句真實時間戳
+    # ({slug}.wordtimes.json,燒錄字幕早就在用)。改成:有 wordtimes 就用真值+位移;
+    # 沒有才退回估算,但改用**旁白 mp3 的長度**並補上位移。
+    _rows = []
+    _wt = base / f"{slug}.wordtimes.json"
+    if _wt.exists():
+        try:
+            import json as _json
+            _d = _json.loads(_wt.read_text(encoding="utf-8"))
+            for w in _d:
+                _t, _dur2 = float(w.get("t", 0)), float(w.get("d", 0))
+                _tx = (w.get("text") or "").strip()
+                if _tx and _dur2 > 0:
+                    _rows.append((_t + INTRO_DURATION, _t + _dur2 + INTRO_DURATION, _tx))
+        except Exception:  # noqa: BLE001
+            _rows = []
+    if not _rows:
+        _adur = dur
+        _mp3 = base / f"{slug}.mp3"
+        if _mp3.exists():
+            try:
+                _o = subprocess.run(
+                    ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+                     "-of", "default=nw=1:nk=1", str(_mp3)],
+                    capture_output=True, text=True, timeout=30)
+                _adur = float((_o.stdout or "").strip()) or dur
+            except Exception:  # noqa: BLE001
+                pass
+        for c in build_subtitle_cues(split_subtitle_units(voice), _adur):
+            _rows.append((c.start + INTRO_DURATION, c.end + INTRO_DURATION, c.text))
+    if not _rows:
         return None
     blocks = []
-    for i, c in enumerate(cues, 1):
-        blocks.append(f"{i}\n{_srt_ts(c.start)} --> {_srt_ts(c.end)}\n{c.text}\n")
+    for i, (_s, _e, _tx) in enumerate(_rows, 1):
+        blocks.append(f"{i}\n{_srt_ts(_s)} --> {_srt_ts(_e)}\n{_tx}\n")
     srt = base / f"{slug}.srt"
     try:
         srt.write_text("\n".join(blocks), encoding="utf-8")
