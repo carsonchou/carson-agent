@@ -2153,6 +2153,9 @@ def call_claude(kind, avoid, topic_override=None):
     orders = load_orders()
     # 時事優先：有指定題目（金融時事）就用它，否則從題庫抽；題庫空了才「照配額指定題材」自由發揮
     topic = topic_override or pull_topic(kind)
+    # 2026-08-17:把來源長片 slug 一路帶到 make_one(它的作用域裡沒有 topic 變數)。
+    # 用途見 make_one 寫 {slug}.parent.txt 的說明:切片片的數字要對照它自己的來源長片。
+    _parent_slug = str((topic or {}).get("parent") or "") if isinstance(topic, dict) else ""
     assign = ""
     if not topic and not topic_override:
         _wb = _wanted_bucket(kind)
@@ -3383,6 +3386,8 @@ def _densify_long(d, facts_ctx, is_tw, facts=None, topic=None):
             d["_fact_keys_used"] = used_keys  # 供自驗/稽核查『用了哪些 fact key、有沒有重複』
     except Exception as exc:  # noqa: BLE001
         print(f"[warn] A4 長片分段深寫失敗,放行原稿：{str(exc)[:80]}", file=sys.stderr)
+    if _parent_slug:
+        d["_parent_slug"] = _parent_slug
     return d
 
 
@@ -4030,6 +4035,21 @@ def make_one(kind, no_render=False, topic_override=None, script_override=None):
         # 長片專用:在 35% 處補一句訂閱鉤(見 _insert_mid_sub_hook 的實測說明)。
         # 短片太短、結尾 CTA 幾乎人人聽得到,不需要。
         d["voice_text"] = _insert_mid_sub_hook(d["voice_text"], slug)
+    # 🔴 2026-08-17 切片片的數字必須對照**它自己的來源長片**,不能只對照全事實庫。
+    # 事故:B41_vS97LO8 說「聯鈞定期定額報酬 -37%」(長片實為 +656.4%,-38.3% 是回撤),
+    # 而 fact_source_guard 判定「有來源」放行——因為事實庫有幾千個數字,任何兩位數幾乎
+    # 都命中,那道閘只擋得住離譜數字,擋不住**張冠李戴**。切片場景有精確解:切片是從
+    # 某支長片切出來的,它的每個數字都該在那支長片裡。這裡把來源長片 slug 落成 sidecar,
+    # 讓發布前的稽核(audit_funnel_shorts.py)能精確比對,不必再靠標題模糊配對。
+    # ⚠️ make_one 的作用域裡**沒有** topic 變數(它在 call_claude 內部),第一版寫成
+    # `(topic or {}).get("parent")` 會 NameError 被 try 吞掉=永遠不寫 sidecar 的靜默失效。
+    # 改由 call_claude 把來源 slug 放進 d["_parent_slug"] 帶出來。
+    try:
+        _par = d.get("_parent_slug") or ""
+        if _par:
+            (OUT / f"{slug}.parent.txt").write_text(str(_par), encoding="utf-8")
+    except Exception:  # noqa: BLE001
+        pass
     (OUT / f"{slug}.voice.txt").write_text(d["voice_text"], encoding="utf-8")
     (OUT / f"{slug}.md").write_text(build_md(d), encoding="utf-8")
     _record_used_phrases(d, slug)  # A1b:把本支已用比喻句/CTA 結尾記進 STUDIO/used_phrases.json(供稽核)
