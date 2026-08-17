@@ -277,7 +277,7 @@ def _frame_jitter(mp4: Path, dur: float, points: int = 5):
             continue
         try:
             out = subprocess.run(
-                [ff, "-v", "quiet", "-ss", f"{t:.2f}", "-i", str(mp4), "-frames:v", "6",
+                [ff, "-v", "quiet", "-ss", f"{t:.2f}", "-i", str(mp4), "-frames:v", "14",
                  "-vf", f"crop={W}:{W}:(iw-{W})/2:(ih-{W})/2,format=gray",
                  "-f", "rawvideo", "-"], capture_output=True, timeout=90).stdout
         except Exception:  # noqa: BLE001
@@ -290,13 +290,19 @@ def _frame_jitter(mp4: Path, dur: float, points: int = 5):
         for a, b in zip(fr, fr[1:]):
             pairs += 1
             base = float(np.abs(a - b).mean())
-            if base < 0.3:          # 幾乎靜止 = 正常
+            if base < 1.0:          # 幾乎靜止 = 正常
                 continue
             best = base
             for ax in (0, 1):
                 for s in (-2, -1, 1, 2):
                     best = min(best, float(np.abs(np.roll(a, s, axis=ax) - b).mean()))
-            if best < base * 0.5:   # 平移後差異砍半 → 整幅位移,非內容變化
+            # 判準用**補償後的絕對殘差**,不是相對降幅。實測分佈(base→best):
+            #   會抖的片: 5.10→0.18、7.14→0.22   ← 純位移,補償後幾乎完全重合
+            #   內容變化: 2.04→2.04、2.13→2.13   ← 補償無效
+            #   重渲後的: 0.00→0.00 全部          ← 乾淨
+            # 相對降幅(best < base*0.5)會把 b-roll 的鏡頭平移一起算進來——那是真實影片
+            # 素材在動,場景同時在變,補償後殘差仍大;絕對值判準天然把它排除。
+            if best <= 0.5:
                 hits += 1
     return hits, pairs
 
@@ -377,8 +383,14 @@ def audit(slug: str):
     # 教訓落地成閘門:把「只有人眼看得到」的兩件事變成機器每支都查。
     if has_v and dur > 10:
         _j, _tot = _frame_jitter(mp4, dur)
-        # 門檻 = 命中率 12%(實測分佈定的,見下)。-1 = 工具缺失,不判定,不可當壞片。
-        if _j > 0 and _tot > 0 and (_j / _tot) >= 0.12:
+        # 門檻 = 1。定門檻的實測依據:**33 支重渲後的片全掃,命中數全部是 0**(零誤判),
+        # 而未修的舊片抓得到 1~2 處。抖動是間歇的(zoom 跨整數邊界才跳),即使每點抽 14 幀
+        # ×6 點 = 78 幀對也只會踩到一兩次——所以門檻不能設高,設高就等於沒有這道閘。
+        # 反過來說,因為修好的片是**絕對零**,一次命中就足以判定有問題。
+        # ⚠️ 誠實記下限制:這道閘門能抓「整支片都在抖」的回歸,但對極稀疏的個案仍可能漏抓
+        # (台燿那支是觀眾親口回報會抖的,78 幀對也只踩到 1 次)。它是安全網不是保證。
+        # -1 = 工具缺失,不判定,不可當壞片。
+        if _j >= 1 and _tot > 0:
             reasons.append(f"畫面整幅位移 {_j}/{_tot} 幀對(抖動)——檢查渲染端 zoompan 的 x/y 運算")
     # ①f 字幕時間軸:旁白 3 秒片頭後才開始,字幕若沒加片頭位移就全片系統性早 3 秒。
     # 已發生過:上傳的 CC 用 mp4 總長度分配 + 零位移,越後面偏差越大。確定性檢查,零誤判。
