@@ -85,6 +85,15 @@ def main() -> int:
                 fail += 1
                 tmp.unlink(missing_ok=True)
                 continue
+            # 旁白截斷:成品必須裝得下整段旁白。原本漏了這關——重渲若把 500 秒的片渲成
+            # 97 秒(渲染中斷、素材缺失),前面三關(檔案大小/有軌/不抖)全都會放行,
+            # 然後我就用一支截斷的片覆蓋掉完好的原檔。判準對齊 audit_video ①b。
+            adur, _, _ = av._probe(OUT / f"{slug}.mp3")
+            if adur > 0 and dur / adur < 0.9:
+                print(f"  ✗ 疑似截斷(成品{dur:.0f}s / 旁白{adur:.0f}s),保留原檔", flush=True)
+                fail += 1
+                tmp.unlink(missing_ok=True)
+                continue
             if rate >= 0.05:
                 print(f"  ✗ 仍有抖動 {h}/{tot}={rate * 100:.1f}%,保留原檔", flush=True)
                 fail += 1

@@ -384,3 +384,13 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # 只建有片的清單,不預先掛 27 條空殼;配額 --max 10 約 500 units(insert 50/支)
 # 產業對照表 STUDIO/industry_map.json 由 data_hunter/universe.load_full_universe 匯出(1925檔→27類)
 20 13 * * 5 /root/yt/run.sh scripts/industry_playlists.py --apply --max 10 >> /root/yt/logs/cron.log 2>&1
+
+# 失信互動留言改寫(2026-08-17):產線 07-18／08-12 兩度砍掉「產線兌現不了的承諾」句型
+#   (「留言『數據』我私你」「夠多我就出深度版」「我統計結果下支公布」…),但兩次都
+#   **只改產生端**,線上已發的 135 則沒人回頭清——其中「我私你」「我發你」承諾私訊交付
+#   回測資料,而 comment_dept 自己記著 tg_leads 累計 0 筆,那個交付從來沒運作過。
+#   用 comments.update 改寫而非 delete:問題在內容不在留言,刪掉會連互動訊號一起丟。
+#   新文案從該片標題的真數字生成(標題數字已過溯源閘門),順帶治重複——舊池 15 句配
+#   357 則留言,單一句型重複到 28 次,那是 spam 偵測看得到的機器人特徵。
+#   原文全備份 STUDIO/engage_backup/;每則 50 units,--max 12 約 600 units。
+45 16 * * * /root/yt/run.sh scripts/fix_engage_comments.py --apply --max 12 >> /root/yt/logs/cron.log 2>&1

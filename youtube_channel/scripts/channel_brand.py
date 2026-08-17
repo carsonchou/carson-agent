@@ -8,10 +8,17 @@
 這支就是把那個順序固定下來,免得每次手寫都要重想一次。
 
 ## API 改得到 / 改不到(2026-08-17 實測)
-  改得到:title、description、keywords、country、defaultLanguage
-  改不到:**@handle**、大頭貼、橫幅、頻道預設「是否為兒童內容」
-          → 這四項是 YouTube Studio 專屬,只能人工設。
-          handle 改在 https://www.youtube.com/handle
+  改得到:description、keywords、country、defaultLanguage
+  改不到:**title(頻道名稱)**、**@handle**、大頭貼、橫幅、頻道預設「是否為兒童內容」
+
+🔴 **title 是最陰的一個:API 會收下請求、回 200、不報任何錯,但值根本沒變。**
+   實測 channels.update(brandingSettings) 送 title='AI 實測室',回應與後續 list
+   讀回來都還是舊值 'Ai dancing'。頻道名稱綁在 Google/品牌帳戶層級,
+   只能在 Studio(youtube.com/customize)或 Google 帳戶設定改。
+   → 本檔因此**每次寫入後一定從 API 回讀比對**,不信任 update 的回應。
+      沒有這道回讀,就會發生「回報已改名、其實沒動」。
+
+  handle 改在 https://www.youtube.com/handle
 
 ## 安全
 - 預設 --dry-run,只印出「改前 → 改後」的差異,不寫入
