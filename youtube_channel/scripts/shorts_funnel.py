@@ -139,6 +139,20 @@ def _drop_untraceable(items, body, title):
     故比對「該數字前後不可緊鄰其他數字」。
     """
     src = re.sub(r"[,，]", "", body + " " + (title or ""))
+    # 來源長片本身也大量使用中文數字唸法(「總報酬百分之六百五十六點四」),所以比對前
+    # 要把**兩邊**都正規化成同一種表示,否則真數字會被當成編造擋掉(第一版實測誤殺
+    # 656.4 與 18.8 這兩個長片明明有的值)。這裡建一個來源數字池:阿拉伯原文 + 中文轉換值。
+    _src_pool = set(re.findall(r"\d+(?:\.\d+)?", src))
+    try:
+        from fact_source_guard import _cn_num_to_float as _c2f
+        _src_cn = re.findall(r"百分之([零一二三四五六七八九十百千點]+)", src)
+        _src_cn += re.findall(r"([零一二三四五六七八九十百千點]{2,})[倍年萬]", src)
+        for _s in _src_cn:
+            _v = _c2f(_s)
+            if _v is not None:
+                _src_pool.add("%g" % _v)
+    except Exception:  # noqa: BLE001
+        pass
     # 專有名詞黑名單:Shorts 觀眾是被 feed 推來的陌生人,術語=直接滑走
     # (同 LONG_RULES ⓐ 的前 30 秒禁術語)。實測 LLM 生出「多數人以為卡瑪比率 0.24 沒差」
     # ——那個數字連長片都沒有,而且對小白是天書。術語題一律丟。
@@ -150,11 +164,32 @@ def _drop_untraceable(items, body, title):
         if _j:
             dropped.append((it.get("title", "")[:34], [f"術語:{_j[0]}"]))
             continue
-        nums = re.findall(r"\d+(?:\.\d+)?(?=\s*[%％倍年萬元月天])", re.sub(r"[,，]", "", text))
+        # 🔴 2026-08-17:只抓阿拉伯數字是不夠的——切片**旁白**一律用中文唸法
+        # (「報酬負百分之三十七」),閘門看不到就等於沒閘。實際事故:B41_vS97LO8 憑空
+        # 生出「-37%」(疑似把長片的「最大回撤 -38.3%」誤讀成報酬),已對外播出 479 次
+        # 才被抓到下架。中文數字轉換直接重用長片產線既有的
+        # fact_source_guard._cn_num_to_float(不重刻,那支已驗證過多輪)。
+        _text_norm = re.sub(r"[,，]", "", text)
+        nums = re.findall(r"\d+(?:\.\d+)?(?=\s*[%％倍年萬元月天])", _text_norm)
+        try:
+            from fact_source_guard import _cn_num_to_float
+            _cns = []
+            # ⚠️ 中文的百分比,單位在**數字前面**(「百分之三十七」),不是後面——
+            # 第一版照阿拉伯數字的寫法找「數字後接%」,結果一個都沒抓到(實測 3/3 漏放)。
+            _cns += re.findall(r"百分之([零一二三四五六七八九十百千點]+)", _text_norm)
+            _cns += re.findall(r"([零一二三四五六七八九十百千點]{2,})[倍年萬]", _text_norm)
+            for _cn in _cns:
+                _v = _cn_num_to_float(_cn)
+                if _v is not None:
+                    nums.append("%g" % _v)
+        except Exception:  # noqa: BLE001
+            pass
         bad = []
         for n in nums:
-            # 該數字必須在來源出現,且不可只是更長數字的一部分(前後不能緊鄰數字/小數點)
-            if not re.search(r"(?<![\d.])" + re.escape(n) + r"(?![\d])", src):
+            # 該數字必須在來源出現,且不可只是更長數字的一部分(前後不能緊鄰數字/小數點,
+            # 正是 22.4 被誤讀自 4322.4 的事故樣態);或命中來源的中文數字池。
+            _hit = re.search(r"(?<![\d.])" + re.escape(n) + r"(?![\d])", src)
+            if not _hit and n not in _src_pool:
                 bad.append(n)
         if bad:
             dropped.append((it.get("title", "")[:34], bad))
@@ -185,6 +220,13 @@ def plan(per, title, body):
 - ★ {per} 支必須切**不同面向**,以下各挑一個不重複:①最刺眼的報酬數字 ②最痛的回撤/套牢數字
   ③兩種做法的對決(單筆vs定投、抱著vs停利) ④「多數人以為X,數據說Y」的反直覺判決
   ⑤一個具體情境代入(那年進場的人後來怎麼了)。**嚴禁五支都是「高報酬背後有風險」的換句話說**。
+- 🔴【不可推翻來源結論·誠信硬規 2026-08-17】你的任務是把長片的結論**切成小塊**,
+  不是重新下結論。**嚴禁**產出與長片數據相反的判斷。
+  實際事故:長片明明寫「定期定額總報酬提升到 656.4%、最大回撤降到 -38.3%,顯示定期定額
+  降低風險」,切片卻生出「定期定額反而虧更多、報酬 -37%」——把**回撤**當成**報酬**、
+  還把長片的結論整個反轉,那支片對外播了 479 次才被抓下架。
+  ⚠️ 每個數字都必須是長片裡**該指標**的數字:回撤是回撤、報酬是報酬、年化是年化,
+  不可張冠李戴;長片說 A 好就不能說 A 差(要反直覺請從長片**自己就有的**反轉點取材)。
 - 每支 Short 對齊小白：用「我先幫你試、別自己送死」的口吻,各自能獨立看懂。
 - 優先靠向上面【本頻道實證數據】裡已驗證高完播的角度(有的話)，別憑空發想。
 - 每支結尾一句『導流文案』:自然引導去看完整長片。
