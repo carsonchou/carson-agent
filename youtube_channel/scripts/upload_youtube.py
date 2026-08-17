@@ -333,52 +333,23 @@ def build_chapters_block(slug: str, md_path: Path) -> str:
     會把 % 轉口語但一般數字保留,段首句通常對得到);對不到的段退回等分估算。
     YouTube 章節規則:第一個必須 0:00、至少 3 個、每章 ≥10 秒——不滿足回空字串。
     重用 make_video.parse_script_md(產線同一份解析器,不重刻;閘門兩份=歷史血案)。
-    任何例外回空字串(fail-open,章節是加分項不是必需品)。"""
+    任何例外回空字串(fail-open,章節是加分項不是必需品)。
+
+    ## 2026-08-17 內部實作換掉,修兩個真 bug(對外可見)
+    ①**漏了片頭位移**:wordtimes 的 t 是**旁白**時間軸,成品前面還有 INTRO_DURATION
+      秒片頭。舊版直接拿 t 當章節秒數 → 每一章都早 3 秒。這跟同日抓到的 CC 字幕不同步
+      是**同一個根因**(觀眾在留言區回報後才發現),同一份漏算在兩個地方各犯一次。
+    ②**對不到就等分估算**:舊版 `total*(i+0.6)/(len+1)` 是**編出來的時間點**,
+      觀眾點章節會跳到不相干的地方——比沒有章節更糟。新版對不齊就整組不出(fail-open)。
+    另外改用單調遞增搜尋:個股體檢腳本常有連續兩段旁白開頭相同(「這意味著,如果你…」),
+    舊版各段獨立找會對到同一句,再被 ≥10s 規則丟掉 → 白白少好幾章。
+    對齊邏輯與 render_ffmpeg 的卡片邊界共用 chapters.align_segment_starts,單一實作。"""
     try:
         if not slug.startswith("L_"):
             return ""
-        wt_path = md_path.parent / f"{slug}.wordtimes.json"
-        if not wt_path.exists():
-            return ""
-        wt = json.loads(wt_path.read_text(encoding="utf-8"))
-        if not isinstance(wt, list) or len(wt) < 5:
-            return ""
-        total = max(w.get("t", 0) + w.get("d", 0) for w in wt)
-        if total < 180:
-            return ""
-        from make_video import parse_script_md
-        _, segments = parse_script_md(md_path)
-        segs = [s for s in segments if s.heading and s.narration]
-        if len(segs) < 3:
-            return ""
-
-        def _find_time(narr: str):
-            probe = narr[:12].strip()
-            if not probe:
-                return None
-            for w in wt:
-                if probe in (w.get("text") or ""):
-                    return float(w.get("t", 0))
-            return None
-
-        chapters = [(0.0, "開場")]
-        for i, s in enumerate(segs):
-            t = _find_time(s.narration)
-            if t is None:
-                t = total * (i + 0.6) / (len(segs) + 1)   # 對不到 → 等分估(開場佔一份)
-            chapters.append((t, s.heading.strip()[:40]))
-        # 單調遞增且每章 ≥10s;違反的章直接丟掉(寧缺勿錯)
-        clean = [chapters[0]]
-        for t, h in chapters[1:]:
-            if t >= clean[-1][0] + 10 and t < total - 5:
-                clean.append((t, h))
-        if len(clean) < 3:
-            return ""
-        lines = ["📖 章節"]
-        for t, h in clean:
-            m, s = int(t) // 60, int(t) % 60
-            lines.append(f"{m}:{s:02d} {h}")
-        return "\n".join(lines)
+        from chapters import build as _build
+        blk = _build(slug)
+        return ("📖 章節\n" + blk.rstrip()) if blk else ""
     except Exception:  # noqa: BLE001
         return ""
 

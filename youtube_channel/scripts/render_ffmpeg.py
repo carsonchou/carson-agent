@@ -545,36 +545,20 @@ def _narration_seg_starts(segments, cues, audio_duration):
     對齊,是現成的真實時間軸)。對不到的段用相鄰錨點線性插值。
     fail-open 條件(回 None=呼叫端走原本 per_seg 等分,行為與舊版一致):
       ·段數 <2 或無 cues ·錨到的段少於一半 ·邊界洞在頭尾 ·相鄰邊界 <1.5s(對映錯亂)
-      ·最後一段起點貼到音軌尾(明顯錯位)。"""
+      ·最後一段起點貼到音軌尾(明顯錯位)。
+
+    ⚠️ 2026-08-17:實作已抽到 chapters.align_segment_starts(章節時間戳與這裡用同一套
+    對齊,兩份程式碼會走鐘)。同時修掉一個真 bug——**連續兩段旁白開頭相同**時(個股體檢
+    腳本常見的「這意味著,如果你…」),舊版各段獨立去全表找會對到同一句,兩段起點相同
+    → 觸發上面的 <1.5s 條件 → 靜默 fail-open 退回 per_seg 等分。等分不是無害的退路:
+    勤誠那支真實邊界 0/121.7/227.3/…,等分是 109 秒一段,**畫面比旁白早了 12 秒**。
+    新版改單調遞增搜尋,撞句自然對到下一次出現。
+    """
     try:
-        n = len(segments)
-        if n < 2 or not cues:
-            return None
-        starts = [0.0] + [None] * (n - 1)
-        for i in range(1, n):
-            probe = (segments[i].narration or "").strip()[:8]
-            if len(probe) < 6:
-                continue
-            for cu in cues:
-                if probe in (cu.text or ""):
-                    starts[i] = float(cu.start)
-                    break
-        idxs = [i for i, t in enumerate(starts) if t is not None]
-        if len(idxs) < max(2, (n + 1) // 2):
-            return None
-        for i in range(n):
-            if starts[i] is None:
-                prev = max((j for j in idxs if j < i), default=None)
-                nxt = min((j for j in idxs if j > i), default=None)
-                if prev is None or nxt is None:
-                    return None
-                starts[i] = starts[prev] + (starts[nxt] - starts[prev]) * (i - prev) / (nxt - prev)
-        for a, b in zip(starts, starts[1:]):
-            if b <= a + 1.5:
-                return None
-        if starts[-1] >= float(audio_duration) - 1.5:
-            return None
-        return starts
+        from chapters import align_segment_starts
+        return align_segment_starts([s.narration for s in segments],
+                                    [(float(c.start), c.text or "") for c in cues],
+                                    audio_duration)
     except Exception:  # noqa: BLE001
         return None
 

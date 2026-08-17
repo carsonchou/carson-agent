@@ -115,10 +115,19 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 #   分鐘)。實驗期到 08-25,+2 天等 Analytics 延遲清空才可比(memory 假警報教訓)。
 #   工具只報告不動產線;產出 STUDIO/REPORTS/<date>_節奏實驗對照.md。
 40 6 28 8 * /root/yt/run.sh scripts/cadence_experiment_report.py >> /root/yt/logs/cron.log 2>&1
-# 描述章節回填餘量(2026-08-12):108支已發布長片回填章節+清殘留,首批60支已完成;
-#   每天16:10(配額15:00重置後)續跑60支,冪等(done名單),全部做完自動no-op、之後
-#   只會接住「本地有md+wordtimes但線上還沒章節」的新漏網件。獨立驗證已放行(5/5)。
-10 16 * * * /root/yt/run.sh scripts/desc_chapters_backfill.py --apply --max 60 >> /root/yt/logs/cron.log 2>&1
+# 描述章節回填餘量(2026-08-12 建;2026-08-17 改為 --fix-existing):
+#   ⚠️ 08-12 那批用的舊 build_chapters_block 產出的章節**時間是錯的**——實測 90 支
+#   已補的片裡 63 支有真實錯位、最大偏 -64 秒,且集中在流量最高的片(台半1934觀看
+#   0:54 實際該是 2:02)。兩個根因:漏加片頭 INTRO_DURATION(-3s,無感)、旁白對不到
+#   句子時用等分估算**編出時間點**(要命,觀眾點章節跳錯一分鐘)。產生端已換成
+#   chapters.build(對不齊就整組不出)。--fix-existing 會先移除線上舊章節再貼新的,
+#   同時仍接住「還沒有章節」的漏網件。用獨立 done 名單 desc_chapters_fixed.json
+#   (舊名單那 90 支正是要修的對象,共用會全被跳過)。
+#   每支更新前原 snippet 原封備份到 STUDIO/desc_backup/<vid>.json,可還原。
+#   已實測驗證:台半 5425 逐欄位比對 title/tags(13→13)/categoryId 全未動、
+#   非章節行 16→16 未動;新時間用旁白內容比對確認精確命中段落開頭。
+#   --max 15(約 765 units)給每日發布留配額;首批 21 支已完成,冪等續跑。
+10 16 * * * /root/yt/run.sh scripts/desc_chapters_backfill.py --fix-existing --apply --max 15 >> /root/yt/logs/cron.log 2>&1
 # 灘頭指標(2026-08-13):每日記錄「非訂閱者來源觀看」(取4天前單日,避開Analytics延遲)。
 #   依據memory yt-subscriber-feed-pollution:總觀看被157訂閱者重複觀看污染,
 #   外部分發≈0是頻道真瓶頸——這個數字才是北極星。

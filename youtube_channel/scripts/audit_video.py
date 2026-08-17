@@ -175,6 +175,64 @@ def _probe(mp4: Path):
         return 0.0, False, False
 
 
+def _frame_jitter(mp4: Path, dur: float, points: int = 5):
+    """整幅位移(畫面抖動)偵測。回傳 (命中數, 檢查幀對數);工具缺失回 (-1, 0) = 不判定。
+
+    ⚠️ 不可用絕對次數當判準:抖動只在 zoom 值跨過整數邊界時發生,同一支片有些段落抖、
+    有些不抖,採樣點落在哪決定看不看得到(實測台燿 3/15、勤誠 0/15,兩支都是修復前渲的)。
+    故回傳**比率**,由呼叫端依實測分佈定門檻。
+
+    ## 為什麼有這支(2026-08-17,兩位真實觀眾同時回報「畫面會一直抖」)
+    渲染端 zoompan 的 x/y 運算含 `iw/zoom/2`,zoom 隨時間變動時整數取整讓**整幅畫面**
+    每隔幾幀位移 1~2 px。逐幀量測坐實:同段 12 幀裡 3 次跳動、其中一次整幅位移 2px。
+    根因已修(拿掉連續運鏡),本函式是**防回歸**——以後誰再加運鏡,發布前就會被擋。
+
+    ## 判準:為什麼「位移對齊」能區分抖動與正常內容變化
+    換卡、字幕換句、動畫都會讓幀間差異變大,但那是**局部**變化,把前一幀整幅平移
+    幾像素**不會**讓差異下降。只有整幅位移才會:平移回去後兩幀幾乎重合。
+    故條件是「差異夠大」且「平移後差異砍半以上」——內容變化過不了第二關。
+
+    取中央 480x480 原解析度切片(不縮放):1080p 縮到 320 寬時 2px 位移只剩 0.6px 會被抹掉,
+    抖動偵測**不能降解析度**。
+    """
+    try:
+        import numpy as np
+    except Exception:  # noqa: BLE001
+        return -1, 0
+    ff = _ffmpeg_exe()
+    W = 480
+    hits = 0
+    pairs = 0
+    for i in range(points):
+        t = dur * (0.15 + 0.7 * i / max(1, points - 1))
+        if t < 4:
+            continue
+        try:
+            out = subprocess.run(
+                [ff, "-v", "quiet", "-ss", f"{t:.2f}", "-i", str(mp4), "-frames:v", "6",
+                 "-vf", f"crop={W}:{W}:(iw-{W})/2:(ih-{W})/2,format=gray",
+                 "-f", "rawvideo", "-"], capture_output=True, timeout=90).stdout
+        except Exception:  # noqa: BLE001
+            continue
+        n = len(out) // (W * W)
+        if n < 3:
+            continue
+        fr = [np.frombuffer(out[i * W * W:(i + 1) * W * W], dtype=np.uint8)
+                .reshape(W, W).astype(float) for i in range(n)]
+        for a, b in zip(fr, fr[1:]):
+            pairs += 1
+            base = float(np.abs(a - b).mean())
+            if base < 0.3:          # 幾乎靜止 = 正常
+                continue
+            best = base
+            for ax in (0, 1):
+                for s in (-2, -1, 1, 2):
+                    best = min(best, float(np.abs(np.roll(a, s, axis=ax) - b).mean()))
+            if best < base * 0.5:   # 平移後差異砍半 → 整幅位移,非內容變化
+                hits += 1
+    return hits, pairs
+
+
 def audit(slug: str):
     """回傳 (ok: bool, reasons: list[str])。reasons 空 = PASS。"""
     reasons = []
@@ -244,6 +302,29 @@ def audit(slug: str):
         _vn = len(re.findall(r"[一-鿿]", _vtext))
         if _vn < 120:   # 含 0 字:voice.txt 存在但整檔空白=更徹底的空殼,不可放過
             reasons.append(f"旁白過短({_vn}字)疑似空殼——內容被剝除後只剩骨架")
+
+    # ①e 畫面抖動 + ①f 字幕時間軸(2026-08-17,兩位真實觀眾同時回報)
+    # 這兩個 bug 在產線活了很久,**所有內部指標都是綠的**:品質分、完播率、audit 全過,
+    # 因為它們量的是「檔案屬性」不是「觀眾看到的畫面」。最後是觀眾在留言區告訴我們的。
+    # 教訓落地成閘門:把「只有人眼看得到」的兩件事變成機器每支都查。
+    if has_v and dur > 10:
+        _j, _tot = _frame_jitter(mp4, dur)
+        # 門檻 = 命中率 12%(實測分佈定的,見下)。-1 = 工具缺失,不判定,不可當壞片。
+        if _j > 0 and _tot > 0 and (_j / _tot) >= 0.12:
+            reasons.append(f"畫面整幅位移 {_j}/{_tot} 幀對(抖動)——檢查渲染端 zoompan 的 x/y 運算")
+    # ①f 字幕時間軸:旁白 3 秒片頭後才開始,字幕若沒加片頭位移就全片系統性早 3 秒。
+    # 已發生過:上傳的 CC 用 mp4 總長度分配 + 零位移,越後面偏差越大。確定性檢查,零誤判。
+    _wt = OUTPUT / f"{slug}.wordtimes.json"
+    if _wt.exists() and dur > 0:
+        try:
+            import json as _json
+            _d = _json.loads(_wt.read_text(encoding="utf-8"))
+            _end = max((float(w.get("t", 0)) + float(w.get("d", 0))) for w in _d) if _d else 0.0
+            from make_video import INTRO_DURATION as _INTRO
+            if _end > 0 and (_end + _INTRO) > dur * 1.02:
+                reasons.append(f"字幕時間軸超出影片({_end + _INTRO:.1f}s > {dur:.1f}s)——旁白/成品長度不一致")
+        except Exception:  # noqa: BLE001
+            pass
 
     # ② 誠信禁語（辨識否定詞，避免把「不保證收益」這種誠實聲明誤判）
     blob = ""

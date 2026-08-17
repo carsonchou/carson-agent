@@ -121,7 +121,7 @@ def git(*cmd) -> bool:
     """執行 git 指令；非 git 倉庫或失敗時回 False（不中斷）。"""
     try:
         r = subprocess.run(["git", *cmd], cwd=str(ROOT),
-                           capture_output=True, text=True, timeout=120)
+                           capture_output=True, text=True, timeout=120, **_NO_WINDOW)
         if r.returncode != 0:
             print(f"[git] {' '.join(cmd)} → {r.stderr.strip()[:120]}")
             return False
@@ -141,7 +141,7 @@ def _maybe_daily_qa():
             return
         print("[watcher] 執行每日決策中心巡檢（檢測部門）…")
         subprocess.run([str(PY), "scripts/web_center/qa_check.py", "--port", "8795"],
-                       cwd=str(ROOT), timeout=120)
+                       cwd=str(ROOT), timeout=120, **_NO_WINDOW)
         mark.write_text(today, encoding="utf-8")
     except Exception as exc:  # noqa: BLE001
         print(f"[watcher] 巡檢略過（{exc}）", file=sys.stderr)
@@ -172,7 +172,7 @@ def run_once(sync: bool) -> int:
     except Exception:
         pass
     subprocess.run([str(PY), "scripts/daily_publish.py", "--max", "6", "--privacy", priv],
-                   cwd=str(ROOT))
+                   cwd=str(ROOT), **_NO_WINDOW)
 
     _maybe_daily_qa()
 

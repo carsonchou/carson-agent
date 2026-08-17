@@ -9,12 +9,17 @@ STUDIO/tunnel_url.json 給 ig_reels_upload.py 讀(免費、免帳號,IG Reels �
 """
 from __future__ import annotations
 import argparse
+import os
 import re
 import shutil
 import subprocess
 import sys
 import time
 from pathlib import Path
+
+# 本檔常以無 console 方式常駐(vbs/pythonw/排程),此時 spawn console 子程序
+# (fileserver/cloudflared)Windows 會為每個各開一個黑窗 → 一律帶 CREATE_NO_WINDOW。
+_NO_WINDOW = {"creationflags": 0x08000000} if os.name == "nt" else {}
 
 ROOT = Path(__file__).resolve().parent.parent
 STUDIO = ROOT / "STUDIO"
@@ -54,7 +59,7 @@ def _start_fileserver() -> subprocess.Popen:
     return subprocess.Popen(
         [sys.executable, str(ROOT / "scripts" / "fileserver_local.py"),
          "--port", str(FILESERVER_PORT)],
-        cwd=str(ROOT),
+        cwd=str(ROOT), **_NO_WINDOW,
     )
 
 
@@ -62,7 +67,7 @@ def _start_cloudflared(exe: str) -> subprocess.Popen:
     return subprocess.Popen(
         [exe, "tunnel", "--url", f"http://localhost:{FILESERVER_PORT}"],
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        text=True, bufsize=1, cwd=str(ROOT),
+        text=True, bufsize=1, cwd=str(ROOT), **_NO_WINDOW,
     )
 
 
@@ -193,12 +198,13 @@ def _kill_stale_tunnels() -> None:
              "Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" | "
              "Where-Object { $_.CommandLine -match 'tunnel_up|fileserver_local' } | "
              "ForEach-Object { $_.ProcessId }"],
-            capture_output=True, text=True, timeout=20).stdout
+            capture_output=True, text=True, timeout=20, **_NO_WINDOW).stdout
         for tok in out.split():
             try:
                 pid = int(tok.strip())
                 if pid != me:
-                    subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True, timeout=10)
+                    subprocess.run(["taskkill", "/F", "/PID", str(pid)],
+                                   capture_output=True, timeout=10, **_NO_WINDOW)
             except Exception:  # noqa: BLE001
                 pass
     except Exception:  # noqa: BLE001
