@@ -85,7 +85,16 @@ def main() -> int:
     cands = [(s, v) for s, v in led.items()
              if s.startswith("L_") and v not in done
              and (OUT / f"{s}.wordtimes.json").exists() and (OUT / f"{s}.mp4").exists()]
-    cands.sort(key=lambda sv: -views.get(sv[1], 0))
+    # 觀眾**親口抱怨過**的片排最前面,不受觀看數排序影響。
+    # 2026-08-17 踩到:台燿 6274 就是留言說「字幕跟解說不同步」的那支,但它只有 290 觀看,
+    # 按觀看排序被排到十名外——先修的是沒人抱怨的片,而抱怨的人回來看發現還是錯的。
+    # 名單格式:["videoId", ...],人工維護,修好了留著也無妨(done 名單會擋掉)。
+    _pri_f = ROOT / "STUDIO" / "caption_priority.json"
+    try:
+        _pri = set(json.loads(_pri_f.read_text(encoding="utf-8"))) if _pri_f.exists() else set()
+    except Exception:  # noqa: BLE001
+        _pri = set()
+    cands.sort(key=lambda sv: (0 if sv[1] in _pri else 1, -views.get(sv[1], 0)))
     print(f"待修長片:{len(cands)} 支(已完成 {len(done)});依近 30 天觀看排序")
 
     yt = dp.get_service()
