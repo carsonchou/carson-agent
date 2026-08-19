@@ -412,6 +412,26 @@ def complete(prompt: str, max_tokens: int = 3500, json_mode: bool = False, tempe
                     for p in _rescue:
                         seen.add(p)
                         chain.append(p)
+                # 主供應商硬故障要**叫人**。這次 Groq 下架 llama 系列後,產線靠救援
+                # 繼續跑(所以表面正常),但沒有任何人知道主力已經換人——問題活了十天,
+                # 是我為了別的事去翻日誌才撞見的。每天最多推一次,不洗版。
+                try:
+                    import json as _json
+                    from pathlib import Path as _P
+                    _hf = _P(__file__).resolve().parent.parent / "STUDIO" / "llm_health.json"
+                    _st = _json.loads(_hf.read_text(encoding="utf-8")) if _hf.exists() else {}
+                    _day = time.strftime("%Y-%m-%d")
+                    if _st.get(prov) != _day:
+                        _st[prov] = _day
+                        _hf.parent.mkdir(parents=True, exist_ok=True)
+                        _hf.write_text(_json.dumps(_st, ensure_ascii=False), encoding="utf-8")
+                        import notify as _nt
+                        _nt.push(f"LLM 主供應商掛了：{prov}",
+                                 f"{str(e)[:160]}\n已自動改用 {'/'.join(_rescue) or '(無備援)'}。"
+                                 f"\n若是模型下架,改 llm.py 的預設模型即可,不必換供應商。",
+                                 tag="warning")
+                except Exception:  # noqa: BLE001
+                    pass
     raise RuntimeError("所有 LLM 供應商都失敗：" + " | ".join(errs))
 
 
