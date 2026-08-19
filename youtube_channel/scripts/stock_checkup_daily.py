@@ -151,7 +151,27 @@ def seed_topics_for_code(code: str, name: str = "", dry_run: bool = False) -> in
         print("[stock_checkup_daily] 無 LLM key，跳過種題(事實已存檔，之後補跑 topics_from_facts.py 仍能補上)")
         return 0
 
-    batch = list(code_facts.values())
+    # 🔴 2026-08-19:只送**少數幾組**事實給 LLM,不要一次丟 13 組。
+    #
+    # 舊碼送全部(11~13 組),要模型對每組生 2~4 題 = 一次要吐 26~52 題的 JSON。
+    # 實測那個回應在 max_tokens=3200 被截在半路(只吐 217 字,停在 keywords 中間),
+    # 加倍到上限 8000 仍不夠 → 解析出 0 題 → **連續十天種不出任何長片題**,
+    # 而本檔封頂 MAX_TOPICS_PER_CODE=1,那 26~52 題本來就要丟掉 25~51 題。
+    # 等於花三倍額度買一個必定截斷的回應。
+    #
+    # 挑法:固定帶三組資訊量最高的(長期報酬、與 0050 同期對決、最長套牢期),
+    # 再依股票代號雜湊輪替一組其他事實——**輪替是刻意的**:1,925 檔全部用同一組
+    # 事實生題會讓整個系列的敘事長得一模一樣,那正是 YouTube inauthentic content
+    # 政策點名的「模板化、影片間變化極小」(memory yt-inauthentic-template-risk-2026-08)。
+    _PRIME = ("checkup_three_way__", "checkup_long_horizon__", "checkup_underwater__")
+    _keys = list(code_facts.keys())
+    _picked = [k for k in _keys if any(k.startswith(p) for p in _PRIME)]
+    _rest = [k for k in _keys if k not in _picked]
+    if _rest:
+        _picked.append(_rest[sum(ord(c) for c in code) % len(_rest)])
+    batch = [code_facts[k] for k in _picked] or list(code_facts.values())[:4]
+    print(f"[stock_checkup_daily] 送 LLM 的事實:{len(batch)}/{len(code_facts)} 組 "
+          f"({', '.join(k.replace('checkup_', '').replace('__' + code, '') for k in _picked)})")
     # 種題允許退到免費 Gemini(2026-08-10 實測):批量種 32 檔時,**15 檔的財報 13 組
     # 全部算好寫入了,卻卡在 LLM 生題的 groq 429**,等於白算一次(資料有留、下次重試,
     # 但批量時一半浪費)。llm.py 的 LLM_RESERVE_FALLBACK=1 是為了把 Gemini 額度留給

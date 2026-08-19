@@ -20,6 +20,7 @@ import os
 import re
 import time
 import requests
+import sys
 
 # 各供應商：OpenAI 相容端點(Groq/DeepSeek/Gemini 都支援) + Anthropic 原生
 # 推理型模型:思考過程佔用 max_tokens,額度太小會回空字串(見 _call_openai_compat 的實測註解)
@@ -219,13 +220,32 @@ def _call_openai_compat(provider, prompt, max_tokens, model=None, tries=3, json_
         # 舊碼在 content 空時退回 reasoning,等於把「模型的英文自言自語」當成答案送出去,
         # 一路寫進旁白稿——先前那支旁白冒出英文、被渲染閘門擋下的片就是這樣來的。
         # 拿思考過程冒充答案比誠實失敗糟得多:失敗會換下一個供應商,冒充則靜靜污染成品。
-        if not txt.strip():
-            if choice.get("finish_reason") == "length" and not _retried_longer:
+        _fr = choice.get("finish_reason")
+        # 🔴 2026-08-19:**截斷但非空**的 json_mode 回應也必須重試。
+        #
+        # 舊條件只有 `not txt.strip()`(內容完全空)才會加倍重試。但實際踩到的是另一種:
+        # 內容**不空**、只是被截在一半——
+        #   種題請求(10 組事實、max_tokens=3200)實測只吐 217 字,停在
+        #   '"keywords": [\n "凱崴",\n "報酬",\n "回撤' 就沒了。
+        # 半截的 JSON 對 json_mode 的呼叫端**完全無用**,而舊碼把它當成功回傳,
+        # 上層 _parse_llm_json 解析出 0 題、也不報錯 →
+        # stock_checkup_daily 每天算 16 檔股票的事實(資料全部算對),卻連續十天種出 0 題,
+        # 拒絕統計還全是 0(因為根本沒有候選可拒)。長片題源就這樣靜默斷掉,
+        # 而長片是唯一計入 YPP 4,000 小時的格式。
+        #
+        # 判準分三種,不要一律重試:
+        #   空 + length            → 加倍(舊行為,模型還沒開始寫就被截)
+        #   非空 + length + json   → 加倍(半截 JSON 無用,這次的 bug)
+        #   非空 + length + 純文字  → 照舊回傳(散文截斷至少前半段可用,重試反而浪費額度)
+        if (not txt.strip()) or (_fr == "length" and json_mode):
+            if _fr == "length" and not _retried_longer:
                 # 純粹是預算不夠,不是模型不會答 → 加倍重試一次(見上方實測)
                 return _call_openai_compat(provider, prompt, min(max_tokens * 3, _MAX_TOKENS_CAP),
                                            model, tries, json_mode, temperature,
                                            _retried_longer=True)
-            raise RuntimeError(f"{provider}: 回應為空(finish_reason={choice.get('finish_reason')}),"
+            if not txt.strip():
+                raise RuntimeError(f"{provider}: 回應為空(finish_reason={_fr}),換下一個供應商")
+            raise RuntimeError(f"{provider}: JSON 被截斷(finish_reason=length,已加倍仍不足),"
                                f"換下一個供應商")
         return _strip_think(txt)
     raise RuntimeError(f"{provider}: {last}（重試 {tries} 次仍限流）")
@@ -353,6 +373,33 @@ def complete(prompt: str, max_tokens: int = 3500, json_mode: bool = False, tempe
             return out
         except Exception as e:  # noqa: BLE001
             errs.append(f"{prov}: {str(e)[:120]}")
+            # 🔴 供應商**硬故障**時無條件補救援(2026-08-19 事故)
+            #
+            # 事故:Groq 的 llama-3.3-70b-versatile 下架,所有走 Groq 的呼叫回
+            # 「The model does not exist or you do not have access」(HTTP 404)。
+            # 而 LLM_RESERVE_FALLBACK=1 的設計把**小請求鎖死在 primary**(為了把 Gemini
+            # 免費額度留給長片產稿,那個理由本身是對的)——於是小請求無處可去,
+            # 而且**沒有任何告警**。後果不是慢一點,是產線的長片供給整條斷掉:
+            #   stock_checkup_daily 每天算 16 檔股票的事實(11~13 組/檔,資料全部算對了),
+            #   種題卻連續 10 天幾乎 0 題;news_dept 直接 FATAL;鉤子全退保底。
+            #   而長片是唯一計入 YPP 4,000 小時的格式,未發布長片庫存一度只剩 11 天。
+            #
+            # 關鍵區分:**限流 ≠ 壞掉**。
+            #   429／quota／rate limit = 額度問題 → 尊重 reserve 設定,不動用保留的免費額度。
+            #   401/403/404/model not found = 這個供應商對我們而言**根本不能用** →
+            #   保留額度給誰都沒意義了,一定要放行到 fallback。
+            _es = str(e).lower()
+            _hard = any(k in _es for k in ("404", "401", "403", "does not exist",
+                                           "not found", "no access", "invalid api key",
+                                           "unauthorized"))
+            if _hard and i == len(chain) - 1:
+                _rescue = [p for p in (fallback, big_prov, primary) if p and p not in seen]
+                if _rescue:
+                    print(f"[llm] {prov} 硬故障({str(e)[:60]}),"
+                          f"啟用救援供應商:{'/'.join(_rescue)}", file=sys.stderr)
+                    for p in _rescue:
+                        seen.add(p)
+                        chain.append(p)
     raise RuntimeError("所有 LLM 供應商都失敗：" + " | ".join(errs))
 
 
