@@ -33,7 +33,7 @@ import sys
 # **判斷一個模型要不要進這張清單,看的是它會不會產生 reasoning,不是它叫什麼名字。**
 _REASONING_MODELS = ("gpt-oss", "deepseek-r1", "qwq", "o1", "o3",
                      "gemini-2.5-flash", "gemini-2.5-pro", "gemini-3")
-_REASONING_MIN_TOKENS = 1000    # 實測 gpt-oss-120b:300 不夠、900 夠
+_REASONING_MIN_TOKENS = 3000    # 實測 gpt-oss-120b:1000 全被推理吃光輸出空、3200 才有完整回答(2026-08-19)
 _MAX_TOKENS_CAP = 8000          # 加倍重試的上限,免得無限往上加
 # 超過這個估算 token 數就算「大請求」,改把桶比較大的供應商排前面(見 complete() 的分流說明)。
 # 中文約 1 字 1 token,這裡用 1.1 保守估;10,000 大約是 Groq 免費層 12,000 桶扣掉安全邊際。
@@ -59,7 +59,19 @@ _OPENAI_COMPAT = {
     # 品質驗證:llama 輸出**零簡體字**、JSON 欄位正確、且不再吐英文思考過程
     #   (順帶根治「旁白冒出英文」——見下方 content/reasoning 那段的說明)。
     # 要換回推理型模型前,先想清楚它會把每分鐘額度燒在你丟掉的東西上。
-    "groq":     ("https://api.groq.com/openai/v1/chat/completions", "GROQ_API_KEY",     "llama-3.3-70b-versatile"),
+    #
+    # 🔴 2026-08-19 被迫換回 openai/gpt-oss-120b —— **不是推翻上面的分析,是沒得選**:
+    # Groq 把 llama 系列整個下架了。實測同一把金鑰:
+    #   llama-3.3-70b-versatile / llama-3.1-8b-instant     → 404 does not exist
+    #   gemma2-9b-it / mixtral-8x7b / llama3-70b-8192      → 400 has been decommissioned
+    #   openai/gpt-oss-120b / gpt-oss-20b                  → ✅ 200
+    # 上面關於「推理 token 吃掉每分鐘額度」的實測仍然成立,所以效率會退回 2026-08-04 之前
+    # 的水準,只是現在沒有更好的免費選項。**不要為此改用付費供應商**(Carson 明確指示:
+    # 切 OpenRouter 要花錢),要省的話 Gemini 免費層仍在 fallback 位置。
+    # 配套:_REASONING_MIN_TOKENS 1000 → 3000。實測 gpt-oss-120b 在 max_tokens=1000 時
+    # **1000 個 token 全部花在推理、content 是空字串**;3200 才會吐完整回答(推理約 400)。
+    # 舊的 1000 是拿 2026-08-04 的舊版模型測出來的,對現在這版已經不夠。
+    "groq":     ("https://api.groq.com/openai/v1/chat/completions", "GROQ_API_KEY",     "openai/gpt-oss-120b"),
     "deepseek": ("https://api.deepseek.com/chat/completions",       "DEEPSEEK_API_KEY", "deepseek-chat"),
     "gemini":   ("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", "GEMINI_API_KEY", "gemini-2.5-flash"),
     # 🔴 2026-08-01 本機 Ollama(OpenAI 相容端點)。**零成本、零限流、不用網路**——
