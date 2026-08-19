@@ -2179,6 +2179,10 @@ def call_claude(kind, avoid, topic_override=None):
     training = (load_training() or "")[:400]       # 每週進修洞察(限長)
     avoid_block = "\n".join(f"  · {t}" for t in (avoid or [])[:30]) if avoid else "  （無）"
     hook_rules = HOOK_RULES if kind == "short" else LONG_RULES
+    # 🔬 A/B 實驗:開場結構(2026-08-19 建)。詳見 _ab_arm() 的說明。
+    if kind != "short":
+        _arm, _extra = _ab_arm(str((topic or {}).get("title") or topic_override or ""))
+        hook_rules = hook_rules + _extra
     hook_rules = hook_rules + _retention_insight()  # P1:把最新完播診斷結論回灌進 prompt(檔不在則優雅跳過)
     hook_rules = hook_rules + _recent_metaphor_block()  # A1:近期已用比喻清單,禁止再用(治「背考古題用爛22次」)
     # 實測 EP 系列(爆款招牌)：短片且題目屬實測/實驗類 → 追加續集鐵律(前1.5秒錨數字+cliffhanger+留言題+念出HUD數字)
@@ -3352,6 +3356,13 @@ def _densify_long(d, facts_ctx, is_tw, facts=None, topic=None):
         print(f"[warn] A4 長片分段深寫失敗,放行原稿：{str(exc)[:80]}", file=sys.stderr)
     if _parent_slug:
         d["_parent_slug"] = _parent_slug
+    # A/B 實驗分組跟著結果帶出去,make_one 會寫成 sidecar(同 _parent_slug 的作法:
+    # make_one 作用域裡沒有 topic,直接在那邊算會 NameError 被 try 吞掉=靜默失效)。
+    try:
+        if kind != "short":
+            d["_ab_arm"] = _ab_arm(str((topic or {}).get("title") or topic_override or ""))[0]
+    except Exception:  # noqa: BLE001
+        pass
     return d
 
 
@@ -3511,6 +3522,57 @@ def _insert_mid_sub_hook(text, slug=""):
     h = int(hashlib.md5((slug or text[:40]).encode("utf-8")).hexdigest(), 16)
     line = _MID_SUB_POOL[h % len(_MID_SUB_POOL)]
     return text[:best] + "\n\n" + line + "\n\n" + text[best:]
+
+
+_AB_EXP = "opening_v1"          # 實驗代號;換實驗時改這個,舊分組自動失效不會混在一起
+_AB_B_RULES = """
+
+════════════════════════════════════════════════════════════
+🔬【本支影片走 B 組開場規範·覆蓋上面任何衝突的開場指示】
+鉤子(前兩句)講完之後,**下一句必須直接是內容本身**。具體禁止:
+  ✗「今天我將／我們將帶你體檢…」「看完這支影片你會知道…」  ← 預告要做什麼
+  ✗「量化阿森頻道的目標是…」「本頻道用資料…」              ← 頻道自我介紹
+  ✗「首先,我們來認識一下這次的主角…」                      ← 過場句
+把這三種句子完全刪掉,直接從第一個真數據開講。
+判準:第 3~6 句拿掉之後如果資訊完全沒少,那就是該刪的鋪陳。
+════════════════════════════════════════════════════════════
+"""
+
+
+def _ab_arm(seed_text: str):
+    """開場結構 A/B 分組。回 (arm, 要追加到 prompt 的字串)。
+
+    ## 為什麼要做實驗而不是直接改規則(2026-08-19)
+    留存 22.3%、平均只看 115 秒,是 BROWSE(首頁推薦)基線為 0 的直接原因。
+    留存曲線把斷崖定位在第 15~25 秒,而那裡逐字對照就是「節目預告+頻道自我介紹」。
+    看起來因果很清楚——但同一天我用**觀察性數據**驗了四個同樣「看起來很清楚」的假說,
+    三個被推翻,其中「前 40 秒端出對比數字」還是**反向**的(見 _long_no_early_contrast)。
+    真長片彼此的混淆變數(片長、題材、發布日競爭、股票熱度)比效果本身還大,
+    再怎麼切都切不出因果。所以這次改用隨機分組實驗。
+
+    ## 設計
+    · 隨機化:拿題目標題做 md5,取末位奇偶分組——同一支片重生時分組不變(可重現),
+      而標題與留存無關,所以這個分派對結果是中性的。
+    · A 組(對照)= 現行 LONG_RULES 原樣;B 組 = 追加「鉤子後禁止鋪陳」硬規範。
+    · 分組寫進 STUDIO/ab_experiment.json,發布後由 scripts/ab_report.py 比對真實留存。
+    · **只作用於長片**:Shorts 沒有這個結構問題。
+    · 關掉方式:設環境變數 AB_OPENING=off。實驗結束後把這裡整段拿掉,別留著長灰。
+    """
+    import hashlib as _h
+    import os as _os
+    if _os.environ.get("AB_OPENING", "").strip().lower() == "off":
+        return "off", ""
+    arm = "B" if int(_h.md5((seed_text or "").encode("utf-8")).hexdigest()[-1], 16) % 2 else "A"
+    try:
+        from pathlib import Path as _P
+        import json as _j
+        f = _P(__file__).resolve().parent.parent / "STUDIO" / "ab_experiment.json"
+        d = _j.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
+        d.setdefault(_AB_EXP, {})[(seed_text or "")[:80]] = arm
+        f.write_text(_j.dumps(d, ensure_ascii=False, indent=1), encoding="utf-8")
+    except Exception:  # noqa: BLE001
+        pass
+    return arm, (_AB_B_RULES if arm == "B" else "")
 
 
 def _long_no_early_contrast(voice_text):
@@ -4090,6 +4152,9 @@ def make_one(kind, no_render=False, topic_override=None, script_override=None):
         _par = d.get("_parent_slug") or ""
         if _par:
             (OUT / f"{slug}.parent.txt").write_text(str(_par), encoding="utf-8")
+        _arm = d.get("_ab_arm") or ""
+        if _arm:
+            (OUT / f"{slug}.ab.txt").write_text(str(_arm), encoding="utf-8")
     except Exception:  # noqa: BLE001
         pass
     (OUT / f"{slug}.voice.txt").write_text(d["voice_text"], encoding="utf-8")
