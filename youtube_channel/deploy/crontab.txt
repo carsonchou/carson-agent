@@ -90,7 +90,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 #    完全砍掉會失去這個發現題材的管道,但不該再是主力。
 # 🔬 2026-08-12 節奏實驗配套:發布 3/天,生產同步 --long 6→3(庫存 39 支已夠 2 週,
 #   續產 6 支/天會無限堆積;省下的 LLM 額度讓密度規則(段落留存ⓕ~ⓙ)有更多重生預算)。
-7 6 * * * /root/yt/run.sh scripts/produce_batch.py --manual --format-focus --shorts 1 --long 3 --target 150 --no-render >> /root/yt/logs/cron.log 2>&1
+7 6 * * * /root/yt/run.sh scripts/produce_batch.py --manual --format-focus --shorts 1 --long 6 --target 150 --no-render >> /root/yt/logs/cron.log 2>&1
 # 🔴 2026-07-17 長片保底補產:06:07 主批若被外力中斷(07-16 實錄 exit 1073807364 =
 #   DBG_TERMINATE_PROCESS,疑似電腦睡眠;07-17 又因 queue_size bug 整批跳過)→ 已連兩天零長片,
 #   而長片可發庫存只剩 9 支 = 3 天。再失敗一次就斷炊,發布端會無聲退化成全短片(不崩但翻轉白做)。
@@ -394,3 +394,16 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 #   357 則留言,單一句型重複到 28 次,那是 spam 偵測看得到的機器人特徵。
 #   原文全備份 STUDIO/engage_backup/;每則 50 units,--max 12 約 600 units。
 45 16 * * * /root/yt/run.sh scripts/fix_engage_comments.py --apply --max 12 >> /root/yt/logs/cron.log 2>&1
+
+# 2026-08-19 長片產能 3 → 6/天。為什麼:
+#   ①題源剛修好(Groq 模型下架導致種題連續十天 0 題,見 llm.py 的三層修復),
+#     修好後單日補種 16/16 檔,供給不再是瓶頸。
+#   ②YPP 缺口 3,309 小時,一支長片 ≈ 4.3 小時 → 還需 769 支。
+#     每天發 3 支要 8.5 個月、6 支 5.1 個月、8 支 3.2 個月,這是目前最大的單一槓桿。
+#   ③短片對 YPP 幾乎零貢獻:近 45 天 354 支 Shorts 的觀看分鐘**中位是 0**、平均 5.3 分,
+#     同期 127 支長片中位 144 分。Shorts 佔 45% 觀看但每次只看 6.6 秒。
+#   ⚠️ 只動**產能**不動發布量:節奏實驗跑到 08-26,發布參數在那之前不能碰
+#     (memory yt-cadence-experiment-2026-08)。這幾天先讓庫存累積,
+#     實驗結束後才有本錢把發布量從 3 支提到 6-8 支。
+#   ⚠️ 發布端另有每日硬上限 12(daily_publish),擋的是單日 ≥21 支的暴發日
+#     ——那 16 天發掉 52% 的內容、觀看中位只有 3。產能提高不會繞過那道閘。
