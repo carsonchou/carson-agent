@@ -417,3 +417,13 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 #   分組寫在 output/<slug>.ab.txt(產片當下寫,不是事後貼);報告只取片長 >5 分鐘、
 #   每組 n<8 拒絕下結論。實驗結束後把 produce_batch 的 _ab_arm 整段拿掉,別留著長灰。
 40 7 * * 1 /root/yt/run.sh scripts/ab_report.py >> /root/yt/logs/cron.log 2>&1
+
+# 同產業相對位置事實(每週日 06:40,零 API 成本純本地再計算)
+#   為什麼:個股體檢給的是 13 組**孤立**數字,觀眾看完不知道「這樣算好還算壞」。
+#   真觀眾留言正是打在這:「20年才1145%也叫爆賺喔==」。vs 0050 是跟大盤比,
+#   同產業排名是另一個維度,而且是我們獨有的——沒有別的頻道有 377 檔用同一份
+#   體檢表算出來的資料,而且體檢越多這份資產越值錢(會複利)。
+#   附帶效果:每檔在產業裡的位置都不同 → 敘事自然分岔,緩解模板化的 YPP 風險。
+#   誠實設計:同產業已體檢 <8 檔不算(排名無意義);claim 寫明母體是「已體檢的 N 檔」
+#   而非全台股(我們只做了 377/1925)。排名隨體檢數變動,每週重算覆蓋。
+40 6 * * 0 /root/yt/run.sh scripts/checkup_industry_rank.py --apply >> /root/yt/logs/cron.log 2>&1

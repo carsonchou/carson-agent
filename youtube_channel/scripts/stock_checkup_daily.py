@@ -163,7 +163,11 @@ def seed_topics_for_code(code: str, name: str = "", dry_run: bool = False) -> in
     # 再依股票代號雜湊輪替一組其他事實——**輪替是刻意的**:1,925 檔全部用同一組
     # 事實生題會讓整個系列的敘事長得一模一樣,那正是 YouTube inauthentic content
     # 政策點名的「模板化、影片間變化極小」(memory yt-inauthentic-template-risk-2026-08)。
-    _PRIME = ("checkup_three_way__", "checkup_long_horizon__", "checkup_underwater__")
+    # 2026-08-19 加入 industry_rank:它回答的是觀眾真正在問的「這樣到底算好還算壞」
+    # (真留言:「20年才1145%也叫爆賺喔==」),而且每檔在產業裡的位置都不同,
+    # 天然分岔敘事——正好緩解 memory yt-inauthentic-template-risk 的模板化風險。
+    _PRIME = ("checkup_three_way__", "checkup_long_horizon__",
+              "checkup_underwater__", "checkup_industry_rank__")
     _keys = list(code_facts.keys())
     _picked = [k for k in _keys if any(k.startswith(p) for p in _PRIME)]
     _rest = [k for k in _keys if k not in _picked]

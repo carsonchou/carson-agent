@@ -616,8 +616,15 @@ def _render_with_broll(slug_paths, *, segments, seg_cards, intro_png, outro_png,
         inputs_a = ["-i", str(slug_paths.audio)]
         if bgm:
             inputs_a = ["-i", str(slug_paths.audio), "-stream_loop", "-1", "-i", str(bgm)]
+            # 🔊 響度正規化到 -14 LUFS(2026-08-19 實測):量了 8 支流量最高的已發布長片,
+            # **全部是 -23.2 LUFS**,而 YouTube 的目標響度是 -14。關鍵在於平台的標準化
+            # **只會調降過大的音量,不會提升過小的** —— 所以我們的片在 YouTube 上聽起來
+            # 比別人小聲約 9 dB(感知約 2.8 倍),觀眾得自己去調音量。
+            # -23 LUFS 是 EBU R128 廣播電視標準,不是串流標準,這裡一直沿用錯了。
+            # 峰值原本 -4 dBTP,直接加 9 dB 增益會削波,所以用 loudnorm(內建限幅)而非 volume。
+            # TP=-1.5 留轉檔餘裕(AAC 編碼後峰值會略升)。
             af = (f"{voice_fc};[2:a]volume=0.10,atrim=0:{total:.3f}[bgm];"
-                  f"[voice][bgm]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[a]")
+                  f"[voice][bgm]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[mix];[mix]loudnorm=I=-14:TP=-2:LRA=11[a]")
         else:
             af = f"[1:a]adelay={intro_ms}:all=1,apad,atrim=0:{total:.3f}[a]"
         cmd = [ff, "-y", "-hide_banner", "-loglevel", "error",
@@ -750,7 +757,7 @@ def _render_animated(slug_paths, *, segments, seg_cards, intro_png, outro_png, c
         if bgm:
             inputs_a = ["-i", str(slug_paths.audio), "-stream_loop", "-1", "-i", str(bgm)]
             af = (f"{voice_fc};[2:a]volume=0.10,atrim=0:{total:.3f}[bgm];"
-                  f"[voice][bgm]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[a]")
+                  f"[voice][bgm]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[mix];[mix]loudnorm=I=-14:TP=-2:LRA=11[a]")
         else:
             af = f"[1:a]adelay={intro_ms}:all=1,apad,atrim=0:{total:.3f}[a]"
         cmd = [ff, "-y", "-hide_banner", "-loglevel", "error",
@@ -1287,7 +1294,7 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
         if bgm:
             audio_inputs = ["-i", str(slug_paths.audio), "-stream_loop", "-1", "-i", str(bgm)]
             filt_a = (f"[1:a]{af}[voice];[2:a]volume=0.10,atrim=0:{total:.3f}[bgm];"
-                      f"[voice][bgm]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[a]")
+                      f"[voice][bgm]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[mix];[mix]loudnorm=I=-14:TP=-2:LRA=11[a]")
         else:
             filt_a = f"[1:a]{af}[a]"
         # ③d 數字爆現 overlay(2026-08-12 v2 原型):RENDER_NUM_POP=1 才開,預設完全關
