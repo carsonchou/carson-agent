@@ -1046,6 +1046,33 @@ def main() -> int:
                          "(EP 號由發布時自動連號,見 _next_checkup_ep)。其餘系列/一般片本輪跳過。")
     args = ap.parse_args()
 
+    # 🔴 每日發布總量硬上限(2026-08-19 實測建立)
+    # 為什麼:這是本頻道流量數字長成現在這樣的**最大單一原因**。
+    # 862 支成熟片裡,451 支(52%)是在 16 個「單日 ≥21 支」的暴發日發出去的,
+    # 那批片的觀看**中位數是 3**;其餘 411 支中位 37,差 12 倍。
+    # 對照組確認不是題材造成的:同一批 Shorts,在 1-8 支日發的中位 58、9-20 支日 82,
+    # 21+ 支日只有 3;同一批個股體檢長片,1-8 支日 118、9-20 支日 73。
+    # 機制:YouTube 同時間只會把一個頻道的少數幾支推進訂閱者 feed／首頁,
+    # 一次丟 30 支等於自己人擠自己人,擠不進去的錯過發布後 24-48 小時的初始曝光窗就永遠死了
+    # (memory yt-video-lifespan-4days:片約 4 天停止成長)。
+    # 那一週的暴發是出國期間無人看管造成的,現行排程(09:15 一支 + 18:30 兩支)已回到安全區,
+    # 但**沒有任何東西擋著它再發生一次**——這道護欄就是擋那個。
+    # 上限 12:近三週實際最高 11 支/天且表現正常,留一點餘裕,只擋真正的暴衝。
+    try:
+        _today = datetime.now(TW).strftime("%Y-%m-%d") if "TW" in dir() else datetime.now().strftime("%Y-%m-%d")
+        _cnt_f = PROJECT_ROOT / "STUDIO" / "publish_daily_count.json"
+        _cnt = load_json_safe(_cnt_f, default={})
+        _n_today = int(_cnt.get(_today, 0))
+        if _n_today >= 12:
+            print(f"[STOP] 今日已發布 {_n_today} 支,達每日硬上限 12。")
+            print("       單日 ≥21 支的暴發日,那批片觀看中位只有 3(其他日子 37)——不再重演。")
+            return 0
+        if _n_today + args.max > 12:
+            args.max = max(0, 12 - _n_today)
+            print(f"[限流] 今日已發 {_n_today} 支,本輪上限收斂為 {args.max} 支(每日硬上限 12)")
+    except Exception as _e:  # noqa: BLE001
+        print(f"[warn] 每日上限檢查失敗({str(_e)[:60]}),照常執行", file=sys.stderr)
+
     # 老闆控制台指令（暫停 / 隱私 / 發布時段）
     bpath = PROJECT_ROOT / "STUDIO" / "boss_directives.json"
     if bpath.exists():
@@ -1156,6 +1183,17 @@ def main() -> int:
             vid = upload_one(yt, slug, args.privacy)
             ledger[slug] = vid
             save_ledger(ledger)
+            # 每日發布計數(配上面的硬上限)。只在**真的上架成功**後 +1,
+            # 失敗的不算——限流不該被失敗的嘗試吃掉額度。
+            try:
+                _cf = PROJECT_ROOT / "STUDIO" / "publish_daily_count.json"
+                _c = load_json_safe(_cf, default={})
+                _tk = datetime.now().strftime("%Y-%m-%d")
+                _c[_tk] = int(_c.get(_tk, 0)) + 1
+                _c = {k: v for k, v in _c.items() if k >= (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")}
+                save_json_atomic(_cf, _c)
+            except Exception:  # noqa: BLE001
+                pass
             print(f"[ok] {slug} -> https://youtu.be/{vid}")
             _post_engage_comment(yt, vid, slug, ledger)  # 首小時互動：提問+長片/訂閱導流(置頂需你在Studio點)
             try:  # 播放清單即時歸類（台股真相實驗室/ETF定投/EP實測/避雷拆穿）；失敗絕不擋發布
