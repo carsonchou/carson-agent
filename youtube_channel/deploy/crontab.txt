@@ -440,3 +440,16 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 #   重製會失去 videoId 與搜尋排名(唯一在成長的來源),不划算。Carson 08-20 拍板。
 #   ⚠️ 描述欄不渲染 Markdown,更正文案是純文字(第一版寫 **近十年** 被觀眾看成星號,已修)。
 55 16 * * * /root/yt/run.sh scripts/fix_period_disclaimer.py --apply --max 15 >> /root/yt/logs/cron.log 2>&1
+
+# ══ 2026-08-21 Carson 指令:頻道突破——看到就訂閱、一部接一部 ══
+# 追劇鏈(每天 17:05,配額重置後):個股體檢 EP1~87 完美連號但**沒有任何一集連到下一集**,
+#   觀眾看完就斷了。每集描述第一行放「▶ 下一集(EPn):youtu.be/…」——影片播完打開描述
+#   第一眼就是下一集。EP 對映走 checkup_ep_ledger 的正式編號;最新一集沒有下一集,
+#   隔天新集發布後這支自動補上(so 這是常駐排程不是一次性)。冪等;51 units/支。
+#   API 沒有 end screen 端點,描述連結+播放清單是能自動化的最強替代。
+5 17 * * * /root/yt/run.sh scripts/binge_chain.py --apply --max 20 >> /root/yt/logs/cron.log 2>&1
+# 門面改造(每天 15:05,冪等,全部完成後自動 no-op):
+#   ①發布 checkup EP0(377檔版)——EP0 是實測轉化最高格式(5.81%/8.33% vs 一般 0.67%)
+#   ②非訂閱者 trailer 換成它(現任 tw_lab EP0 實測 1.79%;主力系列的說明片才該當門面)
+#   ③首頁貨架把個股體檢連載排到位置 1(追劇入口要在第一屏)
+5 15 * * * /root/yt/run.sh scripts/channel_facelift.py --apply >> /root/yt/logs/cron.log 2>&1
