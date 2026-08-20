@@ -492,3 +492,45 @@ def classify_topic_bucket(title: str, angle: str = "", category: str = "") -> st
 if __name__ == "__main__":
     print("has_llm_key:", has_llm_key())
     print(evidence_block())
+
+
+# ── 記憶體守門(2026-08-20 事故)────────────────────────────────────────────
+# 重渲那批 8 支**全部**失敗,錯誤碼 3221226091(FATAL_USER_CALLBACK_EXCEPTION)
+# 與 1073807364(DBG_TERMINATE_PROCESS)。查下去不是程式壞掉——
+# **可用實體記憶體只剩 805 MB / 16 GB**,被 node(40 個進程 3.5GB)與多個
+# claude session(3GB)吃光,而長片渲染要 1~2GB。
+# memory yt-healthcheck-concurrency 記過同型事故(15.7GB 被吃到 0.4GB,當天渲染全滅)。
+# 沒有守門的話,每支片都會跑到一半才崩:浪費十幾分鐘 CPU 又什麼都沒產出,
+# 而且失敗看起來像「渲染壞了」,會把人引去查錯的地方。
+# 放在 studio_common 是為了讓所有渲染路徑共用同一份判準
+# (memory yt-duplicate-impl-gate-bypass:閘門兩份,產線會走沒閘門的那份)。
+RENDER_MIN_FREE_MB = 2000
+
+
+def free_mem_mb():
+    """可用實體記憶體(MB)。查不到回 None —— **不判定,不阻擋**
+    (工具查不到不等於記憶體不足,fail-open)。"""
+    try:
+        import ctypes
+
+        class _MS(ctypes.Structure):
+            _fields_ = [("dwLength", ctypes.c_ulong), ("dwMemoryLoad", ctypes.c_ulong),
+                        ("ullTotalPhys", ctypes.c_ulonglong), ("ullAvailPhys", ctypes.c_ulonglong),
+                        ("ullTotalPageFile", ctypes.c_ulonglong), ("ullAvailPageFile", ctypes.c_ulonglong),
+                        ("ullTotalVirtual", ctypes.c_ulonglong), ("ullAvailVirtual", ctypes.c_ulonglong),
+                        ("ullAvailExtendedVirtual", ctypes.c_ulonglong)]
+
+        st = _MS()
+        st.dwLength = ctypes.sizeof(_MS)
+        if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(st)):
+            return int(st.ullAvailPhys / (1024 * 1024))
+    except Exception:  # noqa: BLE001
+        pass
+    return None
+
+
+def render_mem_ok(min_mb=None):
+    """回 (是否可以渲染, 可用MB)。查不到記憶體時一律放行。"""
+    need = RENDER_MIN_FREE_MB if min_mb is None else min_mb
+    m = free_mem_mb()
+    return (True, m) if m is None else (m >= need, m)

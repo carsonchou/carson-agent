@@ -144,6 +144,22 @@ def run_cloud(maxn: int) -> int:
     todo = [x for x in cloud_pending() if not _quarantined(x)][:maxn]
     done = 0
     for slug in todo:
+        # 🔴 記憶體守門(2026-08-20 事故)。本檔上面那道 _PROC_LOCK 防的是「多個實例同時渲」,
+        # 但**擋不到別的程式把記憶體吃光**:實測某晚重渲 8 支全數失敗,錯誤碼
+        # 3221226091(FATAL_USER_CALLBACK_EXCEPTION)與 1073807364(DBG_TERMINATE_PROCESS),
+        # 看起來像渲染壞了,真因是可用實體記憶體只剩 805 MB / 16 GB——被 node(40 個進程
+        # 3.5GB)與多個 claude session 吃光,而長片渲染要 1~2GB。
+        # 硬跑的代價是每支片跑到一半才崩:十幾分鐘 CPU 白燒,而且失敗訊息會把人引去查錯地方。
+        # 判準與 rerender_jitter_fix 共用 studio_common.render_mem_ok(閘門只有一份)。
+        try:
+            import studio_common as _sc
+            _ok, _fm = _sc.render_mem_ok()
+            if not _ok:
+                print(f"[hybrid] 可用記憶體僅 {_fm} MB(需 {_sc.RENDER_MIN_FREE_MB} MB),"
+                      f"本輪停止;待辦保留,下次排程續。", flush=True)
+                break
+        except Exception:  # noqa: BLE001
+            pass
         # 單例鎖心跳:一輪 --max 20 可能跑超過 _PROC_LOCK_STALE,不更新的話鎖會被判過期、
         # 下一個排程實例就會接手 → 又變成兩個一起渲。每支片更新一次 mtime 即可。
         try:

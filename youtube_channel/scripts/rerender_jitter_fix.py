@@ -41,6 +41,9 @@ OUT = ROOT / "output"
 DONE = ROOT / "STUDIO" / "rerender_jitter_done.json"
 PY = ROOT / ".venv" / "Scripts" / "python.exe"
 
+# 共用記憶體守門(判準只有一份;memory yt-duplicate-impl-gate-bypass:閘門兩份會走鐘)
+from studio_common import render_mem_ok, RENDER_MIN_FREE_MB  # noqa: E402
+
 
 def _measure_lufs(mp4):
     """量整體響度(LUFS)。量不到回 None(不判定,不可當壞片)。"""
@@ -78,9 +81,21 @@ def main() -> int:
 
     ok = fail = 0
     for slug in cands[:args.max]:
+        # 🔴 記憶體守門(2026-08-20 事故):重跑那 8 支時**全部**渲染失敗,
+        # 錯誤碼 3221226091(FATAL_USER_CALLBACK_EXCEPTION)與 1073807364
+        # (DBG_TERMINATE_PROCESS)。查下去不是程式壞掉——**可用實體記憶體只剩 805 MB / 16 GB**,
+        # 被 node(40 個進程 3.5GB)與多個 claude session(3GB)吃光,而長片渲染要 1~2GB。
+        # 沒有這道守門的話,每支片都會跑到一半才崩,浪費十幾分鐘 CPU 又什麼都沒產出
+        # (memory yt-healthcheck-concurrency 記過同型事故:渲染把 15.7GB 吃到 0.4GB)。
+        # 記憶體不足就**停下來**而不是硬跑:done 名單冪等,下一輪 cron 資源夠了自然會續。
+        _mem_ok, _fm = render_mem_ok()
+        if not _mem_ok:
+            print(f"\n[STOP] 可用記憶體僅 {_fm} MB(需 {RENDER_MIN_FREE_MB} MB),"
+                  f"渲染會崩潰且浪費 CPU。本輪停止,下次 cron 續(冪等)。", flush=True)
+            break
         tmp = OUT / f"{slug}.__rr.mp4"
         t0 = time.time()
-        print(f"\n▶ {slug[:46]}", flush=True)
+        print(f"\n▶ {slug[:46]}{'' if _fm is None else f'  (可用記憶體 {_fm} MB)'}", flush=True)
         try:
             r = subprocess.run([str(PY), "-u", str(ROOT / "scripts" / "make_video.py"),
                                 "--slug", slug, "-o", str(tmp)],
