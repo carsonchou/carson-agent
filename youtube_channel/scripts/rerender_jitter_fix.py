@@ -85,7 +85,7 @@ def main() -> int:
             r = subprocess.run([str(PY), "-u", str(ROOT / "scripts" / "make_video.py"),
                                 "--slug", slug, "-o", str(tmp)],
                                cwd=str(ROOT), capture_output=True, text=True,
-                               encoding="utf-8", errors="replace", timeout=3600)
+                               encoding="utf-8", errors="replace", timeout=7200)
             if r.returncode != 0 or not tmp.exists():
                 print(f"  ✗ 渲染失敗 rc={r.returncode} {(r.stderr or '')[-160:]}", flush=True)
                 fail += 1
@@ -133,7 +133,7 @@ def main() -> int:
             print(f"  ✅ {dur:.0f}s {size / 1e6:.1f}MB 抖動{rate * 100:.1f}% "
                   f"({time.time() - t0:.0f}s)", flush=True)
         except subprocess.TimeoutExpired:
-            print("  ✗ 逾時 1 小時", flush=True)
+            print("  ✗ 渲染逾時 2 小時", flush=True)
             fail += 1
             tmp.unlink(missing_ok=True)
         except Exception as exc:  # noqa: BLE001
