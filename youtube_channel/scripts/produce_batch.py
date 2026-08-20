@@ -2425,6 +2425,19 @@ def call_claude(kind, avoid, topic_override=None):
     # (2026-07-15 實跑EP5抓到:補強放 densify 前,產出片尾又變自由發揮的假下集預告)。
     if is_checkup:
         result = _checkup_finalize(result, _checkup_next)
+    # A/B 分組跟著結果帶出去,make_one 寫成 sidecar。
+    # ⚠️ 必須放在**這裡**(call_claude 的結尾),不能放進 _densify_long——
+    # 那支的簽章是 (d, facts_ctx, is_tw, facts, topic),**沒有 kind 也沒有 topic_override**,
+    # 在裡面寫會 NameError 被 try 吞掉 → sidecar 永遠不寫、而且完全不報錯。
+    # 這正是上面 _parent_slug 註解記過的同一個坑,我第一版又踩了一次:
+    # 分組記錄照常累積(組 prompt 時就呼叫過),但對不回任何一支影片,實驗等於白做。
+    # seed 也必須跟組 prompt 那次**完全一致**,否則同一支片會分到不同組。
+    try:
+        if kind != "short":
+            result["_ab_arm"] = _ab_arm(
+                str((topic or {}).get("title") or topic_override or ""))[0]
+    except Exception:  # noqa: BLE001
+        pass
     return result
 
 
@@ -3356,13 +3369,6 @@ def _densify_long(d, facts_ctx, is_tw, facts=None, topic=None):
         print(f"[warn] A4 長片分段深寫失敗,放行原稿：{str(exc)[:80]}", file=sys.stderr)
     if _parent_slug:
         d["_parent_slug"] = _parent_slug
-    # A/B 實驗分組跟著結果帶出去,make_one 會寫成 sidecar(同 _parent_slug 的作法:
-    # make_one 作用域裡沒有 topic,直接在那邊算會 NameError 被 try 吞掉=靜默失效)。
-    try:
-        if kind != "short":
-            d["_ab_arm"] = _ab_arm(str((topic or {}).get("title") or topic_override or ""))[0]
-    except Exception:  # noqa: BLE001
-        pass
     return d
 
 
