@@ -356,7 +356,22 @@ def complete(prompt: str, max_tokens: int = 3500, json_mode: bool = False, tempe
         # 大請求:先免費(fallback)、真的不行才付費(big_prov)。付費是安全網不是首選。
         order = ((fallback, big_prov, primary) if big_prov else (fallback, primary))
     elif _reserve:
-        order = (primary, big_prov) if (big_prov and _small_paid) else (primary,)
+        # 🔴 2026-08-19:小請求在 primary 之後補一個**本機 ollama**,不動保留的免費額度。
+        #
+        # 為什麼現在需要:Groq 下架 llama 系列後被迫換回 openai/gpt-oss-120b,而它是
+        # 推理型模型——同一個 JSON 判斷實測 **gpt-oss 485 token vs llama 65 token**,
+        # 每分鐘 8,000 的桶等於只剩 1/7 的請求量。而排程有 18 個部門在搶,
+        # 換模型當天 hotspot_dept 就從「404 打不到」變成「429 一直限流」,
+        # 而 _reserve=1 把小請求鎖死在 primary → 撞牆就整輪空手,沒有任何退路。
+        # (歷史數據:news_dept 64 次啟動只完成 39 次、hotspot_dept 38 次只完成 20 次。)
+        #
+        # 為什麼是 ollama 而不是放行 fallback:_reserve 存在的理由是「把 Gemini 的
+        # 每日免費額度留給長片產稿」,那個理由仍然成立(大砲的額度不該拿去餵蒼蠅)。
+        # ollama 是本機服務:零成本、零限流、不吃任何雲端額度,而這些小請求本來就是
+        # 判斷/分類任務(memory api-credits-frugal:分類用便宜的、創意才用貴的)。
+        # ⚠️ 它只排在最後:本機模型會跟影片渲染搶記憶體/顯卡,能走雲端就別走本機。
+        order = ((primary, big_prov, "ollama") if (big_prov and _small_paid)
+                 else (primary, "ollama"))
     elif big_prov and _small_paid:
         order = (primary, fallback, big_prov)
     else:
