@@ -264,11 +264,43 @@ _PROC_LOCK = OUT / ".hybrid_render.proc.lock"
 _PROC_LOCK_STALE = 3600     # 秒;超過視為上個實例已崩潰,可接手
 
 
+def _pid_alive(pid: int) -> bool:
+    """這個 PID 還活著嗎。查不到一律回 True(fail-safe:寧可多等,不要兩個實例同時渲)。"""
+    try:
+        import ctypes
+        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+        h = ctypes.windll.kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, int(pid))
+        if not h:
+            return False          # 開不了 handle = 進程不存在
+        code = ctypes.c_ulong()
+        ok = ctypes.windll.kernel32.GetExitCodeProcess(h, ctypes.byref(code))
+        ctypes.windll.kernel32.CloseHandle(h)
+        return bool(ok) and code.value == 259   # STILL_ACTIVE
+    except Exception:  # noqa: BLE001
+        return True
+
+
 def _acquire_proc_lock() -> bool:
-    """同時只准一個 hybrid_render 在跑。回 True=拿到鎖。心跳用 mtime,崩潰後 1 小時自動可接手。"""
+    """同時只准一個 hybrid_render 在跑。回 True=拿到鎖。
+
+    鎖檔內容是「PID 時間戳」。舊版**只看 mtime**:上一個實例崩潰後,
+    鎖要空等 _PROC_LOCK_STALE(1 小時)才會被判過期,這段時間所有渲染排程一律跳過
+    ——而鎖裡明明就寫著 PID,問一下作業系統就知道那個進程早就不在了。
+    (memory yt-quota-budget-2026-07 記著「重啟排程器要先刪 lock」,就是被這個逼出來的
+    手動步驟;2026-08-20 又踩到一次:系統上沒有任何渲染進程,鎖卻還有 8 分鐘才過期。)
+    現在先問 PID 死活,死了就立刻接手;查不到時 fail-safe 退回原本的時間判斷
+    ——寧可多等一小時,也不要兩個實例同時渲(那會直接吃爆記憶體)。
+    """
     try:
         if _PROC_LOCK.exists() and (_now() - _PROC_LOCK.stat().st_mtime) < _PROC_LOCK_STALE:
-            return False
+            try:
+                _pid = int((_PROC_LOCK.read_text(encoding="utf-8").split() or ["0"])[0])
+            except Exception:  # noqa: BLE001
+                _pid = 0
+            if _pid and not _pid_alive(_pid):
+                print(f"[hybrid] 鎖的持有者 PID {_pid} 已不存在,直接接手(不必等過期)。", flush=True)
+            else:
+                return False
         _PROC_LOCK.parent.mkdir(parents=True, exist_ok=True)
         _PROC_LOCK.write_text(f"{os.getpid()} {_now():.0f}", encoding="utf-8")
         return True
