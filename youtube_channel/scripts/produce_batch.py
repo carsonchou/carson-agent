@@ -2458,6 +2458,15 @@ def call_claude(kind, avoid, topic_override=None):
                 str((topic or {}).get("title") or topic_override or ""))[0]
     except Exception:  # noqa: BLE001
         pass
+    # 🔴 2026-08-20:這兩行原本寫在 _densify_long() 的結尾,但 _parent_slug 是
+    # **call_claude 的區域變數** → 那支一執行到就 NameError。
+    # 錯誤訊息長這樣:`[err long 第1次] name '_parent_slug' is not defined`,
+    # 而且它在 try 之外,所以整個 call_claude 掛掉、該支長片產不出來。
+    # 這個 bug 之所以到今天才浮現:_densify_long 只在 kind=="long" 時呼叫,
+    # 而長片產稿斷了十天(Groq 模型下架),題源修好後才第一次真的跑到那行。
+    # 移到這裡才是它本來該在的位置——和 _ab_arm 一樣,由 call_claude 帶出去給 make_one。
+    if _parent_slug:
+        result["_parent_slug"] = _parent_slug
     return result
 
 
@@ -3387,8 +3396,6 @@ def _densify_long(d, facts_ctx, is_tw, facts=None, topic=None):
             d["_fact_keys_used"] = used_keys  # 供自驗/稽核查『用了哪些 fact key、有沒有重複』
     except Exception as exc:  # noqa: BLE001
         print(f"[warn] A4 長片分段深寫失敗,放行原稿：{str(exc)[:80]}", file=sys.stderr)
-    if _parent_slug:
-        d["_parent_slug"] = _parent_slug
     return d
 
 
