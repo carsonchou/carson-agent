@@ -98,6 +98,22 @@ def main() -> int:
         groups[arm].append({"slug": slug, "dur": dur, "views": views,
                             "pct": pct, "avd": avd, "mins": mins})
 
+    # 🔴 健檢:分組記錄有累積、但一支 sidecar 都沒寫 = 帶出分組的那段被靜默吃掉了。
+    # 2026-08-19 真的發生過:`result["_ab_arm"]=…` 被放進 _densify_long(),
+    # 而那支沒有 kind／topic_override → NameError → 被外層 try 吞掉 →
+    # 分組記錄照常累積(組 prompt 時另外呼叫過),但對不回任何一支影片,實驗白做且零報錯。
+    # 這種「寫入靜默失效」只能靠比對兩邊數量抓出來。
+    try:
+        exp = json.loads((ROOT / "STUDIO" / "ab_experiment.json").read_text(encoding="utf-8"))
+        n_assigned = sum(len(v) for v in exp.values())
+        n_side = len(list(OUT.glob("*.ab.txt")))
+        if n_assigned >= 5 and n_side == 0:
+            print("🔴 分組記錄有 %d 筆,但 output/*.ab.txt 是 0 支——" % n_assigned)
+            print("   帶出分組的那段被靜默吃掉了(檢查 call_claude 結尾的 result['_ab_arm'])。")
+            print("   在修好之前這個實驗收不到任何資料。\n")
+    except Exception:  # noqa: BLE001
+        pass
+
     print("開場結構 A/B 實驗(A=現行規則 / B=鉤子後禁止鋪陳)")
     print(f"只計入片長 >{MIN_DUR:.0f}s 的真長片(留存 vs 片長 r=-0.675,不控制會全錯)\n")
     for arm in ("A", "B"):

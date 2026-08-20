@@ -200,6 +200,18 @@ def seed_topics_for_code(code: str, name: str = "", dry_run: bool = False) -> in
     new_recs = []
     rejected = {"exact_dup": 0, "skeleton_dup": 0, "unsourced": 0, "banned": 0, "bad_fact_key": 0}
     import hashlib
+    # 🔴 2026-08-20 候選排序:每檔只取 1 題(MAX_TOPICS_PER_CODE),所以**排序決定一切**。
+    # 實測今天產出的 7 支:旁白 6/6 都講了 0050 同期對照(誠信面 100% 落地),
+    # 但標題只有 2/6 帶到——因為選的是第一個通過守門的候選,不看它是不是對照題。
+    # 而觀眾的質疑正是打在標題:「20年才1145%也叫爆賺喔==」——沒有對照就無從判斷好壞。
+    # ⚠️ 但**不能一律**優先對照題:1,925 檔全套同一個「vs 0050」句式,
+    # 那正是 inauthentic 政策點名的「模板化、影片間變化極小」
+    # (memory yt-inauthentic-template-risk-2026-08)。
+    # 折衷:依股票代號雜湊,**約一半**的檔優先挑對照題,另一半保留其他角度。
+    # 對照率預期從 33% 升到 ~60%,而句式仍有一半的空間分岔。
+    if sum(ord(ch) for ch in code) % 2 == 0:
+        cands = sorted(cands, key=lambda c: 0 if "0050" in str(c.get("title") or "") else 1)
+
     for c in cands:
         fact_key = str(c.get("fact_key") or "").strip()
         title = str(c.get("title") or "").strip()
