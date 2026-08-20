@@ -3388,6 +3388,19 @@ def _densify_long(d, facts_ctx, is_tw, facts=None, topic=None):
             hook = _long_fact_heal([hook], facts_ctx, integrity, title)[0][0]
         parts = ([hook] if hook else []) + bodies + ([_summary] if _summary and _long_chinese_chars(_summary) >= 80 else [])
         new_voice = "\n".join(p for p in parts if p)
+        # 🔴 2026-08-20:清掉被模型照抄進旁白的**prompt 內部欄位名**。
+        # 分段深寫的提示裡有「【本段專屬事實(本段只准引用這一條…)】」「【前面各段重點摘要】」
+        # 這類欄位標題,模型有時會連標題一起寫進 voice_text —— 那會被 TTS 唸出來,
+        # 觀眾聽到「本段專屬事實」四個字。實測堡達 3537 那支就整行照抄了。
+        # 這個 bug 一直存在,只是長片產稿斷了十天(Groq 下架)沒機會浮現。
+        # 順手把貼進來的事實原文換行壓平:旁白是要唸的,不是報表
+        # (那支片旁白裡有 70 個換行,整段 three_way 原文含「;⏎」被複製進去)。
+        # 掃過 595 支既有旁白:含【】的只有 9 支,而且**全部都是 prompt 欄位名洩漏**
+        # (【本段專屬事實】【公司是誰】【基本面資料】【資料鐵律】【開場前3秒】…),
+        # 沒有一個是合法的旁白內容 —— 旁白是要唸出來的,不需要方括號標題。
+        # 所以整類移除,不用逐一列舉(列舉會漏,模型每次可能用不同欄位名)。
+        new_voice = re.sub(r"【[^】]{0,60}】", "", new_voice)
+        new_voice = re.sub(r"\n{2,}", "\n", new_voice)
         # 病灶A：全片『反直覺的是』硬上限2次，確定性後處理，不靠 LLM 自律(對齊 A1c 硬擋精神)
         new_voice = _cap_repeated_phrase(new_voice, "反直覺的是", 2)
         if _long_chinese_chars(new_voice) > _long_chinese_chars(voice):
@@ -4065,6 +4078,12 @@ def make_one(kind, no_render=False, topic_override=None, script_override=None):
             # 數字都真但期間錯,效果是**低估 0050**——正好在觀眾最會檢查的地方出錯。
             if _long_mixed_period(_v):
                 return "期間偷換(拿20年個股報酬配10年0050報酬寫『同期』,講0050對照時必須標明年數)"
+            # ④d prompt 欄位名洩漏進旁白(2026-08-20:堡達 3537 那支整行照抄
+            # 「【本段專屬事實】」,會被 TTS 唸出來)。旁白裡的【】沒有一個是合法用法
+            # ——掃 595 支既有旁白,含【】的 9 支全是洩漏。清理已在 _densify_long 做,
+            # 這裡兜底攔住其他產稿路徑(script_override／非 densify 路徑)。
+            if "【" in _v:
+                return "旁白含 prompt 欄位標記(【…】會被唸出來,掃 595 支確認無合法用法)"
             # ⑤ 開場罐頭錯位(2026-08-12 抓到:高力8996 體檢片開場逐字抄了 playbook 示範句
             # 「你的網格機器人…」——與主題無關=跨片重複的罐頭簽名(YPP inauthentic 風險)
             # +幣圈詞開場(留存實測毒藥)。開場 60 字含幣圈工具詞而標題沒有 → 重生。
