@@ -110,7 +110,44 @@ def main() -> int:
             }
             added += 1
 
-    print(f"\n{'已寫入' if args.apply else '將寫入'} {added} 組同業排名事實")
+    # ── 產業彙整事實:一個產業一組,能生出「整個產業體檢」這種只有我們做得出來的題目 ──
+    # 個股排名回答「這檔在同業裡排第幾」;產業彙整回答「這個產業整體值不值得存」,
+    # 那是另一種題材(搜尋入口從個股名變成產業名),而且資料全部現成。
+    ind_added = 0
+    for ind, codes in groups.items():
+        if len(codes) < MIN_PEERS:
+            continue
+        trs = sorted((stats[c]["tr"], c) for c in codes)
+        mdds = [stats[c]["mdd"] for c in codes if stats[c]["mdd"] is not None]
+        best_tr, best_c = trs[-1]
+        worst_tr, worst_c = trs[0]
+        med = trs[len(trs) // 2][0]
+        neg = sum(1 for t, _ in trs if t < 0)
+        claim = (f"本頻道已用同一份體檢表量過「{ind}」{len(codes)} 檔個股（截至 {as_of}）:"
+                 f"長期總報酬中位數 {med:.1f}%,最猛的是 {stats[best_c]['name']}（{best_c}）"
+                 f"{best_tr:.1f}%,最慘的是 {stats[worst_c]['name']}（{worst_c}）{worst_tr:.1f}%,"
+                 f"價差 {best_tr - worst_tr:.0f} 個百分點")
+        if neg:
+            claim += f";其中 {neg} 檔長期下來是賠錢的"
+        if mdds:
+            claim += f";最大回撤中位數 -{sorted(mdds)[len(mdds) // 2]:.1f}%"
+        claim += "。母體是本頻道已體檢的個股,不是該產業全部上市櫃公司。"
+        key = f"checkup_industry_summary__{ind}"
+        res[key] = {
+            "key": key, "claim": claim,
+            "desc": f"{ind} 已體檢個股的整體分佈", "summary": claim,
+            "keywords": [ind, "產業體檢", "同業比較", "長期報酬分佈"],
+            "method": "把本頻道已體檢個股的 long_horizon 事實按產業分組後取分佈統計;母體=已體檢者",
+            "symbol": ind, "period": as_of,
+            "source": "本頻道 stock_checkup_facts.json 既有資料再計算(不打任何外部 API)",
+        }
+        ind_added += 1
+
+    print(f"\n{'已寫入' if args.apply else '將寫入'} {added} 組同業排名事實"
+          f" + {ind_added} 組產業彙整事實")
+    if ind_added:
+        _k = [k for k in res if k.startswith("checkup_industry_summary__")][0]
+        print(f"\n產業彙整範例:{res[_k]['claim']}")
     if added:
         ex = res[[k for k in res if k.startswith("checkup_industry_rank__")][0]]
         print(f"\n範例:{ex['claim']}")

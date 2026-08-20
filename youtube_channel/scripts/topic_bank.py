@@ -228,6 +228,11 @@ def _to_trad(t):
 # 標題禁用的專有名詞(見 add_topics 裡的說明)。刻意只放「一般觀眾不會懂、且我們
 # 自己的規則早就禁止在片頭出現」的統計術語;像「回撤」「年化」這種已經被本頻道
 # 標題大量使用且觀眾看得懂的詞不列入。
+# 「一半的投資人被割」這種宣稱:主詞是人、帶負面結果,而本頻道只有價格與財報資料。
+_RX_PEOPLE_CLAIM = __import__("re").compile(
+    r"(投資[人者]|散戶|多數人|大部分的?人|一半的?人|韭菜)[^，,。]{0,8}"
+    r"(被割|賠光|住套房|認賠|殺出|虧光|畢業|慘賠|血本無歸)")
+
 _JARGON_TITLE = ("卡瑪", "夏普", "標準差", "貝塔", "CAGR", "索提諾", "波動率",
                  "Sharpe", "Calmar", "Sortino")
 
@@ -266,6 +271,16 @@ def add_topics(items, source="", front=False):
         # 所以閘門要裝在這個所有人都會經過的入口。
         # ⚠️ 只擋**標題**;內文要解釋這些概念完全可以(講的時候用白話即可)。
         if any(j in title for j in _JARGON_TITLE):
+            _blocked += 1
+            continue
+        # 🔴 2026-08-19:標題把「股票的統計」講成「投資人的下場」——擋在同一個入口。
+        # 實例:事實是「航運業 9 檔中位報酬 321%」,生出來的標題卻是
+        # 「為何仍有**超過一半的投資者被割**?」——中位數描述的是股票分佈不是投資人,
+        # 而事實庫裡「散戶/認賠/機率/勝率」各 0 筆,那句是憑空生的。
+        # 這類宣稱**沒有數字**,所以 numbers_sourced_to_fact 的溯源檢查結構上看不到它
+        # (同 memory yt-integrity-methodology-claims-blindspot 的盲區)。
+        # 判準:主詞是「人」而且帶負面結果動詞 → 需要人的資料才能講,而我們沒有。
+        if _RX_PEOPLE_CLAIM.search(title):
             _blocked += 1
             continue
         if _crypto_src and sc.topic_gate(title, _recent_gate):

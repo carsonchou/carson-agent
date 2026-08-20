@@ -42,6 +42,21 @@ DONE = ROOT / "STUDIO" / "rerender_jitter_done.json"
 PY = ROOT / ".venv" / "Scripts" / "python.exe"
 
 
+def _measure_lufs(mp4):
+    """量整體響度(LUFS)。量不到回 None(不判定,不可當壞片)。"""
+    try:
+        import re as _re
+        import audit_video as _av
+        r = subprocess.run([_av._ffmpeg_exe(), "-i", str(mp4), "-af",
+                            "loudnorm=print_format=json", "-f", "null", "-"],
+                           capture_output=True, text=True, encoding="utf-8",
+                           errors="replace", timeout=600)
+        m = _re.search(r'"input_i"\s*:\s*"?(-?[\d.]+)', r.stderr or "")
+        return float(m.group(1)) if m else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--max", type=int, default=50)
@@ -96,6 +111,16 @@ def main() -> int:
                 continue
             if rate >= 0.05:
                 print(f"  ✗ 仍有抖動 {h}/{tot}={rate * 100:.1f}%,保留原檔", flush=True)
+                fail += 1
+                tmp.unlink(missing_ok=True)
+                continue
+            # 響度驗證(2026-08-19 加):量過 8 支流量最高的已發布長片,**全部 -23.2 LUFS**,
+            # 而 YouTube 目標是 -14 且平台**只調降不提升** → 我們的片比別人小聲約 9 dB。
+            # 音訊鏈補上 loudnorm 後實測 -15.6 LUFS / 峰值 -1.4 dBTP。
+            # 這裡驗收:沒落在合理區間就不覆蓋原檔(寧可留舊的,也不要換上一支音量壞掉的)。
+            lufs = _measure_lufs(tmp)
+            if lufs is not None and not (-18.0 <= lufs <= -12.0):
+                print(f"  ✗ 響度異常 {lufs:.1f} LUFS(期望 -18~-12),保留原檔", flush=True)
                 fail += 1
                 tmp.unlink(missing_ok=True)
                 continue
