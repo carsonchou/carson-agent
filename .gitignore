@@ -181,3 +181,5 @@ quant-service/ecommerce/mockup/*.xlsx
 /*.jpeg
 /*.jpg
 /*.webp
+.mcp.full.json
+.mcp.*.json
