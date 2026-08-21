@@ -447,9 +447,14 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 #   第一眼就是下一集。EP 對映走 checkup_ep_ledger 的正式編號;最新一集沒有下一集,
 #   隔天新集發布後這支自動補上(so 這是常駐排程不是一次性)。冪等;51 units/支。
 #   API 沒有 end screen 端點,描述連結+播放清單是能自動化的最強替代。
-5 17 * * * /root/yt/run.sh scripts/binge_chain.py --apply --max 20 >> /root/yt/logs/cron.log 2>&1
 # 門面改造(每天 15:05,冪等,全部完成後自動 no-op):
 #   ①發布 checkup EP0(377檔版)——EP0 是實測轉化最高格式(5.81%/8.33% vs 一般 0.67%)
 #   ②非訂閱者 trailer 換成它(現任 tw_lab EP0 實測 1.79%;主力系列的說明片才該當門面)
 #   ③首頁貨架把個股體檢連載排到位置 1(追劇入口要在第一屏)
 5 15 * * * /root/yt/run.sh scripts/channel_facelift.py --apply >> /root/yt/logs/cron.log 2>&1
+
+# 連播鏈維護(週三 13:40,quota 剩飯):新發布的長片補「▶ 接著看下一集」區塊、
+# 系列有新片時舊片的 next 指向自動更新(state 檔比對,只更新有變的,50 quota/支)
+# 解的問題:實測 50 支長片 0 支互相連結、播放清單來源 137秒/次(最高)卻 28 天只有 49 次
+# 見 scripts/binge_chain.py;首輪 225 支已於 2026-08-21 手動跑完
+5 17 * * * /root/yt/run.sh scripts/binge_chain.py --apply --max 40 >> /root/yt/logs/cron.log 2>&1
