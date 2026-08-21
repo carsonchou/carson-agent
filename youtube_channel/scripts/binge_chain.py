@@ -231,11 +231,13 @@ def apply_block(desc, block):
             return None, "restore-check-failed"
         return new, "replaced"
     lines = desc.split("\n")
-    # 插在第一個非空行之後(第一行通常是鉤子句,保持在最上面)
+    # 插在第一個非空行之後(第一行通常是鉤子句,保持在最上面)。
+    # 例外:第一行是「📌」開頭的誠信加註標題(62 支期間加註片)——插它後面會把
+    # 標題和正文劈開(2026-08-21 首輪 124 支實測踩到),改插在它前面保加註完整。
     at = 1
     for i, ln in enumerate(lines):
         if ln.strip():
-            at = i + 1
+            at = i if ln.strip().startswith("📌") else i + 1
             break
     new_lines = lines[:at] + ["", block, ""] + lines[at:]
     new = "\n".join(new_lines)

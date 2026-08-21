@@ -39,7 +39,7 @@ STUDIO = ROOT / "STUDIO"
 TOKEN = ROOT / "token_manage.json"
 SCOPES = ["https://www.googleapis.com/auth/youtube.force-ssl"]
 
-TRAILER_VID = "Zm5zLEAs30Y"     # EP0 開播預告:訂閱轉化 5.8%,全頻道最高(2026-08-21 Analytics)
+# (預告片改由 channel_facelift.py 主管;舊候選 Zm5zLEAs30Y 轉化 5.8% 供參)
 
 
 def load(p):
@@ -53,12 +53,17 @@ def plan_sections():
     ind = (load(STUDIO / "industry_playlists.json") or {}).get("playlists", {})
     pe = load(STUDIO / "playlist_engine.json") or {}
     ind_ids = [v["id"] for k, v in sorted(ind.items(), key=lambda kv: -kv[1].get("n", 0))]
+    # 🔴 與 channel_facelift.py(每日 15:05 cron)分工(2026-08-21 定案,兩工具曾互洗):
+    #   facelift 主管 trailer 與「個股體檢貨架保持位置 1」;本檔只負責櫥窗結構,
+    #   一次性重建後不再排程。個股體檢排最前=facelift ③ 找到就 no-op,不再互搬。
     secs = [
         {"type": "popularUploads", "title": None, "playlists": None},
-        {"type": "singlePlaylist", "title": "ETF 定投對決",
-         "playlists": [pe.get("etf_dca", {}).get("playlist_id")]},
+        {"type": "singlePlaylist", "title": "個股體檢・完整連載",
+         "playlists": [pe.get("stock_checkup", {}).get("playlist_id")]},
         {"type": "multiplePlaylists", "title": "個股體檢・依產業",
          "playlists": ind_ids},
+        {"type": "singlePlaylist", "title": "ETF 定投對決",
+         "playlists": [pe.get("etf_dca", {}).get("playlist_id")]},
         {"type": "singlePlaylist", "title": "新手避雷・迷思拆穿",
          "playlists": [pe.get("beginner_debunk", {}).get("playlist_id")]},
         {"type": "singlePlaylist", "title": "台股真相實驗室",
@@ -92,7 +97,7 @@ def main():
         pls = s["playlists"]
         print(f"  {i}. {s['type']:18s} {s['title'] or '(系統標題)':16s} "
               f"{len(pls) if pls else 0} 條清單")
-    print(f"\n預告片:{TRAILER_VID}(EP0,轉化 5.8%)")
+    print("\n預告片:由 channel_facelift.py 主管(本檔不碰)")
 
     if not a.apply:
         print("\n--dry-run:未連網。")
@@ -100,15 +105,10 @@ def main():
 
     yt = svc()
 
-    # ── 預告片(讀-改-寫,整包保留) ──
-    ch = yt.channels().list(part="brandingSettings", mine=True).execute()["items"][0]
-    bs = ch["brandingSettings"]
-    bs.setdefault("channel", {})["unsubscribedTrailer"] = TRAILER_VID
-    yt.channels().update(part="brandingSettings",
-                         body={"id": ch["id"], "brandingSettings": bs}).execute()
-    got = yt.channels().list(part="brandingSettings", mine=True).execute()["items"][0]
-    tv = got["brandingSettings"]["channel"].get("unsubscribedTrailer")
-    print(f"預告片回讀:{tv} {'✓' if tv == TRAILER_VID else '⚠️ 不符'}")
+    # 預告片:2026-08-21 起由 channel_facelift.py(每日 15:05 cron)主管——
+    # 它設個股體檢 EP0(377檔版,EP0 格式實測轉化 5.81%/8.33%)。本檔不再碰
+    # brandingSettings,免得兩工具每天互蓋(08-21 首日實測互蓋過)。
+    print("預告片:交由 channel_facelift.py 管理,本檔跳過")
 
     # ── 櫥窗:先列出既有 → 刪掉可重建的類型 → 依序建立 ──
     existing = yt.channelSections().list(part="snippet,contentDetails",

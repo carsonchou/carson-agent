@@ -458,3 +458,8 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # 解的問題:實測 50 支長片 0 支互相連結、播放清單來源 137秒/次(最高)卻 28 天只有 49 次
 # 見 scripts/binge_chain.py;首輪 225 支已於 2026-08-21 手動跑完
 5 17 * * * /root/yt/run.sh scripts/binge_chain.py --apply --max 40 >> /root/yt/logs/cron.log 2>&1
+
+# 櫥窗一次性重建(⚠️ 只該跑 2026-08-22 這一次,跑完請刪本行):08-21 兩實例互洗+facelift
+#   同日改門面,櫥窗翻倍到 10 個。storefront 已改成不碰 trailer、個股體檢排位置 1,
+#   與 facelift 分工不再衝突。排 15:20 = facelift(15:05)之後,單實例。
+20 15 22 8 * /root/yt/run.sh scripts/channel_storefront.py --apply >> /root/yt/logs/cron.log 2>&1
