@@ -463,3 +463,8 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 #   同日改門面,櫥窗翻倍到 10 個。storefront 已改成不碰 trailer、個股體檢排位置 1,
 #   與 facelift 分工不再衝突。排 15:20 = facelift(15:05)之後,單實例。
 20 15 22 8 * /root/yt/run.sh scripts/channel_storefront.py --apply >> /root/yt/logs/cron.log 2>&1
+
+# 追劇鏈成效報告(每天 07:50,只報告不動產線):對比佈署(08-21)前後的
+#   PLAYLIST/RELATED/每觀看秒數三軸——沒有對比報告,一週後只能憑感覺說「好像有用」。
+#   口徑寫死在腳本裡:不等長視窗換算每日、Analytics 錨 today-3、不足 4 天直說不能比。
+50 7 * * * /root/yt/run.sh scripts/binge_report.py >> /root/yt/logs/cron.log 2>&1
