@@ -44,7 +44,7 @@ SYS_PY = Path(r"C:\Users\User\AppData\Local\Programs\Python\Python39\python.exe"
 if not SYS_PY.exists():
     _w = _shutil.which("python")
     SYS_PY = Path(_w) if _w else VENV_PY  # 找不到系統 python 就退回 venv(至少不崩)
-PLAYWRIGHT_SCRIPTS = {"tiktok_upload.py"}  # 這些走系統 python(需 playwright);其餘照 VENV_PY
+PLAYWRIGHT_SCRIPTS = {"tiktok_upload.py", "community_post.py"}  # 這些走系統 python(需 playwright);其餘照 VENV_PY
 CRONTAB = ROOT / "deploy" / "crontab.txt"
 LOG = ROOT / "logs" / "local_cron.log"
 ERRLOG = ROOT / "logs" / "job_stderr.log"    # 子程序 stderr 導這裡(補 DEVNULL 盲區:job 靜默失敗可事後查 traceback)

@@ -56,7 +56,10 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 #   這種需求有時效性,錯過就沒了。首次實測 10 檔被搜的股票全部已做過 → 回報「不需重排」,
 #   證明這條線本來就在運作;此排程是為了接住**未來新出現**的需求尖峰。
 #   只在有未做的熱門股時才動 backlog,否則零改動;成交值排序仍是預設。
-10 6 * * 3 /root/yt/run.sh scripts/checkup_demand_sort.py --apply >> /root/yt/logs/cron.log 2>&1
+# 2026-08-22 週三一次 → 每日:「頎邦檢調」實證新聞事件會把人推去搜特定股票,
+#   時效只有幾天,週三掃等於平均延遲 3.5 天=錯過尖峰。腳本本身冪等且便宜
+#   (讀自己的 Analytics 搜尋詞 + 重排 backlog,無熱門新需求時零改動)。
+10 6 * * * /root/yt/run.sh scripts/checkup_demand_sort.py --apply >> /root/yt/logs/cron.log 2>&1
 # 2026-08-02 跳過名單複查(每月 1 號 06:20)。publish_skip.json 是**只進不出**的名單:
 #   片子有缺陷就加進去,但缺陷修好後沒有機制回頭複查。實際踩到:5 支高分片
 #   (94/89/86/84/79,含中華電/鴻海這種搜尋量最大的權值股)被「渲染期把機器人假數字燒進畫面」
@@ -468,3 +471,10 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 #   PLAYLIST/RELATED/每觀看秒數三軸——沒有對比報告,一週後只能憑感覺說「好像有用」。
 #   口徑寫死在腳本裡:不等長視窗換算每日、Analytics 錨 today-3、不足 4 天直說不能比。
 50 7 * * * /root/yt/run.sh scripts/binge_report.py >> /root/yt/logs/cron.log 2>&1
+
+# 社群貼文(每天 07:40,Playwright 走系統 python——local_cron 的 PLAYWRIGHT_SCRIPTS 分流):
+#   訂閱者 feed 的第二觸點,YouTube API 沒有社群貼文端點只能 UI 自動化(同片尾)。
+#   內容=community_card 從當日體檢片的 fact 庫產的數據卡(溯源鐵律照舊,不另寫文案)。
+#   登入態重用 MCP Chrome profile(片尾自動化同款);profile 被佔用會優雅跳過。
+#   一天一篇冪等;發布前後都截圖留證(UI 自動化的「已發布」判定脆弱,片尾教訓)。
+40 7 * * * /root/yt/run.sh scripts/community_post.py --apply >> /root/yt/logs/cron.log 2>&1
