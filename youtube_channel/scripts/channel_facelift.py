@@ -131,6 +131,39 @@ def main() -> int:
     except Exception as exc:  # noqa: BLE001
         print(f"③ [warn] 貨架處理失敗:{str(exc)[:120]}", file=sys.stderr)
 
+    # ── ④ 頻道橫幅(2026-08-21):訪客第一眼看到的東西 ─────────────────────
+    # 設計沿用縮圖產線的深色語言(BASE_BG 近黑 + K 線剪影 + 克制 bloom),
+    # 已送 Carson 過目。舊橫幅 URL 先備份進 facelift_backup.json,可還原:
+    #   把 backup 裡的 old_banner_url 塞回 brandingSettings.image.bannerExternalUrl 即可。
+    # 冪等:banner_done 標記存在就跳過(橫幅上傳每次都會生新 URL,不能用 URL 比對)。
+    banner = STUDIO / "channel_banner_v2.png"
+    done_mark = STUDIO / "facelift_banner_done.json"
+    if done_mark.exists():
+        print("④ 橫幅已換過,跳過")
+    elif not banner.exists():
+        print("④ 橫幅檔不存在,跳過")
+    elif not args.apply:
+        print("④ [dry] 將上傳橫幅並備份舊 URL")
+    else:
+        try:
+            from googleapiclient.http import MediaFileUpload
+            ch = yt.channels().list(part="brandingSettings", mine=True).execute()["items"][0]
+            bs = ch["brandingSettings"]
+            old_url = (bs.get("image") or {}).get("bannerExternalUrl")
+            bk = json.loads(BK.read_text(encoding="utf-8")) if BK.exists() else {}
+            bk["old_banner_url"] = old_url
+            BK.write_text(json.dumps(bk, ensure_ascii=False), encoding="utf-8")
+            ins = yt.channelBanners().insert(
+                media_body=MediaFileUpload(str(banner), mimetype="image/png")).execute()
+            url = ins.get("url")
+            bs.setdefault("image", {})["bannerExternalUrl"] = url
+            yt.channels().update(part="brandingSettings",
+                                 body={"id": ch["id"], "brandingSettings": bs}).execute()
+            done_mark.write_text(json.dumps({"url": url}), encoding="utf-8")
+            print(f"④ 橫幅已換(舊 URL 已備份:{str(old_url)[:50]}…)")
+        except Exception as exc:  # noqa: BLE001
+            print(f"④ [warn] 橫幅上傳失敗:{str(exc)[:120]}", file=sys.stderr)
+
     return 0
 
 
