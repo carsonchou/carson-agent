@@ -188,7 +188,31 @@ def main() -> int:
                 ctx.close()
                 return 0
 
-            click_text("發布")
+            # 🔴「發布」鈕:get_by_text 解析到的是 span(role=text),點不下去——
+            # 片尾自動化記過的同一個坑(yt-endscreen-ui-automation:點文字無效,
+            # 要往上爬到可點祖先)。用 evaluate 從文字節點往上找 button/yt-button。
+            clicked = page.evaluate("""() => {
+                const els = [...document.querySelectorAll('*')]
+                    .filter(e => e.offsetParent && (e.textContent||'').trim() === '發布'
+                            && e.children.length <= 1);
+                for (let el of els) {
+                    let n = el;
+                    for (let i = 0; i < 6 && n; i++) {
+                        if (n.tagName === 'BUTTON' || n.tagName === 'YT-BUTTON-RENDERER'
+                            || n.tagName === 'YT-BUTTON-SHAPE'
+                            || n.getAttribute('role') === 'button') {
+                            n.click(); return true;
+                        }
+                        n = n.parentElement;
+                    }
+                }
+                return false;
+            }""")
+            if not clicked:
+                page.screenshot(path=str(shot))
+                print(f"找不到可點的發布鈕(截圖 {shot.name})")
+                ctx.close()
+                return 1
             page.wait_for_timeout(3500)
             page.screenshot(path=str(shot))
             done[today] = png.name
