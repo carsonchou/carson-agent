@@ -83,6 +83,21 @@ def main() -> int:
         print("本環境沒裝 playwright(pip install playwright)")
         return 1
 
+    # 🔴 launch 前清掉佔用同 profile 的殭屍 Chrome(只殺命令列含本 profile 路徑的,
+    # 不碰使用者一般 Chrome)。實測:前一輪失敗的殘留讓下一次 launch 直接
+    # 「Target closed」——在 cron 情境等於殘留一次、之後天天失敗。
+    try:
+        import subprocess
+        subprocess.run(
+            ["powershell", "-NoProfile", "-Command",
+             "Get-CimInstance Win32_Process -Filter \"Name='chrome.exe'\" | "
+             "Where-Object { $_.CommandLine -like '*mcp-chrome-0ce1802*' } | "
+             "ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"],
+            capture_output=True, timeout=30)
+        time.sleep(2)
+    except Exception:  # noqa: BLE001
+        pass
+
     shot = CARDS / f"{today}_shot.png"
     try:
         with sync_playwright() as pw:
@@ -139,16 +154,35 @@ def main() -> int:
             box.fill(body)
             page.wait_for_timeout(800)
 
-            # 附圖:用 file chooser(「圖片」按鈕)
+            # 附圖:先試隱藏的 input[type=file] 直塞(最穩,不依賴按鈕文字),
+            # 退而求其次才走 file chooser。實測「圖片」exact 文字點不到
+            # (composer 的圖片鈕是 icon,aria-label 可能是「新增圖片」)。
+            attached = False
             try:
-                with page.expect_file_chooser(timeout=6000) as fc:
-                    page.get_by_text("圖片", exact=True).first.click()
-                fc.value.set_files(str(png))
+                fi = page.locator("input[type='file']").first
+                fi.set_input_files(str(png), timeout=5000)
                 page.wait_for_timeout(2500)
+                attached = True
             except Exception:  # noqa: BLE001
+                for label in ("新增圖片", "圖片", "Add image"):
+                    try:
+                        with page.expect_file_chooser(timeout=4000) as fc:
+                            page.get_by_label(label).first.click(timeout=3000)
+                        fc.value.set_files(str(png))
+                        page.wait_for_timeout(2500)
+                        attached = True
+                        break
+                    except Exception:  # noqa: BLE001
+                        continue
+            if not attached:
                 print("[warn] 附圖失敗,改純文字貼文(文字含影片連結,價值仍在)")
 
-            page.screenshot(path=str(shot))
+            # 截圖防禦:headed 視窗可能被外力關掉(實測 Target closed),
+            # 截不到就記錄,不讓證據步驟炸掉主流程。
+            try:
+                page.screenshot(path=str(shot))
+            except Exception:  # noqa: BLE001
+                print("[warn] 發布前截圖失敗(頁面被關?),流程繼續")
             if not args.apply:
                 print(f"[dry] 已走到發布前一步,截圖:{shot.name}(未發布)")
                 ctx.close()
