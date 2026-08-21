@@ -4159,6 +4159,22 @@ def make_one(kind, no_render=False, topic_override=None, script_override=None):
     for _seg in d.get("segments", []) or []:
         if isinstance(_seg, dict) and "heading" in _seg:
             _seg["heading"] = _fix_artifacts(_seg["heading"])
+    # 🔴 長片終檢(2026-08-21 實測抓到的漏洞):上面 A1b(內文雷同)與 A2(捏造績效)
+    # 兩個迴圈都會 call_claude **重新產稿**,但重生後的稿沒有再過一次 _long_bad
+    # ——當天 6 支新長片有 3 支帶「期間偷換」、2 支帶【】洩漏照樣出廠,而重生 log 顯示
+    # 它們正是先被密度/雷同 gate 打回重產、換出來的新稿沒人再驗。
+    # 個股體檢標題共用骨架,_body_too_similar 極易觸發 → 這條路徑天天在走。
+    # 所以**寫檔前對最終稿再驗一次**:不管中間哪個迴圈換了稿,出廠前都要過同一道門。
+    # fail-closed(與長度 gate 同精神):誠信類缺陷不可「放行待人工複查」。
+    # ⚠️ 條件必須**鏡像** _long_bad 的定義分支(kind=="long" and not topic_override)
+    # ——它是那個 if 裡的 closure,寫成 kind!="short" 會在時事片(帶 topic_override)
+    # NameError。這正是本檔踩過三次的「跨作用域引用」坑,見 _parent_slug 的 commit。
+    if kind == "long" and not topic_override:
+        _final_why = _long_bad(d)
+        if _final_why:
+            log_ops("補產部門", f"⛔ 終檢:重生換稿後帶入「{_final_why}」,fail-closed 不輸出:{d.get('title','')[:24]}")
+            print(f"[skip] long 終檢不過({_final_why}),不輸出:{d.get('title','')[:24]}")
+            return None
     # loop 結尾硬性保底(完播工程 2026-07-14):只對非系列 Shorts 補——EP/台股真相實驗室
     # 已有自己的「下集懸念」續集鉤(角色不同,不疊加);長片節奏不同,loop 重播是 Shorts feed
     # 專屬機制(90.9% 流量來自 Shorts feed),不套用長片。要在訂閱鉤之前補,讓結尾順序是
