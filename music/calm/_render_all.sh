@@ -14,7 +14,7 @@ render_video () {
   rm -f "ckpt_$name.npz" "list_$name.txt"
   for s in 0 1 2 3 4 5; do
     echo "--- $(date) [$name] 段 $s/5 ---"
-    python fluid.py --secs 600 --theme "$theme" --seed "$seed" \
+    python fluid.py --secs 600 --theme "$theme" --seed "$seed" --look rich \
       --resume "ckpt_$name.npz" --out "seg_${name}_${s}.mp4" \
       || { echo "SEG-FAILED $name $s"; return 1; }
     echo "file 'seg_${name}_${s}.mp4'" >> "list_$name.txt"

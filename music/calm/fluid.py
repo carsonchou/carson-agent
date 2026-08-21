@@ -58,6 +58,21 @@ THEMES = {
               [(0.75, 0.80, 0.88), (0.55, 0.70, 0.80), (0.80, 0.70, 0.55)]),
 }
 
+# --look rich 用的顏料級調色盤:值 = 各通道吸收係數(高=吸得多)。
+# 舊版低吸收 → 粉彩霧;這裡吸收強且通道差大 → 真水彩顏料的濃郁
+# (普魯士藍吸紅綠、深紅吸綠藍、氧化鉻綠吸紅藍、金赭吸藍)。
+RICH_THEMES = {
+    "ink": ((0.94, 0.92, 0.88),
+            [(0.85, 0.52, 0.14), (0.20, 0.85, 0.66), (0.62, 0.18, 0.55),
+             (0.75, 0.60, 0.12), (0.30, 0.42, 0.85)]),
+    "indigo": ((0.92, 0.92, 0.94),
+               [(0.88, 0.60, 0.16), (0.70, 0.35, 0.10), (0.45, 0.65, 0.15)]),
+    "tea": ((0.95, 0.92, 0.86),
+            [(0.28, 0.55, 0.85), (0.55, 0.30, 0.75), (0.15, 0.45, 0.80)]),
+    "slate": ((0.10, 0.11, 0.14),          # 暗底:值 = 發光色(加色)
+              [(0.55, 0.70, 0.95), (0.90, 0.65, 0.35), (0.65, 0.85, 0.75)]),
+}
+
 
 def bilinear(field, x, y):
     """在 field 上以 (x,y) 浮點座標做雙線性取樣(半拉格朗日平流用)。"""
@@ -190,6 +205,20 @@ def inject(f: Fluid, t, inks, rng, phases=None):
     np.clip(f.dye, 0.0, 2.5, out=f.dye)
 
 
+def edge_blend(img, paper, px=10):
+    """邊界吸收帶(step 裡外 3 圈的 fade)在畫面上是一條可見的痕,
+    暗底主題尤其明顯(實測樣片頂邊)。把最外 px 像素平滑羽化回紙色蓋掉。"""
+    h, w = img.shape[:2]
+    ramp = np.ones((h, w), np.float32)
+    e = np.linspace(0.0, 1.0, px, dtype=np.float32)
+    ramp[:px, :] = np.minimum(ramp[:px, :], e[:, None])
+    ramp[-px:, :] = np.minimum(ramp[-px:, :], e[::-1][:, None])
+    ramp[:, :px] = np.minimum(ramp[:, :px], e[None, :])
+    ramp[:, -px:] = np.minimum(ramp[:, -px:], e[::-1][None, :])
+    p = np.array(paper, np.float32)[None, None, :]
+    return img * ramp[..., None] + p * (1.0 - ramp[..., None])
+
+
 def render_frame(f: Fluid, paper, dark_theme):
     if dark_theme:
         # 亮墨暗底:加色
@@ -197,7 +226,81 @@ def render_frame(f: Fluid, paper, dark_theme):
     else:
         # 暗墨亮底:減色(像墨吸掉紙的反射)
         img = np.array(paper, np.float32)[None, None, :] * np.exp(-f.dye * 1.4)
-    return np.clip(img, 0.0, 1.0)
+    return np.clip(edge_blend(img, paper), 0.0, 1.0)
+
+
+def render_frame_rich(f: Fluid, paper, dark_theme):
+    """rich 版:Beer-Lambert 濃顏料 + 密度梯度偽3D打光(絲線有光澤)
+    + 暗底克制輝光。全部在模擬解析度做,成本 ~幾ms。"""
+    density = f.dye.sum(axis=2)
+    # 密度場當高度場 → 法線 → 定向光。絲的邊緣亮、溝暗 = 立體感。
+    gx = cv2.Sobel(density, cv2.CV_32F, 1, 0, ksize=3)
+    gy = cv2.Sobel(density, cv2.CV_32F, 0, 1, ksize=3)
+    nz = 1.6
+    inv = 1.0 / np.sqrt(gx * gx + gy * gy + nz * nz)
+    lx, ly, lz = -0.45, -0.62, 0.64          # 光源:左上前方
+    diff = np.clip((-gx * lx - gy * ly + nz * lz) * inv, 0.0, 1.0)
+    spec = np.clip((-gx * lx - gy * ly + nz * (lz + 1.0)) * inv * 0.55, 0.0, 1.0) ** 6
+    if dark_theme:
+        img = np.array(paper, np.float32)[None, None, :] + f.dye * 1.1
+        # 克制的輝光:亮部糊一層加回去(Carson 偏好:bloom 克制但要有質感)
+        glow = cv2.GaussianBlur(f.dye, (0, 0), 6)
+        img += glow * 0.30
+        img *= (0.80 + 0.30 * diff)[..., None]
+        img += (spec * 0.12)[..., None]
+        return np.clip(edge_blend(img, paper), 0.0, 1.0)
+    else:
+        img = np.array(paper, np.float32)[None, None, :] * np.exp(-f.dye * 2.1)
+        img *= (0.80 + 0.26 * diff)[..., None]     # 打光讓絲有立體
+        img += (spec * 0.15)[..., None]            # 濕潤的高光
+    return np.clip(edge_blend(img, paper), 0.0, 1.0)
+
+
+class Drops:
+    """墨滴事件:一滴墨砸進水面,炸開成環+絲。這是 ink-in-water 類型的
+    招牌畫面(也是縮圖的戲劇性來源)。cadence 依主題:專注中等、睡眠稀疏、
+    雨主題密集小滴(和雨聲音軌在概念上同一件事)。"""
+    CADENCE = {"ink": (22.0, 40.0, 1.0), "indigo": (25.0, 45.0, 1.0),
+               "tea": (4.0, 9.0, 0.45), "slate": (45.0, 80.0, 0.7)}
+
+    def __init__(self, theme, inks, rng):
+        lo, hi, self.strength = self.CADENCE.get(theme, (25.0, 45.0, 1.0))
+        self.lo, self.hi = lo, hi
+        self.inks, self.rng = inks, rng
+        self.next_t = None          # 懶初始化:resume 續跑時以當下 t 為基準
+
+    def maybe(self, f: Fluid, t):
+        if self.next_t is None:
+            self.next_t = t + float(self.rng.uniform(self.lo * 0.2, self.hi * 0.5))
+        if t < self.next_t:
+            return
+        self.next_t = t + float(self.rng.uniform(self.lo, self.hi))
+        rng = self.rng
+        cx = float(rng.uniform(0.18, 0.82)) * f.w
+        cy = float(rng.uniform(0.18, 0.72)) * f.h
+        r = float(rng.uniform(4.0, 8.0)) * self.strength + 2.5
+        ink = self.inks[int(rng.integers(0, len(self.inks)))]
+        x0, x1 = int(max(0, cx - 5 * r)), int(min(f.w, cx + 5 * r))
+        y0, y1 = int(max(0, cy - 5 * r)), int(min(f.h, cy + 5 * r))
+        if x0 >= x1 or y0 >= y1:
+            return
+        dx = f.xx[y0:y1, x0:x1] - cx
+        dy = f.yy[y0:y1, x0:x1] - cy
+        d2 = dx * dx + dy * dy
+        g = np.exp(-d2 / (2 * r * r)).astype(np.float32)
+        # 濃墨團(瞬間,不是慢慢滲)
+        amt = 0.55 * self.strength
+        for c in range(3):
+            f.dye[y0:y1, x0:x1, c] += g * ink[c] * amt
+        # 徑向衝擊波 + 一點旋:炸開成環,之後被浮力捲成絲
+        dist = np.sqrt(d2) + 1e-4
+        push = 42.0 * self.strength * g
+        f.u[y0:y1, x0:x1] += push * dx / dist
+        f.v[y0:y1, x0:x1] += push * dy / dist
+        sw = float(rng.uniform(-14, 14)) * self.strength
+        f.u[y0:y1, x0:x1] += g * (-dy / (r + 1e-6)) * sw * 0.1
+        f.v[y0:y1, x0:x1] += g * (dx / (r + 1e-6)) * sw * 0.1
+        np.clip(f.dye, 0.0, 2.5, out=f.dye)
 
 
 def main():
@@ -214,9 +317,11 @@ def main():
                          "只能靠 checkpoint 分段續算(物理不中斷)。")
     ap.add_argument("--seed", type=int, default=7,
                     help="墨源軌跡種子。每支片必須不同,否則同主題動態逐幀相同")
+    ap.add_argument("--look", default="classic", choices=["classic", "rich"],
+                    help="rich=顏料級深色+偽3D打光+墨滴事件+暗底輝光")
     a = ap.parse_args()
 
-    paper, inks = THEMES[a.theme]
+    paper, inks = (RICH_THEMES if a.look == "rich" else THEMES)[a.theme]
     dark = a.theme == "slate"
     f = Fluid(GW, GH)
     rng = np.random.default_rng(a.seed)
@@ -229,6 +334,10 @@ def main():
     print(f"主題 {a.theme}  模擬 {GW}x{GH} → {W}x{H}  {a.secs:.0f}s / {n} 幀"
           f"(暖機 {a.warmup:.0f}s)")
 
+    # 🔴 drops 必須在 checkpoint 分支之前建:resume 續跑會跳過暖機分支,
+    #    定義在裡面的話第 1 段之後全部 UnboundLocalError(B 段實測炸過)
+    drops = Drops(a.theme, inks, rng) if a.look == "rich" else None
+
     # 暖機:畫面出現前先跑幾秒,開場就有形狀(有 resume 存檔則直接續跑)
     t0 = a.warmup
     ckpt = pathlib.Path(a.resume) if a.resume else None
@@ -240,6 +349,8 @@ def main():
     else:
         for i in range(int(a.warmup * FPS)):
             inject(f, i * DT, inks, rng, phases)
+            if drops:
+                drops.maybe(f, i * DT)
             f.step(DT, sim_scale)
 
     cmd = ["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24",
@@ -257,8 +368,10 @@ def main():
     for i in range(n):
         t = t0 + i * DT
         inject(f, t, inks, rng, phases)
+        if drops:
+            drops.maybe(f, t)
         f.step(DT, sim_scale)
-        img = render_frame(f, paper, dark)
+        img = (render_frame_rich if a.look == "rich" else render_frame)(f, paper, dark)
         p.stdin.write((img * 255).astype(np.uint8).tobytes())
         if i % (FPS * 5) == 0:
             print(f"  {i//FPS:>4d}s / {int(a.secs)}s  ({(time.time()-wall):.0f}s 實耗)")
