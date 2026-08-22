@@ -82,23 +82,30 @@ def main() -> int:
                 pass
             print(f"① EP0 已發布:https://youtu.be/{vid}")
 
-    # ── ② trailer 換成 EP0 ──────────────────────────────────────
-    if vid:
-        ch = yt.channels().list(part="brandingSettings", mine=True).execute()["items"][0]
-        bs = ch["brandingSettings"]
-        cur = (bs.get("channel") or {}).get("unsubscribedTrailer")
-        if cur == vid:
-            print(f"② trailer 已是 EP0({vid}),跳過")
-        elif not args.apply:
-            print(f"② [dry] trailer {cur} → {vid}")
+    # 🔴 2026-08-22 獨立審核:本步原本沒有 try——08-21 15:05 cron 在 channels.list
+    # 撞 403 quotaExceeded,main 直接炸,③貨架④橫幅**從未執行**(banner done_mark
+    # 至今不存在)。每一步都必須自己扛錯,一步炸不准拖累後面的步。
+    try:
+        # ── ② trailer 換成 EP0 ──────────────────────────────────────
+        if vid:
+            ch = yt.channels().list(part="brandingSettings", mine=True).execute()["items"][0]
+            bs = ch["brandingSettings"]
+            cur = (bs.get("channel") or {}).get("unsubscribedTrailer")
+            if cur == vid:
+                print(f"② trailer 已是 EP0({vid}),跳過")
+            elif not args.apply:
+                print(f"② [dry] trailer {cur} → {vid}")
+            else:
+                BK.write_text(json.dumps({"old_trailer": cur}, ensure_ascii=False), encoding="utf-8")
+                bs.setdefault("channel", {})["unsubscribedTrailer"] = vid
+                yt.channels().update(part="brandingSettings",
+                                     body={"id": ch["id"], "brandingSettings": bs}).execute()
+                print(f"② trailer 已換:{cur} → {vid}(舊值備份 {BK.name})")
         else:
-            BK.write_text(json.dumps({"old_trailer": cur}, ensure_ascii=False), encoding="utf-8")
-            bs.setdefault("channel", {})["unsubscribedTrailer"] = vid
-            yt.channels().update(part="brandingSettings",
-                                 body={"id": ch["id"], "brandingSettings": bs}).execute()
-            print(f"② trailer 已換:{cur} → {vid}(舊值備份 {BK.name})")
-    else:
-        print("② EP0 尚無 videoId,trailer 下次跑再換(冪等)")
+            print("② EP0 尚無 videoId,trailer 下次跑再換(冪等)")
+
+    except Exception as exc:  # noqa: BLE001
+        print(f"② [warn] trailer 處理失敗:{str(exc)[:120]}", file=sys.stderr)
 
     # ── ③ 首頁貨架:個股體檢連載排到位置 1 ─────────────────────────
     try:

@@ -4175,6 +4175,37 @@ def make_one(kind, no_render=False, topic_override=None, script_override=None):
             log_ops("補產部門", f"⛔ 終檢:重生換稿後帶入「{_final_why}」,fail-closed 不輸出:{d.get('title','')[:24]}")
             print(f"[skip] long 終檢不過({_final_why}),不輸出:{d.get('title','')[:24]}")
             return None
+    elif kind == "long" and topic_override:
+        # 🔴 2026-08-22 獨立審核抓到的最嚴重缺陷:**個股體檢長片從 2026-07-15 起
+        # 繞過整條 A4 閘門與終檢**。機制:體檢鎖題(3979 行)把題塞進 topic_override,
+        # 而 A4 閘門(4054)與上面的終檢條件都是 `not topic_override` → 體檢片一道檢查
+        # 都沒過就出廠。3982 行註解寫「內文品質 gate 不豁免照走」——實作與意圖相反。
+        # 鐵證:同一個早上,非體檢題 4 次重生全記錄、一支 fail-closed;體檢 5 支零重生
+        # 連續出廠,實跑判定 2 支期間偷換、1 支【】洩漏、5/5 密度不足。
+        #
+        # ⚠️ 修法刻意**只開兩道無爭議的**(期間偷換 + 【】洩漏,皆 module-level 函式,
+        # 不碰 _long_bad closure——它定義在 not topic_override 分支,引用會 NameError,
+        # 本檔第五次差點踩同一坑)。密度 gate 對體檢文體 5/5 命中,直接全開會讓整條
+        # 體檢產線 fail-closed 停產;等對體檢文體校準後再開,審核報告同此建議。
+        # 重生鎖同題(topic_override 原樣傳回),與體檢鎖題的設計一致;2 次仍中 → fail-closed,
+        # 該檔的題由週日 checkup_recover_lost 回收重抽,不會永久流失。
+        _t2 = 0
+        def _uncontroversial_bad(_d):
+            _v = _d.get("voice_text", "")
+            if _long_mixed_period(_v):
+                return "期間偷換"
+            if "【" in _v:
+                return "【】prompt欄位洩漏(會被TTS唸出來)"
+            return None
+        while _uncontroversial_bad(d) and _t2 < 2:
+            _t2 += 1
+            log_ops("補產·重生", f"鎖題長片終檢第{_t2}次重生:{_uncontroversial_bad(d)}｜{d.get('title','')[:20]}")
+            d = call_claude(kind, _ex, topic_override)
+        _why2 = _uncontroversial_bad(d)
+        if _why2:
+            log_ops("補產部門", f"⛔ 鎖題長片終檢:重生2次仍{_why2},fail-closed 不輸出:{d.get('title','')[:24]}")
+            print(f"[skip] long 鎖題終檢不過({_why2}),不輸出:{d.get('title','')[:24]}")
+            return None
     # loop 結尾硬性保底(完播工程 2026-07-14):只對非系列 Shorts 補——EP/台股真相實驗室
     # 已有自己的「下集懸念」續集鉤(角色不同,不疊加);長片節奏不同,loop 重播是 Shorts feed
     # 專屬機制(90.9% 流量來自 Shorts feed),不套用長片。要在訂閱鉤之前補,讓結尾順序是

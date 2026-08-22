@@ -419,7 +419,13 @@ def complete(prompt: str, max_tokens: int = 3500, json_mode: bool = False, tempe
             _hard = any(k in _es for k in ("404", "401", "403", "does not exist",
                                            "not found", "no access", "invalid api key",
                                            "unauthorized"))
-            if _hard and i == len(chain) - 1:
+            # 🔴 2026-08-22 獨立審核:原條件多了 `i == len(chain)-1`(只在鏈尾才救援),
+            # 08-20 把 ollama 插進 _reserve 鏈後,groq 404 不再是鏈尾 → monkeypatch 實測
+            # groq 404 + ollama 死 = **全滅,Gemini 從未被試、ntfy 沒發**;
+            # ollama 活著時能跑但靜默無告警(重演「主力換人活十天沒人知道」)。
+            # 修:硬故障**當下**就補救援與告警,不等鏈尾——保留額度的理由(429 限流)不變,
+            # 但 404/401/403 = 這家根本不能用,等鏈尾沒有意義。
+            if _hard:
                 _rescue = [p for p in (fallback, big_prov, primary) if p and p not in seen]
                 if _rescue:
                     print(f"[llm] {prov} 硬故障({str(e)[:60]}),"
