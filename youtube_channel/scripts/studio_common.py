@@ -534,3 +534,56 @@ def render_mem_ok(min_mb=None):
     need = RENDER_MIN_FREE_MB if min_mb is None else min_mb
     m = free_mem_mb()
     return (True, m) if m is None else (m >= need, m)
+
+# ── 渲染認領鎖(2026-08-22:同 slug 被派兩次工,燒掉 4 小時 CPU 並把整台機器記憶體吃乾)──
+# 事故實況:泰藝 8289 同時有**兩個** make_video 在跑(239 分鐘與 165 分鐘),各自帶著
+# 4 個凍住的 b-roll ffmpeg 子程序;全機可用記憶體剩 749MB,之後每一支渲染都
+# MemoryError。兩個來源互不知情:
+#   · hybrid_render 有 output/{slug}.lock,但「>25 分鐘=過期可重認領」**只看鎖檔時間**
+#     ——長片本來就渲超過 25 分鐘,慢一點的渲染會被判死、鎖被搶走,於是產生分身。
+#   · render_watcher **完全沒有鎖**,只看「有 voice+mp3 沒 mp4」就派工。
+# 修法:鎖檔寫進 PID。要接手必須同時滿足「鎖過期」**且**「原程序真的不在了」——
+# 活著的渲染永遠不會被搶走,不管它渲多久。所有派工端共用這一支。
+def _pid_alive(pid: int) -> bool:
+    """這個 PID 還在不在(Windows:tasklist;POSIX:signal 0)。查不到一律回 False。"""
+    try:
+        if os.name == "nt":
+            import subprocess
+            r = subprocess.run(["tasklist", "/FI", f"PID eq {int(pid)}", "/NH"],
+                               capture_output=True, text=True, timeout=15,
+                               creationflags=0x08000000)
+            return str(int(pid)) in (r.stdout or "")
+        os.kill(int(pid), 0)
+        return True
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def claim_render(slug, stale_sec: int = 1500) -> bool:
+    """認領某支片的渲染。拿到才可以渲;沒拿到代表別人正在渲(或剛渲完)。"""
+    lock = ROOT / "output" / f"{slug}.lock"
+    if lock.exists():
+        try:
+            _txt = lock.read_text(encoding="utf-8", errors="replace")
+        except Exception:  # noqa: BLE001
+            _txt = ""
+        _m = _re.search(r"pid=(\d+)", _txt)
+        if _m and _pid_alive(int(_m.group(1))):
+            return False                     # 原程序活著 → 不管鎖多舊都不接手
+        try:
+            if time.time() - lock.stat().st_mtime < stale_sec:
+                return False                 # 沒 PID 資訊的舊格式鎖,退回時間判準
+        except Exception:  # noqa: BLE001
+            return False
+    try:
+        lock.write_text(f"claim {time.time():.0f} pid={os.getpid()}", encoding="utf-8")
+        return True
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def release_render(slug) -> None:
+    try:
+        (ROOT / "output" / f"{slug}.lock").unlink()
+    except Exception:  # noqa: BLE001
+        pass

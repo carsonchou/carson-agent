@@ -90,6 +90,18 @@ def pending_slugs():
 
 def render_one(slug: str) -> bool:
     """渲染單一 slug。S_=直式概念圖（無 Pexels）；L_=橫式（用 Pexels）。"""
+    # 🔴 2026-08-22 事故:本函式原本**沒有任何鎖**,只要「有 voice+mp3 沒 mp4」就派工,
+    #    而 hybrid_render 另有自己的 output/{slug}.lock ——兩邊互不知情。實況:泰藝 8289
+    #    同時跑著兩個 make_video(239 分鐘 + 165 分鐘),各帶 4 個凍住的 b-roll ffmpeg,
+    #    全機可用記憶體被吃到剩 749MB,之後每支渲染都 MemoryError(那支片自己也失敗三次)。
+    #    改用 studio_common 的 PID 感知認領鎖:活著的渲染永遠不會被搶走,不管渲多久。
+    try:
+        import studio_common as _sc
+        if not _sc.claim_render(slug):
+            print(f"[watcher] {slug} 已被其他程序認領(渲染中),跳過。")
+            return False
+    except Exception:  # noqa: BLE001
+        _sc = None      # 鎖模組壞掉不擋渲染(fail-open:寧可偶爾重工,不要整條停產)
     env = os.environ.copy()
     if slug.startswith("S_"):
         env.pop("PEXELS_API_KEY", None)
@@ -111,7 +123,12 @@ def render_one(slug: str) -> bool:
                 pass
         args = ["--slug", slug]
     mp4 = OUT / f"{slug}.mp4"
-    subprocess.run([str(PY), "scripts/make_video.py", *args], cwd=str(ROOT), env=env, **_NO_WINDOW)
+    try:
+        subprocess.run([str(PY), "scripts/make_video.py", *args], cwd=str(ROOT), env=env,
+                       **_NO_WINDOW)
+    finally:
+        if _sc is not None:
+            _sc.release_render(slug)     # 成功失敗都要放,否則這支片從此渲不了
     ok = mp4.exists() and mp4.stat().st_size > 100 * 1024
     log_ops("渲染看守", f"{'渲染完成' if ok else '渲染失敗'}：{slug}")
     return ok

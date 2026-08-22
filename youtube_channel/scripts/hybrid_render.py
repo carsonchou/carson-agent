@@ -81,6 +81,15 @@ def cloud_pending():
 
 
 def _claim_local(slug) -> bool:
+    # 🔴 2026-08-22:原本「鎖 >LOCK_STALE(25分) 就可重認領」**只看鎖檔時間**——長片本來
+    #    就渲超過 25 分鐘,慢一點的渲染會被判成崩潰、鎖被搶走,於是同一支片跑出分身
+    #    (實況:泰藝 8289 同時兩個 make_video 跑了 239/165 分鐘,把全機記憶體吃到剩 749MB)。
+    #    改走 studio_common 的 PID 感知認領:接手必須「鎖過期」**且**「原程序真的不在了」。
+    try:
+        import studio_common as _sc
+        return _sc.claim_render(slug, stale_sec=int(LOCK_STALE))
+    except Exception:  # noqa: BLE001
+        pass
     lock = OUT / f"{slug}.lock"
     if lock.exists():
         try:
@@ -89,7 +98,7 @@ def _claim_local(slug) -> bool:
         except Exception:
             return False
     try:
-        lock.write_text(f"cloud {_now():.0f}", encoding="utf-8")
+        lock.write_text(f"cloud {_now():.0f} pid={os.getpid()}", encoding="utf-8")
         return True
     except Exception:
         return False
