@@ -81,6 +81,11 @@ def main() -> int:
     import daily_publish as dp
     led = dp.load_ledger()
     mp4s = [p.stem for p in OUT.glob("*.mp4")]
+    # 被 publish_skip 擋下的缺陷片:成品在但永遠發不出去,對回收判定而言等於沒產出
+    try:
+        skipped = list(dp._load_skip_set())
+    except Exception:  # noqa: BLE001
+        skipped = []
     facts = {}
     try:
         _f = json.loads(FACTS.read_text(encoding="utf-8"))
@@ -104,8 +109,14 @@ def main() -> int:
         def hit(pool):
             return any((code and code in s) or (len(name) >= 2 and name in s) for s in pool)
 
-        if hit(mp4s) or hit(led):
-            continue                      # 已有成品或已發布 → 不是流失
+        # 🔴 2026-08-22:「有 mp4 就算已產出」有個破口——被 publish_skip 擋下的缺陷片
+        # (期間偷換/【】洩漏/灌水)**永遠不會發布**,卻因為 mp4 在,讓這一檔被判定
+        # 「已產出」而不回收 → 該檔股票從體檢系列靜默消失。當天就有 16 支這種片。
+        # 判準改成:成品存在**且不在 skip 名單**才算真的產出過。
+        if hit(mp4s) and not hit(skipped):
+            continue                      # 有可用成品 → 不是流失
+        if hit(led):
+            continue                      # 已發布 → 不是流失
         if code and facts and code not in facts:
             continue                      # 事實不在了 → 退回 used 也產不出來,不碰
         lost.append((t, code, name, ti))
