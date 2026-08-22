@@ -230,6 +230,9 @@ def inject(f: Fluid, t, inks, rng, phases=None):
     np.clip(f.dye, 0.0, 2.5, out=f.dye)
 
 
+_RAMP_CACHE = {}
+
+
 def edge_blend(img, paper, px=10, bg=None):
     """邊界吸收帶(step 裡外 3 圈的 fade)在畫面上是一條可見的痕,
     暗底主題尤其明顯(實測樣片頂邊)。把最外 px 像素平滑羽化回底色蓋掉。
@@ -237,14 +240,19 @@ def edge_blend(img, paper, px=10, bg=None):
     rich 的環境光/高光會把空白區抬亮(暗底實測 +17/255),融向原始 paper
     等於在四邊畫一圈暗環。bg=None 時退回 paper(classic 渲染器適用)。"""
     h, w = img.shape[:2]
-    ramp = np.ones((h, w), np.float32)
-    e = np.linspace(0.0, 1.0, px, dtype=np.float32)
-    ramp[:px, :] = np.minimum(ramp[:px, :], e[:, None])
-    ramp[-px:, :] = np.minimum(ramp[-px:, :], e[::-1][:, None])
-    ramp[:, :px] = np.minimum(ramp[:, :px], e[None, :])
-    ramp[:, -px:] = np.minimum(ramp[:, -px:], e[::-1][None, :])
+    key = (h, w, px)
+    ramp = _RAMP_CACHE.get(key)
+    if ramp is None:                     # 每幀重算佔 0.022s/幀,快取掉
+        ramp = np.ones((h, w), np.float32)
+        e = np.linspace(0.0, 1.0, px, dtype=np.float32)
+        ramp[:px, :] = np.minimum(ramp[:px, :], e[:, None])
+        ramp[-px:, :] = np.minimum(ramp[-px:, :], e[::-1][:, None])
+        ramp[:, :px] = np.minimum(ramp[:, :px], e[None, :])
+        ramp[:, -px:] = np.minimum(ramp[:, -px:], e[::-1][None, :])
+        ramp = ramp[..., None]           # 預先加軸,省掉每幀 broadcasting 配置
+        _RAMP_CACHE[key] = ramp
     p = np.array(paper if bg is None else bg, np.float32)[None, None, :]
-    return img * ramp[..., None] + p * (1.0 - ramp[..., None])
+    return img * ramp + p * (1.0 - ramp)
 
 
 def render_frame(f: Fluid, paper, dark_theme):
@@ -276,7 +284,13 @@ def render_frame_rich(f: Fluid, paper, dark_theme):
     if dark_theme:
         # Reinhard tone-map:發光量壓縮但保色相——審核抓到熱核 clip 成純白
         # (f16-f24)失去色彩;壓過的核心亮而不白,黑房間不刺眼。
-        c = f.dye * 1.1 + cv2.GaussianBlur(f.dye, (0, 0), 6) * 0.30
+        # 標準 bloom:在 1/4 尺寸模糊再放大回來。sigma 同步縮成 1.5,
+        # 視覺與全尺寸 sigma=6 幾乎相同,但成本降到 ~1/16
+        # (剖析:全尺寸 GaussianBlur 佔全程 36%,是最大單一熱點)
+        small = cv2.resize(f.dye, (f.w // 4, f.h // 4), interpolation=cv2.INTER_AREA)
+        glow = cv2.resize(cv2.GaussianBlur(small, (0, 0), 1.5), (f.w, f.h),
+                          interpolation=cv2.INTER_LINEAR)
+        c = f.dye * 1.1 + glow * 0.30
         c = c / (1.0 + 0.60 * c.sum(axis=2, keepdims=True))
         img = np.array(paper, np.float32)[None, None, :] + c
         img *= (0.80 + 0.30 * diff)[..., None]
