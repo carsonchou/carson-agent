@@ -78,22 +78,33 @@ RICH_THEMES = {
     "indigo": ((0.92, 0.92, 0.94),
                [absorb((0.16, 0.30, 0.62)), absorb((0.30, 0.55, 0.70)),
                 absorb((0.48, 0.30, 0.66))]),
-    # tea=雨:冷灰藍紙底 + 藍/青綠冷色族(審核判舊版「像乾苔蘚不像雨」4.5/10)
+    # tea=雨:冷灰藍紙底 + 藍/青綠冷色族(審核判舊版「像乾苔蘚不像雨」4.5/10)。
+    # 🔴 這裡曾手填吸收值而非 absorb() —— 渲染結果碰巧是對的(藍青綠),但下一個人
+    #    照 docstring 補上 absorb() 就會翻回菸草褐。一律用外觀色 + absorb()。
     "tea": ((0.87, 0.89, 0.91),
-            [(0.85, 0.55, 0.15), (0.75, 0.28, 0.38), (0.55, 0.38, 0.18)]),
+            [absorb((0.10, 0.34, 0.62)), absorb((0.16, 0.55, 0.52)),
+             absorb((0.34, 0.46, 0.70))]),
     # slate 是加色(值=發光色,不經 absorb)。審核抓熱核過曝已用 tone-map 解;
     # 這裡再把琥珀金換成冷紫——金+藍相混是灰泥(新樣片中段可見),全冷色不會。
-    "slate": ((0.10, 0.11, 0.14),
-              [(0.55, 0.70, 0.95), (0.62, 0.84, 0.80), (0.70, 0.66, 0.92)]),
+    "slate": ((0.09, 0.10, 0.13),
+              [(0.26, 0.58, 1.00), (0.18, 0.86, 0.78), (0.62, 0.34, 1.00)]),
 }
 
 # 主題級物理參數(rich 用):睡眠版消散加快防 60 分鐘亮度爬到全白
 # (審核實測 35 秒 mean 52→72 = +38%,外推必炸);雨版注入加倍救洗白。
 RICH_PHYS = {
-    "ink":    {"dissipation": 0.020, "amt_mul": 1.15},
-    "indigo": {"dissipation": 0.020, "amt_mul": 1.0},
-    "tea":    {"dissipation": 0.022, "amt_mul": 1.9},
-    "slate":  {"dissipation": 0.040, "amt_mul": 1.05},
+    # vort=渦度約束強度(細絲與動態)、swirl=注入的旋轉動量倍率。
+    # slate 上輪幀差只有 2.50(比被判死的 tea 4.42 還低 43%)→ 兩者都拉高。
+    # buoy=浮力強度。氛圍片的甜蜜點是 1 秒幀差 ~6-9:低於 4.4 像靜止畫(上輪 slate
+    # 2.50 被判死),高於 ~12 太躁動不助眠(首版 ink 21/tea 24)。
+    "ink":    {"dissipation": 0.020, "amt_mul": 1.15, "vort": 9.0,
+               "swirl": 1.0, "buoy": 0.95},
+    "indigo": {"dissipation": 0.020, "amt_mul": 1.0, "vort": 9.0,
+               "swirl": 1.0, "buoy": 0.5},
+    "tea":    {"dissipation": 0.022, "amt_mul": 1.9, "vort": 10.0,
+               "swirl": 1.15, "buoy": 0.85},
+    "slate":  {"dissipation": 0.040, "amt_mul": 1.05, "vort": 13.0,
+               "swirl": 1.6, "buoy": 2.0},
 }
 
 
@@ -121,6 +132,11 @@ class Fluid:
         self.u = np.zeros((h, w), np.float32)      # 水平速度
         self.v = np.zeros((h, w), np.float32)      # 垂直速度
         self.dye = np.zeros((h, w, 3), np.float32) # 三通道染料
+        # 🔴 有號質量場:正=比水重(下沉)、負=比水輕(上浮)。
+        #    舊版用「墨的顏色」判斷輕重,審核驗算證明下沉條件是 R>4.07(G+B),
+        #    13 個染料色 0 個滿足 → 全部上浮,畫面永遠堆在上緣、底部 20% 空白。
+        #    密度差本來就是獨立於顏色的物理量,分開存才對。
+        self.mass = np.zeros((h, w), np.float32)
         yy, xx = np.mgrid[0:h, 0:w]
         self.xx = xx.astype(np.float32)
         self.yy = yy.astype(np.float32)
@@ -158,10 +174,11 @@ class Fluid:
         self.u -= 0.5 * (np.roll(p, -1, 1) - np.roll(p, 1, 1))
         self.v -= 0.5 * (np.roll(p, -1, 0) - np.roll(p, 1, 0))
 
-    def vorticity_confinement(self, dt, eps=9.0):
+    def vorticity_confinement(self, dt, eps=None):
         """Stable Fluids 的已知弱點是數值耗散把小渦抹掉 → 畫面糊。
         渦度約束(Fedkiw 2001):算出渦度 ω,朝 |ω| 梯度方向加回力,
         小旋渦被持續補強 → 墨水才有真實的細絲。eps 控強度。"""
+        eps = getattr(self, "vort", 9.0) if eps is None else eps
         w = (0.5 * (np.roll(self.v, -1, 1) - np.roll(self.v, 1, 1))
              - 0.5 * (np.roll(self.u, -1, 0) - np.roll(self.u, 1, 0)))
         aw = np.abs(w)
@@ -176,18 +193,21 @@ class Fluid:
         self.u = self.advect(self.u, dt, sim_scale)
         self.v = self.advect(self.v, dt, sim_scale)
         self.vorticity_confinement(dt)
-        # 浮力:依「墨的輕重」分向——第0通道(R吸收)高的墨偏冷重 → 下沉,
-        # 低的偏暖輕 → 上升。同畫面有上捲的煙+下墜的絲(審核指出缺垂墜感)。
-        density = self.dye.sum(axis=2)
-        heavy = self.dye[..., 0] - 0.45 * density
-        self.v -= (0.30 * density - 0.85 * heavy) * dt
+        # 浮力:由有號質量場驅動(v>0 = 向下)。重墨真的會沉下去,
+        # 輕墨上浮 → 同畫面同時有上捲的羽流與下墜的墨簾。
+        self.v += self.mass * 1.15 * dt
         self.project()
         self.dye = self.advect(self.dye, dt, sim_scale)
+        self.mass = self.advect(self.mass, dt, sim_scale)
         # 染料極慢消散,讓畫面不會最後全糊成一色(rich 依主題覆寫,防亮度爬升)
-        self.dye *= (1.0 - getattr(self, "dissipation", 0.016) * dt)
-        # 速度阻尼:水,不是煙
-        self.u *= (1.0 - 0.06 * dt)
-        self.v *= (1.0 - 0.06 * dt)
+        _dis = getattr(self, "dissipation", 0.016)
+        self.dye *= (1.0 - _dis * dt)
+        self.mass *= (1.0 - _dis * dt)
+        # 速度阻尼:水,不是煙。0.06→0.035:動量留得久,畫面靠**真實的流**在動,
+        # 而不是靠強打光的明暗閃爍製造假動感(那正是「像紙上煙霧」的來源)。
+        _damp = getattr(self, "damp", 0.035)
+        self.u *= (1.0 - _damp * dt)
+        self.v *= (1.0 - _damp * dt)
         # 🔴 邊界條件:np.roll 是環面(上緣接下緣)。不處理的話,
         #    浮力把墨推出上緣後會從下緣冒出來,畫面上下緣出現碎屑(實測截圖可見)。
         #    處理:最外 3 圈速度歸零 + 染料快速衰減 = 邊界像吸墨紙。
@@ -196,18 +216,22 @@ class Fluid:
             self.u[k, :] *= 0; self.u[-1 - k, :] *= 0
             self.v[k, :] *= 0; self.v[-1 - k, :] *= 0
             self.dye[k, :] *= fade; self.dye[-1 - k, :] *= fade
+            self.mass[k, :] *= fade; self.mass[-1 - k, :] *= fade
             self.u[:, k] *= 0; self.u[:, -1 - k] *= 0
             self.v[:, k] *= 0; self.v[:, -1 - k] *= 0
             self.dye[:, k] *= fade; self.dye[:, -1 - k] *= fade
+            self.mass[:, k] *= fade; self.mass[:, -1 - k] *= fade
 
 
-def inject(f: Fluid, t, inks, rng, phases=None):
+def inject(f: Fluid, t, inks, rng, phases=None, weights=None):
     """緩慢游走的墨源。位置由多個不可公度的正弦驅動 → 永不重複但連續。
     phases:每支片獨有的相位/頻率擾動(由 --seed 生成)——沒有它,同主題的
     兩支片動態會逐幀相同 = 模板量產,踩 inauthentic 紅線。"""
     n_src = len(inks)
     for i, ink in enumerate(inks):
         p0, fm = (phases[i] if phases else (0.0, 1.0))
+        # 輕重交替:一半的墨比水重會沉、一半比水輕會浮。
+        w = weights[i] if weights else (1.0 if i % 2 == 0 else -1.0)
         ph = t * (0.021 + 0.006 * i) * fm * 2 * math.pi + i * 2.4 + p0
         cx = f.w * (0.5 + 0.27 * math.sin(ph) * math.cos(ph * 0.37 + i))
         cy = f.h * (0.48 + 0.24 * math.sin(ph * 0.61 + 1.3 * i))
@@ -223,8 +247,11 @@ def inject(f: Fluid, t, inks, rng, phases=None):
         amt = 0.42 * DT * getattr(f, "amt_mul", 1.0)
         for c in range(3):
             f.dye[y0:y1, x0:x1, c] += g * ink[c] * amt
+        # 🔴 用 0.42*DT 而非 amt:amt 含染料濃度倍率(tea=1.9),連帶把浮力
+        #    放大成幀差 26 的躁動。濃度與輕重是兩件事,分開調。
+        f.mass[y0:y1, x0:x1] += g * w * (0.42 * DT) * 1.6 * getattr(f, "buoy", 1.0)
         # 注入一點旋轉的動量,墨才會捲
-        swirl = 6.0 * math.sin(t * 0.13 + i * 2.0)
+        swirl = 6.0 * getattr(f, "swirl", 1.0) * math.sin(t * 0.13 + i * 2.0)
         f.u[y0:y1, x0:x1] += g * (-gy / (r + 1e-6)) * swirl * DT
         f.v[y0:y1, x0:x1] += g * (gx / (r + 1e-6)) * swirl * DT
     np.clip(f.dye, 0.0, 2.5, out=f.dye)
@@ -233,7 +260,7 @@ def inject(f: Fluid, t, inks, rng, phases=None):
 _RAMP_CACHE = {}
 
 
-def edge_blend(img, paper, px=10, bg=None):
+def edge_blend(img, paper, px=5, bg=None):
     """邊界吸收帶(step 裡外 3 圈的 fade)在畫面上是一條可見的痕,
     暗底主題尤其明顯(實測樣片頂邊)。把最外 px 像素平滑羽化回底色蓋掉。
     🔴 bg 必須是「零染料時這個渲染器實際輸出的顏色」,不是原始 paper:
@@ -293,15 +320,17 @@ def render_frame_rich(f: Fluid, paper, dark_theme):
         c = f.dye * 1.1 + glow * 0.30
         c = c / (1.0 + 0.60 * c.sum(axis=2, keepdims=True))
         img = np.array(paper, np.float32)[None, None, :] + c
-        img *= (0.80 + 0.30 * diff)[..., None]
-        img += (spec * 0.12)[..., None]
-        bg = pap * (0.80 + 0.30 * diff0) + spec0 * 0.12
+        img *= (0.90 + 0.13 * diff)[..., None]
+        img += (spec * 0.035)[..., None]
+        bg = pap * (0.90 + 0.13 * diff0) + spec0 * 0.035
         return np.clip(edge_blend(img, paper, bg=bg), 0.0, 1.0)
     else:
         img = np.array(paper, np.float32)[None, None, :] * np.exp(-f.dye * 2.1)
-        img *= (0.80 + 0.26 * diff)[..., None]     # 打光讓絲有立體
-        img += (spec * 0.15)[..., None]            # 濕潤的高光
-    bg = pap * (0.80 + 0.26 * diff0) + spec0 * 0.15
+        # 打光刻意壓很輕:審核判定強定向光+高光是「像紙上煙霧不像水中墨」
+        # 的根因(真實水中墨是透射的,沒有表面反光)。只留一點體積暗示。
+        img *= (0.92 + 0.10 * diff)[..., None]
+        img += (spec * 0.04)[..., None]
+    bg = pap * (0.92 + 0.10 * diff0) + spec0 * 0.04
     return np.clip(edge_blend(img, paper, bg=bg), 0.0, 1.0)
 
 
@@ -341,6 +370,8 @@ class Drops:
         amt = 0.55 * self.strength
         for c in range(3):
             f.dye[y0:y1, x0:x1, c] += g * ink[c] * amt
+        # 滴進水裡的濃墨團比水重 → 下沉並拉出垂墜的墨簾
+        f.mass[y0:y1, x0:x1] += g * amt * 2.2 * getattr(f, "buoy", 1.0)
         # 徑向衝擊波 + 一點旋:炸開成環,之後被浮力捲成絲
         dist = np.sqrt(d2) + 1e-4
         push = 42.0 * self.strength * g
@@ -377,10 +408,17 @@ def main():
         ph_cfg = RICH_PHYS[a.theme]
         f.dissipation = ph_cfg["dissipation"]
         f.amt_mul = ph_cfg["amt_mul"]
+        f.vort = ph_cfg["vort"]
+        f.swirl = ph_cfg["swirl"]
+        f.buoy = ph_cfg["buoy"]
     rng = np.random.default_rng(a.seed)
     # 每個墨源一組 (相位偏移, 頻率倍率∈[0.75,1.35]) —— 軌跡族整個換掉
     phases = [(float(rng.uniform(0, 2 * math.pi)), float(rng.uniform(0.75, 1.35)))
               for _ in inks]
+    # 輕重權重:保證有沉有浮(交替後打散),強度隨機讓每支片的垂直節奏不同
+    weights = [(1.0 if i % 2 == 0 else -1.0) * float(rng.uniform(0.75, 1.25))
+               for i in range(len(inks))]
+    rng.shuffle(weights)
     sim_scale = GW / 96.0        # 平流步長相對網格的比例
 
     n = int(a.secs * FPS)
@@ -397,11 +435,13 @@ def main():
     if ckpt and ckpt.exists():
         st = np.load(ckpt)
         f.u[:], f.v[:], f.dye[:] = st["u"], st["v"], st["dye"]
+        if "mass" in st:                 # 舊存檔沒有 mass,當 0 續跑
+            f.mass[:] = st["mass"]
         t0 = float(st["t"])
         print(f"  從存檔續跑 t={t0:.1f}s")
     else:
         for i in range(int(a.warmup * FPS)):
-            inject(f, i * DT, inks, rng, phases)
+            inject(f, i * DT, inks, rng, phases, weights)
             if drops:
                 drops.maybe(f, i * DT)
             f.step(DT, sim_scale)
@@ -420,7 +460,7 @@ def main():
     wall = time.time()
     for i in range(n):
         t = t0 + i * DT
-        inject(f, t, inks, rng, phases)
+        inject(f, t, inks, rng, phases, weights)
         if drops:
             drops.maybe(f, t)
         f.step(DT, sim_scale)
@@ -431,7 +471,8 @@ def main():
     p.stdin.close()
     p.wait()
     if ckpt:
-        np.savez_compressed(ckpt, u=f.u, v=f.v, dye=f.dye, t=t0 + n * DT)
+        np.savez_compressed(ckpt, u=f.u, v=f.v, dye=f.dye, mass=f.mass,
+                            t=t0 + n * DT)
         print(f"  狀態已存 {ckpt}(t={t0 + n * DT:.1f}s)")
     print(f"完成 → {a.out}  實耗 {time.time()-wall:.0f}s")
 
