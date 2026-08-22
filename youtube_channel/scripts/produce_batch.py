@@ -3054,7 +3054,14 @@ def _long_content_padding(voice_text):
     chars_only = re.sub(r"[^一-鿿0-9]", "", t)
     n_gram = 10
     grams = Counter(chars_only[i:i + n_gram] for i in range(max(len(chars_only) - n_gram + 1, 0)))
-    return any(c >= 3 for c in grams.values())
+    # 門檻校準(2026-08-22，146 支現存長片實測)：原本設 >=3 太緊——實跑出來咬到的多半是
+    # **免責句與標題回扣**(「歷史回測資料非未來保證」x3、「沒人告訴你的殘酷真相」x3)，
+    # 那是正常結構(開場講一次/中段一次/結尾一次)不是灌水；真正的灌水是 x5 起跳
+    # (堡達「約197最大回撤約50」x5、泰藝同句 x67)。實測分佈：門檻 3 命中率 體檢26%/非體檢20%
+    # ——一個「四分之一長片都不合格」的 gate 不是在把關而是在停產；抬到 4 → 5%/4%，
+    # 且審核判定有缺陷的 10 支隔離片仍擋下 8 支。單一門檻對所有長片一致(不分體檢/一般，
+    # 避免又造出一條旁路——本檔已經因為 topic_override 旁路吃過一次大虧)。
+    return any(c >= 4 for c in grams.values())
 
 
 # 病灶A 跑題偵測用的「題材叢集」：同一叢集的詞＝同一個影片主題。

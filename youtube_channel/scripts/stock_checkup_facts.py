@@ -284,8 +284,18 @@ def calc_three_way_showdown(stock_s, bench_s, stock_name, years=10.0):
                     f"（年化 {pct(stock_pack['allin']['cagr'])}、最大回撤 {pct(stock_pack['allin']['max_drawdown'])}）；"
                     f"{stock_name}每月定期定額總報酬 {pct(stock_pack['dca']['total_return'])}"
                     f"（年化 {pct(stock_pack['dca']['cagr'])}、最大回撤 {pct(stock_pack['dca']['max_drawdown'])}）；"
-                    f"同期買進持有 {BENCH_NAME}（0050）總報酬 {pct(b_tr)}"
-                    f"（年化 {pct(b_cagr)}、最大回撤 {pct(b_mdd)}）"),
+                    # 🔴 2026-08-22 根因修復：這裡原本寫「**同期**買進持有 0050」。「同期」是
+                    # 相對詞，只在本段(近 N 年)的脈絡裡成立；而寫稿的 LLM 拿到的是
+                    # long_horizon(18~20 年)與本組(10 年)**兩條並排的 claim**，它把「同期」
+                    # 連同 0050 的數字整個抄去接 20 年的個股報酬，「同期」就從敘述變成謊。
+                    # 實測:已出廠體檢片 80% 中招、產線現況仍 50%——prompt 軟規則(LONG_RULES ⓜ)
+                    # 壓不住，gate 攔了也只是重生賭運氣(三次全中就停產)。把期間寫死進數字旁邊，
+                    # 讓「抄過去」這個動作本身就自帶期間，才是結構上的修法。
+                    f"同一{round(use_span,1)}年區間（{common_start.date()}起）買進持有 "
+                    f"{BENCH_NAME}（0050）總報酬 {pct(b_tr)}"
+                    f"（年化 {pct(b_cagr)}、最大回撤 {pct(b_mdd)}）"
+                    f"〔此 0050 數字**只適用這{round(use_span,1)}年**，不可拿去跟其他組"
+                    f"(如上市以來/近20年)的個股報酬並列說「同期」〕"),
     }
 
 
@@ -465,7 +475,7 @@ def build_checkup(code, name_override=None, refresh=False):
 
     # C. 單筆All-in vs 月定投(10年) vs 同期0050
     add(f"checkup_three_way__{code}",
-        "近10年(資料不足10年則用共同起點全段)：單筆All-in vs 每月定期定額 vs 同期買進持有0050",
+        "近10年(資料不足10年則用共同起點全段)：單筆All-in vs 每月定期定額 vs 同一區間買進持有0050",
         f"{name} 三種買法對決：All-in / 定期定額 / 0050", [code, name],
         calc_three_way_showdown(s, bench, name) if bench is not None else None)
 
