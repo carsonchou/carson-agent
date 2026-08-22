@@ -61,16 +61,39 @@ THEMES = {
 # --look rich 用的顏料級調色盤:值 = 各通道吸收係數(高=吸得多)。
 # 舊版低吸收 → 粉彩霧;這裡吸收強且通道差大 → 真水彩顏料的濃郁
 # (普魯士藍吸紅綠、深紅吸綠藍、氧化鉻綠吸紅藍、金赭吸藍)。
+def absorb(c):
+    """外觀色 → 吸收係數。🔴 減色渲染吃的是**吸收**不是外觀:
+    我第一版直接把外觀色填進去,結果「緋紅」(0.62,0.18,0.55) 實際吸紅+藍
+    = 渲染成綠色,審核抓到的「紅綠對撞混濁」根本沒被解決。
+    一律用本函式從外觀色換算,不要手填吸收值。"""
+    return tuple(round((1.0 - x) * 0.92, 3) for x in c)
+
+
 RICH_THEMES = {
+    # ink:靛→紫→洋紅→緋紅的**同弧配色**。任何兩色相混都落在這條弧上,
+    # 結構上不可能出現卡其泥(審核 f18-f26 的缺陷)。
     "ink": ((0.94, 0.92, 0.88),
-            [(0.85, 0.52, 0.14), (0.20, 0.85, 0.66), (0.62, 0.18, 0.55),
-             (0.75, 0.60, 0.12), (0.30, 0.42, 0.85)]),
+            [absorb((0.18, 0.24, 0.66)), absorb((0.42, 0.20, 0.64)),
+             absorb((0.68, 0.18, 0.48)), absorb((0.72, 0.16, 0.24))]),
     "indigo": ((0.92, 0.92, 0.94),
-               [(0.88, 0.60, 0.16), (0.70, 0.35, 0.10), (0.45, 0.65, 0.15)]),
-    "tea": ((0.95, 0.92, 0.86),
-            [(0.28, 0.55, 0.85), (0.55, 0.30, 0.75), (0.15, 0.45, 0.80)]),
-    "slate": ((0.10, 0.11, 0.14),          # 暗底:值 = 發光色(加色)
-              [(0.55, 0.70, 0.95), (0.90, 0.65, 0.35), (0.65, 0.85, 0.75)]),
+               [absorb((0.16, 0.30, 0.62)), absorb((0.30, 0.55, 0.70)),
+                absorb((0.48, 0.30, 0.66))]),
+    # tea=雨:冷灰藍紙底 + 藍/青綠冷色族(審核判舊版「像乾苔蘚不像雨」4.5/10)
+    "tea": ((0.87, 0.89, 0.91),
+            [(0.85, 0.55, 0.15), (0.75, 0.28, 0.38), (0.55, 0.38, 0.18)]),
+    # slate 是加色(值=發光色,不經 absorb)。審核抓熱核過曝已用 tone-map 解;
+    # 這裡再把琥珀金換成冷紫——金+藍相混是灰泥(新樣片中段可見),全冷色不會。
+    "slate": ((0.10, 0.11, 0.14),
+              [(0.55, 0.70, 0.95), (0.62, 0.84, 0.80), (0.70, 0.66, 0.92)]),
+}
+
+# 主題級物理參數(rich 用):睡眠版消散加快防 60 分鐘亮度爬到全白
+# (審核實測 35 秒 mean 52→72 = +38%,外推必炸);雨版注入加倍救洗白。
+RICH_PHYS = {
+    "ink":    {"dissipation": 0.020, "amt_mul": 1.15},
+    "indigo": {"dissipation": 0.020, "amt_mul": 1.0},
+    "tea":    {"dissipation": 0.022, "amt_mul": 1.9},
+    "slate":  {"dissipation": 0.040, "amt_mul": 1.05},
 }
 
 
@@ -153,13 +176,15 @@ class Fluid:
         self.u = self.advect(self.u, dt, sim_scale)
         self.v = self.advect(self.v, dt, sim_scale)
         self.vorticity_confinement(dt)
-        # 浮力:墨越濃的地方微微上升 → 自然的捲曲,不用手設計動作
+        # 浮力:依「墨的輕重」分向——第0通道(R吸收)高的墨偏冷重 → 下沉,
+        # 低的偏暖輕 → 上升。同畫面有上捲的煙+下墜的絲(審核指出缺垂墜感)。
         density = self.dye.sum(axis=2)
-        self.v -= density * 0.55 * dt
+        heavy = self.dye[..., 0] - 0.45 * density
+        self.v -= (0.30 * density - 0.85 * heavy) * dt
         self.project()
         self.dye = self.advect(self.dye, dt, sim_scale)
-        # 染料極慢消散,讓畫面不會最後全糊成一色
-        self.dye *= (1.0 - 0.016 * dt)
+        # 染料極慢消散,讓畫面不會最後全糊成一色(rich 依主題覆寫,防亮度爬升)
+        self.dye *= (1.0 - getattr(self, "dissipation", 0.016) * dt)
         # 速度阻尼:水,不是煙
         self.u *= (1.0 - 0.06 * dt)
         self.v *= (1.0 - 0.06 * dt)
@@ -195,7 +220,7 @@ def inject(f: Fluid, t, inks, rng, phases=None):
         gx = f.xx[y0:y1, x0:x1] - cx
         gy = f.yy[y0:y1, x0:x1] - cy
         g = np.exp(-(gx * gx + gy * gy) / (2 * r * r)).astype(np.float32)
-        amt = 0.42 * DT
+        amt = 0.42 * DT * getattr(f, "amt_mul", 1.0)
         for c in range(3):
             f.dye[y0:y1, x0:x1, c] += g * ink[c] * amt
         # 注入一點旋轉的動量,墨才會捲
@@ -205,9 +230,12 @@ def inject(f: Fluid, t, inks, rng, phases=None):
     np.clip(f.dye, 0.0, 2.5, out=f.dye)
 
 
-def edge_blend(img, paper, px=10):
+def edge_blend(img, paper, px=10, bg=None):
     """邊界吸收帶(step 裡外 3 圈的 fade)在畫面上是一條可見的痕,
-    暗底主題尤其明顯(實測樣片頂邊)。把最外 px 像素平滑羽化回紙色蓋掉。"""
+    暗底主題尤其明顯(實測樣片頂邊)。把最外 px 像素平滑羽化回底色蓋掉。
+    🔴 bg 必須是「零染料時這個渲染器實際輸出的顏色」,不是原始 paper:
+    rich 的環境光/高光會把空白區抬亮(暗底實測 +17/255),融向原始 paper
+    等於在四邊畫一圈暗環。bg=None 時退回 paper(classic 渲染器適用)。"""
     h, w = img.shape[:2]
     ramp = np.ones((h, w), np.float32)
     e = np.linspace(0.0, 1.0, px, dtype=np.float32)
@@ -215,7 +243,7 @@ def edge_blend(img, paper, px=10):
     ramp[-px:, :] = np.minimum(ramp[-px:, :], e[::-1][:, None])
     ramp[:, :px] = np.minimum(ramp[:, :px], e[None, :])
     ramp[:, -px:] = np.minimum(ramp[:, -px:], e[::-1][None, :])
-    p = np.array(paper, np.float32)[None, None, :]
+    p = np.array(paper if bg is None else bg, np.float32)[None, None, :]
     return img * ramp[..., None] + p * (1.0 - ramp[..., None])
 
 
@@ -241,19 +269,26 @@ def render_frame_rich(f: Fluid, paper, dark_theme):
     lx, ly, lz = -0.45, -0.62, 0.64          # 光源:左上前方
     diff = np.clip((-gx * lx - gy * ly + nz * lz) * inv, 0.0, 1.0)
     spec = np.clip((-gx * lx - gy * ly + nz * (lz + 1.0)) * inv * 0.55, 0.0, 1.0) ** 6
+    # 零染料時本渲染器的實際輸出色(gx=gy=0 → diff=lz, spec=((lz+1)*0.55)^6)
+    diff0 = lz
+    spec0 = min((lz + 1.0) * 0.55, 1.0) ** 6
+    pap = np.array(paper, np.float32)
     if dark_theme:
-        img = np.array(paper, np.float32)[None, None, :] + f.dye * 1.1
-        # 克制的輝光:亮部糊一層加回去(Carson 偏好:bloom 克制但要有質感)
-        glow = cv2.GaussianBlur(f.dye, (0, 0), 6)
-        img += glow * 0.30
+        # Reinhard tone-map:發光量壓縮但保色相——審核抓到熱核 clip 成純白
+        # (f16-f24)失去色彩;壓過的核心亮而不白,黑房間不刺眼。
+        c = f.dye * 1.1 + cv2.GaussianBlur(f.dye, (0, 0), 6) * 0.30
+        c = c / (1.0 + 0.60 * c.sum(axis=2, keepdims=True))
+        img = np.array(paper, np.float32)[None, None, :] + c
         img *= (0.80 + 0.30 * diff)[..., None]
         img += (spec * 0.12)[..., None]
-        return np.clip(edge_blend(img, paper), 0.0, 1.0)
+        bg = pap * (0.80 + 0.30 * diff0) + spec0 * 0.12
+        return np.clip(edge_blend(img, paper, bg=bg), 0.0, 1.0)
     else:
         img = np.array(paper, np.float32)[None, None, :] * np.exp(-f.dye * 2.1)
         img *= (0.80 + 0.26 * diff)[..., None]     # 打光讓絲有立體
         img += (spec * 0.15)[..., None]            # 濕潤的高光
-    return np.clip(edge_blend(img, paper), 0.0, 1.0)
+    bg = pap * (0.80 + 0.26 * diff0) + spec0 * 0.15
+    return np.clip(edge_blend(img, paper, bg=bg), 0.0, 1.0)
 
 
 class Drops:
@@ -324,6 +359,10 @@ def main():
     paper, inks = (RICH_THEMES if a.look == "rich" else THEMES)[a.theme]
     dark = a.theme == "slate"
     f = Fluid(GW, GH)
+    if a.look == "rich":
+        ph_cfg = RICH_PHYS[a.theme]
+        f.dissipation = ph_cfg["dissipation"]
+        f.amt_mul = ph_cfg["amt_mul"]
     rng = np.random.default_rng(a.seed)
     # 每個墨源一組 (相位偏移, 頻率倍率∈[0.75,1.35]) —— 軌跡族整個換掉
     phases = [(float(rng.uniform(0, 2 * math.pi)), float(rng.uniform(0.75, 1.35)))
