@@ -54,10 +54,12 @@ VIDEOS = {
     "B": {
         "file": "final_B.mp4", "thumb": "thumb_B.png",
         "title": "Sleep Ambient, Dark Screen — Slow Ink at Night (1 Hour) | Deep Sleep Music",
-        "desc": "One hour of near-darkness for sleep. Pale ink drifting on a dark "
-                "field — a real fluid simulation, slow enough to fall asleep to — "
-                "with original low ambient music: sparse notes, ten-second decays, "
-                "nothing sudden. The screen stays dark the whole hour.\n"
+        "desc": "One hour of near-darkness for sleep. Cool ink — ice blue, pale "
+                "aqua, faint violet — drifting through a dark field. A real fluid "
+                "simulation, slow enough to fall asleep to, with original low "
+                "ambient music: sparse notes, ten-second decays, nothing sudden. "
+                "The screen stays dark for the whole hour: no bright flashes, "
+                "nothing that will wake you.\n"
                 "00:00 Begin\n" + COMMON_DESC,
         "tags": ["sleep music", "dark screen", "deep sleep", "sleep aid",
                  "ambient sleep music", "insomnia relief", "1 hour", "calm music",
@@ -67,9 +69,12 @@ VIDEOS = {
     "C": {
         "file": "final_C.mp4", "thumb": "thumb_C.png",
         "title": "Gentle Rain & Soft Ambient — Ink on Paper (1 Hour) | Rain Sounds for Study, Sleep",
-        "desc": "One hour of gentle rain with soft, distant tones. Warm ink "
-                "spreading on paper — a real fluid simulation — while synthesised "
-                "rain rises and falls in slow waves that never repeat exactly.\n"
+        # 🔴 原文寫雨勢「never repeat exactly」是**假的**:音訊是 10 分鐘循環平鋪 6 次,
+        #    一小時內雨聲會重複 6 輪。COMMON_DESC 已誠實揭露循環,這句不可與它打架。
+        "desc": "One hour of gentle rain with soft, distant tones. Cool ink "
+                "spreading on paper — a real fluid simulation that runs "
+                "continuously for the full hour — while synthesised rain rises "
+                "and falls in slow waves.\n"
                 "00:00 Begin\n" + COMMON_DESC,
         "tags": ["rain sounds", "rain ambience", "study music", "sleep music",
                  "rain for sleeping", "gentle rain", "ambient music", "1 hour",
