@@ -4190,19 +4190,30 @@ def make_one(kind, no_render=False, topic_override=None, script_override=None):
         # 鐵證:同一個早上,非體檢題 4 次重生全記錄、一支 fail-closed;體檢 5 支零重生
         # 連續出廠,實跑判定 2 支期間偷換、1 支【】洩漏、5/5 密度不足。
         #
-        # ⚠️ 修法刻意**只開兩道無爭議的**(期間偷換 + 【】洩漏,皆 module-level 函式,
+        # ⚠️ 修法只用 module-level 函式(期間偷換/【】洩漏/長度/密度),
         # 不碰 _long_bad closure——它定義在 not topic_override 分支,引用會 NameError,
-        # 本檔第五次差點踩同一坑)。密度 gate 對體檢文體 5/5 命中,直接全開會讓整條
-        # 體檢產線 fail-closed 停產;等對體檢文體校準後再開,審核報告同此建議。
+        # 本檔第五次差點踩同一坑)。首版只開前兩道,因為密度 gate 對體檢文體 5/5 命中
+        # 會讓整條產線停產;同日校準門檻(>=3→>=4)後命中率降到 1%,四道全開。
         # 重生鎖同題(topic_override 原樣傳回),與體檢鎖題的設計一致;2 次仍中 → fail-closed,
         # 該檔的題由週日 checkup_recover_lost 回收重抽,不會永久流失。
         _t2 = 0
+
         def _uncontroversial_bad(_d):
             _v = _d.get("voice_text", "")
             if _long_mixed_period(_v):
                 return "期間偷換"
             if "【" in _v:
                 return "【】prompt欄位洩漏(會被TTS唸出來)"
+            # 2026-08-22 校準後補上的兩道(當日稍早只開上面兩道,因為密度 gate 對體檢
+            # 文體 5/5 命中會讓整條產線停產)。門檻校準完(n-gram >=3 → >=4,146 支實測
+            # 命中率 26%→5%)後,這兩道對體檢片的實測命中率各 1%,可以安全納入。
+            # 仍刻意**不**引用 _long_bad closure——它定義在 not topic_override 分支,
+            # 跨分支引用會 NameError(本檔已因這類跨作用域坑吃過五次虧),這裡只呼叫
+            # module-level 函式。
+            if _long_underlength(_v):
+                return "長度不足(撐不出真 8-10 分鐘)"
+            if _long_content_padding(_v):
+                return "資訊密度不足(同組數字/片語重複灌水撐時長)"
             return None
         while _uncontroversial_bad(d) and _t2 < 2:
             _t2 += 1
