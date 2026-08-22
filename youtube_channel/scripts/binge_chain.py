@@ -84,7 +84,12 @@ STRICT_BLOCK_RE = re.compile(
     + r"https://www\.youtube\.com/watch\?v=[\w-]+&list=[\w-]+" + "\n"
     + "📺 本系列自動連播:\n"
     + r"https://www\.youtube\.com/playlist\?list=[\w-]+" + "\n"
-    + "🔔 訂閱不漏接:https://www.youtube.com/@" + HANDLE + r"\?sub_confirmation=1" + "\n"
+    # 🔴 2026-08-22 線上實查抓到:08-21 首輪寫進 125 支的區塊用的是 **@CarsonQuant**
+    #    (大寫),而後來重構把 HANDLE 定成小寫 "carsonquant" → 這條 fullmatch **永遠不成立**,
+    #    於是 apply_block 一律回 "stale-block-malformed",125 支從此被判「區塊被人改過」
+    #    永久跳過(每天 17:05 白跑,而且看起來一切正常——這種靜默失效最難發現)。
+    #    YouTube handle 本來就不分大小寫,同一個頻道,所以這裡改成大小寫皆可。
+    + "🔔 訂閱不漏接:https://www.youtube.com/@(?i:" + HANDLE + r")\?sub_confirmation=1" + "\n"
     + re.escape(BAR))
 
 
