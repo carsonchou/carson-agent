@@ -483,3 +483,10 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 #   2026-08-22 Carson 親自發現「留言沒有回」(兩則好問題擱置 23h/8min 系統毫無知覺)。
 #   只偵測+ntfy 推播,不自動回——真問題要帶數據的真回答,模板回不了,亂承諾風險大於晚回。
 33 15 * * * /root/yt/run.sh scripts/comment_watchdog.py >> /root/yt/logs/cron.log 2>&1
+
+# 音軌語言回填(2026-08-22 建):產線上傳從沒設 defaultAudioLanguage,YouTube 自己猜——
+# 全頻道 946 支裡 213 支被猜成 en-US(旁白是中文)、595 支空著隨時會被猜錯。這欄決定
+# 自動翻譯字幕來源、自動配音資格與**語言別推薦對象**,標成英語=把中文台股片推給英語觀眾。
+# 上傳端已修(daily_publish),存量 808 支分批補:每日 60 支 ≈ 3,000 units,約 14 天補完。
+# 冪等(已是 zh* 就跳過),補完會自己變成 no-op,不必記得回來刪。
+25 15 * * * /root/yt/run.sh scripts/fix_audio_language.py --apply --max 60 >> /root/yt/logs/cron.log 2>&1

@@ -900,6 +900,11 @@ def upload_one(yt, slug: str, privacy: str) -> str:
             "tags": _tags,
             "categoryId": category_id,
             "defaultLanguage": "zh-Hant",
+            # 🔴 2026-08-22:本欄原本沒設,YouTube 就自己猜——實測全頻道 946 支裡
+            # **214 支被猜成 "en-US"**(旁白明明是中文),595 支空著隨時可能被猜錯。
+            # 這欄決定自動翻譯字幕、自動配音資格與語言別推薦對象;標成英語等於
+            # 把一支中文台股影片推給英語觀眾。存量由 fix_audio_language.py 分批回填。
+            "defaultAudioLanguage": "zh-Hant",
         },
         # 不是兒童內容(保留留言/廣告/推薦) + 允許嵌入(站外流量是演算法加分訊號)
         "status": {"privacyStatus": privacy, "selfDeclaredMadeForKids": False, "embeddable": True},
