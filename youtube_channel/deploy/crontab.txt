@@ -465,7 +465,6 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # 櫥窗一次性重建(⚠️ 只該跑 2026-08-22 這一次,跑完請刪本行):08-21 兩實例互洗+facelift
 #   同日改門面,櫥窗翻倍到 10 個。storefront 已改成不碰 trailer、個股體檢排位置 1,
 #   與 facelift 分工不再衝突。排 15:20 = facelift(15:05)之後,單實例。
-20 15 22 8 * /root/yt/run.sh scripts/channel_storefront.py --apply >> /root/yt/logs/cron.log 2>&1 # ONESHOT=2026-08-22
 
 # 追劇鏈成效報告(每天 07:50,只報告不動產線):對比佈署(08-21)前後的
 #   PLAYLIST/RELATED/每觀看秒數三軸——沒有對比報告,一週後只能憑感覺說「好像有用」。
@@ -490,3 +489,10 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # 上傳端已修(daily_publish),存量 808 支分批補:每日 60 支 ≈ 3,000 units,約 14 天補完。
 # 冪等(已是 zh* 就跳過),補完會自己變成 no-op,不必記得回來刪。
 25 15 * * * /root/yt/run.sh scripts/fix_audio_language.py --apply --max 60 >> /root/yt/logs/cron.log 2>&1
+
+# 搜尋縮圖翻新(2026-08-23 建):近28天 YT_SEARCH 佔 40% 觀看時數,搜尋詞全是赤裸股票名
+# → 體檢片是「台股個股的搜尋佔位」,搜尋結果那張縮圖就是點擊決策點,而且是常青的。
+# 實查線上縮圖抓到:08-17 排版修復之前產的還掛著舊圖(藥華藥主標印「【藥華藥」括號沒關)。
+# thumbnails.set 只換圖、保留 videoId/觀看/排名 = 純賺。每日 30 支(1,500 units),
+# 自檢不過就跳過(寧可留舊圖也不換上更糟的);換過的記檔,換完自動 no-op。
+35 15 * * * /root/yt/run.sh scripts/refresh_search_thumbs.py --apply --max 30 >> /root/yt/logs/cron.log 2>&1

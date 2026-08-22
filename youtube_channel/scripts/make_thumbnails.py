@@ -1176,12 +1176,27 @@ def _force_stock_identity(cfg: dict, slug: str, title: str) -> dict:
     """
     if "個股體檢" not in (slug or "") and "個股體檢" not in (title or ""):
         return cfg
-    m = _re.search(r"個股體檢([一-鿿]{2,6}?)(\d{4})", slug or "")
-    if not m:
-        m = _re.search(r"個股體檢([一-鿿]{2,6}?)(\d{4})", title or "")
-    if not m:
-        return cfg
-    name, code = m.group(1), m.group(2)
+    # 🔴 2026-08-23:原本的 `([一-鿿]{2,6}?)(\d{4})` 只認純中文股名,實測漏兩類:
+    #    ①「貿聯-KY3665」「世芯-KY3661」——名字裡有 -KY(外國企業來台上市,不少支)
+    #    ②「個股體檢EP1台積電2330」——早期帶 EP 編號的標題
+    #    漏掉的後果不是少美化一點,是**identity 修正整段跳過**,縮圖直接印出
+    #    「個股體檢貿聯」「個股體檢EP1台」這種帶系列前綴又斷字的主標,
+    #    而搜尋「貿聯」的人看到的就是那張圖。名字允許夾 -KY/*/英數。
+    # 代號:一般個股 4 碼;ETF 是 0 開頭的 5 碼(00878)。**不能寫 \d{4,6} 貪心比對**
+    # ——「台積電2330**20年**」會被吃成 23302。先試 0 開頭 5 碼,再退 4 碼。
+    _NAME_RE = r"個股體檢(?:EP\d+)?([一-鿿]{1,6}(?:[-－][A-Za-z]{1,3})?)\*?(0\d{4}|\d{4})"
+    # ETF 常寫成「代號在前」(個股體檢00878國泰永續高股息)——不吃這型的話,
+    # identity 修正整段跳過,主標會印出「個股體檢」四個系列字。
+    _CODE_FIRST_RE = r"個股體檢(0\d{4}|\d{4})([一-鿿]{1,6})"
+    m = _re.search(_NAME_RE, slug or "") or _re.search(_NAME_RE, title or "")
+    if m:
+        name, code = m.group(1), m.group(2)
+    else:
+        m2 = _re.search(_CODE_FIRST_RE, slug or "") or _re.search(_CODE_FIRST_RE, title or "")
+        if not m2:
+            return cfg
+        code, name = m2.group(1), m2.group(2)
+        m = m2
     l1 = str(cfg.get("l1") or ""); l2 = str(cfg.get("l2") or "")
     # 🔴 「已經有識別資訊」不等於「排版是對的」。實測保底路徑會直接截標題前 8 字,
     #    產出第一行 =「個股體檢【頎邦」——**括號斷在一半**,而且「個股體檢」四個字
@@ -1203,14 +1218,31 @@ def _force_stock_identity(cfg: dict, slug: str, title: str) -> dict:
     # **l1 留給數字、l2 放股名代號**,兩個需求同時滿足(第二行仍是大字,搜尋來的人
     # 一眼認得出標的)。只有在 l1 髒掉或根本沒有數字時,才退回讓識別資訊佔 l1。
     _has_num = bool(_re.search(r"\d", l1)) and not _dirty
-    ident = ("%s%s" % (name, code))[:8]
+    # 識別字串:代號**絕不可以被切**(那正是觀眾搜尋打的字)。太長只砍名字那半。
+    # 舊寫法 ("%s%s")[:8] 會把「貿聯-KY3665」切成「貿聯-KY366」,代號少一位就對不上了。
+    _maxn = max(2, 12 - len(code))
+    ident = (name if len(name) <= _maxn else name[:_maxn]) + code
     if _has_num:
         cfg["l1"] = l1[:10]      # 數字行保住最大字級
         cfg["l2"] = ident        # 識別資訊放第二行(仍是大字)
     else:
-        cfg["l1"] = ident
-        # 原本的 l1 若髒就丟掉(不要把殘缺括號搬到第二行繼續髒),否則保留當鉤子。
-        cfg["l2"] = ((l2 or l1) if _dirty else (l1 or l2))[:10]
+        # 🔴 2026-08-23:走到這裡代表 l1 沒有數字或髒掉。舊做法是 l1=識別、l2=撿剩的鉤子,
+        # 而實測撿到的多半是垃圾(「KY366515年暴」「看完秒懂」)。2026-08-13 官方 CTR 數據
+        # 說本頻道前三名縮圖全是「大數字+結果詞」在第一行,所以這裡改成:
+        # **先從標題把績效數字撈出來當 l1**,識別資訊放 l2(仍是大字);撈不到才退回舊做法。
+        _perf = _re.search(r"(?:暴漲|暴賺|狂賺|大賺|賺|報酬|翻|漲)\s*([\d.,]+)\s*(%|％|倍)", title or "")
+        _l2_bad = (not l2) or l2 in ("看完秒懂",) or _re.search(r"^[A-Za-z]{1,3}\d", l2)             or (code and code[:3] in l2 and name not in l2)
+        if _perf:
+            _n = _perf.group(1).rstrip(".,")
+            cfg["l1"] = f"{_n}{'倍' if _perf.group(2) == '倍' else '%'}獲利!"
+            cfg["l2"] = ident
+        else:
+            cfg["l1"] = ident
+            _keep = (l2 if not _l2_bad else "") or ("" if _dirty else l1)
+            # 句子斷在半路的尾字要清掉——實測產出「最大回撤64.5%你」,那個孤零零的
+            # 「你」讀起來就是壞掉的。寧可短一點也不要留半句話。
+            _keep = _keep[:10].rstrip("你但而卻就還竟是在把被的了和與跟對從").strip()
+            cfg["l2"] = _keep or "長期回測"
     return cfg
 
 
