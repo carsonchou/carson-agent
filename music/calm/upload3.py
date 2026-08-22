@@ -101,9 +101,12 @@ def upload_one(yt, key, privacy):
     print(f"\n[{key}] {cfg['title']}")
     print(f"    檔案 {video.name} {video.stat().st_size/1024/1024:.0f}MB  隱私 {privacy}")
     body = {
+        # 🔴 不要設 defaultAudioLanguage="zxx"(無語言內容):實測 API 回
+        #    INVALID_REQUEST_METADATA 直接拒收。這欄位是選填,純演奏曲留空即可
+        #    (先前成功上傳的那支用的是 "en")。zxx 只有 Studio UI 接受。
         "snippet": {"title": cfg["title"], "description": cfg["desc"],
                     "tags": cfg["tags"], "categoryId": "10",
-                    "defaultLanguage": "en", "defaultAudioLanguage": "zxx"},
+                    "defaultLanguage": "en"},
         "status": {"privacyStatus": privacy,
                    "selfDeclaredMadeForKids": False,
                    "license": "youtube", "embeddable": True},
@@ -157,6 +160,9 @@ def main():
     which, privacy = sys.argv[1], sys.argv[2]
     if privacy not in ("public", "unlisted", "private"):
         print(f"隱私值不合法:{privacy}"); return 1
+    if which not in ("all", *VIDEOS):
+        print(f"影片代號不合法:{which}(可用 all / {' / '.join(VIDEOS)})")
+        return 1
     keys = list(VIDEOS) if which == "all" else [which]
     yt = svc()
     me = yt.channels().list(part="snippet", mine=True).execute()["items"][0]
