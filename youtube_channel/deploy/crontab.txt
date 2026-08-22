@@ -117,7 +117,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # 節奏實驗自動評估(2026-08-28 一次性):7→3/天實驗的前後窗對照報告(BROWSE/中位/訂閱/
 #   分鐘)。實驗期到 08-25,+2 天等 Analytics 延遲清空才可比(memory 假警報教訓)。
 #   工具只報告不動產線;產出 STUDIO/REPORTS/<date>_節奏實驗對照.md。
-40 6 28 8 * /root/yt/run.sh scripts/cadence_experiment_report.py >> /root/yt/logs/cron.log 2>&1
+40 6 28 8 * /root/yt/run.sh scripts/cadence_experiment_report.py >> /root/yt/logs/cron.log 2>&1 # ONESHOT=2026-08-28
 # 描述章節回填餘量(2026-08-12 建;2026-08-17 改為 --fix-existing):
 #   ⚠️ 08-12 那批用的舊 build_chapters_block 產出的章節**時間是錯的**——實測 90 支
 #   已補的片裡 63 支有真實錯位、最大偏 -64 秒,且集中在流量最高的片(台半1934觀看
@@ -465,7 +465,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # 櫥窗一次性重建(⚠️ 只該跑 2026-08-22 這一次,跑完請刪本行):08-21 兩實例互洗+facelift
 #   同日改門面,櫥窗翻倍到 10 個。storefront 已改成不碰 trailer、個股體檢排位置 1,
 #   與 facelift 分工不再衝突。排 15:20 = facelift(15:05)之後,單實例。
-20 15 22 8 * /root/yt/run.sh scripts/channel_storefront.py --apply >> /root/yt/logs/cron.log 2>&1
+20 15 22 8 * /root/yt/run.sh scripts/channel_storefront.py --apply >> /root/yt/logs/cron.log 2>&1 # ONESHOT=2026-08-22
 
 # 追劇鏈成效報告(每天 07:50,只報告不動產線):對比佈署(08-21)前後的
 #   PLAYLIST/RELATED/每觀看秒數三軸——沒有對比報告,一週後只能憑感覺說「好像有用」。

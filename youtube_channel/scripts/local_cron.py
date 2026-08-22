@@ -141,6 +141,14 @@ def parse_jobs():
         if not m:
             continue
         mi, ho, dom, mon, dow, cmd = m.groups()
+        # 一次性排程守衛(2026-08-22 審核指出):cron 的欄位裡**沒有年**,所以
+        # `20 15 22 8 *`(只該跑 2026-08-22 那一次)明年 8/22 會原封不動再放一次,
+        # 全靠人記得回來刪那一行——而人不會記得。行尾標 `# ONESHOT=YYYY-MM-DD`
+        # 就只在那天生效,過期自動失效(行留著當紀錄,也不用擔心忘了刪)。
+        # 真 cron 那邊 `#` 之後由 shell 當註解吃掉,兩邊行為一致。
+        _os = re.search(r"#\s*ONESHOT=(\d{4}-\d{2}-\d{2})", cmd)
+        if _os and _os.group(1) != datetime.now().strftime("%Y-%m-%d"):
+            continue
         if any(k in cmd for k in SKIP_MARKERS):
             continue
         # 抽出 scripts/X.py 及其參數（run.sh scripts/X.py args >> log）

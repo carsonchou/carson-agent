@@ -239,7 +239,9 @@ def apply_block(desc, block):
         if ln.strip():
             at = i if ln.strip().startswith("📌") else i + 1
             break
-    new_lines = lines[:at] + ["", block, ""] + lines[at:]
+    # at==0(插在最前面)時不要再前置空行——描述開頭多一行空白,YouTube 預覽的
+    # 前兩行就少掉一行有效資訊。
+    new_lines = lines[:at] + ([block, ""] if at == 0 else ["", block, ""]) + lines[at:]
     new = "\n".join(new_lines)
     if BLOCK_RE.sub("", new, count=1).replace("\n\n\n", "\n\n").strip() \
             != desc.replace("\n\n\n", "\n\n").strip():
@@ -315,10 +317,19 @@ def main():
         #    「▶ 下一集(EPxx):https://youtu.be/XXX」(EP 序)。兩個「下一集」各指一支
         #    會讓觀眾混亂 → 遇到就**採納它的目標**(EP 序的追劇語意更強),
         #    本區塊補它缺的 &list= 自動連播與訂閱鈕。它那行照insertion-only原則不動。
+        #    ⚠️ 2026-08-22 審核指出本段語意自毀:採納 EP 目標之後,下面 334 行又把那條
+        #    EP 行**刪掉**(為了不出現兩個「下一集」),於是下一輪重跑時證據已不存在,
+        #    m_ep 比不到 → 默默改回代號序,跟上面「採納 EP 序」的宣告自相矛盾,
+        #    還每輪多燒 50 units/支。採納既然是對的,就要**釘住**:記進 state 的 pin,
+        #    往後每輪都照它走(EP 行被刪也不影響)。
+        _rec = done.get(r["vid"]) or {}
+        _pin = _rec.get("pin")
         m_ep = re.search("▶ 下一集[^\n]*?youtu\\.be/([\\w-]{11})",
                          sn.get("description", ""))
         if m_ep and m_ep.group(1) != r["vid"]:
-            r = dict(r, next=m_ep.group(1))
+            _pin = m_ep.group(1)
+        if _pin and _pin != r["vid"]:
+            r = dict(r, next=_pin)
         if r["next"]:
             block = BLOCK_TMPL.format(nxt=r["next"], pl=r["pl"])
         else:
@@ -362,6 +373,8 @@ def main():
             continue
         done[r["vid"]] = {"next": r["next"], "at": time.strftime("%F %T"),
                           "action": action}
+        if _pin:
+            done[r["vid"]]["pin"] = _pin   # EP 序採納釘住,別讓下一輪改回代號序
         save_state(state)
         ok += 1
         if ok % 20 == 0:
