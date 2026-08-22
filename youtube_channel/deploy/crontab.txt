@@ -478,3 +478,8 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 #   登入態重用 MCP Chrome profile(片尾自動化同款);profile 被佔用會優雅跳過。
 #   一天一篇冪等;發布前後都截圖留證(UI 自動化的「已發布」判定脆弱,片尾教訓)。
 40 7 * * * /root/yt/run.sh scripts/community_post.py --apply >> /root/yt/logs/cron.log 2>&1
+
+# 未回覆留言偵測(每天 15:30 配額新鮮時,1~2 units 幾乎免費):
+#   2026-08-22 Carson 親自發現「留言沒有回」(兩則好問題擱置 23h/8min 系統毫無知覺)。
+#   只偵測+ntfy 推播,不自動回——真問題要帶數據的真回答,模板回不了,亂承諾風險大於晚回。
+30 15 * * * /root/yt/run.sh scripts/comment_watchdog.py >> /root/yt/logs/cron.log 2>&1
