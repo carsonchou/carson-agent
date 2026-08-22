@@ -95,16 +95,24 @@ RICH_THEMES = {
 RICH_PHYS = {
     # vort=渦度約束強度(細絲與動態)、swirl=注入的旋轉動量倍率。
     # slate 上輪幀差只有 2.50(比被判死的 tea 4.42 還低 43%)→ 兩者都拉高。
-    # buoy=浮力強度。氛圍片的甜蜜點是 1 秒幀差 ~6-9:低於 4.4 像靜止畫(上輪 slate
-    # 2.50 被判死),高於 ~12 太躁動不助眠(首版 ink 21/tea 24)。
-    "ink":    {"dissipation": 0.020, "amt_mul": 1.15, "vort": 9.0,
-               "swirl": 1.0, "buoy": 0.95},
+    # buoy=浮力強度。
+    # 🔴 動態**不要**用幀差衡量:它 ≈ 真實位移 × 訊號振幅 × 覆蓋率,對暗底主題
+    #    嚴重低估(審核實測:光流顯示三支真實運動只差 11%,幀差卻差 3.2 倍)。
+    #    我曾據此把 slate 的 buoy 拉到 2.0,製造出「底部堆積+撞穿下緣」的新缺陷。
+    #    主指標改用**光流位移 px/秒**(只取有內容的像素),目前甜蜜點 2.6-2.9;
+    #    對比(std)獨立成另一個指標,別和動態混在一起。
+    # ink 消散 0.042:上 1/6 覆蓋 55.8% = 墨鋪滿整幅、負空間流失(審核 R3),
+    # 且頂緣持續被 edge_blend 抹平。加快消散讓墨團收小,紙面回來。
+    "ink":    {"dissipation": 0.042, "amt_mul": 0.95, "vort": 9.0,
+               "swirl": 1.0, "buoy": 2.2},
     "indigo": {"dissipation": 0.020, "amt_mul": 1.0, "vort": 9.0,
                "swirl": 1.0, "buoy": 0.5},
-    "tea":    {"dissipation": 0.022, "amt_mul": 1.9, "vort": 10.0,
-               "swirl": 1.15, "buoy": 0.85},
-    "slate":  {"dissipation": 0.040, "amt_mul": 1.05, "vort": 13.0,
-               "swirl": 1.6, "buoy": 2.0},
+    "tea":    {"dissipation": 0.022, "amt_mul": 1.9, "vort": 13.5,
+               "swirl": 1.15, "buoy": 1.7},
+    # slate 浮力拉回 1.8:零均值強制後,高浮力產生的是**上下對流**(有沉必有浮),
+    # 不再是單向漂移。光流 0.55 太靜(ink 2.02/tea 2.51),這是安全的加速方式。
+    "slate":  {"dissipation": 0.038, "amt_mul": 1.75, "vort": 13.0,
+               "swirl": 1.6, "buoy": 4.5},
 }
 
 
@@ -202,7 +210,7 @@ class Fluid:
         # 染料極慢消散,讓畫面不會最後全糊成一色(rich 依主題覆寫,防亮度爬升)
         _dis = getattr(self, "dissipation", 0.016)
         self.dye *= (1.0 - _dis * dt)
-        self.mass *= (1.0 - _dis * dt)
+        self.mass *= (1.0 - _dis * getattr(self, "mass_dis_mul", 3.0) * dt)
         # 速度阻尼:水,不是煙。0.06→0.035:動量留得久,畫面靠**真實的流**在動,
         # 而不是靠強打光的明暗閃爍製造假動感(那正是「像紙上煙霧」的來源)。
         _damp = getattr(self, "damp", 0.035)
@@ -338,8 +346,10 @@ class Drops:
     """墨滴事件:一滴墨砸進水面,炸開成環+絲。這是 ink-in-water 類型的
     招牌畫面(也是縮圖的戲劇性來源)。cadence 依主題:專注中等、睡眠稀疏、
     雨主題密集小滴(和雨聲音軌在概念上同一件事)。"""
-    CADENCE = {"ink": (22.0, 40.0, 1.0), "indigo": (25.0, 45.0, 1.0),
-               "tea": (4.0, 9.0, 0.45), "slate": (45.0, 80.0, 0.7)}
+    # (最短間隔, 最長間隔, 強度)。墨滴是畫面上最大的「事件」,間隔太長會讓
+    # 長片有大段什麼都沒發生;slate 原本 45-80 秒,40 秒樣片可能一滴都不出現。
+    CADENCE = {"ink": (18.0, 34.0, 1.1), "indigo": (25.0, 45.0, 1.0),
+               "tea": (4.0, 9.0, 0.5), "slate": (20.0, 38.0, 1.0)}
 
     def __init__(self, theme, inks, rng):
         lo, hi, self.strength = self.CADENCE.get(theme, (25.0, 45.0, 1.0))
@@ -358,6 +368,8 @@ class Drops:
         cy = float(rng.uniform(0.18, 0.72)) * f.h
         r = float(rng.uniform(4.0, 8.0)) * self.strength + 2.5
         ink = self.inks[int(rng.integers(0, len(self.inks)))]
+        # 三分之一的滴是「輕滴」(上浮),否則墨滴本身就是單向下沉偏壓
+        self._sign = -0.8 if rng.random() < 0.34 else 1.0
         x0, x1 = int(max(0, cx - 5 * r)), int(min(f.w, cx + 5 * r))
         y0, y1 = int(max(0, cy - 5 * r)), int(min(f.h, cy + 5 * r))
         if x0 >= x1 or y0 >= y1:
@@ -371,7 +383,7 @@ class Drops:
         for c in range(3):
             f.dye[y0:y1, x0:x1, c] += g * ink[c] * amt
         # 滴進水裡的濃墨團比水重 → 下沉並拉出垂墜的墨簾
-        f.mass[y0:y1, x0:x1] += g * amt * 2.2 * getattr(f, "buoy", 1.0)
+        f.mass[y0:y1, x0:x1] += g * amt * 2.2 * self._sign * getattr(f, "buoy", 1.0)
         # 徑向衝擊波 + 一點旋:炸開成環,之後被浮力捲成絲
         dist = np.sqrt(d2) + 1e-4
         push = 42.0 * self.strength * g
@@ -415,9 +427,16 @@ def main():
     # 每個墨源一組 (相位偏移, 頻率倍率∈[0.75,1.35]) —— 軌跡族整個換掉
     phases = [(float(rng.uniform(0, 2 * math.pi)), float(rng.uniform(0.75, 1.35)))
               for _ in inks]
-    # 輕重權重:保證有沉有浮(交替後打散),強度隨機讓每支片的垂直節奏不同
-    weights = [(1.0 if i % 2 == 0 else -1.0) * float(rng.uniform(0.75, 1.25))
-               for i in range(len(inks))]
+    # 輕重權重:保證有沉有浮,強度隨機讓每支片的垂直節奏不同。
+    # 🔴 必須強制零均值:交替符號 +−+ 在**奇數**墨源下總和恆為正
+    #    (3 源實測值域 [+0.27,+1.70]、100% 淨下沉;shuffle 不改變總和),
+    #    結果整團墨壓在畫面下半、撞穿下緣。ink 之所以平衡只是因為它剛好是偶數源。
+    _w = np.array([(1.0 if i % 2 == 0 else -1.0) * float(rng.uniform(0.75, 1.25))
+                   for i in range(len(inks))], np.float32)
+    _w -= _w.mean()                      # 淨浮力為零:有沉必有浮,總量相抵
+    if np.abs(_w).max() < 1e-6:          # 退化情形(單一墨源)才給固定值
+        _w = np.array([1.0] * len(inks), np.float32)
+    weights = [float(x) for x in _w]
     rng.shuffle(weights)
     sim_scale = GW / 96.0        # 平流步長相對網格的比例
 
