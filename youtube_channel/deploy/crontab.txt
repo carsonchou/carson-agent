@@ -17,12 +17,12 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # 白帽流量四招（都在製作 06:07 前跑完，產的題目當天就做成片；錯開 5 分避免同時寫 topic_bank.json）：
 # ⓪異常爆款偵測(1of10自架,餵寄生彈藥) ①搶首發熱點(插隊題庫最前) ②寄生競品爆款 ③長片切片漏斗
 # 2026-07-16 配額預算輪值制:每天→週日一次(週日只有4支發布有餘裕)
-40 5 * * 0 /root/yt/run.sh scripts/outlier_scan.py --top 20 --min-views 3000 --min-ratio 3 --days 150 >> /root/yt/logs/cron.log 2>&1
+43 5 * * 0 /root/yt/run.sh scripts/outlier_scan.py --top 20 --min-views 3000 --min-ratio 3 --days 150 >> /root/yt/logs/cron.log 2>&1
 20 */3 * * * /root/yt/run.sh scripts/hotspot_dept.py --max 8 >> /root/yt/logs/cron.log 2>&1
-50 5 * * * /root/yt/run.sh scripts/parasite_titles.py --count 8 >> /root/yt/logs/cron.log 2>&1
+47 5 * * * /root/yt/run.sh scripts/parasite_titles.py --count 8 >> /root/yt/logs/cron.log 2>&1
 55 5 * * * /root/yt/run.sh scripts/shorts_funnel.py --max 1 --per 6 >> /root/yt/logs/cron.log 2>&1
 # TradingView 全攻略課程:--next 依序餵下2個課程EP(由淺入深)、--review 挖2支熱門腳本拆穿(永動題源);都在製作前餵
-52 5 * * * /root/yt/run.sh scripts/tv_curriculum.py --next 2 >> /root/yt/logs/cron.log 2>&1
+56 5 * * * /root/yt/run.sh scripts/tv_curriculum.py --next 2 >> /root/yt/logs/cron.log 2>&1
 54 5 * * * /root/yt/run.sh scripts/tv_curriculum.py --review 2 >> /root/yt/logs/cron.log 2>&1
 40 5 * * * /root/yt/run.sh scripts/topics_from_facts.py --min-tw 60 >> /root/yt/logs/cron.log 2>&1
 # 個股體檢每日出集(2026-07-15任務，Carson拍板：台股1900多檔一隻發一集)：backlog依成交值排序
@@ -482,4 +482,4 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # 未回覆留言偵測(每天 15:30 配額新鮮時,1~2 units 幾乎免費):
 #   2026-08-22 Carson 親自發現「留言沒有回」(兩則好問題擱置 23h/8min 系統毫無知覺)。
 #   只偵測+ntfy 推播,不自動回——真問題要帶數據的真回答,模板回不了,亂承諾風險大於晚回。
-30 15 * * * /root/yt/run.sh scripts/comment_watchdog.py >> /root/yt/logs/cron.log 2>&1
+33 15 * * * /root/yt/run.sh scripts/comment_watchdog.py >> /root/yt/logs/cron.log 2>&1

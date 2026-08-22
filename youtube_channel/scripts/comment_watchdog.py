@@ -32,7 +32,13 @@ def main() -> int:
     r = yt.commentThreads().list(
         part="snippet,replies", allThreadsRelatedToChannelId="UCqP5JQXlQR5ZDLtEiBt4kLA",
         maxResults=100, order="time").execute()
+    # 去重(2026-08-22 審核指出):無狀態檔會讓同批未回覆留言每天重複推播,
+    # 疲勞轟炸的下場是通知被忽略。已推播過的 thread id 記檔,只推新出現的。
+    import json as _json
+    _sf = ROOT / "STUDIO" / "comment_watchdog_seen.json"
+    _seen = set(_json.loads(_sf.read_text(encoding="utf-8"))) if _sf.exists() else set()
     pending = []
+    _new_ids = []
     for it in r.get("items", []):
         top = it["snippet"]["topLevelComment"]["snippet"]
         au = top.get("authorDisplayName", "")
@@ -42,10 +48,14 @@ def main() -> int:
                 for x in (it.get("replies", {}).get("comments") or [])]
         if any("CarsonQuant" in a or "量化阿森" in a for a in reps):
             continue
+        _tid = it["snippet"]["topLevelComment"]["id"]
+        if _tid in _seen:
+            continue
+        _new_ids.append(_tid)
         pending.append((top.get("publishedAt", "")[:16], au,
                         (top.get("textDisplay") or "").replace("<br>", " ")[:60]))
     if not pending:
-        print("✅ 沒有未回覆的觀眾留言")
+        print("✅ 沒有(新的)未回覆觀眾留言")
         return 0
     print(f"🔴 未回覆觀眾留言 {len(pending)} 則:")
     for t, au, tx in pending:
@@ -56,6 +66,8 @@ def main() -> int:
         notify.push(f"有 {len(pending)} 則觀眾留言沒回", body, tag="speech_balloon")
     except Exception:  # noqa: BLE001
         pass
+    _seen.update(_new_ids)
+    _sf.write_text(_json.dumps(sorted(_seen)), encoding="utf-8")
     return 0
 
 
