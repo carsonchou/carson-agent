@@ -26,11 +26,14 @@ except Exception:  # noqa: BLE001
     pass
 
 
+CHANNEL_ID = "UCqP5JQXlQR5ZDLtEiBt4kLA"
+
+
 def main() -> int:
     import daily_publish as dp
     yt = dp.get_service()
     r = yt.commentThreads().list(
-        part="snippet,replies", allThreadsRelatedToChannelId="UCqP5JQXlQR5ZDLtEiBt4kLA",
+        part="snippet,replies", allThreadsRelatedToChannelId=CHANNEL_ID,
         maxResults=100, order="time").execute()
     # 去重(2026-08-22 審核指出):無狀態檔會讓同批未回覆留言每天重複推播,
     # 疲勞轟炸的下場是通知被忽略。已推播過的 thread id 記檔,只推新出現的。
@@ -39,33 +42,51 @@ def main() -> int:
     _seen = set(_json.loads(_sf.read_text(encoding="utf-8"))) if _sf.exists() else set()
     pending = []
     _new_ids = []
+    # 自家身分判定(2026-08-22 審核指出 displayName 太脆):顯示名稱隨時可改,
+    # 改了就會把自己的回覆當成觀眾留言、或反過來把某個名字含「量化阿森」的觀眾
+    # 誤判成自己而永遠不提醒。改用 channelId 這個不會變的識別;
+    # displayName 只留作 fallback(萬一 API 沒回 authorChannelId)。
+    def _is_self(sn):
+        cid = ((sn.get("authorChannelId") or {}).get("value") or "")
+        if cid:
+            return cid == CHANNEL_ID
+        au = sn.get("authorDisplayName", "")
+        return "CarsonQuant" in au or "量化阿森" in au
+
     for it in r.get("items", []):
         top = it["snippet"]["topLevelComment"]["snippet"]
         au = top.get("authorDisplayName", "")
-        if "CarsonQuant" in au or "量化阿森" in au:
+        if _is_self(top):
             continue
-        reps = [x["snippet"].get("authorDisplayName", "")
-                for x in (it.get("replies", {}).get("comments") or [])]
-        if any("CarsonQuant" in a or "量化阿森" in a for a in reps):
+        if any(_is_self(x["snippet"])
+               for x in (it.get("replies", {}).get("comments") or [])):
             continue
         _tid = it["snippet"]["topLevelComment"]["id"]
-        if _tid in _seen:
-            continue
-        _new_ids.append(_tid)
+        if _tid not in _seen:
+            _new_ids.append(_tid)
         pending.append((top.get("publishedAt", "")[:16], au,
-                        (top.get("textDisplay") or "").replace("<br>", " ")[:60]))
+                        (top.get("textDisplay") or "").replace("<br>", " ")[:60], _tid))
     if not pending:
-        print("✅ 沒有(新的)未回覆觀眾留言")
+        print("✅ 沒有未回覆的觀眾留言")
         return 0
-    print(f"🔴 未回覆觀眾留言 {len(pending)} 則:")
-    for t, au, tx in pending:
-        print(f"   {t}  {au[:14]}  {tx}")
-    try:
-        import notify
-        body = "\n".join(f"{au}: {tx}" for _, au, tx in pending[:5])
-        notify.push(f"有 {len(pending)} 則觀眾留言沒回", body, tag="speech_balloon")
-    except Exception:  # noqa: BLE001
-        pass
+    # 去重的語意要小心:單純「推過就不再推」會讓**一直沒人回的那則**從此消失——
+    # 那正是 Carson 這次親自抓到的原況(擱置 23 小時、系統毫無知覺)。
+    # 定案:**有新的才推播**(不疲勞轟炸),但推播內容列出**全部**未回覆的,
+    # 舊的標「⏳」。這樣既不天天吵,積欠的也不會被靜音。
+    print(f"🔴 未回覆觀眾留言 {len(pending)} 則(其中 {len(_new_ids)} 則是新的):")
+    for t, au, tx, tid in pending:
+        print(f"   {'🆕' if tid in _new_ids else '⏳'} {t}  {au[:14]}  {tx}")
+    if _new_ids:
+        try:
+            import notify
+            body = "\n".join(f"{'🆕' if tid in _new_ids else '⏳'}{au}: {tx}"
+                             for _, au, tx, tid in pending[:6])
+            notify.push(f"有 {len(pending)} 則觀眾留言沒回"
+                        f"({len(_new_ids)} 新)", body, tag="speech_balloon")
+        except Exception:  # noqa: BLE001
+            pass
+    else:
+        print("   (沒有新的,不推播;上面的仍待回)")
     _seen.update(_new_ids)
     _sf.write_text(_json.dumps(sorted(_seen)), encoding="utf-8")
     return 0
