@@ -3688,7 +3688,19 @@ def _long_mixed_period(voice_text, slug=""):
     t = voice_text or ""
     sents = _re.split(r"(?<=[。!?！？])", t)
     for i, s in enumerate(sents):
-        if not _re.search(r"同期|同一段時間|同樣的時間", s):
+        # ⚠️ 2026-08-22 A/B 實測補洞:原本只認字面「同期」三個變體,實跑抓到漏網——
+        # 【放寬的代價已量過】非體檢長片命中率 25%→28%,多擋的 2 支是誤殺
+        # (「這段期間的起始點」講的是自己的回測窗、「同一時間領到薪水」根本不是對比)。
+        # 試過加一道「對照句必須引到數字」把誤殺壓掉(→23%/62%),但那會放掉
+        # 「我們來看看同期買進持有 0050 的結果。」這種過場句——它本身沒說謊,
+        # 可是下一句的數字就沒人管了。**維持嚴格**:誤判成本 = 多重生一次(非體檢路徑
+        # 重生 4 次,25% 命中率下真正 fail-closed 只有 0.4%),漏判成本 = 謊言出廠。
+        # 這條線的生存線是誠信,不是產量。
+        # 「相較之下，0050 在**同段期間**的累積報酬高達 729%」被判乾淨放行。
+        # 模型講「同一段期間」的方式遠不只三種,把常見同義詞一併收進來
+        # (同段/相同/同一/同樣 × 期間/時間/時期,以及「同時期」「這段期間」)。
+        if not _re.search(r"同期|同時期|同一?段?(?:期間|時間|時期)|相同(?:期間|時間|時期)"
+                          r"|同樣的(?:時間|期間)|這段(?:期間|時間)", s):
             continue
         if not _re.search(r"0050|零零五零|臺灣五零|台灣五十|臺灣五十|臺灣50|台灣50", s):
             continue
@@ -3696,8 +3708,57 @@ def _long_mixed_period(voice_text, slug=""):
         # 「聯鈞**二十年**總報酬 4322.4%。有趣的是,同期 0050 是 685.3%」被放行了
         # ——而前一句那個「二十年」正是問題本身(685.3% 其實是 10 年的)。
         # 觀眾聽到對照那一句時就必須知道是哪段期間,所以年數要在同一句裡。
-        if not _re.search(r"[\d零一二三四五六七八九十]{1,3}(?:點[\d零一二三四五六七八九]+)?\s*年", s):
+        # 年數要連小數一起抓:「10.0年」若只抓到「0」,會把正確句子誤判成偷換(實測踩到)。
+        _yrs_in_s = _re.findall(
+            r"([\d零一二三四五六七八九十]{1,3}(?:[.．點][\d零一二三四五六七八九]+)?)\s*年", s)
+        if not _yrs_in_s:
             return True
+        # 🔴 2026-08-22 A/B 實測補的第二個洞:「同一句有年數就放行」預設一句只有一個
+        # 期間,可是最惡劣的偷換正好是**同句**發生的:
+        #     「加高 18.6 年賺 239%，同期 0050 賺 729.4%」
+        # 那句有年數(18.6)所以舊判準放行,但 729.4% 是 10 年的數字——這句話字面上
+        # 就在宣稱 0050 十年的報酬是 18.6 年的成績。純文字判準到此為止,
+        # 再往下只能**用事實庫錨定**:0050 的報酬數字只存在於 three_way 那一組,
+        # 而那組的年數是已知的;句子裡搬出的年份若跟它對不上 → 就是偷換。
+        # 查不到事實(非體檢片/無代號)就維持原本的文字判準,不亂擋。
+        # slug/標題裡的數字不只代號(「存20年賺6100%」也會中),所以把所有 4~6 位數字
+        # 都試一遍,取**真的有 three_way 事實**的那個當代號——查得到才算數,查不到就
+        # 退回文字判準。這樣呼叫端傳 slug 或標題都行。
+        _cands = _re.findall(r"(\d{4,6})", slug or "")
+        if _cands:
+            try:
+                _fp = ROOT / "STUDIO" / "stock_checkup_facts.json"
+                _fj = json.loads(_fp.read_text(encoding="utf-8"))["results"]
+                _tw = ""
+                for _c in _cands:
+                    _cand = (_fj.get("checkup_three_way__" + _c) or {}).get("claim", "")
+                    if _cand:
+                        _tw = _cand
+                        break
+                _ty = _re.match(r"近([\d.]+)年", _tw)
+                _b50 = _re.search(r"0050）總報酬 (-?[\d.]+)%", _tw)
+                if _ty and _b50:
+                    _tyv = float(_ty.group(1))
+                    # 這句有沒有搬出 three_way 的 0050 數字(容忍四捨五入到整數)
+                    _n50 = float(_b50.group(1))
+                    _cited = any(abs(float(x) - _n50) < 1.0
+                                 for x in _re.findall(r"(\d+(?:\.\d+)?)\s*%", s))
+                    if _cited:
+                        _cn = {"十": 10, "二十": 20, "十八": 18, "十五": 15, "十二": 12}
+                        _ok = False
+                        for _y in _yrs_in_s:
+                            _v = _cn.get(_y)
+                            if _v is None:
+                                try:
+                                    _v = float(_y.replace("點", "."))
+                                except ValueError:
+                                    continue
+                            if abs(_v - _tyv) < 1.0:
+                                _ok = True
+                        if not _ok:
+                            return True      # 引用了 10 年的 0050 數字,卻掛在別的年數上
+            except Exception:  # noqa: BLE001
+                pass                          # 事實庫讀不到就不加碼判,維持文字判準
     return False
 
 
@@ -4083,7 +4144,7 @@ def make_one(kind, no_render=False, topic_override=None, script_override=None):
             # ④c 期間偷換(2026-08-20:64 支已發布片中招)。個股體檢的 long_horizon 是
             # 20 年、three_way 是 10 年,拿前者的個股報酬配後者的 0050 報酬寫「同期」,
             # 數字都真但期間錯,效果是**低估 0050**——正好在觀眾最會檢查的地方出錯。
-            if _long_mixed_period(_v):
+            if _long_mixed_period(_v, _d.get("title", "")):
                 return "期間偷換(拿20年個股報酬配10年0050報酬寫『同期』,講0050對照時必須標明年數)"
             # ④d prompt 欄位名洩漏進旁白(2026-08-20:堡達 3537 那支整行照抄
             # 「【本段專屬事實】」,會被 TTS 唸出來)。旁白裡的【】沒有一個是合法用法
@@ -4200,7 +4261,7 @@ def make_one(kind, no_render=False, topic_override=None, script_override=None):
 
         def _uncontroversial_bad(_d):
             _v = _d.get("voice_text", "")
-            if _long_mixed_period(_v):
+            if _long_mixed_period(_v, _d.get("title", "")):
                 return "期間偷換"
             if "【" in _v:
                 return "【】prompt欄位洩漏(會被TTS唸出來)"
