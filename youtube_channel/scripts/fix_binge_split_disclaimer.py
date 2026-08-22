@@ -118,10 +118,18 @@ def main() -> int:
             stats["skip_not_split"] += 1
             continue
 
-        # 拿掉區塊 → 應還原成「📌 整段連續」的樣子
+        # 拿掉區塊 → 應還原成「📌 整段連續」的樣子。
+        # 🔴 獨立驗證員實測抓到:第一版寫 `naked.replace("\n\n\n","\n\n")` 是**全域**替換,
+        #    會順手收掉描述後段**使用者自己文案裡**的空行(38 支中 6 支中招,有一支被收掉 2 處);
+        #    而下面的還原檢查用 `.replace("\n","")` 把所有換行都刪掉再比,**結構上看不見**這種改動。
+        #    改成只正規化「📌 標題後面那個接縫」,其餘一個字元都不碰。
         naked = bc.BLOCK_RE.sub("", desc, count=1)
-        naked = naked.replace("\n\n\n", "\n\n").lstrip("\n")
-        after = naked[naked.index(MARK) + len(MARK):].lstrip("\n")
+        _i = naked.index(MARK) + len(MARK)
+        _j = _i
+        while _j < len(naked) and naked[_j] == "\n":
+            _j += 1
+        naked = naked[:_i] + "\n" + naked[_j:]
+        after = naked[_i:].lstrip("\n")
         if not after.strip():
             print(f"[skip] {vid} 拿掉區塊後 📌 沒有正文,異常不碰 {title}")
             stats["skip_restore"] += 1
@@ -145,24 +153,41 @@ def main() -> int:
             continue
 
         if not args.apply:
+            # 🔴 只印前 3 行是不夠的:驗證員抓到的空行誤傷正好在描述後段,前 3 行完全看不到。
+            #    改印**逐行 diff**(含空行,用 repr 讓看不見的字元現形)。
+            import difflib
             print(f"[dry] {vid} {title}")
-            print("      改前前3行:", " ⏎ ".join(desc.split("\n")[:3])[:110])
-            print("      改後前3行:", " ⏎ ".join(new_desc.split("\n")[:3])[:110])
+            d = [l for l in difflib.unified_diff(
+                desc.split("\n"), new_desc.split("\n"), lineterm="", n=1)][2:]
+            if not d:
+                print("      (無差異)")
+            for l in d[:14]:
+                print("      " + (repr(l) if l.strip() in ("+", "-") else l[:96]))
+            if len(d) > 14:
+                print(f"      …(共 {len(d)} 行差異)")
             stats["fixed"] += 1
             continue
 
         try:
             BK.mkdir(parents=True, exist_ok=True)
             (BK / f"{vid}.json").write_text(json.dumps(sn, ensure_ascii=False), encoding="utf-8")
+            # 🔴 fail-closed:categoryId 原本寫 sn.get("categoryId","22") ——一旦哪支缺這欄,
+            #    就會**靜默**把影片分類改成 22(People & Blogs)。這 38 支實際都是 27(教育),
+            #    但預設值本身是地雷。缺欄就直接跳過該支,不猜。
+            if not sn.get("categoryId"):
+                print(f"[skip] {vid} 缺 categoryId,不猜分類 {title}")
+                stats["skip_restore"] += 1
+                continue
             body = {
                 "id": vid,
                 "snippet": {
                     "title": sn.get("title"), "description": new_desc,
-                    "categoryId": sn.get("categoryId", "22"),
-                    "tags": sn.get("tags", []),
+                    "categoryId": sn.get("categoryId"),
+                    "tags": sn.get("tags"),
                     "defaultLanguage": sn.get("defaultLanguage"),
                 },
             }
+            # tags 是 None(API 沒回)就不送,讓 YouTube 保留原值;是 [] 代表本來就沒有,照送。
             body["snippet"] = {k: v for k, v in body["snippet"].items() if v is not None}
             yt.videos().update(part="snippet", body=body).execute()
             stats["fixed"] += 1

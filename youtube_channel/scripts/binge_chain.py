@@ -237,16 +237,24 @@ def apply_block(desc, block):
         return new, "replaced"
     lines = desc.split("\n")
     # 插在第一個非空行之後(第一行通常是鉤子句,保持在最上面)。
-    # 例外:第一行是「📌」開頭的誠信加註標題(62 支期間加註片)——插它後面會把
-    # 標題和正文劈開(2026-08-21 首輪 124 支實測踩到),改插在它前面保加註完整。
-    at = 1
-    for i, ln in enumerate(lines):
-        if ln.strip():
-            at = i if ln.strip().startswith("📌") else i + 1
-            break
-    # at==0(插在最前面)時不要再前置空行——描述開頭多一行空白,YouTube 預覽的
-    # 前兩行就少掉一行有效資訊。
-    new_lines = lines[:at] + ([block, ""] if at == 0 else ["", block, ""]) + lines[at:]
+    # 例外:第一行是「📌」開頭的誠信加註(標題 1 行 + 正文數行)。這裡踩過兩次:
+    #   ①第一版插在「第一個非空行之後」= 卡在標題與正文之間,把認錯啟事劈成兩半
+    #     (2026-08-21 首輪 38 支實測中招)。
+    #   ②第二版改插在它**前面**,加註是完整了,但描述第一行變成推廣區塊,
+    #     認錯啟事被壓到第 8 行——用推廣蓋住道歉,方向錯了。
+    # 定案:插在 📌 **整段之後**。加註完整、而且仍在最上面;追劇區塊緊接其後。
+    first_i = next((i for i, ln in enumerate(lines) if ln.strip()), 0)
+    if lines[first_i].strip().startswith("📌"):
+        j = first_i + 1
+        while j < len(lines) and lines[j].strip():
+            j += 1                      # j = 📌 段落後的第一個空行(或檔尾)
+        if j < len(lines):
+            at, ins = j + 1, [block, ""]        # 前面已經有空行,不再補一個
+        else:
+            at, ins = len(lines), ["", block]
+    else:
+        at, ins = first_i + 1, ["", block, ""]
+    new_lines = lines[:at] + ins + lines[at:]
     new = "\n".join(new_lines)
     if BLOCK_RE.sub("", new, count=1).replace("\n\n\n", "\n\n").strip() \
             != desc.replace("\n\n\n", "\n\n").strip():
