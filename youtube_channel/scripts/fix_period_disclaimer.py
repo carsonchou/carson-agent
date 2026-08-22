@@ -76,6 +76,55 @@ def _views_map():
         return {}
 
 
+def _refresh_candidates(rows):
+    """把候選名單重算一次並併回去(2026-08-22 修)。
+
+    原本 SRC 是 2026-08-20 掃出來的**靜態快照**(62 筆),之後新發布的片就算中招也
+    永遠不會進名單——實測當天就已經漏了 21 支(全是 08-20 之後發布的)。
+    改成每次跑都用產線本尊的 `_long_mixed_period` 重掃台帳,聯集進名單。
+
+    ⚠️ 精準度優先:這支工具的動作是**在已公開的影片上加一則認錯啟事**,
+    對沒錯的影片加註等於憑空自認有錯,比漏加更傷。所以這裡比產線閘門嚴一級——
+    只收「命中句本身有引到數字(%/倍)」的,濾掉像
+    「成千上萬的上班族幾乎都在同一時間領到薪水…元大台灣50」這種順帶提及
+    (實測就是這一支被誤收)。產線閘門那邊維持寬鬆(誤判只是多重生一次)。
+    """
+    import re as _re
+    try:
+        import produce_batch as _pb
+        led = json.loads((ROOT / "STUDIO" / "uploaded_ledger.json").read_text(encoding="utf-8"))
+    except Exception as exc:  # noqa: BLE001
+        print(f"[warn] 候選名單重算跳過({str(exc)[:60]}),沿用既有名單")
+        return rows
+    _num = _re.compile(r"\d+(?:\.\d+)?\s*%|\d+(?:\.\d+)?\s*倍|百分之[零一二三四五六七八九十百]+")
+    have = {r[1] for r in rows}
+    added = 0
+    for slug, vid in led.items():
+        if not isinstance(vid, str) or not vid or not slug.startswith("L_") or vid in have:
+            continue
+        vp = ROOT / "output" / f"{slug}.voice.txt"
+        if not vp.exists():
+            continue
+        t = vp.read_text(encoding="utf-8", errors="replace")
+        if not _pb._long_mixed_period(t, slug):
+            continue
+        # 命中句必須自己引了數字才收(見 docstring 的精準度優先)
+        hit_sents = [s for s in _re.split(r"(?<=[。!?！？])", t)
+                     if _pb._long_mixed_period(s, slug)]
+        if not any(_num.search(s) for s in hit_sents):
+            continue
+        rows.append([slug, vid, "auto-refresh"])
+        added += 1
+    if added:
+        try:
+            import studio_common as sc
+            sc.save_json_atomic(SRC, rows)
+        except Exception:  # noqa: BLE001
+            SRC.write_text(json.dumps(rows, ensure_ascii=False), encoding="utf-8")
+        print(f"候選名單重算:新增 {added} 支(名單原本是靜態快照,新發布的片以前進不來)")
+    return rows
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--apply", action="store_true")
@@ -84,6 +133,7 @@ def main() -> int:
 
     import daily_publish as dp
     rows = json.loads(SRC.read_text(encoding="utf-8"))
+    rows = _refresh_candidates(rows)
     done = set(json.loads(DONE.read_text(encoding="utf-8"))) if DONE.exists() else set()
     views = _views_map()
     cands = [(s, v) for s, v, _ in rows if v not in done]
