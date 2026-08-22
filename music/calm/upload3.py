@@ -25,6 +25,7 @@ from googleapiclient.http import MediaFileUpload
 
 ROOT = pathlib.Path(__file__).resolve().parent
 CH2 = pathlib.Path(r"D:\carson-agent\yt_ch2")
+EXPECT_CHANNEL = "UCbo4EytWhZ7zAGSoIPioJ5g"     # One Quiet Hour(ch2)
 SCOPES = ["https://www.googleapis.com/auth/youtube.upload",
           "https://www.googleapis.com/auth/youtube.readonly",
           "https://www.googleapis.com/auth/youtube.force-ssl"]
@@ -34,7 +35,7 @@ COMMON_DESC = """
 About this video (honest notes):
 • The visuals are a real fluid-dynamics simulation (Navier-Stokes equations, computed frame by frame). Nothing is AI-generated imagery — every wisp of ink is physics. The simulation runs continuously for the full hour and never loops or repeats.
 • The music is original, synthesised note by note in code. It is not from a stock library and not AI-generated audio. The piece loops seamlessly every 10 minutes by design — ambient music should have no destination.
-• No mid-roll ads. No voice. No sudden loud moments.
+• No voice. No sudden loud moments.
 """
 
 VIDEOS = {
@@ -45,7 +46,7 @@ VIDEOS = {
                 "a real fluid simulation, evolving for the whole hour and never repeating — "
                 "with original ambient music in D pentatonic: no clashing notes, "
                 "no melody to follow, nothing that asks for your attention.\n"
-                "00:00 Begin\n" + COMMON_DESC,
+                + COMMON_DESC,
         "tags": ["focus music", "deep work", "study music", "ambient music",
                  "concentration music", "work music", "coding music", "1 hour",
                  "calm music", "background music", "ink in water", "fluid art",
@@ -60,10 +61,12 @@ VIDEOS = {
                 "ambient music: sparse notes, ten-second decays, nothing sudden. "
                 "The screen stays dark for the whole hour: no bright flashes, "
                 "nothing that will wake you.\n"
-                "00:00 Begin\n" + COMMON_DESC,
+                + COMMON_DESC,
+        # 「black screen sleep」已移除:實測幀均亮度 50/255(約 20%),是暗不是黑。
+        # 純黑省電族群點進來會失望 → 換來倒讚。標題/描述用的「dark」才準確。
         "tags": ["sleep music", "dark screen", "deep sleep", "sleep aid",
                  "ambient sleep music", "insomnia relief", "1 hour", "calm music",
-                 "relaxing music", "night music", "black screen sleep",
+                 "relaxing music", "night music", "sleep visuals",
                  "meditation music", "wind down"],
     },
     "C": {
@@ -75,7 +78,7 @@ VIDEOS = {
                 "spreading on paper — a real fluid simulation that runs "
                 "continuously for the full hour — while synthesised rain rises "
                 "and falls in slow waves.\n"
-                "00:00 Begin\n" + COMMON_DESC,
+                + COMMON_DESC,
         "tags": ["rain sounds", "rain ambience", "study music", "sleep music",
                  "rain for sleeping", "gentle rain", "ambient music", "1 hour",
                  "relaxing rain", "white noise", "rain no thunder", "cozy rain",
@@ -117,7 +120,8 @@ def upload_one(yt, key, privacy):
                 print(f"    上傳 {p}%"); last = p
     vid = resp["id"]
     print(f"    videoId={vid}  輪詢處理狀態…")
-    for i in range(30):
+    processed = False
+    for i in range(160):          # 40 分鐘:1GB 的 60 分鐘片,舊版 7.5 分鐘遠遠不夠
         items = yt.videos().list(part="status", id=vid).execute().get("items", [])
         if not items:
             print(f"    [X] 影片查不到(通常=被拒)。videoId={vid}")
@@ -127,9 +131,12 @@ def upload_one(yt, key, privacy):
             print(f"    [X] 被拒:{items[0]['status'].get('rejectionReason')}")
             return None
         if us == "processed":
-            print("    處理完成 ✓")
+            print("    處理完成 ✓"); processed = True
             break
         time.sleep(15)
+    if not processed:
+        print("    ⚠️ 輪詢 40 分鐘仍未 processed —— 影片可能還在處理,"
+              "請稍後自行到 Studio 確認狀態再改隱私")
     thumb = ROOT / cfg["thumb"]
     if thumb.exists():
         yt.thumbnails().set(videoId=vid, media_body=str(thumb)).execute()
@@ -143,14 +150,24 @@ def upload_one(yt, key, privacy):
 
 
 def main():
-    which = sys.argv[1] if len(sys.argv) > 1 else "all"
-    privacy = sys.argv[2] if len(sys.argv) > 2 else "public"
+    if len(sys.argv) < 3:
+        print("用法:python upload3.py [A|B|C|all] [public|unlisted|private]")
+        print("  🔴 隱私參數必填:public 是不可逆的,不該是預設值")
+        return 1
+    which, privacy = sys.argv[1], sys.argv[2]
+    if privacy not in ("public", "unlisted", "private"):
+        print(f"隱私值不合法:{privacy}"); return 1
     keys = list(VIDEOS) if which == "all" else [which]
     yt = svc()
     me = yt.channels().list(part="snippet", mine=True).execute()["items"][0]
     print(f"上傳目標頻道:{me['snippet']['title']} ({me['snippet'].get('customUrl')})")
-    if "carson" in (me["snippet"].get("customUrl") or "").lower():
-        print("⛔ 這是主頻道!中止。"); return 1
+    # 🔴 白名單比對頻道 ID,不是黑名單比對 handle 字串:
+    #    舊版 `if "carson" in customUrl` 是 fail-open —— 主頻道改名去掉 carson
+    #    就靜默失效、customUrl 為 None 時 `or ""` 讓檢查真空通過、任何第三個頻道
+    #    都能過關。同 repo 的 yt_ch2/oauth_manual.py 早就用對的寫法。
+    if me["id"] != EXPECT_CHANNEL:
+        print(f"⛔ 頻道不符:{me['id']} != {EXPECT_CHANNEL}(One Quiet Hour),中止。")
+        return 1
     for k in keys:
         upload_one(yt, k, privacy)
     return 0
