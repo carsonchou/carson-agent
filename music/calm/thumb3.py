@@ -1,32 +1,35 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""thumb3.py — 三支氛圍片縮圖:從成片抽最豐富的一幀 + 極簡文字。
+"""thumb3.py — 三支氛圍片縮圖。
 
-氛圍類縮圖的行規跟主頻道相反:畫面本身就是賣點,文字越少越好。
-統一版式 = 品牌識別:左下角標籤 + 細分隔線 + 副標。
+## 兩個設計決定的依據(審核 R4 實測)
+1. **挑幀不能只看覆蓋率**:要看「偏離底色 > 80 的像素比例」——那才是縮圖尺寸下
+   還看得見的內容。slate 這項只有 0.31%(ink 7.28% / tea 19.65%),用覆蓋率挑
+   會挑到一片看不清的霧。
+2. **暗底主題不能直接抽幀當縮圖**:slate 本體 mean 48,手機上滑過去幾乎全黑。
+   縮圖另外做調亮曲線 + 提飽和(只動縮圖,不動影片本體——影片要暗才助眠)。
 
-抽幀策略:沿片長取 12 個候選,選「墨水覆蓋面積」最大的那幀
-(畫面最豐富的時刻,通常是墨滴事件之後),而不是隨機時點。
+版式極簡:氛圍類縮圖畫面就是賣點,文字越少越好;統一版式 = 品牌識別。
 """
 import pathlib
 import subprocess
 import sys
 
 import numpy as np
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageEnhance, ImageFont
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 ROOT = pathlib.Path(__file__).resolve().parent
 
 VIDEOS = {
-    "A": {"file": "final_A.mp4", "label": "DEEP FOCUS", "sub": "1 HOUR · INK IN WATER",
-          "dark_text": True},
     "B": {"file": "final_B.mp4", "label": "SLEEP", "sub": "1 HOUR · DARK SCREEN",
-          "dark_text": False},
+          "dark": True},
     "C": {"file": "final_C.mp4", "label": "GENTLE RAIN", "sub": "1 HOUR · RAIN & INK",
-          "dark_text": True},
+          "dark": False},
+    "A": {"file": "final_A.mp4", "label": "DEEP FOCUS", "sub": "1 HOUR · INK IN WATER",
+          "dark": False},
 }
-CAND_MINS = (6, 11, 16, 21, 26, 31, 36, 41, 46, 51, 55, 58)
+CAND_MINS = (4, 9, 14, 19, 24, 29, 34, 39, 44, 49, 54, 58)
 
 
 def grab(key, video, mins):
@@ -36,10 +39,22 @@ def grab(key, video, mins):
     return out
 
 
-def ink_coverage(png, dark_theme):
-    a = np.asarray(Image.open(png).convert("L"), np.float32) / 255.0
-    # 亮底:墨=偏暗處;暗底:墨=偏亮處
-    return float((a > 0.30).mean()) if dark_theme else float((a < 0.75).mean())
+def visible_score(png):
+    """縮圖尺寸下真正看得見的內容比例(偏離底色 > 80),而非單純覆蓋率。"""
+    g = np.asarray(Image.open(png).convert("L"), np.float32)
+    return float((np.abs(g - np.median(g)) > 80).mean())
+
+
+def punch(img, dark):
+    """縮圖專用調子。影片本體不動——它要暗才助眠;縮圖要亮才有人點。"""
+    a = np.asarray(img, np.float32) / 255.0
+    if dark:
+        a = a ** 0.62                       # 提中間調(暗部拉起來最多)
+        a = np.clip((a - 0.06) * 1.22, 0, 1)  # 黑點微降 + 對比
+    else:
+        a = np.clip((a - 0.5) * 1.10 + 0.5, 0, 1)
+    out = Image.fromarray((a * 255).astype(np.uint8))
+    return ImageEnhance.Color(out).enhance(1.35 if dark else 1.15)
 
 
 def font(size):
@@ -52,32 +67,46 @@ def font(size):
 
 
 def make(key, cfg):
-    dark_theme = not cfg["dark_text"]        # 暗底片配亮字
     cands = []
     for m in CAND_MINS:
         try:
             p = grab(key, cfg["file"], m)
         except subprocess.CalledProcessError:
-            continue                          # 片長不足就跳過該時點
-        cands.append((ink_coverage(p, dark_theme), p))
+            continue                        # 片長不足就跳過該時點
+        cands.append((visible_score(p), m, p))
     if not cands:
         print(f"  {key}: 抽不到候選幀,跳過")
         return
-    score, best = max(cands, key=lambda c: c[0])
+    score, mins, best = max(cands, key=lambda c: c[0])
 
-    img = Image.open(best).convert("RGB")
+    img = punch(Image.open(best).convert("RGB"), cfg["dark"])
     d = ImageDraw.Draw(img)
     W, H = img.size
-    fg = (30, 32, 38) if cfg["dark_text"] else (238, 240, 245)
-    f_big, f_sm = font(110), font(46)
-    x, y = 90, H - 300
+    fg = (238, 240, 245) if cfg["dark"] else (30, 32, 38)
+    # 文字底下壓一層極淡的暗/亮幕,保證任何畫面上都讀得到。
+    # 用漸層不用矩形:硬邊在縮圖上是一條明顯的橫線(實測可見)。
+    band = 380
+    a = np.zeros((H, W), np.float32)
+    ramp = np.linspace(0.0, 1.0, band, dtype=np.float32) ** 1.6
+    a[H - band:] = ramp[:, None]
+    peak = 78 if cfg["dark"] else 96
+    veil = np.zeros((H, W, 4), np.uint8)
+    veil[..., :3] = 0 if cfg["dark"] else 255
+    veil[..., 3] = (a * peak).astype(np.uint8)
+    img = Image.alpha_composite(img.convert("RGBA"),
+                                Image.fromarray(veil, "RGBA")).convert("RGB")
+    d = ImageDraw.Draw(img)
+    f_big, f_sm = font(112), font(46)
+    x, y = 92, H - 292
     d.text((x, y), cfg["label"], font=f_big, fill=fg)
-    d.rectangle([x + 4, y + 150, x + 460, y + 156], fill=fg)
-    d.text((x + 4, y + 178), cfg["sub"], font=f_sm, fill=fg)
+    d.rectangle([x + 4, y + 152, x + 470, y + 158], fill=fg)
+    d.text((x + 4, y + 180), cfg["sub"], font=f_sm, fill=fg)
     out = ROOT / f"thumb_{key}.png"
     img.save(out)
-    print(f"  {out.name}  覆蓋率 {score:.3f}  來源 {best.name}")
-    for _, p in cands:                        # 候選檔用完即清(檔名對得上,不會殘留)
+    g = np.asarray(img.convert("L"), np.float32)
+    print(f"  {out.name}  取 {mins} 分處(可見內容 {score*100:.2f}%)  "
+          f"縮圖亮度 {g.mean():.0f}")
+    for _, _, p in cands:
         p.unlink(missing_ok=True)
 
 
@@ -86,4 +115,4 @@ if __name__ == "__main__":
         if (ROOT / cfg["file"]).exists():
             make(key, cfg)
         else:
-            print(f"  {cfg['file']} 不存在,跳過")
+            print(f"  {cfg['file']} 尚未產出,跳過")
