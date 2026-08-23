@@ -603,7 +603,10 @@ def _factguard_gate(slugs: list) -> tuple[list, dict]:
 
 
 def find_candidates(ledger: dict) -> list:
-    # 高分先發：Shorts(衝YPP)優先，組內依品質分數由高到低；其次長片同理。
+    # 高分先發：組內依品質分數由高到低。
+    # ⚠️ 舊註解寫「Shorts(衝YPP)優先」——那個理由**是錯的**:Shorts 的觀看
+    #    **不計入 YPP 的 4000 小時**(政策事實,memory yt-format-pivot-longform-2026-07)。
+    #    實際配比見下方 LONG_PER_CYCLE/SHORT_PER_CYCLE。
     qmap, qmin = load_quality()
     priority = _load_priority_set()
     skip = _load_skip_set()
@@ -728,7 +731,17 @@ def find_candidates(ledger: dict) -> list:
     # 指標:BROWSE 觀看、單片中位觀看、週訂閱增量。回滾條件:14 天後三指標全無改善
     # 且觀看時數掉 >30% → 改回 4,1 + crontab max5。
     # 循環改 1,1:18:30 批 max2 才會是「1長1短」而不是「2長」。
-    LONG_PER_CYCLE, SHORT_PER_CYCLE = 1, 1
+    # 🔴 2026-08-24 依實測重切成 5:1。近 28 天分格式量(不是憑感覺):
+    #     主題長片  觀看 3,228  帶訂閱 16  → 轉化 0.50%
+    #     個股體檢  觀看10,433  帶訂閱 48  → 轉化 0.46%
+    #     Shorts   觀看 7,862  帶訂閱  4  → 轉化 **0.05%**(長片的十分之一)
+    #   觀看時數:Shorts 25h vs 長片 641h → Shorts 只佔 3.7%,而且**不計入 YPP 4000 小時**。
+    # 也就是說 Shorts 拿走 39% 的發布名額,對「訂閱」與「時數」兩個目標各只回饋 2% 與 4%。
+    # 每天只發得掉 3 支,「這 3 個名額給誰」是零成本的最大槓桿 → 長片拿 5/6。
+    # 不歸零:Shorts feed 仍是獨立曝光面(34% 觀看來自它),留一條線持續觀察。
+    # ⚠️ 這是在節奏實驗(7→3/天,至 08-26)期間動的**格式配比**,不是總量;
+    #    08-28 的實驗報告要把這個混淆因子記上。
+    LONG_PER_CYCLE, SHORT_PER_CYCLE = 5, 1
     merged = []
     li = si = 0
     while li < len(longs) or si < len(shorts):

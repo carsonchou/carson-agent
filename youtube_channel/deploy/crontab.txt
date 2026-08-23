@@ -93,7 +93,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 #    完全砍掉會失去這個發現題材的管道,但不該再是主力。
 # 🔬 2026-08-12 節奏實驗配套:發布 3/天,生產同步 --long 6→3(庫存 39 支已夠 2 週,
 #   續產 6 支/天會無限堆積;省下的 LLM 額度讓密度規則(段落留存ⓕ~ⓙ)有更多重生預算)。
-7 6 * * * /root/yt/run.sh scripts/produce_batch.py --manual --format-focus --shorts 1 --long 6 --target 150 --no-render >> /root/yt/logs/cron.log 2>&1
+7 6 * * * /root/yt/run.sh scripts/produce_batch.py --manual --format-focus --shorts 0 --long 8 --target 150 --no-render >> /root/yt/logs/cron.log 2>&1
 # 🔴 2026-07-17 長片保底補產:06:07 主批若被外力中斷(07-16 實錄 exit 1073807364 =
 #   DBG_TERMINATE_PROCESS,疑似電腦睡眠;07-17 又因 queue_size bug 整批跳過)→ 已連兩天零長片,
 #   而長片可發庫存只剩 9 支 = 3 天。再失敗一次就斷炊,發布端會無聲退化成全短片(不崩但翻轉白做)。
@@ -495,4 +495,4 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # 實查線上縮圖抓到:08-17 排版修復之前產的還掛著舊圖(藥華藥主標印「【藥華藥」括號沒關)。
 # thumbnails.set 只換圖、保留 videoId/觀看/排名 = 純賺。每日 30 支(1,500 units),
 # 自檢不過就跳過(寧可留舊圖也不換上更糟的);換過的記檔,換完自動 no-op。
-35 15 * * * /root/yt/run.sh scripts/refresh_search_thumbs.py --apply --max 30 >> /root/yt/logs/cron.log 2>&1
+35 15 * * * /root/yt/run.sh scripts/refresh_search_thumbs.py --apply --max 60 >> /root/yt/logs/cron.log 2>&1

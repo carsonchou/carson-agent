@@ -4680,9 +4680,19 @@ def main() -> int:
     # 4,000 watch hours,Shorts 觀看一秒都不計;訂閱轉換長片也明顯較高,但那組統計 n 小
     # 被單片主導、只當方向參考)。
     # 改成各自獨立判斷:短片滿只停短片、長片滿只停長片,兩者都滿才早退。
-    # target 依發布配比切(每天發 2短3長,各留約 30 天緩衝):short 40% / long 60%。
+    # 🔴 2026-08-24 實測重切:Shorts 佔 39% 的發布量,只換到 **2% 的訂閱**。
+    # 近 28 天分格式量:
+    #     主題長片  觀看 3,228  帶訂閱 16  → 轉化 0.50%
+    #     個股體檢  觀看10,433  帶訂閱 48  → 轉化 0.46%
+    #     Shorts   觀看 7,862  帶訂閱  4  → 轉化 **0.05%**(長片的十分之一)
+    # 而 Shorts 的觀看時數只佔 3.7%(25h vs 長片 641h),且**不計入 YPP 4000 小時**
+    # (政策事實,見 memory yt-format-pivot-longform-2026-07)。
+    # 也就是說:Shorts 吃掉三分之一的產能,對「訂閱」與「時數」兩個目標各只回饋 2% 與 4%。
+    # 舊配比 short 40%/long 60% 改成 **short 10%/long 90%**——不歸零是因為 Shorts 仍是
+    # 一個獨立的曝光面(34% 觀看來自 Shorts feed),留一條線觀察;但不再拿它當主力。
+    # target 依發布配比切,各留約 30 天緩衝。
     q = queue_size()
-    tgt_short = max(1, round(args.target * 0.4))
+    tgt_short = max(1, round(args.target * 0.1))
     tgt_long = max(1, args.target - tgt_short)
     q_short, q_long = queue_size("short"), queue_size("long")
     print(f"目前片庫：{q} 支(短 {q_short}/{tgt_short}、長 {q_long}/{tgt_long}) / 總目標 {args.target}")
