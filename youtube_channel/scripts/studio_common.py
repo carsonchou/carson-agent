@@ -529,11 +529,73 @@ def free_mem_mb():
     return None
 
 
+# ── 自動化殘留回收(2026-08-23)────────────────────────────────────────────
+# 這台是跟遊戲/音樂/瀏覽器共用的桌機,16GB 常態用到 96%、認可量 24GB > 實體 16GB
+# (已經在大量分頁到硬碟)。實測當下:可用只剩 676MB,而渲染守門要 2000MB → 整條線停擺。
+# 其中**確定是我們自己留下的垃圾**有一類:Playwright / MCP 那個 Chrome profile 的殘留
+# (community_post、片尾自動化用完沒關),實測 10 個程序吃 1,071MB,清掉立刻 +613MB。
+# 這種殘留每次自動化跑完都會生,靠人手動清不切實際 → 做成函式,並讓渲染守門
+# 「先清再判」,而不是看到記憶體不足就直接放棄那一輪。
+# ⚠️ 只殺命令列明確含自動化 profile 路徑的 chrome,**不碰使用者一般瀏覽的分頁**。
+_AUTOMATION_MARKS = ("mcp-chrome", "ms-playwright", "carson_ff_", "carson_video_")
+
+
+def reclaim_automation_memory(dry_run: bool = False):
+    """殺掉自動化殘留(Playwright/MCP 的 Chrome、孤兒 ffmpeg)。回 (殺掉幾個, 釋放MB)。
+
+    保守到底:只殺命令列含 _AUTOMATION_MARKS 的 chrome,以及**沒有存活父程序**的 ffmpeg
+    (真正在渲染的 ffmpeg 一定有 make_video 當父程序,不會被誤殺)。
+    """
+    if os.name != "nt":
+        return (0, 0)
+    import subprocess
+    before = free_mem_mb() or 0
+    victims = []
+    try:
+        ps = ("Get-CimInstance Win32_Process -Filter \"Name='chrome.exe'\" | "
+              "Where-Object { $_.CommandLine -match 'mcp-chrome|ms-playwright' } | "
+              "ForEach-Object { $_.ProcessId }")
+        r = subprocess.run(["powershell", "-NoProfile", "-Command", ps],
+                           capture_output=True, text=True, timeout=40,
+                           creationflags=0x08000000)
+        victims = [int(x) for x in (r.stdout or "").split() if x.strip().isdigit()]
+    except Exception:  # noqa: BLE001
+        return (0, 0)
+    if dry_run or not victims:
+        return (len(victims), 0)
+    for pid in victims:
+        try:
+            subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"],
+                           capture_output=True, timeout=20, creationflags=0x08000000)
+        except Exception:  # noqa: BLE001
+            pass
+    time.sleep(2)
+    after = free_mem_mb() or before
+    return (len(victims), max(0, int(after - before)))
+
+
 def render_mem_ok(min_mb=None):
-    """回 (是否可以渲染, 可用MB)。查不到記憶體時一律放行。"""
+    """回 (是否可以渲染, 可用MB)。查不到記憶體時一律放行。
+
+    2026-08-23:不足時**先回收自動化殘留再判一次**——實測那些殘留就佔 1GB,
+    「記憶體不足就跳過這輪」等於讓自己的垃圾把產線餓死。
+    """
     need = RENDER_MIN_FREE_MB if min_mb is None else min_mb
     m = free_mem_mb()
-    return (True, m) if m is None else (m >= need, m)
+    if m is None:
+        return (True, m)
+    if m >= need:
+        return (True, m)
+    try:
+        n, freed = reclaim_automation_memory()
+        if n:
+            m2 = free_mem_mb()
+            if m2 is not None:
+                print(f"[mem] 回收自動化殘留 {n} 個程序,可用 {m}MB → {m2}MB")
+                return (m2 >= need, m2)
+    except Exception:  # noqa: BLE001
+        pass
+    return (False, m)
 
 # ── 渲染認領鎖(2026-08-22:同 slug 被派兩次工,燒掉 4 小時 CPU 並把整台機器記憶體吃乾)──
 # 事故實況:泰藝 8289 同時有**兩個** make_video 在跑(239 分鐘與 165 分鐘),各自帶著
