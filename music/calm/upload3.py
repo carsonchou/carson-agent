@@ -9,7 +9,7 @@
 
 三支片打三個搜尋意圖(deep work / sleep dark screen / rain),
 描述誠實揭露:視覺=真實流體物理模擬(非 AI 生成)、音樂=程式原創合成、
-音樂每 10 分鐘無縫循環、視覺 60 分鐘連續演化不循環。
+音樂=程式生成的鋼琴演奏(每 12 分鐘循環)、視覺 60 分鐘連續演化不循環。
 
 用法:python upload3.py [A|B|C|all] [public|unlisted]
 """
@@ -34,52 +34,54 @@ COMMON_DESC = """
 —
 About this video (honest notes):
 • The visuals are a real fluid-dynamics simulation (Navier-Stokes equations, computed frame by frame). Nothing is AI-generated imagery — every wisp of ink is physics. The simulation runs continuously for the full hour and never loops or repeats.
-• The music is original, synthesised note by note in code. It is not from a stock library and not AI-generated audio. The piece loops seamlessly every 10 minutes by design — ambient music should have no destination.
+• The music is an original piano performance, synthesised note by note in code — every note, its timing and its dynamics are generated, not sampled from a library and not AI-generated audio. It is not played by a human pianist. The piece runs 12 minutes and then repeats seamlessly.
 • No voice. No sudden loud moments.
 """
 
 VIDEOS = {
     "A": {
-        "file": "final_A.mp4", "thumb": "thumb_A.png",
+        "file": "piano_A.mp4", "thumb": "thumb_A.png",
         "title": "Deep Focus Ambient — Ink Drifting in Water (1 Hour) | Study, Work, Coding",
         "desc": "One hour of calm for deep work. Ink slowly blooming in water — "
                 "a real fluid simulation, evolving for the whole hour and never repeating — "
-                "with original ambient music in D pentatonic: no clashing notes, "
-                "no melody to follow, nothing that asks for your attention.\n"
+                "with an original piano piece in D major — a slow four-bar "
+                "progression (D · A · Bm7 · G6) under a quiet melody, played "
+                "gently enough to stay in the background.\n"
                 + COMMON_DESC,
-        "tags": ["focus music", "deep work", "study music", "ambient music",
+        "tags": ["piano music", "relaxing piano", "focus music", "deep work", "study music",
                  "concentration music", "work music", "coding music", "1 hour",
                  "calm music", "background music", "ink in water", "fluid art",
                  "study with me", "pomodoro", "adhd focus"],
     },
     "B": {
-        "file": "final_B.mp4", "thumb": "thumb_B.png",
+        "file": "piano_B.mp4", "thumb": "thumb_B.png",
         "title": "Sleep Ambient, Dark Screen — Slow Ink at Night (1 Hour) | Deep Sleep Music",
         "desc": "One hour of near-darkness for sleep. Cool ink — ice blue, pale "
                 "aqua, faint violet — drifting through a dark field. A real fluid "
                 "simulation, slow enough to fall asleep to, with original low "
-                "ambient music: sparse notes, ten-second decays, nothing sudden. "
+                "piano: a slow A minor progression (Am7 · Fmaj7 · C · Gsus2), soft touch, "
+                "long decays, nothing sudden. "
                 "The screen stays dark for the whole hour: no bright flashes, "
                 "nothing that will wake you.\n"
                 + COMMON_DESC,
         # 「black screen sleep」已移除:實測幀均亮度 50/255(約 20%),是暗不是黑。
         # 純黑省電族群點進來會失望 → 換來倒讚。標題/描述用的「dark」才準確。
-        "tags": ["sleep music", "dark screen", "deep sleep", "sleep aid",
+        "tags": ["relaxing piano", "piano sleep music", "sleep music", "dark screen", "deep sleep",
                  "ambient sleep music", "insomnia relief", "1 hour", "calm music",
                  "relaxing music", "night music", "sleep visuals",
                  "meditation music", "wind down"],
     },
     "C": {
-        "file": "final_C.mp4", "thumb": "thumb_C.png",
+        "file": "piano_C.mp4", "thumb": "thumb_C.png",
         "title": "Gentle Rain & Soft Ambient — Ink on Paper (1 Hour) | Rain Sounds for Study, Sleep",
-        # 🔴 原文寫雨勢「never repeat exactly」是**假的**:音訊是 10 分鐘循環平鋪 6 次,
-        #    一小時內雨聲會重複 6 輪。COMMON_DESC 已誠實揭露循環,這句不可與它打架。
+        # 🔴 原文寫雨勢「never repeat exactly」是**假的**:音訊是 12 分鐘循環平鋪 5 次,
+        #    一小時內雨聲會重複 5 輪。COMMON_DESC 已誠實揭露循環,這句不可與它打架。
         "desc": "One hour of gentle rain with soft, distant tones. Cool ink "
                 "spreading on paper — a real fluid simulation that runs "
                 "continuously for the full hour — while synthesised rain rises "
                 "and falls in slow waves.\n"
                 + COMMON_DESC,
-        "tags": ["rain sounds", "rain ambience", "study music", "sleep music",
+        "tags": ["rain sounds", "piano and rain", "relaxing piano", "rain ambience", "sleep music",
                  "rain for sleeping", "gentle rain", "ambient music", "1 hour",
                  "relaxing rain", "white noise", "rain no thunder", "cozy rain",
                  "reading music"],
