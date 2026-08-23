@@ -2122,6 +2122,42 @@ def build_video(
         except Exception:  # noqa: BLE001
             video_concept = None
 
+    # 🔴 2026-08-23:本迴圈**從來沒有算過整片代號、也沒把它往下傳**,而 `_drawdown`/`_dca`/
+    # `_trend` 這些真資料圖沒有代號就 return None → 整支片退純文字卡。
+    # 實測後果(金像電 2368,649 秒):ffprobe 連 scene 閾值 0.01 都測不到任何畫面變化,
+    # 抽幀看到的是「公司是誰」「基本面資料」這種**一個數字都沒有**的標題卡;
+    # 而該檔的真實 26 年價格 CSV 就躺在 STUDIO/tw_facts_cache/2368.csv,
+    # 硬指定 force+ticker 立刻畫得出「實際最大回撤 -82.6%(2007-11-07→2012-11-16)」那張圖。
+    # render_ffmpeg 那條路徑 2026-07-28 就修好了(見該檔「解封 video_ticker」那段),
+    # **這條 moviepy 路徑漏修** —— 又是「兩份實作只修一份」(memory yt-duplicate-impl-gate-bypass)。
+    # 代號取自標題(整片主題),不取旁白:旁白順口提到 0050 不該蓋掉整片標的。
+    video_ticker = None
+    if _concept is not None:
+        try:
+            video_ticker = _concept.resolve_ticker(title or "")
+        except Exception:  # noqa: BLE001
+            video_ticker = None
+    # 認不出主題但有真標的 → 退 "trend"(攤開該檔真實走勢,是最保守的誠實選項)。
+    # 「認不出主題」不該等於「整支片沒有畫面」。
+    if video_concept is None and video_ticker:
+        video_concept = "trend"
+
+    # 同圖輪播防治:同一個概念 key 第 n 次出現就給 variant=n,concept_visuals 會據此
+    # 換時間窗(完整歷史 → 近 45% → 近 25%),同一檔的同種圖呈現「長期全景→近期特寫」。
+    _seen_key: dict = {}
+    _variants = []
+    for _sg in segments:
+        _k = None
+        if _concept is not None:
+            try:
+                _k = _concept.classify((_sg.heading or "") + " " + (_sg.narration or "")) or video_concept
+            except Exception:  # noqa: BLE001
+                _k = None
+        _n = _seen_key.get(_k, 0) if _k else 0
+        _variants.append(_n)
+        if _k:
+            _seen_key[_k] = _n + 1
+
     body_clips = []
     seg_cards = []  # 每段靜態卡 PNG 路徑(broll 段=None)，供靜態切片快路徑
     for i, seg in enumerate(segments):
@@ -2154,6 +2190,7 @@ def build_video(
                     width, height, heading=seg.heading or title, narration=seg.narration,
                     watermark=watermark, accent=accent, seed=f"{vid_seed}_{i}",
                     dest=tmp_dir / f"concept_{i:02d}.png", default_key=video_concept,
+                    fallback_ticker=video_ticker, variant=_variants[i],
                 )
                 if card_png is not None:
                     stats["concept_used"] = stats.get("concept_used", 0) + 1
@@ -2171,6 +2208,7 @@ def build_video(
                                 seed=f"{vid_seed}_{i}",
                                 dest=tmp_dir / f"concept_{i:02d}_half.png",
                                 default_key=video_concept, reveal=0.55,
+                                fallback_ticker=video_ticker, variant=_variants[i],
                             )
                             # 有些 drawer 忽略 reveal → 兩張內容一樣,比 bytes 不比路徑
                             if (half_png is not None and Path(half_png).exists()
