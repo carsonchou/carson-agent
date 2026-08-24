@@ -20,7 +20,14 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 43 5 * * 0 /root/yt/run.sh scripts/outlier_scan.py --top 20 --min-views 3000 --min-ratio 3 --days 150 >> /root/yt/logs/cron.log 2>&1
 20 */3 * * * /root/yt/run.sh scripts/hotspot_dept.py --max 8 >> /root/yt/logs/cron.log 2>&1
 47 5 * * * /root/yt/run.sh scripts/parasite_titles.py --count 8 >> /root/yt/logs/cron.log 2>&1
-55 5 * * * /root/yt/run.sh scripts/shorts_funnel.py --max 1 --per 6 >> /root/yt/logs/cron.log 2>&1
+# 🔴 2026-08-25 停產新 Shorts(不是停發,存量照發)。實測依據:
+#   ·未發布 Shorts 已積 **510 支**,而發布端是 1 支/天 → 照現況要 510 天才消化得完,
+#     再產新的等於憑空丟掉。
+#   ·Shorts 佔 34% 觀看卻只有 **3.7% 觀看時數**,而且**不計入 YPP 的 4000 小時**(政策事實)。
+#   ·同日拉真 Analytics 驗出:時數 ≈ 佔位數 × 每檔搜尋量 × 每次觀看 ~150 秒,
+#     而個股覆蓋率只有 81/1925 = 4.2% → **產能該全部給長片**。
+#   切片漏斗是新 Shorts 的最大來源(每天把 1 支長片裂變成 5~6 支)。要恢復把註解拿掉即可。
+# [停產 2026-08-25] 55 5 * * * /root/yt/run.sh scripts/shorts_funnel.py --max 1 --per 6 >> /root/yt/logs/cron.log 2>&1
 # TradingView 全攻略課程:--next 依序餵下2個課程EP(由淺入深)、--review 挖2支熱門腳本拆穿(永動題源);都在製作前餵
 56 5 * * * /root/yt/run.sh scripts/tv_curriculum.py --next 2 >> /root/yt/logs/cron.log 2>&1
 54 5 * * * /root/yt/run.sh scripts/tv_curriculum.py --review 2 >> /root/yt/logs/cron.log 2>&1
@@ -158,7 +165,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 50 6 * * * /root/yt/run.sh scripts/build_short_to_long.py >> /root/yt/logs/cron.log 2>&1
 # Short→Short 同系列/同題材連看:建 short_to_short.json(EP實測系列接上一集、其餘bigram題材相似度
 # 對應待上架短→已發布短),發布前跑,與 short_to_long 錯開1分避免同時寫 STUDIO
-51 6 * * * /root/yt/run.sh scripts/build_short_to_short.py >> /root/yt/logs/cron.log 2>&1
+# [停產 2026-08-25] 51 6 * * * /root/yt/run.sh scripts/build_short_to_short.py >> /root/yt/logs/cron.log 2>&1
 # 台股火力:真回測數據引擎(每天更新真數字)+ 四軌台股系列連載(產片前餵)
 # 🔴 2026-07-17 事實庫退役第1步:tw_facts_engine.py(產 tw_facts_computed.json,50組)本來**零排程**,
 #   只能手動跑,結果越放越舊(as_of 落後 2 天);而它是產線唯一該信的事實庫——固定起點(period="max")、
