@@ -131,6 +131,28 @@ def apis_of(script_name: str):
         src = p.read_text(encoding="utf-8", errors="replace")
     except Exception:  # noqa: BLE001
         return set()
+    # 🔴 2026-08-25:這是純字串掃描,**連註解和 docstring 都會算進去**。
+    # 實證:本檔自己有一行註解寫著「原始碼裡長這樣:yt.videos().list(...) /
+    # yt.captions().update(...)」,被排進 crontab 之後,它就開始把**自己**估成
+    # 451 units/日(450+1)——整份預算表因此虛報 451(37,930 實跑成 38,381)。
+    # 用 tokenize 把註解與字串常數挖掉再掃;tokenize 失敗(語法錯)就退回原始碼,
+    # 寧可高估也不要整支腳本從預算裡消失。
+    try:
+        import io
+        import tokenize
+        lines = src.splitlines(keepends=True)
+        for tok in tokenize.generate_tokens(io.StringIO(src).readline):
+            if tok.type not in (tokenize.COMMENT, tokenize.STRING):
+                continue
+            (r1, c1), (r2, c2) = tok.start, tok.end
+            for r in range(r1, r2 + 1):          # tokenize 的行號從 1 起算
+                ln = lines[r - 1]
+                a = c1 if r == r1 else 0
+                b = c2 if r == r2 else len(ln.rstrip("\n"))
+                lines[r - 1] = ln[:a] + " " * (b - a) + ln[b:]
+        src = "".join(lines)
+    except Exception:  # noqa: BLE001
+        pass          # 語法錯就退回原始碼:寧可高估,也不要整支腳本從預算裡消失
     found = set()
     for res, verb in API_RE.findall(src):
         v = "set" if verb == "set" else verb

@@ -68,10 +68,16 @@ def _defect(slug: str):
             title = re.sub(r"^#\s*🎬?\s*", "", first).strip()
         except Exception:  # noqa: BLE001
             pass
+    # ⚠️ 這份清單是 produce_batch `_uncontroversial_bad` 的**第二份拷貝**(那道是 closure,
+    # 沒法直接呼叫)。本專案有「同一個閘門存在兩份、產線走沒閘門那份」的事故,
+    # 所以加閘門時**兩邊都要加**;module-level 的判定函式一律從 produce_batch 取,不另造。
     if pb._long_mixed_period(t, title or slug):
         return "期間偷換"
     if "【" in t:
         return "【】prompt欄位洩漏"
+    _pl = pb._long_prompt_leak(t)
+    if _pl:
+        return "prompt指令原文洩漏"
     if pb._long_content_padding(t):
         return "資訊密度不足(灌水)"
     if pb._long_underlength(t):

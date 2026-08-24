@@ -3086,6 +3086,54 @@ def _long_content_padding(voice_text):
 
 
 
+# prompt 指令原文洩漏進旁白的**確定性**標記(2026-08-25 新增)。
+# 這些字串在真旁白裡沒有任何合法用途——它們是寫給模型看的欄位名與格式規定,
+# 被整段抄進 voice_text 之後**會被 TTS 照唸出來**。
+# 實證:L_個股體檢南茂8150 的 wordtimes 裡有一句 t=503.095s、長 **13.0 秒**,
+# 內容是「所有數字一律用中文口語念法,百分之八十二點三、年化百分之二十四,不要寫成…」
+# ——影片正中間唸 13 秒的 prompt 指令。182 支母體命中 19 支(已發布 11、未發布 8)。
+#
+# ⚠️ 刻意**不**收「務必」「鐵律」這類字:它們在正常旁白裡講得通(「投資鐵律」),
+#    當閘門會誤殺。只收在旁白裡完全講不通的。校準過程同密度 gate 那次的教訓:
+#    上任何 fail-closed gate 前先跑現存母體看命中率分佈。
+_PROMPT_LEAK_MARKERS = (
+    "一律用中文口語念法", "不要寫成", "旁白引用時", "不得據此",
+    "（以上為", "(以上為", "以上為示意", "本段專屬事實", "前面各段重點摘要",
+)
+# 「示意」是餵料端的佔位符,正常旁白最多出現一兩次(示意圖);出現 5 次以上=整段被抄進來。
+_PROMPT_LEAK_SYIY = 5
+
+
+def _long_prompt_leak(voice_text):
+    """旁白裡有沒有 prompt 指令原文/佔位符(會被 TTS 唸出來)。回原因字串或 None。
+
+    這道原本是靠密度 gate **偶然**咬到的(那段指令重複度高),而那是巧合不是把關:
+    獨立驗證指出把免責句剝掉之後密度 gate 就瞎了,而 `_long_bad` 的【】判準只擋半形
+    方括號、這批洩漏用的是全形（）→ 整個接不住。所以要有一道**專門**的。"""
+    t = voice_text or ""
+    for m in _PROMPT_LEAK_MARKERS:
+        if m in t:
+            return f"prompt 指令原文洩漏(會被TTS唸出來):「{m}」"
+    n = t.count("示意")
+    if n >= _PROMPT_LEAK_SYIY:
+        return f"prompt 佔位符「示意」洩漏 {n} 次(會被TTS唸出來)"
+    return None
+
+
+def _strip_prompt_leak(voice_text):
+    """把含 prompt 指令標記的**整句**刪掉(確定性修復)。
+
+    這些句子是純指令、零內容,刪掉不會損失任何真資料——跟【】那條同一個道理。
+    「示意」佔位符**不在這裡修**:它是嵌在事實句中間的(「總報酬 示意 假設報酬228.1%」),
+    刪字會讓句子變成半通不通的話,刪整句又會賠掉真數字 → 交給重生。"""
+    out = []
+    for sent in re.split(r"(?<=[。！？!?\n])", voice_text or ""):
+        if any(m in sent for m in _PROMPT_LEAK_MARKERS):
+            continue
+        out.append(sent)
+    return re.sub(r"\n{2,}", "\n", "".join(out))
+
+
 def _dedupe_repeated_sentences(voice_text, keep=2):
     """整句重複灌水的**確定性修復**:同一句(>=12 中文字)出現超過 keep 次,第 keep+1 次起整句刪掉。
 
@@ -3194,6 +3242,11 @@ def _mech_repair_long(d, gate):
         return None
     nv = v
     _touched = False
+    if _long_prompt_leak(nv):
+        _s = _strip_prompt_leak(nv)
+        if _s != nv:
+            _touched = True
+            nv = _s
     if "【" in nv:
         _touched = True
         nv = re.sub(r"【[^】]{0,60}】", "", nv)
@@ -4306,6 +4359,12 @@ def make_one(kind, no_render=False, topic_override=None, script_override=None):
             # 這裡兜底攔住其他產稿路徑(script_override／非 densify 路徑)。
             if "【" in _v:
                 return "旁白含 prompt 欄位標記(【…】會被唸出來,掃 595 支確認無合法用法)"
+            # 半形【】只是洩漏的其中一種寫法。實測抓到的另一批用全形（）包起來
+            # (「（以上為真實歷史回測資料,旁白引用時務必標明…」)、以及餵料端的
+            # 「示意」佔位符整段被抄進來 —— 這道判準完全接不住,見 _long_prompt_leak。
+            _pl = _long_prompt_leak(_v)
+            if _pl:
+                return _pl
             # ⑤ 開場罐頭錯位(2026-08-12 抓到:高力8996 體檢片開場逐字抄了 playbook 示範句
             # 「你的網格機器人…」——與主題無關=跨片重複的罐頭簽名(YPP inauthentic 風險)
             # +幣圈詞開場(留存實測毒藥)。開場 60 字含幣圈工具詞而標題沒有 → 重生。
@@ -4348,6 +4407,11 @@ def make_one(kind, no_render=False, topic_override=None, script_override=None):
             _lk += 1
             log_ops("補產·重生", f"A4長片第{_lk}次重生:{_long_bad(d)}｜{d.get('title','')[:20]}")
             d = call_claude(kind, _ex, topic_override)
+            # 重生出來的**新稿**也要能吃確定性修復:旗標原本在第一次嘗試前就設 True,
+            # 之後每一次重生的稿都直接跳過修復 —— 而【】洩漏造成的 14 次重生裡,
+            # 發生在第 2、3 次重生上的就還是照燒一次 LLM。放回 False 不會有迴圈風險:
+            # `_mech_repair_long` 只在修完**通過 gate** 時才回傳,回傳後 while 條件必為假。
+            _mech1 = False
         _why = _long_bad(d)
         if _why:
             _save_rejected_draft(d, _why, "A4長片")
@@ -4431,6 +4495,9 @@ def make_one(kind, no_render=False, topic_override=None, script_override=None):
                 return "期間偷換"
             if "【" in _v:
                 return "【】prompt欄位洩漏(會被TTS唸出來)"
+            _pl = _long_prompt_leak(_v)
+            if _pl:
+                return _pl
             # 2026-08-22 校準後補上的兩道(當日稍早只開上面兩道,因為密度 gate 對體檢
             # 文體 5/5 命中會讓整條產線停產)。門檻校準完(n-gram >=3 → >=4,146 支實測
             # 命中率 26%→5%)後,這兩道對體檢片的實測命中率各 1%,可以安全納入。
@@ -4455,6 +4522,11 @@ def make_one(kind, no_render=False, topic_override=None, script_override=None):
             _t2 += 1
             log_ops("補產·重生", f"鎖題長片終檢第{_t2}次重生:{_uncontroversial_bad(d)}｜{d.get('title','')[:20]}")
             d = call_claude(kind, _ex, topic_override)
+            # 重生出來的**新稿**也要能吃確定性修復:旗標原本在第一次嘗試前就設 True,
+            # 之後每一次重生的稿都直接跳過修復 —— 而【】洩漏造成的 14 次重生裡,
+            # 發生在第 2、3 次重生上的就還是照燒一次 LLM。放回 False 不會有迴圈風險:
+            # `_mech_repair_long` 只在修完**通過 gate** 時才回傳,回傳後 while 條件必為假。
+            _mech2 = False
         _why2 = _uncontroversial_bad(d)
         if _why2:
             _save_rejected_draft(d, _why2, "鎖題終檢")
