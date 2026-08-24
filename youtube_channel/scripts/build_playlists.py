@@ -185,11 +185,18 @@ def main() -> int:
                 print(f"[warn] 加入清單失敗 {slug}：{e}", file=sys.stderr)
                 if "quota" in str(e).lower():
                     print("[quota] 停止本輪(冪等,下個配額日接著跑)", file=sys.stderr)
+                    # ⚠️ 只 break 內層的話,外層還會走完剩下每個群組,而每組開頭的
+                    # ensure_playlist / items_in 都會再打一次 API;而且 quota_capped
+                    # 沒被設 → log_ops 會把「被配額截斷的一輪」報成正常完成。
+                    quota_capped = True
                     break
         state[name] = {"playlist_id": plid, "video_ids": sorted(existing)}
         print(f"[ok] {name}：清單 {plid}，本次新增 {added} 支，共 {len(existing)} 支。")
         if quota_capped:
             print(f"[info] 已達本次上限 --max {args.max_add}，其餘留待下次補（cron 每日一次會自動接續）。")
+            # 撞到 --max 或配額線就整支停:budget 是**跨群組共用**的,再進下一個群組
+            # 也插不進任何東西,只會白打一次 ensure_playlist + items_in。
+            break
 
     PLAYLISTS_STATE.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
     summary_txt = ", ".join(f"{k}+{len(v['video_ids'])}" for k, v in state.items())

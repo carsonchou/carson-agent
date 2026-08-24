@@ -293,14 +293,21 @@ def install(service=None):
     _orig_next = HttpRequest.next_chunk
 
     def _charge_once(self):
+        # ⚠️ 順序有意義,別動:**先檢查 → 通過才設旗標 → 才記帳**。
+        # 旗標若設在 raise 之前,同一個 request 被重試(或呼叫端 catch 後重跑)就會被當成
+        # 「已收過費」直接放行 = 一次完全沒記帳的 1600 units 上傳。
         if getattr(self, "_quota_charged", False):
             return
-        self._quota_charged = True
         op, units = cost_of(getattr(self, "uri", ""), getattr(self, "method", "GET"))
         if units and RESERVE and remaining() - units < RESERVE:
             raise QuotaExhausted(
                 f"quota reserve:{op} 需 {units} units,今日剩 {remaining()},"
                 f"但要留 {RESERVE} 給發布 → 停在額度線上(冪等,下個配額日接著跑)")
+        # ENFORCE 這道原本只寫在 `_execute` 裡 —— 而 resumable 上傳走的是這條路徑,
+        # 等於「先觀測後執法」真的打開執法時,漏掉的正好是最大的那一筆。
+        if units and ENFORCE and units > remaining():
+            raise QuotaExhausted(f"quota exhausted:{op} 需 {units},今日剩 {remaining()}")
+        self._quota_charged = True
         if units:
             _maybe_warn(record(op, units))
 
