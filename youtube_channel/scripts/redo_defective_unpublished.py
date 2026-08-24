@@ -58,6 +58,12 @@ def _defect(slug: str):
     import produce_batch as pb
     v = OUT / f"{slug}.voice.txt"
     if not v.exists():
+        # 🔴 2026-08-25:稿子不在,但**同名的稿在 _redo/** = 這支已經被退回過,
+        # 只是退回當下 mp4/mp3 正被渲染程序佔用而沒搬走(WinError 32),
+        # 或渲染在退回之後才完成 → 留下一個「沒有旁白檔的孤兒 mp4」。
+        # 而舊碼對缺 voice.txt 一律回 None(=無缺陷),孤兒因此會被當成正常庫存**發布出去**。
+        if (REDO / f"{slug}.voice.txt").exists():
+            return "已退回重做的孤兒檔"
         return None
     t = v.read_text(encoding="utf-8", errors="replace")
     title = ""
@@ -92,8 +98,12 @@ def main() -> int:
 
     led = json.loads((STUDIO / "uploaded_ledger.json").read_text(encoding="utf-8"))
     targets = []
-    for p in OUT.glob("L_*.mp4"):
-        slug = p.stem
+    # 🔴 2026-08-25:原本只掃已渲好的 mp4,**待渲染的稿(只有 voice.txt)漏掉** ——
+    # 那些會被 hybrid_render 照渲一遍才發現有缺陷,白燒 18~23 分鐘渲染。
+    # 缺陷在稿子裡,越早攔下越省。用 slug 集合去重(同一支不會處理兩次)。
+    _slugs = {q.stem for q in OUT.glob("L_*.mp4")}
+    _slugs |= {q.name[:-len(".voice.txt")] for q in OUT.glob("L_*.voice.txt")}
+    for slug in sorted(_slugs):
         if slug in led or slug.endswith("_ytcta"):
             continue                       # 已發布 / 衍生檔:不碰
         why = _defect(slug)
