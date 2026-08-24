@@ -138,8 +138,16 @@ def _save(d):
         import studio_common as sc
         sc.save_json_atomic(STATE, d)
     except Exception:  # noqa: BLE001
-        STATE.parent.mkdir(parents=True, exist_ok=True)
-        STATE.write_text(json.dumps(d, ensure_ascii=False, indent=1), encoding="utf-8")
+        try:
+            STATE.parent.mkdir(parents=True, exist_ok=True)
+            STATE.write_text(json.dumps(d, ensure_ascii=False, indent=1), encoding="utf-8")
+        except Exception:  # noqa: BLE001
+            # 🔴 這一層絕對不能省。`_charge_once` 是在 `_orig_next` **之前**呼叫的,
+            # 也就是說寫檔失敗會讓**影片連傳都沒傳出去**;一般呼叫則是在 finally 裡炸,
+            # 例外會取代正常 return,API 明明成功了呼叫端卻收到錯誤。
+            # 計量器是純觀測元件,卻因為 b55669b 攔了 next_chunk 而落在上傳的前置關鍵路徑上。
+            # 記不到帳最多是帳本少一筆;讓發布停下來是完全不成比例的代價。
+            pass
 
 
 def cost_of(uri, method):
