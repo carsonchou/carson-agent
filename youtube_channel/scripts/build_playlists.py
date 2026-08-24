@@ -158,7 +158,18 @@ def main() -> int:
             pass
         return ids
 
-    state = {}
+    # ⚠️ 必須先載入既有內容再更新,**不可以從空 dict 開始**:本函式結尾是
+    # `PLAYLISTS_STATE.write_text(...)` **整檔覆寫**,而迴圈可能提前 break
+    # (--max 用完或撞配額)→ 沒輪到的群組會直接從檔案裡消失。
+    # 消費者是 binge_chain(每天 17:05 讀 playlists.json 取 playlist_id 做「接著看下一集」),
+    # 而本腳本每週四才跑一次 → 一次截斷會讓那些系列斷鏈整整一週。
+    # playlist_engine.py:15 的註解早就警告過這個檔「會被只含 3 個桶的全新 dict 整檔覆寫」。
+    try:
+        state = json.loads(PLAYLISTS_STATE.read_text(encoding="utf-8")) or {}
+        if not isinstance(state, dict):
+            state = {}
+    except Exception:  # noqa: BLE001
+        state = {}
     budget = max(0, args.max_add)
     quota_capped = False
     for name, items in groups.items():
