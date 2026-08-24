@@ -179,6 +179,10 @@ def main() -> int:
             print("     ✅ 已加更正")
         except Exception as exc:  # noqa: BLE001
             print(f"     [warn] {str(exc)[:120]}", file=sys.stderr)
+            if "quota" in str(exc).lower():
+                print("[quota] 停止本輪(冪等,下個配額日接著跑)", file=sys.stderr)
+                break
+
     if args.apply:
         DONE.write_text(json.dumps(sorted(done)), encoding="utf-8")
         try:

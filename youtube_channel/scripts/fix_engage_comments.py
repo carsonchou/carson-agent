@@ -161,6 +161,10 @@ def main() -> int:
             n += 1
         except Exception as exc:  # noqa: BLE001
             print(f"    [warn] {str(exc)[:120]}", file=sys.stderr)
+            if "quota" in str(exc).lower():
+                print("[quota] 停止本輪(冪等,下個配額日接著跑)", file=sys.stderr)
+                break
+
     print(f"\n{'已改' if args.apply else '將改'} {n} 則(剩 {max(0, len(rows) - n)} 則下次續)")
     if args.apply:
         try:

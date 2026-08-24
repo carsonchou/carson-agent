@@ -46,6 +46,12 @@ SCRIPTS = HERE.parent                            # .../scripts
 ROOT = SCRIPTS.parent                            # .../youtube_channel
 sys.path.insert(0, str(SCRIPTS))
 from studio_common import save_json_atomic
+
+# 配額計量(全域 patch HttpRequest.execute/next_chunk,只掛一次;壞掉不影響本腳本)
+try:
+    import quota_meter as _qm; _qm.install()
+except Exception:
+    pass
 STUDIO = ROOT / "STUDIO"
 REPORTS = STUDIO / "REPORTS"
 OUT = ROOT / "output"

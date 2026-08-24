@@ -133,6 +133,13 @@ def main() -> int:
                 videoId=vid,
                 media_body=MediaFileUpload(str(thumb), mimetype="image/jpeg"),
             ).execute()
+        except RuntimeError as exc:
+            # 配額(含預留額度)是 RuntimeError,原本只 catch HttpError 會整支噴掉;
+            # 而狀態檔是在迴圈**外**才寫,崩掉等於賠掉本輪已完成的紀錄(下輪重做、白燒配額)。
+            if "quota" in str(exc).lower():
+                print(f"[quota] 停止本輪,先落地已完成的部分(冪等):{str(exc)[:70]}")
+                break
+            raise
         except HttpError as exc:
             msg = str(exc)
             if "quota" in msg.lower():

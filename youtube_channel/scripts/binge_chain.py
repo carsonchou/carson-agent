@@ -381,8 +381,12 @@ def main():
                                body={"id": r["vid"], "snippet": sn}).execute()
         except Exception as e:  # noqa: BLE001
             msg = str(e)
-            if "quotaExceeded" in msg:
-                print("   ⛔ 配額用罄,優雅停止(狀態已逐支落地)")
+            # 🔴 2026-08-25:判準原本是大小寫敏感的精確字串 "quotaExceeded",接不住
+            # 預留額度丟出的 "quota reserve:…" → 掉到下面那條把配額問題記成「這支片壞掉」,
+            # 而候選過濾是 fails < 2 ⇒ 連兩天撞到額度線,那支片就**永久**被排除且無聲。
+            # 配額問題是**環境狀態**不是影片缺陷,絕不可以寫進 fails。
+            if "quota" in msg.lower():
+                print(f"   ⛔ 配額停止(不記 fails,冪等):{msg[:70]}")
                 break
             print(f"   ✗ {r['vid']} {msg[:80]}")
             rec = done.setdefault(r["vid"], {})

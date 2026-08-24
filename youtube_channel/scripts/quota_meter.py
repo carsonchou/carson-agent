@@ -66,7 +66,10 @@ _COST = {
     ("videos", "GET"): 1,
     ("videos", "PUT"): 50,
     ("videos", "POST"): 1600,
+    ("videos", "DELETE"): 50,          # 2026-08-25 補:原本落到 unknown 只記 1
     ("videos/rate", "POST"): 50,
+    ("channelBanners/insert", "POST"): 50,   # 2026-08-25 補:原本連 head fallback 都接不到
+    ("channelBanners", "POST"): 50,
     ("captions", "GET"): 50,
     ("captions", "POST"): 400,
     ("captions", "PUT"): 450,
@@ -153,10 +156,46 @@ def cost_of(uri, method):
     m = (method or "GET").upper()
     if (res, m) in _COST:
         return (f"{res}.{m.lower()}", _COST[(res, m)])
+    # captions/{id} 的 GET = **下載字幕**,官方 200,不是 captions.list 的 50。
+    # 必須擋在 head fallback 之前:否則會撿到 ("captions","GET")=50,
+    # 那是一個「看起來合理的錯價」,比記成 unknown 更難被發現。
+    if res.startswith("captions/") and m == "GET":
+        return ("captions.download", 200)
     head = res.split("/")[0]
     if (head, m) in _COST:
         return (f"{head}.{m.lower()}", _COST[(head, m)])
     return (f"unknown:{res}.{m.lower()}", 1)
+
+
+_HTTP2API = {"GET": "list", "POST": "insert", "PUT": "update", "DELETE": "delete"}
+
+
+def audit_tables():
+    """跟 quota_budget.COST 對帳,回傳不一致清單 [(api_method, meter價, budget價)]。
+
+    兩張表刻意不合併(key 空間不同:這裡是 HTTP 路徑+動詞,那裡是官方 API method 名),
+    但**必須對得起來**——價格分歧會讓「事前估」與「事後量」永遠兜不攏,
+    而那正是本專案踩過的「同一件事兩份實作」事故的形狀。"""
+    try:
+        import quota_budget
+        b = dict(quota_budget.COST)
+    except Exception:  # noqa: BLE001
+        return []
+    diffs = []
+    for (res, m), units in _COST.items():
+        api = _HTTP2API.get(m, m.lower())
+        if res.endswith("/set"):
+            name = res.replace("/", ".")
+        elif res.endswith("/insert"):
+            name = res.replace("/", ".")
+        elif res.endswith("/rate"):
+            name = res.replace("/", ".")
+        else:
+            name = f"{res}.{api}"
+        if name in b and b[name] != units:
+            diffs.append((name, units, b[name]))
+    diffs.append(("captions.download", 200, b.get("captions.download")))
+    return [d for d in diffs if d[2] is not None and d[1] != d[2]]
 
 
 def record(op, units):
@@ -293,6 +332,13 @@ def main() -> int:
     ap.add_argument("--days", type=int, default=1)
     args = ap.parse_args()
     _report(args.days)
+    d = audit_tables()
+    if d:
+        print("\n⚠️ 與 quota_budget.COST 價格不一致(事前估與事後量會永遠兜不攏,請修):")
+        for name, a, b in d:
+            print(f"   {name:<26} quota_meter={a}  quota_budget={b}")
+    else:
+        print("\n價目表與 quota_budget 對帳一致。")
     return 0
 
 

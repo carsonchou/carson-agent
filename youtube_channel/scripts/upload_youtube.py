@@ -67,6 +67,12 @@ import time
 from pathlib import Path
 from typing import Any, Optional
 
+# 配額計量(全域 patch HttpRequest.execute/next_chunk,只掛一次;壞掉不影響本腳本)
+try:
+    import quota_meter as _qm; _qm.install()
+except Exception:
+    pass
+
 # Windows 主控台預設常是 cp950（Big5），直接 print 中文標題/描述會
 # UnicodeEncodeError 而中斷上傳。把 stdout/stderr 重設為 UTF-8（errors="replace"
 # 保底），確保中文 metadata 都能安全印出（單獨執行與被 run_all.py 呼叫皆適用）。

@@ -156,7 +156,13 @@ def parse_jobs():
         # 真 cron 是交給 sh 執行、吃得到那個變數,本機 runner 吃不到 → 同一份 crontab
         # 兩邊行為不一樣,而且是**靜默**的(沒有錯誤、只是設定沒生效)。配額預留
         # (YT_QUOTA_RESERVE)正是靠這個機制,漏掉就等於整個保護沒裝。
-        jenv = dict(re.findall(r"(?:^|\s)([A-Z][A-Z0-9_]*)=(\S+)(?=\s)", cmd))
+        # 只掃**註解之前**那一段:行尾的 `# ONESHOT=2026-08-28` 長得跟環境變數一模一樣,
+        # 原本只是因為它後面沒有空白、剛好被 lookahead 濾掉 —— 那是靠運氣不是靠設計
+        # (有人手滑在行尾多打一個空格,ONESHOT 就會被當環境變數注入子程序)。
+        _envscan = cmd.split("#", 1)[0]
+        jenv = {k: v for k, v in
+                re.findall(r"(?:^|\s)([A-Z][A-Z0-9_]*)=(\S+)(?=\s)", _envscan)
+                if k != "ONESHOT"}
         # 抽出 scripts/X.py 及其參數（run.sh scripts/X.py args >> log）
         mm = re.search(r"(scripts/[A-Za-z0-9_]+\.py)(.*?)(?:\s*>>|\s*2>|\s*$)", cmd)
         if not mm:

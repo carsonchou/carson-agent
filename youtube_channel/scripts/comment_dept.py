@@ -404,6 +404,9 @@ def auto_reply_safe(yt, max_replies: int = 10, dry_run: bool = False, use_haiku:
             time.sleep(1.5)  # 禮貌間隔，避免 quota 連打
         except Exception as e:
             print(f"[warn] 發回覆失敗（@{c['author']}）：{e}", file=sys.stderr)
+            if "quota" in str(e).lower():
+                print("[quota] 停止本輪(冪等,下個配額日接著跑)", file=sys.stderr)
+                break
 
     if not dry_run and acted > 0:
         save_replied(replied)

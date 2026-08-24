@@ -183,6 +183,9 @@ def main() -> int:
                 budget -= 1
             except Exception as e:  # noqa: BLE001
                 print(f"[warn] 加入清單失敗 {slug}：{e}", file=sys.stderr)
+                if "quota" in str(e).lower():
+                    print("[quota] 停止本輪(冪等,下個配額日接著跑)", file=sys.stderr)
+                    break
         state[name] = {"playlist_id": plid, "video_ids": sorted(existing)}
         print(f"[ok] {name}：清單 {plid}，本次新增 {added} 支，共 {len(existing)} 支。")
         if quota_capped:
