@@ -87,12 +87,24 @@ def main() -> int:
         pass
     done = set(json.loads(DONE.read_text(encoding="utf-8"))) if DONE.exists() else set()
 
+    # 只修 **2026-08-17 修復之前發布** 的片:之後發布的字幕本來就是用真實時戳產的,
+    # 再覆蓋一次是拿 500 units 去換一個一模一樣的檔案。查不到發布日期的一律當成舊片
+    # (保守:寧可多修一支,不要漏掉一支還在飄的)。
+    import datetime as _dt
+    FIXED_AT = _dt.date(2026, 8, 17)
     cands = []
     for slug, vid in led.items():
         if not isinstance(vid, str) or len(vid) != 11 or not slug.startswith("L_"):
             continue
         if vid in done or not (OUT / f"{slug}.wordtimes.json").exists():
             continue
+        _d = (info.get(vid) or {}).get("d", "")[:10]
+        if _d:
+            try:
+                if _dt.date.fromisoformat(_d) >= FIXED_AT:
+                    continue          # 修復之後發布 → 字幕已正確,不動
+            except ValueError:
+                pass
         cands.append((slug, vid, (info.get(vid) or {}).get("v", 0)))
     # 最多人看到的先修
     cands.sort(key=lambda x: -x[2])
