@@ -232,6 +232,9 @@ def install(service=None):
                 f"但要留 {RESERVE} 給發布 → 停在額度線上(冪等,下個配額日接著跑)")
         if units and ENFORCE and units > remaining():
             raise QuotaExhausted(f"quota exhausted:{op} 需 {units},今日剩 {remaining()}")
+        if getattr(self, "_quota_charged", False):
+            return _orig(self, *a, **kw)      # 同一個 request 已由 next_chunk 收過費
+        self._quota_charged = True
         try:
             return _orig(self, *a, **kw)
         finally:
@@ -240,6 +243,33 @@ def install(service=None):
                 _maybe_warn(record(op, units))
 
     HttpRequest.execute = _execute
+
+    # 🔴 分段上傳(resumable)**不會走 execute()**,走的是 `next_chunk()` 迴圈。
+    # daily_publish 上傳影片正是這條路(`MediaFileUpload(resumable=True, chunksize=4MB)`
+    # + `while ...: req.next_chunk()`),而 videos.insert 是 **1,600 units、全排程最大宗**
+    # (一天 6 支 = 9,600)。只攔 execute 的話,帳上會顯示發布花了 0,
+    # 補件工作就會以為額度還很多 —— 整個預留機制反而變成幫兇。
+    # 一次上傳會呼叫 next_chunk 很多次(每 4MB 一次),所以**只在第一次收費**,
+    # 用 request 物件上的旗標記住(配額是按 request 算,不是按 chunk 算)。
+    _orig_next = HttpRequest.next_chunk
+
+    def _charge_once(self):
+        if getattr(self, "_quota_charged", False):
+            return
+        self._quota_charged = True
+        op, units = cost_of(getattr(self, "uri", ""), getattr(self, "method", "GET"))
+        if units and RESERVE and remaining() - units < RESERVE:
+            raise QuotaExhausted(
+                f"quota reserve:{op} 需 {units} units,今日剩 {remaining()},"
+                f"但要留 {RESERVE} 給發布 → 停在額度線上(冪等,下個配額日接著跑)")
+        if units:
+            _maybe_warn(record(op, units))
+
+    def _next_chunk(self, *a, **kw):
+        _charge_once(self)
+        return _orig_next(self, *a, **kw)
+
+    HttpRequest.next_chunk = _next_chunk
     HttpRequest._quota_metered = True
     return service
 
