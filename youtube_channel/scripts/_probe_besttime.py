@@ -26,6 +26,12 @@ except Exception:
 
 import yt_analytics as ya  # noqa: E402
 
+# 配額計量(全域 patch HttpRequest.execute,只掛一次;壞掉不影響本腳本)
+try:
+    import quota_meter as _qm; _qm.install()
+except Exception:
+    pass
+
 TW = timezone(timedelta(hours=8))
 
 

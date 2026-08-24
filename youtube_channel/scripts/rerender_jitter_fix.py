@@ -73,6 +73,25 @@ def main() -> int:
     cands = sorted([p.stem for p in OUT.glob("L_*.mp4")
                     if p.stem not in led and p.stem not in done
                     and (OUT / f"{p.stem}.mp3").exists()])
+    # 空殼長片不必重渲:它們本來就過不了 audit_video 的長片旁白下限(400 字),
+    # 永遠不會發布,重渲只是白燒十幾分鐘 CPU。實測「AI選股神器」那支 mp3 只有 15 秒、
+    # 旁白 76 字,重渲產出 775KB 又被產物檢查擋下——兩邊都對,只是這趟本來就不該跑。
+    # 判準與 audit_video ①e 同一條(旁白 <400 中文字),EP0／預告同樣豁免。
+    import re as _re
+    _skipped = []
+    _keep = []
+    for _s in cands:
+        _v = OUT / f"{_s}.voice.txt"
+        _n = len(_re.findall(r"[一-鿿]", _v.read_text(encoding="utf-8"))) if _v.exists() else 0
+        if _n < 400 and not any(k in _s for k in ("EP0", "開播預告", "預告")):
+            _skipped.append((_s, _n))
+        else:
+            _keep.append(_s)
+    if _skipped:
+        print(f"跳過 {len(_skipped)} 支空殼長片(旁白 <400 字,過不了發布閘門):", flush=True)
+        for _s, _n in _skipped:
+            print(f"   旁白{_n:4d}字  {_s[:44]}", flush=True)
+    cands = _keep
     print(f"未發布長片 {len(cands)} 支待重渲(已完成 {len(done)})", flush=True)
     if args.dry_run:
         for s in cands[:args.max]:

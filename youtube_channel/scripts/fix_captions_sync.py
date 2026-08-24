@@ -131,6 +131,11 @@ def main() -> int:
             time.sleep(0.5)
         except Exception as exc:  # noqa: BLE001
             print(f"    [warn] {str(exc)[:110]}", file=sys.stderr)
+            if "quota" in str(exc).lower():
+                # 配額用盡或撞到預留額度線 → 停在這裡(冪等,下個配額日接著跑)。
+                # 不 break 的話會把剩下的候選全部空轉一遍,只是印一堆同樣的警告。
+                print("[quota] 停止本輪(冪等)", file=sys.stderr)
+                break
     if args.apply:
         DONE.write_text(json.dumps(sorted(done)), encoding="utf-8")
         try:

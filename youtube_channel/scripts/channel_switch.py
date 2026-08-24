@@ -48,6 +48,12 @@ import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+# 配額計量(全域 patch HttpRequest.execute,只掛一次;壞掉不影響本腳本)
+try:
+    import quota_meter as _qm; _qm.install()
+except Exception:
+    pass
+
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
@@ -69,6 +75,25 @@ SLOTS = {
     "token.json": ["https://www.googleapis.com/auth/youtube.upload",
                    "https://www.googleapis.com/auth/youtube.readonly"],
 }
+
+# 「最大權限」:一次要齊,免得日後為了某個功能又要 Carson 重新授權一輪。
+# ⚠️ 但要知道**沒有任何 scope 能解鎖這六項**——它們根本沒有 API:
+#     結束畫面 / 資訊卡 / 頻道名稱 / @handle / 大頭貼與橫幅 / 頻道預設兒童內容
+# MONETARY 需要頻道已營利才會有資料,但沒營利也能授權(只是查詢回空)。
+# PARTNER 兩個是內容擁有者等級,一般創作者帳號可能被 Google 拒絕 →
+#   故授權採「先試全套,被拒就退回必要集合」的兩段式(見 cmd_reauth)。
+MAX_SCOPES = [
+    "https://www.googleapis.com/auth/youtube.force-ssl",
+    "https://www.googleapis.com/auth/youtube.readonly",
+    "https://www.googleapis.com/auth/youtube.upload",
+    "https://www.googleapis.com/auth/yt-analytics.readonly",
+    "https://www.googleapis.com/auth/yt-analytics-monetary.readonly",
+    "https://www.googleapis.com/auth/youtube.channel-memberships.creator",
+    "https://www.googleapis.com/auth/youtube.third-party-link.creator",
+    "https://www.googleapis.com/auth/youtubepartner",
+]
+# 被拒時的退回集合(去掉最可能被拒的 partner 類)
+CORE_SCOPES = [s for s in MAX_SCOPES if "youtubepartner" not in s]
 
 
 def now():
@@ -245,6 +270,83 @@ def cmd_add(slug: str, title: str | None):
     return 0
 
 
+def cmd_reauth(slug: str):
+    """把某頻道升級成最大權限。**絕不直接覆蓋現有 token**——
+
+    授權中途失敗、或使用者不小心選錯帳號,直接覆蓋會讓每天在跑的產線斷掉,
+    或更糟:把主頻道的槽位換成別的頻道的憑證。故流程是
+      新授權 → 存暫存 → 打 API 驗身分(必須與註冊表同一個 channel_id)
+             → 驗 scope 真的拿到 → 才換上去
+    任何一關沒過就中止,現有 token 一個位元組都不動。
+    """
+    reg = load_reg()
+    if slug not in reg["channels"]:
+        print(f"[!] 註冊表裡沒有「{slug}」")
+        return 1
+    c = reg["channels"][slug]
+    expect_id = c.get("channel_id")
+    print(f"升級「{slug}」({c.get('title')}) 的權限")
+    print(f"  註冊表登記 channel_id = {expect_id}\n")
+
+    from google_auth_oauthlib.flow import InstalledAppFlow
+    creds = None
+    for label, scopes in (("最大權限(含 partner)", MAX_SCOPES), ("核心權限(去掉 partner)", CORE_SCOPES)):
+        print(f"── 嘗試 {label}:{len(scopes)} 個 scope")
+        try:
+            flow = InstalledAppFlow.from_client_secrets_file(str(CLIENT_SECRETS), scopes)
+            # 🔴 必須是 "select_account consent" 不能只有 "consent"。
+            # 實測(2026-08-17):只給 consent 時 Google **不會顯示帳號選擇畫面**,
+            # 直接沿用瀏覽器當前作用中的帳號 → 連續兩次都授權到錯的頻道
+            # (要升級主頻道,卻拿到 Ai dancing)。加上 select_account 才會強制跳選單。
+            creds = flow.run_local_server(port=0, prompt="select_account consent")
+            break
+        except Exception as e:  # noqa: BLE001
+            print(f"   ✗ {type(e).__name__}: {str(e)[:150]}")
+            creds = None
+    if not creds:
+        print("[!] 兩種都授權失敗,現有 token 未動。")
+        return 1
+
+    granted = sorted(creds.scopes or [])
+    print(f"\n   實際拿到 {len(granted)} 個 scope:")
+    for s in MAX_SCOPES:
+        mark = "✓" if s in granted else "✗"
+        print(f"     {mark} {s.rsplit('/', 1)[-1]}")
+
+    # 存暫存 → 驗身分
+    d = chan_dir(slug)
+    d.mkdir(parents=True, exist_ok=True)
+    stage = d / "_reauth.json"
+    stage.write_text(creds.to_json(), encoding="utf-8")
+    ident = identify(stage, granted)
+    if not ident or ident.get("error"):
+        print(f"\n[!] 身分查核失敗:{(ident or {}).get('error', '查不到頻道')}。現有 token 未動。")
+        stage.unlink(missing_ok=True)
+        return 1
+    print(f"\n   API 查核:{ident['title']}({ident.get('handle')}) id={ident['channel_id']}")
+    if expect_id and ident["channel_id"] != expect_id:
+        print(f"[!] 🔴 授權到的是**別的頻道**({ident['title']}),不是「{slug}」。")
+        print("    很可能是同意畫面選錯帳號。現有 token 一個位元組都沒動,請重跑。")
+        stage.unlink(missing_ok=True)
+        return 1
+
+    # 全部通過才換上去
+    for name in SLOTS:
+        _copy(stage, d / name)
+    if reg.get("active") == slug:
+        for name in SLOTS:
+            _copy(stage, ROOT / name)
+        print("   已同步換上現役槽位(這是目前上線中的頻道)")
+    stage.unlink(missing_ok=True)
+    c["scopes"] = granted
+    c["reauth_at"] = now()
+    if not expect_id:
+        c["channel_id"] = ident["channel_id"]
+    save_reg(reg)
+    print(f"\n✅ 「{slug}」已升級為 {len(granted)} 個 scope。")
+    return 0
+
+
 def cmd_use(slug: str):
     reg = load_reg()
     if slug not in reg["channels"]:
@@ -387,6 +489,7 @@ def main():
     ap.add_argument("--adopt", metavar="SLUG", help="把現役 token 收編成頻道(第一步)")
     ap.add_argument("--add", metavar="SLUG", help="新增頻道(開瀏覽器授權新 Google 帳號)")
     ap.add_argument("--use", metavar="SLUG", help="切換到某頻道")
+    ap.add_argument("--reauth", metavar="SLUG", help="把該頻道升級成最大權限(安全換發)")
     ap.add_argument("--title", help="頻道顯示名稱(配合 --adopt/--add)")
     ap.add_argument("--list", action="store_true")
     ap.add_argument("--whoami", action="store_true", help="問 API:現役 token 是誰")
@@ -397,6 +500,8 @@ def main():
         return cmd_adopt(a.adopt, a.title)
     if a.add:
         return cmd_add(a.add, a.title)
+    if a.reauth:
+        return cmd_reauth(a.reauth)
     if a.use:
         return cmd_use(a.use)
     if a.whoami:

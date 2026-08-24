@@ -38,6 +38,12 @@ import json
 import sys
 from pathlib import Path
 
+# 配額計量(全域 patch HttpRequest.execute,只掛一次;壞掉不影響本腳本)
+try:
+    import quota_meter as _qm; _qm.install()
+except Exception:
+    pass
+
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 except Exception:  # noqa: BLE001

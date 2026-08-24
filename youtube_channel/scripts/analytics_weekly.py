@@ -8,6 +8,12 @@ import json, sys, os
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
+# 配額計量(全域 patch HttpRequest.execute,只掛一次;壞掉不影響本腳本)
+try:
+    import quota_meter as _qm; _qm.install()
+except Exception:
+    pass
+
 ROOT = Path(__file__).resolve().parent.parent
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")

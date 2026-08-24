@@ -47,6 +47,12 @@ from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 
+# 配額計量(全域 patch HttpRequest.execute,只掛一次;壞掉不影響本腳本)
+try:
+    import quota_meter as _qm; _qm.install()
+except Exception:
+    pass
+
 MANAGE_SCOPES = ["https://www.googleapis.com/auth/youtube.force-ssl"]
 DEFAULT_WINNER_KEYWORDS = ["複利", "ETF", "定投", "賓士", "停損"]
 

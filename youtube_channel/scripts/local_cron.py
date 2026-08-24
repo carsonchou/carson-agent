@@ -151,6 +151,12 @@ def parse_jobs():
             continue
         if any(k in cmd for k in SKIP_MARKERS):
             continue
+        # 行內環境變數前綴(`VAR=x /root/yt/run.sh scripts/X.py …`)。
+        # 🔴 2026-08-25:原本這裡**只抽 scripts/X.py 和參數**,`VAR=x` 前綴被整段丟掉——
+        # 真 cron 是交給 sh 執行、吃得到那個變數,本機 runner 吃不到 → 同一份 crontab
+        # 兩邊行為不一樣,而且是**靜默**的(沒有錯誤、只是設定沒生效)。配額預留
+        # (YT_QUOTA_RESERVE)正是靠這個機制,漏掉就等於整個保護沒裝。
+        jenv = dict(re.findall(r"(?:^|\s)([A-Z][A-Z0-9_]*)=(\S+)(?=\s)", cmd))
         # 抽出 scripts/X.py 及其參數（run.sh scripts/X.py args >> log）
         mm = re.search(r"(scripts/[A-Za-z0-9_]+\.py)(.*?)(?:\s*>>|\s*2>|\s*$)", cmd)
         if not mm:
@@ -164,12 +170,12 @@ def parse_jobs():
             arglist = [a for a in arglist if a != "--pc"]
             if "--cloud" not in arglist:
                 arglist.insert(0, "--cloud")
-        jobs.append((mi, ho, dom, mon, dow, [script] + arglist, s))
+        jobs.append((mi, ho, dom, mon, dow, [script] + arglist, s, jenv))
     return jobs
 
 
 def due(job, now: datetime) -> bool:
-    mi, ho, dom, mon, dow, _, _ = job
+    mi, ho, dom, mon, dow = job[:5]
     # cron dow: 0/7=Sun..6=Sat；python weekday(): Mon=0..Sun=6 → 轉換
     # 2026-07-16 修:原本多了一個 `or match(dow, py)`(拿未換算的 python weekday 再比一次),
     # 導致 dow 限定的 job 每週多跑一天(如 `* * 1-5` 實際一~六都跑)。只比換算後的 cron_dow。
@@ -192,8 +198,10 @@ def _wait_and_log(proc: subprocess.Popen, script: str):
         _log(f"✗ 監控失敗 {script}: {exc}")
 
 
-def run_job(pyargs, env):
+def run_job(pyargs, env, jenv=None):
     script = pyargs[0]
+    if jenv:
+        env = {**env, **jenv}          # crontab 行內 `VAR=x` 前綴,per-job 覆蓋
     try:
         # 子程序 stderr 導到 job_stderr.log(取代 DEVNULL):job 靜默失敗會留 traceback 可事後查。
         # 檔過大(>5MB)先截斷,避免無限長。父端開檔傳給 Popen,子程序繼承 fd 後父端關閉不影響子寫入。
@@ -260,7 +268,7 @@ def main() -> int:
         n = 0
         for j in jobs:
             if due(j, now):
-                run_job(j[5], env); n += 1
+                run_job(j[5], env, j[7] if len(j) > 7 else None); n += 1
         _log(f"--once：本分鐘跑了 {n} 個 job")
         return 0
 
@@ -297,12 +305,12 @@ def main() -> int:
                                 and tuple(j[5]) not in _fired):
                             _fired.add(tuple(j[5]))
                             _log(f"⏰ 斷檔補跑({_gap/60:.0f}分斷檔,原定 {_t:%H:%M}):{' '.join(j[5])[:60]}")
-                            run_job(j[5], env)
+                            run_job(j[5], env, j[7] if len(j) > 7 else None)
                     _t += timedelta(minutes=1)
             _prev_dt = now
             for j in jobs:
                 if due(j, now):
-                    run_job(j[5], env)
+                    run_job(j[5], env, j[7] if len(j) > 7 else None)
         time.sleep(20)
 
 

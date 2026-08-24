@@ -34,6 +34,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from ops import log_ops
 import llm  # 共用 LLM 路由(主 OpenRouter/DeepSeek→退回 Anthropic)，不再直打死掉的 Anthropic
 import studio_common as sc  # 共用地基：PERSONA / has_llm_key / evidence_block
+
+# 配額計量(全域 patch HttpRequest.execute,只掛一次;壞掉不影響本腳本)
+try:
+    import quota_meter as _qm; _qm.install()
+except Exception:
+    pass
 STUDIO = ROOT / "STUDIO"
 REPORTS = STUDIO / "REPORTS"
 LEDGER = STUDIO / "uploaded_ledger.json"
@@ -247,13 +253,23 @@ def yt_service():
     return build("youtube", "v3", credentials=creds)
 
 
-def gather_stats(yt):
+def gather_stats(yt, report=None):
+    """report:傳入 dict 即可拿到本次抓取的完整性(chunks_failed / complete)。
+
+    2026-08-24 修:原本分塊查詢碰 403 quotaExceeded 只 print 一行 warn 就繼續下一塊,
+    呼叫端拿到「少了幾百筆的 rows」卻無從得知,len(rows) 被當成「頻道影片數」寫進
+    metrics 快照(07-11 / 07-15 / 08-22 三次),害 northstar 趨勢算出 -98.5% 假崩盤,
+    再害 growth_agent 連續對假訊號出手。len(rows) 是「這次成功回來的筆數」,
+    不是頻道影片數 —— 把失敗塊數回報給呼叫端,讓它能 fail-closed。
+    """
     ledger = json.loads(LEDGER.read_text(encoding="utf-8")) if LEDGER.exists() else {}
     id_to_slug = {v: k for k, v in ledger.items()}
     ids = list(dict.fromkeys(ORIGINAL + list(ledger.values())))
     rows = []
+    chunks_total = chunks_failed = 0
     for i in range(0, len(ids), 50):
         chunk = ids[i:i + 50]
+        chunks_total += 1
         try:
             resp = yt.videos().list(part="snippet,statistics", id=",".join(chunk)).execute()
             for it in resp.get("items", []):
@@ -269,7 +285,8 @@ def gather_stats(yt):
                     "retention": None,  # 稍後由 yt_analytics 補入
                 })
         except Exception as exc:  # noqa: BLE001
-            print(f"[warn] 抓數據失敗：{exc}", file=sys.stderr)
+            chunks_failed += 1
+            print(f"[warn] 抓數據失敗(第 {chunks_total} 塊)：{exc}", file=sys.stderr)
     # 補 retention 欄位（yt_analytics.video_stats），排序改成複合分
     try:
         import yt_analytics as ya
@@ -283,6 +300,10 @@ def gather_stats(yt):
     except Exception:
         # yt_analytics 不可用時退回純觀看排序
         rows.sort(key=lambda r: r["views"], reverse=True)
+    if report is not None:
+        report.update({"requested": len(ids), "returned": len(rows),
+                       "chunks_total": chunks_total, "chunks_failed": chunks_failed,
+                       "complete": chunks_failed == 0})
     return rows
 
 

@@ -115,14 +115,34 @@ def collect():
     stats = None
     try:
         from decision_dept import yt_service, gather_stats
-        rows = gather_stats(yt_service())
-        stats = {
-            "total_views": sum(r["views"] for r in rows),
-            "n_videos": len(rows),
-            "top": [{"title": r["title"], "views": r["views"], "is_short": r["is_short"]} for r in rows[:5]],
-            "bottom": [{"title": r["title"], "views": r["views"], "is_short": r["is_short"]}
-                       for r in rows[-5:] if r["views"] >= 0][::-1] if len(rows) > 5 else [],
-        }
+        fetch = {}
+        rows = gather_stats(yt_service(), report=fetch)
+        # 2026-08-24 fail-closed:分塊查詢只要有任何一塊失敗(多半是 403 quotaExceeded),
+        # 回來的 rows 就是殘缺的,len(rows) 不等於頻道影片數。以前這種殘缺資料照樣寫進
+        # 快照,害趨勢算出 -98.5% 假崩盤(07-11/07-15/08-22 三次都是)。
+        # 判準用「有沒有失敗塊」這個結構事實,不用跌幅門檻——門檻要校準又擋不住 07-11 的 -53.5%。
+        if not fetch.get("complete", True):
+            sig["stats_err"] = ("抓取殘缺:%s/%s 塊失敗,只回 %s/%s 筆(多半是配額耗盡)"
+                                % (fetch.get("chunks_failed"), fetch.get("chunks_total"),
+                                   fetch.get("returned"), fetch.get("requested")))
+            print("[retro_dept][ABORT] %s → 本次不寫快照,避免污染趨勢" % sig["stats_err"],
+                  file=sys.stderr)
+            try:
+                from notify import push
+                push("量化阿森·數據抓取殘缺",
+                     sig["stats_err"] + "\n本次不寫 metrics 快照(fail-closed)。"
+                     "配額耗盡的話趨勢會停在前一天,不是真的沒成長。",
+                     tag="warning")
+            except Exception:  # noqa: BLE001
+                pass
+        else:
+            stats = {
+                "total_views": sum(r["views"] for r in rows),
+                "n_videos": len(rows),
+                "top": [{"title": r["title"], "views": r["views"], "is_short": r["is_short"]} for r in rows[:5]],
+                "bottom": [{"title": r["title"], "views": r["views"], "is_short": r["is_short"]}
+                           for r in rows[-5:] if r["views"] >= 0][::-1] if len(rows) > 5 else [],
+            }
     except Exception as e:  # noqa: BLE001
         sig["stats_err"] = str(e)[:80]
     sig["stats"] = stats

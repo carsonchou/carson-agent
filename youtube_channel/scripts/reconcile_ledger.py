@@ -22,6 +22,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 from studio_common import save_json_atomic, load_json_safe
+
+# 配額計量(全域 patch HttpRequest.execute,只掛一次;壞掉不影響本腳本)
+try:
+    import quota_meter as _qm; _qm.install()
+except Exception:
+    pass
 STUDIO = ROOT / "STUDIO"
 OUT = ROOT / "output"
 LEDGER = STUDIO / "uploaded_ledger.json"

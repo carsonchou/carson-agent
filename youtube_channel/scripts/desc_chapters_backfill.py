@@ -165,6 +165,9 @@ def main() -> int:
             time.sleep(0.5)
         except Exception as exc:  # noqa: BLE001
             print(f"[warn] {slug[:36]}:{str(exc)[:100]}", file=sys.stderr)
+            if "quota" in str(exc).lower():
+                print("[quota] 停止本輪(冪等)", file=sys.stderr)
+                break
     if args.apply:
         done_mark.write_text(json.dumps(sorted(done)), encoding="utf-8")
         log_ops("包裝回填", f"描述章節回填 {changed} 支(累計完成 {len(done)})")

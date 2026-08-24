@@ -11,6 +11,12 @@ except Exception:
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 
+# 配額計量(全域 patch HttpRequest.execute,只掛一次;壞掉不影響本腳本)
+try:
+    import quota_meter as _qm; _qm.install()
+except Exception:
+    pass
+
 creds = Credentials.from_authorized_user_file(str(ROOT / "token_manage.json"))
 ya = build("youtubeAnalytics", "v2", credentials=creds)
 yt = build("youtube", "v3", credentials=creds)

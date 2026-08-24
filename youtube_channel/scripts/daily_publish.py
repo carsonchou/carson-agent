@@ -287,7 +287,15 @@ def get_service():
             flow = InstalledAppFlow.from_client_secrets_file(str(CLIENT_SECRETS), SCOPES)
             creds = flow.run_local_server(port=0)
         TOKEN.write_text(creds.to_json(), encoding="utf-8")
-    return build("youtube", "v3", credentials=creds)
+    svc = build("youtube", "v3", credentials=creds)
+    # 配額計量:掛在**唯一的** service 建構點上,所有腳本自動被記帳(改呼叫端一定會漏,
+    # 而漏掉的那支就是下次無聲吃光配額的那支)。預設只記帳不擋人,見 quota_meter 說明。
+    try:
+        import quota_meter
+        quota_meter.install(svc)
+    except Exception:  # noqa: BLE001
+        pass          # 計量器壞掉絕不能反過來害到發布
+    return svc
 
 
 def load_ledger() -> dict:
