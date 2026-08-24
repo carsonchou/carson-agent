@@ -139,6 +139,18 @@ def main() -> int:
             }""")
             print(f"對話框送出:{clicked or '(沒找到)'}")
             page.wait_for_timeout(4000)
+            # 🔴 顯示時間預設是「影片結尾」——而本頻道**只有 7% 的觀眾看得到片尾**
+            #    (實測留存:片長 95% 處只剩 7%)。不改的話這個元件等於白設。
+            #    改成「整部影片」= 曝光從 7% 變 100%,同一個元件差 14 倍。
+            try:
+                page.get_by_text("影片浮水印", exact=False).first.scroll_into_view_if_needed(timeout=15000)
+                page.wait_for_timeout(1200)
+                page.get_by_text("整部影片", exact=True).first.click(timeout=15000)
+                page.wait_for_timeout(2500)
+                print("顯示時間已選『整部影片』")
+            except Exception as exc:  # noqa: BLE001
+                print(f"[warn] 顯示時間沒改到({str(exc)[:80]})——請手動確認,"
+                      f"預設『影片結尾』只有 7% 觀眾看得到")
             # 第二段:頁面層級「發布」(等它從 disabled 變成可按)
             def _pub():
                 return page.evaluate("""() => {
