@@ -430,7 +430,12 @@ def _srt_ts(sec: float) -> str:
 def write_srt_for_slug(slug: str, out_dir=None):
     """為 output/<slug> 產生 .srt 字幕軌（上傳 YouTube 用，非燒錄）。
 
-    重用既有 split_subtitle_units()+build_subtitle_cues()（估算時間軸）。
+    ⚠️ 2026-08-24 更正這句 docstring:它原本寫「重用既有 split_subtitle_units()+
+    build_subtitle_cues()(**估算時間軸**)」——那是 2026-08-17 修復**之前**的行為,
+    註解沒跟著改。現在的實作是「**優先吃 TTS 逐句真實時戳 + 補 INTRO 位移**,
+    沒有 wordtimes 才退回估算(且改用旁白 mp3 長度而非 mp4 總長)」,見下方那段紅字註解。
+    過時的註解比沒有註解更糟:2026-08-24 查「字幕跟聲音對不上」時,我就是被這句
+    帶去以為程式沒修,繞了一圈才發現真正的問題是**存量字幕軌沒重傳**。
     來源：<slug>.voice.txt（優先）或 <slug>.md 的「**旁白：**」行；時長取自 <slug>.mp4（ffprobe）。
     價值＝中文金融術語(夏普/回撤/網格)字幕 100% 正確，勝過 YouTube 自動字幕亂猜。
     成功回傳 srt 路徑，失敗回 None（非致命）。
