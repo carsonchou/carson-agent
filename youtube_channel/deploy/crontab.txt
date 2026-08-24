@@ -283,7 +283,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 48 9 * * * /root/yt/run.sh scripts/promo_dept.py >> /root/yt/logs/cron.log 2>&1
 51 9 * * * /root/yt/run.sh scripts/thumbnail_dept.py >> /root/yt/logs/cron.log 2>&1
 # 2026-07-16 配額預算輪值制:每小時→每2小時,降無上限曝險
-54 */2 * * * /root/yt/run.sh scripts/comment_dept.py --auto-reply-safe --max 10 >> /root/yt/logs/cron.log 2>&1
+54 */2 * * * YT_QUOTA_RESERVE=1600  scripts/comment_dept.py --auto-reply-safe --max 10 >> /root/yt/logs/cron.log 2>&1
 57 9 * * * /root/yt/run.sh scripts/finance_dept.py >> /root/yt/logs/cron.log 2>&1
 5 10 * * * /root/yt/run.sh scripts/multipost_dept.py --max 50 >> /root/yt/logs/cron.log 2>&1
 # 跨平台真上傳(TikTok/IG via upload-post)：無 UPLOAD_POST_API_KEY 會優雅跳過，金鑰一到即生效
@@ -525,3 +525,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 #   換一個一樣爛的估算版。list 50 + update 450 ≈ 500 units/支。
 #   排在最後,用當天剩下的配額;冪等(修過的記檔),139 支約兩週補完。
 0 23 * * * YT_QUOTA_RESERVE=1600 /root/yt/run.sh scripts/fix_caption_drift.py --apply --max 10 >> /root/yt/logs/cron.log 2>&1
+
+# 配額預算靜態預估(從 crontab 反推每日總量,超標推 ntfy)。與 quota_meter 互補:
+# 這支是**事前估上限**,quota_meter 是**事後量實際**。兩邊對不上就是價目表或 --max 估錯了。
+2 15 * * * /root/yt/run.sh scripts/quota_budget.py --notify >> /root/yt/logs/cron.log 2>&1
