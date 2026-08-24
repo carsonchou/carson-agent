@@ -3051,7 +3051,20 @@ def _long_content_padding(voice_text):
     if len(windows) >= 3 and (empty_windows / len(windows)) > 0.45:
         return True
     from collections import Counter
-    chars_only = re.sub(r"[^一-鿿0-9]", "", t)
+    # 🔴 2026-08-25:**合規免責語不算灌水**。實測 158 支長片,n-gram 分支只咬到 4 支,
+    # 其中 2 支咬的是規則**要求**每段都講的免責句(「歷史回測資料非未來保證」x6、
+    # 「示意歷史回測不代表未來」x4)——把「照規矩講免責」算成灌水,等於**懲罰合規**,
+    # 而且會逼產線去重生一支本來就合格的稿(每次重生 ~13 分鐘 + 一次 LLM 大呼叫)。
+    # 門檻校準那次(>=3→>=4)已經發現咬到的多半是免責句,但只調高門檻沒有拆掉這個成因:
+    # 免責句在 10 分鐘長片裡本來就會出現 4~6 次。改成**先把免責句整句拿掉再數**。
+    # 免責語措辭由 LLM 每次自己寫,沒有固定字串可比對,所以用合規語的招牌詞去認。
+    t_body = "\n".join(
+        s for s in re.split(r"(?<=[。！？!?])", t)
+        if not re.search(r"回測(?:資料|結果)?(?:並)?非未來|不代表未來|非投資建議|不構成投資建議"
+                         r"|僅供(?:參考|教學)|風險自負|過去(?:績效|報酬)不(?:代表|保證)"
+                         r"|介紹(?:並)?不(?:等於|是)推薦", s)
+    )
+    chars_only = re.sub(r"[^一-鿿0-9]", "", t_body)
     n_gram = 10
     grams = Counter(chars_only[i:i + n_gram] for i in range(max(len(chars_only) - n_gram + 1, 0)))
     # 門檻校準(2026-08-22，146 支現存長片實測)：原本設 >=3 太緊——實跑出來咬到的多半是
@@ -3062,6 +3075,139 @@ def _long_content_padding(voice_text):
     # 且審核判定有缺陷的 10 支隔離片仍擋下 8 支。單一門檻對所有長片一致(不分體檢/一般，
     # 避免又造出一條旁路——本檔已經因為 topic_override 旁路吃過一次大虧)。
     return any(c >= 4 for c in grams.values())
+
+
+
+def _dedupe_repeated_sentences(voice_text, keep=2):
+    """整句重複灌水的**確定性修復**:同一句(>=12 中文字)出現超過 keep 次,第 keep+1 次起整句刪掉。
+
+    為什麼是刪整句、而不是挖掉重複的 n-gram:`_long_content_padding` 咬的是 10 字 n-gram
+    重複 >=4 次,但實跑看到的真灌水一律是**整句照抄**(泰藝同一句 x67、
+    堡達「約197最大回撤約50」x5)。只挖掉 n-gram 會在句子中間留下斷詞,TTS 會照唸出結巴;
+    整句刪掉才乾淨。保留前 keep 次是刻意的——開場講一次、結尾回扣一次是正常結構
+    (門檻校準那次已確認咬到的多半是免責句與標題回扣,不是灌水)。"""
+    t = (voice_text or "")
+    if not t.strip():
+        return t
+    out, seen = [], {}
+    for ln in t.split("\n"):
+        parts = re.findall(r"[^。！？!?\n]*[。！？!?]|[^。！？!?\n]+", ln)
+        kept = []
+        for s in parts:
+            key = re.sub(r"[^\u4e00-\u9fff0-9]", "", s)
+            if len(key) >= 12:
+                seen[key] = seen.get(key, 0) + 1
+                if seen[key] > keep:
+                    continue
+            kept.append(s)
+        out.append("".join(kept))
+    return re.sub(r"\n{2,}", "\n", "\n".join(out))
+
+
+def _drop_phrase_repeat_sentences(voice_text, keep=2):
+    """把「同一個 10 字片語重複出現」的多餘句子刪掉(確定性,不靠 LLM)。
+
+    `_dedupe_repeated_sentences` 只處理**整句一模一樣**的情形;實跑更常見的是同一個片語
+    被塞進好幾個不同的句子裡(祥碩「只剩下二十三萬八千元」x5、富世達
+    「百分之一千七百五十八」x4)。作法:找出被 `_long_content_padding` 咬到的片語,
+    每個片語只保留前 keep 句,其餘含該片語的句子整句刪除。
+    刪句必然變短,可能反而觸發長度不足——所以呼叫端一律要拿修完的稿**再過一次閘門**,
+    不合格就放棄修復、照原路重生(契約寫在 `_mech_repair_long`)。"""
+    from collections import Counter
+    t = (voice_text or "")
+    if not t.strip():
+        return t
+    body = re.sub(r"[^一-鿿0-9]", "", t)
+    grams = Counter(body[i:i + 10] for i in range(max(len(body) - 9, 0)))
+    hot = [g for g, c in grams.items() if c >= 4]
+    if not hot:
+        return t
+    out, cnt = [], {}
+    for ln in t.split("\n"):
+        kept = []
+        for s in re.findall(r"[^。！？!?\n]*[。！？!?]|[^。！？!?\n]+", ln):
+            key = re.sub(r"[^一-鿿0-9]", "", s)
+            drop = False
+            for g in hot:
+                if g in key:
+                    cnt[g] = cnt.get(g, 0) + 1
+                    if cnt[g] > keep:
+                        drop = True
+            if not drop:
+                kept.append(s)
+        out.append("".join(kept))
+    return re.sub(r"\n{2,}", "\n", "\n".join(out))
+
+
+
+def _save_rejected_draft(d, why, stage):
+    """把 fail-closed 報廢掉的長片稿存下來(output/_rejected/)。
+
+    ★ 為什麼(2026-08-25):08-24 一天報廢 15 支,但**報廢的稿沒有留在任何地方**——
+      要診斷「到底是閘門太緊還是稿真的爛」時,手上只剩 ops_log 的一行原因,
+      能拿來分析的母體只有**通過閘門活下來的**那批。那是教科書等級的倖存者偏誤:
+      實測現存 158 支長片密度命中率 4.4%,而同期重生 log 顯示密度是第一名的重生原因
+      —— 兩個數字矛盾,正是因為被咬的那些全被丟掉了,量不到。
+      留證檔不進 output/ 根目錄(queue_size / daily_publish / hybrid_render 都用
+      非遞迴 glob,子目錄不會被誤當成待發庫存)。"""
+    try:
+        d0 = ROOT / "output" / "_rejected"
+        d0.mkdir(parents=True, exist_ok=True)
+        stamp = time.strftime("%m%d_%H%M%S")
+        safe = re.sub(r"[^\w一-鿿-]", "", str(d.get("title", ""))[:28]) or "untitled"
+        (d0 / f"{stamp}_{stage}_{safe}.txt").write_text(
+            f"# 報廢原因: {why}\n# 階段: {stage}\n# 標題: {d.get('title','')}\n"
+            f"# 字數: {_long_chinese_chars(d.get('voice_text',''))}\n\n"
+            + str(d.get("voice_text", "")), encoding="utf-8")
+    except Exception:  # noqa: BLE001
+        pass          # 留證失敗不能反過來害到產線
+
+
+def _mech_repair_long(d, gate):
+    """終檢/重生前的**確定性修復**:規則修得掉的缺陷,不要浪費一次 LLM 重生。
+
+    ★ 為什麼要有這支(2026-08-25 實帳,不是猜的):08-24 一天 7 支成稿,卻燒掉 41 次重生 +
+      15 支 fail-closed 報廢 —— **平均每支成片要 9 次 LLM 大呼叫**。拆解重生原因:
+        資訊密度不足 26 / 【】prompt欄位洩漏 14 / 期間偷換 10 / 長度不足 6
+      其中**前兩類根本不該用重生解決**:
+      ·【】洩漏:掃 595 支既有旁白,含【】的沒有一個是合法旁白內容,全是 prompt 欄位名被
+        模型抄進旁白。一行 regex 就清得掉。清理碼其實**早就寫在 `_densify_long` 裡**,
+        但那裡只在「新稿比原稿長」時才寫回 `d` —— 而刪掉【】幾乎必然讓稿子變**短**,
+        清理結果因此每次都被丟掉,缺陷原封不動走進閘門,再花 13 分鐘重生一次。
+      ·整句重複:重生只是重擲骰子。實跑證據——宏碁2353 密度→密度→報廢、
+        南亞科2408 期間→密度→報廢;而重複句刪掉就是沒了,不必賭。
+      期間偷換**刻意不在這裡修**:那是真值宣稱,改字就是竄改,只能重生
+      (而且餵料端 08-22 已修,之後產的 8 支 8/8 全過閘門)。
+
+    契約:只在「修完真的更好」時採用——修完仍不合格(同一道或修出新缺陷,例如刪句後長度不足)
+    就放棄修復、照原路重生。回傳修好的 dict;沒東西可修或修不好回 None。"""
+    v = d.get("voice_text", "")
+    if not v:
+        return None
+    nv = v
+    _touched = False
+    if "【" in nv:
+        _touched = True
+        nv = re.sub(r"【[^】]{0,60}】", "", nv)
+    if _long_content_padding(nv):
+        _touched = True
+        nv = _dedupe_repeated_sentences(nv)
+    if _long_content_padding(nv):
+        # 整句照抄之外,更常見的是**同一個片語散在不同句子裡**重複
+        # (實測:祥碩「只剩下二十三萬八千元」x5、富世達「百分之一千七百五十八」x4)。
+        # 對每個被咬到的 10 字片語,保留前 2 句、刪掉後面重複的那幾句。
+        _touched = True
+        nv = _drop_phrase_repeat_sentences(nv)
+    if not _touched:          # 沒有任何一項是規則修得掉的(例如純粹「期間偷換」)→ 別假動作
+        return None
+    nv = re.sub(r"[ \t]{2,}", " ", re.sub(r"\n{2,}", "\n", nv)).strip()
+    if nv == v.strip():
+        return None
+    cand = dict(d)
+    cand["voice_text"] = nv
+    if gate(cand):                       # 修完還是不合格 → 別假裝修好了
+        return None
+    return cand
 
 
 # 病灶A 跑題偵測用的「題材叢集」：同一叢集的詞＝同一個影片主題。
@@ -4179,12 +4325,24 @@ def make_one(kind, no_render=False, topic_override=None, script_override=None):
         # **完全不記錄是哪一道閘門觸發的**——實測 `--long 1` 連燒 4 次大呼叫、
         # 每次都產出 2,000~3,000 字的合格長稿,卻始終沒有成品,而 log 一片空白。
         # 先讓它可見:記下每次重生的原因與次數,才知道是哪一道 gate 在過度開火。
+        _mech1 = False
         while _long_bad(d) and _lk < 4:
+            # 先試確定性修復(【】洩漏/整句重複),修得掉就不必燒一次 LLM 重生。
+            # 只試一次,免得修復↔閘門互相拉扯變成無窮迴圈。
+            if not _mech1:
+                _mech1 = True
+                _fix = _mech_repair_long(d, _long_bad)
+                if _fix is not None:
+                    log_ops("補產·修復",
+                            f"A4長片確定性修復(免重生):{_long_bad(d)}｜{d.get('title','')[:20]}")
+                    d = _fix
+                    continue
             _lk += 1
             log_ops("補產·重生", f"A4長片第{_lk}次重生:{_long_bad(d)}｜{d.get('title','')[:20]}")
             d = call_claude(kind, _ex, topic_override)
         _why = _long_bad(d)
         if _why:
+            _save_rejected_draft(d, _why, "A4長片")
             _n = _long_chinese_chars(d.get("voice_text", ""))
             log_ops("補產部門", f"⛔ A4長片重生4次後仍{_why}(約{_n}字),fail-closed不輸出假長片:{d.get('title','')[:24]}")
             print(f"[skip] long {_why}({_n}字),fail-closed 不輸出:{d.get('title','')[:24]}")
@@ -4276,12 +4434,22 @@ def make_one(kind, no_render=False, topic_override=None, script_override=None):
             if _long_content_padding(_v):
                 return "資訊密度不足(同組數字/片語重複灌水撐時長)"
             return None
+        _mech2 = False
         while _uncontroversial_bad(d) and _t2 < 2:
+            if not _mech2:
+                _mech2 = True
+                _fix = _mech_repair_long(d, _uncontroversial_bad)
+                if _fix is not None:
+                    log_ops("補產·修復",
+                            f"鎖題長片確定性修復(免重生):{_uncontroversial_bad(d)}｜{d.get('title','')[:20]}")
+                    d = _fix
+                    continue
             _t2 += 1
             log_ops("補產·重生", f"鎖題長片終檢第{_t2}次重生:{_uncontroversial_bad(d)}｜{d.get('title','')[:20]}")
             d = call_claude(kind, _ex, topic_override)
         _why2 = _uncontroversial_bad(d)
         if _why2:
+            _save_rejected_draft(d, _why2, "鎖題終檢")
             log_ops("補產部門", f"⛔ 鎖題長片終檢:重生2次仍{_why2},fail-closed 不輸出:{d.get('title','')[:24]}")
             print(f"[skip] long 鎖題終檢不過({_why2}),不輸出:{d.get('title','')[:24]}")
             return None
