@@ -494,7 +494,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # 自動翻譯字幕來源、自動配音資格與**語言別推薦對象**,標成英語=把中文台股片推給英語觀眾。
 # 上傳端已修(daily_publish),存量 808 支分批補:每日 60 支 ≈ 3,000 units,約 14 天補完。
 # 冪等(已是 zh* 就跳過),補完會自己變成 no-op,不必記得回來刪。
-25 15 * * * /root/yt/run.sh scripts/fix_audio_language.py --apply --max 60 >> /root/yt/logs/cron.log 2>&1
+25 15 * * * /root/yt/run.sh scripts/fix_audio_language.py --apply --max 20 >> /root/yt/logs/cron.log 2>&1
 
 # 搜尋縮圖翻新(2026-08-23 建):近28天 YT_SEARCH 佔 40% 觀看時數,搜尋詞全是赤裸股票名
 # → 體檢片是「台股個股的搜尋佔位」,搜尋結果那張縮圖就是點擊決策點,而且是常青的。
@@ -502,3 +502,12 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # thumbnails.set 只換圖、保留 videoId/觀看/排名 = 純賺。每日 30 支(1,500 units),
 # 自檢不過就跳過(寧可留舊圖也不換上更糟的);換過的記檔,換完自動 no-op。
 35 15 * * * /root/yt/run.sh scripts/refresh_search_thumbs.py --apply --max 60 >> /root/yt/logs/cron.log 2>&1
+
+# 字幕漂移重傳(2026-08-24 Carson 看片回報「聲音跟字幕對不上」):
+#   write_srt_for_slug 在 08-17 修好(改吃 TTS 逐句真實時戳 + 補片頭 3s 位移),但那只影響
+#   之後發布的片。之前發布的 167 支,YouTube 上掛的仍是舊估算版字幕軌,實測偏差最大
+#   2.6~4.9 秒;而燒進畫面的字幕早就用真實時戳 → 同一支片兩條字幕差好幾秒,看起來就是對不上。
+#   依觀看數由高到低修(最多人看到的先修好);自檢不過(沒有真實時戳)就跳過,不浪費配額
+#   換一個一樣爛的估算版。list 50 + update 450 ≈ 500 units/支。
+#   排在最後,用當天剩下的配額;冪等(修過的記檔),139 支約兩週補完。
+0 23 * * * /root/yt/run.sh scripts/fix_caption_drift.py --apply --max 10 >> /root/yt/logs/cron.log 2>&1
