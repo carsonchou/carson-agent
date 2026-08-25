@@ -1,0 +1,22 @@
+{
+ "claim": "Whether holding decision makers accountable for the decision process decreases escalating commitment, while accountability for the decision outcomes increases it",
+ "es_type": "d",
+ "orig": {
+  "n": 60,
+  "es": -0.37,
+  "year": 1992,
+  "title": "Deescalation strategies: A comparison of techniques for reducing commitment to losing courses of action.",
+  "author": "[{\"given\":\"Itamar\",\"family\":\"Simonson\",\"sequence\":\"first\"},{\"given\":\"Barry M.\",\"",
+  "doi": "10.1037/0021-9010.77.4.419"
+ },
+ "repl": {
+  "n": 404,
+  "es": 0.03,
+  "year": 2021,
+  "title": "Effects of process and outcome accountability on escalating commitment: A two-study replication.",
+  "doi": "10.1037/xap0000321"
+ },
+ "verdict": "failed",
+ "source": "FORRT Replication Database (FReD), OSF 2tbvd",
+ "n_ratio": 6.7
+}
