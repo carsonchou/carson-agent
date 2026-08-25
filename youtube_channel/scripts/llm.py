@@ -293,6 +293,42 @@ def _cache_path(key: str):
     return d / (key + ".txt")
 
 
+def _autoload_env():
+    """沒有從 local_cron 繼承環境時,自己把專案根 `.env` 補進 os.environ(不覆蓋已存在的)。
+
+    🔴 2026-08-25 的實際事故:我從 Git Bash 手動啟動 `produce_batch.py`,
+    而模型路由**全部設定在 .env 裡、由 `local_cron.load_env()` 讀進來再傳給子程序**:
+        LLM_BIG_PROVIDER = openrouter
+        LLM_BIG_MODEL    = google/gemini-2.5-flash
+    繞過 local_cron = 這些變數一個都沒有 → 長片(大請求)的供應商鏈整條走偏、
+    連 LLM_BIG_MODEL 都退回預設。結果是**連跑 13 小時的產線全在用錯的模型**:
+    12 支報廢稿裡 10 支是**把 prompt 原文整段吐進旁白**、9 支滿篇「假設/示意」。
+    而六道閘門各自咬到不同症狀(期間偷換 5、prompt 指令 3、【】2…),
+    看起來像六個獨立問題,其實是同一個病 —— 我因此一度誤判成「餵料端的期間偷換沒修好」。
+
+    最糟的是**它完全無聲**:沒有任何錯誤,只是產出品質崩掉。
+    所以修法不是「記得帶 env」,是讓忘記帶 env 這件事**不再有後果**。
+    """
+    import pathlib as _pl
+    if os.environ.get("LLM_BIG_PROVIDER") or os.environ.get("_LLM_ENV_LOADED"):
+        return
+    f = _pl.Path(__file__).resolve().parent.parent / ".env"
+    if not f.exists():
+        return
+    try:
+        for ln in f.read_text(encoding="utf-8").splitlines():
+            ln = ln.strip()
+            if not ln or ln.startswith("#") or "=" not in ln:
+                continue
+            k, v = ln.split("=", 1)
+            os.environ.setdefault(k.strip(), v.strip())   # 已設定的不覆蓋
+        os.environ["_LLM_ENV_LOADED"] = "1"
+    except Exception:  # noqa: BLE001
+        pass          # 讀不到就照舊,絕不因此讓呼叫端掛掉
+
+
+_autoload_env()
+
 def complete(prompt: str, max_tokens: int = 3500, json_mode: bool = False, temperature=None) -> str:
     """主供應商→失敗退回 fallback。回純文字。全失敗才 raise。
     json_mode=True 時對相容端點開啟 response_format 強制合格 JSON。
