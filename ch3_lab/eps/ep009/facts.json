@@ -1,0 +1,24 @@
+{
+ "claim": "Implicitly priming God using the scrambled-sentence paradigm increases self-reported risk taking",
+ "es_type": "d",
+ "orig": {
+  "n": 61,
+  "es": 0.57,
+  "year": 2015,
+  "title": "Anticipating Divine Protection? Reminders of God Can Increase Nonmoral Risk Taking",
+  "author": "[{\"given\":\"Daniella M.\",\"family\":\"Kupor\",\"sequence\":\"first\"},{\"given\":\"Kristin\",",
+  "doi": "10.1177/0956797614563108"
+ },
+ "repl": {
+  "n": 556,
+  "es": 0.14,
+  "year": 2020,
+  "title": "Do Religious Primes Increase Risk Taking? Evidence Against “Anticipating Divine Protection” in Two Preregistered Direct ",
+  "doi": "10.1177/0956797620922477"
+ },
+ "verdict": "failed",
+ "p_repl": 0.106,
+ "p_type_repl": "e (=)",
+ "source": "FORRT Replication Database (FReD), OSF 2tbvd",
+ "n_ratio": 9.1
+}

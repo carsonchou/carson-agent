@@ -1,0 +1,24 @@
+{
+ "claim": "Heat-Priming is associated with increased hostile perceptions",
+ "es_type": "d",
+ "orig": {
+  "n": 72,
+  "es": 0.63,
+  "year": 2009,
+  "title": "Hot under the collar in a lukewarm environment: Words associated with hot temperature increase aggressive thoughts and h",
+  "author": "[{\"given\":\"C.\",\"family\":\"Nathan DeWall\",\"sequence\":\"first\"},{\"given\":\"Brad J.\",\"",
+  "doi": "10.1016/j.jesp.2009.05.003"
+ },
+ "repl": {
+  "n": 331,
+  "es": 0.0,
+  "year": null,
+  "title": "The Effect of \"Heat-Priming\" on Hostile Perceptions",
+  "doi": "10.17605/osf.io/xszk6"
+ },
+ "verdict": "failed",
+ "p_repl": 0.99,
+ "p_type_repl": "e (=)",
+ "source": "FORRT Replication Database (FReD), OSF 2tbvd",
+ "n_ratio": 4.6
+}

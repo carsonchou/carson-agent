@@ -189,8 +189,14 @@ def famous_meta(E):
         allowed.add(str(t["k"]))
     if t.get("n_total"):
         allowed |= {n_fmt(t["n_total"]), str(t["n_total"])}
-    if ci:
-        allowed |= {f"{ci[0]:.2f}", f"{ci[1]:.2f}", es_fmt(ci[0]), es_fmt(ci[1])}
+    # 第二組的人數與信賴區間也會出現在標題與說明裡(男 242 / 女 360),
+    # 漏了它們閘門就會把正確的數字當成編造的擋下來。
+    if t.get("n_second"):
+        allowed |= {n_fmt(t["n_second"]), str(t["n_second"])}
+    for c in (ci, t.get("ci_second")):
+        if c:
+            allowed |= {f"{c[0]:.2f}", f"{c[1]:.2f}",
+                        es_fmt(c[0]), es_fmt(c[1])}
     if t.get("es_second") is not None:
         # 「comparison: d = -0.09」是一行沒有主詞的孤兒。要講清楚是誰的數字。
         who = t.get("second_label") or (

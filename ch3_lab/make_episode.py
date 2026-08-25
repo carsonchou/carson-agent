@@ -90,6 +90,14 @@ def build_facts(row):
     return facts
 
 
+def size_phrase(es, kind):
+    """畫面與旁白共用的說法。size_word 在最小那一檔回傳的是一整句
+    (「below what the convention calls small」),後面再接 " effect" 會變成
+    「below what the convention calls small effect」——不通。"""
+    w = size_word(es, kind)
+    return w if w.startswith("below") or w.startswith("essentially")         else w + " effect"
+
+
 def size_word(es, kind):
     """Cohen(1988)的慣例門檻。說「按慣例算是大的」而不是斷言它就是大的。
 
@@ -332,7 +340,9 @@ def build_script(F):
             ("original",
              f"The study was run on {o['n']:,} people. "
              f"The effect it measured was {say_num(o['es'])} — "
-             f"by the usual convention, a {big} effect."),
+             f"by the usual convention, "
+             + (f"a {big} effect." if not big.startswith(("below", "essentially"))
+                else f"that is {big}.")),
             ("scale", scale_txt),
             ("replication",
              f"So another team ran the same study again. "
@@ -454,7 +464,7 @@ def render_scene(plt, name, t, dur, F):
             q = ease(min(1.0, (t - dur * 0.55) / 1.3))
             ax.text(0.5, 0.31, f"{F['es_type']} = {_sig(cur['es'])}",
                     ha="center", fontsize=52, color=col, weight="bold", alpha=q)
-            ax.text(0.5, 0.23, f"{size_word(cur['es'], F['es_type'])} effect",
+            ax.text(0.5, 0.23, size_phrase(cur["es"], F["es_type"]),
                     ha="center", fontsize=24, color=DIM, alpha=q)
 
     elif name == "result":

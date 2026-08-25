@@ -1,0 +1,1 @@
+A quick note on what that number means. A correlation is how tightly two things move together, not whether either one causes the other. Around zero point one is small, zero point three is medium, zero point five is large. And the smaller the study, the more that number can move by chance.

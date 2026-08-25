@@ -1,0 +1,24 @@
+{
+ "claim": "increasing benefits leads people to judge its risks as lower",
+ "es_type": "r",
+ "orig": {
+  "n": 219,
+  "es": -0.75,
+  "year": 2000,
+  "title": "The affect heuristic in judgments of risks and benefits",
+  "author": "[{\"given\":\"Melissa L.\",\"family\":\"Finucane\",\"sequence\":\"first\"},{\"given\":\"Ali\",\"f",
+  "doi": "10.1002/(sici)1099-0771(200001/03)13:1<1::aid-bdm333>3.0.co;2-s"
+ },
+ "repl": {
+  "n": 776,
+  "es": -0.87,
+  "year": 2021,
+  "title": "Risky Therefore Not Beneficial: Replication and Extension of Finucane et al.’s (2000) Affect Heuristic Experiment",
+  "doi": "10.1177/19485506211056761"
+ },
+ "verdict": "successful",
+ "p_repl": 0.003,
+ "p_type_repl": "e (=)",
+ "source": "FORRT Replication Database (FReD), OSF 2tbvd",
+ "n_ratio": 3.5
+}

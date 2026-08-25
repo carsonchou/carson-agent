@@ -1,0 +1,24 @@
+{
+ "claim": "\"We find that people expect more corruption to manifest among the employees of relatively more hierarchical organizations\"",
+ "es_type": "d",
+ "orig": {
+  "n": 97,
+  "es": 0.48,
+  "year": 2018,
+  "title": "“If hierarchical, then corrupt”: Exploring people’s tendency to associate hierarchy with corruption in organizations",
+  "author": "[{\"given\":\"Sean\",\"family\":\"Fath\",\"sequence\":\"first\",\"ORCID\":\"https://orcid.org/0",
+  "doi": "10.1016/j.obhdp.2018.10.004"
+ },
+ "repl": {
+  "n": 321,
+  "es": 0.36,
+  "year": 2024,
+  "title": "Corruption and Hierarchy: A Replication of Studies 1c and 6 of Fath &amp;amp; Kay 2018",
+  "doi": "10.31234/osf.io/68jft"
+ },
+ "verdict": "successful",
+ "p_repl": 0.01,
+ "p_type_repl": "l (<)",
+ "source": "FORRT Replication Database (FReD), OSF 2tbvd",
+ "n_ratio": 3.3
+}
