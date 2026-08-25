@@ -120,11 +120,51 @@ def upload_one(yt, o, privacy):
     return vid
 
 
+def flip(yt, vids, privacy):
+    """把已上傳的片改隱私。
+
+    🔴 `videos.update` 是**整包覆寫**:沒帶到的 status 欄位會被清空。
+    主頻道踩過——只帶 privacyStatus 會把 selfDeclaredMadeForKids 洗掉,
+    而那個欄位掉了等於留言與營利腰斬。所以一律先讀回現值、整包帶齊、
+    再讀回驗證。
+    """
+    ok = 0
+    for key, vid in vids:
+        items = yt.videos().list(part="status", id=vid).execute().get("items", [])
+        if not items:
+            print(f"  {key:<24}⛔ 查無此片({vid})")
+            continue
+        st = items[0]["status"]
+        if st["privacyStatus"] == privacy:
+            print(f"  {key:<24}已經是 {privacy}")
+            ok += 1
+            continue
+        yt.videos().update(part="status", body={
+            "id": vid,
+            "status": {"privacyStatus": privacy,
+                       "selfDeclaredMadeForKids":
+                           st.get("selfDeclaredMadeForKids", False),
+                       "license": st.get("license", "youtube"),
+                       "embeddable": st.get("embeddable", True),
+                       "publicStatsViewable": st.get("publicStatsViewable", True)},
+        }).execute()
+        back = yt.videos().list(part="status", id=vid).execute()["items"][0]["status"]
+        kids_ok = back.get("selfDeclaredMadeForKids") is False
+        print(f"  {key:<24}{back['privacyStatus']}  兒童宣告 "
+              f"{back.get('selfDeclaredMadeForKids')}"
+              f"{' ✓' if back['privacyStatus'] == privacy and kids_ok else ' ⚠️'}")
+        ok += back["privacyStatus"] == privacy and kids_ok
+    print(f"\n{ok}/{len(vids)} 支已是 {privacy} 且兒童宣告完好")
+    return 0
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--slug")
     ap.add_argument("--limit", type=int)
     ap.add_argument("--privacy", choices=["private", "unlisted", "public"])
+    ap.add_argument("--flip", choices=["private", "unlisted", "public"],
+                    help="改已上傳影片的隱私(整包帶齊 status,不會洗掉兒童宣告)")
     ap.add_argument("--list", action="store_true", dest="show")
     a = ap.parse_args()
 
@@ -141,6 +181,21 @@ def main():
             print(f"  {key_of(o):<26}{o['track']:<6}{exists:<10}{mark}")
         print(f"\n共 {len(meta)} 集,已上傳 {len(done)},待上傳 {len(meta) - len(done)}")
         return 0
+
+    if a.flip:
+        done_items = [(k, v) for k, v in done.items()]
+        if a.slug:
+            done_items = [(k, v) for k, v in done_items
+                          if k == a.slug or pathlib.Path(k).name == a.slug]
+        if not done_items:
+            print("帳本裡沒有可改的影片"); return 1
+        yt = svc()
+        me = yt.channels().list(part="snippet", mine=True).execute()["items"][0]
+        if me["id"] != EXPECT_CHANNEL:
+            print(f"⛔ 頻道不符:{me['id']}"); return 1
+        print(f"目標頻道:{me['snippet']['title']}")
+        print(f"要把 {len(done_items)} 支改成 {a.flip}\n")
+        return flip(yt, done_items, a.flip)
 
     if a.limit:
         todo = todo[:a.limit]
