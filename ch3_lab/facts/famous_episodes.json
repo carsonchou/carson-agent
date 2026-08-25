@@ -27,7 +27,8 @@
      0.15
     ],
     "quote": "Multiple laboratories (k = 23, total N = 2,141) conducted replications of a standardized ego-depletion protocol... the size of the ego-depletion effect was small with 95% confidence intervals (CIs) that encompassed zero"
-   }
+   },
+   "hook": "Willpower runs out as you use it?"
   },
   {
    "slug": "romantic_red",
@@ -61,7 +62,8 @@
     "quote": "For men, we found a very weak effect in the predicted direction (d = 0.09, 95% CI [-0.17, 0.34], N = 242). For women, we found a very weak effect in the opposite direction (d = -0.09, 95% CI [-0.30, 0.12], N = 360).",
     "n_total": 602,
     "n_total_note": "242 men + 360 women, reported separately. 合計值在此明確宣告,否則 audit 會擋(它只認事實庫裡有的數字)"
-   }
+   },
+   "hook": "Red makes women more attractive to men?"
   },
   {
    "slug": "bystander_effect",
@@ -87,7 +89,8 @@
     "es": -0.35,
     "quote": "In a fixed effects model, data from over 7,700 participants and 105 independent effect sizes revealed an overall effect size of g = -0.35.",
     "direction_note": "g 為負 = 旁觀者越多、出手相助越少,即效應存在的方向"
-   }
+   },
+   "hook": "A crowd makes people less likely to help?"
   },
   {
    "slug": "sleep_memory",
@@ -109,7 +112,8 @@
      0.38
     ],
     "quote": "Here we present the first meta-analysis of sleep TMR, compiled from 91 experiments with 212 effect sizes (N = 2,004). ... overall sleep TMR was highly effective (Hedges' g = 0.29, 95% CI [0.21, 0.38])"
-   }
+   },
+   "hook": "Can a sound played in your sleep fix a memory?"
   },
   {
    "slug": "implicit_bias_test",
@@ -130,7 +134,9 @@
     "n_second": 13068,
     "second_label": "self-report questionnaires",
     "quote": "This review of 122 research reports (184 independent samples, 14,900 subjects) found average r = .274 for prediction of behavioral, judgment, and physiological measures. Parallel explicit (i.e., self-report) measures, available in 156 of these samples (13,068 subjects), also predicted effectively (average r = .361)"
-   }
+   },
+   "hook": "Does the hidden-bias test predict what you do?"
   }
- ]
+ ],
+ "_hook_note": "hook = 標題用的短主題(手寫)。FReD 的 description 常常太長,截斷後會失去意義;名案只有 5 集,值得手寫一個唸得順又點得下去的版本。"
 }
