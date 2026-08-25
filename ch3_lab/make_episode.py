@@ -122,6 +122,23 @@ def say_num(x):
     return out + " point " + " ".join(words[c] for c in frac)
 
 
+# 每一種定調在畫面上對應的字。放在這裡而不是塞在 render_scene 裡面,
+# 是因為**新增一種定調時,漏掉這張表會在渲染到一半才炸**。
+#
+# 🔴 實際發生過(2026-08-25):我把定調從三種擴成五種、也照規矩共用了
+#    tone_of(),但收尾視覺卡的字典還留著舊的三個 key，於是三個 worker
+#    各自跑了十分鐘的 TTS、渲染到最後一幕才 KeyError。
+#    **集中「判定」不等於集中「用判定的地方」** —— 這是同型錯誤的第四次
+#    (閘門兩份、縮圖兩份、判定兩份、現在是判定的消費端沒跟上)。
+#    所以 build_script() 一開始就先查這張表,缺 key 立刻中止,不浪費 TTS。
+CARD_TEXT = {
+    "gone": "The effect did not survive.",
+    "shrunk_real": "Smaller — but still there.",
+    "flipped": "It reversed.",
+    "held": "This one held up.",
+}
+
+
 # ── 稿子(模板填空,數字不經 LLM)──────────────────────────────────
 def tone_of(F):
     """由**數字**決定這一集的定調,verdict 欄位只是參考。
@@ -187,6 +204,13 @@ def build_script(F):
     #    實測第 3 集 verdict='mixed' 但 0.85→0.07,舊模板卻說「This one held up」,
     #    旁白與畫面上的長條圖直接矛盾。凡是宣稱都要能被畫面驗證。
     tone = tone_of(F)
+    # 下游每一張以 tone 為 key 的表都要有它,否則現在就中止——
+    # 不要等到跑完十分鐘 TTS、渲染到最後一幕才 KeyError。
+    missing = [n for n, tbl in (("CARD_TEXT", CARD_TEXT),)
+               if tone not in tbl]
+    if missing:
+        raise SystemExit(f"⛔ 定調 {tone!r} 在 {missing} 裡沒有對應文字。"
+                         f"新增定調時這些表都要一起補。")
 
     # 收尾:每個 tone 有多種寫法,依本集資料挑一個(不是隨機——同一集
     # 重跑要得到同一句)。獨立驗證量測到 90% 的旁白逐字相同,而 YouTube 的
@@ -261,8 +285,8 @@ def build_script(F):
          f"It was based on {o['n']:,} people. "
          f"Years later, another team ran it again on {r['n']:,} — "
          f"not to debunk it, just to check."),
-        (f"{claim}. That claim is {2026 - o['year']} years old, and it has now "
-         f"been put in front of {r['n']:,} people. Here is what came back."),
+        (f"{claim}. That was the finding in {o['year']}. It has now been put "
+         f"in front of {r['n']:,} people. Here is what came back."),
     ]
     pool = HOOKS_HELD if tone == "held" else HOOKS_FALL
     hook_txt = pool[(o["year"] + o["n"]) % len(pool)]
@@ -458,9 +482,7 @@ def render_scene(plt, name, t, dur, F):
 
     else:  # close
         # 用同一份 tone_of,不要在這裡重寫判斷(見 tone_of 的說明)
-        msg = {"gone": "The effect did not survive.",
-               "shrunk": "The effect shrank.",
-               "held": "This one held up."}[tone_of(F)]
+        msg = CARD_TEXT[tone_of(F)]
         if t > 0.5:
             q = ease(min(1.0, (t - 0.5) / 1.3))
             ax.text(0.5, 0.66, msg, ha="center", fontsize=48, color=FG,

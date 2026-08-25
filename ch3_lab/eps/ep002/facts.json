@@ -17,6 +17,8 @@
   "doi": "10.17605/osf.io/j9mfn"
  },
  "verdict": "failed",
+ "p_repl": 0.291,
+ "p_type_repl": "e (=)",
  "source": "FORRT Replication Database (FReD), OSF 2tbvd",
  "n_ratio": 21.7
 }

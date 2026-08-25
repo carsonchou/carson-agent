@@ -1,0 +1,24 @@
+{
+ "claim": "individuals who reflected more on the CRT made more utilitarian judgments",
+ "es_type": "r",
+ "orig": {
+  "n": 92,
+  "es": 0.39,
+  "year": 2011,
+  "title": "Reflection and Reasoning in Moral Judgment",
+  "author": "[{\"given\":\"Joseph M.\",\"family\":\"Paxton\",\"sequence\":\"first\"},{\"given\":\"Leo\",\"fami",
+  "doi": "10.1111/j.1551-6709.2011.01210.x"
+ },
+ "repl": {
+  "n": 316,
+  "es": 0.08,
+  "year": 2018,
+  "title": "Estimating the Reproducibility of Experimental Philosophy",
+  "doi": "10.1007/s13164-018-0400-9"
+ },
+ "verdict": "failed",
+ "p_repl": 0.11,
+ "p_type_repl": "e (=)",
+ "source": "FORRT Replication Database (FReD), OSF 2tbvd",
+ "n_ratio": 3.4
+}
