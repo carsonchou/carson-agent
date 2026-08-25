@@ -1,0 +1,207 @@
+{
+ "original": {
+  "title": "Ego depletion: Is the active self a limited resource?",
+  "year": 1998,
+  "cited_by_count": 4928,
+  "doi": "https://doi.org/10.1037/0022-3514.74.5.1252",
+  "counts_by_year": [
+   {
+    "year": 2012,
+    "cited_by_count": 227
+   },
+   {
+    "year": 2013,
+    "cited_by_count": 236
+   },
+   {
+    "year": 2014,
+    "cited_by_count": 293
+   },
+   {
+    "year": 2015,
+    "cited_by_count": 311
+   },
+   {
+    "year": 2016,
+    "cited_by_count": 309
+   },
+   {
+    "year": 2017,
+    "cited_by_count": 279
+   },
+   {
+    "year": 2018,
+    "cited_by_count": 273
+   },
+   {
+    "year": 2019,
+    "cited_by_count": 282
+   },
+   {
+    "year": 2020,
+    "cited_by_count": 291
+   },
+   {
+    "year": 2021,
+    "cited_by_count": 277
+   },
+   {
+    "year": 2022,
+    "cited_by_count": 243
+   },
+   {
+    "year": 2023,
+    "cited_by_count": 228
+   },
+   {
+    "year": 2024,
+    "cited_by_count": 257
+   },
+   {
+    "year": 2025,
+    "cited_by_count": 238
+   },
+   {
+    "year": 2026,
+    "cited_by_count": 222
+   }
+  ]
+ },
+ "meta2010": {
+  "title": "Ego depletion and the strength model of self-control: A meta-analysis.",
+  "year": 2010,
+  "cited_by_count": 2282,
+  "doi": "https://doi.org/10.1037/a0019486",
+  "counts_by_year": [
+   {
+    "year": 2012,
+    "cited_by_count": 83
+   },
+   {
+    "year": 2013,
+    "cited_by_count": 134
+   },
+   {
+    "year": 2014,
+    "cited_by_count": 162
+   },
+   {
+    "year": 2015,
+    "cited_by_count": 198
+   },
+   {
+    "year": 2016,
+    "cited_by_count": 180
+   },
+   {
+    "year": 2017,
+    "cited_by_count": 176
+   },
+   {
+    "year": 2018,
+    "cited_by_count": 173
+   },
+   {
+    "year": 2019,
+    "cited_by_count": 158
+   },
+   {
+    "year": 2020,
+    "cited_by_count": 148
+   },
+   {
+    "year": 2021,
+    "cited_by_count": 180
+   },
+   {
+    "year": 2022,
+    "cited_by_count": 143
+   },
+   {
+    "year": 2023,
+    "cited_by_count": 137
+   },
+   {
+    "year": 2024,
+    "cited_by_count": 112
+   },
+   {
+    "year": 2025,
+    "cited_by_count": 122
+   },
+   {
+    "year": 2026,
+    "cited_by_count": 88
+   }
+  ]
+ },
+ "replication": {
+  "title": "A Multilab Preregistered Replication of the Ego-Depletion Effect",
+  "year": 2016,
+  "cited_by_count": 1129,
+  "doi": "https://doi.org/10.1177/1745691616652873",
+  "counts_by_year": [
+   {
+    "year": 2015,
+    "cited_by_count": 2
+   },
+   {
+    "year": 2016,
+    "cited_by_count": 44
+   },
+   {
+    "year": 2017,
+    "cited_by_count": 121
+   },
+   {
+    "year": 2018,
+    "cited_by_count": 148
+   },
+   {
+    "year": 2019,
+    "cited_by_count": 150
+   },
+   {
+    "year": 2020,
+    "cited_by_count": 121
+   },
+   {
+    "year": 2021,
+    "cited_by_count": 137
+   },
+   {
+    "year": 2022,
+    "cited_by_count": 89
+   },
+   {
+    "year": 2023,
+    "cited_by_count": 78
+   },
+   {
+    "year": 2024,
+    "cited_by_count": 119
+   },
+   {
+    "year": 2025,
+    "cited_by_count": 66
+   },
+   {
+    "year": 2026,
+    "cited_by_count": 54
+   }
+  ]
+ },
+ "claims": {
+  "k_labs": 23,
+  "total_N": 2141,
+  "d": 0.04,
+  "ci": [
+   -0.07,
+   0.15
+  ],
+  "ci_encompasses_zero": true,
+  "meta2010_studies": 83,
+  "source_quote": "Multiple laboratories (k = 23, total N = 2,141) ... the size of the ego-depletion effect was small with 95% confidence intervals (CIs) that encompassed zero (d = 0.04, 95% CI [-0.07, 0.15]",
+  "verified_utc": "2026-08-24T16:22:02Z"
+ }
+}

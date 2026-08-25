@@ -1,0 +1,402 @@
+[
+ {
+  "claim": "Implicit Association Test",
+  "verdict": "STRONG",
+  "year": 2009,
+  "doi": "https://doi.org/10.1037/a0015575",
+  "signals": "Nd--",
+  "cited_by": 3280
+ },
+ {
+  "claim": "Deliberate practice 10000 hours",
+  "verdict": "STRONG",
+  "year": 2015,
+  "doi": "https://doi.org/10.1371/journal.pone.0138511",
+  "signals": "NdCI",
+  "cited_by": 2640
+ },
+ {
+  "claim": "Ego depletion",
+  "verdict": "STRONG",
+  "year": 2016,
+  "doi": "https://doi.org/10.1177/1745691616652873",
+  "signals": "NdCI",
+  "cited_by": 1129
+ },
+ {
+  "claim": "Bystander effect",
+  "verdict": "STRONG",
+  "year": 2011,
+  "doi": "https://doi.org/10.1037/a0023304",
+  "signals": "Nd--",
+  "cited_by": 978
+ },
+ {
+  "claim": "Stereotype accuracy",
+  "verdict": "STRONG",
+  "year": 2015,
+  "doi": "https://doi.org/10.1037/a0038586",
+  "signals": "Nd--",
+  "cited_by": 579
+ },
+ {
+  "claim": "Sleep and memory consolidation",
+  "verdict": "STRONG",
+  "year": 2020,
+  "doi": "https://doi.org/10.1037/bul0000223",
+  "signals": "NdCI",
+  "cited_by": 251
+ },
+ {
+  "claim": "Red color attractiveness",
+  "verdict": "STRONG",
+  "year": 2017,
+  "doi": "https://doi.org/10.1027/1864-9335/a000296",
+  "signals": "NdCI",
+  "cited_by": 24
+ },
+ {
+  "claim": "Placebo open-label",
+  "verdict": "PARTIAL",
+  "year": 2014,
+  "doi": "https://doi.org/10.1002/14651858.cd002207.pub4",
+  "signals": "N-CI",
+  "cited_by": 2290
+ },
+ {
+  "claim": "Positive psychology interventions",
+  "verdict": "PARTIAL",
+  "year": 2013,
+  "doi": "https://doi.org/10.1186/1471-2458-13-119",
+  "signals": "N---",
+  "cited_by": 2019
+ },
+ {
+  "claim": "Anchoring",
+  "verdict": "PARTIAL",
+  "year": 2014,
+  "doi": "https://doi.org/10.1027/1864-9335/a000178",
+  "signals": "N---",
+  "cited_by": 1271
+ },
+ {
+  "claim": "Priming achievement goals",
+  "verdict": "PARTIAL",
+  "year": 2014,
+  "doi": "https://doi.org/10.1027/1864-9335/a000178",
+  "signals": "N---",
+  "cited_by": 1271
+ },
+ {
+  "claim": "Self-esteem and success",
+  "verdict": "PARTIAL",
+  "year": 2008,
+  "doi": "https://doi.org/10.1111/j.1467-6494.2008.00537.x",
+  "signals": "N---",
+  "cited_by": 1231
+ },
+ {
+  "claim": "Choice overload",
+  "verdict": "PARTIAL",
+  "year": 2010,
+  "doi": "https://doi.org/10.1086/651235",
+  "signals": "N---",
+  "cited_by": 1062
+ },
+ {
+  "claim": "Serotonin and depression",
+  "verdict": "PARTIAL",
+  "year": 2022,
+  "doi": "https://doi.org/10.1038/s41380-022-01661-0",
+  "signals": "N---",
+  "cited_by": 914
+ },
+ {
+  "claim": "Bilingual advantage",
+  "verdict": "PARTIAL",
+  "year": 2018,
+  "doi": "https://doi.org/10.1037/bul0000142",
+  "signals": "N---",
+  "cited_by": 641
+ },
+ {
+  "claim": "Testosterone and risk taking",
+  "verdict": "PARTIAL",
+  "year": 2013,
+  "doi": "https://doi.org/10.1186/1741-7015-11-108",
+  "signals": "N-CI",
+  "cited_by": 560
+ },
+ {
+  "claim": "Stereotype threat",
+  "verdict": "PARTIAL",
+  "year": 2018,
+  "doi": "https://doi.org/10.1111/cdev.13039",
+  "signals": "N---",
+  "cited_by": 504
+ },
+ {
+  "claim": "Expressive writing",
+  "verdict": "PARTIAL",
+  "year": 2004,
+  "doi": "https://doi.org/10.1097/01.nmd.0000138317.30764.63",
+  "signals": "-d--",
+  "cited_by": 469
+ },
+ {
+  "claim": "Ovulatory cycle preference shifts",
+  "verdict": "PARTIAL",
+  "year": 2014,
+  "doi": "https://doi.org/10.1037/a0035438",
+  "signals": "N---",
+  "cited_by": 377
+ },
+ {
+  "claim": "Grit",
+  "verdict": "PARTIAL",
+  "year": 2019,
+  "doi": "https://doi.org/10.1007/s10964-019-00998-0",
+  "signals": "N---",
+  "cited_by": 290
+ },
+ {
+  "claim": "Video games and aggression",
+  "verdict": "PARTIAL",
+  "year": 2008,
+  "doi": "https://doi.org/10.1002/ab.20290",
+  "signals": "N---",
+  "cited_by": 277
+ },
+ {
+  "claim": "Elderly social priming",
+  "verdict": "PARTIAL",
+  "year": 2013,
+  "doi": "https://doi.org/10.1371/journal.pone.0056515",
+  "signals": "N---",
+  "cited_by": 248
+ },
+ {
+  "claim": "Mozart effect",
+  "verdict": "PARTIAL",
+  "year": 2014,
+  "doi": "https://doi.org/10.3389/fpsyg.2014.00646",
+  "signals": "N-CI",
+  "cited_by": 151
+ },
+ {
+  "claim": "Mortality salience",
+  "verdict": "PARTIAL",
+  "year": 2022,
+  "doi": "https://doi.org/10.1525/collabra.35271",
+  "signals": "N---",
+  "cited_by": 102
+ },
+ {
+  "claim": "Implicit bias training",
+  "verdict": "PARTIAL",
+  "year": 2016,
+  "doi": "https://doi.org/10.31234/osf.io/dv8tu",
+  "signals": "N---",
+  "cited_by": 74
+ },
+ {
+  "claim": "Macbeth effect cleanliness",
+  "verdict": "PARTIAL",
+  "year": 2014,
+  "doi": "https://doi.org/10.3389/fpsyg.2014.01276",
+  "signals": "N---",
+  "cited_by": 31
+ },
+ {
+  "claim": "Learning styles",
+  "verdict": "WEAK",
+  "year": 1998,
+  "doi": "https://doi.org/10.1109/5.726791",
+  "signals": "----",
+  "cited_by": 59323
+ },
+ {
+  "claim": "Brain training",
+  "verdict": "WEAK",
+  "year": 2012,
+  "doi": "https://doi.org/10.1037/a0028228",
+  "signals": "----",
+  "cited_by": 1795
+ },
+ {
+  "claim": "Emotional intelligence job performance",
+  "verdict": "WEAK",
+  "year": 2010,
+  "doi": "https://doi.org/10.1002/job.714",
+  "signals": "----",
+  "cited_by": 1103
+ },
+ {
+  "claim": "Nudging effect size",
+  "verdict": "WEAK",
+  "year": 2021,
+  "doi": "https://doi.org/10.1073/pnas.2107346118",
+  "signals": "--CI",
+  "cited_by": 723
+ },
+ {
+  "claim": "Blue light and sleep",
+  "verdict": "WEAK",
+  "year": 2022,
+  "doi": "https://doi.org/10.1371/journal.pbio.3001571",
+  "signals": "----",
+  "cited_by": 593
+ },
+ {
+  "claim": "Social rejection and pain",
+  "verdict": "WEAK",
+  "year": 2011,
+  "doi": "https://doi.org/10.1136/bmj.d4065",
+  "signals": "--CI",
+  "cited_by": 565
+ },
+ {
+  "claim": "Pygmalion teacher expectancy",
+  "verdict": "WEAK",
+  "year": 1996,
+  "doi": "https://doi.org/10.1016/s0065-2601(08)60240-3",
+  "signals": "----",
+  "cited_by": 561
+ },
+ {
+  "claim": "Marshmallow test",
+  "verdict": "WEAK",
+  "year": 2018,
+  "doi": "https://doi.org/10.1177/0956797618761661",
+  "signals": "----",
+  "cited_by": 528
+ },
+ {
+  "claim": "Facial feedback",
+  "verdict": "WEAK",
+  "year": 2016,
+  "doi": "https://doi.org/10.1177/1745691616674458",
+  "signals": "--CI",
+  "cited_by": 429
+ },
+ {
+  "claim": "Media multitasking",
+  "verdict": "WEAK",
+  "year": 2015,
+  "doi": "https://doi.org/10.1016/j.chb.2015.06.035",
+  "signals": "----",
+  "cited_by": 373
+ },
+ {
+  "claim": "Oxytocin and trust",
+  "verdict": "WEAK",
+  "year": 2015,
+  "doi": "https://doi.org/10.1177/1745691615600138",
+  "signals": "----",
+  "cited_by": 308
+ },
+ {
+  "claim": "Mindfulness meditation",
+  "verdict": "WEAK",
+  "year": 2014,
+  "doi": "https://doi.org/10.1016/j.dza.2014.07.007",
+  "signals": "----",
+  "cited_by": 307
+ },
+ {
+  "claim": "Growth mindset",
+  "verdict": "WEAK",
+  "year": 2020,
+  "doi": "https://doi.org/10.1186/s40594-020-00227-2",
+  "signals": "----",
+  "cited_by": 242
+ },
+ {
+  "claim": "Chameleon effect mimicry",
+  "verdict": "WEAK",
+  "year": 2008,
+  "doi": "https://doi.org/10.1086/522322",
+  "signals": "----",
+  "cited_by": 236
+ },
+ {
+  "claim": "Money priming",
+  "verdict": "WEAK",
+  "year": 2015,
+  "doi": "https://doi.org/10.1037/xge0000091",
+  "signals": "----",
+  "cited_by": 195
+ },
+ {
+  "claim": "Hot hand fallacy",
+  "verdict": "WEAK",
+  "year": 2018,
+  "doi": "https://doi.org/10.3982/ecta14943",
+  "signals": "----",
+  "cited_by": 185
+ },
+ {
+  "claim": "Power posing",
+  "verdict": "WEAK",
+  "year": 2017,
+  "doi": "https://doi.org/10.1080/23743603.2017.1326760",
+  "signals": "----",
+  "cited_by": 179
+ },
+ {
+  "claim": "Birth order and personality",
+  "verdict": "WEAK",
+  "year": 2015,
+  "doi": "https://doi.org/10.1073/pnas.1506451112",
+  "signals": "----",
+  "cited_by": 179
+ },
+ {
+  "claim": "Stanford Prison Experiment",
+  "verdict": "WEAK",
+  "year": 2012,
+  "doi": "https://doi.org/10.1016/j.jebo.2012.01.002",
+  "signals": "----",
+  "cited_by": 178
+ },
+ {
+  "claim": "Loss aversion",
+  "verdict": "WEAK",
+  "year": 2018,
+  "doi": "https://doi.org/10.1007/s00426-018-1013-8",
+  "signals": "----",
+  "cited_by": 123
+ },
+ {
+  "claim": "Cognitive dissonance effort justification",
+  "verdict": "WEAK",
+  "year": 2008,
+  "doi": "https://doi.org/10.3758/pbr.15.3.673",
+  "signals": "----",
+  "cited_by": 47
+ },
+ {
+  "claim": "Dunning-Kruger",
+  "verdict": "WEAK",
+  "year": 2022,
+  "doi": "https://doi.org/10.3389/fpsyg.2022.840180",
+  "signals": "----",
+  "cited_by": 42
+ },
+ {
+  "claim": "Weapons effect",
+  "verdict": "WEAK",
+  "year": 2016,
+  "doi": "https://doi.org/10.1007/978-3-319-29406-3_3",
+  "signals": "----",
+  "cited_by": 39
+ },
+ {
+  "claim": "Sunk cost fallacy",
+  "verdict": "WEAK",
+  "year": 2007,
+  "doi": "https://doi.org/10.4018/irmj.2007070101",
+  "signals": "----",
+  "cited_by": 13
+ }
+]
