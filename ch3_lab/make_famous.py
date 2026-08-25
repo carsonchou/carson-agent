@@ -91,7 +91,9 @@ def build_script(E):
         #    沒有的宣稱。改成只講引用數本身代表什麼。
         weight = ("That is how much of psychology was built on top of it."
                   if o["cited_by"] >= 2000 else
-                  "That is a few hundred papers standing on one experiment.")
+                  # ⚠️ 「幾百篇論文站在它上面」是沒有根據的推論:引用可以是
+                  #    順帶一提、批評、甚至反駁(這篇後來就是被反駁的)。
+                  "That is a lot of attention for one experiment.")
         # 引用數會漂移(Google Scholar / Crossref / Scopus 差很多),是全片
         # 唯一一個觀眾自己去查會得到不同答案的數字 → 講「超過 N」不講精確值。
         approx = o["cited_by_approx"]
@@ -147,9 +149,12 @@ def build_script(E):
     if es < 0 and t.get("direction_note"):
         # ⚠️ 這句一度以「that is the size the original study described」收尾——
         #    我手上**沒有**原始研究的效果量,那個比較做不出來。只講方向。
+        # ⚠️ 舊版接著說「So the effect is there」——但這一集**沒有信賴區間、
+        #    也沒有 p 值**,存在性宣稱撐不起來。新加的但書只限定了「大小」,
+        #    沒有限定「存在」。只講方向與規模,不宣稱存在。
         res += ("The minus sign here is the direction, not a shortfall: "
-                "more people watching, less helping. So the effect is there, "
-                "and it points the way the original study said it would. ")
+                "more people watching, less helping — the way the original "
+                "study described it. ")
     if t.get("es_second") is not None and E["slug"] == "romantic_red":
         res += (f"That was for the {say_int(t['n'])} men. "
                 f"Among the {say_int(t['n_second'])} women, the effect ran the "

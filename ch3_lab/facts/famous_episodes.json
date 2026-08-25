@@ -31,7 +31,8 @@
     ],
     "quote": "Multiple laboratories (k = 23, total N = 2,141) conducted replications of a standardized ego-depletion protocol... the size of the ego-depletion effect was small with 95% confidence intervals (CIs) that encompassed zero ... (d = 0.04, 95% CI [-0.07, 0.15]) [Hagger et al. 2016, Table 1 / abstract]"
    },
-   "hook": "Willpower runs out as you use it?"
+   "hook": "Willpower runs out as you use it?",
+   "hook_short": "Willpower runs out as you use it?"
   },
   {
    "slug": "romantic_red",
@@ -71,7 +72,8 @@
     "group_a": "men",
     "group_b": "women"
    },
-   "hook": "Red makes women more attractive to men?"
+   "hook": "Red makes women more attractive to men?",
+   "hook_short": "Does red make women more attractive?"
   },
   {
    "slug": "bystander_effect",
@@ -101,7 +103,8 @@
     "quote": "In a fixed effects model, data from over 7,700 participants and 105 independent effect sizes revealed an overall effect size of g = -0.35.",
     "direction_note": "g 為負 = 旁觀者越多、出手相助越少,即效應存在的方向"
    },
-   "hook": "In an emergency, does a crowd make each person less likely to help?"
+   "hook": "In an emergency, does a crowd make each person less likely to help?",
+   "hook_short": "Does a crowd stop people helping?"
   },
   {
    "slug": "sleep_memory",
@@ -124,7 +127,8 @@
     ],
     "quote": "Here we present the first meta-analysis of sleep TMR, compiled from 91 experiments with 212 effect sizes (N = 2,004). ... overall sleep TMR was highly effective (Hedges' g = 0.29, 95% CI [0.21, 0.38])"
    },
-   "hook": "Can a sound you learned with strengthen that memory in your sleep?"
+   "hook": "Can a sound you learned with strengthen that memory in your sleep?",
+   "hook_short": "Can a sound replayed in sleep strengthen what you learned?"
   },
   {
    "slug": "implicit_bias_test",
@@ -148,9 +152,10 @@
     "outcome_note": "r = .274 是 behavioral / judgment / physiological 三類量測的合成,不只是行為",
     "second_note": "⚠️ .361 來自 156 個樣本 / 13,068 人,與 .274 的 184 個樣本 / 14,900 人**不是同一組**,旁白必須講明,不能直接並排說 Higher"
    },
-   "hook": "Does the hidden-bias test predict what people actually do?"
+   "hook": "Does the hidden-bias test predict what people actually do?",
+   "hook_short": "Does the hidden-bias test predict what you do?"
   }
  ],
- "_hook_note": "hook = 標題用的短主題(手寫)。FReD 的 description 常常太長,截斷後會失去意義;名案只有 5 集,值得手寫一個唸得順又點得下去的版本。",
+ "_hook_note": "hook = 旁白用的完整主張(限定詞要齊,例如 sleep_memory 的「the memory you learned it with」);hook_short = 標題用的短版(100 字元硬上限)。兩者混用會讓「補了限定詞」變成「標題失去主題」——實測 3 集因此靜默退回純數字標題。",
  "_cited_by_note": "引用數是全片唯一一個觀眾自己去查會查到不同答案的數字(Google Scholar / Crossref / Scopus 差很多),所以一律標明來源與抓取日期,文案用「over N」不用精確值。"
 }

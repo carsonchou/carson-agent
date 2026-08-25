@@ -98,14 +98,39 @@ def semantic_gate(o):
     """
     d = ROOT / o["dir"]
     facts_p = d / "facts.json"
-    if not facts_p.exists():
-        return None                      # 名案線沒有 facts.json,交給產稿端 audit
-    try:
-        F = json.loads(facts_p.read_text(encoding="utf-8"))
-        eo, er = float(F["orig"]["es"]), float(F["repl"]["es"])
-        p_r = F.get("p_repl")
-    except Exception as e:               # noqa: BLE001
-        return f"讀不了 facts.json({str(e)[:40]})"
+    if facts_p.exists():
+        try:
+            F = json.loads(facts_p.read_text(encoding="utf-8"))
+            eo, er = float(F["orig"]["es"]), float(F["repl"]["es"])
+            p_r = F.get("p_repl")
+        except Exception as e:           # noqa: BLE001
+            return f"讀不了 facts.json({str(e)[:40]})"
+    else:
+        # 🔴 名案線沒有 facts.json,舊版就直接 return None **全部放行**——
+        #    而這道閘門正是為了「數字對、話講反」而建的,卻恰好不涵蓋
+        #    編輯裁量最大、手工策展的那條線。改成讀 famous_episodes.json。
+        fam = ROOT / "facts" / "famous_episodes.json"
+        try:
+            eps = json.loads(fam.read_text(encoding="utf-8"))["episodes"]
+            E = next(e for e in eps if e["slug"] == o.get("slug"))
+        except Exception as e:           # noqa: BLE001
+            return f"名案事實庫讀不到 {o.get('slug')}({str(e)[:40]})"
+        t = E["test"]
+        ci = t.get("ci")
+        text_all = " ".join(f.read_text(encoding="utf-8").lower()
+                            for f in sorted(d.glob("narr_*.txt")))
+        # 沒有信賴區間也沒有 p 值時,不准講存在性斷言(兩個方向都不准)
+        if not ci and t.get("p") is None:
+            for c in _CLAIMS_REAL + _CLAIMS_NONE:
+                if c in text_all:
+                    return (f"名案沒有 CI 也沒有 p 值,卻講了存在性斷言"
+                            f"「{c}」")
+            return None
+        if ci and ci[0] <= 0 <= ci[1]:
+            for c in _CLAIMS_REAL:
+                if c in text_all:
+                    return f"信賴區間跨零,卻講「{c}」"
+        return None
 
     text = " ".join((d / f).read_text(encoding="utf-8").lower()
                     for f in sorted(x.name for x in d.glob("narr_*.txt")))
@@ -272,7 +297,7 @@ def main():
         for o in meta:
             mark = f"已上傳 {done[key_of(o)]}" if key_of(o) in done else "未上傳"
             exists = "✓" if (ROOT / o["video"]).exists() else "✗片子不在"
-            print(f"  {key_of(o):<26}{o['track']:<6}{exists:<10}{mark}")
+            print(f"  {key_of(o):<26}{o.get('tone','?'):<12}{exists:<10}{mark}")
         print(f"\n共 {len(meta)} 集,已上傳 {len(done)},待上傳 {len(meta) - len(done)}")
         return 0
 

@@ -58,6 +58,10 @@ def speakable(claim):
     c = re.sub(r"^\s*\[\d+\]\s*", "", c)          # 開頭的 [84]
     c = re.sub(r"\s*\([a-z]\)\s*", " ", c)         # 句中的 (d)
     c = re.sub(r"\s*:\s*$", "", c)
+    # 來源殘片:「…easy abilities; using a mouse.」分號後是懸空的片語;
+    # 「are perceived as: thicker」冒號在句中。唸出來都是壞句子。
+    c = re.sub(r";\s*(using|with|in)\s+[^;.]{1,40}$", "", c, flags=re.I)
+    c = re.sub(r"\s+as:\s+", " as ", c)
     c = re.sub(r"\s{2,}", " ", c)
     for bad, good in _TYPO.items():
         c = re.sub(bad, good, c, flags=re.I)
@@ -74,11 +78,13 @@ def build_facts(row):
                  "year": int(float(f("year_o"))) if f("year_o") else None,
                  "title": str(f("title_o") or "")[:120],
                  "author": str(f("author_o") or "")[:80],
-                 "doi": str(f("doi_o") or "")},
+                 "doi": str(f("doi_o") or ""),
+                 "url": str(f("url_o") or "")},
         "repl": {"n": int(float(f("nr"))), "es": round(float(f("er")), 2),
                  "year": int(float(f("year_r"))) if f("year_r") else None,
                  "title": str(f("title_r") or "")[:120],
-                 "doi": str(f("doi_r") or "")},
+                 "doi": str(f("doi_r") or ""),
+                 "url": str(f("url_r") or "")},
         "verdict": str(f("reported_success") or ""),
         # 顯著性:分開「測不出來」與「證明沒有」的唯一現成判準
         "p_repl": (float(f("pval_value_r"))
@@ -87,6 +93,13 @@ def build_facts(row):
         "source": "FORRT Replication Database (FReD), OSF 2tbvd",
     }
     facts["n_ratio"] = round(facts["repl"]["n"] / max(1, facts["orig"]["n"]), 1)
+    # 🔴 tone 要寫進 facts.json(2026-08-25 獨立驗證抓到第五次同型錯誤)。
+    #    publish_meta 與 make_thumbs 走的是 CSV 的 `track`(HOLD/FALL)——
+    #    那是一套**平行分類**,判定改成五分法時它沒跟著改,於是 ep005
+    #    旁白說「效應存活」而縮圖用的是跟「沒撐住」那集一樣的橘色。
+    #    同檔案內的 guard 結構上看不到別的檔案裡的平行分類,所以正解是
+    #    讓 tone 成為唯一來源,而不是再加一道 guard。
+    facts["tone"] = tone_of(facts)
     return facts
 
 
@@ -144,6 +157,7 @@ CARD_TEXT = {
     "shrunk_real": "Smaller — but still there.",
     "flipped": "It reversed.",
     "held": "This one held up.",
+    "stronger": "It came back larger.",
 }
 
 
@@ -178,6 +192,11 @@ def tone_of(F):
     sig = p is not None and p < 0.05          # 缺 p 值時視為測不出來(保守)
     if not same_sign:
         return "flipped" if sig else "gone"
+    if shrink > 1.15:
+        # 🔴 held 原本沒有上限。ep011 是 0.37 → 0.65(shrink 1.75,效果量
+        #    幾乎翻倍),卻抽到「The number moved a little and stayed where
+        #    it was」——而同一集前兩句才說它從 small 變成 medium。
+        return "stronger"
     if shrink > 0.7:
         return "held"
     return "shrunk_real" if sig else "gone"
@@ -198,6 +217,19 @@ def is_doi(v):
     有些是空的(pandas 讀成 nan)——兩種都會被印成對外文案裡的假引用。"""
     v = str(v or "").strip().lower()
     return v.startswith("10.") or "doi.org/10." in v
+
+
+def cite_of(side):
+    """畫面上要印的來源。DOI 優先,沒有就退到 url —— 兩者都是可查證的引用,
+    而 fail-closed 的判準是「有沒有可查證的來源」,不是「有沒有 DOI」。
+    跟 publish_meta.cite_of 是同一套判準,兩邊要一致。"""
+    d = side.get("doi")
+    if is_doi(d):
+        return "doi:" + str(d).replace("https://doi.org/", "")
+    u = str(side.get("url") or "").strip()
+    if u.startswith(("http://", "https://")) and "." in u:
+        return u.replace("https://", "").replace("http://", "")[:60]
+    return None
 
 
 def build_script(F):
@@ -260,6 +292,15 @@ def build_script(F):
              "original description of what is going on may have had the sign "
              "backwards. "),
         ],
+        "stronger": [
+            ("So the replication did not just hold — it came back bigger than "
+             "the original. That happens, and it is a useful reminder that "
+             "a small first study is noisy in both directions, not only the "
+             "flattering one. "),
+            ("This is the shape nobody expects: the larger test found more, "
+             "not less. Whatever else is going on here, it is not the story "
+             "of a finding that evaporated. "),
+        ],
         "held": [
             ("This one held up. That matters as much as the ones that don't, "
              "because a finding that survives a much larger test is one you can "
@@ -283,10 +324,10 @@ def build_script(F):
     HOOKS_FALL = [
         (f"In {o['year']}, a study reported this: {claim}. "
          f"It sounded plausible. It was published, and it was repeated."),
-        (f"Here is something psychology believed in {o['year']}: {claim}. "
+        (f"Here is what a {o['year']} study reported: {claim}. "
          f"It came from {o['n']:,} people. Hold on to that number."),
-        (f"{claim}. That was the finding in {o['year']}, and for years it was "
-         f"cited as settled."),
+        (f"{claim}. That was the finding in {o['year']}, measured on "
+         f"{o['n']:,} people."),
     ]
     HOOKS_HELD = [
         (f"In {o['year']}, a study reported this: {claim}. "
@@ -333,9 +374,16 @@ def build_script(F):
         res += ("And it is still there: the replication reports this as "
                 "statistically significant. The effect survived. Its size "
                 "did not.")
+    elif tone in ("held", "stronger") and p is not None and p < 0.05:
+        res += ("And the replication reports it as statistically significant "
+                "— on this many people, that is a much harder number to "
+                "dismiss than the original.")
     elif tone == "gone" and p is not None:
-        res += ("With this many people, a result that size is what you would "
-                "expect from chance alone.")
+        # ⚠️ 一度寫「what you would expect from chance alone」——p ≥ .05 的
+        #    意思是**與零區分不開**,不是「就是隨機」。同一集的 close 池裡
+        #    早就有正確的措辭,這裡卻用了比較強的那個。
+        res += ("With this many people, an effect this size cannot be told "
+                "apart from zero.")
     segs = [("hook", hook_txt),
             ("original",
              f"The study was run on {o['n']:,} people. "
@@ -504,15 +552,15 @@ def render_scene(plt, name, t, dur, F):
             ax.text(0.5, 0.40, "the published replication record.",
                     ha="center", fontsize=22, color=DIM, alpha=q)
             shown = 0
-            for d in (o["doi"], r["doi"]):
-                if is_doi(d):
-                    ax.text(0.5, 0.30 - shown * 0.055,
-                            "doi:" + str(d).replace("https://doi.org/", "")[:60],
-                            ha="center", fontsize=18, color=ACCENT, alpha=q * 0.9)
+            for side in (o, r):
+                c = cite_of(side)
+                if c:
+                    ax.text(0.5, 0.30 - shown * 0.055, c, ha="center",
+                            fontsize=18, color=ACCENT, alpha=q * 0.9)
                     shown += 1
             if shown < 2:
                 ax.text(0.5, 0.30 - shown * 0.055,
-                        "(one paper has no DOI recorded in the source database)",
+                        "(one source has no citation recorded in the database)",
                         ha="center", fontsize=17, color=DIM, alpha=q * 0.8)
             ax.text(0.5, 0.15, F["source"], ha="center", fontsize=16,
                     color=DIM, alpha=q * 0.7)

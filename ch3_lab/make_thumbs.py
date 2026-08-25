@@ -85,7 +85,8 @@ def draw(plt, o, out_path):
         print(f"  跳過(讀不回數字):{o['title'][:40]}")
         return False
     eo, er, n_left, n_right, kind = f
-    held = o["track"] == "HOLD"
+    # 顏色由 tone 決定,不是 track(track 已停用)。
+    held = o.get("tone") in ("held", "stronger", "shrunk_real")
     col = HOLDC if held else FALLC
 
     fig = plt.figure(figsize=(W / 100, H / 100), dpi=100)
@@ -103,10 +104,16 @@ def draw(plt, o, out_path):
     # split("?")[0] 會連問號一起吃掉(「…fix a memory」少了問號)。
     # 問句就保留問號——那正是它要製造的懸念。
     t0 = o.get("topic") or o["title"]
-    for sep in (" — ", ". "):
-        if sep in t0:
-            t0 = t0.split(sep)[0]
-            break
+    # ⚠️ 對數字型標題切「第一個句號」會切出孤立半句:
+    #    「A 2000 study found 0.82」——一個沒有比較對象的數字,而 0.82
+    #    正下方又用滿版大字印一次。這種標題本來就沒有主題,不要硬切。
+    if t0.startswith(("A 19", "A 20", "Retested on")) or t0[0].isdigit():
+        t0 = ""
+    else:
+        for sep in (" — ", ". "):
+            if sep in t0:
+                t0 = t0.split(sep)[0]
+                break
     if "?" in t0:
         t0 = t0[:t0.index("?") + 1]
     topic = t0.rstrip(".:;, ")

@@ -25,6 +25,9 @@ import sys
 
 import pandas as pd
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from make_episode import build_facts, tone_of        # noqa: E402
+
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 ROOT = pathlib.Path(__file__).resolve().parent
 QUEUE = ROOT / "facts" / "episode_queue.csv"
@@ -43,6 +46,19 @@ FOOTER = (
     "see on screen. Not every finding fails: replications that held up get "
     "their own episodes.\n\n"
     "Replication data: FORRT Replication Database (FReD), osf.io/2tbvd")
+
+
+def footer_for(n_papers):
+    """頁尾要跟說明裡**實際有幾篇論文**一致。
+
+    🔴 頁尾寫死「both papers are cited above」,但 pooled 的集數
+    (sleep_memory、implicit_bias_test)說明裡只有一篇。這正是 is_doi 的
+    docstring 自己點名的那個問題:DOI 那半修好了、「both」這半沒有。
+    """
+    if n_papers == 2:
+        return FOOTER
+    return FOOTER.replace("and both papers are cited above with their DOIs",
+                          "and the paper is cited above with its DOI")
 
 
 # 來源資料庫有拼字錯。旁白端已修(make_episode.speakable),但標題也會吃到——
@@ -65,6 +81,8 @@ def clean(text):
     text = _LEADIN.sub("", text)
     text = re.sub(r"^\s*\[\d+\]\s*", "", text)
     text = re.sub(r"\s*\([a-z]\)\s*", " ", text)
+    text = re.sub(r";\s*(using|with|in)\s+[^;.]{1,40}$", "", text, flags=re.I)
+    text = re.sub(r"\s+as:\s+", " as ", text)
     text = re.sub(r"\s{2,}", " ", text).strip()
     return text[0].upper() + text[1:] if text else text
 
@@ -78,8 +96,27 @@ def is_doi(v):
     return v.startswith("10.") or "doi.org/10." in v
 
 
+def cite_of(row, side):
+    """回傳可引用的來源字串,沒有就回 None。
+
+    DOI 優先;沒有 DOI 時退到 `url_r` —— ep001 是 datacolada.org/84、
+    ep008 是 osf.io/ns26x,兩個都是真實可查的來源,就躺在同一列裡沒人讀。
+    fail-closed 的意思是「湊不出可查證的引用就不發」,不是「只認 DOI」。
+    """
+    d = row.get(f"doi_{side}")
+    if is_doi(d):
+        return "doi:" + str(d).replace("https://doi.org/", "")
+    u = str(row.get(f"url_{side}") or "").strip()
+    if u.startswith(("http://", "https://")) and "." in u:
+        return u
+    return None
+
+
 def n_fmt(x):
     return f"{int(x):,}"
+
+
+FIT_FAILS = []
 
 
 def fit(claim, tail, limit=100):
@@ -93,7 +130,14 @@ def fit(claim, tail, limit=100):
     所以放不下就**不要硬塞**:改用純數字的標題。主題講不完整就不講。
     """
     c = claim.rstrip(". ")
-    return (c + tail) if len(c) + len(tail) <= limit else None
+    if len(c) + len(tail) <= limit:
+        return c + tail
+    # 🔴 靜默退回是壞的(2026-08-25 獨立驗證抓到)。改 hook 讓它更準確之後,
+    #    三集因為變長而無聲退回純數字標題——「91 experiments, 2,004 people:
+    #    0.29.」作為標題,觀眾完全不知道在講什麼,而且縮圖主題取自標題,
+    #    所以三張縮圖也一起失去主題。守門拒絕了但沒有人被告知。
+    FIT_FAILS.append((c[:48], len(c) + len(tail) - limit))
+    return None
 
 
 def es_fmt(x):
@@ -108,17 +152,35 @@ def fred_meta(row):
     claim = clean(str(row["description"]).strip().rstrip("."))
     claim = claim[0].upper() + claim[1:]
     year_o = int(float(row["year_o"])) if pd.notna(row.get("year_o")) else None
-    held = row["track"] == "HOLD"
+    # 🔴 分類只有一個來源:tone。CSV 的 `track` 欄是另一套平行分類,
+    #    判定改五分法時它沒跟著改,於是 ep005 旁白說「效應存活」而縮圖
+    #    用失敗色。**已停用 track**,任何地方都不要再讀它。
+    tone = tone_of(build_facts(row))
+    held = tone in ("held", "stronger", "shrunk_real")
 
-    # 主題打頭最能被點開;放不下才退回純數字版(不硬塞、不截斷)
-    if held:
-        title = (fit(claim, f" — retested on {n_fmt(nr)} people, it held")
-                 or f"Retested on {n_fmt(nr)} people, and it held up: "
-                    f"{es_fmt(eo)} → {es_fmt(er)}")
-    else:
-        title = (fit(claim, f" — then {n_fmt(nr)} people: {es_fmt(er)}")
-                 or f"A {year_o} study found {es_fmt(eo)}. "
-                    f"{n_fmt(nr)} people later: {es_fmt(er)}")
+    # 標題的說法要跟 tone 一致。⚠️ 一度把 shrunk_real 也講成「it held up」
+    #    —— 那是過度宣稱:shrunk_real 的意思是「小很多但仍測得到」,
+    #    不是「撐住了」。標題是觀眾唯一一定會讀到的字。
+    TAILS = {
+        "held":        (f" — retested on {n_fmt(nr)} people, it held",
+                        f"Retested on {n_fmt(nr)} people, and it held: "
+                        f"{es_fmt(eo)} → {es_fmt(er)}"),
+        "stronger":    (f" — retested on {n_fmt(nr)} people, it came back larger",
+                        f"Retested on {n_fmt(nr)} people, and it grew: "
+                        f"{es_fmt(eo)} → {es_fmt(er)}"),
+        "shrunk_real": (f" — smaller on {n_fmt(nr)} people, but still there",
+                        f"{es_fmt(eo)} → {es_fmt(er)} on {n_fmt(nr)} people "
+                        f"— smaller, still there"),
+        "flipped":     (f" — on {n_fmt(nr)} people it reversed: {es_fmt(er)}",
+                        f"A {year_o} study found {es_fmt(eo)}. "
+                        f"{n_fmt(nr)} people later it reversed: {es_fmt(er)}"),
+        "gone":        (f" — then {n_fmt(nr)} people: {es_fmt(er)}",
+                        f"A {year_o} study found {es_fmt(eo)}. "
+                        f"{n_fmt(nr)} people later: {es_fmt(er)}"),
+    }
+    cite_o, cite_r = cite_of(row, "o"), cite_of(row, "r")
+    tail, fallback = TAILS[tone]
+    title = fit(claim, tail) or fallback
 
     desc = (
         f"{claim}.\n\n"
@@ -129,12 +191,28 @@ def fred_meta(row):
         f"Replication: {str(row['title_r'])[:150]}\n"
         f"  {n_fmt(nr)} participants — effect size {es_fmt(er)}\n"
         f"  doi:{row['doi_r']}\n"
-        + FOOTER)
+        + footer_for(2))
     allowed = {str(v) for v in (year_o, no, nr, n_fmt(no), n_fmt(nr),
                                 es_fmt(eo), es_fmt(er))}
     # 主張原文帶的數字是來源逐字複製的,不是我產生的 → 放行
     allowed |= set(re.findall(r"\d[\d,\.]*", claim))
     return title, desc, allowed
+
+
+def famous_tone(E):
+    """名案線的分類也走 tone,跟 FReD 線同一套語彙。
+
+    沒有 CI 也沒有 p 值時保守判 gone —— 資料缺漏不該預設過關。
+    """
+    t = E["test"]
+    ci = t.get("ci")
+    if ci and ci[0] <= 0 <= ci[1]:
+        return "gone"                     # 區間跨零 = 測不出來
+    if not ci:
+        return "unclear"                  # 沒有區間,不宣稱存在與否
+    kind = t["es_kind"]
+    strong = abs(t["es"]) >= (0.2 if kind == "r" else 0.2)
+    return "held" if strong else "shrunk_real"
 
 
 def famous_meta(E):
@@ -144,7 +222,8 @@ def famous_meta(E):
     es = es_fmt(t["es"])
 
     # 名案有手寫的短主題(hook)——這 5 集值得手寫,因為它們是拉力最強的
-    topic = E.get("hook") or (E["claim"][0].upper() + E["claim"][1:])
+    topic = (E.get("hook_short") or E.get("hook")
+             or (E["claim"][0].upper() + E["claim"][1:]))
     n_show = n_fmt(t.get("n_total", t["n"]))
     if o and t.get("k"):
         title = (fit(topic, f" {t['k']} {t['k_word']} tested it: {es}.")
@@ -170,10 +249,17 @@ def famous_meta(E):
     lines = [f"{E['claim'][0].upper() + E['claim'][1:]}.", ""]
     allowed = {es} | set(re.findall(r"\d[\d,\.]*", E["claim"]))
     if o:
+        # ⚠️ 旁白講「超過 4,900 次」而說明印精確值 4,928 且沒有來源——
+        #    引用數是全片唯一觀眾自己去查會得到不同答案的數字,兩邊要一致。
+        src = o.get("cited_by_source", "")
         lines += [f"Original study ({o['year']}): {o['title']}",
-                  f"  cited {n_fmt(o['cited_by'])} times",
+                  f"  cited more than {n_fmt(o['cited_by_approx'])} times"
+                  + (f" ({src})" if src else ""),
                   f"  doi:{o['doi']}", ""]
-        allowed |= {str(o["year"]), n_fmt(o["cited_by"]), str(o["cited_by"])}
+        allowed |= {str(o["year"]), n_fmt(o["cited_by"]), str(o["cited_by"]),
+                    n_fmt(o["cited_by_approx"]), str(o["cited_by_approx"])}
+        # 抓取日期是來源標註的一部分,不是本集的數據
+        allowed |= set(re.findall(r"\d+", src))
     # romantic_red 沒有 k(它是單一次登記重測,不是多實驗室/綜合分析)
     scale = (f"{t['k']} {t['k_word']}, " if t.get("k") else "")
     lines += [f"The test ({t['year']}): {t['title']}",
@@ -250,9 +336,11 @@ def main():
     for i, row in q.iterrows():
         # 🔴 fail-closed:兩篇論文都要有真 DOI 才准進對外清單。
         #    產不出可查證的引用,就不該宣稱「每個數字都能溯源」。
-        bad_doi = [k for k in ("doi_o", "doi_r") if not is_doi(row.get(k))]
-        if bad_doi:
-            dropped.append((f"ep{i:03d}", "DOI 不可用:" + ",".join(bad_doi)))
+        # fail-closed 的判準是「有沒有可查證的引用」,不是「有沒有 DOI」
+        missing = [s for s in ("o", "r") if cite_of(row, s) is None]
+        if missing:
+            dropped.append((f"ep{i:03d}",
+                            "查不到可引用來源:" + ",".join(missing)))
             continue
         title, desc, allowed = fred_meta(row)
         if not check(f"ep{i:03d}", title, desc, allowed):
@@ -260,7 +348,7 @@ def main():
             continue
         out.append({"kind": "fred", "row": int(i), "dir": f"eps/ep{i:03d}",
                     "video": f"eps/ep{i:03d}/ep{i:03d}.mp4",
-                    "track": row["track"], "title": title,
+                    "tone": tone_of(build_facts(row)), "title": title,
                     "description": desc, "tags": TAGS})
 
     fam = json.loads(FAMOUS.read_text(encoding="utf-8"))["episodes"]
@@ -272,8 +360,7 @@ def main():
         out.append({"kind": "famous", "slug": E["slug"],
                     "dir": f"eps_famous/{E['slug']}",
                     "video": f"eps_famous/{E['slug']}/{E['slug']}.mp4",
-                    "track": "HOLD" if E["slug"] in
-                             ("bystander_effect", "sleep_memory") else "FALL",
+                    "tone": famous_tone(E),
                     "title": title, "description": desc, "tags": TAGS})
 
     # 🔴 被刷掉的要彙總印出來,不能只是 continue(2026-08-25)。
