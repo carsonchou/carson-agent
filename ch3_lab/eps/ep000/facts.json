@@ -1,22 +1,22 @@
 {
- "claim": "Relating vertical position with power",
+ "claim": "Effects of consumer cues on believing other people should use less water",
  "es_type": "d",
  "orig": {
-  "n": 64,
-  "es": 0.55,
-  "year": 2007,
-  "title": "High in the hierarchy: How vertical location and judgments of leaders’ power are interrelated",
-  "author": "[{\"given\":\"Steffen R.\",\"family\":\"Giessner\",\"sequence\":\"first\"},{\"given\":\"Thomas ",
-  "doi": "10.1016/j.obhdp.2006.10.001"
+  "n": 77,
+  "es": 0.25,
+  "year": 2012,
+  "title": "Cuing Consumerism",
+  "author": "[{\"given\":\"Monika A.\",\"family\":\"Bauer\",\"sequence\":\"first\"},{\"given\":\"James E. B.",
+  "doi": "10.1177/0956797611429579"
  },
  "repl": {
-  "n": 7890,
-  "es": 0.03,
+  "n": 6608,
+  "es": 0.01,
   "year": 2018,
   "title": "Many Labs 2: Investigating Variation in Replicability Across Samples and Settings",
   "doi": "10.1177/2515245918810225"
  },
- "verdict": "failed",
+ "verdict": "mixed",
  "source": "FORRT Replication Database (FReD), OSF 2tbvd",
- "n_ratio": 123.3
+ "n_ratio": 85.8
 }

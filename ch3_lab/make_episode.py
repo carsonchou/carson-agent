@@ -37,6 +37,26 @@ ACCENT, WARN = "#4EA3F5", "#F5A54E"
 
 
 # ── 事實 ────────────────────────────────────────────────────────────
+_TYPO = {"criminial": "criminal", "positvely": "positively",
+          "foregiveness": "forgiveness"}
+_LEADIN = re.compile(r"^(we\s+(find|found|show|investigated)\s+(that\s+)?"
+                     r"(the\s+hypothesis\s+that\s+)?)", re.I)
+
+
+def speakable(claim):
+    """把來源主張整成唸得出口的句子——只動唸稿,畫面上的引用仍是原文。
+
+    來源是別人維護的資料庫,有拼字錯(criminial)、殘留的引號、以及
+    作者第一人稱的開場(We investigated the hypothesis that …)。
+    TTS 會照著唸,而唸錯字比看錯字更傷可信度。
+    """
+    c = claim.strip().strip('"').strip("“”").strip()
+    c = _LEADIN.sub("", c)
+    for bad, good in _TYPO.items():
+        c = re.sub(bad, good, c, flags=re.I)
+    return c.strip().rstrip(".")
+
+
 def build_facts(row):
     """把一列 FReD 轉成本集事實庫。每個值都標明來源欄位。"""
     f = lambda k: (None if pd.isna(row.get(k)) else row.get(k))
@@ -60,13 +80,19 @@ def build_facts(row):
 
 
 def size_word(es, kind):
-    """Cohen(1988)的慣例門檻。說「按慣例算是大的」而不是斷言它就是大的。"""
+    """Cohen(1988)的慣例門檻。說「按慣例算是大的」而不是斷言它就是大的。
+
+    🔴 「小」之下要再分一層(2026-08-25)。舊版把 d=0.12 講成 essentially nothing,
+    但那配上 N=6,608 多半是**統計上測得到、實務上很小**——講成「什麼都沒有」是
+    過度打臉,而這個頻道的可信度全押在不過度打臉上。佇列裡 14/34 集落在這一帶,
+    所以這不是邊角案例。真的可以說「幾乎是零」的門檻是 |d|<0.05。
+    """
     a = abs(es)
-    if kind.startswith("r"):
-        return "large" if a >= 0.5 else "medium" if a >= 0.3 else \
-               "small" if a >= 0.1 else "essentially nothing"
-    return "large" if a >= 0.8 else "medium" if a >= 0.5 else \
-           "small" if a >= 0.2 else "essentially nothing"
+    hi, mid, lo, floor = (0.5, 0.3, 0.1, 0.03) if kind.startswith("r") \
+        else (0.8, 0.5, 0.2, 0.05)
+    return ("large" if a >= hi else "medium" if a >= mid else "small" if a >= lo
+            else "below what the convention calls small" if a >= floor
+            else "essentially nothing")
 
 
 def say_num(x):
@@ -84,7 +110,7 @@ def build_script(F):
     o, r = F["orig"], F["repl"]
     kind = F["es_type"]
     big, small = size_word(o["es"], kind), size_word(r["es"], kind)
-    claim = F["claim"]
+    claim = speakable(F["claim"])
     claim = claim[0].upper() + claim[1:] if claim else claim
     verdict = F["verdict"].lower()
 
@@ -100,19 +126,36 @@ def build_script(F):
         tone = "held"
 
     close_txt = {
-        "gone": ("A bigger sample is not a guarantee of truth. But when a clear effect "
-                 "in a small sample turns into almost nothing in a sample many times "
-                 "larger, that pattern has a name, and it is not a coincidence. "),
+        "gone": ("A bigger sample is not a guarantee of truth. But there is a reason "
+                 "this keeps happening in one direction. A small study only gets "
+                 "published if it finds something, so the first number published is "
+                 "usually the luckiest one. That is called publication bias, and it is "
+                 "not an accusation against anyone. It is a property of the filter. "),
         "shrunk": ("The effect did not vanish — it shrank. That happens often enough "
                    "to be worth noticing: the first, smallest study is usually the one "
                    "that reports the biggest number. "),
-        "held": ("This one held up. Not every finding falls apart, and the ones that "
-                 "survive a larger test are the ones worth building on. "),
+        "held": ("This one held up. That matters as much as the ones that don't, "
+                 "because a finding that survives a much larger test is one you can "
+                 "actually build on. "),
     }[tone]
 
-    segs = [("hook",
-             f"In {o['year']}, a study reported this: {claim}. "
-             f"It sounded plausible. It was published, and it was repeated."),
+    # 🔴 開場要分軌(2026-08-25):舊版一律用「It sounded plausible」起手,
+    #    那是在預告要打臉。用在 HOLD 集上等於掉包觀眾——而 HOLD 集正是這個頻道
+    #    不是一味打臉的證據,不能靠騙點擊進來。
+    #
+    #    ⚠️ HOLD 開場一度寫成「Most findings from that era did not survive」——
+    #    那是斷言一個我沒計算的基準率。就算拿 FReD 去算也不能講:我手上這 348 列
+    #    是篩過的子集,拿它當「那個年代的心理學」的比例就是拿替身值當真值。
+    #    現在的版本只用本集自己的、已溯源的數字製造懸念。
+    hook_txt = (f"In {o['year']}, a study reported this: {claim}. "
+                f"It sounded plausible. It was published, and it was repeated."
+                if tone != "held" else
+                f"In {o['year']}, a study reported this: {claim}. "
+                f"It was based on {o['n']:,} people. "
+                f"Years later, another team ran it again on {r['n']:,} — "
+                f"not to debunk it, just to check.")
+
+    segs = [("hook", hook_txt),
             ("original",
              f"The study was run on {o['n']:,} people. "
              f"The effect it measured was {say_num(o['es'])} — "
@@ -133,8 +176,16 @@ def build_script(F):
              f"The effect they measured was {say_num(r['es'])}. "
              + (f"That is {small}." if small != "essentially nothing"
                 else "That is, essentially, nothing.")
-             + (f" The original number was {say_num(o['es'])}."
-                if tone != "held" else "")),
+             + f" The original number was {say_num(o['es'])}."
+             # 🔴 作者自陳與數字打架時要講出來,不能安靜蓋掉(2026-08-25)。
+             #    FReD 的 reported_success 記的是**重複研究團隊自己的結論**,
+             #    有 verdict='successful' 但效果量掉到 0.02 的列——那通常是
+             #    「成功證實了沒有效果」。安靜改口會讓觀眾以為我在挑對我有利的
+             #    講法;講出來反而是最強的可信度證明。
+             + (" The replication team recorded this as a successful replication. "
+                "That is not a contradiction: what they successfully showed is that "
+                "the effect is not there."
+                if tone == "gone" and verdict == "successful" else "")),
             ("close", close_txt + "Both papers are linked below.")]
     return segs
 
