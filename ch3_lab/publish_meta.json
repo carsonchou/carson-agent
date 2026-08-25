@@ -445,7 +445,7 @@
   "slug": "bystander_effect",
   "dir": "eps_famous/bystander_effect",
   "video": "eps_famous/bystander_effect/bystander_effect.mp4",
-  "tone": "unclear",
+  "tone": "shrunk_real",
   "title": "Does a crowd stop people helping? 105 independent effect sizes tested it: -0.35.",
   "description": "The more people who witness an emergency, the less likely any one of them is to help.\n\nOriginal study (1968): Bystander intervention in emergencies: Diffusion of responsibility.\n  cited more than 3,000 times (OpenAlex, retrieved 2026-08-25)\n  doi:10.1037/h0025589\n\nThe test (2011): The bystander-effect: A meta-analytic review on bystander intervention in dangerous and non-dangerous emergencies\n  105 independent effect sizes, over 7,700 people\n  g = -0.35\n  doi:10.1037/a0023304\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
   "tags": [
@@ -487,7 +487,7 @@
   "slug": "implicit_bias_test",
   "dir": "eps_famous/implicit_bias_test",
   "video": "eps_famous/implicit_bias_test/implicit_bias_test.mp4",
-  "tone": "unclear",
+  "tone": "shrunk_real",
   "title": "Does the hidden-bias test predict what you do? 184 independent samples, 14,900 people: 0.27.",
   "description": "A reaction-time test can reveal the hidden bias behind how people behave, judge, and react.\n\nThe test (2009): Understanding and using the Implicit Association Test: III. Meta-analysis of predictive validity.\n  184 independent samples, 14,900 people\n  r = 0.27\n  doi:10.1037/a0015575\n  self-report questionnaires: r = 0.36\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
   "tags": [

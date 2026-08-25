@@ -160,6 +160,83 @@ CARD_TEXT = {
     "stronger": "It came back larger.",
 }
 
+# 🔴 每一個「依定調而不同」的東西都放進這張表(2026-08-25,同型錯誤第六次)。
+#
+#    前五次我學到的是「共用判定」「消費端要跟上」,但每次都只補剛好爆掉的
+#    那一個。第六次是 `pool = HOOKS_HELD if tone == "held" else HOOKS_FALL`
+#    —— 新增的 stronger 掉進 FALL 池,於是一支「效果量回來更大」的片子,
+#    開場是「It sounded plausible…」的打臉鋪陳。
+#
+#    所以改成:任何跟定調有關的分支都必須從這張表取值,不准再寫
+#    `if tone == "..."`。新增一個定調時,漏填任何一欄都會 KeyError,
+#    而且是在 build_script 一開頭就爆,不是渲染到最後一幕。
+#
+#    `bucket` 是給**別的檔案**用的三分類(縮圖顏色、標題句式)。三分不是
+#    二分:shrunk_real 兩邊都不是,把它歸進 FALL 等於說它垮了(它的旁白
+#    明講 not a debunking),歸進 HELD 又等於說它守住了(它掉了 73%)。
+TONE_META = {
+    "gone":        {"hooks": "fall", "bucket": "fail"},
+    "flipped":     {"hooks": "fall", "bucket": "fail"},
+    "shrunk_real": {"hooks": "fall", "bucket": "mixed"},
+    "held":        {"hooks": "held", "bucket": "held"},
+    "stronger":    {"hooks": "held", "bucket": "held"},
+}
+
+
+CLOSES_ALL = {
+    "gone": [
+        ("A bigger sample is not a guarantee of truth. But the filter runs "
+         "one way: a study that finds nothing is harder to publish than one "
+         "that finds something, so the first number to reach print is drawn "
+         "from the lucky tail. That is publication bias — a property of the "
+         "filter, not an accusation against anyone. "),
+        ("The honest summary is not that the finding was fake. It is that "
+         "with this many people, the effect cannot be told apart from zero. "
+         "Those are different sentences, and only the second one is "
+         "supported here. "),
+        ("Small samples move around a lot. That is not a flaw in the "
+         "original researchers — it is arithmetic. The fewer people you "
+         "measure, the further a result can drift from the truth by chance "
+         "alone. "),
+    ],
+    "shrunk_real": [
+        ("So the effect is real, and it is much smaller than the first "
+         "study said. Both halves of that sentence matter, and popular "
+         "write-ups tend to carry only the first. "),
+        ("This is the outcome that gets reported worst. It is not a "
+         "debunking and it is not a confirmation — it is a correction of "
+         "size. The direction survived; the magnitude did not. "),
+    ],
+    "flipped": [
+        ("Read that again: the replication did not just fail to find the "
+         "effect. It found one pointing the other way, and found it clearly "
+         "enough to be unlikely by chance. "),
+        ("A reversal is a stronger result than a null. It says the "
+         "original description of what is going on may have had the sign "
+         "backwards. "),
+    ],
+    "stronger": [
+        ("So the replication did not just hold — it came back bigger than "
+         "the original. That happens, and it is a useful reminder that "
+         "a small first study is noisy in both directions, not only the "
+         "flattering one. "),
+        ("This is the shape nobody expects: the larger test found more, "
+         "not less. Whatever else is going on here, it is not the story "
+         "of a finding that evaporated. "),
+    ],
+    "held": [
+        ("This one held up. That matters as much as the ones that don't, "
+         "because a finding that survives a much larger test is one you can "
+         "actually build on. "),
+        ("Nothing dramatic happened here, and that is the point. The "
+         "number moved a little and stayed where it was. Most of what you "
+         "have heard about this field is about the findings that broke. "),
+        ("So the original was, broadly, right. Worth saying out loud — a "
+         "channel that only covered collapses would be giving you a "
+         "distorted picture of the same evidence. "),
+    ],
+}
+
 
 # ── 稿子(模板填空,數字不經 LLM)──────────────────────────────────
 def tone_of(F):
@@ -228,7 +305,10 @@ def cite_of(side):
         return "doi:" + str(d).replace("https://doi.org/", "")
     u = str(side.get("url") or "").strip()
     if u.startswith(("http://", "https://")) and "." in u:
-        return u.replace("https://", "").replace("http://", "")[:60]
+        # ⚠️ 不要截斷。舊版收尾卡對 DOI 做 [:60],而 ep007 的 DOI 是 63 字元
+        #    ——螢幕上那個 DOI 貼進瀏覽器會 404。半個 DOI 比沒有 DOI 更糟,
+        #    因為它看起來是可查證的。太長就縮字級,不砍字。
+        return u.replace("https://", "").replace("http://", "")
     return None
 
 
@@ -246,7 +326,9 @@ def build_script(F):
     tone = tone_of(F)
     # 下游每一張以 tone 為 key 的表都要有它,否則現在就中止——
     # 不要等到跑完十分鐘 TTS、渲染到最後一幕才 KeyError。
-    missing = [n for n, tbl in (("CARD_TEXT", CARD_TEXT),)
+    missing = [n for n, tbl in (("CARD_TEXT", CARD_TEXT),
+                                ("TONE_META", TONE_META),
+                                ("CLOSES", CLOSES_ALL))
                if tone not in tbl]
     if missing:
         raise SystemExit(f"⛔ 定調 {tone!r} 在 {missing} 裡沒有對應文字。"
@@ -260,59 +342,7 @@ def build_script(F):
     #    something」「the first number published is **usually** the luckiest」
     #    「this **keeps happening** in one direction」——三句都是**我沒有計算過的
     #    頻率宣稱**,而且是片中唯一不能溯源的部分。改成講機制,不講頻率。
-    CLOSES = {
-        "gone": [
-            ("A bigger sample is not a guarantee of truth. But the filter runs "
-             "one way: a study that finds nothing is harder to publish than one "
-             "that finds something, so the first number to reach print is drawn "
-             "from the lucky tail. That is publication bias — a property of the "
-             "filter, not an accusation against anyone. "),
-            ("The honest summary is not that the finding was fake. It is that "
-             "with this many people, the effect cannot be told apart from zero. "
-             "Those are different sentences, and only the second one is "
-             "supported here. "),
-            ("Small samples move around a lot. That is not a flaw in the "
-             "original researchers — it is arithmetic. The fewer people you "
-             "measure, the further a result can drift from the truth by chance "
-             "alone. "),
-        ],
-        "shrunk_real": [
-            ("So the effect is real, and it is much smaller than the first "
-             "study said. Both halves of that sentence matter, and popular "
-             "write-ups tend to carry only the first. "),
-            ("This is the outcome that gets reported worst. It is not a "
-             "debunking and it is not a confirmation — it is a correction of "
-             "size. The direction survived; the magnitude did not. "),
-        ],
-        "flipped": [
-            ("Read that again: the replication did not just fail to find the "
-             "effect. It found one pointing the other way, and found it clearly "
-             "enough to be unlikely by chance. "),
-            ("A reversal is a stronger result than a null. It says the "
-             "original description of what is going on may have had the sign "
-             "backwards. "),
-        ],
-        "stronger": [
-            ("So the replication did not just hold — it came back bigger than "
-             "the original. That happens, and it is a useful reminder that "
-             "a small first study is noisy in both directions, not only the "
-             "flattering one. "),
-            ("This is the shape nobody expects: the larger test found more, "
-             "not less. Whatever else is going on here, it is not the story "
-             "of a finding that evaporated. "),
-        ],
-        "held": [
-            ("This one held up. That matters as much as the ones that don't, "
-             "because a finding that survives a much larger test is one you can "
-             "actually build on. "),
-            ("Nothing dramatic happened here, and that is the point. The "
-             "number moved a little and stayed where it was. Most of what you "
-             "have heard about this field is about the findings that broke. "),
-            ("So the original was, broadly, right. Worth saying out loud — a "
-             "channel that only covered collapses would be giving you a "
-             "distorted picture of the same evidence. "),
-        ],
-    }
+    CLOSES = CLOSES_ALL
     close_txt = CLOSES[tone][(o["year"] + r["n"]) % len(CLOSES[tone])]
 
     # 🔴 開場要分軌(2026-08-25):舊版一律用「It sounded plausible」起手,
@@ -337,7 +367,8 @@ def build_script(F):
         (f"{claim}. That was the finding in {o['year']}. It has now been put "
          f"in front of {r['n']:,} people. Here is what came back."),
     ]
-    pool = HOOKS_HELD if tone == "held" else HOOKS_FALL
+    # 從表取,不寫 if tone == "..."(見 TONE_META 的說明)
+    pool = {"held": HOOKS_HELD, "fall": HOOKS_FALL}[TONE_META[tone]["hooks"]]
     hook_txt = pool[(o["year"] + o["n"]) % len(pool)]
 
     # 🔴 慣例門檻依效果量**型別**分軌。r 的慣例是 .1/.3/.5,d 是 .2/.5/.8。
@@ -556,7 +587,8 @@ def render_scene(plt, name, t, dur, F):
                 c = cite_of(side)
                 if c:
                     ax.text(0.5, 0.30 - shown * 0.055, c, ha="center",
-                            fontsize=18, color=ACCENT, alpha=q * 0.9)
+                            fontsize=18 if len(c) <= 46 else 14,
+                            color=ACCENT, alpha=q * 0.9)
                     shown += 1
             if shown < 2:
                 ax.text(0.5, 0.30 - shown * 0.055,

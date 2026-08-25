@@ -26,7 +26,8 @@ import sys
 import pandas as pd
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from make_episode import build_facts, tone_of        # noqa: E402
+from make_episode import (build_facts, tone_of,       # noqa: E402
+                          TONE_META, CARD_TEXT)
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 ROOT = pathlib.Path(__file__).resolve().parent
@@ -156,7 +157,6 @@ def fred_meta(row):
     #    判定改五分法時它沒跟著改,於是 ep005 旁白說「效應存活」而縮圖
     #    用失敗色。**已停用 track**,任何地方都不要再讀它。
     tone = tone_of(build_facts(row))
-    held = tone in ("held", "stronger", "shrunk_real")
 
     # 標題的說法要跟 tone 一致。⚠️ 一度把 shrunk_real 也講成「it held up」
     #    —— 那是過度宣稱:shrunk_real 的意思是「小很多但仍測得到」,
@@ -209,7 +209,9 @@ def famous_tone(E):
     if ci and ci[0] <= 0 <= ci[1]:
         return "gone"                     # 區間跨零 = 測不出來
     if not ci:
-        return "unclear"                  # 沒有區間,不宣稱存在與否
+        # 沒有區間就不宣稱存在與否。用 shrunk_real 這一檔(中間類別),
+        # 它的標題句式與顏色都是「兩邊都不是」,正好對應「我們不知道」。
+        return "shrunk_real"
     kind = t["es_kind"]
     strong = abs(t["es"]) >= (0.2 if kind == "r" else 0.2)
     return "held" if strong else "shrunk_real"

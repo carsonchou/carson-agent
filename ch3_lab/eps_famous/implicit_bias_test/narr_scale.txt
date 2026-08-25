@@ -1,1 +1,0 @@
-One number to keep in mind while we look at the result. Effect size is not whether something is true. It is how big the difference is. For a correlation, around zero point one is small, zero point three is medium, zero point five is large.

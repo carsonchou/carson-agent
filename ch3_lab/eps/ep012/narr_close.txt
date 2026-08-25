@@ -1,1 +1,0 @@
-Small samples move around a lot. That is not a flaw in the original researchers — it is arithmetic. The fewer people you measure, the further a result can drift from the truth by chance alone. Both papers are linked below.

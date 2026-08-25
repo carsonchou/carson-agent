@@ -24,12 +24,17 @@ import sys
 
 import numpy as np
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 ROOT = pathlib.Path(__file__).resolve().parent
 META = ROOT / "publish_meta.json"
 W, H = 1280, 720
 BG, FG, DIM = "#0E1116", "#E8EAED", "#8A9099"
-FALLC, HOLDC = "#F5A54E", "#5FC98A"
+# 三種顏色對應三種結局。⚠️ 只有兩色時 shrunk_real 只能二選一,而它
+# **兩邊都不是**:歸橘色等於說它垮了(旁白明講 not a debunking),
+# 歸綠色等於說它守住了(它掉了 73%)。
+BUCKET_COLOR = {"fail": "#F5A54E", "mixed": "#8FA3C8", "held": "#5FC98A"}
 
 
 def _plt():
@@ -86,8 +91,8 @@ def draw(plt, o, out_path):
         return False
     eo, er, n_left, n_right, kind = f
     # 顏色由 tone 決定,不是 track(track 已停用)。
-    held = o.get("tone") in ("held", "stronger", "shrunk_real")
-    col = HOLDC if held else FALLC
+    from make_episode import TONE_META
+    col = BUCKET_COLOR[TONE_META[o["tone"]]["bucket"]]
 
     fig = plt.figure(figsize=(W / 100, H / 100), dpi=100)
     fig.patch.set_facecolor(BG)

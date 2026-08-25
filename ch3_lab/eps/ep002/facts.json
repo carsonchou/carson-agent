@@ -7,18 +7,21 @@
   "year": 2006,
   "title": "What do i think you're doing? Action identification and mind attribution.",
   "author": "[{\"given\":\"Megan N.\",\"family\":\"Kozak\",\"sequence\":\"first\"},{\"given\":\"Abigail A.\",",
-  "doi": "10.1037/0022-3514.90.4.543"
+  "doi": "10.1037/0022-3514.90.4.543",
+  "url": ""
  },
  "repl": {
   "n": 1086,
   "es": 0.08,
   "year": null,
   "title": "Kozak et al 2006 replication and extension",
-  "doi": "10.17605/osf.io/j9mfn"
+  "doi": "10.17605/osf.io/j9mfn",
+  "url": "https://osf.io/8mqx5"
  },
  "verdict": "failed",
  "p_repl": 0.291,
  "p_type_repl": "e (=)",
  "source": "FORRT Replication Database (FReD), OSF 2tbvd",
- "n_ratio": 21.7
+ "n_ratio": 21.7,
+ "tone": "gone"
 }
