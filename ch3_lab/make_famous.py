@@ -93,15 +93,24 @@ def build_script(E):
                      f"In {o['year']}, a study reported that {E['claim']}. "
                      f"It has been cited {say_int(o['cited_by'])} times. "
                      + weight))
-        segs.append(("test",
-                     f"In {t['year']}, everything that had been run since was "
-                     f"pooled — {t['k']} {t['k_word']}, "
-                     f"covering {'over ' if t.get('n_is_floor') else ''}"
-                     f"{say_int(t['n'])} people."
-                     if t.get("k") else
-                     f"In {t['year']}, it was tested again, "
-                     f"on {say_int(n_people)} people, "
-                     f"with the method registered in advance."))
+        # 🔴 「彙整既有研究」和「重新做一次實驗」是兩件不同的事,不能共用一句話。
+        #    綜合分析是把跑過的加起來;多實驗室重測是 23 個實驗室各自**重新**跑,
+        #    而且方法事先登記。把後者講成前者,是把這條產線最硬的證據講軟了。
+        n_str = ("over " if t.get("n_is_floor") else "") + say_int(t["n"])
+        if not t.get("k"):
+            test_txt = (f"In {t['year']}, it was tested again, "
+                        f"on {say_int(n_people)} people, "
+                        f"with the method registered in advance.")
+        elif "meta" in t["kind"]:
+            test_txt = (f"In {t['year']}, everything that had been run since was "
+                        f"pooled — {t['k']} {t['k_word']}, "
+                        f"covering {n_str} people.")
+        else:
+            test_txt = (f"In {t['year']}, {t['k']} {t['k_word']} ran it again — "
+                        f"{n_str} people, one shared protocol, "
+                        f"and every prediction registered before the data "
+                        f"came in.")
+        segs.append(("test", test_txt))
     else:
         # ⚠️ 這裡一度寫「被測過的次數幾乎多於心理學裡任何東西」——那是我沒有
         #    根據的最高級。改成只講本集查得到的事實:它被測過很多次,而我們把
@@ -249,6 +258,12 @@ def render_scene(plt, name, t, dur, E):
     fig = plt.figure(figsize=(W / 100, H / 100), dpi=100)
     fig.patch.set_facecolor(BG)
     ax = fig.add_axes([0, 0, 1, 1]); ax.axis("off"); ax.set_facecolor(BG)
+    # 🔴 一定要鎖死 0~1(2026-08-25)。本檔的圖表直接畫在這個滿版軸上,
+    #    ax.plot 會**自動縮放**資料範圍——信賴區間 [-0.07, 0.15] 一畫下去,
+    #    整個座標系就被拉成那個區間,所有 ax.text(0.5, …) 的文字全被裁到畫面外。
+    #    結果是片子渲染成功、時長正確、只有圖形沒有半個字。
+    #    (make_episode.py 沒中招純粹因為它把圖表畫在另一個子軸上。)
+    ax.set_xlim(0, 1); ax.set_ylim(0, 1)
     ci = T.get("ci")
 
     if name == "hook":
@@ -356,25 +371,29 @@ def render_scene(plt, name, t, dur, E):
 
 
 # ── TTS ─────────────────────────────────────────────────────────────
-def tts(segs, out_dir):
-    """走 3.11 的 Kokoro venv(本 venv 是 3.9,onnxruntime 版本對不上)。"""
-    payload = {n: t for n, t in segs}
-    (out_dir / "_tts_in.json").write_text(
-        json.dumps(payload, ensure_ascii=False), encoding="utf-8")
-    code = (
-        "import json,sys,pathlib\n"
-        "sys.path.insert(0,r'" + str(REPO / "_ttslab311") + "')\n"
-        "from kokoro_tts import say\n"
-        "d=json.loads(pathlib.Path(r'" + str(out_dir / "_tts_in.json") +
-        "').read_text(encoding='utf-8'))\n"
-        "for n,t in d.items():\n"
-        "    say(t, r'" + str(out_dir) + "'+'\\\\seg_'+n+'.wav')\n")
-    py311 = REPO / "_ttslab311" / ".venv" / "Scripts" / "python.exe"
-    r = subprocess.run([str(py311), "-c", code], cwd=str(REPO),
-                       capture_output=True, text=True)
-    if r.returncode:
-        print(r.stdout[-1500:]); print(r.stderr[-1500:])
-        raise SystemExit("TTS 失敗")
+def tts(segs, out_dir, voice="af_heart"):
+    """走 3.11 的 Kokoro(本 venv 是 3.9,onnxruntime 版本對不上)。
+
+    直譯器路徑與呼叫方式跟 make_episode.py 對齊——那份是實測跑得動的。
+    自己另外猜一套(.venv/、kokoro_tts.say)的結果是整批 5 集全滅。
+    """
+    tts_py = ROOT / "_tts_famous.py"
+    tts_py.write_text(
+        "import sys, pathlib, soundfile as sf\n"
+        "sys.stdout.reconfigure(encoding='utf-8', errors='replace')\n"
+        "from kokoro_onnx import Kokoro\n"
+        f"out = pathlib.Path(r'{out_dir}')\n"
+        "k = Kokoro('_ttslab311/kokoro-v1.0.onnx', '_ttslab311/voices-v1.0.bin')\n"
+        # 段落名從 segs 推導,不寫死(make_episode 踩過:加了段落沒同步,
+        # 整條線到混音才炸)
+        f"for n in {tuple(n for n, _ in segs)!r}:\n"
+        "    t = (out / f'narr_{n}.txt').read_text(encoding='utf-8').strip()\n"
+        f"    s, sr = k.create(t, voice='{voice}', speed=0.98, lang='en-us')\n"
+        "    sf.write(out / f'seg_{n}.wav', s, sr)\n"
+        "    print(f'  {n:<12}{len(s)/sr:6.1f}s', flush=True)\n",
+        encoding="utf-8")
+    subprocess.run([str(REPO / "_ttslab311" / "Scripts" / "python.exe"),
+                    str(tts_py)], check=True, cwd=str(REPO))
 
 
 def wav_dur(p):
@@ -421,10 +440,7 @@ def main():
             continue
 
         tts(segs, out)
-        durs = {}
-        for n, _ in segs:
-            durs[n] = wav_dur(out / f"seg_{n}.wav")
-            print(f"  {n:<12}{durs[n]:>6.1f}s")
+        durs = {n: wav_dur(out / f"seg_{n}.wav") for n, _ in segs}
 
         plt = _plt()
         frames = out / "frames"
