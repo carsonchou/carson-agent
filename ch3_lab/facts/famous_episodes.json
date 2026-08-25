@@ -61,7 +61,9 @@
     ],
     "quote": "For men, we found a very weak effect in the predicted direction (d = 0.09, 95% CI [-0.17, 0.34], N = 242). For women, we found a very weak effect in the opposite direction (d = -0.09, 95% CI [-0.30, 0.12], N = 360).",
     "n_total": 602,
-    "n_total_note": "242 men + 360 women, reported separately. 合計值在此明確宣告,否則 audit 會擋(它只認事實庫裡有的數字)"
+    "n_total_note": "242 men + 360 women, reported separately. 合計值在此明確宣告,否則 audit 會擋(它只認事實庫裡有的數字)",
+    "group_a": "men",
+    "group_b": "women"
    },
    "hook": "Red makes women more attractive to men?"
   },

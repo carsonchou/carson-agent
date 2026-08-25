@@ -341,30 +341,60 @@ def render_scene(plt, name, t, dur, E):
         # 主結果:數字 + 信賴區間橫條(跨零就標出來)
         q = ease(min(1.0, t / 1.2))
         col = WARN if (ci and ci[0] <= 0 <= ci[1]) else GOOD
-        ax.text(0.5, 0.72, f"{abs(es):.3f}".rstrip("0").rstrip(".")
-                if abs(es) < 0.1 else f"{es:.2f}",
-                ha="center", fontsize=150, color=col, alpha=q, weight="bold")
+        # 有兩組時大字要同時給兩個數字:只放一個而下面畫兩排,
+        # 觀眾不知道上面那個是誰的(紅色那集男 +0.09 / 女 -0.09 方向相反)
+        if T.get("es_second") is not None and T.get("ci_second"):
+            big = f"{es:+.2f}  /  {T['es_second']:+.2f}"
+            size = 104
+        else:
+            big = (f"{abs(es):.3f}".rstrip("0").rstrip(".")
+                   if abs(es) < 0.1 else f"{es:.2f}")
+            size = 150
+        ax.text(0.5, 0.72, big, ha="center", fontsize=size, color=col,
+                alpha=q, weight="bold")
         ax.text(0.5, 0.60, f"{T['es_kind']} — {T['kind']}, {T['year']}",
                 ha="center", fontsize=26, color=DIM, alpha=q)
         if ci and t > 1.6:
             q2 = ease(min(1.0, (t - 1.6) / 1.4))
-            lo, hi = ci
-            span = max(abs(lo), abs(hi), abs(es)) * 1.45 or 1
-            x = lambda v: 0.5 + (v / span) * 0.36
-            ax.plot([x(lo), x(hi)], [0.40, 0.40], color=col, lw=9,
-                    alpha=q2, solid_capstyle="round")
-            for v in (lo, hi):
-                ax.plot([x(v), x(v)], [0.365, 0.435], color=col, lw=4, alpha=q2)
-            ax.plot([x(es)], [0.40], marker="o", ms=18, color=FG, alpha=q2)
-            ax.plot([x(0), x(0)], [0.31, 0.49], color=DIM, lw=2,
-                    ls="--", alpha=q2)
-            ax.text(x(0), 0.27, "zero", ha="center", fontsize=24,
+            # 🔴 有第二組時**兩排都要畫**(2026-08-25)。紅色那集旁白唸
+            #    「女性那組是 minus 0.09」,畫面上卻只有男性的 0.09 ——
+            #    觀眾聽到負數、看到正數,正是先前修過的「旁白與圖表打架」。
+            rows = [(ci, es, T.get("group_a", ""))]
+            if T.get("ci_second") and T.get("es_second") is not None:
+                rows.append((T["ci_second"], T["es_second"],
+                             T.get("group_b", "")))
+            span = max(max(abs(v) for v in c) for c, _, _ in rows)
+            span = max(span, max(abs(e) for _, e, _ in rows)) * 1.45 or 1
+            x = lambda v: 0.5 + (v / span) * 0.34
+            ys = [0.40] if len(rows) == 1 else [0.44, 0.29]
+            for (c, e, lab), yy in zip(rows, ys):
+                rc = col if len(rows) == 1 else (
+                    ACCENT if yy == ys[0] else "#B07FE0")
+                lo, hi = c
+                ax.plot([x(lo), x(hi)], [yy, yy], color=rc, lw=9,
+                        alpha=q2, solid_capstyle="round")
+                for v in (lo, hi):
+                    ax.plot([x(v), x(v)], [yy - .035, yy + .035], color=rc,
+                            lw=4, alpha=q2)
+                ax.plot([x(e)], [yy], marker="o", ms=18, color=FG, alpha=q2)
+                if lab:
+                    ax.text(0.10, yy, lab, ha="left", va="center",
+                            fontsize=26, color=rc, alpha=q2, weight="bold")
+                    ax.text(0.90, yy, f"{e:+.2f}", ha="right", va="center",
+                            fontsize=28, color=rc, alpha=q2, weight="bold")
+            top, bot = max(ys) + 0.09, min(ys) - 0.09
+            ax.plot([x(0), x(0)], [bot, top], color=DIM, lw=2, ls="--", alpha=q2)
+            ax.text(x(0), bot - 0.04, "zero", ha="center", fontsize=24,
                     color=DIM, alpha=q2)
-            ax.text(0.5, 0.17, f"95% CI  [{lo:.2f}, {hi:.2f}]", ha="center",
-                    fontsize=30, color=col, alpha=q2)
-            if lo <= 0 <= hi and t > 3.2:
+            if len(rows) == 1:
+                ax.text(0.5, 0.17, f"95% CI  [{ci[0]:.2f}, {ci[1]:.2f}]",
+                        ha="center", fontsize=30, color=col, alpha=q2)
+            crossing = [c for c, _, _ in rows if c[0] <= 0 <= c[1]]
+            if crossing and t > 3.2:
                 q3 = ease(min(1.0, (t - 3.2) / 1.2))
-                ax.text(0.5, 0.09, "the range includes zero", ha="center",
+                msg = ("the range includes zero" if len(rows) == 1 else
+                       "both ranges include zero")
+                ax.text(0.5, 0.09, msg, ha="center",
                         fontsize=32, color=WARN, alpha=q3, weight="bold")
         elif T.get("es_second") is not None and t > 1.6:
             q2 = ease(min(1.0, (t - 1.6) / 1.4))
