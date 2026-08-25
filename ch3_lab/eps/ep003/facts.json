@@ -1,0 +1,27 @@
+{
+ "claim": "Criminial behavior is negatively correlated with agreeableness",
+ "es_type": "r",
+ "orig": {
+  "n": 197,
+  "es": -0.25,
+  "year": 2004,
+  "title": "Delinquent behavior and the Five-Factor Model: Hiding in the adaptive landscape",
+  "author": "[{\"given\":\"R. P.\",\"family\":\"Wiebe\",\"sequence\":\"first\"}]",
+  "doi": "10.65030/idr.02004",
+  "url": ""
+ },
+ "repl": {
+  "n": 1550,
+  "es": -0.23,
+  "year": 2019,
+  "title": "How Replicable Are Links Between Personality Traits and Consequential Life Outcomes? The Life Outcomes of Personality Re",
+  "doi": "10.1177/0956797619831612",
+  "url": ""
+ },
+ "verdict": "successful",
+ "p_repl": 1.18e-19,
+ "p_type_repl": "e (=)",
+ "source": "FORRT Replication Database (FReD), OSF 2tbvd",
+ "n_ratio": 7.9,
+ "tone": "held"
+}

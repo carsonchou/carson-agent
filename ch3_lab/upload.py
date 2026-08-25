@@ -284,6 +284,13 @@ def main():
     ap.add_argument("--privacy", choices=["private", "unlisted", "public"])
     ap.add_argument("--flip", choices=["private", "unlisted", "public"],
                     help="改已上傳影片的隱私(整包帶齊 status,不會洗掉兒童宣告)")
+    # 🔴 2026-08-25:我把 `--limit 2 --privacy private` 當成乾跑拿來測閘門,
+    #    結果它真的傳了兩支上去(已刪除、帳本已清)。**測閘門不該需要真的執行。**
+    #    這個參數就是當時缺的那個東西:走完所有檢查、印出會發生什麼,然後停。
+    ap.add_argument("--dry-run", action="store_true", dest="dry",
+                    help="走完所有閘門並印出會上傳什麼,但不連網、不上傳")
+    ap.add_argument("--allow-stale", action="store_true",
+                    help="跳過陳舊檢查(只有你確定那些 mp4 是對的才用)")
     ap.add_argument("--list", action="store_true", dest="show")
     a = ap.parse_args()
 
@@ -331,6 +338,36 @@ def main():
     if not a.privacy:
         print("⛔ --privacy 必填(public 不可逆,不設預設值)")
         return 1
+
+    # 🔴 陳舊檢查在連網之前(2026-08-25 獨立驗證的建議)。
+    #    這條線反覆出現「碼修好了、檔案也在,但 mp4 是舊碼的產物」——
+    #    不報錯、不缺檔、清單看起來正常。而 facts.json 是渲染**之前**寫的、
+    #    mp4 是**之後**才 mux 的,所以渲染死在中間時只比對 tone 會給假全綠。
+    import preflight
+    print("陳舊檢查:")
+    stale = preflight.main_for(todo)
+    if stale and not a.allow_stale:
+        print("⛔ 有集數是舊碼或舊資料的產物,中止。"
+              "重產後再試,或加 --allow-stale(不建議)。")
+        return 1
+
+    if a.dry:
+        print("\n語意閘門:")
+        blocked = 0
+        for o in todo:
+            why = semantic_gate(o)
+            thumb = ROOT / o["thumb"] if o.get("thumb") else None
+            miss_thumb = not (thumb and thumb.exists())
+            key = key_of(o)
+            if why:
+                print(f"  ⛔ {key:<22}{why}"); blocked += 1
+            elif miss_thumb and a.privacy != "private":
+                print(f"  ⛔ {key:<22}缺縮圖"); blocked += 1
+            else:
+                print(f"  ✓  {key:<22}{o['title'][:58]}")
+        print(f"\n--dry-run:未連網、未上傳。"
+              f"實際會上傳 {len(todo) - blocked} 支,擋下 {blocked} 支。")
+        return 0
 
     yt = svc()
     me = yt.channels().list(part="snippet", mine=True).execute()["items"][0]
