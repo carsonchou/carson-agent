@@ -283,26 +283,49 @@ def render_scene(plt, name, t, dur, E):
 
     elif name == "test":
         # 規模:一格一個實驗室/樣本,填滿代表檢驗的廣度
-        k = T.get("k") or 1
-        cols = min(24, max(6, int(np.ceil(np.sqrt(k) * 1.6))))
-        rows = int(np.ceil(k / cols))
-        prog = ease(min(1.0, max(0.0, (t - 0.6) / max(0.1, dur * 0.5)))) * k
-        for i in range(k):
-            if i >= prog:
-                break
-            cx = 0.5 + (i % cols - (cols - 1) / 2) * 0.032
-            cy = 0.60 - (i // cols - (rows - 1) / 2) * 0.055
-            ax.add_patch(plt.Rectangle((cx - 0.012, cy - 0.020), 0.024, 0.040,
-                                       color=ACCENT, alpha=0.85))
-        if t > 0.4:
-            q = ease(min(1.0, (t - 0.4) / 1.0))
-            ax.text(0.5, 0.86, f"{k} {T['k_word']}", ha="center",
-                    fontsize=44, color=FG, alpha=q, weight="bold")
-        if t > dur * 0.55:
+        # 🔴 不是每一集都有 k。romantic_red 是**單一次登記重測**,沒有
+        #    「多少個實驗室」可言——舊版 `T['k_word']` 直接 KeyError,
+        #    而且是在渲染到一半才炸,把整批後面三集一起帶走。
+        k = T.get("k")
+        if k:
+            cols = min(24, max(6, int(np.ceil(np.sqrt(k) * 1.6))))
+            rows = int(np.ceil(k / cols))
+            prog = ease(min(1.0, max(0.0, (t - 0.6) / max(0.1, dur * 0.5)))) * k
+            for i in range(k):
+                if i >= prog:
+                    break
+                cx = 0.5 + (i % cols - (cols - 1) / 2) * 0.032
+                cy = 0.60 - (i // cols - (rows - 1) / 2) * 0.055
+                ax.add_patch(plt.Rectangle((cx - 0.012, cy - 0.020), 0.024, 0.040,
+                                           color=ACCENT, alpha=0.85))
+            if t > 0.4:
+                q = ease(min(1.0, (t - 0.4) / 1.0))
+                ax.text(0.5, 0.86, f"{k} {T['k_word']}", ha="center",
+                        fontsize=44, color=FG, alpha=q, weight="bold")
+        elif T.get("n_second"):
+            # 兩組分開測:畫兩塊面積,面積比就是人數比
+            tot = T["n"] + T["n_second"]
+            grow = ease(min(1.0, max(0.0, (t - 0.5) / max(0.1, dur * 0.45))))
+            for x, n, lab, c in ((0.29, T["n"], "men", ACCENT),
+                                 (0.71, T["n_second"], "women", "#B07FE0")):
+                h = 0.34 * (n / tot) * 2 * grow
+                ax.add_patch(plt.Rectangle((x - 0.11, 0.44), 0.22, h,
+                                           color=c, alpha=0.85))
+                if t > 0.9:
+                    ax.text(x, 0.38, f"{n:,} {lab}", ha="center", fontsize=40,
+                            color=c, weight="bold")
+            if t > 0.4:
+                ax.text(0.5, 0.88, "one registered replication", ha="center",
+                        fontsize=42, color=FG, weight="bold")
+        if t > dur * 0.55 and (k or not T.get("n_second")):
             q = ease(min(1.0, (t - dur * 0.55) / 1.2))
             pre = "over " if T.get("n_is_floor") else ""
             ax.text(0.5, 0.20, f"{pre}{T['n']:,} people",
                     ha="center", fontsize=52, color=FG, alpha=q, weight="bold")
+        elif t > dur * 0.72 and T.get("n_total"):
+            q = ease(min(1.0, (t - dur * 0.72) / 1.2))
+            ax.text(0.5, 0.16, f"{T['n_total']:,} people in total", ha="center",
+                    fontsize=46, color=FG, alpha=q, weight="bold")
 
     elif name == "scale":
         ax.plot([0.12, 0.88], [0.5, 0.5], color=DIM, lw=2)
