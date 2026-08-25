@@ -173,7 +173,7 @@ def main():
     res = pd.DataFrame(out)
     res.to_csv(out_path, index=False, encoding="utf-8")
     n_h = sum(1 for r in out if r["track"] == "HOLD")
-    print(f"\n寫出 {OUT.name}:{len(out)} 集"
+    print(f"\n寫出 {out_path.name}:{len(out)} 集"
           f"(FALL {len(out) - n_h} / HOLD {n_h},{n_h / max(1, len(out)):.0%} 是守住的)")
     print("\n前 12 集:")
     for i, r in enumerate(out[:12]):
