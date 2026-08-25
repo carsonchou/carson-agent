@@ -106,6 +106,37 @@ def say_num(x):
 
 
 # ── 稿子(模板填空,數字不經 LLM)──────────────────────────────────
+def tone_of(F):
+    """由**數字**決定這一集的定調,verdict 欄位只是參考。
+
+    🔴 這個函式存在的唯一理由是「不要有第二份實作」(2026-08-25)。
+    先前旁白走三分法而收尾視覺卡走 `verdict != "failed" → held up` 的二分法,
+    於是 ep005 旁白說「效應不在那裡」、畫面同時打出「This one held up」,
+    ep008 更是畫面/旁白/標題三種說法。修好一份、漏掉另一份,是這個專案
+    重複發生的模式(閘門兩份、縮圖兩份)——所以判定只能有一個來源。
+    """
+    o, r = F["orig"], F["repl"]
+    shrink = abs(r["es"]) / max(abs(o["es"]), 1e-6)
+    return "gone" if shrink <= 0.35 else "shrunk" if shrink <= 0.7 else "held"
+
+
+def _sig(x):
+    """畫面上的數字要帶負號(2026-08-25)。
+
+    🔴 縮圖印 -0.25、影片印 0.25 —— 同一個數字在兩個地方長得不一樣。
+    在相關係數這裡負號不是小數點後的細節,它是方向:「負相關」和「正相關」
+    是相反的結論。長條的**長度**仍用絕對值(長度表示強度),方向交給符號。
+    """
+    return f"{x:.2f}" if x >= 0 else "−" + f"{abs(x):.2f}"
+
+
+def is_doi(v):
+    """真的是 DOI 才算。FReD 有些列的 DOI 欄放的是內部鍵值(wiebe_2004),
+    有些是空的(pandas 讀成 nan)——兩種都會被印成對外文案裡的假引用。"""
+    v = str(v or "").strip().lower()
+    return v.startswith("10.") or "doi.org/10." in v
+
+
 def build_script(F):
     o, r = F["orig"], F["repl"]
     kind = F["es_type"]
@@ -117,13 +148,7 @@ def build_script(F):
     # 🔴 收尾必須由**數字**決定,不能只看 verdict 欄位:
     #    實測第 3 集 verdict='mixed' 但 0.85→0.07,舊模板卻說「This one held up」,
     #    旁白與畫面上的長條圖直接矛盾。凡是宣稱都要能被畫面驗證。
-    shrink = abs(r["es"]) / max(abs(o["es"]), 1e-6)
-    if shrink <= 0.35:
-        tone = "gone"
-    elif shrink <= 0.7:
-        tone = "shrunk"
-    else:
-        tone = "held"
+    tone = tone_of(F)
 
     close_txt = {
         "gone": ("A bigger sample is not a guarantee of truth. But there is a reason "
@@ -298,7 +323,7 @@ def render_scene(plt, name, t, dur, F):
             ax.text(0.5, 0.47, "participants", ha="center", fontsize=30, color=DIM)
         if t > dur * 0.55:
             q = ease(min(1.0, (t - dur * 0.55) / 1.3))
-            ax.text(0.5, 0.31, f"{F['es_type']} = {abs(cur['es']):.2f}",
+            ax.text(0.5, 0.31, f"{F['es_type']} = {_sig(cur['es'])}",
                     ha="center", fontsize=52, color=col, weight="bold", alpha=q)
             ax.text(0.5, 0.23, f"{size_word(cur['es'], F['es_type'])} effect",
                     ha="center", fontsize=24, color=DIM, alpha=q)
@@ -318,17 +343,19 @@ def render_scene(plt, name, t, dur, F):
         ax2.set_xlim(0, mx); ax2.set_xlabel(f"effect size ({F['es_type']})",
                                             fontsize=19, labelpad=12)
         ax2.tick_params(labelsize=16)
-        ax2.text(abs(o["es"]) * p, 1, f"  {abs(o['es']):.2f}", va="center",
+        ax2.text(abs(o["es"]) * p, 1, f"  {_sig(o['es'])}", va="center",
                  fontsize=26, color=FG, weight="bold")
         if t > dur * 0.45:
-            ax2.text(abs(r["es"]) * p, 0, f"  {abs(r['es']):.2f}", va="center",
+            ax2.text(abs(r["es"]) * p, 0, f"  {_sig(r['es'])}", va="center",
                      fontsize=26, color=WARN, weight="bold")
         fig.text(0.16, 0.80, "Same study. Bigger sample.", fontsize=44,
                  color=FG, weight="bold")
 
     else:  # close
-        msg = ("The effect did not survive." if F["verdict"].lower() == "failed"
-               else "This one held up.")
+        # 用同一份 tone_of,不要在這裡重寫判斷(見 tone_of 的說明)
+        msg = {"gone": "The effect did not survive.",
+               "shrunk": "The effect shrank.",
+               "held": "This one held up."}[tone_of(F)]
         if t > 0.5:
             q = ease(min(1.0, (t - 0.5) / 1.3))
             ax.text(0.5, 0.66, msg, ha="center", fontsize=48, color=FG,
@@ -339,11 +366,17 @@ def render_scene(plt, name, t, dur, F):
                     ha="center", fontsize=22, color=DIM, alpha=q)
             ax.text(0.5, 0.40, "the published replication record.",
                     ha="center", fontsize=22, color=DIM, alpha=q)
-            for i, d in enumerate([o["doi"], r["doi"]]):
-                if d:
-                    ax.text(0.5, 0.30 - i * 0.055,
-                            d.replace("https://doi.org/", "doi:")[:60],
+            shown = 0
+            for d in (o["doi"], r["doi"]):
+                if is_doi(d):
+                    ax.text(0.5, 0.30 - shown * 0.055,
+                            "doi:" + str(d).replace("https://doi.org/", "")[:60],
                             ha="center", fontsize=18, color=ACCENT, alpha=q * 0.9)
+                    shown += 1
+            if shown < 2:
+                ax.text(0.5, 0.30 - shown * 0.055,
+                        "(one paper has no DOI recorded in the source database)",
+                        ha="center", fontsize=17, color=DIM, alpha=q * 0.8)
             ax.text(0.5, 0.15, F["source"], ha="center", fontsize=16,
                     color=DIM, alpha=q * 0.7)
     return fig

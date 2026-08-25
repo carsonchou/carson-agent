@@ -57,6 +57,15 @@ def clean(text):
     return text
 
 
+def is_doi(v):
+    """真的是 DOI 才算 —— FReD 的 DOI 欄有時放內部鍵值(wiebe_2004),
+    有時是空的(pandas 讀成 nan)。兩種都會變成對外文案裡的**假引用**:
+    說明欄印出 `doi:nan`,下一行卻寫著「both papers are cited above with
+    their DOIs」。這是誠信問題,不是排版問題。"""
+    v = str(v or "").strip().lower()
+    return v.startswith("10.") or "doi.org/10." in v
+
+
 def n_fmt(x):
     return f"{int(x):,}"
 
@@ -129,6 +138,15 @@ def famous_meta(E):
         title = (fit(topic, f" {t['k']} {t['k_word']} tested it: {es}.")
                  or f"{t['k']} {t['k_word']} retested a {o['year']} classic. "
                     f"The effect: {es}.")
+    elif o and t.get("es_second") is not None:
+        # ⚠️ 0.09 是**242 位男性**的效果量,不是 602 人的。把兩組相加的人數
+        #    掛在單一組的數字上,就是 yt-period-swap-integrity 那個模式:
+        #    兩個數字來自不同的組,被當成同一組講。
+        title = (fit(topic, f" {n_fmt(t['n'])} men: {es}. "
+                            f"{n_fmt(t['n_second'])} women: "
+                            f"{es_fmt(t['es_second'])}.")
+                 or f"{n_fmt(t['n'])} men: {es}. "
+                    f"{n_fmt(t['n_second'])} women: {es_fmt(t['es_second'])}.")
     elif o:
         title = (fit(topic, f" Retested on {n_show} people: {es}.")
                  or f"A {o['year']} finding, retested on {n_show} "
@@ -162,8 +180,17 @@ def famous_meta(E):
     if ci:
         allowed |= {f"{ci[0]:.2f}", f"{ci[1]:.2f}", es_fmt(ci[0]), es_fmt(ci[1])}
     if t.get("es_second") is not None:
-        lines.append(f"  {t.get('second_label', 'comparison')}: "
-                     f"{t['es_kind']} = {es_fmt(t['es_second'])}")
+        # 「comparison: d = -0.09」是一行沒有主詞的孤兒。要講清楚是誰的數字。
+        who = t.get("second_label") or (
+            f"{n_fmt(t['n_second'])} {t['group_b']}" if t.get("group_b")
+            else "second group")
+        first = (f"{n_fmt(t['n'])} {t['group_a']}" if t.get("group_a") else None)
+        if first:
+            lines[-2] = lines[-2].replace(f"  {t['es_kind']} = {es}",
+                                          f"  {first}: {t['es_kind']} = {es}")
+        lines.append(f"  {who}: {t['es_kind']} = {es_fmt(t['es_second'])}"
+                     + (f", 95% CI [{t['ci_second'][0]:.2f}, "
+                        f"{t['ci_second'][1]:.2f}]" if t.get("ci_second") else ""))
         allowed |= {es_fmt(t["es_second"])}
     allowed.add("95")
     return title, "\n".join(lines) + FOOTER, allowed
@@ -203,6 +230,13 @@ def main():
     out = []
     q = pd.read_csv(QUEUE, low_memory=False)
     for i, row in q.iterrows():
+        # 🔴 fail-closed:兩篇論文都要有真 DOI 才准進對外清單。
+        #    產不出可查證的引用,就不該宣稱「每個數字都能溯源」。
+        bad_doi = [k for k in ("doi_o", "doi_r") if not is_doi(row.get(k))]
+        if bad_doi:
+            print(f"  ⛔ ep{i:03d} DOI 不可用({', '.join(bad_doi)}="
+                  f"{[str(row.get(k))[:24] for k in bad_doi]})")
+            continue
         title, desc, allowed = fred_meta(row)
         if not check(f"ep{i:03d}", title, desc, allowed):
             continue

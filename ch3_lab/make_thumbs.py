@@ -33,10 +33,15 @@ FALLC, HOLDC = "#F5A54E", "#5FC98A"
 
 
 def _plt():
+    """與影片端同一套字型挑選,縮圖和片子才會是同一個頻道。"""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    plt.rcParams["font.family"] = ["DejaVu Sans"]
+    from matplotlib import font_manager
+    for fam in ("Segoe UI", "Arial", "DejaVu Sans"):
+        if any(fam.lower() in f.name.lower() for f in font_manager.fontManager.ttflist):
+            plt.rcParams["font.family"] = fam
+            break
     return plt
 
 
@@ -95,8 +100,16 @@ def draw(plt, o, out_path):
     # 🔴 主題**不截斷**:字級隨長度縮,縮到 3 行還放不下才整句捨棄。
     #    先前 wrap(...)[:2] 會默默吃掉尾巴(「…correlated with mind」少了
     #    attribution),那是標題犯過的同一個錯——半句話比沒有話更糟。
-    topic = (o.get("topic") or o["title"].split(" — ")[0].split("?")[0]
-             ).rstrip(".:;, ")
+    # split("?")[0] 會連問號一起吃掉(「…fix a memory」少了問號)。
+    # 問句就保留問號——那正是它要製造的懸念。
+    t0 = o.get("topic") or o["title"]
+    for sep in (" — ", ". "):
+        if sep in t0:
+            t0 = t0.split(sep)[0]
+            break
+    if "?" in t0:
+        t0 = t0[:t0.index("?") + 1]
+    topic = t0.rstrip(".:;, ")
     for size, per_line in ((44, 32), (38, 38), (32, 45)):
         lines = wrap(topic, per_line)
         if len(lines) <= 3:
@@ -121,17 +134,15 @@ def draw(plt, o, out_path):
         ax.text(RX, 0.21, f"{n_right} people", ha="center", fontsize=40,
                 color=col, zorder=3)
     else:
+        # 🔴 引用數和效果量是**兩種不同的量**,用「→」並排等於在說
+        #    「4,928 變成了 0.04」——那是無意義的。改成:效果量置中當主體,
+        #    引用數退成上方一行小字的背景資訊。
+        ax.text(0.5, y + 0.02, f"{er:.2f}", ha="center", va="center",
+                fontsize=170, color=col, weight="bold", zorder=3)
+        sub = f"across {n_right} people"
         if n_left:
-            ax.text(LX, y, n_left, ha="center", va="center",
-                    fontsize=96, color=DIM, weight="bold", zorder=3)
-            ax.text(LX, 0.21, "citations", ha="center", fontsize=40,
-                    color=DIM, zorder=3)
-            ax.text(0.505, y, "→", ha="center", va="center",
-                    fontsize=76, color=DIM, zorder=3)
-        ax.text(RX if n_left else 0.5, y, f"{er:.2f}", ha="center",
-                va="center", fontsize=138, color=col, weight="bold", zorder=3)
-        ax.text(RX if n_left else 0.5, 0.21, f"{n_right} people",
-                ha="center", fontsize=40, color=col, zorder=3)
+            sub = f"from a study cited {n_left} times · " + sub
+        ax.text(0.5, 0.20, sub, ha="center", fontsize=38, color=DIM, zorder=3)
 
     ax.text(0.5, 0.07, "THEY RAN IT AGAIN", ha="center", fontsize=30,
             color="#3C4450", weight="bold", zorder=3)

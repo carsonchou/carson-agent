@@ -1,7 +1,7 @@
 import sys, pathlib, soundfile as sf
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 from kokoro_onnx import Kokoro
-out = pathlib.Path(r'D:\carson-agent\ch3_lab\eps_famous\romantic_red')
+out = pathlib.Path(r'D:\carson-agent\ch3_lab\eps_famous\implicit_bias_test')
 k = Kokoro('_ttslab311/kokoro-v1.0.onnx', '_ttslab311/voices-v1.0.bin')
 for n in ('hook', 'test', 'scale', 'result', 'close'):
     t = (out / f'narr_{n}.txt').read_text(encoding='utf-8').strip()

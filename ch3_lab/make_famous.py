@@ -230,10 +230,18 @@ def audit(segs, E):
 
 # ── 畫面 ────────────────────────────────────────────────────────────
 def _plt():
+    """字型挑選要和 make_episode 一致,否則兩批片在同一個頻道裡長得像
+    兩個不同的頻道(實測:eps/ 是 Segoe UI 系、eps_famous/ 是 DejaVu 系)。"""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    plt.rcParams["font.family"] = ["DejaVu Sans"]
+    from matplotlib import font_manager
+    for fam in ("Segoe UI", "Arial", "DejaVu Sans"):
+        if any(fam.lower() in f.name.lower() for f in font_manager.fontManager.ttflist):
+            plt.rcParams["font.family"] = fam
+            break
+    plt.rcParams.update({"text.color": FG, "axes.labelcolor": DIM,
+                         "xtick.color": DIM, "ytick.color": DIM})
     return plt
 
 
@@ -308,7 +316,9 @@ def render_scene(plt, name, t, dur, E):
             grow = ease(min(1.0, max(0.0, (t - 0.5) / max(0.1, dur * 0.45))))
             for x, n, lab, c in ((0.29, T["n"], "men", ACCENT),
                                  (0.71, T["n_second"], "women", "#B07FE0")):
-                h = 0.34 * (n / tot) * 2 * grow
+                # 上界保護:9:1 這種懸殊分組會讓 0.34*0.9*2=0.61 把方塊頂到
+                # 畫面外(這條產線剛栽在「東西被裁出畫面」上)。
+                h = min(0.34, 0.34 * (n / tot) * 2) * grow
                 ax.add_patch(plt.Rectangle((x - 0.11, 0.44), 0.22, h,
                                            color=c, alpha=0.85))
                 if t > 0.9:
