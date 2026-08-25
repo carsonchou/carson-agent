@@ -10,7 +10,10 @@
     "year": 1998,
     "title": "Ego depletion: Is the active self a limited resource?",
     "doi": "10.1037/0022-3514.74.5.1252",
-    "cited_by": 4928
+    "cited_by": 4928,
+    "cited_by_source": "OpenAlex, retrieved 2026-08-25",
+    "cited_by_approx": 4900,
+    "cited_by_approx_note": "文案用的「超過 N 次」。無條件捨去到百位,所以它一定是保守的下界。明確登記在此,否則稿子審核會擋(它只認事實庫裡有的數字)"
    },
    "test": {
     "year": 2016,
@@ -26,7 +29,7 @@
      -0.07,
      0.15
     ],
-    "quote": "Multiple laboratories (k = 23, total N = 2,141) conducted replications of a standardized ego-depletion protocol... the size of the ego-depletion effect was small with 95% confidence intervals (CIs) that encompassed zero"
+    "quote": "Multiple laboratories (k = 23, total N = 2,141) conducted replications of a standardized ego-depletion protocol... the size of the ego-depletion effect was small with 95% confidence intervals (CIs) that encompassed zero ... (d = 0.04, 95% CI [-0.07, 0.15]) [Hagger et al. 2016, Table 1 / abstract]"
    },
    "hook": "Willpower runs out as you use it?"
   },
@@ -39,7 +42,10 @@
     "year": 2008,
     "title": "Romantic red: Red enhances men's attraction to women.",
     "doi": "10.1037/0022-3514.95.5.1150",
-    "cited_by": 437
+    "cited_by": 437,
+    "cited_by_source": "OpenAlex, retrieved 2026-08-25",
+    "cited_by_approx": 400,
+    "cited_by_approx_note": "文案用的「超過 N 次」。無條件捨去到百位,所以它一定是保守的下界。明確登記在此,否則稿子審核會擋(它只認事實庫裡有的數字)"
    },
    "test": {
     "year": 2017,
@@ -71,12 +77,15 @@
    "slug": "bystander_effect",
    "arc": "pair",
    "claim": "the more people who witness an emergency, the less likely any one of them is to help",
-   "title": "A 1968 study said crowds stop people from helping. 105 tests later, it is still there.",
+   "title": "A 1968 study said crowds stop people from helping. 105 effect sizes later, it is still there.",
    "original": {
     "year": 1968,
     "title": "Bystander intervention in emergencies: Diffusion of responsibility.",
     "doi": "10.1037/h0025589",
-    "cited_by": 3091
+    "cited_by": 3091,
+    "cited_by_source": "OpenAlex, retrieved 2026-08-25",
+    "cited_by_approx": 3000,
+    "cited_by_approx_note": "文案用的「超過 N 次」。無條件捨去到百位,所以它一定是保守的下界。明確登記在此,否則稿子審核會擋(它只認事實庫裡有的數字)"
    },
    "test": {
     "year": 2011,
@@ -92,7 +101,7 @@
     "quote": "In a fixed effects model, data from over 7,700 participants and 105 independent effect sizes revealed an overall effect size of g = -0.35.",
     "direction_note": "g 為負 = 旁觀者越多、出手相助越少,即效應存在的方向"
    },
-   "hook": "A crowd makes people less likely to help?"
+   "hook": "In an emergency, does a crowd make each person less likely to help?"
   },
   {
    "slug": "sleep_memory",
@@ -115,12 +124,12 @@
     ],
     "quote": "Here we present the first meta-analysis of sleep TMR, compiled from 91 experiments with 212 effect sizes (N = 2,004). ... overall sleep TMR was highly effective (Hedges' g = 0.29, 95% CI [0.21, 0.38])"
    },
-   "hook": "Can a sound played in your sleep fix a memory?"
+   "hook": "Can a sound you learned with strengthen that memory in your sleep?"
   },
   {
    "slug": "implicit_bias_test",
    "arc": "pooled",
-   "claim": "a reaction-time test can reveal the hidden bias that drives how you actually behave",
+   "claim": "a reaction-time test can reveal the hidden bias behind how people behave, judge, and react",
    "title": "The hidden-bias test predicts behaviour at r = .27. The questionnaire does better.",
    "test": {
     "year": 2009,
@@ -135,10 +144,13 @@
     "es_second": 0.361,
     "n_second": 13068,
     "second_label": "self-report questionnaires",
-    "quote": "This review of 122 research reports (184 independent samples, 14,900 subjects) found average r = .274 for prediction of behavioral, judgment, and physiological measures. Parallel explicit (i.e., self-report) measures, available in 156 of these samples (13,068 subjects), also predicted effectively (average r = .361)"
+    "quote": "This review of 122 research reports (184 independent samples, 14,900 subjects) found average r = .274 for prediction of behavioral, judgment, and physiological measures. Parallel explicit (i.e., self-report) measures, available in 156 of these samples (13,068 subjects), also predicted effectively (average r = .361)",
+    "outcome_note": "r = .274 是 behavioral / judgment / physiological 三類量測的合成,不只是行為",
+    "second_note": "⚠️ .361 來自 156 個樣本 / 13,068 人,與 .274 的 184 個樣本 / 14,900 人**不是同一組**,旁白必須講明,不能直接並排說 Higher"
    },
-   "hook": "Does the hidden-bias test predict what you do?"
+   "hook": "Does the hidden-bias test predict what people actually do?"
   }
  ],
- "_hook_note": "hook = 標題用的短主題(手寫)。FReD 的 description 常常太長,截斷後會失去意義;名案只有 5 集,值得手寫一個唸得順又點得下去的版本。"
+ "_hook_note": "hook = 標題用的短主題(手寫)。FReD 的 description 常常太長,截斷後會失去意義;名案只有 5 集,值得手寫一個唸得順又點得下去的版本。",
+ "_cited_by_note": "引用數是全片唯一一個觀眾自己去查會查到不同答案的數字(Google Scholar / Crossref / Scopus 差很多),所以一律標明來源與抓取日期,文案用「over N」不用精確值。"
 }

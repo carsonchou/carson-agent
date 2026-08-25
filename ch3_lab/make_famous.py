@@ -85,13 +85,19 @@ def build_script(E):
     if E["arc"] == "pair":
         # 引用數的份量差兩個數量級,同一句話撐不起來:4,928 次可以說
         # 「一整片心理學蓋在上面」,437 次不行——那會是我在灌水。
+        # ⚠️ 這裡一度寫「gets repeated in magazines and TED talks **without
+        #    anyone rechecking it**」——下一段立刻說它在 2017 年被重測了,
+        #    同一支片自己推翻自己;而且「magazines and TED talks」是事實庫
+        #    沒有的宣稱。改成只講引用數本身代表什麼。
         weight = ("That is how much of psychology was built on top of it."
                   if o["cited_by"] >= 2000 else
-                  "It became one of those findings that gets repeated in "
-                  "magazines and TED talks without anyone rechecking it.")
+                  "That is a few hundred papers standing on one experiment.")
+        # 引用數會漂移(Google Scholar / Crossref / Scopus 差很多),是全片
+        # 唯一一個觀眾自己去查會得到不同答案的數字 → 講「超過 N」不講精確值。
+        approx = o["cited_by_approx"]
         segs.append(("hook",
                      f"In {o['year']}, a study reported that {E['claim']}. "
-                     f"It has been cited {say_int(o['cited_by'])} times. "
+                     f"It has been cited more than {say_int(approx)} times. "
                      + weight))
         # 🔴 「彙整既有研究」和「重新做一次實驗」是兩件不同的事,不能共用一句話。
         #    綜合分析是把跑過的加起來;多實驗室重測是 23 個實驗室各自**重新**跑,
@@ -149,17 +155,40 @@ def build_script(E):
                 f"Among the {say_int(t['n_second'])} women, the effect ran the "
                 f"other way — {say_num(t['es_second'])}. ")
     elif t.get("es_second") is not None:
+        # ⚠️ .274 來自 184 個樣本、.361 來自 156 個樣本——**不是同一組**。
+        #    直接並排說「Higher」就是主頻道踩過的「A vs B 必須同一組事實」。
         res += (f"For comparison, {t['second_label']} — simply asking people "
-                f"what they think — predicted behaviour at "
-                f"{say_num(t['es_second'])}. Higher. ")
+                f"what they think — predicted the same kinds of outcomes at "
+                f"{say_num(t['es_second'])}, across a partly different set of "
+                f"{say_int(t['n_second'])} people. Not a head-to-head test, "
+                f"but the questionnaire is not doing worse. ")
+    # 🔴 信賴區間一定要標明是**哪一組**的(2026-08-25)。舊版把男性的
+    #    [-0.17, 0.34] 緊接在女性的 -0.09 後面唸出來,聽起來就是女性那組的;
+    #    而女性真正的區間 ci_second 存在於事實庫卻從頭到尾沒被用過。
     if ci:
-        res += (f"The ninety-five percent confidence interval ran from "
-                f"{say_num(ci[0])} to {say_num(ci[1])}. ")
-        if crosses:
-            res += ("That range includes zero. Which means this study cannot "
-                    "tell you the effect is there at all.")
+        ga = t.get("group_a")
+        c2 = t.get("ci_second")
+        if c2:
+            res += (f"For the {ga}, the ninety-five percent confidence interval "
+                    f"ran from {say_num(ci[0])} to {say_num(ci[1])}. "
+                    f"For the {t.get('group_b')}, from {say_num(c2[0])} to "
+                    f"{say_num(c2[1])}. Both of those ranges include zero — "
+                    f"neither group shows an effect this study can distinguish "
+                    f"from nothing.")
         else:
-            res += "That range does not include zero. The effect is there."
+            res += (f"The ninety-five percent confidence interval ran from "
+                    f"{say_num(ci[0])} to {say_num(ci[1])}. ")
+            if crosses:
+                res += ("That range includes zero. Which means this study cannot "
+                        "tell you the effect is there at all.")
+            else:
+                res += "That range does not include zero. The effect is there."
+    elif not ci:
+        # 🔴 缺 CI 時舊版直接走「效應存在」= 資料缺漏預設過關(fail-open)。
+        #    改成講清楚我們手上有什麼、沒有什麼。
+        res += ("This one comes without a confidence interval in the record, "
+                "so treat the size as a central estimate rather than a "
+                "settled number.")
     segs.append(("result", res))
 
     # 收尾要同時吃三件事:區間跨不跨零、效果量按**自己那把尺**算大算小、
@@ -173,19 +202,21 @@ def build_script(E):
     elif t.get("es_second") is not None and E["arc"] == "pooled":
         close = ("So the effect is real. But the measure that was supposed to "
                  "see past what people will admit did not beat simply asking "
-                 "them. That is the part that rarely makes the headline. ")
+                 "them. That part tends not to travel. ")
     elif strong and E["arc"] == "pair":
         # ⚠️ 不能說「比你聽過的頭條版本小」——本檔沒有原始研究的效果量,
         #    那個比較我做不出來,講了就是憑感覺編。只講站得住的:規模差距。
-        close = (f"So this one survives. It rests on far more people than the "
-                 f"{o['year']} experiment that made it famous, and it is still "
-                 f"there. ")
+        # ⚠️ 一度寫「rests on far more people than the 1968 experiment」——
+        #    事實庫裡**沒有**那篇的樣本數,這個比較的另一半不存在。
+        close = (f"So this one survives. Not on the strength of the {o['year']} "
+                 f"experiment that made it famous, but on everything that has "
+                 f"been run since. ")
     elif strong:
         close = ("So this one survives — not on the strength of one striking "
                  "experiment, but on everything that has been run since. ")
     else:
         close = ("So the effect is real, and it is small. Both halves of that "
-                 "sentence matter, and popular write-ups usually keep only "
+                 "sentence matter, and the headline version keeps only "
                  "the first. ")
     segs.append(("close", close + "Every paper is linked below."))
     return segs
@@ -208,8 +239,9 @@ def audit(segs, E):
                             f"{abs(v):.3f}".lstrip("0"),
                             f"{abs(v):.3f}".rstrip("0").rstrip(".")})
 
-    for v in (o.get("year"), o.get("cited_by"), t.get("year"), t.get("k"),
-              t.get("n"), t.get("n_second"), t.get("n_total")):
+    for v in (o.get("year"), o.get("cited_by"), o.get("cited_by_approx"),
+              t.get("year"), t.get("k"), t.get("n"), t.get("n_second"),
+              t.get("n_total")):
         add(v)
     for v in (t.get("es"), t.get("es_second")):
         add(v)
@@ -535,6 +567,10 @@ def main():
              "-i", str(voice), "-c:v", "libx264", "-pix_fmt", "yuv420p",
              "-crf", "18", "-c:a", "aac", "-b:a", "192k", "-shortest", str(mp4)],
             check=True, capture_output=True)
+        # make_episode 會清 PNG,這支全檔沒有任何清理 —— 五集約 550MB 殘留。
+        for f in frames.glob("*.png"):
+            f.unlink()
+        frames.rmdir()
         print(f"完成 → {mp4}  ({int(idx / FPS)}s)")
     return 0
 

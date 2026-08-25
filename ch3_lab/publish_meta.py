@@ -51,10 +51,22 @@ _TYPO = {"criminial": "criminal", "positvely": "positively",
          "foregiveness": "forgiveness"}
 
 
+_LEADIN = re.compile(r"^(we\s+(find|found|show|investigated)\s+(that\s+)?"
+                     r"(the\s+hypothesis\s+that\s+)?)", re.I)
+
+
 def clean(text):
+    """拼字錯 + 來源雜訊。旁白端(speakable)早就在做,說明端卻只修拼字,
+    於是 ep015 的說明第一行是「We investigated the hypothesis that…」——
+    讀起來像是**本頻道**做了這個研究。"""
     for bad, good in _TYPO.items():
         text = re.sub(bad, good, text, flags=re.I)
-    return text
+    text = text.strip().strip('"').strip("“”").strip()
+    text = _LEADIN.sub("", text)
+    text = re.sub(r"^\s*\[\d+\]\s*", "", text)
+    text = re.sub(r"\s*\([a-z]\)\s*", " ", text)
+    text = re.sub(r"\s{2,}", " ", text).strip()
+    return text[0].upper() + text[1:] if text else text
 
 
 def is_doi(v):
@@ -210,7 +222,7 @@ def check(label, title, desc, allowed):
     for where, text in (("標題", title), ("說明", desc)):
         scan = text.replace(FOOTER, " ")              # 固定頁尾不是本集資料
         scan = re.sub(r"doi:\S+", " ", scan)          # DOI 整段不掃
-        scan = re.sub(r"^\s*(Original study|The test|Replication).*$", " ",
+        scan = re.sub(r"^\s*(Original study|The test|Replication)\b.*$", " ",
                       scan, flags=re.M)               # 論文標題行不掃(在行首)
         for tok in re.findall(r"\d[\d,\.]*", scan):
             tok = tok.strip(".,")                     # 尾巴會黏到逗號
@@ -227,18 +239,18 @@ def main():
     ap.add_argument("--print", action="store_true", dest="show")
     a = ap.parse_args()
 
-    out = []
+    out, dropped = [], []
     q = pd.read_csv(QUEUE, low_memory=False)
     for i, row in q.iterrows():
         # 🔴 fail-closed:兩篇論文都要有真 DOI 才准進對外清單。
         #    產不出可查證的引用,就不該宣稱「每個數字都能溯源」。
         bad_doi = [k for k in ("doi_o", "doi_r") if not is_doi(row.get(k))]
         if bad_doi:
-            print(f"  ⛔ ep{i:03d} DOI 不可用({', '.join(bad_doi)}="
-                  f"{[str(row.get(k))[:24] for k in bad_doi]})")
+            dropped.append((f"ep{i:03d}", "DOI 不可用:" + ",".join(bad_doi)))
             continue
         title, desc, allowed = fred_meta(row)
         if not check(f"ep{i:03d}", title, desc, allowed):
+            dropped.append((f"ep{i:03d}", "數字溯源失敗"))
             continue
         out.append({"kind": "fred", "row": int(i), "dir": f"eps/ep{i:03d}",
                     "video": f"eps/ep{i:03d}/ep{i:03d}.mp4",
@@ -249,6 +261,7 @@ def main():
     for E in fam:
         title, desc, allowed = famous_meta(E)
         if not check(E["slug"], title, desc, allowed):
+            dropped.append((E["slug"], "數字溯源失敗"))
             continue
         out.append({"kind": "famous", "slug": E["slug"],
                     "dir": f"eps_famous/{E['slug']}",
@@ -257,6 +270,14 @@ def main():
                              ("bystander_effect", "sleep_memory") else "FALL",
                     "title": title, "description": desc, "tags": TAGS})
 
+    # 🔴 被刷掉的要彙總印出來,不能只是 continue(2026-08-25)。
+    #    上一版有 4 集被靜默丟掉(退格字元讓「論文標題那行不掃」失效,
+    #    於是「Many Labs 2」的那個 2 被當成編造數字),而 publish_meta.json
+    #    看起來有 20 筆一切正常。**少了東西比多了東西難發現。**
+    if dropped:
+        print(f"\n被擋下 {len(dropped)} 集:")
+        for k, why in dropped:
+            print(f"  ⛔ {k:<22}{why}")
     OUT.write_text(json.dumps(out, ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"\n{len(out)} 集的標題與說明已寫入 {OUT.name}")
     over = [o for o in out if len(o["title"]) > 100]

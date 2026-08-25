@@ -52,6 +52,13 @@ def speakable(claim):
     """
     c = claim.strip().strip('"').strip("“”").strip()
     c = _LEADIN.sub("", c)
+    # 來源是論文摘要剪下來的,帶著清單標記與編號:
+    #   「are perceived as: (d) thicker」「[84] Data Replicada #3」
+    # 唸出來完全不知所云,而且那些數字還會被溯源守門當成可疑數字。
+    c = re.sub(r"^\s*\[\d+\]\s*", "", c)          # 開頭的 [84]
+    c = re.sub(r"\s*\([a-z]\)\s*", " ", c)         # 句中的 (d)
+    c = re.sub(r"\s*:\s*$", "", c)
+    c = re.sub(r"\s{2,}", " ", c)
     for bad, good in _TYPO.items():
         c = re.sub(bad, good, c, flags=re.I)
     return c.strip().rstrip(".")
@@ -73,6 +80,10 @@ def build_facts(row):
                  "title": str(f("title_r") or "")[:120],
                  "doi": str(f("doi_r") or "")},
         "verdict": str(f("reported_success") or ""),
+        # 顯著性:分開「測不出來」與「證明沒有」的唯一現成判準
+        "p_repl": (float(f("pval_value_r"))
+                   if f("pval_value_r") is not None else None),
+        "p_type_repl": str(f("pval_type_r") or ""),
         "source": "FORRT Replication Database (FReD), OSF 2tbvd",
     }
     facts["n_ratio"] = round(facts["repl"]["n"] / max(1, facts["orig"]["n"]), 1)
@@ -96,12 +107,18 @@ def size_word(es, kind):
 
 
 def say_num(x):
-    """讓 TTS 唸對小數:0.04 → 'zero point zero four'。"""
+    """讓 TTS 唸對小數:0.04 → 'zero point zero four'。
+
+    🔴 負號要唸(2026-08-25)。舊版 abs() 讓 ep001(+0.27 → **−0.07**)、
+    ep004(−0.54 → **+0.13**)、ep012(−0.37 → **+0.03**)這三集
+    **方向翻轉**的重測,被唸成單純的數字變小。方向相反和變小是兩個結論。
+    """
+    out = ("minus " if x < 0 else "")
     s = f"{abs(x):.2f}"
     whole, frac = s.split(".")
     words = {"0": "zero", "1": "one", "2": "two", "3": "three", "4": "four",
              "5": "five", "6": "six", "7": "seven", "8": "eight", "9": "nine"}
-    out = words[whole] if whole in words else whole
+    out += words[whole] if whole in words else whole
     return out + " point " + " ".join(words[c] for c in frac)
 
 
@@ -114,10 +131,31 @@ def tone_of(F):
     於是 ep005 旁白說「效應不在那裡」、畫面同時打出「This one held up」,
     ep008 更是畫面/旁白/標題三種說法。修好一份、漏掉另一份,是這個專案
     重複發生的模式(閘門兩份、縮圖兩份)——所以判定只能有一個來源。
+
+    🔴 只看「縮多少」會把話講反(2026-08-25 獨立驗證抓到)。
+    舊版只算 `|er|/|eo|`,於是:
+    - **ep005**:r 從 0.82 掉到 0.22,比值 0.27 → 判 gone → 旁白說
+      「效應不在那裡」。但同一列 CSV 寫著 **p < 0.001**(n=823),
+      Fisher z 反算 95% CI = [0.156, 0.286],離零很遠。重測團隊登記
+      successful 是因為他們**測到了**,不是「成功證明沒有」。
+    - **ep004**:效果量從 −0.54 變成 **+0.13**,方向整個相反而且
+      **p = 0.042 顯著**,舊版卻判 gone、講成「效應沒了」。
+
+    「測不出來」和「證明沒有」是兩件事,分開它們的判準是**顯著性**,
+    而 `pval_value_r` 就躺在同一個 CSV 裡(19 列有 18 列有值),
+    產線卻從來沒讀過。方向也一樣要看:絕對值比會把「反向且大小相近」
+    判成 held。
     """
     o, r = F["orig"], F["repl"]
     shrink = abs(r["es"]) / max(abs(o["es"]), 1e-6)
-    return "gone" if shrink <= 0.35 else "shrunk" if shrink <= 0.7 else "held"
+    same_sign = (o["es"] >= 0) == (r["es"] >= 0)
+    p = F.get("p_repl")
+    sig = p is not None and p < 0.05          # 缺 p 值時視為測不出來(保守)
+    if not same_sign:
+        return "flipped" if sig else "gone"
+    if shrink > 0.7:
+        return "held"
+    return "shrunk_real" if sig else "gone"
 
 
 def _sig(x):
@@ -150,67 +188,134 @@ def build_script(F):
     #    旁白與畫面上的長條圖直接矛盾。凡是宣稱都要能被畫面驗證。
     tone = tone_of(F)
 
-    close_txt = {
-        "gone": ("A bigger sample is not a guarantee of truth. But there is a reason "
-                 "this keeps happening in one direction. A small study only gets "
-                 "published if it finds something, so the first number published is "
-                 "usually the luckiest one. That is called publication bias, and it is "
-                 "not an accusation against anyone. It is a property of the filter. "),
-        "shrunk": ("The effect did not vanish — it shrank. That happens often enough "
-                   "to be worth noticing: the first, smallest study is usually the one "
-                   "that reports the biggest number. "),
-        "held": ("This one held up. That matters as much as the ones that don't, "
-                 "because a finding that survives a much larger test is one you can "
-                 "actually build on. "),
-    }[tone]
+    # 收尾:每個 tone 有多種寫法,依本集資料挑一個(不是隨機——同一集
+    # 重跑要得到同一句)。獨立驗證量測到 90% 的旁白逐字相同,而 YouTube 的
+    # inauthentic 政策點名的正是「模板化、變化極小」。變化度要從這裡長出來。
+    #
+    # ⚠️ 這裡一度寫著「A small study **only** gets published if it finds
+    #    something」「the first number published is **usually** the luckiest」
+    #    「this **keeps happening** in one direction」——三句都是**我沒有計算過的
+    #    頻率宣稱**,而且是片中唯一不能溯源的部分。改成講機制,不講頻率。
+    CLOSES = {
+        "gone": [
+            ("A bigger sample is not a guarantee of truth. But the filter runs "
+             "one way: a study that finds nothing is harder to publish than one "
+             "that finds something, so the first number to reach print is drawn "
+             "from the lucky tail. That is publication bias — a property of the "
+             "filter, not an accusation against anyone. "),
+            ("The honest summary is not that the finding was fake. It is that "
+             "with this many people, the effect cannot be told apart from zero. "
+             "Those are different sentences, and only the second one is "
+             "supported here. "),
+            ("Small samples move around a lot. That is not a flaw in the "
+             "original researchers — it is arithmetic. The fewer people you "
+             "measure, the further a result can drift from the truth by chance "
+             "alone. "),
+        ],
+        "shrunk_real": [
+            ("So the effect is real, and it is much smaller than the first "
+             "study said. Both halves of that sentence matter, and popular "
+             "write-ups tend to carry only the first. "),
+            ("This is the outcome that gets reported worst. It is not a "
+             "debunking and it is not a confirmation — it is a correction of "
+             "size. The direction survived; the magnitude did not. "),
+        ],
+        "flipped": [
+            ("Read that again: the replication did not just fail to find the "
+             "effect. It found one pointing the other way, and found it clearly "
+             "enough to be unlikely by chance. "),
+            ("A reversal is a stronger result than a null. It says the "
+             "original description of what is going on may have had the sign "
+             "backwards. "),
+        ],
+        "held": [
+            ("This one held up. That matters as much as the ones that don't, "
+             "because a finding that survives a much larger test is one you can "
+             "actually build on. "),
+            ("Nothing dramatic happened here, and that is the point. The "
+             "number moved a little and stayed where it was. Most of what you "
+             "have heard about this field is about the findings that broke. "),
+            ("So the original was, broadly, right. Worth saying out loud — a "
+             "channel that only covered collapses would be giving you a "
+             "distorted picture of the same evidence. "),
+        ],
+    }
+    close_txt = CLOSES[tone][(o["year"] + r["n"]) % len(CLOSES[tone])]
 
     # 🔴 開場要分軌(2026-08-25):舊版一律用「It sounded plausible」起手,
-    #    那是在預告要打臉。用在 HOLD 集上等於掉包觀眾——而 HOLD 集正是這個頻道
-    #    不是一味打臉的證據,不能靠騙點擊進來。
+    #    那是在預告要打臉。用在 HOLD 集上等於掉包觀眾。
     #
     #    ⚠️ HOLD 開場一度寫成「Most findings from that era did not survive」——
-    #    那是斷言一個我沒計算的基準率。就算拿 FReD 去算也不能講:我手上這 348 列
-    #    是篩過的子集,拿它當「那個年代的心理學」的比例就是拿替身值當真值。
-    #    現在的版本只用本集自己的、已溯源的數字製造懸念。
-    hook_txt = (f"In {o['year']}, a study reported this: {claim}. "
-                f"It sounded plausible. It was published, and it was repeated."
-                if tone != "held" else
-                f"In {o['year']}, a study reported this: {claim}. "
-                f"It was based on {o['n']:,} people. "
-                f"Years later, another team ran it again on {r['n']:,} — "
-                f"not to debunk it, just to check.")
+    #    那是斷言一個我沒計算的基準率。就算拿 FReD 去算也不能講:348 列是篩過的
+    #    子集,拿它當「那個年代的心理學」的比例就是拿替身值當真值。
+    HOOKS_FALL = [
+        (f"In {o['year']}, a study reported this: {claim}. "
+         f"It sounded plausible. It was published, and it was repeated."),
+        (f"Here is something psychology believed in {o['year']}: {claim}. "
+         f"It came from {o['n']:,} people. Hold on to that number."),
+        (f"{claim}. That was the finding in {o['year']}, and for years it was "
+         f"cited as settled."),
+    ]
+    HOOKS_HELD = [
+        (f"In {o['year']}, a study reported this: {claim}. "
+         f"It was based on {o['n']:,} people. "
+         f"Years later, another team ran it again on {r['n']:,} — "
+         f"not to debunk it, just to check."),
+        (f"{claim}. That claim is {2026 - o['year']} years old, and it has now "
+         f"been put in front of {r['n']:,} people. Here is what came back."),
+    ]
+    pool = HOOKS_HELD if tone == "held" else HOOKS_FALL
+    hook_txt = pool[(o["year"] + o["n"]) % len(pool)]
 
+    # 🔴 慣例門檻依效果量**型別**分軌。r 的慣例是 .1/.3/.5,d 是 .2/.5/.8。
+    #    舊版旁白寫死 d 的門檻,而 size_word() 用的是正確的 r 門檻,於是
+    #    ep002 在同一集裡自打嘴巴:先說「0.5 是中等」,四十秒後說 0.30 是中等。
+    #    而且「how far apart two groups are」是 d 的定義,對相關係數是錯的。
+    is_r = kind.startswith("r")
+    scale_txt = ("A quick note on what that number means. "
+                 + ("A correlation is how tightly two things move together, "
+                    "not whether either one causes the other. "
+                    "Around zero point one is small, zero point three is "
+                    "medium, zero point five is large. "
+                    if is_r else
+                    "Effect size is not the same as being true or false. "
+                    "It is how far apart two groups are. "
+                    "Around zero point two is small, zero point five is "
+                    "medium, zero point eight is large. ")
+                 + "And the smaller the study, the more that number can move "
+                   "by chance.")
+
+    # 結果段:顯著性決定能不能說「效應在那裡」。
+    # ⚠️ 這裡一度寫著「what they successfully showed is that the effect is not
+    #    there」——ep005 的 p < 0.001,那句話是**講反**,不是講重。
+    res = f"The effect they measured was {say_num(r['es'])}. "
+    res += (f"That is {small}. " if small != "essentially nothing"
+            else "That is, essentially, nothing. ")
+    res += f"The original number was {say_num(o['es'])}. "
+    p = F.get("p_repl")
+    if tone == "flipped":
+        res += ("Notice the sign. It did not shrink towards zero — it crossed "
+                "over, and the replication reports that as statistically "
+                "significant.")
+    elif tone == "shrunk_real":
+        res += ("And it is still there: the replication reports this as "
+                "statistically significant. The effect survived. Its size "
+                "did not.")
+    elif tone == "gone" and p is not None:
+        res += ("With this many people, a result that size is what you would "
+                "expect from chance alone.")
     segs = [("hook", hook_txt),
             ("original",
              f"The study was run on {o['n']:,} people. "
              f"The effect it measured was {say_num(o['es'])} — "
              f"by the usual convention, a {big} effect."),
-            ("scale",
-             "A quick note on what that number means. "
-             "Effect size is not the same as being true or false. "
-             "It is how far apart two groups are. "
-             "Around zero point two is small, zero point five is medium, "
-             "zero point eight is large. "
-             "And the smaller the study, the more that number can move by chance."),
+            ("scale", scale_txt),
             ("replication",
              f"So another team ran the same study again. "
              f"This time with {r['n']:,} people — "
              f"{F['n_ratio']} times the original sample. "
              f"Same design. More people."),
-            ("result",
-             f"The effect they measured was {say_num(r['es'])}. "
-             + (f"That is {small}." if small != "essentially nothing"
-                else "That is, essentially, nothing.")
-             + f" The original number was {say_num(o['es'])}."
-             # 🔴 作者自陳與數字打架時要講出來,不能安靜蓋掉(2026-08-25)。
-             #    FReD 的 reported_success 記的是**重複研究團隊自己的結論**,
-             #    有 verdict='successful' 但效果量掉到 0.02 的列——那通常是
-             #    「成功證實了沒有效果」。安靜改口會讓觀眾以為我在挑對我有利的
-             #    講法;講出來反而是最強的可信度證明。
-             + (" The replication team recorded this as a successful replication. "
-                "That is not a contradiction: what they successfully showed is that "
-                "the effect is not there."
-                if tone == "gone" and verdict == "successful" else "")),
+            ("result", res),
             ("close", close_txt + "Both papers are linked below.")]
     return segs
 
@@ -224,7 +329,7 @@ def audit(segs, F):
     allowed.add(str(F["n_ratio"]))
     # 主張原文本身帶的數字是**來源欄位逐字帶過來的**,不是我產生的 → 放行。
     # 審核的目的是擋「我編出來的數字」,不是擋引用。
-    allowed |= set(re.findall(r"\d[\d,\.]*", F["claim"]))
+    allowed |= set(re.findall(r"\b\d[\d,\.]*\b", F["claim"]))
     for v in (F["orig"]["es"], F["repl"]["es"]):
         allowed |= {f"{abs(v):.2f}", f"{abs(v):g}"}
     bad = []

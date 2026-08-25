@@ -13,8 +13,13 @@
 
 ## 每支片的配額
 videos.insert = 1600 單位。ch2 用獨立的 GCP 專案(quiet-hour-yt),一天 10,000
-→ **一天最多 6 支**(6×1600=9,600,再加縮圖與回讀就滿了)。所以預設一次只發
+→ **一天最多 5 支**(把輪詢 videos.list 也算進去之後)。所以預設一次只發
 `--limit` 支,而且會先把估算印出來。
+
+## 三道閘門
+1. `publish_meta.py` 的溯源與 DOI fail-closed —— 進不了清單就進不了這裡
+2. `semantic_gate()` —— 稿子講的話數字撐不撐得住(數字守門看不見這層)
+3. 頻道 ID 白名單 + `--privacy` 必填
 
 用法:
   python upload.py --list
@@ -35,7 +40,12 @@ EXPECT_CHANNEL = "UCbo4EytWhZ7zAGSoIPioJ5g"
 SCOPES = ["https://www.googleapis.com/auth/youtube.upload",
           "https://www.googleapis.com/auth/youtube.readonly",
           "https://www.googleapis.com/auth/youtube.force-ssl"]
-COST_INSERT, COST_THUMB, DAILY_QUOTA = 1600, 50, 10000
+# videos.insert 1600 / thumbnails.set 50 / videos.list 每次 1。
+# 輪詢最多 40 次 + 回讀 1 次 + 每次執行 channels.list 1 次——舊版只算前兩項,
+# 於是 --limit 6 算出 9,900 過關,但只要有一支處理得慢、輪詢吃滿就會超過,
+# 而超額那一刻是在第 6 支的 insert 已經燒掉 1600 之後。
+COST_INSERT, COST_THUMB, COST_POLL = 1600, 50, 41
+DAILY_QUOTA = 10000
 
 
 def svc():
@@ -50,22 +60,91 @@ def svc():
 
 
 def ledger():
+    """🔴 fail-closed(2026-08-25 獨立驗證抓到)。
+
+    舊版 `except Exception: return {}` 把兩件完全不同的事壓成同一個結果:
+    檔案不存在(第一次跑,回空是對的)vs **檔案在但 JSON 壞了**(寫到一半
+    斷電/磁碟滿)。第二種回空 = 把已經發過的整批再發一次。
+    而 write_text 是非原子寫入,正好會製造第二種。
+    """
+    if not LEDGER.exists():
+        return {}
     try:
         return json.loads(LEDGER.read_text(encoding="utf-8"))
-    except Exception:            # noqa: BLE001
-        return {}
+    except Exception as e:       # noqa: BLE001
+        raise SystemExit(
+            f"⛔ 帳本 {LEDGER} 存在但讀不了({e})。\n"
+            f"   繼續跑會把已上傳的影片再傳一次。請先修好或改名再重試。")
+
+
+# 稿子裡的「存在性斷言」——講這些話之前,數字必須撐得住
+_CLAIMS_NONE = ("the effect is not there", "cannot be told apart from zero",
+                "what you would expect from chance alone",
+                "essentially, nothing")
+_CLAIMS_REAL = ("the effect survived", "this one held up", "the effect is there",
+                "so this one survives", "it is still there")
+
+
+def semantic_gate(o):
+    """發布前最後一道:稿子講的話,本集的數字撐得住嗎?
+
+    🔴 為什麼要在**上傳端**再擋一次(2026-08-25 獨立驗證的建議):
+    數字溯源的守門在 make_episode.audit() 和 publish_meta.check(),但那兩道
+    **只掃數字 token**,對「數字對、話講反」結構上看不見。實測就抓到 ep005
+    旁白說「效應不在那裡」而同一列 CSV 寫著 p < 0.001。
+
+    產稿端已經改成看 p 值了,這一道是防「以後又有人改壞」——它是 fail-closed,
+    看不懂就擋,不放行。回傳 None 表示通過,否則回傳擋下的理由。
+    """
+    d = ROOT / o["dir"]
+    facts_p = d / "facts.json"
+    if not facts_p.exists():
+        return None                      # 名案線沒有 facts.json,交給產稿端 audit
+    try:
+        F = json.loads(facts_p.read_text(encoding="utf-8"))
+        eo, er = float(F["orig"]["es"]), float(F["repl"]["es"])
+        p_r = F.get("p_repl")
+    except Exception as e:               # noqa: BLE001
+        return f"讀不了 facts.json({str(e)[:40]})"
+
+    text = " ".join((d / f).read_text(encoding="utf-8").lower()
+                    for f in sorted(x.name for x in d.glob("narr_*.txt")))
+    sig = p_r is not None and float(p_r) < 0.05
+    same_sign = (eo >= 0) == (er >= 0)
+    shrink = abs(er) / max(abs(eo), 1e-9)
+
+    if sig and any(c in text for c in _CLAIMS_NONE):
+        return (f"稿子說效應不存在,但重測 p={p_r} < .05(測得到)"
+                f" —— 這是把話講反")
+    if any(c in text for c in _CLAIMS_REAL):
+        if not same_sign:
+            return f"稿子說效應站得住,但方向翻轉({eo:+.2f} → {er:+.2f})"
+        if shrink <= 0.7 and not sig:
+            return (f"稿子說效應站得住,但殘存比 {shrink:.2f} 且 "
+                    f"p={p_r} 不顯著")
+    return None
 
 
 def key_of(o):
     return o.get("slug") or o["dir"]
 
 
-def upload_one(yt, o, privacy):
+def upload_one(yt, o, privacy, on_uploaded=lambda vid: None):
     from googleapiclient.http import MediaFileUpload
     video = ROOT / o["video"]
     print(f"\n[{key_of(o)}] {o['title']}")
     if not video.exists():
         print(f"    ⛔ 影片不存在:{video}")
+        return None
+    why = semantic_gate(o)
+    if why:
+        print(f"    ⛔ 語意閘門擋下:{why}")
+        return None
+    # 縮圖是這個頻道唯一的鉤子。沒有它 YouTube 會隨機抓一幀當封面,
+    # 而舊批確實發生過影片產完之後 thumb.jpg 消失。上傳**前**就擋。
+    thumb0 = ROOT / o["thumb"] if o.get("thumb") else None
+    if not (thumb0 and thumb0.exists()) and privacy != "private":
+        print("    ⛔ 缺縮圖,不上傳(縮圖是這個頻道的主要鉤子)")
         return None
     print(f"    {video.name} {video.stat().st_size / 1024 / 1024:.0f}MB  隱私 {privacy}")
     body = {
@@ -86,6 +165,12 @@ def upload_one(yt, o, privacy):
             if p >= last + 25:
                 print(f"    上傳 {p}%"); last = p
     vid = resp["id"]
+    # 🔴 拿到 videoId 立刻寫帳本(2026-08-25)。
+    #    舊版在 upload_one 全部跑完、回到外層迴圈才寫,而 insert **之後**還有
+    #    輪詢、縮圖、回讀三個會拋例外的呼叫(配額 403、縮圖超過 2MB、
+    #    items 空陣列 → IndexError)。任何一個炸掉 = 片子已經在頻道上、
+    #    1600 單位已經燒掉,但帳本沒記 → 下次再傳一次 = 頻道上兩支一樣的片。
+    on_uploaded(vid)
     print(f"    videoId={vid}  輪詢處理狀態…")
     processed = False
     for _ in range(40):                       # 這批片約 80 秒,10 分鐘綽綽有餘
@@ -106,16 +191,25 @@ def upload_one(yt, o, privacy):
 
     thumb = ROOT / o["thumb"] if o.get("thumb") else None
     if thumb and thumb.exists():
-        yt.thumbnails().set(videoId=vid, media_body=str(thumb)).execute()
-        print("    縮圖已設 ✓")
+        try:
+            yt.thumbnails().set(videoId=vid, media_body=str(thumb)).execute()
+            print("    縮圖已設 ✓")
+        except Exception as e:   # noqa: BLE001
+            print(f"    ⚠️ 縮圖設定失敗({str(e)[:60]}),影片已上傳,稍後補設")
     else:
-        print("    ⚠️ 找不到縮圖,略過")
+        print("    ⚠️ 找不到縮圖 —— 影片已上傳但沒有縮圖,請手動補")
 
-    got = yt.videos().list(part="snippet,status", id=vid).execute()["items"][0]
-    s = got["status"]
-    ok_title = got["snippet"]["title"] == o["title"]
-    print(f"    回讀:隱私 {s['privacyStatus']}  兒童 {s.get('selfDeclaredMadeForKids')}"
-          f"  標題{'✓' if ok_title else ' ⚠️ 不符'}")
+    # 同一個檔案裡同一種呼叫,上面那處用 .get("items", []) 防了空陣列,
+    # 這處直接 [0] —— 又是「一處防了一處沒防」。
+    got_items = yt.videos().list(part="snippet,status", id=vid).execute().get("items", [])
+    if got_items:
+        st = got_items[0]["status"]
+        ok_title = got_items[0]["snippet"]["title"] == o["title"]
+        print(f"    回讀:隱私 {st['privacyStatus']}  "
+              f"兒童 {st.get('selfDeclaredMadeForKids')}"
+              f"  標題{'✓' if ok_title else ' ⚠️ 不符'}")
+    else:
+        print("    ⚠️ 回讀查無此片(已寫入帳本,請自行到 Studio 確認)")
     print(f"    https://youtu.be/{vid}")
     return vid
 
@@ -202,11 +296,12 @@ def main():
     if not todo:
         print("沒有待上傳的集數"); return 0
 
-    est = len(todo) * (COST_INSERT + COST_THUMB)
+    est = len(todo) * (COST_INSERT + COST_THUMB + COST_POLL) + 1
     print(f"要上傳 {len(todo)} 集,估算配額 {est:,} / 每日 {DAILY_QUOTA:,}")
     if est > DAILY_QUOTA:
         print(f"⛔ 會超過當日配額(一天最多 "
-              f"{DAILY_QUOTA // (COST_INSERT + COST_THUMB)} 支),請用 --limit")
+              f"{DAILY_QUOTA // (COST_INSERT + COST_THUMB + COST_POLL)} 支)"
+              f",請用 --limit")
         return 1
     if not a.privacy:
         print("⛔ --privacy 必填(public 不可逆,不設預設值)")
@@ -219,12 +314,17 @@ def main():
         print(f"⛔ 頻道不符:{me['id']} != {EXPECT_CHANNEL},中止。")
         return 1
 
+    def record(key):
+        def _w(vid):
+            done[key] = vid
+            tmp = LEDGER.with_suffix(".tmp")
+            tmp.write_text(json.dumps(done, ensure_ascii=False, indent=1),
+                           encoding="utf-8")
+            tmp.replace(LEDGER)          # 原子置換,不會留下半截 JSON
+        return _w
+
     for o in todo:
-        vid = upload_one(yt, o, a.privacy)
-        if vid:
-            done[key_of(o)] = vid
-            LEDGER.write_text(json.dumps(done, ensure_ascii=False, indent=1),
-                              encoding="utf-8")
+        upload_one(yt, o, a.privacy, on_uploaded=record(key_of(o)))
     print(f"\n完成。帳本 {LEDGER.name} 共 {len(done)} 支。")
     return 0
 
