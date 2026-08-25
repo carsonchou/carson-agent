@@ -21,6 +21,7 @@
 每 HOLD_EVERY 集插一集 HOLD:觀眾看得到這個頻道不是一味打臉,
 而這正是可信度的來源(主頻道「流言終結者」已驗過同一件事)。
 """
+import argparse
 import pathlib
 import re
 import sys
@@ -29,9 +30,28 @@ import pandas as pd
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 ROOT = pathlib.Path(__file__).resolve().parent
-SRC = ROOT / "facts" / "fred_usable.csv"
+# 來源改讀 FORRT 原始工作簿(2,164 列),而不是 fred_usable.csv(348 列)。
+#
+# ⚠️ 我一度以為那 1,700 列是「被丟掉的完整資料」——**不是**。fred_usable
+#    就是「只留 d 與 r」的結果。母體裡 758 列的 es_type 是 **test statistic**
+#    (t 或 F 值,根本不是效果量)、173 列 etasq、151 列 beta、74 列 OR。
+#    拿 Cohen 的 .2/.5/.8 去講那些數字是**錯的**,不是少講。
+#    讀母體的實際好處只是把 d/r/g 從 348 列擴到 482 列(跑道 19 → 30 集)。
+SRC = ROOT / "facts" / "fred_2tbvd.zip"        # FORRT 原始工作簿
 OUT = ROOT / "facts" / "episode_queue.csv"
 
+# 🔴 只收**可解讀的效果量型別**。母體裡 es_type 有 test statistic / etasq /
+#    beta / b / OR / r-squared,它們沒有 Cohen 門檻可套 —— 實測第一版新佇列
+#    的第 0 列效果量是 **15.25**(那是個 t 值),會被講成「按慣例是大效果」。
+ES_TYPES = {"d", "r", "g"}
+
+# 🔴 只收心理學相關學科。FReD 也收遺傳學、經濟學——實測新佇列第 1 列是
+#    「EFCAB4B: Involved in calcium signaling」,那不是這個頻道的題材,
+#    而且我沒有能力判斷那個領域的效果量大小慣例。
+DISCIPLINES = ("psychology", "marketing", "judgment", "decision",
+               "behavio", "cognitive", "social")
+
+MAX_ES = 3.0       # 上限:超過這個值的「d」多半是型別標錯
 MIN_ES = 0.15      # 原始效果太小,「它縮水了」就沒有戲也沒有意義
 MIN_N_R = 200      # 重複樣本的絕對下限
 MIN_RATIO_N = 3    # 且至少是原始的 3 倍——敘事承重的是**倍數**不是絕對人數,
@@ -65,19 +85,38 @@ def num(v):
 
 
 def main():
-    df = pd.read_csv(SRC, low_memory=False)
+    ap = argparse.ArgumentParser()
+    # 🔴 預設不覆蓋正在用的佇列。中途換佇列會讓已產出的 epNNN 與列號錯位
+    #    ——那個錯已經犯過一次(重產到一半改 CSV)。
+    ap.add_argument("--out", default=None,
+                    help="輸出路徑(預設寫到 episode_queue.next.csv,不動現用的)")
+    a = ap.parse_args()
+    out_path = pathlib.Path(a.out) if a.out else (
+        ROOT / "facts" / "episode_queue.next.csv")
+
+    df = (pd.read_excel(SRC) if SRC.suffix in (".zip", ".xlsx")
+          else pd.read_csv(SRC, low_memory=False))
     print(f"母體 {len(df)} 列")
 
     rows = []
-    drop = {"缺數字": 0, "原始效果太小": 0, "重複樣本太小": 0,
-            "主張唸不出口": 0, "描述寫的是重複結果": 0, "灰帶(0.5~0.7)": 0}
+    drop = {"缺數字": 0, "效果量型別不可解讀": 0, "非心理學領域": 0,
+            "原始效果太小": 0, "重複樣本太小": 0, "主張唸不出口": 0,
+            "描述寫的是重複結果": 0, "灰帶(0.5~0.7)": 0}
     for _, r in df.iterrows():
         eo, er = num(r.get("es_value_o")), num(r.get("es_value_r"))
         no, nr = num(r.get("n_o")), num(r.get("n_r"))
         if None in (eo, er, no, nr) or not no or not nr:
             drop["缺數字"] += 1
             continue
-        if abs(eo) < MIN_ES:
+        et = str(r.get("es_type_o") or "").strip().lower()
+        if et not in ES_TYPES or str(r.get("es_type_r") or "").strip().lower()                 not in ES_TYPES:
+            drop["效果量型別不可解讀"] += 1
+            continue
+        disc = str(r.get("discipline") or "").lower()
+        if not any(k in disc for k in DISCIPLINES):
+            drop["非心理學領域"] += 1
+            continue
+        if abs(eo) < MIN_ES or abs(eo) > MAX_ES or abs(er) > MAX_ES:
             drop["原始效果太小"] += 1
             continue
         if nr < MIN_N_R or nr / no < MIN_RATIO_N:
@@ -132,7 +171,7 @@ def main():
             break
 
     res = pd.DataFrame(out)
-    res.to_csv(OUT, index=False, encoding="utf-8")
+    res.to_csv(out_path, index=False, encoding="utf-8")
     n_h = sum(1 for r in out if r["track"] == "HOLD")
     print(f"\n寫出 {OUT.name}:{len(out)} 集"
           f"(FALL {len(out) - n_h} / HOLD {n_h},{n_h / max(1, len(out)):.0%} 是守住的)")
