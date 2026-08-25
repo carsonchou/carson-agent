@@ -1,0 +1,27 @@
+{
+ "claim": "Elderly social priming",
+ "doi": "https://doi.org/10.1371/journal.pone.0056515",
+ "title": "Priming Intelligent Behavior: An Elusive Phenomenon",
+ "year": 2013,
+ "journal": "PLoS ONE",
+ "cited_by": 248,
+ "abstract_chars": 1085,
+ "found": {
+  "n": [
+   {
+    "value": "475",
+    "src": "In 9 experiments with 475 participants we employed the procedures used in these studies, as well as a number of variants of those procedures, in an attempt to obtain this intelligence priming effect."
+   }
+  ],
+  "effect": [],
+  "ci": [],
+  "k": [
+   {
+    "value": "9",
+    "src": "In 9 experiments with 475 participants we employed the procedures used in these studies, as well as a number of variants of those procedures, in an attempt to obtain this intelligence priming effect."
+   }
+  ]
+ },
+ "status": "PARTIAL",
+ "abstract": "Can behavior be unconsciously primed via the activation of attitudes, stereotypes, or other concepts? A number of studies have suggested that such priming effects can occur, and a prominent illustration is the claim that individuals' accuracy in answering general knowledge questions can be influenced by activating intelligence-related concepts such as professor or soccer hooligan. In 9 experiments with 475 participants we employed the procedures used in these studies, as well as a number of variants of those procedures, in an attempt to obtain this intelligence priming effect. None of the experiments obtained the effect, although financial incentives did boost performance. A Bayesian analysis reveals considerable evidential support for the null hypothesis. The results conform to the pattern typically obtained in word priming experiments in which priming is very narrow in its generalization and unconscious (subliminal) influences, if they occur at all, are extremely short-lived. We encourage others to explore the circumstances in which this phenomenon might be obtained."
+}

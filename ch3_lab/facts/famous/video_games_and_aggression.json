@@ -1,0 +1,22 @@
+{
+ "claim": "Video games and aggression",
+ "doi": "https://doi.org/10.1002/ab.20290",
+ "title": "Exposure to violent video games and aggression in German adolescents: a longitudinal analysis",
+ "year": 2008,
+ "journal": "Aggressive Behavior",
+ "cited_by": 277,
+ "abstract_chars": 1257,
+ "found": {
+  "n": [
+   {
+    "value": "143",
+    "src": "A total of 295 German adolescents completed the measures of violent video game usage, endorsement of aggressive norms, hostile attribution bias, and physical as well as indirect/relational aggression cross-sectionally, a"
+   }
+  ],
+  "effect": [],
+  "ci": [],
+  "k": []
+ },
+ "status": "PARTIAL",
+ "abstract": "The relationship between exposure to violent electronic games and aggressive cognitions and behavior was examined in a longitudinal study. A total of 295 German adolescents completed the measures of violent video game usage, endorsement of aggressive norms, hostile attribution bias, and physical as well as indirect/relational aggression cross-sectionally, and a subsample of N=143 was measured again 30 months later. Cross-sectional results at T1 showed a direct relationship between violent game usage and aggressive norms, and an indirect link to hostile attribution bias through aggressive norms. In combination, exposure to game violence, normative beliefs, and hostile attribution bias predicted physical and indirect/relational aggression. Longitudinal analyses using path analysis showed that violence exposure at T1 predicted physical (but not indirect/relational) aggression 30 months later, whereas aggression at T1 was unrelated to later video game use. Exposure to violent games at T1 influenced physical (but not indirect/relational) aggression at T2 via an increase of aggressive norms and hostile attribution bias. The findings are discussed in relation to social-cognitive explanations of long-term effects of media violence on aggression."
+}

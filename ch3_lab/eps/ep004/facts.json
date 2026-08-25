@@ -1,0 +1,22 @@
+{
+ "claim": "Scarcity-induced focus leads to cognitive fatigue on subsequent cognitive control task",
+ "es_type": "d",
+ "orig": {
+  "n": 60,
+  "es": -0.54,
+  "year": 2012,
+  "title": "Some Consequences of Having Too Little",
+  "author": "[{\"given\":\"Anuj K.\",\"family\":\"Shah\",\"sequence\":\"first\"},{\"given\":\"Sendhil\",\"fami",
+  "doi": "10.1126/science.1222426"
+ },
+ "repl": {
+  "n": 997,
+  "es": 0.13,
+  "year": 2019,
+  "title": "An exercise in self-replication: Replicating Shah, Mullainathan, and Shafir (2012)",
+  "doi": "10.1016/j.joep.2018.12.001"
+ },
+ "verdict": "failed",
+ "source": "FORRT Replication Database (FReD), OSF 2tbvd",
+ "n_ratio": 16.6
+}

@@ -1,0 +1,27 @@
+{
+ "claim": "Stereotype threat",
+ "doi": "https://doi.org/10.1111/cdev.13039",
+ "title": "The Development of Children's Gender-Science Stereotypes: A Meta-analysis of 5 Decades of U.S. Draw-A-Scientist Studies",
+ "year": 2018,
+ "journal": "Child Development",
+ "cited_by": 504,
+ "abstract_chars": 1022,
+ "found": {
+  "n": [
+   {
+    "value": "20,860",
+    "src": "Based on 78 studies (N = 20,860; grades K-12), children's drawings of scientists depicted female scientists more often in later decades, but less often among older children."
+   }
+  ],
+  "effect": [],
+  "ci": [],
+  "k": [
+   {
+    "value": "78",
+    "src": "Based on 78 studies (N = 20,860; grades K-12), children's drawings of scientists depicted female scientists more often in later decades, but less often among older children."
+   }
+  ]
+ },
+ "status": "PARTIAL",
+ "abstract": "Abstract This meta-analysis, spanning 5 decades of Draw-A-Scientist studies, examined U.S. children's gender-science stereotypes linking science with men. These stereotypes should have weakened over time because women's representation in science has risen substantially in the United States, and mass media increasingly depict female scientists. Based on 78 studies (N = 20,860; grades K-12), children's drawings of scientists depicted female scientists more often in later decades, but less often among older children. Children's depictions of scientists therefore have become more gender diverse over time, but children still associate science with men as they grow older. These results may reflect that children observe more male than female scientists in their environments, even though women's representation in science has increased over time. The title for this Special Section is Meta-analysis and Individual Participant Data Synthesis in Child Development, edited by Glenn I. Roisman and Marinus H. van IJzendoorn"
+}

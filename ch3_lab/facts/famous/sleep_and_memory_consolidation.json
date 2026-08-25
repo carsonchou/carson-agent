@@ -1,0 +1,59 @@
+{
+ "claim": "Sleep and memory consolidation",
+ "doi": "https://doi.org/10.1037/bul0000223",
+ "title": "Promoting memory consolidation during sleep: A meta-analysis of targeted memory reactivation.",
+ "year": 2020,
+ "journal": "Psychological Bulletin",
+ "cited_by": 251,
+ "abstract_chars": 1577,
+ "found": {
+  "n": [
+   {
+    "value": "2,004",
+    "src": "Here we present the first meta-analysis of sleep TMR, compiled from 91 experiments with 212 effect sizes (N = 2,004)."
+   }
+  ],
+  "effect": [
+   {
+    "kind": "g",
+    "value": "0.29",
+    "src": "Based on multilevel modeling, overall sleep TMR was highly effective (Hedges' g = 0.29, 95% CI [0.21, 0.38]), with a significant effect for two stages of non-rapid-eye-movement (NREM) sleep (Stage NREM 2: Hedges' g = 0.3"
+   },
+   {
+    "kind": "g",
+    "value": "0.32",
+    "src": "Based on multilevel modeling, overall sleep TMR was highly effective (Hedges' g = 0.29, 95% CI [0.21, 0.38]), with a significant effect for two stages of non-rapid-eye-movement (NREM) sleep (Stage NREM 2: Hedges' g = 0.3"
+   },
+   {
+    "kind": "g",
+    "value": "0.27",
+    "src": "Based on multilevel modeling, overall sleep TMR was highly effective (Hedges' g = 0.29, 95% CI [0.21, 0.38]), with a significant effect for two stages of non-rapid-eye-movement (NREM) sleep (Stage NREM 2: Hedges' g = 0.3"
+   }
+  ],
+  "ci": [
+   {
+    "lo": "0.21",
+    "hi": "0.38",
+    "src": "Based on multilevel modeling, overall sleep TMR was highly effective (Hedges' g = 0.29, 95% CI [0.21, 0.38]), with a significant effect for two stages of non-rapid-eye-movement (NREM) sleep (Stage NREM 2: Hedges' g = 0.3"
+   },
+   {
+    "lo": "0.04",
+    "hi": "0.60",
+    "src": "Based on multilevel modeling, overall sleep TMR was highly effective (Hedges' g = 0.29, 95% CI [0.21, 0.38]), with a significant effect for two stages of non-rapid-eye-movement (NREM) sleep (Stage NREM 2: Hedges' g = 0.3"
+   },
+   {
+    "lo": "0.20",
+    "hi": "0.35",
+    "src": "Based on multilevel modeling, overall sleep TMR was highly effective (Hedges' g = 0.29, 95% CI [0.21, 0.38]), with a significant effect for two stages of non-rapid-eye-movement (NREM) sleep (Stage NREM 2: Hedges' g = 0.3"
+   }
+  ],
+  "k": [
+   {
+    "value": "91",
+    "src": "Here we present the first meta-analysis of sleep TMR, compiled from 91 experiments with 212 effect sizes (N = 2,004)."
+   }
+  ]
+ },
+ "status": "USABLE",
+ "abstract": "Targeted memory reactivation (TMR) is a methodology employed to manipulate memory processing during sleep. TMR studies have great potential to advance understanding of sleep-based memory consolidation and corresponding neural mechanisms. Research making use of TMR has developed rapidly, with over 70 articles published in the last decade, yet no quantitative analysis exists to evaluate the overall effects. Here we present the first meta-analysis of sleep TMR, compiled from 91 experiments with 212 effect sizes (N = 2,004). Based on multilevel modeling, overall sleep TMR was highly effective (Hedges' g = 0.29, 95% CI [0.21, 0.38]), with a significant effect for two stages of non-rapid-eye-movement (NREM) sleep (Stage NREM 2: Hedges' g = 0.32, 95% CI [0.04, 0.60]; and slow-wave sleep: Hedges' g = 0.27, 95% CI [0.20, 0.35]). In contrast, TMR was not effective during REM sleep nor during wakefulness in the present analyses. Several analysis strategies were used to address the potential relevance of publication bias. Additional analyses showed that TMR improved memory across multiple domains, including declarative memory and skill acquisition. Given that TMR can reinforce many types of memory, it could be useful for various educational and clinical applications. Overall, the present meta-analysis provides substantial support for the notion that TMR can influence memory storage during NREM sleep, and that this method can be useful for understanding neurocognitive mechanisms of memory consolidation. (PsycINFO Database Record (c) 2020 APA, all rights reserved)."
+}

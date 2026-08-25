@@ -1,0 +1,38 @@
+{
+ "claim": "Stereotype accuracy",
+ "doi": "https://doi.org/10.1037/a0038586",
+ "title": "A review and meta-analysis of age-based stereotype threat: Negative stereotypes, not facts, do the damage.",
+ "year": 2015,
+ "journal": "Psychology and Aging",
+ "cited_by": 579,
+ "abstract_chars": 1114,
+ "found": {
+  "n": [
+   {
+    "value": "3882",
+    "src": "The present review and meta-analyses examine 22 published and 10 unpublished articles, including 82 effect sizes (N = 3882) investigating ABST on older people's (Mage = 69.5) performance."
+   }
+  ],
+  "effect": [
+   {
+    "kind": "d",
+    "value": ".28",
+    "src": "The analysis revealed a significant small-to-medium effect of ABST (d = .28) and important moderators of the effect size."
+   },
+   {
+    "kind": "d",
+    "value": ".52",
+    "src": "Specifically, older adults are more vulnerable to ABST when (a) stereotype-based rather than fact-based manipulations are used (d = .52); (b) when performance is tested using cognitive measures (d = .36); and (c) occurs "
+   },
+   {
+    "kind": "d",
+    "value": ".36",
+    "src": "Specifically, older adults are more vulnerable to ABST when (a) stereotype-based rather than fact-based manipulations are used (d = .52); (b) when performance is tested using cognitive measures (d = .36); and (c) occurs "
+   }
+  ],
+  "ci": [],
+  "k": []
+ },
+ "status": "USABLE",
+ "abstract": "Stereotype threat effects arise when an individual feels at risk of confirming a negative stereotype about their group and consequently underperforms on stereotype relevant tasks (Steele, 2010). Among older people, underperformance across cognitive and physical tasks is hypothesized to result from age-based stereotype threat (ABST) because of negative age-stereotypes regarding older adults' competence. The present review and meta-analyses examine 22 published and 10 unpublished articles, including 82 effect sizes (N = 3882) investigating ABST on older people's (Mage = 69.5) performance. The analysis revealed a significant small-to-medium effect of ABST (d = .28) and important moderators of the effect size. Specifically, older adults are more vulnerable to ABST when (a) stereotype-based rather than fact-based manipulations are used (d = .52); (b) when performance is tested using cognitive measures (d = .36); and (c) occurs reliably when the dependent variable is measured proximally to the manipulation. The review raises important theoretical and methodological issues, and areas for future research."
+}

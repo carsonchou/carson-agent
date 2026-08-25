@@ -1,0 +1,38 @@
+{
+ "claim": "Expressive writing",
+ "doi": "https://doi.org/10.1097/01.nmd.0000138317.30764.63",
+ "title": "A Meta-Analysis of the Effects of Written Emotional Disclosure on the Health Outcomes of Clinical Populations",
+ "year": 2004,
+ "journal": "The Journal of Nervous and Mental Disease",
+ "cited_by": 469,
+ "abstract_chars": 1016,
+ "found": {
+  "n": [],
+  "effect": [
+   {
+    "kind": "d",
+    "value": ".19",
+    "src": "After nine studies were meta-analyzed, it was determined that expressive writing significantly improved health (d = .19; p < .05)."
+   },
+   {
+    "kind": "r",
+    "value": ".10",
+    "src": "However, this positive relationship (r = .10) was not moderated by any systemic variables because of the nonsignificant test of homogeneity (Qw = 5.27; p = .73)."
+   },
+   {
+    "kind": "d",
+    "value": ".21",
+    "src": "Nonetheless, a planned contrast illustrated that expressive writing is more effective on physical (d = .21; p = .01) than on psychological (d = .07; p = .17) health outcomes (Qb > 10.83; p < .001)."
+   },
+   {
+    "kind": "d",
+    "value": ".07",
+    "src": "Nonetheless, a planned contrast illustrated that expressive writing is more effective on physical (d = .21; p = .01) than on psychological (d = .07; p = .17) health outcomes (Qb > 10.83; p < .001)."
+   }
+  ],
+  "ci": [],
+  "k": []
+ },
+ "status": "PARTIAL",
+ "abstract": "A meta-analysis was conducted to examine the effects of the written emotional disclosure paradigm on health outcomes of people with physical or psychiatric disorders. After nine studies were meta-analyzed, it was determined that expressive writing significantly improved health (d = .19; p < .05). However, this positive relationship (r = .10) was not moderated by any systemic variables because of the nonsignificant test of homogeneity (Qw = 5.27; p = .73). Nonetheless, a planned contrast illustrated that expressive writing is more effective on physical (d = .21; p = .01) than on psychological (d = .07; p = .17) health outcomes (Qb > 10.83; p < .001). One explanation for the small effect size (ES) results and the nonsignificant test of homogeneity may be the small and heterogeneous samples used in some of the studies within this research synthesis. Future research with expressive writing should be tested with randomized controlled trials to increase the likelihood of detecting a larger treatment effect."
+}

@@ -1,0 +1,28 @@
+{
+ "claim": "Bystander effect",
+ "doi": "https://doi.org/10.1037/a0023304",
+ "title": "The bystander-effect: A meta-analytic review on bystander intervention in dangerous and non-dangerous emergencies.",
+ "year": 2011,
+ "journal": "Psychological Bulletin",
+ "cited_by": 978,
+ "abstract_chars": 1801,
+ "found": {
+  "n": [
+   {
+    "value": "7,700",
+    "src": "In a fixed effects model, data from over 7,700 participants and 105 independent effect sizes revealed an overall effect size of g = -0.35."
+   }
+  ],
+  "effect": [
+   {
+    "kind": "g",
+    "value": "-0.35",
+    "src": "In a fixed effects model, data from over 7,700 participants and 105 independent effect sizes revealed an overall effect size of g = -0.35."
+   }
+  ],
+  "ci": [],
+  "k": []
+ },
+ "status": "USABLE",
+ "abstract": "Research on bystander intervention has produced a great number of studies showing that the presence of other people in a critical situation reduces the likelihood that an individual will help. As the last systematic review of bystander research was published in 1981 and was not a quantitative meta-analysis in the modern sense, the present meta-analysis updates the knowledge about the bystander effect and its potential moderators. The present work (a) integrates the bystander literature from the 1960s to 2010, (b) provides statistical tests of potential moderators, and (c) presents new theoretical and empirical perspectives on the novel finding of non-negative bystander effects in certain dangerous emergencies as well as situations where bystanders are a source of physical support for the potentially intervening individual. In a fixed effects model, data from over 7,700 participants and 105 independent effect sizes revealed an overall effect size of g = -0.35. The bystander effect was attenuated when situations were perceived as dangerous (compared with non-dangerous), perpetrators were present (compared with non-present), and the costs of intervention were physical (compared with non-physical). This pattern of findings is consistent with the arousal-cost-reward model, which proposes that dangerous emergencies are recognized faster and more clearly as real emergencies, thereby inducing higher levels of arousal and hence more helping. We also identified situations where bystanders provide welcome physical support for the potentially intervening individual and thus reduce the bystander effect, such as when the bystanders were exclusively male, when they were naive rather than passive confederates or only virtually present persons, and when the bystanders were not strangers."
+}

@@ -1,0 +1,32 @@
+{
+ "claim": "Red color attractiveness",
+ "doi": "https://doi.org/10.1027/1864-9335/a000296",
+ "title": "Is Red Really Romantic?",
+ "year": 2017,
+ "journal": "Social Psychology",
+ "cited_by": 24,
+ "abstract_chars": 756,
+ "found": {
+  "n": [
+   {
+    "value": "242",
+    "src": "For men, we found a very weak effect in the predicted direction (d = 0.09, 95% CI [−0.17, 0.34], N = 242)."
+   },
+   {
+    "value": "360",
+    "src": "For women, we found a very weak effect in the opposite direction (d = −0.09, 95% CI [−0.30, 0.12], N = 360)."
+   }
+  ],
+  "effect": [
+   {
+    "kind": "d",
+    "value": "0.09",
+    "src": "For men, we found a very weak effect in the predicted direction (d = 0.09, 95% CI [−0.17, 0.34], N = 242)."
+   }
+  ],
+  "ci": [],
+  "k": []
+ },
+ "status": "USABLE",
+ "abstract": "Abstract. Red has been reported to enhance attraction for women rating men ( Elliot et al., 2010 ) and men rating women ( Elliot & Niesta, 2008 ). We replicated one of these studies online and in-person. To ensure rigor, we obtained original materials, planned for informative sample sizes, pre-registered our study, used a positive control, and adopted quality controls. For men, we found a very weak effect in the predicted direction (d = 0.09, 95% CI [−0.17, 0.34], N = 242). For women, we found a very weak effect in the opposite direction (d = −0.09, 95% CI [−0.30, 0.12], N = 360). The original studies may have overestimated the red effect, our studies may be an underestimate, or there could be strong moderation of the effect of red on attraction."
+}

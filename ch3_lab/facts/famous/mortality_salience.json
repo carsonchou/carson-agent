@@ -1,0 +1,26 @@
+{
+ "claim": "Mortality salience",
+ "doi": "https://doi.org/10.1525/collabra.35271",
+ "title": "Many Labs 4: Failure to Replicate Mortality Salience Effect With and Without Original Author Involvement",
+ "year": 2022,
+ "journal": "Collabra Psychology",
+ "cited_by": 102,
+ "abstract_chars": 1050,
+ "found": {
+  "n": [
+   {
+    "value": "17",
+    "src": "We (N = 17 Labs and N = 1,550 participants, after exclusions) experimentally tested whether original author involvement improved replicability of a classic finding from Terror Management Theory (Greenberg et al., 1994)."
+   },
+   {
+    "value": "1,550",
+    "src": "We (N = 17 Labs and N = 1,550 participants, after exclusions) experimentally tested whether original author involvement improved replicability of a classic finding from Terror Management Theory (Greenberg et al., 1994)."
+   }
+  ],
+  "effect": [],
+  "ci": [],
+  "k": []
+ },
+ "status": "PARTIAL",
+ "abstract": "Interpreting a failure to replicate is complicated by the fact that the failure could be due to the original finding being a false positive, unrecognized moderating influences between the original and replication procedures, or faulty implementation of the procedures in the replication. One strategy to maximize replication quality is involving the original authors in study design. We (N = 17 Labs and N = 1,550 participants, after exclusions) experimentally tested whether original author involvement improved replicability of a classic finding from Terror Management Theory (Greenberg et al., 1994). Our results were non-diagnostic of whether original author involvement improves replicability because we were unable to replicate the finding under any conditions. This suggests that the original finding was either a false positive or the conditions necessary to obtain it are not fully understood or no longer exist. Data, materials, analysis code, preregistration, and supplementary documents can be found on the OSF page: https://osf.io/8ccnw/"
+}

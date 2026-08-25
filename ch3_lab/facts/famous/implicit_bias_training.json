@@ -1,0 +1,27 @@
+{
+ "claim": "Implicit bias training",
+ "doi": "https://doi.org/10.31234/osf.io/dv8tu",
+ "title": "A Meta-Analysis of Procedures to Change Implicit Measures",
+ "year": 2016,
+ "journal": "",
+ "cited_by": 74,
+ "abstract_chars": 1292,
+ "found": {
+  "n": [
+   {
+    "value": "87,418",
+    "src": "Using a novel technique known as network meta-analysis, we synthesized evidence from 492 studies (87,418 participants) to investigate the effectiveness of procedures in changing implicit measures, which we define as resp"
+   }
+  ],
+  "effect": [],
+  "ci": [],
+  "k": [
+   {
+    "value": "492",
+    "src": "Using a novel technique known as network meta-analysis, we synthesized evidence from 492 studies (87,418 participants) to investigate the effectiveness of procedures in changing implicit measures, which we define as resp"
+   }
+  ]
+ },
+ "status": "PARTIAL",
+ "abstract": "Using a novel technique known as network meta-analysis, we synthesized evidence from 492 studies (87,418 participants) to investigate the effectiveness of procedures in changing implicit measures, which we define as response biases on implicit tasks. We also evaluated these procedures’ effects on explicit and behavioral measures. We found that implicit measures can be changed, but effects are often relatively weak (|ds| < .30). Most studies focused on producing short-term changes with brief, single-session manipulations. Procedures that associate sets of concepts, invoke goals or motivations, or tax mental resources changed implicit measures the most, whereas procedures that induced threat, affirmation, or specific moods/emotions changed implicit measures the least. Bias tests suggested that implicit effects could be inflated relative to their true population values. Procedures changed explicit measures less consistently and to a smaller degree than implicit measures and generally produced trivial changes in behavior. Finally, changes in implicit measures did not mediate changes in explicit measures or behavior. Our findings suggest that changes in implicit measures are possible, but those changes do not necessarily translate into changes in explicit measures or behavior."
+}

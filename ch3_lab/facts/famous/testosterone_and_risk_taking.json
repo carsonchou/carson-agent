@@ -1,0 +1,33 @@
+{
+ "claim": "Testosterone and risk taking",
+ "doi": "https://doi.org/10.1186/1741-7015-11-108",
+ "title": "Testosterone therapy and cardiovascular events among men: a systematic review and meta-analysis of placebo-controlled randomized trials",
+ "year": 2013,
+ "journal": "BMC Medicine",
+ "cited_by": 560,
+ "abstract_chars": 2025,
+ "found": {
+  "n": [],
+  "effect": [],
+  "ci": [
+   {
+    "lo": "1.34",
+    "hi": "3.17",
+    "src": "In trials not funded by the pharmaceutical industry the risk of a cardiovascular-related event on testosterone therapy was greater (OR 2.06, 95% CI 1.34 to 3.17) than in pharmaceutical industry funded trials (OR 0.89, 95"
+   },
+   {
+    "lo": "0.50",
+    "hi": "1.60",
+    "src": "In trials not funded by the pharmaceutical industry the risk of a cardiovascular-related event on testosterone therapy was greater (OR 2.06, 95% CI 1.34 to 3.17) than in pharmaceutical industry funded trials (OR 0.89, 95"
+   }
+  ],
+  "k": [
+   {
+    "value": "882",
+    "src": "RESULTS: Of 1,882 studies identified 27 trials were eligible including 2,994, mainly older, men who experienced 180 cardiovascular-related events."
+   }
+  ]
+ },
+ "status": "PARTIAL",
+ "abstract": "BACKGROUND: Testosterone therapy is increasingly promoted. No randomized placebo-controlled trial has been implemented to assess the effect of testosterone therapy on cardiovascular events, although very high levels of androgens are thought to promote cardiovascular disease. METHODS: A systematic review and meta-analysis was conducted of placebo-controlled randomized trials of testosterone therapy among men lasting 12+ weeks reporting cardiovascular-related events. We searched PubMed through the end of 2012 using \"(\"testosterone\" or \"androgen\") and trial and (\"random*\")\" with the selection limited to studies of men in English, supplemented by a bibliographic search of the World Health Organization trial registry. Two reviewers independently searched, selected and assessed study quality with differences resolved by consensus. Two statisticians independently abstracted and analyzed data, using random or fixed effects models, as appropriate, with inverse variance weighting. RESULTS: Of 1,882 studies identified 27 trials were eligible including 2,994, mainly older, men who experienced 180 cardiovascular-related events. Testosterone therapy increased the risk of a cardiovascular-related event (odds ratio (OR) 1.54, 95% confidence interval (CI) 1.09 to 2.18). The effect of testosterone therapy varied with source of funding (P-value for interaction 0.03), but not with baseline testosterone level (P-value for interaction 0.70). In trials not funded by the pharmaceutical industry the risk of a cardiovascular-related event on testosterone therapy was greater (OR 2.06, 95% CI 1.34 to 3.17) than in pharmaceutical industry funded trials (OR 0.89, 95% CI 0.50 to 1.60). CONCLUSIONS: The effects of testosterone on cardiovascular-related events varied with source of funding. Nevertheless, overall and particularly in trials not funded by the pharmaceutical industry, exogenous testosterone increased the risk of cardiovascular-related events, with corresponding implications for the use of testosterone therapy."
+}

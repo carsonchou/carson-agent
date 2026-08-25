@@ -1,0 +1,33 @@
+{
+ "claim": "Mozart effect",
+ "doi": "https://doi.org/10.3389/fpsyg.2014.00646",
+ "title": "The influence of deliberate practice on musical achievement: a meta-analysis",
+ "year": 2014,
+ "journal": "Frontiers in Psychology",
+ "cited_by": 151,
+ "abstract_chars": 1478,
+ "found": {
+  "n": [
+   {
+    "value": "788",
+    "src": "A final sample size of 13 studies (total N = 788) was carefully extracted to satisfy the following criteria: reported durations of task-specific accumulated practice as predictor variables and objectively assessed musica"
+   }
+  ],
+  "effect": [],
+  "ci": [
+   {
+    "lo": "0.54",
+    "hi": "0.67",
+    "src": "We identified an aggregated effect size of r c = 0.61; 95% CI [0.54, 0.67] for the relationship between task-relevant practice (which by definition includes DP) and musical achievement."
+   }
+  ],
+  "k": [
+   {
+    "value": "13",
+    "src": "A final sample size of 13 studies (total N = 788) was carefully extracted to satisfy the following criteria: reported durations of task-specific accumulated practice as predictor variables and objectively assessed musica"
+   }
+  ]
+ },
+ "status": "PARTIAL",
+ "abstract": "Deliberate practice (DP) is a task-specific structured training activity that plays a key role in understanding skill acquisition and explaining individual differences in expert performance. Relevant activities that qualify as DP have to be identified in every domain. For example, for training in classical music, solitary practice is a typical training activity during skill acquisition. To date, no meta-analysis on the quantifiable effect size of deliberate practice on attained performance in music has been conducted. Yet the identification of a quantifiable effect size could be relevant for the current discussion on the role of various factors on individual difference in musical achievement. Furthermore, a research synthesis might enable new computational approaches to musical development. Here we present the first meta-analysis on the role of deliberate practice in the domain of musical performance. A final sample size of 13 studies (total N = 788) was carefully extracted to satisfy the following criteria: reported durations of task-specific accumulated practice as predictor variables and objectively assessed musical achievement as the target variable. We identified an aggregated effect size of r c = 0.61; 95% CI [0.54, 0.67] for the relationship between task-relevant practice (which by definition includes DP) and musical achievement. Our results corroborate the central role of long-term (deliberate) practice for explaining expert performance in music."
+}

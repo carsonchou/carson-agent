@@ -1,0 +1,22 @@
+{
+ "claim": "Products with brand names containing back vowel sounds, as opposed to front vowel sounds, are perceived as: (d) thicker",
+ "es_type": "r",
+ "orig": {
+  "n": 171,
+  "es": 0.82,
+  "year": 2000,
+  "title": "Creating Brand Names With Meaning: The Use of Sound Symbolism",
+  "author": "[{\"given\":\"Richard R.\",\"family\":\"Klink\",\"sequence\":\"first\"}]",
+  "doi": "10.1023/a:1008184423824"
+ },
+ "repl": {
+  "n": 823,
+  "es": 0.22,
+  "year": 2022,
+  "title": "Evaluating replicability of ten influential research on sensory marketing",
+  "doi": "10.3389/fcomm.2022.1048896"
+ },
+ "verdict": "successful",
+ "source": "FORRT Replication Database (FReD), OSF 2tbvd",
+ "n_ratio": 4.8
+}

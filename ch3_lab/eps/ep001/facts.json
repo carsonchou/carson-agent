@@ -1,0 +1,22 @@
+{
+ "claim": "Consumers with “low self-concept clarity” should be more motivated to keep their identities stable by retaining products that are relevant to their identities",
+ "es_type": "d",
+ "orig": {
+  "n": 405,
+  "es": 0.27,
+  "year": 2019,
+  "title": "The Uncertain Self: How Self-Concept Structure Affects Subscription Choice",
+  "author": "[{\"given\":\"Jennifer\",\"family\":\"Savary\",\"sequence\":\"first\"},{\"given\":\"Ravi\",\"fami",
+  "doi": "10.1093/jcr/ucz022"
+ },
+ "repl": {
+  "n": 1283,
+  "es": -0.07,
+  "year": 2020,
+  "title": "[84] Data Replicada #3: Does Self-Concept Uncertainty Influence Magazine Subscription Choice?",
+  "doi": ""
+ },
+ "verdict": "failed",
+ "source": "FORRT Replication Database (FReD), OSF 2tbvd",
+ "n_ratio": 3.2
+}
