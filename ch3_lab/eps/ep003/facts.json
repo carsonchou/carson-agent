@@ -1,0 +1,22 @@
+{
+ "claim": "Mothers were judged as significantly less competent",
+ "es_type": "d",
+ "orig": {
+  "n": 94,
+  "es": 0.85,
+  "year": 2007,
+  "title": "Getting a Job: Is There a Motherhood Penalty?",
+  "author": "[{\"given\":\"Shelley J.\",\"family\":\"Correll\",\"sequence\":\"first\"},{\"given\":\"Stephen\"",
+  "doi": "10.1086/511799"
+ },
+ "repl": {
+  "n": 198,
+  "es": 0.07,
+  "year": 2023,
+  "title": "Eleven years of student replication projects provide evidence on the correlates of replicability in psychology",
+  "doi": "10.1098/rsos.231240"
+ },
+ "verdict": "mixed",
+ "source": "FORRT Replication Database (FReD), OSF 2tbvd",
+ "n_ratio": 2.1
+}

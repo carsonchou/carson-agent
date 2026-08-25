@@ -1,0 +1,22 @@
+{
+ "claim": "Relating vertical position with power",
+ "es_type": "d",
+ "orig": {
+  "n": 64,
+  "es": 0.55,
+  "year": 2007,
+  "title": "High in the hierarchy: How vertical location and judgments of leaders’ power are interrelated",
+  "author": "[{\"given\":\"Steffen R.\",\"family\":\"Giessner\",\"sequence\":\"first\"},{\"given\":\"Thomas ",
+  "doi": "10.1016/j.obhdp.2006.10.001"
+ },
+ "repl": {
+  "n": 7890,
+  "es": 0.03,
+  "year": 2018,
+  "title": "Many Labs 2: Investigating Variation in Replicability Across Samples and Settings",
+  "doi": "10.1177/2515245918810225"
+ },
+ "verdict": "failed",
+ "source": "FORRT Replication Database (FReD), OSF 2tbvd",
+ "n_ratio": 123.3
+}
