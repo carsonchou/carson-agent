@@ -90,6 +90,12 @@ def build_facts(row):
         "p_repl": (float(f("pval_value_r"))
                    if f("pval_value_r") is not None else None),
         "p_type_repl": str(f("pval_type_r") or ""),
+        # 🔴 單尾 p 值要換算成雙尾再比(2026-08-26 獨立驗證指出)。
+        #    19 列裡有 1 列是單尾(ep016,0.115 → 雙尾約 0.23,結論不變),
+        #    但只要哪一集的單尾 p 落在 0.025~0.05,tone_of 會判它顯著,
+        #    定調就從 gone 翻成 shrunk_real,畫面直接打出
+        #    「Smaller — but still there」。現在看不出來,擴到更多集就會出事。
+        "p_tails_repl": str(f("pval_tails_r") or ""),
         "source": "FORRT Replication Database (FReD), OSF 2tbvd",
     }
     facts["n_ratio"] = round(facts["repl"]["n"] / max(1, facts["orig"]["n"]), 1)
@@ -266,6 +272,8 @@ def tone_of(F):
     shrink = abs(r["es"]) / max(abs(o["es"]), 1e-6)
     same_sign = (o["es"] >= 0) == (r["es"] >= 0)
     p = F.get("p_repl")
+    if p is not None and "1" in str(F.get("p_tails_repl", "")):
+        p = min(1.0, p * 2)                   # 單尾 → 雙尾
     sig = p is not None and p < 0.05          # 缺 p 值時視為測不出來(保守)
     if not same_sign:
         return "flipped" if sig else "gone"

@@ -52,7 +52,7 @@
     "year": 2017,
     "kind": "registered replication",
     "title": "Is Red Really Romantic?",
-    "doi": "10.1027/1864-9335/a000318",
+    "doi": "10.1027/1864-9335/a000296",
     "n": 242,
     "n_second": 360,
     "es_kind": "d",
@@ -70,7 +70,8 @@
     "n_total": 602,
     "n_total_note": "242 men + 360 women, reported separately. 合計值在此明確宣告,否則 audit 會擋(它只認事實庫裡有的數字)",
     "group_a": "men",
-    "group_b": "women"
+    "group_b": "women",
+    "doi_note": "⚠️ 建檔時曾誤植為 a000318 —— 那是同期刊同年的另一篇「A Picture Is Worth a Thousand Words」。它**不會 404**,觀眾會乾淨地落在一篇看起來很合理的論文上,比截斷更糟。真值以 facts/famous/red_color_attractiveness.json 為準。"
    },
    "hook": "Red makes women more attractive to men?",
    "hook_short": "Does red make women more attractive?"
