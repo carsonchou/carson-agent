@@ -1,0 +1,27 @@
+{
+ "claim": "Concretely worded statements are judged to be more likely to be true than abstract equivalents",
+ "es_type": "d",
+ "orig": {
+  "n": 46,
+  "es": 0.3,
+  "year": 2010,
+  "title": "Truth From Language and Truth From Fit: The Impact of Linguistic Concreteness and Level of Construal on Subjective Truth",
+  "author": "[{\"given\":\"Jochim\",\"family\":\"Hansen\",\"sequence\":\"first\"},{\"given\":\"Michaela\",\"fa",
+  "doi": "10.1177/0146167210386238",
+  "url": ""
+ },
+ "repl": {
+  "n": 246,
+  "es": 0.07,
+  "year": 2019,
+  "title": "The Effect of Concrete Wording on Truth Judgements: A Preregistered Replication and Extension of Hansen &amp; Wänke ()",
+  "doi": "10.1525/collabra.192",
+  "url": "https://osf.io/s2389/"
+ },
+ "verdict": "failed",
+ "p_repl": 0.115,
+ "p_type_repl": "e (=)",
+ "source": "FORRT Replication Database (FReD), OSF 2tbvd",
+ "n_ratio": 5.3,
+ "tone": "gone"
+}

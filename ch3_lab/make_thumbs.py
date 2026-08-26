@@ -112,8 +112,12 @@ def draw(plt, o, out_path):
     # ⚠️ 對數字型標題切「第一個句號」會切出孤立半句:
     #    「A 2000 study found 0.82」——一個沒有比較對象的數字,而 0.82
     #    正下方又用滿版大字印一次。這種標題本來就沒有主題,不要硬切。
+    # 數字開頭的標題(shrunk_real / flipped 那幾種)拿去切會變成孤立半句
+    # 「A 2000 study found 0.82」。但**整行空掉也不對** —— 縮圖沒有主題,
+    # 觀眾在一排小圖裡不知道這支在講什麼。改成從說明的第一行取:
+    # 那一行就是完整的主張,而且已經過清洗與溯源。
     if t0.startswith(("A 19", "A 20", "Retested on")) or t0[0].isdigit():
-        t0 = ""
+        t0 = (o.get("description", "").split("\n")[0] or "").rstrip(". ")
     else:
         for sep in (" — ", ". "):
             if sep in t0:

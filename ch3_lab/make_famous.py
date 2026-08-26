@@ -477,7 +477,8 @@ def tts(segs, out_dir, voice="af_heart"):
     直譯器路徑與呼叫方式跟 make_episode.py 對齊——那份是實測跑得動的。
     自己另外猜一套(.venv/、kokoro_tts.say)的結果是整批 5 集全滅。
     """
-    tts_py = ROOT / "_tts_famous.py"
+    # 每集一個獨立的暫存腳本 —— 並行時寫死路徑會互相覆蓋(見 make_episode 同處)
+    tts_py = out_dir / "_tts_famous.py"
     tts_py.write_text(
         "import sys, pathlib, soundfile as sf\n"
         "sys.stdout.reconfigure(encoding='utf-8', errors='replace')\n"

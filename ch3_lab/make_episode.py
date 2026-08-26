@@ -642,7 +642,13 @@ def main():
         return 0
 
     # 旁白(3.11 venv 跑 Kokoro)
-    tts = ROOT / "_tts_ep.py"
+    # 🔴 每集一個獨立的暫存腳本(2026-08-26)。舊版寫死 `_tts_ep.py`,
+    #    三個 worker 並行時會互相覆蓋:A 寫好指向 ep015 的腳本、B 覆蓋成
+    #    指向 ep017,A 的子程序讀到 B 的內容 → 音檔產到 ep017 去,ep015
+    #    的 seg_*.wav 從來沒出現過。實測 ep015 就是這樣掛的。
+    #    (它至少是**大聲失敗**——下一步開 wav 就 FileNotFoundError,
+    #     不會靜默配上別集的聲音。)
+    tts = out / "_tts_ep.py"
     tts.write_text(
         "import sys, pathlib, soundfile as sf\n"
         "sys.stdout.reconfigure(encoding='utf-8', errors='replace')\n"
