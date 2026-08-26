@@ -264,19 +264,63 @@ def _unrecord(op, units):
     _save(d)
 
 
+def observed():
+    """回 (floor, ceiling):實測推出來的每日上限區間。
+
+    · floor   = **曾經成功花到的最高值**(下界:至少有這麼多)
+    · ceiling = **第一次被拒時的花費水位**(上界:大約就在這裡撞牆)
+    兩者都可能是 None(還沒觀測到)。
+
+    🔴 2026-08-26 為什麼要有這支:`DAILY_LIMIT` 原本寫死 10000,而那個數字是**猜的**
+    ——memory 裡兩份紀錄互相矛盾(一份說 10,000、一份說實測 ≥18,000)。
+    我拿它算 `remaining()`,再拿 `remaining()` 去擋補件工作,整條推論建立在一個
+    沒被驗證的常數上。實測結果:08-26 一天花掉 **11,222 units 全部成功、真 403 只有 1 次**,
+    而同一天我的預留額度擋下 10 次 —— **擋人的是我的假天花板,不是 YouTube。**
+    通則(這個 session 第四次):**拿一個數字去做決策之前,先確認它是量出來的還是猜的。**"""
+    d = _load()
+    floor = ceil = None
+    for day, b in (d.get("days") or {}).items():
+        # 標記不可信的日子不能拿來校準:2026-08-25 是在「被拒的呼叫也算進 spent」
+        # 那版計量下記的 18,914,把它當下界會讓天花板比真值高一倍。
+        # 自我校準吃到污染資料,比寫死一個猜的常數更危險——它看起來像實測。
+        if b.get("unreliable"):
+            continue
+        sp = int(b.get("spent", 0) or 0)
+        if sp and (floor is None or sp > floor):
+            floor = sp
+        # 那天有被拒 → 撞牆點大約就是當天的成功花費(被拒的不算消耗)
+        if int(b.get("rejected_calls", 0) or 0) and sp:
+            ceil = sp if ceil is None else min(ceil, sp)
+    return floor, ceil
+
+
+def effective_limit():
+    """實際拿來算 remaining() 的上限。
+
+    優先序:①觀測到的撞牆點(最緊的上界) ②曾成功花到的最高值(下界,至少有這麼多)
+    ③設定值。**永遠不會低於實測到的下界** —— 用一個比實測還低的天花板去擋人,
+    正是 08-26 那天發生的事。"""
+    floor, ceil = observed()
+    if ceil:
+        return ceil
+    if floor and floor > DAILY_LIMIT:
+        return floor
+    return DAILY_LIMIT
+
+
 def spent(day=None):
     return int(_load().get("days", {}).get(day or _pacific_date(), {}).get("spent", 0))
 
 
 def remaining(day=None):
-    return max(0, DAILY_LIMIT - spent(day))
+    return max(0, effective_limit() - spent(day))
 
 
 _warned = {"sent": False}
 
 
 def _maybe_warn(total):
-    if _warned["sent"] or total < DAILY_LIMIT * WARN_AT:
+    if _warned["sent"] or total < effective_limit() * WARN_AT:
         return
     _warned["sent"] = True
     try:
@@ -386,10 +430,10 @@ def _report(days=1):
     d = _load().get("days", {})
     for day in sorted(d)[-days:]:
         b = d[day]
-        pct = b["spent"] * 100 // max(DAILY_LIMIT, 1)
+        pct = b["spent"] * 100 // max(effective_limit(), 1)
         rj = b.get("rejected_units", 0)
         print(f"\n配額日 {day}(太平洋日;台北 15:00~16:00 換日)  "
-              f"{b['spent']}/{DAILY_LIMIT} units = {pct}%  呼叫 {b.get('calls',0)} 次")
+              f"{b['spent']}/{effective_limit()} units = {pct}%  呼叫 {b.get('calls',0)} 次")
         if rj:
             print(f"   (另有 {rj} units / {b.get('rejected_calls',0)} 次因配額用罄被拒 —— "
                   f"**不計入實際消耗**,只代表撞牆後還在硬打)")
@@ -412,6 +456,12 @@ def main() -> int:
             print(f"   {name:<26} quota_meter={a}  quota_budget={b}")
     else:
         print("\n價目表與 quota_budget 對帳一致。")
+    fl, ce = observed()
+    _f = f"{fl:,}" if fl else "尚未觀測"
+    _c = f"{ce:,}" if ce else "尚未觀測"
+    print(f"\n每日上限:目前採用 {effective_limit():,}"
+          f"(設定值 {DAILY_LIMIT:,} / 實測下界 {_f} / 撞牆點 {_c})")
+    print("  ⚠️ 設定值是**猜的**;下界=曾經成功花到的最高值,撞牆點=第一次被拒時的水位。")
     return 0
 
 
