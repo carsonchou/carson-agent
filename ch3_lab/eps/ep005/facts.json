@@ -21,7 +21,13 @@
  "verdict": "successful",
  "p_repl": 0.001,
  "p_type_repl": "l (<)",
+ "p_tails_repl": "",
  "source": "FORRT Replication Database (FReD), OSF 2tbvd",
+ "record": {
+  "fred_id": "OpenMKT1",
+  "effect_id": "890",
+  "prereg": "https://aspredicted.org/ZW2_C76"
+ },
  "n_ratio": 4.8,
  "tone": "shrunk_real"
 }

@@ -549,3 +549,15 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 #   (memory `yt-quota-partial-failure-silent-bad-data` 的同型壞值曾重複三次沒人發現)。
 #   看歷史與 ETA:`python scripts/ypp_meter.py --show`(不打 API)。帳本 STUDIO/ypp_meter.jsonl
 40 16 * * * /root/yt/run.sh scripts/ypp_meter.py >> /root/yt/logs/cron.log 2>&1
+
+# ── 副頻道 They Ran It Again 每日發布(2026-08-26 起)─────────────────
+#   ch3_lab 的 24 集已產好並通過獨立驗證,這支只負責按配額分天送出,
+#   **它自己不生成任何內容**。upload.py 裡有三道 fail-closed 閘門會在每次
+#   上傳前重跑:陳舊檢查(mp4 必須比程式碼與資料新)、語意閘門(講「效應
+#   存在/不存在」時 p 值要撐得住)、頻道 ID 白名單 + 缺縮圖硬中止。
+#   任何一道擋下來那一集就不發,並印出理由。
+#   配額:每支約 1,691 單位(insert 1600 + 縮圖 50 + 輪詢 41),ch2 是獨立
+#   GCP 專案一天 10,000 → **上限 5 支**。排 16:25 = 台北配額重置
+#   (15:00~16:00)之後,避開早上 09:00 那波 403。
+#   發完會自己停(待發歸零時只印一行不打 API)。
+25 16 * * * /root/yt/run.sh scripts/ch3_publish.py >> /root/yt/logs/cron.log 2>&1

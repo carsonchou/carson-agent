@@ -97,6 +97,13 @@ def build_facts(row):
         #    「Smaller — but still there」。現在看不出來,擴到更多集就會出事。
         "p_tails_repl": str(f("pval_tails_r") or ""),
         "source": "FORRT Replication Database (FReD), OSF 2tbvd",
+        # 「我們實際讀的那一列」——攤在畫面上比論文截圖更誠實,因為論文全文
+        # 我根本沒讀過(出版社的反機器人保護擋住自動抓取,即使是 CC-BY)。
+        "record": {
+            "fred_id": str(f("fred_id") or ""),
+            "effect_id": str(f("effect_id") or ""),
+            "prereg": str(f("prereg_r") or ""),
+        },
     }
     facts["n_ratio"] = round(facts["repl"]["n"] / max(1, facts["orig"]["n"]), 1)
     # 🔴 tone 要寫進 facts.json(2026-08-25 獨立驗證抓到第五次同型錯誤)。
@@ -423,6 +430,18 @@ def build_script(F):
         #    早就有正確的措辭,這裡卻用了比較強的那個。
         res += ("With this many people, an effect this size cannot be told "
                 "apart from zero.")
+    # 「證據攤開來」那一幕。它做三件事:讓觀眾看到我們的來源長什麼樣、
+    # 給每一集獨一無二的畫面(獨立驗證量到 90% 旁白逐字相同)、把片長拉長。
+    rec = F.get("record", {})
+    record_txt = (
+        "Everything you just heard comes from one row of a public database. "
+        "Here it is. "
+        + (f"The replication was preregistered — the team wrote down what they "
+           f"were going to test before they collected any data. "
+           if rec.get("prereg", "").startswith("http") else "")
+        + "Both papers are linked, and so is the record itself. "
+          "You do not have to take my word for any of it.")
+
     segs = [("hook", hook_txt),
             ("original",
              f"The study was run on {o['n']:,} people. "
@@ -437,6 +456,7 @@ def build_script(F):
              f"{F['n_ratio']} times the original sample. "
              f"Same design. More people."),
             ("result", res),
+            ("record", record_txt),
             ("close", close_txt + "Both papers are linked below.")]
     return segs
 
@@ -576,6 +596,61 @@ def render_scene(plt, name, t, dur, F):
                      fontsize=26, color=WARN, weight="bold")
         fig.text(0.16, 0.80, "Same study. Bigger sample.", fontsize=44,
                  color=FG, weight="bold")
+
+    elif name == "record":
+        # 「我們讀的那一列」。刻意做成資料表的樣子而不是美術:它要看起來像
+        # 一筆可以自己去查的紀錄,不是像一張投影片。每個值都必須是旁白唸過、
+        # 而且審核放行過的數字 —— 這一幕不引入任何新數字。
+        rec = F.get("record", {})
+        kind = F["es_type"]
+        ax.text(0.5, 0.90, "The record this episode is built from",
+                ha="center", fontsize=34, color=FG, weight="bold")
+        ax.text(0.5, 0.845, F["source"], ha="center", fontsize=20, color=DIM)
+
+        cols = (0.30, 0.68)
+        heads = ("ORIGINAL", "REPLICATION")
+        rows = [
+            ("participants", f"{o['n']:,}", f"{r['n']:,}"),
+            (f"effect size ({kind})", _sig(o["es"]), _sig(r["es"])),
+            ("year", str(o["year"] or "—"), str(r["year"] or "—")),
+        ]
+        pv = F.get("p_repl")
+        if pv is not None:
+            tail = " (one-tailed)" if "1" in str(F.get("p_tails_repl", "")) else ""
+            rows.append(("p-value", "—", f"{pv:g}{tail}"))
+
+        for cx, h, col in zip(cols, heads,
+                              (DIM, ACCENT if tone_of(F) != "gone" else WARN)):
+            if t > 0.4:
+                ax.text(cx, 0.74, h, ha="center", fontsize=24, color=col,
+                        weight="bold", alpha=ease(min(1.0, (t - 0.4) / 0.9)))
+        for i, (label, a_, b_) in enumerate(rows):
+            y = 0.65 - i * 0.085
+            st = 0.9 + i * 0.55
+            if t <= st:
+                continue
+            q = ease(min(1.0, (t - st) / 0.9))
+            ax.text(0.055, y, label, ha="left", fontsize=23, color=DIM, alpha=q)
+            ax.plot([0.05, 0.95], [y - 0.032, y - 0.032], color="#1B222C",
+                    lw=1.2, alpha=q)
+            ax.text(cols[0], y, a_, ha="center", fontsize=30, color=FG, alpha=q,
+                    weight="bold")
+            ax.text(cols[1], y, b_, ha="center", fontsize=30, color=FG, alpha=q,
+                    weight="bold")
+
+        pre = rec.get("prereg", "")
+        if pre.startswith("http") and t > 0.9 + len(rows) * 0.55:
+            q = ease(min(1.0, (t - (0.9 + len(rows) * 0.55)) / 1.1))
+            ax.text(0.5, 0.235, "preregistered before data collection",
+                    ha="center", fontsize=25, color="#5FC98A", alpha=q,
+                    weight="bold")
+            ax.text(0.5, 0.175,
+                    pre.replace("https://", "").replace("http://", "")[:48],
+                    ha="center", fontsize=21, color=ACCENT, alpha=q * 0.9)
+        if rec.get("fred_id") and t > 1.6:
+            q = ease(min(1.0, (t - 1.6) / 1.1))
+            ax.text(0.5, 0.09, f"FReD record {rec['fred_id']}", ha="center",
+                    fontsize=18, color=DIM, alpha=q * 0.75)
 
     else:  # close
         # 用同一份 tone_of,不要在這裡重寫判斷(見 tone_of 的說明)
