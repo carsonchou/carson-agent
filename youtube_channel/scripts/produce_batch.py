@@ -402,9 +402,14 @@ def _fact_dedup(cand, bank):
         now = time.time()
         win = _FACT_REUSE_WINDOW_DAYS * 86400
         blocked = set()
+        # 重做已發布缺陷片(redo_published_defective.py)刻意要重用同一組事實
+        # —— 那正是「同一檔股票再做一次」的情境,不該被去重擋掉。
+        # 不用偽造 used_at 繞過(那是竄改紀錄),用明確旗標。
+        redo_keys = {str(t.get("fact_key", "") or "") for t in cand
+                     if isinstance(t, dict) and t.get("redo_of")}
         for t in bank:
             fk = str(t.get("fact_key", "") or "")
-            if not fk or not t.get("used"):
+            if not fk or not t.get("used") or fk in redo_keys:
                 continue
             ua = t.get("used_at")
             # used_at 缺=舊題庫(標 used 時還沒記時間戳)→ 視為近期,保守擋掉。

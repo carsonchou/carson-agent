@@ -206,10 +206,32 @@ def audit_tables():
     return [d for d in diffs if d[2] is not None and d[1] != d[2]]
 
 
-def record(op, units):
+def _is_quota_rejected(exc):
+    """這次失敗是不是「配額已用罄,請求被拒絕」?
+
+    🔴 2026-08-26 修:原本記在 `finally`,理由寫「403 照樣扣配額」——那對**一般**失敗
+    (500、逾時、權限錯)是對的,對 `quotaExceeded` 則是**錯的**:配額已經沒了,
+    請求根本沒被執行,不會再扣。而這類失敗在配額用罄後會**大量**發生
+    (實測 job_stderr 裡 463 次),全部被當成消耗記進帳本 →
+    08-25 記到 18,914/10,000 = 189%,看起來像「上限其實有 18,914」,
+    但那是被失敗呼叫灌出來的。差點拿這個數字去推翻「上限 10,000」。
+    通則:**量一個東西之前,先確認你量的是不是它**。"""
+    t = str(exc)
+    return "quotaExceeded" in t or "exceeded your" in t and "quota" in t
+
+
+def record(op, units, rejected=False):
+    """rejected=True:配額用罄被拒的呼叫 —— 記進獨立的桶,**不計入 spent**。
+    帳本要能回答「今天真的花了多少」,而不是「今天發了幾個請求」。"""
     day = _pacific_date()
     d = _load()
     b = d.setdefault("days", {}).setdefault(day, {"spent": 0, "calls": 0, "by_op": {}})
+    if rejected:
+        b["rejected_units"] = int(b.get("rejected_units", 0)) + int(units)
+        b["rejected_calls"] = int(b.get("rejected_calls", 0)) + 1
+        b["updated"] = _dt.datetime.now().isoformat(timespec="seconds")
+        _save(d)
+        return int(b.get("spent", 0))
     b["spent"] = int(b.get("spent", 0)) + int(units)
     b["calls"] = int(b.get("calls", 0)) + 1
     o = b.setdefault("by_op", {}).setdefault(op, {"units": 0, "calls": 0})
@@ -222,6 +244,24 @@ def record(op, units):
             d["days"].pop(k, None)
     _save(d)
     return b["spent"]
+
+
+def _unrecord(op, units):
+    """把一筆已記進 spent 的搬到 rejected 桶(分段上傳只能先收費後才知道結果)。"""
+    day = _pacific_date()
+    d = _load()
+    b = d.get("days", {}).get(day)
+    if not b:
+        return
+    b["spent"] = max(0, int(b.get("spent", 0)) - int(units))
+    b["calls"] = max(0, int(b.get("calls", 0)) - 1)
+    o = b.get("by_op", {}).get(op)
+    if o:
+        o["units"] = max(0, o.get("units", 0) - int(units))
+        o["calls"] = max(0, o.get("calls", 0) - 1)
+    b["rejected_units"] = int(b.get("rejected_units", 0)) + int(units)
+    b["rejected_calls"] = int(b.get("rejected_calls", 0)) + 1
+    _save(d)
 
 
 def spent(day=None):
@@ -283,11 +323,16 @@ def install(service=None):
             return _orig(self, *a, **kw)      # 同一個 request 已由 next_chunk 收過費
         self._quota_charged = True
         try:
-            return _orig(self, *a, **kw)
-        finally:
-            # 即使呼叫失敗(403/500)配額**照樣被扣**,所以記在 finally 而不是成功之後。
+            r = _orig(self, *a, **kw)
+        except Exception as exc:                      # noqa: BLE001
+            # 一般失敗(500/逾時/權限)配額照樣被扣 → 記進 spent;
+            # 但 quotaExceeded 是「配額已經沒了所以拒收」,不會再扣 → 記進 rejected 桶。
             if units:
-                _maybe_warn(record(op, units))
+                _maybe_warn(record(op, units, rejected=_is_quota_rejected(exc)))
+            raise
+        if units:
+            _maybe_warn(record(op, units))
+        return r
 
     HttpRequest.execute = _execute
 
@@ -320,8 +365,17 @@ def install(service=None):
             _maybe_warn(record(op, units))
 
     def _next_chunk(self, *a, **kw):
+        # 這裡是**先收費再上傳**(不能等結果,否則分段上傳每塊都要判一次)。
+        # 若上傳因配額用罄被拒,把剛才記的那筆搬到 rejected 桶,別讓帳本灌水。
         _charge_once(self)
-        return _orig_next(self, *a, **kw)
+        try:
+            return _orig_next(self, *a, **kw)
+        except Exception as exc:                      # noqa: BLE001
+            if _is_quota_rejected(exc):
+                op, units = cost_of(getattr(self, "uri", ""), getattr(self, "method", "GET"))
+                if units:
+                    _unrecord(op, units)
+            raise
 
     HttpRequest.next_chunk = _next_chunk
     HttpRequest._quota_metered = True
@@ -333,8 +387,12 @@ def _report(days=1):
     for day in sorted(d)[-days:]:
         b = d[day]
         pct = b["spent"] * 100 // max(DAILY_LIMIT, 1)
+        rj = b.get("rejected_units", 0)
         print(f"\n配額日 {day}(太平洋日;台北 15:00~16:00 換日)  "
               f"{b['spent']}/{DAILY_LIMIT} units = {pct}%  呼叫 {b.get('calls',0)} 次")
+        if rj:
+            print(f"   (另有 {rj} units / {b.get('rejected_calls',0)} 次因配額用罄被拒 —— "
+                  f"**不計入實際消耗**,只代表撞牆後還在硬打)")
         for op, o in sorted(b.get("by_op", {}).items(), key=lambda kv: -kv[1]["units"])[:14]:
             print(f"   {o['units']:>6} units  ×{o['calls']:<4} {op}")
     if not d:
