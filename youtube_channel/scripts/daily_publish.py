@@ -955,9 +955,22 @@ def upload_one(yt, slug: str, privacy: str) -> str:
     # 不吃搜尋,自動字幕已足夠 → 省下 2 支×400 = 800 units/日,換成上架的安全餘裕。
     if is_short:
         print(f"[caption] {slug}:Shorts 跳過字幕上傳(省 400 units,靠 feed 分發不吃搜尋)")
+    # 🔬 字幕 A/B 對照實驗(2026-08-26 起,20 支收滿自動結束,見 caption_ab.py)。
+    # 「精準字幕幫演算法判主題」是**推論不是量測**,而且結構上量不到:所有長片都有字幕
+    # (沒有對照組)、Shorts 沒有但不吃搜尋。這裡造出那個對照組。
+    # `should_upload` 是 fail-open 的:實驗檔壞掉/額滿/任何例外一律回 True 照舊傳
+    # —— 一個觀測用的實驗不該有能力讓產線少做事。
+    _ab_upload = True
+    try:
+        import caption_ab
+        _ab_upload = caption_ab.should_upload(slug, vid)
+        if not _ab_upload:
+            print(f"[caption] {slug}:A/B 實驗 B 組,本支不傳字幕(省 400 units)")
+    except Exception:  # noqa: BLE001
+        _ab_upload = True
     try:
         import make_video as _mv
-        _srt = _mv.write_srt_for_slug(slug) if not is_short else None
+        _srt = _mv.write_srt_for_slug(slug) if (not is_short and _ab_upload) else None
         if _srt and Path(_srt).exists():
             up.upload_captions(yt, vid, _srt,
                                upload_name=up.seo_asset_name(meta.get("title", slug), meta.get("tags"), "srt", slug))
