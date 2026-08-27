@@ -407,18 +407,39 @@ def build_script(F):
     #    ep002 在同一集裡自打嘴巴:先說「0.5 是中等」,四十秒後說 0.30 是中等。
     #    而且「how far apart two groups are」是 d 的定義,對相關係數是錯的。
     is_r = kind.startswith("r")
-    scale_txt = ("A quick note on what that number means. "
-                 + ("A correlation is how tightly two things move together, "
-                    "not whether either one causes the other. "
-                    "Around zero point one is small, zero point three is "
-                    "medium, zero point five is large. "
-                    if is_r else
-                    "Effect size is not the same as being true or false. "
-                    "It is how far apart two groups are. "
-                    "Around zero point two is small, zero point five is "
-                    "medium, zero point eight is large. ")
-                 + "And the smaller the study, the more that number can move "
-                   "by chance.")
+    # 🔴 scale 段一度 19 集一字不差,佔每支片 20 秒 = 全片的 20%(獨立驗證
+    #    量到「90% 旁白逐字相同」時,這一段是最大的單一來源)。而 YouTube 的
+    #    inauthentic 政策點名的正是「模板化、變化極小」。
+    #
+    #    解法不是換句話說同一件事 —— 那還是同一件事。是**依本集自己的數字
+    #    選一個真的相關的切角**:原始樣本特別小就講小樣本為什麼會漂;
+    #    落差特別大就講那個落差有多大;是相關係數就講相關不等於因果。
+    #    每一種都是這一集真的需要的解釋,不是填充。
+    SCALE_R = (
+        "A correlation is how tightly two things move together — not whether "
+        "one causes the other. Around zero point one is small, zero point "
+        "three is medium, zero point five is large.")
+    SCALE_D = (
+        "Effect size is not whether something is true. It is how far apart "
+        "two groups are. Around zero point two is small, zero point five is "
+        "medium, zero point eight is large.")
+    base = SCALE_R if is_r else SCALE_D
+    if o["n"] <= 100:
+        angle = (f"And with only {o['n']} people in the original, that number "
+                 f"had a lot of room to move by chance. Small samples do not "
+                 f"just give you less certainty — they give you a wider spread "
+                 f"of possible answers, in both directions.")
+    elif F["n_ratio"] >= 20:
+        angle = (f"Keep the sample sizes in mind too. The replication is "
+                 f"{F['n_ratio']} times larger, and that is what makes the "
+                 f"second number the harder one to argue with.")
+    elif abs(o["es"]) >= 0.6:
+        angle = ("A number that large is unusual in this field. That is worth "
+                 "knowing before we look at what happened next.")
+    else:
+        angle = ("And the smaller the study, the more that number can move by "
+                 "chance alone.")
+    scale_txt = "A quick note on what that number means. " + base + " " + angle
 
     # 結果段:顯著性決定能不能說「效應在那裡」。
     # ⚠️ 這裡一度寫著「what they successfully showed is that the effect is not
@@ -449,14 +470,27 @@ def build_script(F):
     # 「證據攤開來」那一幕。它做三件事:讓觀眾看到我們的來源長什麼樣、
     # 給每一集獨一無二的畫面(獨立驗證量到 90% 旁白逐字相同)、把片長拉長。
     rec = F.get("record", {})
-    record_txt = (
-        "Everything you just heard comes from one row of a public database. "
-        "Here it is. "
-        + (f"The replication was preregistered — the team wrote down what they "
-           f"were going to test before they collected any data. "
-           if rec.get("prereg", "").startswith("http") else "")
-        + "Both papers are linked, and so is the record itself. "
-          "You do not have to take my word for any of it.")
+    # record 段也依本集實際有什麼而變 —— 有預先登記就講預先登記(那是這條
+    # 產線最硬的證據),沒有就講資料庫本身。硬講同一段話是模板化,而且會
+    # 講到本集沒有的東西。
+    pre = rec.get("prereg", "").startswith("http")
+    if pre and F["n_ratio"] >= 10:
+        body = (f"The replication was preregistered — the team wrote down what "
+                f"they were going to test before they collected a single data "
+                f"point, and then tested it on {r['n']:,} people. "
+                f"That order matters: it is what stops a study from finding "
+                f"whatever it happens to find and calling that the hypothesis.")
+    elif pre:
+        body = ("The replication was preregistered. The team wrote down what "
+                "they were going to test before they collected any data, so "
+                "the analysis could not be chosen after seeing the result.")
+    else:
+        body = ("Both papers are linked, and so is the row itself — the "
+                "database is public, and it carries the same fields you have "
+                "been looking at on screen.")
+    record_txt = ("Everything you just heard comes from one row of a public "
+                  "database. Here it is. " + body +
+                  " You do not have to take my word for any of it.")
 
     segs = [("hook", hook_txt),
             ("original",
