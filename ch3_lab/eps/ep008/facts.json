@@ -21,7 +21,13 @@
  "verdict": "mixed",
  "p_repl": 0.033,
  "p_type_repl": "e (=)",
+ "p_tails_repl": "2 (two)",
  "source": "FORRT Replication Database (FReD), OSF 2tbvd",
+ "record": {
+  "fred_id": "CORE_203",
+  "effect_id": "1746",
+  "prereg": "https://osf.io/jb5hf/"
+ },
  "n_ratio": 5.9,
  "tone": "shrunk_real"
 }

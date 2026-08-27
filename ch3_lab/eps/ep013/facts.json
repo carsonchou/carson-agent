@@ -21,7 +21,13 @@
  "verdict": "failed",
  "p_repl": 0.99,
  "p_type_repl": "e (=)",
+ "p_tails_repl": "2 (two)",
  "source": "FORRT Replication Database (FReD), OSF 2tbvd",
+ "record": {
+  "fred_id": "w4dip",
+  "effect_id": "1350",
+  "prereg": "https://osf.io/zqwa2/"
+ },
  "n_ratio": 4.6,
  "tone": "gone"
 }

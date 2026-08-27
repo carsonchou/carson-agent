@@ -21,7 +21,13 @@
  "verdict": "successful",
  "p_repl": 0.003,
  "p_type_repl": "e (=)",
+ "p_tails_repl": "2 (two)",
  "source": "FORRT Replication Database (FReD), OSF 2tbvd",
+ "record": {
+  "fred_id": "CORE_47",
+  "effect_id": "1407",
+  "prereg": "https://osf.io/pg3ae/"
+ },
  "n_ratio": 3.5,
  "tone": "stronger"
 }
