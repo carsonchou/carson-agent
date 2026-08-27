@@ -3117,6 +3117,61 @@ _PROMPT_LEAK_MARKERS = (
 _PROMPT_LEAK_SYIY = 6
 
 
+_APPROX_TITLE = re.compile(r"破|超過|逾|上看|近|約|大約|將近|接近|以上|多")
+
+
+def _long_title_contradicts_facts(title, slug=""):
+    """標題裡的總報酬數字跟**該檔股票自己的事實**對不上 → 回原因字串,否則 None。
+
+    🔴 2026-08-27 抓到的實例(兩支都已發布):
+        昇陽半導體 8028  標題「11年報酬930%」   ← 事實庫該股總報酬 740.2% / 1576.2% / 712.0%
+        愛普 6531        標題「暴賺2164%」      ← 事實庫 1743.9% / 1691.0% / 1334.0%
+    兩支的**旁白事實區就印著真值**,標題卻是另一個數 —— 稿子自己打自己。
+    (昇陽那支的旁白甚至引用「《昇陽半導體 11 年報酬 740.2%？…》的第 4 段」,
+     可見產稿當下標題是對的。)
+
+    為什麼需要**另外**一道:溯源守門 `fact_source_guard` 的事實池是**全頻道扁平池**,
+    已經長到 33,885 個數字。實測拿隨機數去查:**隨機三位數 100% 找得到「憑據」**、
+    四位數 99% —— 模型隨便編一個報酬率它幾乎必然背書。930 就是撞到池裡某支
+    **不相干股票**的 930.54 而被放行。那個洞要修得動餵料端(每支片存下自己的憑據池),
+    今天不動;這道閘門只做一件很窄但**零誤判**的事:標題 vs 該股事實。
+
+    刻意排掉的:
+    · 約略語(「總報酬破1000%」對真值 1076.2%)—— 實測 2 支誤判全出在這,
+      「破/超過/近/約」本來就是合法的口語表述。
+    · <100% 的數字 —— 年化、回撤、殖利率都在這個量級,不是總報酬。
+    容忍度 3%:事實庫會定期重算,產稿當下對得上就好,別把重算漂移當造假。"""
+    t = title or ""
+    m = re.search(r"(\d{4})", slug or t)
+    if not m:
+        return None
+    code = m.group(1)
+    try:
+        _r = json.loads((ROOT / "STUDIO" / "stock_checkup_facts.json")
+                        .read_text(encoding="utf-8"))["results"]
+    except Exception:  # noqa: BLE001
+        return None
+    rs = set()
+    for k, f in _r.items():
+        if not k.endswith("__" + code):
+            continue
+        for mm in re.finditer(r"總報酬\s*約?\s*(-?[\d,\.]+)\s*%", str(f.get("claim", ""))):
+            rs.add(float(mm.group(1).replace(",", "")))
+    if not rs:
+        return None
+    for mm in re.finditer(r"(\d[\d,\.]*)\s*%", t):
+        v = float(mm.group(1).replace(",", ""))
+        if v < 100:
+            continue
+        # 數字前 6 個字有約略語 → 合法口語,不算矛盾
+        if _APPROX_TITLE.search(t[max(0, mm.start() - 6):mm.start()]):
+            continue
+        if not any(abs(v - f) <= max(1.0, abs(f) * 0.03) for f in rs):
+            return (f"標題數字與該股事實矛盾:標題 {v}% vs 事實庫 "
+                    f"{sorted(rs, reverse=True)[:3]}")
+    return None
+
+
 def _long_prompt_leak(voice_text):
     """旁白裡有沒有 prompt 指令原文/佔位符(會被 TTS 唸出來)。回原因字串或 None。
 
@@ -4413,7 +4468,8 @@ def make_one(kind, no_render=False, topic_override=None, script_override=None):
             # 半形【】只是洩漏的其中一種寫法。實測抓到的另一批用全形（）包起來
             # (「（以上為真實歷史回測資料,旁白引用時務必標明…」)、以及餵料端的
             # 「示意」佔位符整段被抄進來 —— 這道判準完全接不住,見 _long_prompt_leak。
-            _pl = _long_prompt_leak(_v) or _long_stage_direction(_v)
+            _pl = (_long_prompt_leak(_v) or _long_stage_direction(_v)
+                   or _long_title_contradicts_facts(_d.get("title", ""), _d.get("title", "")))
             if _pl:
                 return _pl
             # ⑤ 開場罐頭錯位(2026-08-12 抓到:高力8996 體檢片開場逐字抄了 playbook 示範句
@@ -4546,7 +4602,8 @@ def make_one(kind, no_render=False, topic_override=None, script_override=None):
                 return "期間偷換"
             if "【" in _v:
                 return "【】prompt欄位洩漏(會被TTS唸出來)"
-            _pl = _long_prompt_leak(_v) or _long_stage_direction(_v)
+            _pl = (_long_prompt_leak(_v) or _long_stage_direction(_v)
+                   or _long_title_contradicts_facts(_d.get("title", ""), _d.get("title", "")))
             if _pl:
                 return _pl
             # 2026-08-22 校準後補上的兩道(當日稍早只開上面兩道,因為密度 gate 對體檢

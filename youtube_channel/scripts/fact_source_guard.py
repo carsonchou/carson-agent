@@ -359,6 +359,68 @@ def fact_pool(refresh: bool = False) -> set[float]:
     return pool
 
 
+_SCOPED_CACHE: dict = {}
+
+
+def fact_pool_for(slug: str, refresh: bool = False):
+    """依影片主題**收窄**的事實池;認不出主題就回 None(呼叫端退回全域池)。
+
+    🔴 2026-08-27 實測:全域 `fact_pool()` 已經長到 **33,885 個數字**
+    (472 檔股票 × 每檔數十個)。拿隨機數去查:
+        隨機三位數 → **100%** 找得到「憑據」
+        隨機四位數 → 99%
+    也就是說模型隨便編一個報酬率,守門幾乎必然替它背書。
+    實例:昇陽半導體 8028 的旁白鉤子寫「總報酬竟然高達百分之九百三十」,
+    而該股真值是 **740.2%**(同一份稿子的事實區就印著)——930 撞到池裡
+    某支**不相干股票**的 930.54 而被放行。愛普 6531 同型(1743.9% → 寫成 2164%)。
+
+    這不是新 bug,是**隨事實庫變大而失效**:本檔 2026-07-14 的註解記著
+    「池從 431 爆到 3156 → 任何編造數字都找得到鄰居 → 守門變漏勺」,
+    當時的修法是把衍生池獨立出去,但**基礎池本身**後來長了 78 倍,同一個病復發。
+    所以 memory 記的「無憑據 15%→5%」那個 5% 是假的 —— 它反映的是
+    「幾乎所有數字都通得過」,不是「只有 5% 有問題」。
+
+    正解與期間偷換同一條:**A 與 B 要並排,必須來自同一組事實**。
+    一支講 8028 的片,它的數字只能拿 8028 的事實當憑據。
+
+    (0050 對照數字不必另外加白名單:checkup_three_way__<code> 的 claim 本來就
+     寫在該股自己的事實裡,收窄後仍在池內。)
+    """
+    import re as _re
+    if not slug:
+        return None
+    key = slug
+    if key in _SCOPED_CACHE and not refresh:
+        return _SCOPED_CACHE[key]
+    if "個股體檢" not in slug:
+        _SCOPED_CACHE[key] = None
+        return None
+    codes = _re.findall(r"(\d{4})", slug)
+    if not codes:
+        _SCOPED_CACHE[key] = None
+        return None
+    try:
+        raw = json.loads((STUDIO / "stock_checkup_facts.json").read_text(encoding="utf-8"))
+        results = raw.get("results") or {}
+    except Exception:  # noqa: BLE001
+        _SCOPED_CACHE[key] = None
+        return None
+    # slug 裡的四位數不只代號(「存20年賺6100」也會中)→ 取**真的有事實**的那個
+    pool = set()
+    for c in codes:
+        keys = [k for k in results if k.endswith("__" + c)]
+        if not keys:
+            continue
+        for k in keys:
+            pool |= _walk_numbers(results[k])
+        break
+    if not pool:
+        _SCOPED_CACHE[key] = None
+        return None
+    _SCOPED_CACHE[key] = pool
+    return pool
+
+
 _DERIVED_CACHE: set[float] | None = None
 
 
