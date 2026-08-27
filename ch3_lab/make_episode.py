@@ -366,23 +366,39 @@ def build_script(F):
     #    ⚠️ HOLD 開場一度寫成「Most findings from that era did not survive」——
     #    那是斷言一個我沒計算的基準率。就算拿 FReD 去算也不能講:348 列是篩過的
     #    子集,拿它當「那個年代的心理學」的比例就是拿替身值當真值。
+    # 🔴 開場先給落差,不要先給主張(2026-08-28)。
+    #    舊版前 15 秒還在鋪陳「某年某研究說了什麼」,而這個頻道最強的鉤子
+    #    **就是那個落差本身** —— 兩個數字並排就是全部的戲,而且它可驗證。
+    #    記憶裡有實測:非碎句、直接給結論的開場讓訂閱轉化翻倍、完播率
+    #    24.6% vs 17.1%。長片尤其吃這個,因為觀眾在前 30 秒決定去留。
+    #
+    #    ⚠️ 不能因為想要戲劇性就把話講重。開場只陳述兩組數字與樣本數,
+    #    判決留給後面的段落 —— 那裡才有信賴區間與顯著性可以撐。
+    ratio = F["n_ratio"]
     HOOKS_FALL = [
-        (f"In {o['year']}, a study reported this: {claim}. "
-         f"It sounded plausible. It was published, and it was repeated."),
-        (f"Here is what a {o['year']} study reported: {claim}. "
-         f"It came from {o['n']:,} people. Hold on to that number."),
-        (f"{claim}. That was the finding in {o['year']}, measured on "
-         f"{o['n']:,} people."),
+        (f"{o['n']:,} people. That is how many it took to establish this: "
+         f"{claim}. "
+         f"Then {r['n']:,} people — {ratio} times as many — were put through "
+         f"the same study."),
+        (f"In {o['year']}, {o['n']:,} people produced an effect of "
+         f"{say_num(o['es'])}. "
+         f"In {r['year'] or 'a later study'}, {r['n']:,} people produced "
+         f"{say_num(r['es'])}. "
+         f"Same claim, same design: {claim}."),
+        (f"Here is a finding you may have heard: {claim}. "
+         f"It came from {o['n']:,} people. "
+         f"It has since been run on {r['n']:,}."),
     ]
     HOOKS_HELD = [
-        (f"In {o['year']}, a study reported this: {claim}. "
-         f"It was based on {o['n']:,} people. "
-         f"Years later, another team ran it again on {r['n']:,} — "
-         f"not to debunk it, just to check."),
-        (f"{claim}. That was the finding in {o['year']}. It has now been put "
-         f"in front of {r['n']:,} people. Here is what came back."),
+        (f"{o['n']:,} people said this: {claim}. "
+         f"Then {r['n']:,} people — {ratio} times as many — were asked the "
+         f"same question. Most findings do not come back the same. "
+         f"Watch this one."),
+        (f"In {o['year']}, {o['n']:,} people produced an effect of "
+         f"{say_num(o['es'])}. "
+         f"On {r['n']:,} people it came back {say_num(r['es'])}. "
+         f"The claim: {claim}."),
     ]
-    # 從表取,不寫 if tone == "..."(見 TONE_META 的說明)
     pool = {"held": HOOKS_HELD, "fall": HOOKS_FALL}[TONE_META[tone]["hooks"]]
     hook_txt = pool[(o["year"] + o["n"]) % len(pool)]
 
