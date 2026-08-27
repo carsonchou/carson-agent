@@ -12,9 +12,11 @@
 
 ## 量到的標題問題
 103 支已發布體檢片:
-  · 標題長度中位 **62 字**,**100% 超過 40 字**(手機搜尋結果的可見範圍)
-  · 「個股體檢【股名 代號】」前綴吃掉中位 **13 字 = 手機可見範圍的 32%**
-→ 每一支的鉤子都被切在半路(「你扛得住——」後面沒了)。
+  · **線上**標題長度中位 **67 字**、最長 92(手機搜尋結果只看得到約 40 字)
+→ 每一支的鉤子都被切在半路。
+⚠️ 我第一版還寫了「『個股體檢【股名 代號】』前綴吃掉 32% 可見範圍」——**那是錯的**,
+   我拿本機 .md 量,而線上 95 支只有 1 支是那樣開頭(系列名早就搬到句尾成「｜個股體檢EP<n>」)。
+   拿替身值當真值,這個 session 第六次。「太長」那半才是真的,而且線上比本機還長。
 
 ## 為什麼可以在存量上做
 體檢片是**常青**的搜尋佔位(不是 feed 驅動的 4 天壽命),曝光會持續進來;
@@ -216,6 +218,9 @@ def main() -> int:
             a = stx.median(n for _, n in g)
             res[arm] = (b, a)
             print(f"{lbl:<8}{len(g):>4}{b:>12.0f}{a:>12.0f}{(a-b)/max(b,1)*100:>+9.0f}%")
+        if len(st["treat"]) != len(st["ctrl"]):
+            print(f"\n⚠️ 兩組數量不對等(實驗 {len(st['treat'])} / 對照 {len(st['ctrl'])})"
+                  f" —— 中途停過。比中位數仍可讀,但樣本更小,結論要更保守。")
         tb, ta = res["treat"]
         cb, ca = res["ctrl"]
         lift = ((ta / max(tb, 1)) / max(ca / max(cb, 1), 0.01) - 1) * 100
@@ -244,24 +249,48 @@ def main() -> int:
 
     import daily_publish as dp
     yt = dp.get_service()
-    n = 0
+
+    def _flush(done_list, note=""):
+        """**每改一支就落地一次**。驗證抓到的坑:原本只在迴圈跑完寫一次 state,
+        而且寫的是 `treat[:n]`(n 只在成功時 +1)—— 中途有一支非配額錯誤時,
+        會變成「沒改的被記成改了、改了的沒被記」,後者永遠還原不回來;
+        Ctrl-C 更是整批紀錄消失(except 接不到 KeyboardInterrupt)。
+        改成記**實際成功清單**,而且每支寫一次。"""
+        STATE.write_text(json.dumps(
+            {"applied_at": time.strftime("%F %T"), "baseline_period": [b0, b1],
+             "treat": done_list, "ctrl": ctrl, "seed": SEED, "note": note},
+            ensure_ascii=False, indent=1), encoding="utf-8")
+
+    done = []
     for r in treat:
         try:
             v = yt.videos().list(part="snippet", id=r["vid"]).execute()["items"][0]
             sn = v["snippet"]
-            r["old_live"] = sn.get("title")          # 以線上實際標題為準,不信本機 .md
+            # 🔴 以**線上實際標題**為準。驗證實測:本機 .md 與線上 20/20 不一致
+            # (線上結尾都有「｜個股體檢EP<n>」= 追劇鏈的識別),
+            # 拿 .md 還原等於把 EP 編號整個抹掉 —— 那不是還原,是第二次對外變更。
+            r["old_live"] = sn.get("title")
             sn["title"] = r["new"]
             yt.videos().update(part="snippet", body={"id": r["vid"], "snippet": sn}).execute()
-            n += 1
+            done.append(r)
+            _flush(done)                      # 每支立刻落地
             print(f"✅ {r['vid']} {r['new']}")
         except Exception as e:  # noqa: BLE001
             print(f"[err] {r['vid']} {str(e)[:90]}")
             if "quota" in str(e).lower():
-                print("配額停止(冪等,下個配額日接著改)")
-                break
-    st = {"applied_at": time.strftime("%F %T"), "baseline_period": [b0, b1],
-          "treat": treat[:n], "ctrl": ctrl, "seed": SEED}
-    STATE.write_text(json.dumps(st, ensure_ascii=False, indent=1), encoding="utf-8")
+                print("配額停止(已改的都已落地;剩下的下個配額日再跑)")
+            else:
+                print("非配額錯誤,停止本輪(避免記錯帳)")
+            break
+    n = len(done)
+    if n:
+        _flush(done)
+    else:
+        # ③ 一支都沒改成 → **不要**寫 state。驗證實測:配額用盡時第一支就 403,
+        #    舊碼照樣寫出 {"treat": [], "ctrl": [20支]},之後 --report 會在
+        #    median([]) 直接 crash,而那份檔案記載著一場沒發生過的實驗。
+        print("一支都沒改成(多半是配額用盡),**不寫 state**。等配額日換日再跑。")
+        return 1
     print(f"\n改了 {n} 支;對照組 {len(ctrl)} 支不動。兩週後 --report。")
     try:
         from ops import log_ops
