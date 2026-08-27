@@ -110,6 +110,116 @@
   "thumb": "eps/ep004/thumb.jpg"
  },
  {
+  "kind": "famous",
+  "slug": "ego_depletion",
+  "dir": "eps_famous/ego_depletion",
+  "video": "eps_famous/ego_depletion/ego_depletion.mp4",
+  "tone": "gone",
+  "title": "Willpower runs out as you use it? 23 laboratories tested it: 0.04.",
+  "description": "Willpower is a limited resource that runs out as you use it.\n\nOriginal study (1998): Ego depletion: Is the active self a limited resource?\n  cited more than 4,900 times (OpenAlex, retrieved 2026-08-25)\n  doi:10.1037/0022-3514.74.5.1252\n\nThe test (2016): A Multilab Preregistered Replication of the Ego-Depletion Effect\n  23 laboratories, 2,141 people\n  d = 0.04, 95% CI [-0.07, 0.15]  — the interval includes zero\n  doi:10.1177/1745691616652873\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "tags": [
+   "replication crisis",
+   "psychology",
+   "effect size",
+   "science",
+   "research",
+   "statistics",
+   "meta-analysis",
+   "replication study",
+   "open science",
+   "social psychology"
+  ],
+  "thumb": "eps_famous/ego_depletion/thumb.jpg"
+ },
+ {
+  "kind": "famous",
+  "slug": "romantic_red",
+  "dir": "eps_famous/romantic_red",
+  "video": "eps_famous/romantic_red/romantic_red.mp4",
+  "tone": "gone",
+  "title": "Does red make women more attractive? 242 men: 0.09. 360 women: -0.09.",
+  "description": "Men find women more attractive when they are wearing red.\n\nOriginal study (2008): Romantic red: Red enhances men's attraction to women.\n  cited more than 400 times (OpenAlex, retrieved 2026-08-25)\n  doi:10.1037/0022-3514.95.5.1150\n\nThe test (2017): Is Red Really Romantic?\n  602 people\n  242 men: d = 0.09, 95% CI [-0.17, 0.34]  — the interval includes zero\n  doi:10.1027/1864-9335/a000296\n  360 women: d = -0.09, 95% CI [-0.30, 0.12]\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "tags": [
+   "replication crisis",
+   "psychology",
+   "effect size",
+   "science",
+   "research",
+   "statistics",
+   "meta-analysis",
+   "replication study",
+   "open science",
+   "social psychology"
+  ],
+  "thumb": "eps_famous/romantic_red/thumb.jpg"
+ },
+ {
+  "kind": "famous",
+  "slug": "bystander_effect",
+  "dir": "eps_famous/bystander_effect",
+  "video": "eps_famous/bystander_effect/bystander_effect.mp4",
+  "tone": "shrunk_real",
+  "title": "Does a crowd stop people helping? 105 independent effect sizes tested it: -0.35.",
+  "description": "The more people who witness an emergency, the less likely any one of them is to help.\n\nOriginal study (1968): Bystander intervention in emergencies: Diffusion of responsibility.\n  cited more than 3,000 times (OpenAlex, retrieved 2026-08-25)\n  doi:10.1037/h0025589\n\nThe test (2011): The bystander-effect: A meta-analytic review on bystander intervention in dangerous and non-dangerous emergencies\n  105 independent effect sizes, over 7,700 people\n  g = -0.35\n  doi:10.1037/a0023304\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "tags": [
+   "replication crisis",
+   "psychology",
+   "effect size",
+   "science",
+   "research",
+   "statistics",
+   "meta-analysis",
+   "replication study",
+   "open science",
+   "social psychology"
+  ],
+  "thumb": "eps_famous/bystander_effect/thumb.jpg"
+ },
+ {
+  "kind": "famous",
+  "slug": "sleep_memory",
+  "dir": "eps_famous/sleep_memory",
+  "video": "eps_famous/sleep_memory/sleep_memory.mp4",
+  "tone": "held",
+  "title": "Can a sound replayed in sleep strengthen what you learned? 91 experiments, 2,004 people: 0.29.",
+  "description": "Playing a sound during sleep can strengthen the memory you learned it with.\n\nThe test (2020): Promoting memory consolidation during sleep: A meta-analysis of targeted memory reactivation.\n  91 experiments, 2,004 people\n  g = 0.29, 95% CI [0.21, 0.38]\n  doi:10.1037/bul0000223\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "tags": [
+   "replication crisis",
+   "psychology",
+   "effect size",
+   "science",
+   "research",
+   "statistics",
+   "meta-analysis",
+   "replication study",
+   "open science",
+   "social psychology"
+  ],
+  "thumb": "eps_famous/sleep_memory/thumb.jpg"
+ },
+ {
+  "kind": "famous",
+  "slug": "implicit_bias_test",
+  "dir": "eps_famous/implicit_bias_test",
+  "video": "eps_famous/implicit_bias_test/implicit_bias_test.mp4",
+  "tone": "shrunk_real",
+  "title": "Does the hidden-bias test predict what you do? 184 independent samples, 14,900 people: 0.27.",
+  "description": "A reaction-time test can reveal the hidden bias behind how people behave, judge, and react.\n\nThe test (2009): Understanding and using the Implicit Association Test: III. Meta-analysis of predictive validity.\n  184 independent samples, 14,900 people\n  r = 0.27\n  doi:10.1037/a0015575\n  self-report questionnaires: r = 0.36\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "tags": [
+   "replication crisis",
+   "psychology",
+   "effect size",
+   "science",
+   "research",
+   "statistics",
+   "meta-analysis",
+   "replication study",
+   "open science",
+   "social psychology"
+  ],
+  "thumb": "eps_famous/implicit_bias_test/thumb.jpg"
+ },
+ {
   "kind": "fred",
   "row": 5,
   "dir": "eps/ep005",
@@ -416,115 +526,5 @@
    "social psychology"
   ],
   "thumb": "eps/ep018/thumb.jpg"
- },
- {
-  "kind": "famous",
-  "slug": "ego_depletion",
-  "dir": "eps_famous/ego_depletion",
-  "video": "eps_famous/ego_depletion/ego_depletion.mp4",
-  "tone": "gone",
-  "title": "Willpower runs out as you use it? 23 laboratories tested it: 0.04.",
-  "description": "Willpower is a limited resource that runs out as you use it.\n\nOriginal study (1998): Ego depletion: Is the active self a limited resource?\n  cited more than 4,900 times (OpenAlex, retrieved 2026-08-25)\n  doi:10.1037/0022-3514.74.5.1252\n\nThe test (2016): A Multilab Preregistered Replication of the Ego-Depletion Effect\n  23 laboratories, 2,141 people\n  d = 0.04, 95% CI [-0.07, 0.15]  — the interval includes zero\n  doi:10.1177/1745691616652873\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
-  "tags": [
-   "replication crisis",
-   "psychology",
-   "effect size",
-   "science",
-   "research",
-   "statistics",
-   "meta-analysis",
-   "replication study",
-   "open science",
-   "social psychology"
-  ],
-  "thumb": "eps_famous/ego_depletion/thumb.jpg"
- },
- {
-  "kind": "famous",
-  "slug": "romantic_red",
-  "dir": "eps_famous/romantic_red",
-  "video": "eps_famous/romantic_red/romantic_red.mp4",
-  "tone": "gone",
-  "title": "Does red make women more attractive? 242 men: 0.09. 360 women: -0.09.",
-  "description": "Men find women more attractive when they are wearing red.\n\nOriginal study (2008): Romantic red: Red enhances men's attraction to women.\n  cited more than 400 times (OpenAlex, retrieved 2026-08-25)\n  doi:10.1037/0022-3514.95.5.1150\n\nThe test (2017): Is Red Really Romantic?\n  602 people\n  242 men: d = 0.09, 95% CI [-0.17, 0.34]  — the interval includes zero\n  doi:10.1027/1864-9335/a000296\n  360 women: d = -0.09, 95% CI [-0.30, 0.12]\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
-  "tags": [
-   "replication crisis",
-   "psychology",
-   "effect size",
-   "science",
-   "research",
-   "statistics",
-   "meta-analysis",
-   "replication study",
-   "open science",
-   "social psychology"
-  ],
-  "thumb": "eps_famous/romantic_red/thumb.jpg"
- },
- {
-  "kind": "famous",
-  "slug": "bystander_effect",
-  "dir": "eps_famous/bystander_effect",
-  "video": "eps_famous/bystander_effect/bystander_effect.mp4",
-  "tone": "shrunk_real",
-  "title": "Does a crowd stop people helping? 105 independent effect sizes tested it: -0.35.",
-  "description": "The more people who witness an emergency, the less likely any one of them is to help.\n\nOriginal study (1968): Bystander intervention in emergencies: Diffusion of responsibility.\n  cited more than 3,000 times (OpenAlex, retrieved 2026-08-25)\n  doi:10.1037/h0025589\n\nThe test (2011): The bystander-effect: A meta-analytic review on bystander intervention in dangerous and non-dangerous emergencies\n  105 independent effect sizes, over 7,700 people\n  g = -0.35\n  doi:10.1037/a0023304\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
-  "tags": [
-   "replication crisis",
-   "psychology",
-   "effect size",
-   "science",
-   "research",
-   "statistics",
-   "meta-analysis",
-   "replication study",
-   "open science",
-   "social psychology"
-  ],
-  "thumb": "eps_famous/bystander_effect/thumb.jpg"
- },
- {
-  "kind": "famous",
-  "slug": "sleep_memory",
-  "dir": "eps_famous/sleep_memory",
-  "video": "eps_famous/sleep_memory/sleep_memory.mp4",
-  "tone": "held",
-  "title": "Can a sound replayed in sleep strengthen what you learned? 91 experiments, 2,004 people: 0.29.",
-  "description": "Playing a sound during sleep can strengthen the memory you learned it with.\n\nThe test (2020): Promoting memory consolidation during sleep: A meta-analysis of targeted memory reactivation.\n  91 experiments, 2,004 people\n  g = 0.29, 95% CI [0.21, 0.38]\n  doi:10.1037/bul0000223\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
-  "tags": [
-   "replication crisis",
-   "psychology",
-   "effect size",
-   "science",
-   "research",
-   "statistics",
-   "meta-analysis",
-   "replication study",
-   "open science",
-   "social psychology"
-  ],
-  "thumb": "eps_famous/sleep_memory/thumb.jpg"
- },
- {
-  "kind": "famous",
-  "slug": "implicit_bias_test",
-  "dir": "eps_famous/implicit_bias_test",
-  "video": "eps_famous/implicit_bias_test/implicit_bias_test.mp4",
-  "tone": "shrunk_real",
-  "title": "Does the hidden-bias test predict what you do? 184 independent samples, 14,900 people: 0.27.",
-  "description": "A reaction-time test can reveal the hidden bias behind how people behave, judge, and react.\n\nThe test (2009): Understanding and using the Implicit Association Test: III. Meta-analysis of predictive validity.\n  184 independent samples, 14,900 people\n  r = 0.27\n  doi:10.1037/a0015575\n  self-report questionnaires: r = 0.36\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
-  "tags": [
-   "replication crisis",
-   "psychology",
-   "effect size",
-   "science",
-   "research",
-   "statistics",
-   "meta-analysis",
-   "replication study",
-   "open science",
-   "social psychology"
-  ],
-  "thumb": "eps_famous/implicit_bias_test/thumb.jpg"
  }
 ]
