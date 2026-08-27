@@ -34,7 +34,14 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent   # D:\carson-agent
 CH3 = ROOT / "ch3_lab"
 PY = ROOT / "youtube_channel" / ".venv" / "Scripts" / "python.exe"
-DAILY = 5
+# 🔴 配額要分流(2026-08-28)。Shorts 與長片**共用**同一個每日 10,000,
+#    每支都是 1,600。舊版長片吃滿 5 支就沒額度給 Shorts 了。
+#    現在:長片 3 支 + Shorts 2 支 ≈ 8,455 單位,留 1,500 給改標題與讀取。
+#    分流的理由不是公平,是**兩條線做的事不一樣**:長片累積觀看時數
+#    (YPP 只認長片),Shorts 負責把人帶進來。停掉任一條都會斷。
+DAILY_LONG = 3
+DAILY_SHORT = 2
+DAILY = DAILY_LONG
 
 
 def notify(msg):
@@ -78,6 +85,19 @@ def main():
     if r.stderr.strip():
         print("--- stderr ---")
         print(r.stderr[-1500:])
+
+    # Shorts:用剩下的額度。它跟長片是不同的產品,不是同一批的一部分。
+    sp = CH3 / "publish_shorts.py"
+    if sp.exists():
+        print("\n── Shorts ──")
+        scmd = [str(PY), str(sp), "--limit", str(DAILY_SHORT)]
+        if a.dry_run:
+            scmd.append("--dry-run")
+        rs = subprocess.run(scmd, cwd=str(ROOT), capture_output=True,
+                            text=True, encoding="utf-8", errors="replace")
+        print(rs.stdout[-2500:])
+        if rs.stderr.strip():
+            print(rs.stderr[-800:])
 
     after = json.loads(led_p.read_text(encoding="utf-8")) if led_p.exists() else {}
     sent = len(after) - len(done)
