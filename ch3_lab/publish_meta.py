@@ -373,6 +373,19 @@ def main():
         print(f"\n被擋下 {len(dropped)} 集:")
         for k, why in dropped:
             print(f"  ⛔ {k:<22}{why}")
+    # 🔴 發布順序:名案優先(2026-08-27)。那 5 支是唯一有真實搜尋量的題目;
+    #    其餘 FReD 的主張本身沒有人在搜,拿它們測「發了有沒有用」等於白測。
+    #    ⚠️ 這件事一度只在 publish_meta.json 上手動排過一次,結果重跑就被洗掉
+    #    ——順序是產生規則的一部分,要寫在產生器裡。
+    #    已上傳的維持原位(帳本認 key,順序只影響還沒發的)。
+    try:
+        led = json.loads((ROOT / "uploaded.json").read_text(encoding="utf-8"))
+    except Exception:                                        # noqa: BLE001
+        led = {}
+    k = lambda o: o.get("slug") or o["dir"]
+    out = ([o for o in out if k(o) in led]
+           + sorted([o for o in out if k(o) not in led],
+                    key=lambda o: 0 if o["kind"] == "famous" else 1))
     OUT.write_text(json.dumps(out, ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"\n{len(out)} 集的標題與說明已寫入 {OUT.name}")
     over = [o for o in out if len(o["title"]) > 100]

@@ -208,6 +208,13 @@ def build_script(E):
         close = ("So the effect is real. But the measure that was supposed to "
                  "see past what people will admit did not beat simply asking "
                  "them. That part tends not to travel. ")
+    elif not ci and E["arc"] == "pair":
+        # 🔴 沒有信賴區間也沒有 p 值時,不能講「撐住了」——那是存在性宣稱,
+        #    而我們手上只有一個點估計。講規模與方向就好,那是站得住的部分。
+        close = (f"So the pooled estimate points the same way the {o['year']} "
+                 f"experiment did, across far more people. What the record "
+                 f"here does not carry is an interval, so treat the size as a "
+                 f"central estimate rather than a settled number. ")
     elif strong and E["arc"] == "pair":
         # ⚠️ 不能說「比你聽過的頭條版本小」——本檔沒有原始研究的效果量,
         #    那個比較我做不出來,講了就是憑感覺編。只講站得住的:規模差距。

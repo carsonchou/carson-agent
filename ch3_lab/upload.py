@@ -85,6 +85,27 @@ _CLAIMS_REAL = ("the effect survived", "this one held up", "the effect is there"
                 "so this one survives", "it is still there")
 
 
+_NEG = ("cannot", "can not", "does not", "do not", "did not", "no longer",
+        "never", "not ")
+
+
+def _asserted(text, phrase):
+    """稿子裡有這句話,而且**不是在否定它**。
+
+    🔴 閘門一度只做子字串比對,於是 ego_depletion 的
+    「cannot tell you the effect is there at all」被判成宣稱效應存在 ——
+    那句話的意思正好相反。守門太笨會擋掉對的東西,而被誤擋的人下次就會
+    習慣性加 --allow 繞過,那才是真正的損失。
+    """
+    i = text.find(phrase)
+    while i >= 0:
+        before = text[max(0, i - 42):i]
+        if not any(n in before for n in _NEG):
+            return True
+        i = text.find(phrase, i + 1)
+    return False
+
+
 def semantic_gate(o):
     """發布前最後一道:稿子講的話,本集的數字撐得住嗎?
 
@@ -122,13 +143,13 @@ def semantic_gate(o):
         # 沒有信賴區間也沒有 p 值時,不准講存在性斷言(兩個方向都不准)
         if not ci and t.get("p") is None:
             for c in _CLAIMS_REAL + _CLAIMS_NONE:
-                if c in text_all:
+                if _asserted(text_all, c):
                     return (f"名案沒有 CI 也沒有 p 值,卻講了存在性斷言"
                             f"「{c}」")
             return None
         if ci and ci[0] <= 0 <= ci[1]:
             for c in _CLAIMS_REAL:
-                if c in text_all:
+                if _asserted(text_all, c):
                     return f"信賴區間跨零,卻講「{c}」"
         return None
 
@@ -138,10 +159,10 @@ def semantic_gate(o):
     same_sign = (eo >= 0) == (er >= 0)
     shrink = abs(er) / max(abs(eo), 1e-9)
 
-    if sig and any(c in text for c in _CLAIMS_NONE):
+    if sig and any(_asserted(text, c) for c in _CLAIMS_NONE):
         return (f"稿子說效應不存在,但重測 p={p_r} < .05(測得到)"
                 f" —— 這是把話講反")
-    if any(c in text for c in _CLAIMS_REAL):
+    if any(_asserted(text, c) for c in _CLAIMS_REAL):
         if not same_sign:
             return f"稿子說效應站得住,但方向翻轉({eo:+.2f} → {er:+.2f})"
         if shrink <= 0.7 and not sig:

@@ -42,6 +42,38 @@ SOURCES = ["make_episode.py", "make_famous.py",
            "facts/episode_queue.csv", "facts/famous_episodes.json"]
 
 
+def narration_matches(o):
+    """磁碟上的旁白 == 現行碼現在會產出的旁白?
+
+    🔴 mtime 只知道「檔案比程式舊」,不知道「那次改動有沒有影響輸出」。
+    實測已經三次是**輸出中性**的改動(TTS 暫存檔改路徑、只影響別集的分支),
+    每次都要我手動比對稿子才敢放行 —— 而「我看過 diff 覺得沒影響」正是
+    最不該由人來判的那種判斷。所以改成讓程式自己比。
+
+    回傳 True 表示逐字元相同 = 那支 mp4 的內容跟現行碼一致,mtime 警報
+    可以忽略。回傳 None 表示比不了(比不了就不放行)。
+    """
+    d = ROOT / o["dir"]
+    try:
+        if o["kind"] == "fred":
+            import make_episode as M
+            q = pd.read_csv(QUEUE, low_memory=False)
+            segs = M.build_script(M.build_facts(q.iloc[o["row"]]))
+        else:
+            import make_famous as MF
+            eps = json.loads((ROOT / "facts" / "famous_episodes.json")
+                             .read_text(encoding="utf-8"))["episodes"]
+            E = next(e for e in eps if e["slug"] == o["slug"])
+            segs = MF.build_script(E)
+    except Exception:                                        # noqa: BLE001
+        return None
+    for name, text in segs:
+        f = d / f"narr_{name}.txt"
+        if not f.exists() or f.read_text(encoding="utf-8") != text:
+            return False
+    return True
+
+
 def mt(p):
     try:
         return p.stat().st_mtime
@@ -69,11 +101,18 @@ def check(o, q):
             f"mp4 比 facts.json 舊 {t_facts - t_mp4:.0f} 秒"
             f"(渲染很可能死在寫 facts 之後、mux 之前)")
 
-    # ② mp4 要比所有會影響它的原始碼與資料新
-    for name in SOURCES:
-        ts = mt(ROOT / name)
-        if ts is not None and t_mp4 < ts:
-            problems.append(f"mp4 比 {name} 舊 {(ts - t_mp4) / 60:.0f} 分鐘")
+    # ② mp4 要比所有會影響它的原始碼與資料新 —— 但 mtime 只是**觸發條件**,
+    #    真正的判準是「內容有沒有變」。舊的話就實際比對旁白逐字元。
+    older = [n for n in SOURCES
+             if mt(ROOT / n) is not None and t_mp4 < mt(ROOT / n)]
+    if older:
+        same = narration_matches(o)
+        if same is None:
+            problems.append(f"mp4 比 {', '.join(older)} 舊,而且比不了旁白")
+        elif not same:
+            problems.append(
+                f"mp4 比 {', '.join(older)} 舊,**而且旁白已經不一樣了**")
+        # same is True → 改動是輸出中性的,不算陳舊
 
     # ③ facts.json 記的 tone vs 現行碼重算
     if t_facts is not None and o["kind"] == "fred":
