@@ -34,6 +34,8 @@ import pathlib
 import time
 import sys
 
+import quota  # noqa: E402  (同目錄)
+
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 ROOT = pathlib.Path(__file__).resolve().parent
 CH2 = pathlib.Path(r"D:\carson-agent\yt_ch2")
@@ -201,7 +203,12 @@ def push_thumbs(yt, led, apply_):
             time.sleep(4)                # 間隔,不是重試才等
         for attempt in range(4):
             try:
+                if not quota.can(quota.THUMB):
+                    print(f"   ⛔ 配額不足({quota.remaining():,}),{key} 不送")
+                    break
                 yt.thumbnails().set(videoId=vid, media_body=str(p)).execute()
+                # 🔴 記在 429 重試**之外**:429 不吃配額,只有真的送出才記。
+                quota.spend(quota.THUMB, f"thumb {key}")
                 sent.append((key, vid))
                 print(f"   送出 {key}")
                 break
@@ -336,8 +343,12 @@ def main():
                   "liveBroadcastContent", "localized", "channelId"):
             sn.pop(k, None)              # 唯讀欄位,帶回去會被拒
         try:
+            if not quota.can(quota.TITLE):
+                print(f"  ⛔ 配額不足({quota.remaining():,}),{slug} 不送")
+                break
             yt.videos().update(part="snippet",
                                body={"id": vid, "snippet": sn}).execute()
+            quota.spend(quota.TITLE, f"title {slug}")
             sent.append((slug, vid, nt))
             print(f"  送出 {slug}")
         except Exception as e:           # noqa: BLE001

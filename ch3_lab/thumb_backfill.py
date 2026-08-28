@@ -114,7 +114,7 @@ def main():
     import quota as _q
     ok = 0
     for i, (vid, key, path, label, h) in enumerate(todo):
-        if not _q.can(50):
+        if not _q.can(_q.THUMB):
             print(f"  ⏸ 共用配額只剩 {_q.remaining():,},縮圖補件讓路給發片"
                   f"(明天再補)")
             break
@@ -129,7 +129,7 @@ def main():
             tmp.write_text(json.dumps(pushed, ensure_ascii=False, indent=1),
                            encoding="utf-8")
             tmp.replace(STATE)
-            _q.spend(50, f"thumb/{key}")
+            _q.spend(_q.THUMB, f"thumb/{key}")
             ok += 1
             print(f"  ✓ {key}")
         except Exception as e:                                # noqa: BLE001

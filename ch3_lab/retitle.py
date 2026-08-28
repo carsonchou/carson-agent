@@ -31,6 +31,8 @@ import json
 import pathlib
 import sys
 
+import quota  # noqa: E402  (同目錄)
+
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 ROOT = pathlib.Path(__file__).resolve().parent
 CH2 = pathlib.Path(r"D:\carson-agent\yt_ch2")
@@ -146,21 +148,39 @@ def main():
             print(f"  {key:<14}⛔ 查無此片")
             continue
         sn = got[0]["snippet"]
-        if sn["title"] == o["title"]:
-            print(f"  {key:<14}標題已是新的")
+        # 說明也一起更新:`publish_meta` 是說明的唯一來源(upload.py 上傳時
+        # 原封不動送 `o["description"]`,發布後沒有任何地方會再改它),
+        # 而說明的第一行現在是白話句 —— 那是搜尋結果裡跟標題一起顯示的
+        # 那一段。只改標題會讓線上的第一行停在論文語言。
+        same = sn["title"] == o["title"] and             sn.get("description", "") == o["description"]
+        if same:
+            print(f"  {key:<14}標題與說明都已是新的")
             continue
-        # 🔴 整包帶齊:videos.update 沒帶到的欄位會被清空
-        yt.videos().update(part="snippet", body={
-            "id": vid,
-            "snippet": {"title": o["title"],
-                        "description": sn.get("description", ""),
-                        "tags": sn.get("tags", []),
-                        "categoryId": sn.get("categoryId", "27"),
-                        "defaultLanguage": sn.get("defaultLanguage", "en")},
-        }).execute()
+        # 🔴 整包帶齊:videos.update 沒帶到的欄位會被清空。
+        #    ⚠️ `defaultAudioLanguage` **是可寫欄位**,不是唯讀 ——
+        #    漏掉它就會被清空,而 repo 裡有 fix_audio_language.py 專門
+        #    在設它。姊妹檔 retitle_live 已經因為同一個欄位被抓過一次,
+        #    這裡當時沒一起補:「同一句話三份只修最安靜的那份」。
+        #    先讀回來再原樣帶上去,不是寫死預設值。
+        snip = {"title": o["title"],
+                "description": o["description"],
+                "tags": sn.get("tags", []),
+                "categoryId": sn.get("categoryId", "27")}
+        for k in ("defaultLanguage", "defaultAudioLanguage"):
+            if sn.get(k):
+                snip[k] = sn[k]
+        if not quota.can(quota.TITLE):
+            print(f"  {key:<14}⛔ 配額不足({quota.remaining():,}),停在這裡")
+            break
+        yt.videos().update(part="snippet",
+                           body={"id": vid, "snippet": snip}).execute()
+        quota.spend(quota.TITLE, f"title {key}")
         back = yt.videos().list(part="snippet",
                                 id=vid).execute()["items"][0]["snippet"]
-        ok = back["title"] == o["title"]
+        # 回讀驗兩個欄位。只驗標題的話,說明被清空我也看不見 ——
+        # 而 videos.update 整包覆蓋,說明正是最容易被清掉的那個。
+        ok = (back["title"] == o["title"]
+              and back.get("description", "") == o["description"])
         print(f"  {key:<14}{'✓' if ok else '⚠️ 不符'}  {back['title'][:60]}")
     return 0
 

@@ -201,7 +201,14 @@ def fred_meta(row, key=None):
                 title = cand
                 break
 
+    # 🔴 說明的**第一行**是搜尋結果裡跟著標題一起顯示的那一段。
+    #    原本第一行是論文語言的 claim 原文(「Scarcity-induced focus leads
+    #    to cognitive fatigue on subsequent cognitive control task.」)——
+    #    跟標題、縮圖、開場卡犯的是同一個錯,只是這一處我一開始沒算進去。
+    #    改成手寫白話句開頭,原文往下放一行(它仍然在,溯源沒有變短)。
+    lead = f"{q}\n\n" if q else ""
     desc = (
+        lead +
         f"{claim}.\n\n"
         f"Original study ({year_o}): {str(row['title_o'])[:150]}\n"
         f"  {n_fmt(no)} participants — effect size {es_fmt(eo)} "

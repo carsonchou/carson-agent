@@ -52,6 +52,12 @@ SHORT = 1600 + 6                  # insert + 最多 6 次輪詢(不設縮圖)
 LONG = 1600 + 50 + 13             # insert + 縮圖 + 最多 12 次輪詢 + 回讀
 COMP = 1600 + 50 + 13
 MISC = 60                         # 一輪排程的雜項
+#: 改**已上線**影片的兩種寫入。兩者都不便宜,而且以前**完全沒有記帳**:
+#: retitle / push_thumbs 各推 12 支就是 1,200 沉在帳外,接著發布端以為
+#: 額度還在,一路發到 403。這正是 memory 記的結構性超支模式
+#: (yt-api-quota-structural-overrun)——不是用太多,是有人沒記帳。
+TITLE = 50                        # videos.update
+THUMB = 50                        # thumbnails.set
 
 
 def _day():
