@@ -128,6 +128,30 @@ def new_title(slug, E, cur):
     return head[:100]
 
 
+def mark_pushed(vid, path):
+    """把「這支已經推過這張圖」記進 `thumb_pushed.json`。
+
+    🔴 **兩條推縮圖的路,兩本帳。** 這支一口氣推 11 支,`thumb_backfill`
+    的帳本卻完全不知道 —— 於是隔天排程會把同樣的圖再推一次,浪費配額,
+    而且因為 `thumbnails.set` 有速率限制,重推還會一路吃 429。
+    實際發生:這支推完 10 支之後,backfill 仍回報「還剩 3 支未同步」。
+
+    帳本格式與雜湊算法跟 `thumb_backfill` 一致(md5 前 16 碼),不另寫
+    一套 —— 兩本帳已經夠糟,再加兩種格式就沒救了。
+    """
+    import hashlib
+    st = ROOT / "thumb_pushed.json"
+    try:
+        d = json.loads(st.read_text(encoding="utf-8")) if st.exists() else {}
+    except Exception:                                     # noqa: BLE001
+        d = {}
+    d[vid] = hashlib.md5(pathlib.Path(path).read_bytes()).hexdigest()[:16]
+    tmp = st.with_suffix(".tmp")
+    tmp.write_text(json.dumps(d, ensure_ascii=False, indent=1),
+                   encoding="utf-8")
+    tmp.replace(st)
+
+
 def push_thumbs(yt, led, apply_):
     """把已上線影片的縮圖換成現行版本。
 
@@ -219,6 +243,7 @@ def push_thumbs(yt, led, apply_):
                 yt.thumbnails().set(videoId=vid, media_body=str(p)).execute()
                 # 🔴 記在 429 重試**之外**:429 不吃配額,只有真的送出才記。
                 quota.spend(quota.THUMB, f"thumb {key}")
+                mark_pushed(vid, p)
                 sent.append((key, vid))
                 print(f"   送出 {key}")
                 break

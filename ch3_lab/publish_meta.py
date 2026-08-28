@@ -434,6 +434,16 @@ def main():
     fam = json.loads(FAMOUS.read_text(encoding="utf-8"))["episodes"]
     for E in fam:
         title, desc, allowed = famous_meta(E)
+        # 🔴 名案的標題**以 retitle_live 那份為準**。這裡本來自己組一份
+        #    (「… 23 laboratories tested it: 0.04.」),而實際推上線的是
+        #    retitle_live 組的(「Ego depletion: … 23 labs, 2,141 people.」)
+        #    —— 同一個欄位兩份實作,而且 retitle_live 從不回寫,所以
+        #    publish_meta.json 裡名案的標題**永遠跟線上不一樣**。
+        #    meta 是「線上應該長什麼樣」的記錄,記錄不實的話,任何拿它
+        #    比對線上的東西都會一直誤報。retitle.py 也曾因此把名案推回舊值。
+        #    不是加回寫(那是同步兩份),是讓它只有一份。
+        from retitle_live import new_title as _famous_title
+        title = _famous_title(E["slug"], E, title)
         if not check(E["slug"], title, desc, allowed):
             dropped.append((E["slug"], "數字溯源失敗"))
             continue

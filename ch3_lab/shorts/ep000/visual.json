@@ -7,31 +7,29 @@
  ],
  "card": "The effect did not survive.",
  "claim_lines": [
-  "REMINDING PEOPLE OF SHOPPING",
-  "CHANGES WHO THEY THINK"
+  "DOES CONSUMERISM CHANGE",
+  "WHAT YOU EXPECT OF OTHERS?"
  ],
  "color": "#F5A54E",
  "end_card": [
   "Full episode",
   "on the channel"
  ],
- "frames": "a1b2ab94a68e5d8e",
+ "frames": "05d06d8e1236469d",
  "fs": {
   "big": 280,
   "card": 58,
   "claim": {
-   "fs": 58,
+   "fs": 54,
    "lines": [
-    "REMINDING PEOPLE",
-    "OF SHOPPING",
-    "CHANGES WHO",
-    "THEY THINK"
+    "DOES CONSUMERISM",
+    "CHANGE WHAT YOU",
+    "EXPECT OF OTHERS?"
    ],
    "ys": [
-    0.6236,
-    0.5712,
-    0.5188,
-    0.4664
+    0.5938,
+    0.545,
+    0.4962
    ]
   },
   "end": 75,
