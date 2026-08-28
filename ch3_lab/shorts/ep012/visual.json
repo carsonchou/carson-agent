@@ -7,7 +7,7 @@
  ],
  "card": "The effect did not survive.",
  "claim_lines": [
-  "JUDGED ON HOW YOU DECIDED",
+  "JUDGED ON THE DECISION NOT THE RESULT",
   "YOU STOP DOUBLING DOWN"
  ],
  "color": "#F5A54E",
@@ -15,23 +15,23 @@
   "Every number",
   "from the record"
  ],
- "frames": "a09641ba3488b425",
+ "frames": "48c4a48c2b2498c7",
  "fs": {
   "big": 280,
   "card": 58,
   "claim": {
-   "fs": 63,
+   "fs": 61,
    "lines": [
-    "JUDGED ON HOW",
-    "YOU DECIDED",
-    "YOU STOP",
+    "JUDGED ON THE",
+    "DECISION NOT THE",
+    "RESULT YOU STOP",
     "DOUBLING DOWN"
    ],
    "ys": [
-    0.6304,
-    0.5735,
-    0.5165,
-    0.4596
+    0.6277,
+    0.5726,
+    0.5174,
+    0.4623
    ]
   },
   "end": 75,
