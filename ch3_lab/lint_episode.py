@@ -257,6 +257,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--one")
     ap.add_argument("--profile", help="印出墨水比例序列(校準用)")
+    ap.add_argument("--all", action="store_true",
+                    help="連已發布的一起掃(預設只掃還能重渲的)")
     a = ap.parse_args()
 
     if a.profile:
