@@ -766,8 +766,17 @@ def render_scene(plt, name, t, dur, F):
             if p > v / xmax:
                 ax2.axvline(v, color=DIM, lw=1.6, ls=(0, (4, 4)))
                 ax2.text(v, 0.62, lab, ha="center", fontsize=30, color=DIM)
-        if t > dur * 0.6:
-            q = ease(min(1.0, (t - dur * 0.6) / 1.3))
+        # 🔴 本集的數字是這一幕的**主詞**,不是結論。
+        #    旁白第一句就是「One line on what 0.80 means」—— 而舊版把標記
+        #    排在 60%,於是觀眾聽到那個數字之後,要再等 21 秒(34.9 秒的
+        #    幕)才看到它在哪。畫面與旁白**講的順序是相反的**。
+        #    這條線犯過語意上的不同步(旁白說效應存活、畫面用失敗色);
+        #    這次是時間軸上的同一種錯。
+        #    改成 12%(旁白唸完那個數字之後)先給位置,門檻虛線再圍著它
+        #    漸進長出來 —— 順序才跟旁白一致。
+        MARK_AT = 0.12
+        if t > dur * MARK_AT:
+            q = ease(min(1.0, (t - dur * MARK_AT) / 1.3))
             ax2.scatter([abs(o["es"])], [0], s=520, color=FG, zorder=5, alpha=q)
             # ⚠️ 值落在門檻線上時(ep006 的 0.80 正好等於 large),「this
             #    study」會跟門檻標籤疊在一起。往離最近門檻的反方向讓開。
@@ -890,12 +899,19 @@ def render_scene(plt, name, t, dur, F):
     else:  # close
         # 用同一份 tone_of,不要在這裡重寫判斷(見 tone_of 的說明)
         msg = CARD_TEXT[tone_of(F)]
-        if t > 0.5:
-            q = ease(min(1.0, (t - 0.5) / 1.3))
+        # 🔴 收尾幕開頭有一段**幾乎全黑**:訊息 t>0.5 才淡入、引用區塊要等
+        #    到 t>3.0,中間只有一句話在畫面上。而 `CARD_TEXT["flipped"]`
+        #    只有 12 字元(其餘 17~27),墨水低到 lint_episode 直接判不通過
+        #    (ep004,3.5 秒)。
+        #    這**不是 ep004 的問題**:空檔每一集都有(其餘 2.0 秒),
+        #    只有最短的那句話才讓它跨過門檻 —— 一個全域缺口在極端值上顯形。
+        #    用眼睛分不出 2.0 秒和 3.5 秒的黑畫面,所以它一直沒被發現。
+        if t > 0.15:
+            q = ease(min(1.0, (t - 0.15) / 1.0))
             ax.text(0.5, 0.66, msg, ha="center", fontsize=48, color=FG,
                     alpha=q, weight="bold")
-        if t > 3.0:
-            q = ease(min(1.0, (t - 3.0) / 1.4))
+        if t > 1.8:
+            q = ease(min(1.0, (t - 1.8) / 1.4))
             ax.text(0.5, 0.46, "Every number in this video comes from",
                     ha="center", fontsize=22, color=DIM, alpha=q)
             ax.text(0.5, 0.40, "the published replication record.",

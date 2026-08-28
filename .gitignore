@@ -183,3 +183,18 @@ quant-service/ecommerce/mockup/*.xlsx
 /*.webp
 .mcp.full.json
 .mcp.*.json
+
+# ch3_lab 的批次渲染暫存(每輪重產都會生一批;內容全部可從產生器重建)
+ch3_lab/_*.sh
+ch3_lab/*.log
+ch3_lab/_thumb_ab/
+ch3_lab/_lint_tmp/
+ch3_lab/*.tmp
+
+# 校準基準:量測用的舊版產物,不進版控但**不能刪**——
+# 沒有它,下次校準會拿不到對照組(ep013 就是這樣消失的)
+ch3_lab/_baseline/
+
+# 渲染中途的暫存幀,會在渲完後刪掉
+ch3_lab/shorts/*/frames/
+ch3_lab/eps/*/frames/

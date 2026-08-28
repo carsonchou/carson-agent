@@ -129,15 +129,106 @@ def worst_run(series, floor=INK_FLOOR):
     return best
 
 
+#: scale 幕裡「本集標記」所在的橫帶(圖形座標,由下往上)。
+#: `ax2 = fig.add_axes([0.12, 0.28, 0.76, 0.30])`、`ylim=(-1, 1)`,所以:
+#:   資料 y=0(白點)      → 圖形 y = 0.28 + 0.30*0.50 = 0.43
+#:   資料 y=-0.62(標籤)  → 圖形 y = 0.28 + 0.30*0.19 = 0.337
+#:   資料 y=+0.62(門檻字)→ 圖形 y = 0.523   ← 刻意排除在外
+#: 取 [0.32, 0.47] 就只框住標記那兩個元素。
+MARK_ROI = (0.32, 0.47)
+SEGS = ["hook", "original", "scale", "replication", "result", "record", "close"]
+
+
+def scene_bounds(ep_dir, name="scale"):
+    """從各段 wav 的長度推這一幕在片子裡的起訖秒數。
+
+    ⚠️ 段落順序要用 `make_episode.build_script` 的**真實順序**,不是
+    `seg_*.wav` 的檔名排序 —— 那個排序是錯的(alphabetical),我第一次
+    抽幀就是這樣抽到別的幕去。
+    """
+    import wave
+    t = 0.0
+    for n in SEGS:
+        f = ep_dir / f"seg_{n}.wav"
+        if not f.exists():
+            continue
+        with wave.open(str(f)) as w:
+            dur = w.getnframes() / w.getframerate()
+        if n == name:
+            return t, t + dur
+        t += dur + 0.5
+    return None
+
+
+#: 標記在不在的判準(ROI 墨水絕對值)。**跨 12 支校準過**:
+#:   標記出現前(幕的前 50%)最大 0.00464   ← 只有門檻虛線穿過這條帶
+#:   標記出現後(幕的後 30%)最小 0.01823   ← 白點 + 粗體 this study
+#: 兩者差 4 倍,0.010 落在中間(離下界 2.2 倍、離上界 1.8 倍)。
+#: ⚠️ 不要用「第一幀當基線」——第一幀是**上一幕的殘影**(轉場),
+#:    ep006 量到 0.016,比標記出現後還高,於是判準永遠不觸發。
+#:    我第一版就是這樣寫的:基線挑了個方便的東西,而不是它代表的東西。
+MARK_INK = 0.010
+#: 跳過幕開頭 1 秒:轉場殘影會污染。
+MARK_SKIP_S = 1.0
+#: 標記最晚該在幕的第幾成出現。旁白第一句就把該集的數字當主詞,所以
+#: 畫面不該讓它拖到後半。**這個判準經過反向驗證**:拿排在 60% 的那 12 支
+#: 對照組去量,12/12 都落在 0.618~0.642 —— 量測還原了已知的真值,
+#: 所以它量的確實是「標記何時出現」而不是別的東西。
+MARK_LATE = 0.30
+
+
+def marker_onset(mp4, ep_dir):
+    """本集標記在 scale 幕裡**第幾成**才出現。量的是 mp4,不是現行碼。
+
+    🔴 最直覺的寫法是呼叫 `render(plt, "scale", t, dur, D)` 看標記在不在
+    —— 但那測的是「現行碼會畫什麼」,跟 `_bounds.py` 是同一個問題。
+    這支存在的理由是回答**另一個**:「已經渲好的那個檔案裡有沒有」。
+    兩個問題不一樣,兩個都要問(同 `_stale.py` 檔頭)。
+
+    做法是沿用同一套墨水量測,只把窗口縮到標記那條橫帶 —— ROI 一縮小,
+    訊噪比就遠好過全片中位墨水(這裡是 4 倍分離,全片中位是 1.35 倍)。
+    不需要模板比對,也不需要找圓點。
+
+    回傳 0~1 的比例,或 None(整幕都沒出現)。
+    """
+    import imageio.v2 as iio
+    b = scene_bounds(ep_dir)
+    if not b:
+        return None
+    t0, t1 = b
+    span = t1 - t0 - MARK_SKIP_S
+    if span <= 0:
+        return None
+    with tempfile.TemporaryDirectory() as td:
+        tmp = pathlib.Path(td)
+        subprocess.run(
+            ["ffmpeg", "-v", "error", "-y", "-ss", f"{t0 + MARK_SKIP_S:.2f}",
+             "-to", f"{t1:.2f}", "-i", str(mp4),
+             "-vf", f"fps={SAMPLE_HZ},scale=480:-1", str(tmp / "f%05d.png")],
+            check=True, capture_output=True)
+        for i, f in enumerate(sorted(tmp.glob("f*.png"))):
+            im = iio.imread(f)[:, :, :3].astype(int)
+            h = im.shape[0]
+            bg = np.median(im.reshape(-1, 3), axis=0)
+            roi = im[int((1 - MARK_ROI[1]) * h):int((1 - MARK_ROI[0]) * h)]
+            if float((np.abs(roi - bg).max(axis=2) > 26).mean()) > MARK_INK:
+                return round((i / SAMPLE_HZ) / span, 3)
+    return None
+
+
 def check(mp4):
     with tempfile.TemporaryDirectory() as td:
         s = ink_series(mp4, pathlib.Path(td))
     dur, at = worst_run(s)
     med = float(np.median([x for _, x in s]))
+    onset = marker_onset(mp4, mp4.parent)
+    late = onset is None or onset > MARK_LATE
     return {"n": len(s), "min_ink": min(x for _, x in s),
             "med_ink": med, "empty_s": dur, "empty_at": at,
+            "mark_at": onset, "mark_late": late,
             "thin": med < MED_INK_FLOOR,
-            "ok": dur <= MAX_EMPTY_S and med >= MED_INK_FLOOR}
+            "ok": (dur <= MAX_EMPTY_S and med >= MED_INK_FLOOR
+                   and not late)}
 
 
 def main():
@@ -167,14 +258,21 @@ def main():
             flag += "  ⛔ 近空過久"
         if r["thin"]:
             flag += "  ⛔ 版面偏疏(像舊碼渲的)"
+        if r["mark_late"]:
+            flag += ("  ⛔ 標記整幕沒出現" if r["mark_at"] is None
+                     else f"  ⛔ 標記到 {r['mark_at']:.0%} 才出現")
         if not r["ok"]:
             bad += 1
+        mk = "—" if r["mark_at"] is None else f"{r['mark_at']:.0%}"
         print(f"{p.parent.name:22s} 取樣 {r['n']:3d}  中位墨水 {r['med_ink']:.3f}"
+              f"  標記 {mk:>4s}"
               f"  最低 {r['min_ink']:.3f}  最長近空 {r['empty_s']:.1f}s"
               + (f" @{r['empty_at']:.0f}s" if r["empty_at"] is not None else "")
               + flag)
     print(f"\n{len(targets) - bad}/{len(targets)} 支通過"
-          f"(門檻:墨水 < {INK_FLOOR} 連續超過 {MAX_EMPTY_S} 秒算不通過)")
+          f"(近空:墨水 < {INK_FLOOR} 連續超過 {MAX_EMPTY_S} 秒;"
+          f"偏疏:中位墨水 < {MED_INK_FLOOR};"
+          f"標記:晚於幕的 {MARK_LATE:.0%})")
     return 1 if bad else 0
 
 
