@@ -74,11 +74,16 @@ def main():
 
     pushed = (json.loads(STATE.read_text(encoding="utf-8"))
               if STATE.exists() else {})
-    todo = []
-    for vid, (key, path, label) in local_thumbs().items():
-        h = hashlib.md5(path.read_bytes()).hexdigest()[:16]
-        if pushed.get(vid) != h:
-            todo.append((vid, key, path, label, h))
+    def candidates():
+        """現在還沒同步的有哪幾支 —— **重算**,不要拿兩本帳的長度相減。"""
+        out = []
+        for vid, (key, path, label) in local_thumbs().items():
+            h = hashlib.md5(path.read_bytes()).hexdigest()[:16]
+            if pushed.get(vid) != h:
+                out.append((vid, key, path, label, h))
+        return out
+
+    todo = candidates()
     print(f"已上線且有本地縮圖的 {len(local_thumbs())} 支,"
           f"其中 {len(todo)} 支的縮圖跟線上不同步")
     for vid, key, _p, label, _h in todo[:12]:
@@ -136,9 +141,15 @@ def main():
             msg = str(e)
             hint = "(速率限制,不是配額 —— 明天會自動再試)" if "429" in msg else ""
             print(f"  ⛔ {key}:{msg[:80]} {hint}")
-    print(f"\n補上 {ok}/{len(todo)} 支;還剩 {len(local_thumbs()) - len(pushed)} "
-          f"支未同步")
-    return 0
+    # 🔴 「還剩幾支」要**重算**。舊版是 `len(local_thumbs()) - len(pushed)`,
+    #    而 `pushed` 這本帳裡有已經不在候選清單裡的舊 videoId(合輯、
+    #    下架的),兩個集合根本不相等 —— 於是 ep005 推失敗(429)的那次,
+    #    結尾印的是「還剩 0 支未同步」。**在東西還壞著的時候印「全部同步」
+    #    的摘要**,跟今天其他幾次是同一個形狀:摘要要從現況重算,
+    #    不能從兩個計數推。exit code 也要反映推失敗。
+    still = len(candidates())
+    print(f"\n補上 {ok}/{len(todo)} 支;還剩 {still} 支未同步")
+    return 1 if ok < len(todo) else 0
 
 
 if __name__ == "__main__":

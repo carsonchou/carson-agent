@@ -423,6 +423,15 @@ def main():
                     "video": f"eps/ep{i:03d}/ep{i:03d}.mp4",
                     "tone": tone_of(build_facts(row)), "title": title,
                     "description": desc, "tags": TAGS,
+                    # 🔴 縮圖路徑由**這裡**算,不要讓 make_thumbs 事後補。
+                    #    它是決定性的(<dir>/thumb.jpg),而「A 產生檔案、
+                    #    B 事後把欄位補回同一個 JSON」的結果是:只要有人
+                    #    重跑 A,B 補的欄位就被靜默清掉。實際發生過 ——
+                    #    我最後一次跑 publish_meta.py 之後沒有再跑
+                    #    make_thumbs,於是 24/24 的 thumb 欄位全沒了,
+                    #    thumb_backfill 的候選清單從 11 支無聲掉到 1 支。
+                    #    那支程式自己的註解早就寫著這個坑會讓清單變短。
+                    "thumb": f"eps/ep{i:03d}/thumb.jpg",
                     # 🔴 數字明寫。下游(縮圖)本來是拿正規表示式從**說明的
                     #    散文**裡撈第一個「N participants」——那是拿替身值
                     #    當真值,而替身跟真值不等的時候不會有任何跡象。
@@ -453,6 +462,7 @@ def main():
                     "video": f"eps_famous/{E['slug']}/{E['slug']}.mp4",
                     "tone": famous_tone(E),
                     "title": title, "description": desc, "tags": TAGS,
+                    "thumb": f"eps_famous/{E['slug']}/thumb.jpg",
                     # 🔴 `n_r` 用 `test.n` **不是** `n_total`。romantic_red 的
                     #    0.09 是 242 位男性的效果量,n_total 602 含 360 位
                     #    女性(那是 -0.09,另一組)。說明裡印 602 是在講整體

@@ -1,0 +1,13 @@
+D:\carson-agent\youtube_channel\.venv\lib\site-packages\google\oauth2\__init__.py:40: FutureWarning: You are using a Python version 3.9 past its end of life. Google will update google-auth with critical bug fixes on a best-effort basis, but not with any other fixes or features. Please upgrade your Python version, and then update google-auth.
+  warnings.warn(eol_message.format("3.9"), FutureWarning)
+D:\carson-agent\youtube_channel\.venv\lib\site-packages\google\auth\__init__.py:54: FutureWarning: You are using a Python version 3.9 past its end of life. Google will update google-auth with critical bug fixes on a best-effort basis, but not with any other fixes or features. Please upgrade your Python version, and then update google-auth.
+  warnings.warn(eol_message.format("3.9"), FutureWarning)
+D:\carson-agent\youtube_channel\.venv\lib\site-packages\google\api_core\_python_version_support.py:242: FutureWarning: You are using a non-supported Python version (3.9.13). Google will not post any further updates to google.api_core supporting this Python version. Please upgrade to the latest Python version, or at least Python 3.10, and then update google.api_core.
+  warnings.warn(message, FutureWarning)
+已上線且有本地縮圖的 12 支,其中 1 支的縮圖跟線上不同步
+  eps/ep005               Does a deeper-sounding brand name make a produ
+
+這次補 1 支,配額 50(其餘留給之後幾天 —— thumbnails.set 有速率限制)
+  ⛔ eps/ep005:<HttpError 429 when requesting https://youtube.googleapis.com/upload/youtube/v3/ (速率限制,不是配額 —— 明天會自動再試)
+
+補上 0/1 支;還剩 1 支未同步

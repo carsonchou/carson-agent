@@ -19,6 +19,7 @@
    "open science",
    "social psychology"
   ],
+  "thumb": "eps/ep000/thumb.jpg",
   "facts": {
    "es_o": 0.25,
    "es_r": 0.01,
@@ -47,6 +48,7 @@
    "open science",
    "social psychology"
   ],
+  "thumb": "eps/ep001/thumb.jpg",
   "facts": {
    "es_o": 0.27,
    "es_r": -0.07,
@@ -75,6 +77,7 @@
    "open science",
    "social psychology"
   ],
+  "thumb": "eps/ep002/thumb.jpg",
   "facts": {
    "es_o": 0.3,
    "es_r": 0.08,
@@ -103,6 +106,7 @@
    "open science",
    "social psychology"
   ],
+  "thumb": "eps/ep003/thumb.jpg",
   "facts": {
    "es_o": -0.25,
    "es_r": -0.23,
@@ -131,6 +135,7 @@
    "open science",
    "social psychology"
   ],
+  "thumb": "eps/ep004/thumb.jpg",
   "facts": {
    "es_o": -0.542,
    "es_r": 0.128,
@@ -159,6 +164,7 @@
    "open science",
    "social psychology"
   ],
+  "thumb": "eps/ep005/thumb.jpg",
   "facts": {
    "es_o": 0.819,
    "es_r": 0.222,
@@ -187,6 +193,7 @@
    "open science",
    "social psychology"
   ],
+  "thumb": "eps_famous/ego_depletion/thumb.jpg",
   "facts": {
    "es_o": null,
    "es_r": 0.04,
@@ -219,6 +226,7 @@
    "open science",
    "social psychology"
   ],
+  "thumb": "eps_famous/romantic_red/thumb.jpg",
   "facts": {
    "es_o": null,
    "es_r": 0.09,
@@ -251,6 +259,7 @@
    "open science",
    "social psychology"
   ],
+  "thumb": "eps_famous/bystander_effect/thumb.jpg",
   "facts": {
    "es_o": null,
    "es_r": -0.35,
@@ -283,6 +292,7 @@
    "open science",
    "social psychology"
   ],
+  "thumb": "eps_famous/sleep_memory/thumb.jpg",
   "facts": {
    "es_o": null,
    "es_r": 0.29,
@@ -315,6 +325,7 @@
    "open science",
    "social psychology"
   ],
+  "thumb": "eps_famous/implicit_bias_test/thumb.jpg",
   "facts": {
    "es_o": null,
    "es_r": 0.274,
@@ -347,6 +358,7 @@
    "open science",
    "social psychology"
   ],
+  "thumb": "eps/ep006/thumb.jpg",
   "facts": {
    "es_o": 0.8,
    "es_r": 0.4,
@@ -375,6 +387,7 @@
    "open science",
    "social psychology"
   ],
+  "thumb": "eps/ep007/thumb.jpg",
   "facts": {
    "es_o": -0.75,
    "es_r": -0.87,
@@ -403,6 +416,7 @@
    "open science",
    "social psychology"
   ],
+  "thumb": "eps/ep008/thumb.jpg",
   "facts": {
    "es_o": 0.43,
    "es_r": 0.18,
@@ -431,6 +445,7 @@
    "open science",
    "social psychology"
   ],
+  "thumb": "eps/ep009/thumb.jpg",
   "facts": {
    "es_o": 0.574,
    "es_r": 0.14,
@@ -459,6 +474,7 @@
    "open science",
    "social psychology"
   ],
+  "thumb": "eps/ep010/thumb.jpg",
   "facts": {
    "es_o": 0.42,
    "es_r": 0.06,
@@ -487,6 +503,7 @@
    "open science",
    "social psychology"
   ],
+  "thumb": "eps/ep011/thumb.jpg",
   "facts": {
    "es_o": 0.371,
    "es_r": 0.65,
@@ -515,6 +532,7 @@
    "open science",
    "social psychology"
   ],
+  "thumb": "eps/ep012/thumb.jpg",
   "facts": {
    "es_o": -0.374,
    "es_r": 0.03,
@@ -543,6 +561,7 @@
    "open science",
    "social psychology"
   ],
+  "thumb": "eps/ep013/thumb.jpg",
   "facts": {
    "es_o": 0.63,
    "es_r": 0.0,
@@ -571,6 +590,7 @@
    "open science",
    "social psychology"
   ],
+  "thumb": "eps/ep014/thumb.jpg",
   "facts": {
    "es_o": 0.39,
    "es_r": 0.08,
@@ -599,6 +619,7 @@
    "open science",
    "social psychology"
   ],
+  "thumb": "eps/ep015/thumb.jpg",
   "facts": {
    "es_o": 0.355,
    "es_r": 0.342,
@@ -627,6 +648,7 @@
    "open science",
    "social psychology"
   ],
+  "thumb": "eps/ep016/thumb.jpg",
   "facts": {
    "es_o": 0.305,
    "es_r": 0.073,
@@ -655,6 +677,7 @@
    "open science",
    "social psychology"
   ],
+  "thumb": "eps/ep017/thumb.jpg",
   "facts": {
    "es_o": 0.48,
    "es_r": 0.36,
@@ -683,6 +706,7 @@
    "open science",
    "social psychology"
   ],
+  "thumb": "eps/ep018/thumb.jpg",
   "facts": {
    "es_o": -0.96,
    "es_r": -0.85,

@@ -255,10 +255,11 @@ def main():
         p = d / "thumb.jpg"
         if draw(plt, o, p):
             ok += 1
-            o["thumb"] = str(pathlib.Path(o["dir"]) / "thumb.jpg").replace("\\", "/")
-    if a.one is None:
-        META.write_text(json.dumps(meta, ensure_ascii=False, indent=1),
-                        encoding="utf-8")
+    # 🔴 **不回寫 publish_meta.json。** 縮圖路徑改由 publish_meta 自己算
+    #    (它是決定性的),因為「這裡產檔案、順手把欄位補回那個 JSON」
+    #    只要有人重跑 publish_meta.py 就會被靜默清掉 —— 而清掉的後果是
+    #    thumb_backfill 的候選清單無聲變短,不會有任何錯誤訊息。
+    #    少一個寫入者,就少一次這種事。
     print(f"縮圖 {ok}/{len(todo)} 張,{W}×{H}")
 
 
