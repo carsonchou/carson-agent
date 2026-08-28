@@ -229,6 +229,41 @@ def ledger(p):
         raise SystemExit(f"⛔ 帳本 {p} 讀不了({e})——繼續跑會重傳。")
 
 
+def short_title(key, o):
+    """Short 的標題。**兩個分支共用一份**,而且不放裸的效果量。
+
+    ## 這是同一個毛病的第四、五處
+    今天已經把標題、縮圖、Short 開場卡、說明第一行都從論文語言 + 裸小數
+    換成手寫白話句。Short 的標題有**兩份各自的實作**,兩份都還在接
+    「0.30 → 0.08 on 723 people」:
+      - FReD 那份把長片標題切到問號、再接兩個效果量
+      - 名案那份接「0.04 across 2,141 people」
+    「0.30 → 0.08」對滑過去的人不構成任何訊息,而 Shorts 的標題本來就
+    只露一行 —— 把那一行讓給兩個小數,等於沒有標題。
+
+    切長片標題來當問句還有第二個問題:那是**拿衍生值當來源**。長片標題
+    後面接了定調結語,切法依賴「問號在哪」;結語措辭一改,切出來的東西
+    就變了。直接讀手寫的那句就好。
+
+    ## 跟長片標題的差別
+    長片是「白話句 + 定調結語」,Short 是「白話句 + 規模」。刻意不一樣:
+    兩支片掛一模一樣的標題,對觀眾是重複、對 YPP 的模板化審查是紅旗。
+    規模那句沿用 `make_thumbs.SCALE`(重做 vs 統合分流),不寫第三份。
+    """
+    import plain
+    from make_thumbs import SCALE
+    q = plain.spoken(key, o.get("dir"), o.get("slug"))
+    if not q:
+        return None                       # fail-closed
+    f = o.get("facts") or {}
+    if f.get("n_r") is None:
+        return q[:100]
+    scale = SCALE[f.get("is_replication", True)].format(
+        n=int(f["n_r"]), k=f.get("k"), k_word=f.get("k_word") or "studies")
+    cand = f"{q} {scale}"
+    return cand if len(cand) <= 100 else q[:100]
+
+
 def famous_meta(d, o, mp4, longs, longs_all):
     """名案 Short 的標題與說明。
 
@@ -240,10 +275,9 @@ def famous_meta(d, o, mp4, longs, longs_all):
     sys.path.insert(0, str(ROOT))
     from make_short import collect
     D = collect(slug=d.name)
-    q = D["question"].rstrip("? ")
-    title = f"{q}? {D['es_r']:+.2f} across {D['n_r']:,} people".replace("+", "")
-    if len(title) > 100:
-        title = f"{q}?"
+    title = short_title(d.name, o)
+    if not title:
+        return None                       # fail-closed:缺白話句就不發
     # 🔴 長片帳本的 key 對名案是**裸 slug**(`ego_depletion`),不是 dir。
     #    查 `eps_famous/{slug}` 會 miss,然後**靜默**退回「完整版在本頻道」
     #    —— 而導流到完整版正是 Short 存在的唯一理由,連結掉了等於這支
@@ -375,19 +409,9 @@ def build_meta():
         #    「0.25 → 0.01 on 6,608 people」這種純數字標題(21 支裡有 6 支
         #    中招)—— 滑過的人看不懂那是什麼,搜尋也搜不到,等於把唯一
         #    能被發現的那半句丟掉,留下最沒用的那半句。
-        nums = (f"{F['orig']['es']:+.2f} → {F['repl']['es']:+.2f} "
-                f"on {F['repl']['n']:,} people").replace("+", "")
-        q_text = o["title"].split(" — ")[0].split("? ")[0]
-        if "?" in o["title"]:
-            q_text = o["title"][:o["title"].index("?") + 1]
-        q_text = q_text.strip()
-        cand = f"{q_text} {nums}"
-        if len(cand) <= 100:
-            title = cand
-        elif len(q_text) <= 100:
-            title = q_text
-        else:
-            title = nums
+        title = short_title(f"ep{row:03d}", o)
+        if not title:
+            continue                      # fail-closed:缺白話句就不發
 
         link = link_line(f"eps/ep{row:03d}", longs, longs_all)
         desc = (link
