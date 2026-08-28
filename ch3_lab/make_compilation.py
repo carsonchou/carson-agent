@@ -72,6 +72,43 @@ def _plt():
     return plt
 
 
+
+
+def cut_before_close(d):
+    """算出「該集去掉結語」的精確秒數。
+
+    ## 為什麼要去掉結語
+    結語講的是方法論(出版偏誤/小樣本會晃),那是**跨集共用**的一段話。
+    單集裡它是對的;六集接成一支片,同一段話會**原封不動播三遍**。實測:
+    六集 113 秒結語只有 3 種文字,佔 11.4 分鐘成片的 17%。那不是內容,
+    那是重播,而且正中 YPP inauthentic 政策點名的「變化極小」。
+
+    所以合輯把結語從各段拿掉,在片尾**講一次**。片子會短 1.9 分鐘 ——
+    但觀眾在第 4 分鐘離開的話,片子是 9 分還 11 分都只拿到 4 分鐘。
+    灌重播不會增加觀看時數,只會減少。
+
+    ## 為什麼這個秒數是精確的不是估的
+    用的是 make_episode 混音時**同一條公式**:每段畫面 = int((wav 長度
+    + 0.7) × FPS) 幀。三集對照實測誤差 0.000 秒。
+    """
+    ## 為什麼是「全部減掉結語」而不是「照順序累加到結語前一段」
+    #  v3 之後**段落順序每集不同**(ep008 實測是 hook→original→scale→
+    #  replication…),寫死一張順序表去推位置遲早會推錯集。但結語固定在
+    #  最後,所以「總長 − 結語長」跟順序無關 —— 加法可交換。這樣連新增
+    #  段落都不會讓它算錯。
+    close = d / "seg_close.wav"
+    if not close.exists():
+        return None                      # 沒有結語 → 不裁,整集照用
+    total = 0.0
+    for f in sorted(d.glob("seg_*.wav")):
+        with wave.open(str(f)) as w:
+            total += int((w.getnframes() / w.getframerate() + 0.7) * FPS) / FPS
+    with wave.open(str(close)) as w:
+        tail = int((w.getnframes() / w.getframerate() + 0.7) * FPS) / FPS
+    cut = total - tail
+    return cut if cut > 20 else None      # 裁完剩不到 20 秒 = 結構不對
+
+
 def pick(bucket, limit):
     """挑出該 bucket 已產好的集數,依落差大小排序 —— 最戲劇性的放最前面當鉤子。"""
     from make_episode import build_facts, TONE_META
@@ -90,8 +127,41 @@ def pick(bucket, limit):
     return out[:limit]
 
 
+def card_question(i, F):
+    """串場要唸的那句。取該集**已通過審核**的標題(publish_meta),砍掉會
+    洩漏結果的後綴 —— 串場的工作是給下一段一個懸念,不是先講答案。"""
+    q = F["claim"].rstrip(". ")
+    p = ROOT / "publish_meta.json"
+    if p.exists():
+        m = {o.get("dir"): o for o in json.loads(p.read_text(encoding="utf-8"))}
+        o = m.get(f"eps/ep{i:03d}")
+        if o:
+            t = o["title"]
+            # 🔴 標題的判決後綴有兩種接法:破折號(「… — It came back
+            #    stronger.」)和句號(「…what you own? It came back
+            #    stronger.」)。只砍破折號會讓第二種**在串場卡上先把結果
+            #    講出來** —— 而串場卡存在的唯一理由就是製造懸念。
+            #    有問號就切在問號,那是最可靠的界線。
+            if "?" in t:
+                t = t[:t.index("?") + 1]
+            else:
+                for sep in (" — ", " – ", " -- ", ". "):
+                    if sep in t:
+                        t = t.split(sep)[0]
+                        break
+            q = t.strip().rstrip(". ")
+    return q if q.endswith("?") else f"The claim: {q}."
+
+
 def build_script(bucket, items):
-    """串場只負責銜接,**不做任何數字宣稱** —— 數字全在各集自己的段落裡。"""
+    """串場只負責銜接,**不做任何數字宣稱** —— 數字全在各集自己的段落裡。
+
+    兩件事是為了合輯特別做的:
+    - **每張串場卡唸出下一個主張**。原本只唸「Number 3」,那是 2 秒空白;
+      唸出問題等於在每一段前面補一個小鉤子,而且每張卡都不一樣。
+    - **方法論結語只在片尾講一次**。各集自己的結語已由 `cut_before_close`
+      裁掉,原因見那支的說明。
+    """
     from make_episode import say_num
     n = len(items)
     lead = items[0][2]
@@ -104,13 +174,18 @@ def build_script(bucket, items):
              f"Every number comes from the published replication record, and "
              f"every paper is linked below.")]
     for k, (_, i, F, _d) in enumerate(items, 1):
-        segs.append((f"card{k}",
-                     f"Number {k}." if k > 1 else "Let's start."))
+        lead_in = "First." if k == 1 else f"Number {k}."
+        segs.append((f"card{k}", f"{lead_in} {card_question(i, F)}"))
     segs.append(("outro",
-                 "Every one of these came from the same public database, one "
-                 "row per finding, with the original paper and the replication "
-                 "both linked. Nothing here was estimated. If a finding "
-                 "survives a larger test, it gets its own video too."))
+                 "A bigger sample is not a guarantee of truth. But the filter "
+                 "runs one way: a study that finds nothing is harder to publish "
+                 "than one that finds something, so the first number to reach "
+                 "print is drawn from the lucky tail. That is publication bias "
+                 "— a property of the filter, not an accusation against anyone. "
+                 "Every finding here came from the same public database, one "
+                 "row each, with the original paper and the replication both "
+                 "linked below. Nothing was estimated. And when a finding does "
+                 "survive a larger test, it gets its own video too."))
     return segs
 
 
@@ -183,10 +258,21 @@ def main():
             fig.patch.set_facecolor(BG)
             ax = fig.add_axes([0, 0, 1, 1]); ax.axis("off")
             ax.set_xlim(0, 1); ax.set_ylim(0, 1)
-            ax.text(0.5, 0.56, f"{k}", ha="center", va="center", fontsize=220,
+            ax.text(0.5, 0.72, f"{k}", ha="center", va="center", fontsize=200,
                     color="#1B222C", weight="bold")
-            ax.text(0.5, 0.40, f"of {len(items)}", ha="center", fontsize=44,
+            ax.text(0.5, 0.60, f"of {len(items)}", ha="center", fontsize=40,
                     color=DIM)
+            # 唸什麼就寫什麼 —— 串場卡上讀得到下一段的主張,不是空白數字
+            words, cur, rows = card_question(i, F).split(), "", []
+            for wd in words:
+                if len(cur) + len(wd) + 1 > 44:
+                    rows.append(cur); cur = wd
+                else:
+                    cur = (cur + " " + wd).strip()
+            rows.append(cur)
+            for ri, ln in enumerate(rows[:4]):
+                ax.text(0.5, 0.42 - ri * 0.09, ln, ha="center", va="center",
+                        fontsize=46, color=FG, weight="bold")
             fig.canvas.draw()
             iio.imwrite(card / f"f{fi:05d}.png",
                         np.asarray(fig.canvas.buffer_rgba())[:, :, :3].copy())
@@ -201,8 +287,22 @@ def main():
             f.unlink()
         card.rmdir()
         clips.append(seg)
-        clips.append(d / f"ep{i:03d}.mp4")
-        print(f"  串場 {k}/{len(items)}")
+        # 該集去掉結語(理由見 cut_before_close)。裁不了就整集照用 ——
+        # fail-safe 只能往「照原樣」倒,不能往「猜一個秒數」倒。
+        src = d / f"ep{i:03d}.mp4"
+        cut = cut_before_close(d)
+        if cut:
+            trimmed = out / f"body{k}.mp4"
+            subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(src),
+                            "-t", f"{cut:.3f}", "-c:v", "libx264", "-preset",
+                            "medium", "-crf", "20", "-pix_fmt", "yuv420p",
+                            "-c:a", "aac", "-b:a", "160k", str(trimmed)],
+                           check=True)
+            clips.append(trimmed)
+            print(f"  串場 {k}/{len(items)}  本體裁至 {cut:.1f}s(去結語)")
+        else:
+            clips.append(src)
+            print(f"  串場 {k}/{len(items)}  ⚠️ 段落結構非預期,整集照用")
 
     # intro / outro
     for name in ("intro", "outro"):
@@ -217,19 +317,36 @@ def main():
             fig.patch.set_facecolor(BG)
             ax = fig.add_axes([0, 0, 1, 1]); ax.axis("off")
             ax.set_xlim(0, 1); ax.set_ylim(0, 1)
-            words, cur, rows = lines[0].split() if name == "intro" else [], "", []
             if name == "intro":
-                for wd in words:
+                cur, rows = "", []
+                for wd in lines[0].split():
                     if len(cur) + len(wd) + 1 > 30:
                         rows.append(cur); cur = wd
                     else:
                         cur = (cur + " " + wd).strip()
                 rows.append(cur)
+                for ri, ln in enumerate(rows[:4]):
+                    ax.text(0.5, 0.62 - ri * 0.10, ln, ha="center", va="center",
+                            fontsize=58, color=FG, weight="bold")
             else:
-                rows = lines
-            for ri, ln in enumerate(rows[:4]):
-                ax.text(0.5, 0.62 - ri * 0.10, ln, ha="center", va="center",
-                        fontsize=58, color=FG, weight="bold")
+                # 片尾放整份清單 —— 這是觀眾決定要不要再看一支的那一刻,
+                # 給他看完整戰績比給他兩句標語有用。數字全部沿用各集事實庫。
+                ax.text(0.06, 0.90, "WHAT YOU JUST WATCHED", fontsize=34,
+                        color=DIM, weight="bold", va="center")
+                for ri, (_g, _i, Fo, _dd) in enumerate(items):
+                    y = 0.78 - ri * 0.115
+                    cl = Fo["claim"].rstrip(".")
+                    ax.text(0.06, y, f"{ri + 1}.", fontsize=34, color="#3C4450",
+                            weight="bold", va="center")
+                    ax.text(0.11, y, cl[:52] + ("…" if len(cl) > 52 else ""),
+                            fontsize=32, color=FG, va="center")
+                    ax.text(0.985, y,
+                            f"{Fo['orig']['es']:+.2f}  →  {Fo['repl']['es']:+.2f}"
+                            .replace("+", ""),
+                            fontsize=34, color=DIM, weight="bold",
+                            ha="right", va="center")
+                    ax.plot([0.06, 0.985], [y - 0.055, y - 0.055],
+                            color="#1B222C", lw=1.2)
             fig.canvas.draw()
             iio.imwrite(dd / f"f{fi:05d}.png",
                         np.asarray(fig.canvas.buffer_rgba())[:, :, :3].copy())
@@ -249,7 +366,41 @@ def main():
     lst = out / "concat.txt"
     lst.write_text("\n".join(f"file '{p.as_posix()}'" for p in order),
                    encoding="utf-8")
+
+    # 剪接清單落檔。**章節時間戳只能從這裡算** —— 下游若自己重跑 pick()
+    # 去推內容,只要期間有任何一集被重產或刪掉,算出來的就是另一支片的
+    # 章節。這條線已經因為「同一件事兩份實作」出過七次錯,不再多一次。
+    def _d(p):
+        r = subprocess.run(["ffprobe", "-v", "error", "-show_entries",
+                            "format=duration", "-of", "csv=p=0", str(p)],
+                           capture_output=True, text=True)
+        return round(float(r.stdout.strip()), 3)
+
+    rows, t = [], 0.0
+    ep_of = {f"card{k}": it for k, it in enumerate(items, 1)}
+    for p in order:
+        d_s = _d(p)
+        stem = p.stem
+        rec = {"clip": p.name, "start": round(t, 3), "dur": d_s}
+        if stem.startswith("body"):
+            k = int(stem[4:])
+            _g, i, F, _dd = ep_of[f"card{k}"]
+            rec.update(row=i, claim=F["claim"], tone=F["tone"])
+        elif stem.startswith("card"):
+            _g, i, F, _dd = ep_of[stem]
+            rec.update(row=i, kind="card")
+        rows.append(rec)
+        t += d_s
+
     final = out / f"{a.bucket}_compilation.mp4"
+    # 🔴 manifest **最後才寫**。它是下游判斷「這份剪接清單配不配得上這支
+    #    mp4」的唯一依據,所以在 mp4 產出之前就落檔,等於在重剪的整段
+    #    期間留下一組「新清單 + 舊影片」——而那正是下游會拿來算章節的東西。
+    #    先刪掉舊的:重剪失敗時寧可讓下游看到「沒有 manifest」而中止,
+    #    也不要讓它看到一份對不上的。
+    man = out / "manifest.json"
+    if man.exists():
+        man.unlink()
     subprocess.run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(lst),
                     "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "20",
                     "-c:a", "aac", "-b:a", "160k", str(final)],
@@ -257,7 +408,14 @@ def main():
     r = subprocess.run(["ffprobe", "-v", "error", "-show_entries",
                         "format=duration", "-of", "csv=p=0", str(final)],
                        capture_output=True, text=True)
-    print(f"完成 → {final}  ({float(r.stdout.strip())/60:.1f} 分)")
+    real = float(r.stdout.strip())
+    tmp = man.with_suffix(".tmp")
+    tmp.write_text(json.dumps(
+        {"bucket": a.bucket, "total": round(t, 3), "mp4_seconds": round(real, 3),
+         "n": len(items), "title": title, "clips": rows},
+        ensure_ascii=False, indent=1), encoding="utf-8")
+    tmp.replace(man)            # 原子替換,不會留下半份
+    print(f"完成 → {final}  ({real / 60:.1f} 分,manifest 記 {t / 60:.1f} 分)")
     return 0
 
 

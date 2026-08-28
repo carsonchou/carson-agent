@@ -21,7 +21,13 @@
  "verdict": "mixed",
  "p_repl": null,
  "p_type_repl": "",
+ "p_tails_repl": "",
  "source": "FORRT Replication Database (FReD), OSF 2tbvd",
+ "record": {
+  "fred_id": "Manylabs2_15_1",
+  "effect_id": "869",
+  "prereg": "https://osf.io/ejcfw"
+ },
  "n_ratio": 85.8,
  "tone": "gone"
 }

@@ -110,6 +110,28 @@
   "thumb": "eps/ep004/thumb.jpg"
  },
  {
+  "kind": "fred",
+  "row": 5,
+  "dir": "eps/ep005",
+  "video": "eps/ep005/ep005.mp4",
+  "tone": "shrunk_real",
+  "title": "Brand names that sound thicker feel thicker? It's real — but much smaller than the first study said.",
+  "description": "Products with brand names containing back vowel sounds, as opposed to front vowel sounds, are perceived as thicker.\n\nOriginal study (2000): Creating Brand Names With Meaning: The Use of Sound Symbolism\n  171 participants — effect size 0.82 (r)\n  doi:10.1023/a:1008184423824\n\nReplication: Evaluating replicability of ten influential research on sensory marketing\n  823 participants — effect size 0.22\n  doi:10.3389/fcomm.2022.1048896\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "tags": [
+   "replication crisis",
+   "psychology",
+   "effect size",
+   "science",
+   "research",
+   "statistics",
+   "meta-analysis",
+   "replication study",
+   "open science",
+   "social psychology"
+  ],
+  "thumb": "eps/ep005/thumb.jpg"
+ },
+ {
   "kind": "famous",
   "slug": "ego_depletion",
   "dir": "eps_famous/ego_depletion",
@@ -158,7 +180,7 @@
   "slug": "bystander_effect",
   "dir": "eps_famous/bystander_effect",
   "video": "eps_famous/bystander_effect/bystander_effect.mp4",
-  "tone": "shrunk_real",
+  "tone": "held",
   "title": "Does a crowd stop people helping? 105 independent effect sizes tested it: -0.35.",
   "description": "The more people who witness an emergency, the less likely any one of them is to help.\n\nOriginal study (1968): Bystander intervention in emergencies: Diffusion of responsibility.\n  cited more than 3,000 times (OpenAlex, retrieved 2026-08-25)\n  doi:10.1037/h0025589\n\nThe test (2011): The bystander-effect: A meta-analytic review on bystander intervention in dangerous and non-dangerous emergencies\n  105 independent effect sizes, over 7,700 people\n  g = -0.35\n  doi:10.1037/a0023304\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
   "tags": [
@@ -218,28 +240,6 @@
    "social psychology"
   ],
   "thumb": "eps_famous/implicit_bias_test/thumb.jpg"
- },
- {
-  "kind": "fred",
-  "row": 5,
-  "dir": "eps/ep005",
-  "video": "eps/ep005/ep005.mp4",
-  "tone": "shrunk_real",
-  "title": "Brand names that sound thicker feel thicker? It's real — but much smaller than the first study said.",
-  "description": "Products with brand names containing back vowel sounds, as opposed to front vowel sounds, are perceived as thicker.\n\nOriginal study (2000): Creating Brand Names With Meaning: The Use of Sound Symbolism\n  171 participants — effect size 0.82 (r)\n  doi:10.1023/a:1008184423824\n\nReplication: Evaluating replicability of ten influential research on sensory marketing\n  823 participants — effect size 0.22\n  doi:10.3389/fcomm.2022.1048896\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
-  "tags": [
-   "replication crisis",
-   "psychology",
-   "effect size",
-   "science",
-   "research",
-   "statistics",
-   "meta-analysis",
-   "replication study",
-   "open science",
-   "social psychology"
-  ],
-  "thumb": "eps/ep005/thumb.jpg"
  },
  {
   "kind": "fred",

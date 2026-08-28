@@ -470,7 +470,7 @@ def render(plt, name, t, dur, D):
     # 🔴 版面下緣 22% 與右緣 12% 是 Shorts 的 UI 覆蓋區(標題列、頻道名、
     #    按讚/留言/分享),頂端也有「Shorts」標籤與搜尋圖示。所有內容一律
     #    待在 SAFE_LO ~ SAFE_HI 之間。
-    ax.text(0.5, 0.915, "THEY RAN IT AGAIN", ha="center", fontsize=36,
+    ax.text(0.5, 0.900, "THEY RAN IT AGAIN", ha="center", fontsize=36,
             color="#3C4450", weight="bold")
 
     # 🔴 **把安全區真的接上**。`SAFE_LO` / `SAFE_HI` 原本只是宣告在模組
@@ -479,13 +479,22 @@ def render(plt, name, t, dur, D):
     #    (頻道標記在 0.945 > 0.93)。這跟 `EXPECT_CHANNEL` 是同一個病。
     #    改成掃過實際畫上去的每一個 text:越界就中止,不是印警告。
     #    這樣以後新增任何文字都會被自動檢查,不用記得去查。
+    # ⚠️ 檢查的是**字的實際上下緣**,不是錨點。舊版只看 `get_position()`,
+    #    於是頻道標記錨在 0.915(< SAFE_HI 0.93)一路過關,而它 36pt 的
+    #    字身往上長到距頂 0.066 —— 獨立的 `lint_short` 量畫素才抓到。
+    #    錨點過關而畫面越界,是「閘門只接上一半」的又一次:色塊那半
+    #    今天才補,文字這半也一樣要看範圍而不是看點。
+    #    半字高由字級推算:dpi=100 時 1pt = 100/72 px,除以 H=1920。
     for _t in ax.texts:
         _y = _t.get_position()[1]
-        if not (SAFE_LO - 1e-9 <= _y <= SAFE_HI + 1e-9):
-            raise SystemExit(
-                f"⛔ 版面越界:「{_t.get_text()[:30]}」在 y={_y:.3f},"
-                f"超出 Shorts 安全區 [{SAFE_LO}, {SAFE_HI}] —— "
-                f"那個位置在真機上被 UI 蓋住。")
+        _h = _t.get_fontsize() * (100 / 72) / 2 / H
+        for _e, _what in ((_y + _h, "上緣"), (_y - _h, "下緣")):
+            if not (SAFE_LO - 1e-9 <= _e <= SAFE_HI + 1e-9):
+                raise SystemExit(
+                    f"⛔ 版面越界:「{_t.get_text()[:30]}」{_what} y={_e:.3f}"
+                    f"(錨點 {_y:.3f}、{_t.get_fontsize():.0f}pt),"
+                    f"超出 Shorts 安全區 [{SAFE_LO}, {SAFE_HI}] —— "
+                    f"那個位置在真機上被 UI 蓋住。")
     # ⚠️ 色塊也要掃。只掃 ax.texts 是**半個閘門** —— 開場那條標籤條是
     #    Rectangle,它整片被 UI 蓋住的話,畫面上唯一的亮面就沒了,而
     #    文字檢查一個字都不會抱怨。同一個病:寫了閘門只接上一半。
@@ -566,20 +575,26 @@ def collect(slug=None, row=None):
                      .read_text(encoding="utf-8"))["episodes"]
     E = next(e for e in eps if e["slug"] == slug)
     t, o = E["test"], E.get("original")
+    # 🔴 **定調只有一個來源。** 這裡本來自己看信賴區間分三檔
+    #    (跨零→fail、不跨零→held、沒有→mixed),那是**第二份實作** ——
+    #    `publish_meta.famous_tone` 才是縮圖、標題、說明都在用的那份。
+    #    兩份的差異不是理論問題:bystander_effect 沒有登記信賴區間,
+    #    這裡判 mixed(灰色、沒有判決句),縮圖判 held(綠色、IT HELD UP)。
+    #    同一支片,封面說撐住了、片子裡是灰的。
+    #    這條線上「同一個計算兩份實作」已經是第九次。
+    from publish_meta import famous_tone
     from make_famous import say_num as fsay
-    ci = t.get("ci")
-    # 🔴 沒有信賴區間就**不下判決**。舊版把「無 CI」歸成 mixed,再印
-    #    「Smaller — but still there」—— 那一句同時斷言了「比較小」和
-    #    「仍然存在」,而這裡既沒有原始值可比,也沒有 CI 撐存在性。
-    #    這條線在單集的結語已經栽過同一個跟頭一次,Short 不再犯。
-    if ci and ci[0] <= 0 <= ci[1]:
-        bucket, card = "fail", "The interval includes zero."
-    elif ci:
-        bucket, card = "held", "The interval stays clear of zero."
-    else:
-        # 沒有 CI → 沒有判決句。規模資訊畫面上方已經有了,再印一次
-        # 「Pooled from 105…」只是重複,而重複比空白更糟。
-        bucket, card = "mixed", ""
+    from make_episode import CARD_TEXT, TONE_META
+    tone = famous_tone(E)
+    bucket = TONE_META[tone]["bucket"]
+    card = CARD_TEXT[tone]
+    if tone == "shrunk_real":
+        # 🔴 `CARD_TEXT["shrunk_real"]` 是「Smaller — but still there.」——
+        #    那句話**同時**斷言「比較小」和「仍然存在」,而名案這條線
+        #    沒有原始效果量可以比(es_o 永遠是 None)。舊版程式的註解
+        #    早就寫過這件事,我把定調收斂成單一來源時又把它放了回來。
+        #    改成只講這一份統合分析自己說得出來的:測得到,但很弱。
+        card = "It predicts — but weakly."
     # 🔴 唸的和畫面上的必須同一個精度。es=0.274 時畫面印 0.27、旁白唸
     #    「zero point two seven four」——同一支片自己對不上。統一到 2 位。
     es = round(t["es"], 2)
@@ -593,7 +608,7 @@ def collect(slug=None, row=None):
         "n_o": o["cited_by_approx"] if o else None, "n_r": t["n"],
         "say_o": None, "say_r": fsay(es),
         "k": t.get("k"), "k_word": t.get("k_word", "studies"),
-        "card": card, "color": BUCKET_COLOR[bucket],
+        "card": card, "color": BUCKET_COLOR[bucket], "tone": tone,
         "has_full": _has_full(slug),
         "source": "FORRT Replication Database (FReD)",
     }

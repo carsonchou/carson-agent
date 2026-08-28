@@ -102,7 +102,9 @@
     "es_kind": "g",
     "es": -0.35,
     "quote": "In a fixed effects model, data from over 7,700 participants and 105 independent effect sizes revealed an overall effect size of g = -0.35.",
-    "direction_note": "g 為負 = 旁觀者越多、出手相助越少,即效應存在的方向"
+    "direction_note": "g 為負 = 旁觀者越多、出手相助越少,即效應存在的方向",
+    "tone_manual": "held",
+    "tone_manual_why": "統合分析自己的句子:105 個獨立效果量、超過 7,700 人,g = -0.35;direction_note 記著負號就是「旁觀者越多、出手越少」= 效應存在的方向。方向與原始主張一致、規模在心理學裡屬中等偏上,所以是 held。沒有登記信賴區間,但這裡不是拿區間下存在性斷言 —— 是照 k / n / 方向這三個資料裡有的東西判。"
    },
    "hook": "In an emergency, does a crowd make each person less likely to help?",
    "hook_short": "Does a crowd stop people helping?"
@@ -151,7 +153,9 @@
     "second_label": "self-report questionnaires",
     "quote": "This review of 122 research reports (184 independent samples, 14,900 subjects) found average r = .274 for prediction of behavioral, judgment, and physiological measures. Parallel explicit (i.e., self-report) measures, available in 156 of these samples (13,068 subjects), also predicted effectively (average r = .361)",
     "outcome_note": "r = .274 是 behavioral / judgment / physiological 三類量測的合成,不只是行為",
-    "second_note": "⚠️ .361 來自 156 個樣本 / 13,068 人,與 .274 的 184 個樣本 / 14,900 人**不是同一組**,旁白必須講明,不能直接並排說 Higher"
+    "second_note": "⚠️ .361 來自 156 個樣本 / 13,068 人,與 .274 的 184 個樣本 / 14,900 人**不是同一組**,旁白必須講明,不能直接並排說 Higher",
+    "tone_manual": "shrunk_real",
+    "tone_manual_why": "r = .274(184 個樣本、14,900 人)—— 測得到,但這個主張是「這個測驗揭露你隱藏的偏見」,而 .274 撐不起那麼強的說法。held 會等於背書那個更強的主張,gone 會抹掉一個真的測到的相關。⚠️ 不用「自陳量表 .361 更高」當理由:那是 156 個樣本 / 13,068 人,**不是同一組**(second_note),並排比較要在有版面講清楚的地方做。"
    },
    "hook": "Does the hidden-bias test predict what people actually do?",
    "hook_short": "Does the hidden-bias test predict what you do?"

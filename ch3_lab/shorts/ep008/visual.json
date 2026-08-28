@@ -1,0 +1,55 @@
+{
+ "accent": "#FFC23D",
+ "canvas": [
+  1080,
+  1920,
+  30
+ ],
+ "card": "Smaller — but still there.",
+ "claim_lines": [
+  "LOOKING FORWARD TO A TRIP",
+  "BEATS THE TRIP ITSELF"
+ ],
+ "color": "#8FA3C8",
+ "end_card": [
+  "Every number",
+  "from the record"
+ ],
+ "frames": "605362ae46fdf270",
+ "fs": {
+  "big": 280,
+  "card": 58,
+  "claim": {
+   "fs": 73,
+   "lines": [
+    "LOOKING",
+    "FORWARD TO A",
+    "TRIP BEATS THE",
+    "TRIP ITSELF"
+   ],
+   "ys": [
+    0.644,
+    0.578,
+    0.512,
+    0.446
+   ]
+  },
+  "end": 75,
+  "kicker": 46,
+  "meas": 50,
+  "src": 27,
+  "sub": 41
+ },
+ "kicker": "A STUDY FOUND",
+ "palette": [
+  "#0E1116",
+  "#E8EAED",
+  "#8A9099"
+ ],
+ "safe": [
+  0.86,
+  0.24,
+  0.93
+ ],
+ "source": "FORRT Replication Database (FReD), OSF 2tbvd"
+}

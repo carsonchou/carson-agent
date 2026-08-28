@@ -146,7 +146,7 @@ def es_fmt(x):
     return ("-" if x < 0 else "") + s
 
 
-def fred_meta(row):
+def fred_meta(row, key=None):
     """一列 FReD → 標題/說明。落差越大,標題越不需要修飾。"""
     eo, er = float(row["eo"]), float(row["er"])
     no, nr = int(row["no"]), int(row["nr"])
@@ -182,6 +182,25 @@ def fred_meta(row):
     tail, fallback = TAILS[tone]
     title = fit(claim, tail) or fallback
 
+    # 🔴 有手寫白話句就用它,**別讓這裡跟 retitle.py 各產一套標題**。
+    #    上面那組 TAILS 是拿 claim 原文接效果量,產出長這樣:
+    #    「Does scarcity-induced focus really lead to cognitive fatigue on
+    #    subsequent cognitive control task?」——論文語言。retitle.py 已經
+    #    把 24 支都換成手寫白話句了,但如果哪天有人重跑 publish_meta.py,
+    #    這裡會**靜默把它們全部改回去**:同一個欄位兩個寫入者,而其中一個
+    #    不知道另一個存在。這正是這條線上重複發生的模式。
+    #    所以這裡直接讀同一份手寫句;沒有的才退回上面那組(fail-open 在
+    #    這裡是對的 —— 新進的集數還沒手寫時,舊格式標題總比沒有好,而且
+    #    retitle.py 那邊是 fail-closed,不會靜默降級成論文語言。)
+    import plain
+    from retitle import TAIL as PLAIN_TAIL
+    q = plain.spoken(key) if key else None
+    if q:
+        for cand in (f"{q} {PLAIN_TAIL.get(tone, '')}".strip(), q):
+            if len(cand) <= 100:
+                title = cand
+                break
+
     desc = (
         f"{claim}.\n\n"
         f"Original study ({year_o}): {str(row['title_o'])[:150]}\n"
@@ -202,16 +221,34 @@ def fred_meta(row):
 def famous_tone(E):
     """名案線的分類也走 tone,跟 FReD 線同一套語彙。
 
-    沒有 CI 也沒有 p 值時保守判 gone —— 資料缺漏不該預設過關。
+    ## 沒有信賴區間時**不由規則決定**(2026-08-29 改)
+    舊版寫「沒有區間就回 shrunk_real,那一檔是中間類別,正好對應
+    『我們不知道』」。但下游不是那樣用它的:縮圖把 shrunk_real 印成
+    「REAL BUT TINY」、旁白講「real, but much smaller」—— 兩句都是
+    **關於大小的正面斷言**,而規則的意思是「資料裡沒有區間」。
+
+    實際後果:`bystander_effect` 是 105 個獨立效果量、7,700 人、
+    g = −0.35 的統合分析,方向與原始主張一致,它自己的紀錄標題就寫著
+    「it is still there」—— 被印成「REAL BUT TINY」。−0.35 在心理學裡
+    是中等偏上,不是 tiny。缺資料被靜默轉成一個實質宣稱,是這條線
+    重複發生的模式(「缺欄位 = 通過」已經四次)。
+
+    現在改成**缺區間就必須在資料裡手寫 tone**,並附理由。手寫不是
+    退讓:它把判斷從「規則猜的」變成「有人看過原文並簽名」,而且
+    fail-closed —— 沒寫就中止,不會靜默生出一個定調。
     """
     t = E["test"]
     ci = t.get("ci")
     if ci and ci[0] <= 0 <= ci[1]:
         return "gone"                     # 區間跨零 = 測不出來
     if not ci:
-        # 沒有區間就不宣稱存在與否。用 shrunk_real 這一檔(中間類別),
-        # 它的標題句式與顏色都是「兩邊都不是」,正好對應「我們不知道」。
-        return "shrunk_real"
+        tone = t.get("tone_manual")
+        if tone not in TONE_META:
+            raise SystemExit(
+                f"⛔ {E['slug']} 沒有信賴區間,必須在 famous_episodes.json 的 "
+                f"test 裡手寫 tone_manual(附 tone_manual_why)。"
+                f"規則猜不出來的東西不要讓規則猜。")
+        return tone
     kind = t["es_kind"]
     strong = abs(t["es"]) >= (0.2 if kind == "r" else 0.2)
     return "held" if strong else "shrunk_real"
@@ -344,7 +381,7 @@ def main():
             dropped.append((f"ep{i:03d}",
                             "查不到可引用來源:" + ",".join(missing)))
             continue
-        title, desc, allowed = fred_meta(row)
+        title, desc, allowed = fred_meta(row, f"ep{i:03d}")
         if not check(f"ep{i:03d}", title, desc, allowed):
             dropped.append((f"ep{i:03d}", "數字溯源失敗"))
             continue

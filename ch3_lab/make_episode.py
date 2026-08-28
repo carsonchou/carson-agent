@@ -124,6 +124,20 @@ def size_phrase(es, kind):
     return w if w.startswith("below") or w.startswith("essentially")         else w + " effect"
 
 
+def thresholds(kind):
+    """Cohen(1988)的慣例門檻,依效果量型別分軌。回傳 (小, 中, 大, 地板)。
+
+    🔴 這張表是**唯一來源**。旁白、畫面刻度、size_word 都必須從這裡取 ——
+    先前畫面那份自己寫死了 d 的 0.2/0.5/0.8,而 19 集裡有 6 集是 r 型,
+    於是同一集裡耳朵聽到「zero point five is large」、眼睛看到 0.5 標著
+    medium。**同型錯誤(修一份漏另一份)的第七次**,而且溯源守門結構上
+    看不見它:旁白裡的門檻是英文字("zero point one"),抓數字的正則
+    抓不到。
+    """
+    return (0.5, 0.3, 0.1, 0.03) if kind.startswith("r") else \
+           (0.8, 0.5, 0.2, 0.05)
+
+
 def size_word(es, kind):
     """Cohen(1988)的慣例門檻。說「按慣例算是大的」而不是斷言它就是大的。
 
@@ -133,8 +147,7 @@ def size_word(es, kind):
     所以這不是邊角案例。真的可以說「幾乎是零」的門檻是 |d|<0.05。
     """
     a = abs(es)
-    hi, mid, lo, floor = (0.5, 0.3, 0.1, 0.03) if kind.startswith("r") \
-        else (0.8, 0.5, 0.2, 0.05)
+    hi, mid, lo, floor = thresholds(kind)
     return ("large" if a >= hi else "medium" if a >= mid else "small" if a >= lo
             else "below what the convention calls small" if a >= floor
             else "essentially nothing")
@@ -424,7 +437,22 @@ def build_script(F):
         "two groups are. Around zero point two is small, zero point five is "
         "medium, zero point eight is large.")
     base = SCALE_R if is_r else SCALE_D
-    if o["n"] <= 100:
+    # ⚠️ 第一版的 `o["n"] <= 100` 一條就吃掉 19 集裡的 12 集(實測 scale 段
+    #    最大宗佔 47%,而它是全片最長的一段)。再切的條件都綁本集數字。
+    if o["n"] <= 70 and abs(o["es"]) >= 0.5:
+        # 這不是隨便挑的切角,是檢定力的直接後果:樣本越小,能被測到並
+        # 通過顯著門檻的效應就必須越大。所以「小樣本 + 大效果量」這個
+        # 組合本身就告訴你,你看到的是能穿過那道篩子的那一種數字。
+        angle = (f"Those two numbers sit oddly together. With {o['n']} people, "
+                 f"only a fairly large effect could have cleared the "
+                 f"significance threshold at all — so a small study reporting "
+                 f"{say_num(o['es'])} is exactly the shape of result that gets "
+                 f"through that filter.")
+    elif o["n"] <= 70:
+        angle = (f"{o['n']} people is a small study. That does not make it "
+                 f"wrong, but it does mean the number it produced had a wide "
+                 f"range of places it could have landed.")
+    elif o["n"] <= 100:
         angle = (f"And with only {o['n']} people in the original, that number "
                  f"had a lot of room to move by chance. Small samples do not "
                  f"just give you less certainty — they give you a wider spread "
@@ -439,7 +467,13 @@ def build_script(F):
     else:
         angle = ("And the smaller the study, the more that number can move by "
                  "chance alone.")
-    scale_txt = "A quick note on what that number means. " + base + " " + angle
+    # 開場那一句原本 19 集一字不差,等於在骨架比對上把所有 scale 段綁在
+    # 一起。依本集的量型換說法 —— 唸的是不同的東西,說法本來就該不同。
+    opener = ("Before the second number, one line on what a correlation is. "
+              if is_r else
+              f"One line on what {say_num(o['es'])} means, "
+              f"because the rest of this depends on it. ")
+    scale_txt = opener + base + " " + angle
 
     # 結果段:顯著性決定能不能說「效應在那裡」。
     # ⚠️ 這裡一度寫著「what they successfully showed is that the effect is not
@@ -474,12 +508,32 @@ def build_script(F):
     # 產線最硬的證據),沒有就講資料庫本身。硬講同一段話是模板化,而且會
     # 講到本集沒有的東西。
     pre = rec.get("prereg", "").startswith("http")
+    # 🔴 分支條件要**細到足以真的分開**。第一版只有三條(有預登+大倍數 /
+    #    有預登 / 沒預登),而 19 集裡 18 集有預登、大多數倍數不到 10 ——
+    #    結果 14 支裡有 12 支拿到逐字相同的那一段(實測 86%)。那正是 YPP
+    #    inauthentic 政策點名的「模板化、變化極小」。
+    #    分法一律綁**本集真的有的事實**,不是亂數:亂數是假的多樣性,
+    #    而且不可重現。
     if pre and F["n_ratio"] >= 10:
         body = (f"The replication was preregistered — the team wrote down what "
                 f"they were going to test before they collected a single data "
                 f"point, and then tested it on {r['n']:,} people. "
                 f"That order matters: it is what stops a study from finding "
                 f"whatever it happens to find and calling that the hypothesis.")
+    elif pre and o["n"] <= 80:
+        body = (f"The replication was preregistered. That matters most here, "
+                f"because the original ran on {o['n']:,} people — at that size, "
+                f"there are a lot of ways to slice a result, and writing the "
+                f"analysis down first removes all of them.")
+    elif pre and abs(r["es"]) < 0.1:
+        body = ("The replication was preregistered, which is why this null is "
+                "worth something. A study designed to find an effect and then "
+                "not finding one is evidence. A study that went looking for "
+                "any effect at all would not be.")
+    elif pre and r["n"] >= 500:
+        body = (f"The replication was preregistered and it is not small: "
+                f"{r['n']:,} people, with the design and the analysis both "
+                f"filed before anyone was recruited.")
     elif pre:
         body = ("The replication was preregistered. The team wrote down what "
                 "they were going to test before they collected any data, so "
@@ -488,9 +542,14 @@ def build_script(F):
         body = ("Both papers are linked, and so is the row itself — the "
                 "database is public, and it carries the same fields you have "
                 "been looking at on screen.")
-    record_txt = ("Everything you just heard comes from one row of a public "
-                  "database. Here it is. " + body +
-                  " You do not have to take my word for any of it.")
+    lead = ("Everything you just heard comes from one row of a public "
+            "database. Here it is. " if F["n_ratio"] < 5 else
+            "None of this is my reading of the papers. It is one row of a "
+            "public database, and this is the row. ")
+    tail = (" You do not have to take my word for any of it."
+            if o.get("doi") and r.get("doi") else
+            " Both papers are linked below, so you can check it yourself.")
+    record_txt = lead + body + tail
 
     segs = [("hook", hook_txt),
             ("original",
@@ -500,15 +559,84 @@ def build_script(F):
              + (f"a {big} effect." if not big.startswith(("below", "essentially"))
                 else f"that is {big}.")),
             ("scale", scale_txt),
-            ("replication",
-             f"So another team ran the same study again. "
-             f"This time with {r['n']:,} people — "
-             f"{F['n_ratio']} times the original sample. "
-             f"Same design. More people."),
+            # 🔴 這一段原本 19 集**逐字同一個骨架**(實測 100%),只有數字
+            #    在換。跟 record 一樣,分支綁本集真的有的事實。
+            ("replication", _replication_txt(F, o, r, rec)),
             ("result", res),
             ("record", record_txt),
             ("close", close_txt + "Both papers are linked below.")]
     return segs
+
+
+def _replication_txt(F, o, r, rec):
+    """「他們又跑了一次」那一段。
+
+    ## 為什麼要分這麼多支
+    這一段原本只有一種寫法,19 集把數字抽掉之後**骨架完全相同**。單集看
+    沒問題,但整個頻道就是同一句話講 19 遍,而那是 YPP inauthentic 政策
+    白紙黑字點名的「模板化、變化極小、可大規模複製」。
+
+    每一支的選擇條件都是**本集真的有的事實**(年份差、倍數、絕對人數、
+    是不是多實驗室),不是亂數 —— 亂數看起來也是多樣,但它不可重現,
+    而且會把「講哪一件事」跟「這一集實際是什麼」脫鉤。
+    """
+    n, ratio = r["n"], F["n_ratio"]
+    yr_o, yr_r = o.get("year"), r.get("year")
+    title = (r.get("title") or "").lower()
+    multi = any(k in title for k in ("multi-lab", "multilab", "many labs",
+                                     "multiple laborator"))
+    if multi:
+        return (f"Then it was run again — not by one team, but by several, "
+                f"each following the same written protocol. "
+                f"{n:,} people in total, {ratio} times the original.")
+    # ⚠️ 分支順序決定分佈。第一版把「年份差」排第二,結果它一條就吃掉
+    #    19 集裡的 14 集(句子不同但骨架一樣),等於白分。**最有辨識度的
+    #    條件要排前面**,泛用的當收尾。
+    #    es_type 排第二不只是為了分散:相關係數和組間差本來就是兩種不同的
+    #    量,講「同一個相關」比講「同一個研究」更準確。
+    if F.get("es_type") == "r":
+        return (f"Another team measured the same correlation again, this time "
+                f"across {n:,} people — {ratio} times the original sample, "
+                f"with the same two variables.")
+    if ratio >= 20:
+        return (f"Then someone ran it again at {ratio} times the scale. "
+                f"Not a variation on the design — the same study, "
+                f"put to {n:,} people.")
+    if n >= 1000:
+        return (f"So another team ran it again, and this one is not small: "
+                f"{n:,} people went through the same procedure.")
+    if ratio < 3:
+        return (f"Another team ran the same study again with {n:,} people. "
+                f"That is {ratio} times the original — not a huge jump, "
+                f"but the design did not change, so the two numbers are "
+                f"measuring the same thing.")
+    # ⚠️ 到這裡還有一大半集數會落在同一句。再切的條件必須是**看得到、
+    #    但還沒洩漏結果**的事實 —— 樣本大小、相關係數還是組間差、原研究
+    #    的年代。**不能用 tone 去切**:那會在 result 段之前就把判決講出來。
+    if o["n"] <= 60:
+        return (f"The original had {o['n']:,} people. The replication had "
+                f"{n:,} — same materials, same procedure, "
+                f"{ratio} times the participants.")
+    if o.get("year") and o["year"] < 2005:
+        return (f"The original is from {o['year']}. The re-test used the same "
+                f"design on {n:,} people, {ratio} times as many, and it is the "
+                f"version we can actually check.")
+    if n - o["n"] >= 400:
+        return (f"Then the same study was put to {n:,} people, against "
+                f"{o['n']:,} the first time. "
+                f"Nothing about the design changed.")
+    # 🔴 **唸出口的數字必須是事實庫裡查得到的原值**,不能是推導出來的。
+    #    分支的**條件**可以用差值(那不會被唸出來),但句子裡不行。
+    #    第一版寫「{yr_r - yr_o} years later」「{n - o['n']} more than the
+    #    first time」—— 溯源守門把 19 集裡的 10 集擋下,擋得完全正確:
+    #    那些數字在事實庫裡找不到對應欄位。年份差改成直接講那一年。
+    if yr_o and yr_r and yr_r - yr_o >= 5:
+        return (f"In {yr_r}, another team ran the same study. "
+                f"Same design, same measure — {n:,} people this time, "
+                f"{ratio} times as many.")
+    return (f"So another team ran the same study again. "
+            f"This time with {n:,} people — {ratio} times the original "
+            f"sample. Same design. More people.")
 
 
 def audit(segs, F):
@@ -582,28 +710,53 @@ def render_scene(plt, name, t, dur, F):
                     ha="center", fontsize=24, color=DIM, alpha=q)
 
     elif name == "scale":
-        marks = [(0.2, "small"), (0.5, "medium"), (0.8, "large")]
-        ax2 = fig.add_axes([0.14, 0.34, 0.72, 0.16]); ax2.set_facecolor(BG)
+        # 🔴 門檻**依效果量型別分軌**,而且從 thresholds() 取 —— 這裡曾經
+        #    寫死 d 的 0.2/0.5/0.8,而佇列 19 集裡有 6 集是 r 型,於是同一
+        #    集裡旁白唸「zero point five is large」、畫面把 0.5 標成 medium。
+        hi, mid, lo, _fl = thresholds(F.get("es_type", "d"))
+        marks = [(lo, "small"), (mid, "medium"), (hi, "large")]
+        # 🔴 這一幕有 20 多秒,而第一版的軸只佔畫面 16% 高、字級 16~20pt ——
+        #    抽幀看成品時,整幕**大部分是黑的**。它叫「What the number
+        #    means」,是全片唯一解釋效果量的地方,不該是最空的一幕。
+        #    軸拉高到 30%、字級全部放大,標題與副標往下靠近軸收掉上方留白。
+        ax2 = fig.add_axes([0.12, 0.28, 0.76, 0.30]); ax2.set_facecolor(BG)
         for sp in ("top", "right", "left"):
             ax2.spines[sp].set_visible(False)
         ax2.spines["bottom"].set_color("#2A2F36")
-        ax2.set_yticks([]); ax2.set_xlim(0, 1.05)
-        ax2.set_xlabel("effect size", fontsize=19, labelpad=12)
-        ax2.tick_params(labelsize=16)
+        ax2.set_yticks([])
+        ax2.set_xlim(0, max(hi * 1.3, abs(o["es"]) * 1.15))
+        # 🔴 **ylim 必鎖**。文字先畫(當時 ylim 還是預設 0~1),後面
+        #    `ax2.scatter([es], [0])` 會觸發自動縮放把 ylim 壓成 ±0.055,
+        #    於是畫在 y=0.55 和 y=-0.75 的 small/medium/large 與「this
+        #    study」**整組被擠出畫布**。19 集全中、10 支已發布,而那一幕
+        #    的標題正是「What the number means」—— 觀眾看到三條沒有標籤
+        #    的虛線,什麼也沒說明。
+        #    這是「全版面 axes 被 autoscale 裁掉文字」的**第二個現場**,
+        #    第一個早就修好了 —— 又是同一份修改只套了一半。
+        ax2.set_ylim(-1, 1)
+        ax2.set_xlabel("effect size", fontsize=26, labelpad=16)
+        ax2.tick_params(labelsize=22)
         p = ease(min(1.0, t / (dur * 0.5)))
+        xmax = ax2.get_xlim()[1]
         for v, lab in marks:
-            if p > v / 1.05:
-                ax2.axvline(v, color=DIM, lw=1.4, ls=(0, (4, 4)))
-                ax2.text(v, 0.55, lab, ha="center", fontsize=20, color=DIM)
+            if p > v / xmax:
+                ax2.axvline(v, color=DIM, lw=1.6, ls=(0, (4, 4)))
+                ax2.text(v, 0.62, lab, ha="center", fontsize=30, color=DIM)
         if t > dur * 0.6:
             q = ease(min(1.0, (t - dur * 0.6) / 1.3))
-            ax2.scatter([abs(o["es"])], [0], s=300, color=DIM, zorder=5, alpha=q)
-            ax2.text(abs(o["es"]), -0.75, "this study", ha="center",
-                     fontsize=19, color=FG, alpha=q)
-        fig.text(0.14, 0.72, "What the number means", fontsize=42,
+            ax2.scatter([abs(o["es"])], [0], s=520, color=FG, zorder=5, alpha=q)
+            # ⚠️ 值落在門檻線上時(ep006 的 0.80 正好等於 large),「this
+            #    study」會跟門檻標籤疊在一起。往離最近門檻的反方向讓開。
+            near = min(marks, key=lambda mv: abs(mv[0] - abs(o["es"])))[0]
+            xmax2 = ax2.get_xlim()[1]
+            shift = (0.045 if abs(near - abs(o["es"])) < xmax2 * 0.06
+                     else 0.0) * xmax2 * (1 if abs(o["es"]) <= near else -1)
+            ax2.text(abs(o["es"]) - shift, -0.62, "this study", ha="center",
+                     fontsize=28, color=FG, weight="bold", alpha=q)
+        fig.text(0.12, 0.80, "What the number means", fontsize=54,
                  color=FG, weight="bold")
-        fig.text(0.14, 0.65, "Smaller studies swing further by chance.",
-                 fontsize=23, color=DIM)
+        fig.text(0.12, 0.72, "Smaller studies swing further by chance.",
+                 fontsize=30, color=DIM)
 
     elif name in ("original", "replication"):
         cur = o if name == "original" else r
@@ -636,6 +789,14 @@ def render_scene(plt, name, t, dur, F):
         ax2.set_yticks([1, 0])
         ax2.set_yticklabels([f"original\n{o['n']:,} people",
                              f"replication\n{r['n']:,} people"], fontsize=19)
+        # ⚠️ ylim 一併鎖死。這一幕目前是安全的(文字畫在 y=1 與 y=0,正好
+        #    等於 barh 的位置,autoscale 出來的 (-0.28, 1.28) 蓋得住),但
+        #    「文字被 autoscale 擠出畫布」這個 pattern 在這條線已經咬過兩次,
+        #    補一行是零成本的保險。
+        # 數值刻意等於 autoscale 本來就會算出來的那一組(barh 在 y=0/1、
+        # height=0.42 → 資料範圍 −0.21~1.21,加 5% 邊距):**鎖住但不改變
+        # 畫面**,所以這行可以在批次渲染中途加進來而不會讓前後集數長得不一樣。
+        ax2.set_ylim(-0.281, 1.281)
         ax2.set_xlim(0, mx); ax2.set_xlabel(f"effect size ({F['es_type']})",
                                             fontsize=19, labelpad=12)
         ax2.tick_params(labelsize=16)

@@ -21,7 +21,13 @@
  "verdict": "failed",
  "p_repl": 0.042,
  "p_type_repl": "e (=)",
+ "p_tails_repl": "",
  "source": "FORRT Replication Database (FReD), OSF 2tbvd",
+ "record": {
+  "fred_id": "shah_self",
+  "effect_id": "2020",
+  "prereg": "https://osf.io/vzm23/"
+ },
  "n_ratio": 16.6,
  "tone": "flipped"
 }

@@ -1,1 +1,1 @@
-Everything you just heard comes from one row of a public database. Here it is. The replication was preregistered — the team wrote down what they were going to test before they collected any data. Both papers are linked, and so is the record itself. You do not have to take my word for any of it.
+Everything you just heard comes from one row of a public database. Here it is. The replication was preregistered and it is not small: 776 people, with the design and the analysis both filed before anyone was recruited. You do not have to take my word for any of it.

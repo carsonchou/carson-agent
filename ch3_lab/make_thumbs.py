@@ -58,8 +58,13 @@ BAND, GREY = "#151A21", "#49515D"
 #     「找不到」不是「證明沒有」。改成 NOT FOUND:一樣是滿版大字,
 #     而且它是真的。縮圖是最多人看到的地方,在那裡 overclaim,
 #     後面講再多都補不回來。
+#  🔴 「REAL BUT TINY」曾經印在 bystander_effect 上(g = -0.35,心理學裡
+#     算中等偏上)。那不是版面問題,是 famous_tone 把「資料裡沒有信賴
+#     區間」直接對應到這一檔,於是缺資料變成一個關於大小的斷言。
+#     規則那邊已經改成缺區間就必須手寫定調;用字也從 TINY 放寬到 SMALL,
+#     因為這一檔真正的意思是「測得到,但撐不起原本那麼強的說法」。
 VERDICT = {"gone": "NOT FOUND", "flipped": "IT REVERSED",
-           "shrunk_real": "REAL BUT TINY", "held": "IT HELD UP",
+           "shrunk_real": "REAL BUT SMALL", "held": "IT HELD UP",
            "stronger": "EVEN BIGGER"}
 COLOR = {"gone": "#FF4A2E", "flipped": "#FF4A2E", "shrunk_real": "#4A9EFF",
          "held": "#22D67F", "stronger": "#22D67F"}
@@ -68,7 +73,11 @@ COLOR = {"gone": "#FF4A2E", "flipped": "#FF4A2E", "shrunk_real": "#4A9EFF",
 EVIDENCE = {
     "gone": "Retested on {n:,} people. Not found.",
     "flipped": "Retested on {n:,} people. It went the other way.",
+    # shrunk_real 有兩種來源,佐證句不能共用一句:FReD 那批是「跟原始
+    # 研究比縮了」(有原始值可比),名案那批沒有原始效果量可比,只能講
+    # 「小」不能講「比較小」。draw() 依有沒有 eo 選。
     "shrunk_real": "Retested on {n:,} people. Real, but much smaller.",
+    "shrunk_real_nocmp": "Retested on {n:,} people. Real, but small.",
     "held": "Retested on {n:,} people. It held.",
     "stronger": "Retested on {n:,} people. Even bigger.",
 }
@@ -170,7 +179,9 @@ def draw(plt, o, out_path):
 
     # 佐證:數字從事實庫來,措辭依定調。降到最小 —— 它是支持不是主角。
     n_r = int(str(n_right).replace(",", ""))
-    sub = EVIDENCE[tone].format(n=n_r)
+    key = ("shrunk_real_nocmp" if tone == "shrunk_real" and eo is None
+           else tone)
+    sub = EVIDENCE[key].format(n=n_r)
     ax.text(0.5, 0.115, sub, ha="center", va="center",
             fontsize=fit(plt, sub, 48, 0.90, "normal"), color="#8A929C")
     ax.text(0.985, 0.028, "THEY RAN IT AGAIN", ha="right", va="bottom",

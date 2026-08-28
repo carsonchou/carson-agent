@@ -44,7 +44,10 @@ SCOPES = ["https://www.googleapis.com/auth/youtube.upload",
 # 輪詢最多 40 次 + 回讀 1 次 + 每次執行 channels.list 1 次——舊版只算前兩項,
 # 於是 --limit 6 算出 9,900 過關,但只要有一支處理得慢、輪詢吃滿就會超過,
 # 而超額那一刻是在第 6 支的 insert 已經燒掉 1600 之後。
-COST_INSERT, COST_THUMB, COST_POLL = 1600, 50, 41
+# 輪詢從 40 次降到 12(實測長片十幾秒就處理完),所以 POLL 從 41 → 13。
+# 那不是把估算調鬆,是**真的少打了 28 次 API** —— 在 6 支/天的
+# 天花板下,每支省 28 就是省 168。
+COST_INSERT, COST_THUMB, COST_POLL = 1600, 50, 13
 DAILY_QUOTA = 10000
 
 
@@ -217,9 +220,19 @@ def upload_one(yt, o, privacy, on_uploaded=lambda vid: None):
     #    items 空陣列 → IndexError)。任何一個炸掉 = 片子已經在頻道上、
     #    1600 單位已經燒掉,但帳本沒記 → 下次再傳一次 = 頻道上兩支一樣的片。
     on_uploaded(vid)
+    # 🔴 配額也在**這一刻**記,理由跟帳本完全相同:1,600 單位在 insert
+    #    回來的當下就已經花掉了。等整支跑完才記,中間任何一個呼叫炸掉,
+    #    共用帳就會少記 1,600 —— 然後下一支以為還有額度,實際上沒有。
+    try:
+        import quota as _quota
+        _quota.spend(_quota.LONG, vid)
+    except Exception as e:                                   # noqa: BLE001
+        print(f"    (配額帳沒記到:{str(e)[:50]})")
     print(f"    videoId={vid}  輪詢處理狀態…")
     processed = False
-    for _ in range(40):                       # 這批片約 80 秒,10 分鐘綽綽有餘
+    # 這批片約 80~120 秒,實測十幾秒內處理完。40 次(10 分鐘)是
+    # 過頭的保險,而每次 1 單位 —— 在 6 支/天的天花板下要省。
+    for _ in range(12):
         items = yt.videos().list(part="status", id=vid).execute().get("items", [])
         if not items:
             print(f"    ⛔ 影片查不到(通常=被拒)。videoId={vid}")
@@ -349,12 +362,19 @@ def main():
     if not todo:
         print("沒有待上傳的集數"); return 0
 
+    # 🔴 改用**共用帳**(ch3_lab/quota.py)。三支發布器各自估自己那批時,
+    #    互相看不見 —— 而排程一天跑兩個時段、每段跑三支,每一支都會以為
+    #    自己還有滿額的 10,000。共用帳記錄實際花掉的,才擋得住。
+    import quota as _q
     est = len(todo) * (COST_INSERT + COST_THUMB + COST_POLL) + 1
-    print(f"要上傳 {len(todo)} 集,估算配額 {est:,} / 每日 {DAILY_QUOTA:,}")
-    if est > DAILY_QUOTA:
-        print(f"⛔ 會超過當日配額(一天最多 "
-              f"{DAILY_QUOTA // (COST_INSERT + COST_THUMB + COST_POLL)} 支)"
-              f",請用 --limit")
+    print(f"要上傳 {len(todo)} 集,估算配額 {est:,};"
+          f"共用帳今天已用 {_q.DAILY - _q.RESERVE - _q.remaining():,}、"
+          f"還剩 {_q.remaining():,}")
+    if est > _q.remaining():
+        print(f"⛔ 剩餘配額 {_q.remaining():,} 不夠發 {len(todo)} 集"
+              f"(每集約 {COST_INSERT + COST_THUMB + COST_POLL:,})——"
+              f"今天最多再發 {_q.remaining() // (COST_INSERT + COST_THUMB + COST_POLL)} 集。"
+              f"請用 --limit,或等台北 16:00 之後的新配額日。")
         return 1
     if not a.privacy:
         print("⛔ --privacy 必填(public 不可逆,不設預設值)")

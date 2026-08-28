@@ -382,13 +382,30 @@ def render_scene(plt, name, t, dur, E):
                     fontsize=46, color=FG, alpha=q, weight="bold")
 
     elif name == "scale":
+        # 🔴 門檻**依效果量型別分軌**,而且從 make_episode.thresholds() 取。
+        #    這裡曾經寫死 0.2/0.5/0.8(d 軌),而同一支檔案的旁白**是分軌的**
+        #    —— implicit_bias_test 是 r=0.274,於是耳朵聽到「r 的 0.3 是
+        #    中等」、眼睛看到 0.274 落在「small」那一格。那支已經上線。
+        #    這是「同一件事寫兩份」的第八個現場;唯一來源在 make_episode。
+        from make_episode import thresholds
+        hi, mid, lo, _fl = thresholds(str(T.get("es_kind", "d")))
+        top = hi * 1.25                       # 尺的右端
+        # 尺的兩端固定在 0.12~0.88,所以刻度位置要跟著 top 重算 ——
+        # 換軌時只換標籤字而不動映射,刻度會標在錯的地方。
+        def _x(v):
+            return 0.12 + 0.76 * v / top
         ax.plot([0.12, 0.88], [0.5, 0.5], color=DIM, lw=2)
-        for x, lab in ((0.12, "0"), (0.31, "0.2\nsmall"), (0.50, "0.5\nmedium"),
-                       (0.69, "0.8\nlarge"), (0.88, "1.0")):
+        for v, lab in ((0.0, "0"), (lo, f"{lo:g}\nsmall"),
+                       (mid, f"{mid:g}\nmedium"), (hi, f"{hi:g}\nlarge"),
+                       (top, f"{top:g}")):
+            x = _x(v)
             ax.plot([x, x], [0.47, 0.53], color=DIM, lw=2)
             ax.text(x, 0.40, lab, ha="center", va="top", fontsize=26, color=DIM)
-        ax.text(0.5, 0.78, "effect size = how big the difference is",
-                ha="center", fontsize=40, color=FG, weight="bold")
+        head = ("effect size = how tightly two things move together"
+                if str(T.get("es_kind", "d")).startswith("r")
+                else "effect size = how big the difference is")
+        ax.text(0.5, 0.78, head, ha="center", fontsize=36, color=FG,
+                weight="bold")
 
     elif name == "result":
         es = T["es"]

@@ -1,0 +1,8 @@
+file 'D:/carson-agent/ch3_lab/compilations/mixed/intro.mp4'
+file 'D:/carson-agent/ch3_lab/compilations/mixed/card1.mp4'
+file 'D:/carson-agent/ch3_lab/eps/ep005/ep005.mp4'
+file 'D:/carson-agent/ch3_lab/compilations/mixed/card2.mp4'
+file 'D:/carson-agent/ch3_lab/eps/ep006/ep006.mp4'
+file 'D:/carson-agent/ch3_lab/compilations/mixed/card3.mp4'
+file 'D:/carson-agent/ch3_lab/eps/ep008/ep008.mp4'
+file 'D:/carson-agent/ch3_lab/compilations/mixed/outro.mp4'
