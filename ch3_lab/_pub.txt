@@ -1,0 +1,38 @@
+D:\carson-agent\youtube_channel\.venv\lib\site-packages\google\oauth2\__init__.py:40: FutureWarning: You are using a Python version 3.9 past its end of life. Google will update google-auth with critical bug fixes on a best-effort basis, but not with any other fixes or features. Please upgrade your Python version, and then update google-auth.
+  warnings.warn(eol_message.format("3.9"), FutureWarning)
+D:\carson-agent\youtube_channel\.venv\lib\site-packages\google\auth\__init__.py:54: FutureWarning: You are using a Python version 3.9 past its end of life. Google will update google-auth with critical bug fixes on a best-effort basis, but not with any other fixes or features. Please upgrade your Python version, and then update google-auth.
+  warnings.warn(eol_message.format("3.9"), FutureWarning)
+D:\carson-agent\youtube_channel\.venv\lib\site-packages\google\api_core\_python_version_support.py:242: FutureWarning: You are using a non-supported Python version (3.9.13). Google will not post any further updates to google.api_core supporting this Python version. Please upgrade to the latest Python version, or at least Python 3.10, and then update google.api_core.
+  warnings.warn(message, FutureWarning)
+  ⚠️ 這幾支長片目前不是 public,Short 不會連過去:implicit_bias_test
+⛔ 這幾支片子自己會說「完整版在本頻道」,但那句話現在不成立:
+   implicit_bias_test    長片發過但目前不是 public
+   → 先跳過它們,改發下一批。長片轉回 public 之後那句話自己就成立了,不必重渲。
+要上傳 5 支,估算配額 8,030
+  ep002               Do people who see the big picture also see more minds? Retested on 1,0
+  ep003               Agreeable people commit fewer crimes? Retested on 1,550 people.
+  ep004               Being short on money drains your self-control? Retested on 997 people.
+  ep005               Does a deeper-sounding brand name make a product feel thicker? Reteste
+  ep006               We value a life more when fewer lives are at risk? Retested on 723 peo
+
+[ep002] Do people who see the big picture also see more minds? Retes
+    videoId=q8wXedDJqGc  https://youtube.com/shorts/q8wXedDJqGc  (配額剩 7,044)
+    處理完成 ✓
+
+[ep003] Agreeable people commit fewer crimes? Retested on 1,550 peop
+    videoId=J4ZJ37jom-o  https://youtube.com/shorts/J4ZJ37jom-o  (配額剩 5,438)
+    處理完成 ✓
+
+[ep004] Being short on money drains your self-control? Retested on 9
+    videoId=fIYty4wlXsw  https://youtube.com/shorts/fIYty4wlXsw  (配額剩 3,832)
+    處理完成 ✓
+
+[ep005] Does a deeper-sounding brand name make a product feel thicke
+    videoId=v3pfhzDIrfU  https://youtube.com/shorts/v3pfhzDIrfU  (配額剩 2,226)
+    處理完成 ✓
+
+[ep006] We value a life more when fewer lives are at risk? Retested 
+    videoId=e8f4LpCQ0o4  https://youtube.com/shorts/e8f4LpCQ0o4  (配額剩 620)
+    處理完成 ✓
+
+完成:上傳 5/5 支。Shorts 帳本共 11 支。

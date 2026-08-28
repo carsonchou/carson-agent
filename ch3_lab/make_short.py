@@ -347,6 +347,13 @@ def fit_sizes(plt, D):
     if D["card"]:
         fs["card"] = min(fit(plt, ln, 58) for ln in wrap(D["card"], 20)[:2])
     fs["big"] = fit(plt, f"{D['es_r']:+.2f}".replace("+", ""), 300)
+    # 🔴 對比那兩個大數字**原本寫死 240 / 270**,從來沒量過。
+    #    「0.82」四個字塞得下,「-0.25」多一個負號就伸到 0.871、
+    #    「-0.23」@270pt 伸到 0.917 —— 直接壓在按讚欄底下。
+    #    而 19 集裡有一半的效果量是負的。這是「字級要用量的不是挑的」
+    #    這條規則自己漏掉的兩個位置。
+    fs["es_o"] = fit(plt, f"{D['es_o']:+.2f}".replace("+", ""), 240)         if D["es_o"] is not None else 240
+    fs["es_r2"] = fit(plt, f"{D['es_r']:+.2f}".replace("+", ""), 270)
     # ⚠️ **每一段會上畫面的字都要納入**,漏一個就是漏一個越界點。
     #    第一版漏了來源那行:名案的是「FORRT Replication Database (FReD)」
     #    塞得下,FReD 那批多了「, OSF 2tbvd」就伸到 0.948 —— 同一個位置、
@@ -434,8 +441,8 @@ def render(plt, name, t, dur, D):
         if t > 0.3:
             q = ease(min(1.0, (t - 0.3) / 0.9))
             ax.text(0.5, 0.80, f"{D['es_o']:+.2f}".replace("+", ""),
-                    ha="center", va="center", fontsize=240, color=DIM,
-                    alpha=q, weight="bold")
+                    ha="center", va="center", fontsize=fs.get("es_o", 240),
+                    color=DIM, alpha=q, weight="bold")
             ax.text(0.5, 0.705, f"the original — {D['n_o']:,} people",
                     ha="center", fontsize=fs.get("sub", 46), color=DIM, alpha=q)
         if t > 1.8:
@@ -445,8 +452,8 @@ def render(plt, name, t, dur, D):
         if t > 2.6:
             q = ease(min(1.0, (t - 2.6) / 0.9))
             ax.text(0.5, 0.45, f"{D['es_r']:+.2f}".replace("+", ""),
-                    ha="center", va="center", fontsize=270, color=col,
-                    alpha=q, weight="bold")
+                    ha="center", va="center", fontsize=fs.get("es_r2", 270),
+                    color=col, alpha=q, weight="bold")
             ax.text(0.5, 0.345, f"the replication — {D['n_r']:,} people",
                     ha="center", fontsize=fs.get("sub", 46), color=col, alpha=q)
         if t > 4.4:
@@ -485,32 +492,31 @@ def render(plt, name, t, dur, D):
     #    錨點過關而畫面越界,是「閘門只接上一半」的又一次:色塊那半
     #    今天才補,文字這半也一樣要看範圍而不是看點。
     #    半字高由字級推算:dpi=100 時 1pt = 100/72 px,除以 H=1920。
-    for _t in ax.texts:
-        _y = _t.get_position()[1]
-        _h = _t.get_fontsize() * (100 / 72) / 2 / H
-        for _e, _what in ((_y + _h, "上緣"), (_y - _h, "下緣")):
-            if not (SAFE_LO - 1e-9 <= _e <= SAFE_HI + 1e-9):
-                raise SystemExit(
-                    f"⛔ 版面越界:「{_t.get_text()[:30]}」{_what} y={_e:.3f}"
-                    f"(錨點 {_y:.3f}、{_t.get_fontsize():.0f}pt),"
-                    f"超出 Shorts 安全區 [{SAFE_LO}, {SAFE_HI}] —— "
-                    f"那個位置在真機上被 UI 蓋住。")
-    # ⚠️ 色塊也要掃。只掃 ax.texts 是**半個閘門** —— 開場那條標籤條是
-    #    Rectangle,它整片被 UI 蓋住的話,畫面上唯一的亮面就沒了,而
-    #    文字檢查一個字都不會抱怨。同一個病:寫了閘門只接上一半。
-    for _p in ax.patches:
-        _bb = _p.get_bbox()
-        for _y in (_bb.y0, _bb.y1):
-            if not (SAFE_LO - 1e-9 <= _y <= SAFE_HI + 1e-9):
-                raise SystemExit(
-                    f"⛔ 色塊越界:{_p} 邊界 y={_y:.3f} 超出安全區 "
-                    f"[{SAFE_LO}, {SAFE_HI}]。")
-        for _x in (_bb.x0, _bb.x1):
-            if not (1 - SAFE_X - 1e-9 <= _x <= SAFE_X + 1e-9):
-                raise SystemExit(
-                    f"⛔ 色塊越界:{_p} 邊界 x={_x:.3f} 超出 "
-                    f"[{1 - SAFE_X:.2f}, {SAFE_X}] —— 右側是按讚欄。")
+    # 🔴 量**實際的像素框**,不是從字級估。估法只看得到垂直方向,而且
+    #    我今天為了它多寫了一段換算 —— 結果水平方向整個沒人管:
+    #    對比那兩個大數字寫死 240/270 沒經過 fit(),`-0.23` 伸到 x=0.917,
+    #    獨立的 lint_short 量畫素才抓到 4 支越界(其中 ep003 已經發出去了)。
+    #    文字的垂直用估的、水平完全不查、色塊兩軸都查 —— 三個位置三種
+    #    標準,那不是閘門是拼貼。
+    #    畫完之後量一次,兩軸一起,文字與色塊同一套判準。
     fig.canvas.draw()
+    _r = fig.canvas.get_renderer()
+    for _o in list(ax.texts) + list(ax.patches):
+        try:
+            _bb = _o.get_window_extent(renderer=_r)
+        except TypeError:
+            _bb = _o.get_window_extent()
+        _what = (_o.get_text()[:30] if hasattr(_o, "get_text") else str(_o)[:30])
+        for _v, _lo, _hi, _ax in ((_bb.x0 / W, 1 - SAFE_X, SAFE_X, "左"),
+                                  (_bb.x1 / W, 1 - SAFE_X, SAFE_X, "右"),
+                                  (_bb.y0 / H, SAFE_LO, SAFE_HI, "下"),
+                                  (_bb.y1 / H, SAFE_LO, SAFE_HI, "上")):
+            if not (_lo - 1e-9 <= _v <= _hi + 1e-9):
+                raise SystemExit(
+                    f"⛔ 版面越界:「{_what}」{_ax}緣 {_v:.3f} 超出 "
+                    f"[{_lo:.2f}, {_hi:.2f}] —— 那個位置在真機上被 UI 蓋住。")
+    # 上面量框時已經 draw 過,不要再畫一次 —— 每支片 450 幀,多一次
+    # 全畫布重繪就是把渲染時間加倍。
     buf = np.asarray(fig.canvas.buffer_rgba())[:, :, :3].copy()
     plt.close(fig)
     return buf
