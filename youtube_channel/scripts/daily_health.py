@@ -77,6 +77,67 @@ def _funnel():
     return leads
 
 
+def _supplies():
+    """🔴 產線耗材水位(2026-08-29 建)。
+
+    一天之內連踩三次**同一型**故障:耗材耗盡 → 產線停擺 → **零警訊**。
+      ① OpenRouter 餘額歸零   → 長片完全產不出來,ops_log 只寫「所有供應商都失敗」(追一小時)
+      ② 救回的稿被刪掉 mp3    → 渲染迴圈報「0/0 支」,那 18 支對產線變成隱形(空轉一小時)
+      ③ 題庫未用長片題歸零    → 模型自由生題沒有事實可依據 → 灌水 → 閘門擋下,
+                                連續 7 小時 fail-closed,每輪都成功執行、每輪都零產出
+    三個都不會壞、不會噴 traceback、cron 全部回報「✓ 完成」——現有健檢一項都看不到。
+    共同特徵:**耗材是存量,而健檢只看流量**。這裡把存量本身當一等公民量出來。
+
+    回 (lines, warns)。任何一項讀不到就跳過該項,不影響其他檢查。
+    """
+    lines, warns = [], []
+
+    # ① 題庫:未用的長片題(這是長片產線唯一的燃料)
+    try:
+        b = json.loads((STUDIO / "topic_bank.json").read_text(encoding="utf-8"))
+        if isinstance(b, dict):
+            b = b.get("topics") or b.get("items") or list(b.values())[0]
+        unused = [t for t in b if t.get("format", "short") == "long" and not t.get("used")]
+        n_ck = sum(1 for t in unused if str(t.get("fact_key", "")).startswith("checkup_"))
+        lines.append(f"題庫·未用長片題: {len(unused)} 題(個股體檢 {n_ck})")
+        if len(unused) < 20:
+            warns.append(f"長片題只剩{len(unused)}")
+            lines.append("   ⚠️ 低於 20 題 → 抽不到題會讓模型自由生題(無事實)→ 整批灌水被閘門擋掉。"
+                         "補:python scripts/seed_checkup_backfill.py --apply --max 40")
+    except Exception:  # noqa: BLE001
+        pass
+
+    # ② 缺音檔:有稿沒 mp3 的片,渲染迴圈的 cloud_pending() 會靜默跳過(永遠看不到)
+    try:
+        out = ROOT / "output"
+        miss = 0
+        for vt in out.glob("*.voice.txt"):
+            s = vt.name[: -len(".voice.txt")]
+            if s.startswith(("S_", "L_")) and not (out / f"{s}.mp3").exists():
+                miss += 1
+        lines.append(f"待渲染缺音檔: {miss} 支")
+        if miss:
+            warns.append(f"缺音檔{miss}支")
+            lines.append("   ⚠️ 渲染迴圈判準要 voice.txt+mp3,缺 mp3 會**靜默跳過**(報 0/0 支)。"
+                         "補:python scripts/backfill_tts.py --apply")
+    except Exception:  # noqa: BLE001
+        pass
+
+    # ③ LLM 餘額:唯一沒被監控過的單點故障(已有 llm_credit_watch,這裡併進同一張表)
+    try:
+        import llm_credit_watch as lcw
+        bal, _used, _tot = lcw.balance()
+        if bal is not None:
+            vids = int(bal / lcw.COST_PER_VIDEO) if bal > 0 else 0
+            lines.append(f"OpenRouter 餘額: US${bal:.2f}(約 {vids} 支長片)")
+            if vids < lcw.WARN_VIDEOS:
+                warns.append(f"LLM餘額剩{vids}支")
+    except Exception:  # noqa: BLE001
+        pass
+
+    return lines, warns
+
+
 def _leak_check():
     """weekly_winners 基準線:有沒有新洗版題溜進來。"""
     try:
@@ -136,6 +197,11 @@ def main() -> int:
 
     leads = _funnel()
     lines.append(f"TG 名單累計: {leads} 人")
+
+    # 產線耗材水位(題庫/音檔/LLM餘額)——三種「耗盡即停產且零警訊」的故障,見 _supplies 說明
+    _sl, _sw = _supplies()
+    lines.extend(_sl)
+    warn.extend(_sw)
 
     base = _leak_check()
     lines.append(f"洗版洩漏基準線: {base if base is not None else '未建'}(每週 weekly_winners 監控是否突破)")

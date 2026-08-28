@@ -2151,15 +2151,19 @@ def call_claude(kind, avoid, topic_override=None):
         if _wb:
             assign = _BUCKET_DIRECTIVE[_wb]   # 題庫沒貨→不放任自由發揮,硬性指定題材
     if topic and topic_override:
-        if str(topic.get("fact_key", "")).startswith("checkup_"):
-            # 個股體檢重生路徑(make_one 鎖同一題重生時走 topic_override 傳回來)：用題庫派發框架,
-            # 不能套下面的「金融時事」框架(那會誤導 LLM 以為是新聞題,語氣跑掉)。
-            assign = (f"\n【本支指定題目（個股體檢系列，務必照此主題寫，標題可潤飾更有點擊慾）】："
-                      f"{topic.get('title','')}　切入點：{topic.get('angle','')}")
-        else:
+        # 🔴 2026-08-29 修判準:原本這裡用「fact_key 是不是 checkup_」決定要不要套時事框架
+        # ——那是拿「是不是體檢題」當「是不是時事題」的替身。當初只有體檢會鎖題重生,所以看不出來;
+        # 一旦一般題庫題也鎖題重生(見 make_one 的 _content_topic),它就會被當成即時新聞寫,
+        # 語氣整個跑掉。真正該問的是**題目來源**:只有 _NEWS_SRC 那四種來源才是時事。
+        if str(topic.get("source", "")).lower() in _NEWS_SRC:
             assign = (f"\n【🔥金融時事·優先製作，務必照此主題】：{topic.get('title','')}　切入點：{topic.get('angle','')}"
                       "（這是即時財經時事：緊扣新聞點，再連到頻道的量化/網格/派網/風控觀點；"
                       "只講已知事實、不誇大、不預測價格漲跌、不喊單、不保證收益）")
+        else:
+            # 題庫派發框架(個股體檢與一般題庫題共用):鎖同一題重寫,不是新聞。
+            _series = ("個股體檢系列，" if str(topic.get("fact_key", "")).startswith("checkup_") else "題庫派發，")
+            assign = (f"\n【本支指定題目（{_series}務必照此主題寫，標題可潤飾更有點擊慾）】："
+                      f"{topic.get('title','')}　切入點：{topic.get('angle','')}")
     elif topic:
         assign = (f"\n【本支指定題目（題庫派發，務必照此主題寫，標題可潤飾更有點擊慾）】："
                   f"{topic.get('title','')}　切入點：{topic.get('angle','')}")
@@ -2424,6 +2428,16 @@ def call_claude(kind, avoid, topic_override=None):
         result["_is_checkup"] = True
         result["_ck_topic"] = topic  # 供 make_one 鎖題重生:所有品質 gate 的重生都重寫「同一集」,
         #                              絕不再 pull_topic 抽下一題(EP2-EP4被連環燒掉的事故根因)
+    # 🔴 2026-08-29:上面那道鎖題**只保護了個股體檢**,非體檢長片的內容閘門重生照樣在燒題庫。
+    # 實測(topic_bank used_at 逐日統計):08-28 一天消耗 **139 個長片題只成稿 27 支**,
+    # 其中體檢 29、非體檢 **110** —— 那 110 個是被重生迴圈抽掉、標 used、然後隨 fail-closed
+    # 一起蒸發的。一支沒產出來的片會燒掉 5 個題(1 次抽題 + 4 次重生各抽一次)。
+    # 結果:730 個長片題只剩 17 個未用、體檢未用歸零 → pull_topic 回 None → 模型自由生題
+    # (沒有任何事實可依據)→ 灌水 → 密度閘門正確擋下 → fail-closed。**產線不是壞了,是題庫被吃穿了。**
+    # 題目是 LLM 生出來的有限資產(一檔股票 2-4 題),重生迴圈把它當免費資源用。
+    # 這裡把抽到的題一律回報給 make_one,讓內容閘門也鎖得住同一題(見 make_one 的 _content_topic)。
+    if topic and not topic_override:
+        result["_pulled_topic"] = topic
     result["_is_flagship"] = bool(is_flagship)  # A2:旗艦片已有 AI_COMPANY_RULES 自己的數字紀律,不重複套 A2 重生
     # 「聰明用 AI」franchise：把誠實比較表+聯盟連結+揭露語確定性附加到描述本體(保證揭露不被 LLM 吞)。
     # 只在 is_ai_savings 片生效；非 franchise 片 result["description"] 完全不含 premlogin。
@@ -4535,6 +4549,14 @@ def make_one(kind, no_render=False, topic_override=None, script_override=None):
         # 每次都產出 2,000~3,000 字的合格長稿,卻始終沒有成品,而 log 一片空白。
         # 先讓它可見:記下每次重生的原因與次數,才知道是哪一道 gate 在過度開火。
         _mech1 = False
+        # 🔴 2026-08-29 鎖題(接續 call_claude 的 _pulled_topic 紅字說明):
+        # 內容閘門(長度/密度/期間偷換/洩漏)講的是「**同一個題目**寫得不夠好」,重生應該重寫同一題。
+        # 原本傳 topic_override(非體檢時為 None)→ 每次重生都 pull_topic 抽**下一題**並立刻標 used,
+        # 一支 fail-closed 燒掉 5 個題、產出 0 支。08-28 實測燒掉 110 個非體檢長片題。
+        # 而且換題還讓重生失去意義:換了題就不是在驗「這次寫得有沒有比較好」。
+        # 標題閘門(上面 _too_similar/skeleton_dup 那道)與 A1b 雷同閘門**刻意不套這道**——
+        # 那兩道的觸發原因就是「這個題本身撞了」,換題才是正解。
+        _content_topic = topic_override or d.get("_pulled_topic")
         while _long_bad(d) and _lk < 4:
             # 先試確定性修復(【】洩漏/整句重複),修得掉就不必燒一次 LLM 重生。
             # 只試一次,免得修復↔閘門互相拉扯變成無窮迴圈。
@@ -4548,7 +4570,9 @@ def make_one(kind, no_render=False, topic_override=None, script_override=None):
                     continue
             _lk += 1
             log_ops("補產·重生", f"A4長片第{_lk}次重生:{_long_bad(d)}｜{d.get('title','')[:20]}")
-            d = call_claude(kind, _ex, topic_override)
+            d = call_claude(kind, _ex, _content_topic)   # 鎖同一題重寫,不再抽下一題燒題庫
+            if _content_topic is None:
+                _content_topic = d.get("_pulled_topic")  # 首輪自由生題時沒題可鎖,補鎖這次抽到的
             # 重生出來的**新稿**也要能吃確定性修復:旗標原本在第一次嘗試前就設 True,
             # 之後每一次重生的稿都直接跳過修復 —— 而【】洩漏造成的 14 次重生裡,
             # 發生在第 2、3 次重生上的就還是照燒一次 LLM。放回 False 不會有迴圈風險:
@@ -5037,7 +5061,10 @@ def main() -> int:
             print("[FATAL] 找不到任一 LLM 供應商金鑰(OPENROUTER/ANTHROPIC/DEEPSEEK/GEMINI/GROQ)。", file=sys.stderr)
             return 2
         slug_made = None
-        _tov = {"title": args.topic, "angle": args.angle or ""}
+        # source 明寫 news:call_claude 用「來源是不是 _NEWS_SRC」決定要不要套時事框架
+        # (2026-08-29 前是用「有沒有 topic_override」推斷,一般題庫題鎖題重生時會被誤判成新聞)。
+        # --topic 的用途就是金融時事立刻產,這裡把意圖寫明,不靠推斷。
+        _tov = {"title": args.topic, "angle": args.angle or "", "source": "news"}
         if getattr(args, "flagship", False):
             _tov["category"] = "AI公司揭密"  # 觸發 is_flagship→AI_COMPANY_RULES+_system_facts 真數據注入
         for t in range(2):

@@ -181,18 +181,32 @@ def seed_topics_for_code(code: str, name: str = "", dry_run: bool = False) -> in
     # 但批量時一半浪費)。llm.py 的 LLM_RESERVE_FALLBACK=1 是為了把 Gemini 額度留給
     # 長片產稿而把小請求鎖死在 Groq——種題一天只跑一次、量不大,值得放行。
     # 只在這個函式的作用域內暫時放行,不影響其他部門的省額度策略。
+    # 🔴 2026-08-29 補完上面那道放行的另一半:放行 Gemini 只擋得住「groq 掛」,
+    # **groq 與 gemini 同時 429 就整批死**,而付費且有餘額的 openrouter 被
+    # LLM_BIG_FOR_SMALL=0 擋在鏈外(小請求不准用付費的)——實測當天 316 檔補種
+    # 前三檔全滅,錯誤是 `groq: 429 | gemini: 429`,openrouter 從未被試,
+    # 帳上還有 US$9.87。
+    # 後果不對稱:這道呼叫失敗 → 題庫種不出題 → pull_topic 抽不到題 →
+    # 模型自由生題(沒有事實可依據)→ 灌水 → 密度閘門擋下 → **整條長片產線停擺**。
+    # (08-28 18:11 起連續 7 小時零產出就是這樣來的。)
+    # 而成本這邊小到不成比例:一次 3,200 max_tokens 的小請求,一檔一次。
+    # 「省額度」的理由撐不住「整條產線停擺」的代價,這一格值得付錢。
     _prev_reserve = os.environ.get("LLM_RESERVE_FALLBACK")
-    os.environ["LLM_RESERVE_FALLBACK"] = "0"
+    _prev_bigsmall = os.environ.get("LLM_BIG_FOR_SMALL")
+    os.environ["LLM_RESERVE_FALLBACK"] = "0"   # 放行免費 Gemini
+    os.environ["LLM_BIG_FOR_SMALL"] = "1"      # 兩家都限流時,放行付費 openrouter 當最後一道
     try:
         cands = tff.gen_topics_for_batch(batch)
     except Exception as exc:  # noqa: BLE001
         print(f"[stock_checkup_daily] LLM 生題失敗：{str(exc)[:160]}")
         return 0
     finally:
-        if _prev_reserve is None:
-            os.environ.pop("LLM_RESERVE_FALLBACK", None)
-        else:
-            os.environ["LLM_RESERVE_FALLBACK"] = _prev_reserve
+        for _k, _v in (("LLM_RESERVE_FALLBACK", _prev_reserve),
+                       ("LLM_BIG_FOR_SMALL", _prev_bigsmall)):
+            if _v is None:
+                os.environ.pop(_k, None)
+            else:
+                os.environ[_k] = _v
 
     bank = tb.load_bank()
     existing_norms = {tb._norm(t.get("title", "")) for t in bank} | {tb._norm(t) for t in tb.existing_titles()}
