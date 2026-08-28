@@ -561,3 +561,29 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 #   (15:00~16:00)之後,避開早上 09:00 那波 403。
 #   發完會自己停(待發歸零時只印一行不打 API)。
 25 16 * * * /root/yt/run.sh scripts/ch3_publish.py >> /root/yt/logs/cron.log 2>&1
+# 2026-08-27 BRAIN alpha 自動搜尋(每 2 小時一批 15 條)。Carson 指示:全自動、他只按提交。
+#   · **永遠不自動提交**——WorldQuant 競賽條款寫明偵測到「gaming/作弊/不誠實行為」會
+#     **終止帳號恕不另行通知並可能通報**,而參數網格大量自動提交正中該條;帳號沒了=季付獎金歸零。
+#   · 通過全部檢查時走 ntfy 推播通知 Carson(2026-08-26 實發驗證過通道可用,非靜默 no-op)。
+#   · 策略:Phase1 已找出最佳骨架=dual_frame 反向短窗(Sharpe 1.31 已過 1.25 門檻),
+#     Phase2 專攻降週轉——fitness ≈ sharpe × sqrt(|returns|/max(turnover,0.125)),
+#     那條要 fitness>=1.0 需把 turnover 從 57.5% 壓到 22.8% 而守住 13.3% 報酬。
+#   · ⚠️ 降週轉要用表達式內的 hump()/ts_decay_linear,**不能拉平台 decay**——
+#     實測 decay 15 把該骨架 Sharpe 從 1.31 砍到 0.70,淨效果反而更差。
+#   · 併發上限 2(第3條回429已內建退避);帳本 auto_ledger.jsonl 去重可續跑。
+#   · 轉接器 scripts/brain_alpha_cron.py 只負責呼叫 quant-service/brain_alpha/brain_auto.py
+#     (local_cron 的解析器只認 `scripts/X.py` 格式,量化程式不搬家)
+#   · 2026-08-27 改兩段式:一階 field_miner 把實測模板(Sharpe 2.25 那條)套遍 4,367 個欄位
+#     (先前手寫模板只用 15 個=覆蓋率 0.34%),掃完才進二階做參數變化。跑完自動接續。
+#   · 實測硬限:併發 2(第3條429)、region 只有 USA(其餘 9 個全 400)、每日積分 2,000。
+0 */2 * * * /root/yt/run.sh scripts/brain_alpha_cron.py --run 60 >> /root/yt/logs/cron.log 2>&1
+# 2026-08-28 BRAIN 分數盯哨。平台**一天只結算一次**:ET 03:00 = 台北 15:00,
+#   而計分日的分界是 ET 00:00 = 台北中午 12:00(台北的一天橫跨平台兩個計分日)。
+#   Carson 在等第一筆分數(08-27 交了 2 條,score 仍為 0),排在刷新後 15 分跑,
+#   有變動就 Telegram 推播。score_watch 只讀不寫,不影響搜尋。
+15 15 * * * /root/yt/run.sh scripts/brain_score_watch.py >> /root/yt/logs/cron.log 2>&1
+
+# LLM 儲值餘額看門(2026-08-28 事故:餘額用完 → 長片完全產不出來,而且零警訊)。
+# 每支長片約 US$0.025,每天 10 支 ≈ 7 美元/月;剩不到約 120 支(3 天量)就推 ntfy。
+# 免費層(gemini/groq)吃不下 14k tokens 的長片提示,所以這條是**單點故障**。
+40 8 * * * /root/yt/run.sh scripts/llm_credit_watch.py --notify >> /root/yt/logs/cron.log 2>&1

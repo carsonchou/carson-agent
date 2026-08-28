@@ -48,7 +48,13 @@ except Exception:  # noqa: BLE001
     pass
 
 STATE = ROOT / "STUDIO" / "quota_meter.json"
-DAILY_LIMIT = int(os.environ.get("YT_QUOTA_LIMIT", "10000"))
+# 🔴 2026-08-28:實測撞牆點 **19,645**(08-27 那天花到這裡開始被拒,而且被拒了 935 次
+# / 45,491 units —— 撞牆後所有排程還在照跑,每次都是白打)。
+# 原本寫 10000 是**猜的**,而且比真值低一倍 → 預留額度用它去算,結果是
+# 「補件工作被我自己的假天花板擋死,而真配額還有一半沒用」。
+# 這裡改成實測值當預設;`effective_limit()` 仍會用帳本推出來的上下界覆蓋它,
+# 所以之後 YouTube 若調整配額,不必再改這個常數。
+DAILY_LIMIT = int(os.environ.get("YT_QUOTA_LIMIT", "19645"))
 WARN_AT = float(os.environ.get("YT_QUOTA_WARN", "0.80"))
 ENFORCE = os.environ.get("YT_QUOTA_ENFORCE", "") == "1"
 # 這個 process 必須**留給後面更重要的工作**多少 units。預設 0 = 不留(行為完全不變),
