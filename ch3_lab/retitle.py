@@ -92,6 +92,38 @@ def build(o):
     return q[:100]
 
 
+def settled(yt, ids, check, tries=3, wait=6):
+    """批次回讀,回傳**仍然不符**的 id 清單。
+
+    ## 為什麼要重試
+    `videos.list` 緊接在 `videos.update` 之後拿到的是快取。實測
+    (2026-08-29 第一次真的推上線):6 支全部成功寫進去,逐支回讀有 5 支
+    讀到舊值;名案那批批次讀也有 1 支讀到舊值。兩次都是**假警報**。
+
+    回讀檢查有兩種壞法,我一天之內兩種都犯了:一種不會叫(exit code
+    恆為 0),一種一定叫(緊接著讀到快取)。會叫的假警報跟不會叫的真
+    警報一樣糟 —— 它會訓練人忽略輸出,而且會讓 `A && B` 這種串接斷掉。
+
+    ## 為什麼放在這裡
+    `retitle` 和 `retitle_live` 都要做這件事,而「同一個計算兩份實作」
+    在這條線上已經是第九次。差異(一個比標題+說明、一個只比標題)
+    由呼叫端傳 `check` 進來。
+
+    批次讀順便省配額:N 次 list(N 單位)變成 1 次(1 單位)。
+    """
+    import time
+    miss = list(ids)
+    for attempt in range(tries):
+        if attempt:
+            time.sleep(wait)          # 傳播延遲,不是重試才等
+        got = {v["id"]: v["snippet"] for v in yt.videos().list(
+            part="snippet", id=",".join(miss)).execute()["items"]}
+        miss = [i for i in miss if not check(i, got.get(i, {}))]
+        if not miss:
+            break
+    return miss
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--apply", action="store_true")
@@ -245,25 +277,17 @@ def main():
     #    批次讀順便省配額:N 次 list(N 單位)變成 1 次(1 單位)。
     #    回讀驗兩個欄位 —— 只驗標題的話,說明被清空我也看不見,
     #    而 videos.update 整包覆蓋,說明正是最容易被清掉的那個。
-    miss = []
     if sent:
-        import time
-        for attempt in range(3):
-            if attempt:
-                time.sleep(6)          # 傳播延遲,不是重試才等
-            back = {v["id"]: v["snippet"] for v in yt.videos().list(
-                part="snippet",
-                id=",".join(v for _, v, _ in sent)).execute()["items"]}
-            miss = [(k, v, o) for k, v, o in sent
-                    if back.get(v, {}).get("title") != o["title"]
-                    or back.get(v, {}).get("description", "")
-                    != o["description"]]
-            if not miss:
-                break
+        want = {v: o for _, v, o in sent}
+        miss = settled(yt, [v for _, v, _ in sent],
+                       lambda i, sn: (sn.get("title") == want[i]["title"]
+                                      and sn.get("description", "")
+                                      == want[i]["description"]))
         done = len(sent)
         bad += len(miss)
-        for k, _v, _o in miss:
-            print(f"  {k:<14}⚠️ 回讀不符")
+        name = {v: k for k, v, _ in sent}
+        for v in miss:
+            print(f"  {name[v]:<14}⚠️ 回讀不符")
     # 🔴 回讀結果要收進 exit code。舊版把兩個欄位都比對了、也印了「⚠️ 不符」,
     #    然後無條件 `return 0` —— 11 支全部不符也是成功。
     #    這支的驗證**結構上不可能失敗**(memory verification-that-cannot-fail),

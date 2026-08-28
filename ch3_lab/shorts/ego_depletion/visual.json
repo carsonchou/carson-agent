@@ -5,7 +5,7 @@
   1920,
   30
  ],
- "card": "The interval includes zero.",
+ "card": "The effect did not survive.",
  "claim_lines": [
   "WILLPOWER",
   "RUNS OUT AS YOU USE IT"
@@ -15,7 +15,7 @@
   "Full episode",
   "on the channel"
  ],
- "frames": "74de7fac31f19513",
+ "frames": "847d78f1cbbd90b3",
  "fs": {
   "big": 280,
   "card": 58,

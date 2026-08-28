@@ -1,6 +1,6 @@
 {
  "day": "2026-08-28",
- "spent": 800,
+ "spent": 1050,
  "items": [
   {
    "at": "02:31",
@@ -81,6 +81,31 @@
    "at": "02:38",
    "cost": 50,
    "what": "thumb implicit_bias_test"
+  },
+  {
+   "at": "02:39",
+   "cost": 50,
+   "what": "title ego_depletion"
+  },
+  {
+   "at": "02:39",
+   "cost": 50,
+   "what": "title romantic_red"
+  },
+  {
+   "at": "02:39",
+   "cost": 50,
+   "what": "title bystander_effect"
+  },
+  {
+   "at": "02:39",
+   "cost": 50,
+   "what": "title sleep_memory"
+  },
+  {
+   "at": "02:39",
+   "cost": 50,
+   "what": "title implicit_bias_test"
   }
  ]
 }

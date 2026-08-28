@@ -7,31 +7,31 @@
  ],
  "card": "This one held up.",
  "claim_lines": [
-  "A CROWD STOPS",
-  "PEOPLE FROM HELPING"
+  "A CROWD MAKES EACH PERSON",
+  "LESS LIKELY TO HELP"
  ],
  "color": "#5FC98A",
  "end_card": [
   "Full episode",
   "on the channel"
  ],
- "frames": "15e8fdc49999c969",
+ "frames": "1d71ea4096662f6a",
  "fs": {
   "big": 233,
   "card": 58,
   "claim": {
-   "fs": 83,
+   "fs": 66,
    "lines": [
-    "A CROWD",
-    "STOPS",
-    "PEOPLE FROM",
-    "HELPING"
+    "A CROWD MAKES",
+    "EACH PERSON",
+    "LESS LIKELY",
+    "TO HELP"
    ],
    "ys": [
-    0.6575,
-    0.5825,
-    0.5075,
-    0.4325
+    0.6345,
+    0.5748,
+    0.5152,
+    0.4555
    ]
   },
   "end": 75,

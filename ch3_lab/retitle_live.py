@@ -367,16 +367,20 @@ def main():
     if not plans:
         print("\n一支都沒送出")
         return 1
-    back = {v["id"]: v["snippet"]["title"] for v in yt.videos().list(
-        part="snippet", id=",".join(p[1] for p in plans)).execute()["items"]}
+    # 🔴 回讀要容忍傳播延遲,共用 retitle.settled —— 這裡原本是「送完立刻
+    #    讀一次」,實測 implicit_bias_test 讀到舊標題而**它其實已經改好了**。
+    #    假警報跟漏報一樣糟。不自己再寫一份重試迴圈:同型錯誤第九次。
+    from retitle import settled
+    want = {v: t for _, v, t in sent}
+    miss = set(settled(yt, [p[1] for p in plans],
+                       lambda i, sn: sn.get("title") == want[i]))
     ok = 0
     for slug, vid, _v, nt in plans:
-        got_t = back.get(vid)
-        if got_t == nt:
+        if vid not in miss:
             ok += 1
             print(f"  ✓ {slug}  回讀相符")
         else:
-            print(f"  ⛔ {slug}  回讀不符!實際是:{got_t!r}")
+            print(f"  ⛔ {slug}  回讀不符(重試後仍舊)")
     print(f"\n標題 {ok}/{len(plans)} 支確認改成功")
     # 縮圖的結果也要進 exit code —— 否則「標題全對、縮圖全失敗」會回 0。
     return 0 if (ok == len(plans) and not thumb_bad) else 1

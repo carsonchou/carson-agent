@@ -7,31 +7,29 @@
  ],
  "card": "It predicts — but weakly.",
  "claim_lines": [
-  "THIS TEST REVEALS",
-  "YOUR HIDDEN BIAS"
+  "CAN A TEST REVEAL",
+  "YOUR HIDDEN BIAS?"
  ],
  "color": "#8FA3C8",
  "end_card": [
   "Full episode",
   "on the channel"
  ],
- "frames": "bdc73685a8e42c1a",
+ "frames": "4e554bd5ddbd626a",
  "fs": {
   "big": 280,
   "card": 58,
   "claim": {
-   "fs": 87,
+   "fs": 82,
    "lines": [
-    "THIS TEST",
-    "REVEALS",
-    "YOUR",
-    "HIDDEN BIAS"
+    "CAN A TEST",
+    "REVEAL YOUR",
+    "HIDDEN BIAS?"
    ],
    "ys": [
-    0.663,
-    0.5843,
-    0.5057,
-    0.427
+    0.6191,
+    0.545,
+    0.4709
    ]
   },
   "end": 75,
