@@ -7,24 +7,24 @@
  ],
  "card": "The effect did not survive.",
  "claim_lines": [
-  "BEING HELD ACCOUNTABLE",
-  "STOPS YOU DOUBLING DOWN"
+  "JUDGED ON HOW YOU DECIDED",
+  "YOU STOP DOUBLING DOWN"
  ],
  "color": "#F5A54E",
  "end_card": [
   "Every number",
   "from the record"
  ],
- "frames": "537e410ac3d36aff",
+ "frames": "a09641ba3488b425",
  "fs": {
   "big": 280,
   "card": 58,
   "claim": {
    "fs": 63,
    "lines": [
-    "BEING HELD",
-    "ACCOUNTABLE",
-    "STOPS YOU",
+    "JUDGED ON HOW",
+    "YOU DECIDED",
+    "YOU STOP",
     "DOUBLING DOWN"
    ],
    "ys": [

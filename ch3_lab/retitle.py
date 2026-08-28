@@ -151,6 +151,7 @@ def main():
     #    配額已經記帳。這正是 memory verification-that-cannot-fail 的
     #    「寫完檢查先故意讓它失敗一次」—— 我寫了檢查,沒讓它跑過。
     bad = done = 0
+    sent = []
     by_key = {(o.get("slug") or o["dir"]): o for o in meta}
     print(f"\n改 {len(led)} 支已上線的影片:")
     for key, vid in led.items():
@@ -214,7 +215,12 @@ def main():
                 print(f"  {key:<14}⚠️ 線上說明有 {len(lost)} 行不在新版裡"
                       f",已備份:{lost[0][:60]}")
         if not quota.can(quota.TITLE):
+            # 🔴 「停在這裡」**不是成功**。舊版只 break、`bad` 還是 0,
+            #    於是 return 0 —— 用 `retitle.py && retitle_live.py` 串起來
+            #    時,第一支的假成功會讓第二支接著跑,而那時配額已經見底。
+            #    跟 exit code 恆為 0 是同一類毛病:停下來也要說出來。
             print(f"  {key:<14}⛔ 配額不足({quota.remaining():,}),停在這裡")
+            bad += 1
             break
         try:
             yt.videos().update(part="snippet",
@@ -226,15 +232,38 @@ def main():
             bad += 1
             continue
         quota.spend(quota.TITLE, f"title {key}")
-        back = yt.videos().list(part="snippet",
-                                id=vid).execute()["items"][0]["snippet"]
-        # 回讀驗兩個欄位。只驗標題的話,說明被清空我也看不見 ——
-        # 而 videos.update 整包覆蓋,說明正是最容易被清掉的那個。
-        ok = (back["title"] == o["title"]
-              and back.get("description", "") == o["description"])
-        bad += 0 if ok else 1
-        done += 1
-        print(f"  {key:<14}{'✓' if ok else '⚠️ 不符'}  {back['title'][:60]}")
+        sent.append((key, vid, o))
+        print(f"  {key:<14}送出  {o['title'][:56]}")
+
+    # 🔴 回讀要**等全部送完再一次批次讀**,不能一支送完立刻讀自己那支。
+    #    實測(2026-08-29 第一次真的推上線):6 支全部成功寫進去,但逐支
+    #    回讀有 5 支讀到**舊值** —— `videos.list` 緊接在 `videos.update`
+    #    之後拿到的是快取,而且不確定(最後一支剛好讀到新的)。
+    #    於是我剛修好「結構上不可能失敗」的檢查,立刻換成另一半的毛病:
+    #    **結構上幾乎一定誤報**。會叫的假警報跟不會叫的真警報一樣糟,
+    #    而且它會讓 `retitle.py && retitle_live.py` 這種串接斷掉。
+    #    批次讀順便省配額:N 次 list(N 單位)變成 1 次(1 單位)。
+    #    回讀驗兩個欄位 —— 只驗標題的話,說明被清空我也看不見,
+    #    而 videos.update 整包覆蓋,說明正是最容易被清掉的那個。
+    miss = []
+    if sent:
+        import time
+        for attempt in range(3):
+            if attempt:
+                time.sleep(6)          # 傳播延遲,不是重試才等
+            back = {v["id"]: v["snippet"] for v in yt.videos().list(
+                part="snippet",
+                id=",".join(v for _, v, _ in sent)).execute()["items"]}
+            miss = [(k, v, o) for k, v, o in sent
+                    if back.get(v, {}).get("title") != o["title"]
+                    or back.get(v, {}).get("description", "")
+                    != o["description"]]
+            if not miss:
+                break
+        done = len(sent)
+        bad += len(miss)
+        for k, _v, _o in miss:
+            print(f"  {k:<14}⚠️ 回讀不符")
     # 🔴 回讀結果要收進 exit code。舊版把兩個欄位都比對了、也印了「⚠️ 不符」,
     #    然後無條件 `return 0` —— 11 支全部不符也是成功。
     #    這支的驗證**結構上不可能失敗**(memory verification-that-cannot-fail),

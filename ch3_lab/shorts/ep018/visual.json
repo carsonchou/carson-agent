@@ -8,14 +8,14 @@
  "card": "This one held up.",
  "claim_lines": [
   "AT EASY THINGS",
-  "EVERYONE IS ABOVE AVERAGE"
+  "EVERYONE THINKS THEY'RE ABOVE AVERAGE"
  ],
  "color": "#5FC98A",
  "end_card": [
   "Every number",
   "from the record"
  ],
- "frames": "78cc80b80f2f406d",
+ "frames": "e5a0cbbc5cf677f1",
  "fs": {
   "big": 233,
   "card": 58,
@@ -23,13 +23,15 @@
    "fs": 69,
    "lines": [
     "AT EASY THINGS",
-    "EVERYONE IS",
+    "EVERYONE",
+    "THINKS THEY'RE",
     "ABOVE AVERAGE"
    ],
    "ys": [
-    0.6074,
-    0.545,
-    0.4826
+    0.6386,
+    0.5762,
+    0.5138,
+    0.4514
    ]
   },
   "end": 75,

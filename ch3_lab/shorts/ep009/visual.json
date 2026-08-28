@@ -7,31 +7,31 @@
  ],
  "card": "The effect did not survive.",
  "claim_lines": [
-  "THINKING ABOUT GOD",
-  "MAKES YOU TAKE RISKS"
+  "REMINDED OF GOD",
+  "PEOPLE SAY THEY'D RISK MORE"
  ],
  "color": "#F5A54E",
  "end_card": [
   "Every number",
   "from the record"
  ],
- "frames": "6f69a820803bd172",
+ "frames": "24041a632b663d99",
  "fs": {
   "big": 280,
   "card": 58,
   "claim": {
-   "fs": 94,
+   "fs": 82,
    "lines": [
-    "THINKING",
-    "ABOUT GOD",
-    "MAKES YOU",
-    "TAKE RISKS"
+    "REMINDED OF",
+    "GOD PEOPLE",
+    "SAY THEY'D",
+    "RISK MORE"
    ],
    "ys": [
-    0.6725,
-    0.5875,
-    0.5025,
-    0.4175
+    0.6562,
+    0.5821,
+    0.5079,
+    0.4338
    ]
   },
   "end": 75,

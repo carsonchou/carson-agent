@@ -1,0 +1,86 @@
+{
+ "day": "2026-08-28",
+ "spent": 800,
+ "items": [
+  {
+   "at": "02:31",
+   "cost": 50,
+   "what": "title eps/ep000"
+  },
+  {
+   "at": "02:31",
+   "cost": 50,
+   "what": "title eps/ep001"
+  },
+  {
+   "at": "02:31",
+   "cost": 50,
+   "what": "title eps/ep002"
+  },
+  {
+   "at": "02:31",
+   "cost": 50,
+   "what": "title eps/ep003"
+  },
+  {
+   "at": "02:31",
+   "cost": 50,
+   "what": "title eps/ep004"
+  },
+  {
+   "at": "02:31",
+   "cost": 50,
+   "what": "title eps/ep005"
+  },
+  {
+   "at": "02:36",
+   "cost": 50,
+   "what": "thumb eps/ep000"
+  },
+  {
+   "at": "02:36",
+   "cost": 50,
+   "what": "thumb eps/ep001"
+  },
+  {
+   "at": "02:37",
+   "cost": 50,
+   "what": "thumb eps/ep002"
+  },
+  {
+   "at": "02:37",
+   "cost": 50,
+   "what": "thumb eps/ep003"
+  },
+  {
+   "at": "02:37",
+   "cost": 50,
+   "what": "thumb eps/ep004"
+  },
+  {
+   "at": "02:37",
+   "cost": 50,
+   "what": "thumb ego_depletion"
+  },
+  {
+   "at": "02:37",
+   "cost": 50,
+   "what": "thumb romantic_red"
+  },
+  {
+   "at": "02:37",
+   "cost": 50,
+   "what": "thumb bystander_effect"
+  },
+  {
+   "at": "02:37",
+   "cost": 50,
+   "what": "thumb sleep_memory"
+  },
+  {
+   "at": "02:38",
+   "cost": 50,
+   "what": "thumb implicit_bias_test"
+  }
+ ]
+}

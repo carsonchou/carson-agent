@@ -109,7 +109,17 @@ def new_title(slug, E, cur):
     kw = SHORT_KW.get(t.get("k_word") or "", t.get("k_word") or "")
     people = f"{t['n']:,} people"
     # 由詳到簡,取第一個塞得下的。最後一層只剩問句 —— 它本身讀得懂。
-    tails = ([f" {t['k']:,} {kw}, {people}."] if t.get("k") else []) +             [f" Retested on {people}.", f" {people}.", ""]
+    # 🔴 **退化的那幾層也必須是真的。** 舊版不管哪種研究,塞不下就退到
+    #    「Retested on N people.」—— 而 bystander_effect 是統合分析
+    #    (105 個獨立效果量),沒有人「重做」過那 7,700 人。實際發生:
+    #    完整版 103 字塞不下 → 靜默退到「Retested on 7,700 people.」,
+    #    正好是我剛從縮圖上拿掉的那個方法論假宣稱。
+    #    縮短是為了版面,不是為了改變它說了什麼。
+    pooled = t.get("kind") == "meta-analysis"
+    tails = ([f" {t['k']:,} {kw}, {people}."] if t.get("k") else []) + (
+        [f" Pooled from {t['k']:,} {kw}." if t.get("k")
+         else f" {people}, pooled.", f" {people}, pooled.", ""] if pooled
+        else [f" Retested on {people}.", f" {people}.", ""])
     head = f"{term}: {q}" if term else q[0].upper() + q[1:]
     for tail in tails:
         cand = f"{head}{tail}"

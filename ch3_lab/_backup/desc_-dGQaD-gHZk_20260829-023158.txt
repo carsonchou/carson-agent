@@ -1,0 +1,15 @@
+Products with brand names containing back vowel sounds, as opposed to front vowel sounds, are perceived as thicker.
+
+Original study (2000): Creating Brand Names With Meaning: The Use of Sound Symbolism
+  171 participants — effect size 0.82 (r)
+  doi:10.1023/a:1008184423824
+
+Replication: Evaluating replicability of ten influential research on sensory marketing
+  823 participants — effect size 0.22
+  doi:10.3389/fcomm.2022.1048896
+
+
+How this channel works
+Every number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.
+
+Replication data: FORRT Replication Database (FReD), osf.io/2tbvd

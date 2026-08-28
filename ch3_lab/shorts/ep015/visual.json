@@ -7,31 +7,31 @@
  ],
  "card": "This one held up.",
  "claim_lines": [
-  "CRITICISM FROM OUTSIDERS",
-  "STINGS MORE THAN INSIDE"
+  "WE PUNISH CRITICISM HARDER",
+  "WHEN IT COMES FROM OUTSIDE"
  ],
  "color": "#5FC98A",
  "end_card": [
   "Every number",
   "from the record"
  ],
- "frames": "198a17fd4edc6b73",
+ "frames": "74f7fa0551efb405",
  "fs": {
   "big": 280,
   "card": 58,
   "claim": {
-   "fs": 65,
+   "fs": 60,
    "lines": [
-    "CRITICISM",
-    "FROM OUTSIDERS",
-    "STINGS MORE",
-    "THAN INSIDE"
+    "WE PUNISH",
+    "CRITICISM HARDER",
+    "WHEN IT COMES",
+    "FROM OUTSIDE"
    ],
    "ys": [
-    0.6331,
-    0.5744,
-    0.5156,
-    0.4569
+    0.6264,
+    0.5721,
+    0.5179,
+    0.4636
    ]
   },
   "end": 75,

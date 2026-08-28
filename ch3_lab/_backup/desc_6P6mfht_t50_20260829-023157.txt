@@ -1,0 +1,15 @@
+Scarcity-induced focus leads to cognitive fatigue on subsequent cognitive control task.
+
+Original study (2012): Some Consequences of Having Too Little
+  60 participants — effect size -0.54 (d)
+  doi:10.1126/science.1222426
+
+Replication: An exercise in self-replication: Replicating Shah, Mullainathan, and Shafir (2012)
+  997 participants — effect size 0.13
+  doi:10.1016/j.joep.2018.12.001
+
+
+How this channel works
+Every number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.
+
+Replication data: FORRT Replication Database (FReD), osf.io/2tbvd
