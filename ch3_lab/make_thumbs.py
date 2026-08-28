@@ -164,11 +164,17 @@ def draw(plt, o, out_path):
 
     # 主張:白話、兩行、自動縮放。**這是版面上最大的元素** ——
     # 上一版最大的是效果量,而那對一般觀眾沒有意義。
-    fs1 = min(fit(plt, lines[0], 88), fit(plt, lines[1], 88))
-    ax.text(0.5, 0.855, lines[0], ha="center", va="center", fontsize=fs1,
-            color="#C6CCD4", weight="bold")
-    ax.text(0.5, 0.725, lines[1], ha="center", va="center", fontsize=fs1,
-            color="#C6CCD4", weight="bold")
+    # 🔴 行距要**跟著字級走**。原本兩行寫死在 0.855 / 0.725(間距 0.13),
+    #    字級卻是量出來的:短句(「THIS TEST REVEALS / YOUR HIDDEN BIAS」)
+    #    量到的字級大,兩行就黏在一起;長句字級小,中間空一大塊。
+    #    寫死間距配上浮動字級,必然有幾支難看,而難看是靜默的。
+    #    上限 80 是版面算出來的:整塊置中在 0.795,上緣不能超過 0.97
+    #    (出血)、下緣不能低於 0.615(判決塊頂端在 0.595)。
+    fs1 = min(fit(plt, lines[0], 88), fit(plt, lines[1], 88), 80)
+    gap = fs1 * (100 / 72) * 1.25 / H          # 1pt = 100/72 px,行距 1.25 倍
+    for i, ln in enumerate(lines):
+        ax.text(0.5, 0.795 + gap / 2 - i * gap, ln, ha="center", va="center",
+                fontsize=fs1, color="#C6CCD4", weight="bold")
 
     # 判決塊:實色滿版,一眼看到成不成立。用字見 VERDICT 的說明 ——
     # punchy 但不 overclaim。
