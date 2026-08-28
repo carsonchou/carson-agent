@@ -560,7 +560,28 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 #   GCP 專案一天 10,000 → **上限 5 支**。排 16:25 = 台北配額重置
 #   (15:00~16:00)之後,避開早上 09:00 那波 403。
 #   發完會自己停(待發歸零時只印一行不打 API)。
-25 16 * * * /root/yt/run.sh scripts/ch3_publish.py >> /root/yt/logs/cron.log 2>&1
+# ── ch3(They Ran It Again)——照主頻道的節奏:兩個發片時段 + 監控 ──
+#
+# 為什麼分兩段:配額是硬上限(一天約 5 支),分段**不增加產能**,增加的是
+# **時區覆蓋**。16:25 台北 = 09:25 中歐 = 03:25 美東;22:25 台北 = 15:25
+# 中歐 = 09:25 美東。這個頻道是英文內容,兩個時段各抓一個英語圈的早上。
+# 配額:16:25 用 1 長 + 2 短 = 4,973;22:25 用 2 短 = 3,282;合計 8,255。
+# 一天 6 支 = 1 長 + 5 短。配額算式(ch3_lab/quota.py 是唯一來源):
+#   長片 1,663(insert 1,600 + 縮圖 50 + 輪詢 13)
+#   Short 1,606(insert 1,600 + 輪詢 6,不設縮圖)
+#   1×1,663 + 5×1,606 = 9,693 / 可用 9,700(總額 10,000 − 預留 300)
+# ⚠️ 只剩 7 單位餘裕 —— 6 支是**天花板不是舒適區**。維運工作
+#    (播放清單、縮圖補件)在那種日子會被共用帳擋下並讓路,那是設計好的:
+#    它們明天補得回來,而發片的 1,600 花掉就拿不回來。
+25 16 * * * /root/yt/run.sh scripts/ch3_publish.py --limit 1 --shorts 2 >> /root/yt/logs/cron.log 2>&1
+25 22 * * * /root/yt/run.sh scripts/ch3_publish.py --limit 0 --shorts 3 >> /root/yt/logs/cron.log 2>&1
+#
+# 健檢:排在早上,回報的是前一天發得如何。只在**有事**時推播 ——
+# 每天都響的警報等於沒有警報(判準見 ch3_lab/health.py)。
+# ⚠️ local_cron **只認 scripts/ 底下的 python**,寫 ../ch3_lab/health.py 或
+#    原始 shell 指令都不會被解析、而且是**靜默**不跑。所以包成 wrapper。
+#    順帶備份三本帳(uploaded*.json)——那是唯一防止重傳的東西。
+30 9 * * * /root/yt/run.sh scripts/ch3_health.py >> /root/yt/logs/cron.log 2>&1
 # 2026-08-27 BRAIN alpha 自動搜尋(每 2 小時一批 15 條)。Carson 指示:全自動、他只按提交。
 #   · **永遠不自動提交**——WorldQuant 競賽條款寫明偵測到「gaming/作弊/不誠實行為」會
 #     **終止帳號恕不另行通知並可能通報**,而參數網格大量自動提交正中該條;帳號沒了=季付獎金歸零。
@@ -587,3 +608,17 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # 每支長片約 US$0.025,每天 10 支 ≈ 7 美元/月;剩不到約 120 支(3 天量)就推 ntfy。
 # 免費層(gemini/groq)吃不下 14k tokens 的長片提示,所以這條是**單點故障**。
 40 8 * * * /root/yt/run.sh scripts/llm_credit_watch.py --notify >> /root/yt/logs/cron.log 2>&1
+# 2026-08-28 挖礦守門:每 20 分檢查,沒在跑就拉起來。
+#   事故=二階跑完就停,cron 每 2 小時才接手 → 最長 2 小時空窗,而且**安靜地死掉沒有訊號**。
+#   只補不搶:已有程序就什麼都不做(併發上限 2 是帳號層級,開兩個只會互相 429)。
+*/20 * * * * /root/yt/run.sh scripts/brain_miner_watchdog.py >> /root/yt/logs/cron.log 2>&1
+# 2026-08-29 每日挑片並通知 Carson 去按提交(自動化的最後一哩)。
+#   在此之前「挑哪兩條交」還卡在我手動跑 pick_next.py 再把 id 貼給他,
+#   等於整條線每天要等我開一次 session —— 而我不是排程的一部分。
+#   ⏰ 12:20 的理由:計分日分界 = ET 00:00 = **台北中午 12:00**。
+#      這時候交才算進今天,且離 15:00 結算還有 2.6 小時緩衝。
+#      (15:15 的 brain_score_watch 量的是**昨天**的結果,兩支不衝突。)
+#   會花模擬額度跑 6 條實測 check:self-correlation 只有平台算得出來,
+#   而它是遞減資源(交越多後面越難不相關),挑錯的成本遠高於多跑幾次 check。
+#   **仍然不自動提交**——那是 CLAUDE.md 對外發布紅線,綁 Carson 真實身分(CT30034)。
+20 12 * * * /root/yt/run.sh scripts/brain_daily_pick.py >> /root/yt/logs/cron.log 2>&1

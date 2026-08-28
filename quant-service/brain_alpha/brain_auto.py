@@ -44,6 +44,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -759,6 +760,60 @@ def flatten(detail):
             "all_pass": (not failed) and (not pending)}
 
 
+# ────────────────────── 跨程序單一實例鎖 ──────────────────────
+# 平台併發上限 2 是**帳號層級**的：開兩個挖礦程序不會變快,只會互相 429。
+# 而現行排程有三個入口都會啟動挖礦:
+#   · `0 */2 * * *` brain_alpha_cron —— **無條件**啟動,不看有沒有人在跑
+#   · `*/20` brain_miner_watchdog —— 會先查,但查的是程序名不是鎖
+#   · 我在 session 裡手動起的長批:`--run 4000` 一跑好幾天,
+#     兩小時一次的 cron 必然疊上來。帳本裡已經有 16 次 429。
+#
+# 判準照 memory `yt-make-video-duplicate-deadlock` 的教訓:
+# **「超時=死亡」不能只看時間戳,要配活性證明**。這裡用 PID 存活 + 指令列比對,
+# 而不是「鎖檔超過 N 分鐘就算過期」——長批本來就會跑很久,純看時間會把活的判死。
+LOCKFILE = ROOT / "miner.lock"
+
+
+def _pid_alive_miner(pid: int) -> bool:
+    """那個 PID 還活著、而且真的是挖礦程序嗎？
+
+    只看 PID 存活不夠：PID 會被作業系統回收給無關的程式。
+    所以連指令列一起比對 —— 這就是「活性證明」。
+    """
+    try:
+        out = subprocess.run(
+            ["wmic", "process", "where", f"ProcessId={int(pid)}", "get", "commandline"],
+            capture_output=True, text=True, timeout=30).stdout
+    except Exception:  # noqa: BLE001
+        return True          # 查不出來就當它活著,寧可少跑一批也不要兩個互撞
+    return any(k in out for k in ("field_miner", "second_order", "brain_auto"))
+
+
+def claim_lock() -> bool:
+    """搶到鎖回 True；已經有人在挖回 False。"""
+    try:
+        if LOCKFILE.exists():
+            old = LOCKFILE.read_text(encoding="utf-8").strip().split(",")[0]
+            if old.isdigit() and _pid_alive_miner(int(old)):
+                print(f"[lock] PID {old} 正在挖礦（併發上限 2 是帳號層級，"
+                      f"再開一個只會互相 429）→ 這一輪不跑。")
+                return False
+            print(f"[lock] 舊鎖 PID {old} 已不是挖礦程序 → 接手")
+        LOCKFILE.write_text(f"{os.getpid()},{time.time():.0f}", encoding="utf-8")
+        return True
+    except Exception as e:  # noqa: BLE001
+        print(f"[lock] 鎖操作失敗（照跑）：{e}", file=sys.stderr)
+        return True
+
+
+def release_lock() -> None:
+    try:
+        if LOCKFILE.exists() and LOCKFILE.read_text(encoding="utf-8").startswith(str(os.getpid())):
+            LOCKFILE.unlink()
+    except Exception:  # noqa: BLE001
+        pass
+
+
 # ────────────────────── 主流程 ──────────────────────
 
 def cmd_run(n, workers=2):
@@ -772,10 +827,15 @@ def cmd_run(n, workers=2):
     """
     import threading
 
+    # 跨程序單一實例：三個入口都會啟動挖礦（2 小時 cron 無條件跑、20 分守門、
+    # 我手動起的長批），而併發上限 2 是**帳號層級**——疊起來只會互相 429。
+    if not claim_lock():
+        return
+
     led = load_ledger(); st = load_state()
     todo = [(l, e, s) for l, e, s in candidates() if _key(e, s) not in led][:n]
     if not todo:
-        print("候選都跑完了。"); return
+        print("候選都跑完了。"); release_lock(); return
     print(f"待跑 {len(todo)} 條（{workers} 個 worker 併發，平台硬上限 2）")
     s = auth()
     sc = track_score(s)          # 每批開頭記一筆積分快照,用斜率反推一條值幾分
@@ -845,6 +905,7 @@ def cmd_run(n, workers=2):
         print(f"\n★★ {len(winners)} 條已評估項全過，已推播（送出={ok}）★★")
     else:
         print("\n本輪無候選通過全部已評估項目。")
+    release_lock()
 
 
 def _base_key(expr: str) -> str:

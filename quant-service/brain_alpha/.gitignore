@@ -9,3 +9,4 @@ miner_*.log
 miner_*.err
 watchdog_restart.log
 *.bak-*
+miner.lock
