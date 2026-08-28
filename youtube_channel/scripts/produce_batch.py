@@ -4582,6 +4582,21 @@ def make_one(kind, no_render=False, topic_override=None, script_override=None):
             d = call_claude(kind, _ex, topic_override)
         if _fabricated_perf_claim_d(d):
             log_ops("補產部門", f"⚠️ A2疑似捏造績效數字·重生2次仍命中,已放行需人工複查:{d.get('title','')[:26]}")
+    # 🔴 2026-08-28:prompt 洩漏剝除**提前到這裡**(每支稿必跑),不要等重生迴圈才試。
+    # 實測依據:當日 51 支報廢留證裡,**31 支帶規則區洩漏、28 支帶骨架區、27 支帶人設區**
+    # —— 洩漏是全面性的、不是偶發,而同日成稿只有 7 支。**洩漏就是良率 35% 的主因。**
+    # 而 26 支可發庫存裡有 14 支帶洩漏,唸出來 21~87 秒(最嚴重那支從第 13 秒就開始唸)。
+    # 剝除是確定性的(整句刪,純指令零內容),實測 27 支洩漏中 26 支剝得乾淨。
+    # 放在重生迴圈裡的問題是:它只在**已經不合格**時才試一次,而洩漏常常單獨出現、
+    # 不觸發其他閘門 → 稿子帶著洩漏直接出廠(那 14 支就是這樣來的)。
+    # 提前到這裡 = 洩漏在進任何閘門之前就沒了。
+    if "voice_text" in d:
+        _before = d["voice_text"]
+        if _long_prompt_leak(_before):
+            _after = _strip_prompt_leak(_before)
+            if _after and _long_chinese_chars(_after) >= _long_chinese_chars(_before) * 0.7:
+                d["voice_text"] = _after      # 剝掉超過 30% 就不對勁,寧可留著讓閘門擋
+                log_ops("補產·清理", f"產稿後剝除 prompt 洩漏｜{d.get('title','')[:22]}")
     # 疊字守門:修 LLM 偶發 stutter(voice_text/title/description/段落小標),一次覆蓋 voice.txt 與 md
     for _k in ("voice_text", "title", "description"):
         if _k in d:
