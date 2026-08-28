@@ -29,7 +29,6 @@
 import argparse
 import json
 import pathlib
-import re
 import sys
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -48,111 +47,40 @@ TAIL = {
     "stronger":    "It came back stronger.",
 }
 
-# 陳述句 → 問句。保持原強度:correlated 只問「有關聯嗎」不問「會造成嗎」。
-RULES = [
-    (r"^(.+?) is positively correlated with (.+)$",
-     lambda m: f"Are {dc(m[1])} and {m[2]} really linked?"),
-    (r"^(.+?) is negatively correlated with (.+)$",
-     lambda m: f"Are {dc(m[1])} and {m[2]} really linked?"),
-    (r"^(.+?) is associated with (.+)$",
-     lambda m: f"Is {dc(m[1])} really associated with {m[2]}?"),
-    (r"^(.+?) leads to (.+)$",
-     lambda m: f"Does {dc(m[1])} really lead to {m[2]}?"),
-    (r"^(.+?) increases (.+)$",
-     lambda m: f"Does {dc(m[1])} really increase {m[2]}?"),
-    (r"^(.+?) reduces (.+)$",
-     lambda m: f"Does {dc(m[1])} really reduce {m[2]}?"),
-    (r"^(.+?) can (.+)$",
-     lambda m: f"Can {dc(m[1])} really {m[2]}?"),
-    (r"^People tend to (.+)$",
-     lambda m: f"Do people really {m[1]}?"),
-    (r"^People (expect|judge|value) (.+)$",
-     lambda m: f"Do people really {m[1]} {m[2]}?"),
-    (r"^(.+?) are judged to be (.+)$",
-     lambda m: f"Are {dc(m[1])} really judged {m[2]}?"),
-    (r"^(.+?) find (.+)$",
-     lambda m: f"Do {dc(m[1])} really find {m[2]}?"),
-    (r"^The more (.+?), the less (.+)$",
-     lambda m: f"Does a crowd really make each person less likely to {m[2].split('is to ')[-1]}?"
-     if "help" in m[2] else f"The more {m[1]}, the less {m[2]}?"),
-    (r"^Effects? of (.+?) on (.+)$",
-     lambda m: f"Do {m[1]} really affect {m[2]}?"),
-    (r"^(.+?) should be more (.+)$",
-     lambda m: f"Are {dc(m[1])} really more {m[2]}?"),
-    (r"^(.+?) should (.+)$",
-     lambda m: f"Do {dc(m[1])} really {m[2]}?"),
-    (r"^(.+?) would be (.+)$",
-     lambda m: f"Are {dc(m[1])} really {m[2]}?"),
-    (r"^Whether (.+?) (decreases|increases|reduces) (.+)$",
-     lambda m: f"Does {m[1]} really {m[2][:-1]} {m[3]}?"),
-    (r"^(.+?) made more (.+)$",
-     lambda m: f"Do {dc(m[1])} really make more {m[2]}?"),
-    (r"^(.+?) reported more (.+)$",
-     lambda m: f"Do people really report more {m[2]}?"),
-    (r"^(.+?) using the (.+?) (increases|reduces) (.+)$",
-     lambda m: f"Does {dc(m[1])} really {m[3][:-1]} {m[4]}?"),
-    (r"^(.+?) is perceived as (.+)$",
-     lambda m: f"Is {dc(m[1])} really perceived as {m[2]}?"),
-    (r"^(.+?) are perceived as (.+)$",
-     lambda m: f"Are {dc(m[1])} really perceived as {m[2]}?"),
-]
-
-
-# 主張本身就超過 100 字元的那幾則,規則救不了 —— 而**砍掉它的限定子句會改變
-# 意思**(「when the number of lives at risk was small」拿掉就變成另一個發現)。
-# 所以這幾則手寫,跟名案的 hook_short 同一個做法。每一句都對照原主張確認過
-# 沒有加強語氣、沒有丟掉限定條件。
-HAND = {
-    "Consumers with": "Do people cling to products that define them when unsure who they are?",
-    "Products with brand names": "Do brand names that sound 'thicker' really feel thicker?",
-    "Life-saving interventions": "Do we value a life more when fewer lives are at stake?",
-    "Participants reported more intense": "Is looking forward to a trip better than the trip?",
-    "Knowledge of one": "Does what you do reveal more about you than what you own?",
-    "Whether holding decision makers": "Does holding people accountable stop them throwing good money after bad?",
-    "Group members would reject": "Do groups punish outside criticism more than the same words from inside?",
-    "People expect more corruption": "Do people expect more corruption in hierarchical organisations?",
-}
-
-
-def dc(t):
-    """只降**第一個字母**,不要整串 lower —— 那會把縮寫毀掉(CRT → crt)。"""
-    return t[0].lower() + t[1:] if t else t
-
-
-def to_question(claim):
-    c = claim.strip().rstrip(".")
-    for pat, fn in RULES:
-        m = re.match(pat, c, re.I)
-        if m:
-            q = fn([m.group(0)] + list(m.groups()))
-            return re.sub(r"\s{2,}", " ", q)[0].upper() + \
-                re.sub(r"\s{2,}", " ", q)[1:]
-    return None
-
-
 def build(o):
     """回傳新標題,或 None 表示保留原樣。
 
-    ⚠️ 名案那 5 支的標題來自手寫的 `hook_short`(「Willpower runs out as you
-    use it?」),那比任何規則產得出來的都好 —— 它們本來就是可搜尋的字串。
-    規則只用來救 FReD 那批數字開頭、讀不懂的標題。
+    ## 問句從哪來(2026-08-29 改)
+    以前是一套正規表示式把論文語言的 claim 轉成問句,再加一張手寫表補
+    規則救不了的。產出長這樣:
+
+        Does scarcity-induced focus really lead to cognitive fatigue on
+        subsequent cognitive control task?
+
+    文法沒錯、意思沒錯、**沒有人看得懂**。而標題和縮圖是這條線上唯二
+    在觀眾點進來之前就要說服他的東西 —— 兩個都用圈內語言,等於沒有。
+
+    現在直接用手寫的白話句(`facts/plain_claims.json` 的 `spoken`),
+    跟縮圖那兩行、Short 開場那張卡是**同一句話**。整套規則和手寫表已經
+    刪掉,不是留著當備援:留著就是留一條沒人走的路,而這條線上
+    「閘門修在沒人走的那份實作上」已經栽過一次。
+
+    名案那 5 支回 None —— 它們要在前面加通用搜尋詞,由 `retitle_live`
+    負責(那裡才有 famous_episodes.json 的規模數字)。
     """
     if o.get("kind") == "famous":
         return None
-    claim = o["description"].split("\n")[0].strip()
+    import plain
+    q = plain.spoken(o.get("dir"), o.get("slug"))
+    if not q:
+        # fail-closed:沒有手寫白話句就不動它。退回論文語言等於這次改版
+        # 沒發生,而那種退化是靜默的。
+        return None
     tail = TAIL.get(o["tone"], "")
-    for pre, hand in HAND.items():
-        if claim.startswith(pre):
-            cand = f"{hand} {tail}"
-            return cand if len(cand) <= 100 else hand
-    q = to_question(claim)
-    c = claim.rstrip(".")
-    # 由好到次好,取第一個塞得下的。最後一層只有主張本身 —— 它讀得懂,
-    # 而數字開頭的標題(「A 2015 study found 0.57」)對任何管道都是死的。
-    for cand in ([f"{q} {tail}", q] if q else []) + [f"{c} — {tail}", c]:
+    for cand in (f"{q} {tail}", q):
         if cand and len(cand) <= 100:
             return cand
-    return None
+    return q[:100]
 
 
 def main():

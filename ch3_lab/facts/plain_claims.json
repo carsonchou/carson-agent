@@ -1,0 +1,105 @@
+{
+  "_why": "縮圖與 Short 開場要放的是『一個一般人相信的說法』,不是論文語言。來源的 claim 欄是摘要剪下來的(「Action identification is positively correlated with mind attribution」),放上去沒有人看得懂,而那兩個位置都是 feed 裡最先被看到的東西。這份是**手寫**的:改寫只做『講人話』,不改變意思、不加任何新宣稱、不放數字。數字與判決字仍然由事實庫與 tone 決定,所以溯源鏈沒有變。",
+
+  "_lines": "縮圖與 Short 開場卡的兩行大寫。分兩行是因為版面就是兩行;每行盡量 ≤ 24 字元,再長會被自動縮到看不清。",
+  "_spoken": "Short 旁白唸的那一句。**分開手寫**而不是把 lines 接起來加問號 —— 接起來會壞在大小寫(god→God)、標點(ep001 本身就有問號)、和唸不順(缺逗號)。三種都不會報錯,只會唸出一句怪話。",
+  "_rule": "缺一支就不產那支縮圖、也不產那支 Short(fail-closed)—— 寧可少一支,也不要把論文語言放上去。",
+
+  "eps/ep000": {
+    "lines": ["A WATER-SAVING NUDGE", "CHANGES WHAT YOU EXPECT"],
+    "spoken": "A water-saving nudge changes what you expect?"
+  },
+  "eps/ep001": {
+    "lines": ["FEELING UNSURE OF YOURSELF", "MAKES YOU CLING TO STUFF"],
+    "spoken": "Feeling unsure of yourself makes you cling to your stuff?"
+  },
+  "eps/ep002": {
+    "lines": ["THINK IN BIG-PICTURE TERMS", "AND YOU SEE MORE MINDS"],
+    "spoken": "Think in big-picture terms, and you start seeing more minds?"
+  },
+  "eps/ep003": {
+    "lines": ["AGREEABLE PEOPLE", "COMMIT FEWER CRIMES"],
+    "spoken": "Agreeable people commit fewer crimes?"
+  },
+  "eps/ep004": {
+    "lines": ["BEING SHORT ON MONEY", "DRAINS YOUR SELF-CONTROL"],
+    "spoken": "Being short on money drains your self-control?"
+  },
+  "eps/ep005": {
+    "lines": ["BRAND NAMES THAT SOUND", "THICKER FEEL THICKER"],
+    "spoken": "Brand names that sound thicker feel thicker?"
+  },
+  "eps/ep006": {
+    "lines": ["WE VALUE A LIFE MORE", "WHEN FEWER ARE AT RISK"],
+    "spoken": "We value a life more when fewer lives are at risk?"
+  },
+  "eps/ep007": {
+    "lines": ["THE MORE USEFUL IT IS", "THE SAFER IT SEEMS"],
+    "spoken": "The more useful something is, the safer it seems?"
+  },
+  "eps/ep008": {
+    "lines": ["LOOKING FORWARD TO A TRIP", "BEATS THE TRIP ITSELF"],
+    "spoken": "Looking forward to a trip beats the trip itself?"
+  },
+  "eps/ep009": {
+    "lines": ["THINKING ABOUT GOD", "MAKES YOU TAKE RISKS"],
+    "spoken": "Thinking about God makes you take more risks?"
+  },
+  "eps/ep010": {
+    "lines": ["THINK ANALYTICALLY AND", "CONSPIRACY BELIEF DROPS"],
+    "spoken": "Think analytically, and belief in conspiracies drops?"
+  },
+  "eps/ep011": {
+    "lines": ["WHAT YOU DO REVEALS MORE", "THAN WHAT YOU OWN"],
+    "spoken": "What you do reveals more about you than what you own?"
+  },
+  "eps/ep012": {
+    "lines": ["BEING HELD ACCOUNTABLE", "STOPS YOU DOUBLING DOWN"],
+    "spoken": "Being held accountable stops you throwing good money after bad?"
+  },
+  "eps/ep013": {
+    "lines": ["THINKING ABOUT HEAT", "MAKES YOU SEE HOSTILITY"],
+    "spoken": "Thinking about heat makes you see people as more hostile?"
+  },
+  "eps/ep014": {
+    "lines": ["MORE REFLECTIVE THINKERS", "MAKE COLDER MORAL CHOICES"],
+    "spoken": "More reflective thinkers make colder moral choices?"
+  },
+  "eps/ep015": {
+    "lines": ["CRITICISM FROM OUTSIDERS", "STINGS MORE THAN INSIDE"],
+    "spoken": "Criticism stings more when it comes from an outsider?"
+  },
+  "eps/ep016": {
+    "lines": ["CONCRETE WORDING", "MAKES A CLAIM SEEM TRUER"],
+    "spoken": "Concrete wording makes a claim seem truer?"
+  },
+  "eps/ep017": {
+    "lines": ["A STEEPER HIERARCHY", "LOOKS MORE CORRUPT"],
+    "spoken": "A steeper hierarchy looks more corrupt?"
+  },
+  "eps/ep018": {
+    "lines": ["AT EASY THINGS", "EVERYONE IS ABOVE AVERAGE"],
+    "spoken": "At easy things, everyone thinks they're above average?"
+  },
+
+  "eps_famous/ego_depletion": {
+    "lines": ["WILLPOWER", "RUNS OUT AS YOU USE IT"],
+    "spoken": "Willpower runs out as you use it?"
+  },
+  "eps_famous/bystander_effect": {
+    "lines": ["A CROWD STOPS", "PEOPLE FROM HELPING"],
+    "spoken": "A crowd stops people from helping?"
+  },
+  "eps_famous/implicit_bias_test": {
+    "lines": ["THIS TEST REVEALS", "YOUR HIDDEN BIAS"],
+    "spoken": "There's a test that reveals your hidden bias?"
+  },
+  "eps_famous/sleep_memory": {
+    "lines": ["A SOUND IN YOUR SLEEP", "STRENGTHENS A MEMORY"],
+    "spoken": "A sound played while you sleep strengthens a memory?"
+  },
+  "eps_famous/romantic_red": {
+    "lines": ["RED MAKES WOMEN", "MORE ATTRACTIVE"],
+    "spoken": "Red makes a woman look more attractive?"
+  }
+}
