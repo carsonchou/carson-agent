@@ -3511,6 +3511,16 @@ def _long_fact_heal(bodies, facts_ctx, integrity, title):
         import fact_guard, llm
     except Exception:  # noqa: BLE001
         return bodies, 0
+    # 🔴 2026-08-28 實測:這個「誠信自癒」實際上**什麼都沒在癒**。
+    # 它用 `fsg.fact_pool()` —— 全頻道扁平池,已長到 **33,885 個數字**。
+    # 拿 12 支真稿共 417 個數字宣稱去驗:**判定無憑據 = 0 個**。
+    # 原因是池子太密:隨機三位數有 100% 機率在裡面找到「憑據」(見 fact_source_guard
+    # 的 fact_pool_for docstring)。所以 log 每支都印「殘留 N 段旗標」,
+    # 但那個 N 不是這裡判出來的,自癒這一步等於空轉。
+    # ⚠️ 收窄池(fact_pool_for)判出 26 個,但實測那 26 個多半也不是造假 ——
+    #    事實庫會定期重算(舊稿對不上今天的數字)、口語概數被當精確宣稱。
+    #    **兩邊都不可信**,所以今天刻意不換池:換了只是把「全通」變成「誤擋」。
+    #    要修對得先讓每支片產稿時存下自己的憑據池,那是餵料端的改動。
     # 事實庫數字池太小 = 守門自己壞掉(會誤判全部無憑據),照 daily_publish 的 fail-open 慣例不擋。
     try:
         import fact_source_guard as fsg
