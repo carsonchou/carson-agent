@@ -1,0 +1,11 @@
+.env
+search_ledger.jsonl
+
+# 挖礦執行產物：每天長好幾 MB,重建成本只是重跑,不進版控
+auto_ledger.jsonl
+score_history.jsonl
+sweep_results.jsonl
+miner_*.log
+miner_*.err
+watchdog_restart.log
+*.bak-*
