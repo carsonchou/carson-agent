@@ -124,6 +124,18 @@ def size_phrase(es, kind):
     return w if w.startswith("below") or w.startswith("essentially")         else w + " effect"
 
 
+#: 每一段旁白之後補的靜音,讓幕與幕之間有呼吸。
+#: 🔴 **具名而且要被外部引用。** 它原本是內嵌在 mux 迴圈裡的 `+ 0.7`,
+#:    於是 `lint_episode.scene_bounds` 自己算幕的起訖時間時漏掉它 ——
+#:    7 段就差 4.9 秒,scale 幕的窗口比實際早開始 1.4 秒。
+#:    後果不是讀數偏差而已:**前一幕的內容落在標記偵測的同一條 ROI 帶裡**
+#:    (實測 0.0118~0.0160,高於偵測門檻 0.01),窗口一早,偵測器就會抓到
+#:    前一幕、回報一個非常早的 onset、然後**判定「節奏修好了」而其實沒有**。
+#:    今天沒出事只是因為 MARK_SKIP_S 剛好跳過了它 —— 那個餘裕是意外的。
+#:    同一個時間軸兩份算法,而寫錯的那份是守門的那份。
+SEG_GAP = 0.7
+
+
 def thresholds(kind):
     """Cohen(1988)的慣例門檻,依效果量型別分軌。回傳 (小, 中, 大, 地板)。
 
@@ -1011,7 +1023,7 @@ def main():
             sr = w.getframerate()
             raw = w.readframes(w.getnframes())
             nch = w.getnchannels()
-            dur = w.getnframes() / sr + 0.7
+            dur = w.getnframes() / sr + SEG_GAP
         x = np.frombuffer(raw, np.int16)
         if nch > 1:
             x = x.reshape(-1, nch).mean(axis=1).astype(np.int16)
