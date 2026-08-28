@@ -1,0 +1,55 @@
+{
+ "accent": "#FFC23D",
+ "canvas": [
+  1080,
+  1920,
+  30
+ ],
+ "card": "The effect did not survive.",
+ "claim_lines": [
+  "BEING HELD ACCOUNTABLE",
+  "STOPS YOU DOUBLING DOWN"
+ ],
+ "color": "#F5A54E",
+ "end_card": [
+  "Every number",
+  "from the record"
+ ],
+ "frames": "537e410ac3d36aff",
+ "fs": {
+  "big": 280,
+  "card": 58,
+  "claim": {
+   "fs": 63,
+   "lines": [
+    "BEING HELD",
+    "ACCOUNTABLE",
+    "STOPS YOU",
+    "DOUBLING DOWN"
+   ],
+   "ys": [
+    0.6304,
+    0.5735,
+    0.5165,
+    0.4596
+   ]
+  },
+  "end": 75,
+  "kicker": 46,
+  "meas": 50,
+  "src": 27,
+  "sub": 41
+ },
+ "kicker": "A STUDY FOUND",
+ "palette": [
+  "#0E1116",
+  "#E8EAED",
+  "#8A9099"
+ ],
+ "safe": [
+  0.86,
+  0.24,
+  0.93
+ ],
+ "source": "FORRT Replication Database (FReD), OSF 2tbvd"
+}

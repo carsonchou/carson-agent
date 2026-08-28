@@ -5,8 +5,8 @@
   "dir": "eps/ep000",
   "video": "eps/ep000/ep000.mp4",
   "tone": "gone",
-  "title": "A water-saving nudge changes what you expect? A bigger replication couldn't find it.",
-  "description": "A water-saving nudge changes what you expect?\n\nEffects of consumer cues on believing other people should use less water.\n\nOriginal study (2012): Cuing Consumerism\n  77 participants — effect size 0.25 (d)\n  doi:10.1177/0956797611429579\n\nReplication: Many Labs 2: Investigating Variation in Replicability Across Samples and Settings\n  6,608 participants — effect size 0.01\n  doi:10.1177/2515245918810225\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "title": "Do reminders of consumerism change whether you think other people should save water?",
+  "description": "Do reminders of consumerism change whether you think other people should save water?\n\nEffects of consumer cues on believing other people should use less water.\n\nOriginal study (2012): Cuing Consumerism\n  77 participants — effect size 0.25 (d)\n  doi:10.1177/0956797611429579\n\nReplication: Many Labs 2: Investigating Variation in Replicability Across Samples and Settings\n  6,608 participants — effect size 0.01\n  doi:10.1177/2515245918810225\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
   "tags": [
    "replication crisis",
    "psychology",
@@ -19,7 +19,12 @@
    "open science",
    "social psychology"
   ],
-  "thumb": "eps/ep000/thumb.jpg"
+  "facts": {
+   "es_o": 0.25,
+   "es_r": 0.01,
+   "n_o": 77,
+   "n_r": 6608
+  }
  },
  {
   "kind": "fred",
@@ -27,8 +32,8 @@
   "dir": "eps/ep001",
   "video": "eps/ep001/ep001.mp4",
   "tone": "gone",
-  "title": "Feeling unsure of yourself makes you cling to your stuff? A bigger replication couldn't find it.",
-  "description": "Feeling unsure of yourself makes you cling to your stuff?\n\nConsumers with “low self-concept clarity” should be more motivated to keep their identities stable by retaining products that are relevant to their identities.\n\nOriginal study (2019): The Uncertain Self: How Self-Concept Structure Affects Subscription Choice\n  405 participants — effect size 0.27 (d)\n  doi:10.1093/jcr/ucz022\n\nReplication: [84] Data Replicada #3: Does Self-Concept Uncertainty Influence Magazine Subscription Choice?\n  1,283 participants — effect size -0.07\n  doi:nan\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "title": "Feeling unsure of yourself makes you hold on to the things that define you?",
+  "description": "Feeling unsure of yourself makes you hold on to the things that define you?\n\nConsumers with “low self-concept clarity” should be more motivated to keep their identities stable by retaining products that are relevant to their identities.\n\nOriginal study (2019): The Uncertain Self: How Self-Concept Structure Affects Subscription Choice\n  405 participants — effect size 0.27 (d)\n  doi:10.1093/jcr/ucz022\n\nReplication: [84] Data Replicada #3: Does Self-Concept Uncertainty Influence Magazine Subscription Choice?\n  1,283 participants — effect size -0.07\n  doi:nan\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
   "tags": [
    "replication crisis",
    "psychology",
@@ -41,7 +46,12 @@
    "open science",
    "social psychology"
   ],
-  "thumb": "eps/ep001/thumb.jpg"
+  "facts": {
+   "es_o": 0.27,
+   "es_r": -0.07,
+   "n_o": 405,
+   "n_r": 1283
+  }
  },
  {
   "kind": "fred",
@@ -49,8 +59,8 @@
   "dir": "eps/ep002",
   "video": "eps/ep002/ep002.mp4",
   "tone": "gone",
-  "title": "Think in big-picture terms, and you start seeing more minds? A bigger replication couldn't find it.",
-  "description": "Think in big-picture terms, and you start seeing more minds?\n\nAction identification is positively correlated with mind attribution.\n\nOriginal study (2006): What do i think you're doing? Action identification and mind attribution.\n  50 participants — effect size 0.30 (r)\n  doi:10.1037/0022-3514.90.4.543\n\nReplication: Kozak et al 2006 replication and extension\n  1,086 participants — effect size 0.08\n  doi:10.17605/osf.io/j9mfn\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "title": "Do people who see the big picture also see more minds? A bigger replication couldn't find it.",
+  "description": "Do people who see the big picture also see more minds?\n\nAction identification is positively correlated with mind attribution.\n\nOriginal study (2006): What do i think you're doing? Action identification and mind attribution.\n  50 participants — effect size 0.30 (r)\n  doi:10.1037/0022-3514.90.4.543\n\nReplication: Kozak et al 2006 replication and extension\n  1,086 participants — effect size 0.08\n  doi:10.17605/osf.io/j9mfn\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
   "tags": [
    "replication crisis",
    "psychology",
@@ -63,7 +73,12 @@
    "open science",
    "social psychology"
   ],
-  "thumb": "eps/ep002/thumb.jpg"
+  "facts": {
+   "es_o": 0.3,
+   "es_r": 0.08,
+   "n_o": 50,
+   "n_r": 1086
+  }
  },
  {
   "kind": "fred",
@@ -85,7 +100,12 @@
    "open science",
    "social psychology"
   ],
-  "thumb": "eps/ep003/thumb.jpg"
+  "facts": {
+   "es_o": -0.25,
+   "es_r": -0.23,
+   "n_o": 197,
+   "n_r": 1550
+  }
  },
  {
   "kind": "fred",
@@ -107,7 +127,12 @@
    "open science",
    "social psychology"
   ],
-  "thumb": "eps/ep004/thumb.jpg"
+  "facts": {
+   "es_o": -0.542,
+   "es_r": 0.128,
+   "n_o": 60,
+   "n_r": 997
+  }
  },
  {
   "kind": "fred",
@@ -115,8 +140,8 @@
   "dir": "eps/ep005",
   "video": "eps/ep005/ep005.mp4",
   "tone": "shrunk_real",
-  "title": "Brand names that sound thicker feel thicker? It's real — but much smaller than the first study said.",
-  "description": "Brand names that sound thicker feel thicker?\n\nProducts with brand names containing back vowel sounds, as opposed to front vowel sounds, are perceived as thicker.\n\nOriginal study (2000): Creating Brand Names With Meaning: The Use of Sound Symbolism\n  171 participants — effect size 0.82 (r)\n  doi:10.1023/a:1008184423824\n\nReplication: Evaluating replicability of ten influential research on sensory marketing\n  823 participants — effect size 0.22\n  doi:10.3389/fcomm.2022.1048896\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "title": "Does a deeper-sounding brand name make a product feel thicker?",
+  "description": "Does a deeper-sounding brand name make a product feel thicker?\n\nProducts with brand names containing back vowel sounds, as opposed to front vowel sounds, are perceived as thicker.\n\nOriginal study (2000): Creating Brand Names With Meaning: The Use of Sound Symbolism\n  171 participants — effect size 0.82 (r)\n  doi:10.1023/a:1008184423824\n\nReplication: Evaluating replicability of ten influential research on sensory marketing\n  823 participants — effect size 0.22\n  doi:10.3389/fcomm.2022.1048896\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
   "tags": [
    "replication crisis",
    "psychology",
@@ -129,7 +154,12 @@
    "open science",
    "social psychology"
   ],
-  "thumb": "eps/ep005/thumb.jpg"
+  "facts": {
+   "es_o": 0.819,
+   "es_r": 0.222,
+   "n_o": 171,
+   "n_r": 823
+  }
  },
  {
   "kind": "famous",
@@ -138,7 +168,7 @@
   "video": "eps_famous/ego_depletion/ego_depletion.mp4",
   "tone": "gone",
   "title": "Willpower runs out as you use it? 23 laboratories tested it: 0.04.",
-  "description": "Willpower is a limited resource that runs out as you use it.\n\nOriginal study (1998): Ego depletion: Is the active self a limited resource?\n  cited more than 4,900 times (OpenAlex, retrieved 2026-08-25)\n  doi:10.1037/0022-3514.74.5.1252\n\nThe test (2016): A Multilab Preregistered Replication of the Ego-Depletion Effect\n  23 laboratories, 2,141 people\n  d = 0.04, 95% CI [-0.07, 0.15]  — the interval includes zero\n  doi:10.1177/1745691616652873\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "description": "Willpower runs out as you use it?\n\nWillpower is a limited resource that runs out as you use it.\n\nOriginal study (1998): Ego depletion: Is the active self a limited resource?\n  cited more than 4,900 times (OpenAlex, retrieved 2026-08-25)\n  doi:10.1037/0022-3514.74.5.1252\n\nThe test (2016): A Multilab Preregistered Replication of the Ego-Depletion Effect\n  23 laboratories, 2,141 people\n  d = 0.04, 95% CI [-0.07, 0.15]  — the interval includes zero\n  doi:10.1177/1745691616652873\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
   "tags": [
    "replication crisis",
    "psychology",
@@ -151,7 +181,15 @@
    "open science",
    "social psychology"
   ],
-  "thumb": "eps_famous/ego_depletion/thumb.jpg"
+  "facts": {
+   "es_o": null,
+   "es_r": 0.04,
+   "n_o": 4900,
+   "n_r": 2141,
+   "k": 23,
+   "k_word": "laboratories",
+   "has_original": true
+  }
  },
  {
   "kind": "famous",
@@ -160,7 +198,7 @@
   "video": "eps_famous/romantic_red/romantic_red.mp4",
   "tone": "gone",
   "title": "Does red make women more attractive? 242 men: 0.09. 360 women: -0.09.",
-  "description": "Men find women more attractive when they are wearing red.\n\nOriginal study (2008): Romantic red: Red enhances men's attraction to women.\n  cited more than 400 times (OpenAlex, retrieved 2026-08-25)\n  doi:10.1037/0022-3514.95.5.1150\n\nThe test (2017): Is Red Really Romantic?\n  602 people\n  242 men: d = 0.09, 95% CI [-0.17, 0.34]  — the interval includes zero\n  doi:10.1027/1864-9335/a000296\n  360 women: d = -0.09, 95% CI [-0.30, 0.12]\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "description": "Red makes a woman look more attractive?\n\nMen find women more attractive when they are wearing red.\n\nOriginal study (2008): Romantic red: Red enhances men's attraction to women.\n  cited more than 400 times (OpenAlex, retrieved 2026-08-25)\n  doi:10.1037/0022-3514.95.5.1150\n\nThe test (2017): Is Red Really Romantic?\n  602 people\n  242 men: d = 0.09, 95% CI [-0.17, 0.34]  — the interval includes zero\n  doi:10.1027/1864-9335/a000296\n  360 women: d = -0.09, 95% CI [-0.30, 0.12]\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
   "tags": [
    "replication crisis",
    "psychology",
@@ -173,7 +211,15 @@
    "open science",
    "social psychology"
   ],
-  "thumb": "eps_famous/romantic_red/thumb.jpg"
+  "facts": {
+   "es_o": null,
+   "es_r": 0.09,
+   "n_o": 400,
+   "n_r": 242,
+   "k": null,
+   "k_word": null,
+   "has_original": true
+  }
  },
  {
   "kind": "famous",
@@ -182,7 +228,7 @@
   "video": "eps_famous/bystander_effect/bystander_effect.mp4",
   "tone": "held",
   "title": "Does a crowd stop people helping? 105 independent effect sizes tested it: -0.35.",
-  "description": "The more people who witness an emergency, the less likely any one of them is to help.\n\nOriginal study (1968): Bystander intervention in emergencies: Diffusion of responsibility.\n  cited more than 3,000 times (OpenAlex, retrieved 2026-08-25)\n  doi:10.1037/h0025589\n\nThe test (2011): The bystander-effect: A meta-analytic review on bystander intervention in dangerous and non-dangerous emergencies\n  105 independent effect sizes, over 7,700 people\n  g = -0.35\n  doi:10.1037/a0023304\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "description": "Does a crowd make each person less likely to help?\n\nThe more people who witness an emergency, the less likely any one of them is to help.\n\nOriginal study (1968): Bystander intervention in emergencies: Diffusion of responsibility.\n  cited more than 3,000 times (OpenAlex, retrieved 2026-08-25)\n  doi:10.1037/h0025589\n\nThe test (2011): The bystander-effect: A meta-analytic review on bystander intervention in dangerous and non-dangerous emergencies\n  105 independent effect sizes, over 7,700 people\n  g = -0.35\n  doi:10.1037/a0023304\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
   "tags": [
    "replication crisis",
    "psychology",
@@ -195,7 +241,15 @@
    "open science",
    "social psychology"
   ],
-  "thumb": "eps_famous/bystander_effect/thumb.jpg"
+  "facts": {
+   "es_o": null,
+   "es_r": -0.35,
+   "n_o": 3000,
+   "n_r": 7700,
+   "k": 105,
+   "k_word": "independent effect sizes",
+   "has_original": true
+  }
  },
  {
   "kind": "famous",
@@ -204,7 +258,7 @@
   "video": "eps_famous/sleep_memory/sleep_memory.mp4",
   "tone": "held",
   "title": "Can a sound replayed in sleep strengthen what you learned? 91 experiments, 2,004 people: 0.29.",
-  "description": "Playing a sound during sleep can strengthen the memory you learned it with.\n\nThe test (2020): Promoting memory consolidation during sleep: A meta-analysis of targeted memory reactivation.\n  91 experiments, 2,004 people\n  g = 0.29, 95% CI [0.21, 0.38]\n  doi:10.1037/bul0000223\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "description": "A sound played while you sleep strengthens a memory?\n\nPlaying a sound during sleep can strengthen the memory you learned it with.\n\nThe test (2020): Promoting memory consolidation during sleep: A meta-analysis of targeted memory reactivation.\n  91 experiments, 2,004 people\n  g = 0.29, 95% CI [0.21, 0.38]\n  doi:10.1037/bul0000223\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
   "tags": [
    "replication crisis",
    "psychology",
@@ -217,7 +271,15 @@
    "open science",
    "social psychology"
   ],
-  "thumb": "eps_famous/sleep_memory/thumb.jpg"
+  "facts": {
+   "es_o": null,
+   "es_r": 0.29,
+   "n_o": null,
+   "n_r": 2004,
+   "k": 91,
+   "k_word": "experiments",
+   "has_original": false
+  }
  },
  {
   "kind": "famous",
@@ -226,7 +288,7 @@
   "video": "eps_famous/implicit_bias_test/implicit_bias_test.mp4",
   "tone": "shrunk_real",
   "title": "Does the hidden-bias test predict what you do? 184 independent samples, 14,900 people: 0.27.",
-  "description": "A reaction-time test can reveal the hidden bias behind how people behave, judge, and react.\n\nThe test (2009): Understanding and using the Implicit Association Test: III. Meta-analysis of predictive validity.\n  184 independent samples, 14,900 people\n  r = 0.27\n  doi:10.1037/a0015575\n  self-report questionnaires: r = 0.36\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "description": "Can a reaction-time test reveal your hidden bias?\n\nA reaction-time test can reveal the hidden bias behind how people behave, judge, and react.\n\nThe test (2009): Understanding and using the Implicit Association Test: III. Meta-analysis of predictive validity.\n  184 independent samples, 14,900 people\n  r = 0.27\n  doi:10.1037/a0015575\n  self-report questionnaires: r = 0.36\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
   "tags": [
    "replication crisis",
    "psychology",
@@ -239,7 +301,15 @@
    "open science",
    "social psychology"
   ],
-  "thumb": "eps_famous/implicit_bias_test/thumb.jpg"
+  "facts": {
+   "es_o": null,
+   "es_r": 0.274,
+   "n_o": null,
+   "n_r": 14900,
+   "k": 184,
+   "k_word": "independent samples",
+   "has_original": false
+  }
  },
  {
   "kind": "fred",
@@ -261,7 +331,12 @@
    "open science",
    "social psychology"
   ],
-  "thumb": "eps/ep006/thumb.jpg"
+  "facts": {
+   "es_o": 0.8,
+   "es_r": 0.4,
+   "n_o": 54,
+   "n_r": 723
+  }
  },
  {
   "kind": "fred",
@@ -283,7 +358,12 @@
    "open science",
    "social psychology"
   ],
-  "thumb": "eps/ep007/thumb.jpg"
+  "facts": {
+   "es_o": -0.75,
+   "es_r": -0.87,
+   "n_o": 219,
+   "n_r": 776
+  }
  },
  {
   "kind": "fred",
@@ -291,8 +371,8 @@
   "dir": "eps/ep008",
   "video": "eps/ep008/ep008.mp4",
   "tone": "shrunk_real",
-  "title": "Looking forward to a trip beats the trip itself?",
-  "description": "Looking forward to a trip beats the trip itself?\n\nParticipants reported more intense positive emotion during anticipation of the hypothetical future ski vacation.\n\nOriginal study (2007): Looking forward, looking back: Anticipation is more evocative than retrospection.\n  95 participants — effect size 0.43 (d)\n  doi:10.1037/0096-3445.136.2.289\n\nReplication: Revisiting the past-future emotional asymmetry: Replication and extensions of Van Boven and Ashworth (2007)\n  564 participants — effect size 0.18\n  doi:nan\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "title": "Looking forward to a trip beats looking back on it?",
+  "description": "Looking forward to a trip beats looking back on it?\n\nParticipants reported more intense positive emotion during anticipation of the hypothetical future ski vacation.\n\nOriginal study (2007): Looking forward, looking back: Anticipation is more evocative than retrospection.\n  95 participants — effect size 0.43 (d)\n  doi:10.1037/0096-3445.136.2.289\n\nReplication: Revisiting the past-future emotional asymmetry: Replication and extensions of Van Boven and Ashworth (2007)\n  564 participants — effect size 0.18\n  doi:nan\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
   "tags": [
    "replication crisis",
    "psychology",
@@ -305,7 +385,12 @@
    "open science",
    "social psychology"
   ],
-  "thumb": "eps/ep008/thumb.jpg"
+  "facts": {
+   "es_o": 0.43,
+   "es_r": 0.18,
+   "n_o": 95,
+   "n_r": 564
+  }
  },
  {
   "kind": "fred",
@@ -313,8 +398,8 @@
   "dir": "eps/ep009",
   "video": "eps/ep009/ep009.mp4",
   "tone": "gone",
-  "title": "Thinking about God makes you take more risks? A bigger replication couldn't find it.",
-  "description": "Thinking about God makes you take more risks?\n\nImplicitly priming God using the scrambled-sentence paradigm increases self-reported risk taking.\n\nOriginal study (2015): Anticipating Divine Protection? Reminders of God Can Increase Nonmoral Risk Taking\n  61 participants — effect size 0.57 (d)\n  doi:10.1177/0956797614563108\n\nReplication: Do Religious Primes Increase Risk Taking? Evidence Against “Anticipating Divine Protection” in Two Preregistered Direct Replications of Kupor, Laurin,\n  556 participants — effect size 0.14\n  doi:10.1177/0956797620922477\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "title": "Reminded of God, do people say they would take more risks? A bigger replication couldn't find it.",
+  "description": "Reminded of God, do people say they would take more risks?\n\nImplicitly priming God using the scrambled-sentence paradigm increases self-reported risk taking.\n\nOriginal study (2015): Anticipating Divine Protection? Reminders of God Can Increase Nonmoral Risk Taking\n  61 participants — effect size 0.57 (d)\n  doi:10.1177/0956797614563108\n\nReplication: Do Religious Primes Increase Risk Taking? Evidence Against “Anticipating Divine Protection” in Two Preregistered Direct Replications of Kupor, Laurin,\n  556 participants — effect size 0.14\n  doi:10.1177/0956797620922477\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
   "tags": [
    "replication crisis",
    "psychology",
@@ -327,7 +412,12 @@
    "open science",
    "social psychology"
   ],
-  "thumb": "eps/ep009/thumb.jpg"
+  "facts": {
+   "es_o": 0.574,
+   "es_r": 0.14,
+   "n_o": 61,
+   "n_r": 556
+  }
  },
  {
   "kind": "fred",
@@ -349,7 +439,12 @@
    "open science",
    "social psychology"
   ],
-  "thumb": "eps/ep010/thumb.jpg"
+  "facts": {
+   "es_o": 0.42,
+   "es_r": 0.06,
+   "n_o": 140,
+   "n_r": 488
+  }
  },
  {
   "kind": "fred",
@@ -371,7 +466,12 @@
    "open science",
    "social psychology"
   ],
-  "thumb": "eps/ep011/thumb.jpg"
+  "facts": {
+   "es_o": 0.371,
+   "es_r": 0.65,
+   "n_o": 121,
+   "n_r": 743
+  }
  },
  {
   "kind": "fred",
@@ -379,8 +479,8 @@
   "dir": "eps/ep012",
   "video": "eps/ep012/ep012.mp4",
   "tone": "gone",
-  "title": "Being held accountable stops you throwing good money after bad?",
-  "description": "Being held accountable stops you throwing good money after bad?\n\nWhether holding decision makers accountable for the decision process decreases escalating commitment, while accountability for the decision outcomes increases it.\n\nOriginal study (1992): Deescalation strategies: A comparison of techniques for reducing commitment to losing courses of action.\n  60 participants — effect size -0.37 (d)\n  doi:10.1037/0021-9010.77.4.419\n\nReplication: Effects of process and outcome accountability on escalating commitment: A two-study replication.\n  404 participants — effect size 0.03\n  doi:10.1037/xap0000321\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "title": "Judged on how you decided rather than how it turned out, you stop doubling down?",
+  "description": "Judged on how you decided rather than how it turned out, you stop doubling down?\n\nWhether holding decision makers accountable for the decision process decreases escalating commitment, while accountability for the decision outcomes increases it.\n\nOriginal study (1992): Deescalation strategies: A comparison of techniques for reducing commitment to losing courses of action.\n  60 participants — effect size -0.37 (d)\n  doi:10.1037/0021-9010.77.4.419\n\nReplication: Effects of process and outcome accountability on escalating commitment: A two-study replication.\n  404 participants — effect size 0.03\n  doi:10.1037/xap0000321\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
   "tags": [
    "replication crisis",
    "psychology",
@@ -393,7 +493,12 @@
    "open science",
    "social psychology"
   ],
-  "thumb": "eps/ep012/thumb.jpg"
+  "facts": {
+   "es_o": -0.374,
+   "es_r": 0.03,
+   "n_o": 60,
+   "n_r": 404
+  }
  },
  {
   "kind": "fred",
@@ -415,7 +520,12 @@
    "open science",
    "social psychology"
   ],
-  "thumb": "eps/ep013/thumb.jpg"
+  "facts": {
+   "es_o": 0.63,
+   "es_r": 0.0,
+   "n_o": 72,
+   "n_r": 331
+  }
  },
  {
   "kind": "fred",
@@ -437,7 +547,12 @@
    "open science",
    "social psychology"
   ],
-  "thumb": "eps/ep014/thumb.jpg"
+  "facts": {
+   "es_o": 0.39,
+   "es_r": 0.08,
+   "n_o": 92,
+   "n_r": 316
+  }
  },
  {
   "kind": "fred",
@@ -445,8 +560,8 @@
   "dir": "eps/ep015",
   "video": "eps/ep015/ep015.mp4",
   "tone": "held",
-  "title": "Criticism stings more when it comes from an outsider? It held up.",
-  "description": "Criticism stings more when it comes from an outsider?\n\nGroup members would reject outgroup criticism (as compared to the same criticism from the ingroup) using costly punishment.\n\nOriginal study (2018): Beyond motivated reasoning: Hostile reactions to critical comments from the outgroup.\n  135 participants — effect size 0.35 (d)\n  doi:10.1037/mot0000097\n\nReplication: Disentangling the intergroup sensitivity effect: Defending the ingroup or enforcing general norms?\n  740 participants — effect size 0.34\n  doi:10.1002/ejsp.2748\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "title": "Do we punish criticism harder when it comes from an outsider? It held up.",
+  "description": "Do we punish criticism harder when it comes from an outsider?\n\nGroup members would reject outgroup criticism (as compared to the same criticism from the ingroup) using costly punishment.\n\nOriginal study (2018): Beyond motivated reasoning: Hostile reactions to critical comments from the outgroup.\n  135 participants — effect size 0.35 (d)\n  doi:10.1037/mot0000097\n\nReplication: Disentangling the intergroup sensitivity effect: Defending the ingroup or enforcing general norms?\n  740 participants — effect size 0.34\n  doi:10.1002/ejsp.2748\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
   "tags": [
    "replication crisis",
    "psychology",
@@ -459,7 +574,12 @@
    "open science",
    "social psychology"
   ],
-  "thumb": "eps/ep015/thumb.jpg"
+  "facts": {
+   "es_o": 0.355,
+   "es_r": 0.342,
+   "n_o": 135,
+   "n_r": 740
+  }
  },
  {
   "kind": "fred",
@@ -481,7 +601,12 @@
    "open science",
    "social psychology"
   ],
-  "thumb": "eps/ep016/thumb.jpg"
+  "facts": {
+   "es_o": 0.305,
+   "es_r": 0.073,
+   "n_o": 46,
+   "n_r": 246
+  }
  },
  {
   "kind": "fred",
@@ -503,7 +628,12 @@
    "open science",
    "social psychology"
   ],
-  "thumb": "eps/ep017/thumb.jpg"
+  "facts": {
+   "es_o": 0.48,
+   "es_r": 0.36,
+   "n_o": 97,
+   "n_r": 321
+  }
  },
  {
   "kind": "fred",
@@ -511,8 +641,8 @@
   "dir": "eps/ep018",
   "video": "eps/ep018/ep018.mp4",
   "tone": "held",
-  "title": "At easy things, everyone thinks they're above average? It held up.",
-  "description": "At easy things, everyone thinks they're above average?\n\nPeople tend to perceive themselves as above average when considering easy abilities.\n\nOriginal study (1999): Lake Wobegon be gone! The \"below-average effect\" and the egocentric nature of comparative ability judgments.\n  37 participants — effect size -0.96 (r)\n  doi:10.1037/0022-3514.77.2.221\n\nReplication: Both better and worse than others depending on difficulty: Replication and extensions of Kruger's (1999) above- and below-average effects\n  240 participants — effect size -0.85\n  doi:10.1017/s1930297500009189\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "title": "At easy things, does everyone think they're above average? It held up.",
+  "description": "At easy things, does everyone think they're above average?\n\nPeople tend to perceive themselves as above average when considering easy abilities.\n\nOriginal study (1999): Lake Wobegon be gone! The \"below-average effect\" and the egocentric nature of comparative ability judgments.\n  37 participants — effect size -0.96 (r)\n  doi:10.1037/0022-3514.77.2.221\n\nReplication: Both better and worse than others depending on difficulty: Replication and extensions of Kruger's (1999) above- and below-average effects\n  240 participants — effect size -0.85\n  doi:10.1017/s1930297500009189\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
   "tags": [
    "replication crisis",
    "psychology",
@@ -525,6 +655,11 @@
    "open science",
    "social psychology"
   ],
-  "thumb": "eps/ep018/thumb.jpg"
+  "facts": {
+   "es_o": -0.96,
+   "es_r": -0.85,
+   "n_o": 37,
+   "n_r": 240
+  }
  }
 ]

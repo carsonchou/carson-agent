@@ -292,7 +292,12 @@ def famous_meta(E):
         title = (fit(topic, f" {t['k']} {t['k_word']}, {n_show} people: {es}.")
                  or f"{t['k']} {t['k_word']}, {n_show} people: {es}.")
 
-    lines = [f"{E['claim'][0].upper() + E['claim'][1:]}.", ""]
+    # 🔴 白話首行對名案**同樣成立**。FReD 那 19 支都加了、這 5 支沒有 ——
+    #    因為當時只改了 fred_meta 分支。同一個理由只落在一半的東西上,
+    #    是這條線最常見的漏法。
+    import plain as _plain
+    _q = _plain.spoken(E["slug"])
+    lines = ([f"{_q}", ""] if _q else []) +             [f"{E['claim'][0].upper() + E['claim'][1:]}.", ""]
     allowed = {es} | set(re.findall(r"\d[\d,\.]*", E["claim"]))
     if o:
         # ⚠️ 旁白講「超過 4,900 次」而說明印精確值 4,928 且沒有來源——
@@ -372,6 +377,22 @@ def check(label, title, desc, allowed):
     return not bad
 
 
+def eo_of(row):
+    return float(row["eo"])
+
+
+def er_of(row):
+    return float(row["er"])
+
+
+def no_of(row):
+    return int(row["no"])
+
+
+def nr_of(row):
+    return int(row["nr"])
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--print", action="store_true", dest="show")
@@ -395,7 +416,12 @@ def main():
         out.append({"kind": "fred", "row": int(i), "dir": f"eps/ep{i:03d}",
                     "video": f"eps/ep{i:03d}/ep{i:03d}.mp4",
                     "tone": tone_of(build_facts(row)), "title": title,
-                    "description": desc, "tags": TAGS})
+                    "description": desc, "tags": TAGS,
+                    # 🔴 數字明寫。下游(縮圖)本來是拿正規表示式從**說明的
+                    #    散文**裡撈第一個「N participants」——那是拿替身值
+                    #    當真值,而替身跟真值不等的時候不會有任何跡象。
+                    "facts": {"es_o": eo_of(row), "es_r": er_of(row),
+                              "n_o": no_of(row), "n_r": nr_of(row)}})
 
     fam = json.loads(FAMOUS.read_text(encoding="utf-8"))["episodes"]
     for E in fam:
@@ -403,11 +429,26 @@ def main():
         if not check(E["slug"], title, desc, allowed):
             dropped.append((E["slug"], "數字溯源失敗"))
             continue
+        t_ = E["test"]
         out.append({"kind": "famous", "slug": E["slug"],
                     "dir": f"eps_famous/{E['slug']}",
                     "video": f"eps_famous/{E['slug']}/{E['slug']}.mp4",
                     "tone": famous_tone(E),
-                    "title": title, "description": desc, "tags": TAGS})
+                    "title": title, "description": desc, "tags": TAGS,
+                    # 🔴 `n_r` 用 `test.n` **不是** `n_total`。romantic_red 的
+                    #    0.09 是 242 位男性的效果量,n_total 602 含 360 位
+                    #    女性(那是 -0.09,另一組)。說明裡印 602 是在講整體
+                    #    規模,但縮圖的「Retested on N people」是**掛在效果量
+                    #    上的數字** —— 掛 602 就是把兩組當成同一組
+                    #    (memory yt-period-swap-integrity 的模式)。
+                    #    實際後果:標題說 242、縮圖說 602,同一支片。
+                    "facts": {"es_o": None, "es_r": t_["es"],
+                              "n_o": (E.get("original") or {}).get(
+                                  "cited_by_approx"),
+                              "n_r": t_["n"],
+                              "k": t_.get("k"),
+                              "k_word": t_.get("k_word"),
+                              "has_original": bool(E.get("original"))}})
 
     # 🔴 被刷掉的要彙總印出來,不能只是 continue(2026-08-25)。
     #    上一版有 4 集被靜默丟掉(退格字元讓「論文標題那行不掃」失效,

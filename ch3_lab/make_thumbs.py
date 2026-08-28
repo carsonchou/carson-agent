@@ -70,16 +70,24 @@ COLOR = {"gone": "#FF4A2E", "flipped": "#FF4A2E", "shrunk_real": "#4A9EFF",
          "held": "#22D67F", "stronger": "#22D67F"}
 #: 判決之後那一行佐證。數字用事實庫的真值填,措辭依定調 ——
 #: 手寫的只有主張那兩行,這裡不是。
-EVIDENCE = {
-    "gone": "Retested on {n:,} people. Not found.",
-    "flipped": "Retested on {n:,} people. It went the other way.",
-    # shrunk_real 有兩種來源,佐證句不能共用一句:FReD 那批是「跟原始
-    # 研究比縮了」(有原始值可比),名案那批沒有原始效果量可比,只能講
-    # 「小」不能講「比較小」。draw() 依有沒有 eo 選。
-    "shrunk_real": "Retested on {n:,} people. Real, but much smaller.",
-    "shrunk_real_nocmp": "Retested on {n:,} people. Real, but small.",
-    "held": "Retested on {n:,} people. It held.",
-    "stronger": "Retested on {n:,} people. Even bigger.",
+#: 佐證那一行 = 規模 + 結局。**拆成兩半**,因為兩半的正確寫法各自
+#: 依賴不同的欄位:
+#:  - 規模:有原始研究才能說「retested」。sleep_memory / implicit_bias_test
+#:    沒有原始研究(它們是把一堆實驗統合起來,不是重做某一篇),
+#:    印「Retested on 14,900 people」是**方法論宣稱**,而且是錯的 ——
+#:    這一類守門結構上看不見(memory yt-integrity-methodology-claims-blindspot)。
+#:  - 結局:shrunk_real 有兩種來源,有原始值可比才能說「比較小」。
+SCALE = {
+    True:  "Retested on {n:,} people.",
+    False: "Pooled from {k} {k_word}, {n:,} people.",
+}
+OUTCOME = {
+    "gone": "Not found.",
+    "flipped": "It went the other way.",
+    "shrunk_real": "Real, but much smaller.",
+    "shrunk_real_nocmp": "Real, but small.",
+    "held": "It held.",
+    "stronger": "Even bigger.",
 }
 
 
@@ -107,25 +115,25 @@ def _plt():
 
 
 def facts_of(o):
-    """從 publish_meta 的說明裡取回本集的兩個效果量與樣本數。
+    """本集的效果量與樣本數。**直接讀 publish_meta 落下來的 `facts` 欄。**
 
-    說明是 publish_meta 從事實庫產生的,所以這裡不會引入新數字——
-    只是把已經審核過的值讀回來。
+    ## 為什麼不再用正規表示式從說明裡撈
+    舊版是 `re.findall(r"([\d,]+) participants", description)` 取第一個。
+    對 FReD 那批剛好對,對 `romantic_red` 就錯了:說明裡第一個出現的
+    人數是 **602**(含 360 位女性的總量),而縮圖上那個數字是掛在
+    效果量 0.09 上的 —— 0.09 是 **242 位男性**的值。於是同一支片,
+    標題說 242、縮圖說 602。
+
+    那不是正規表示式寫壞,是**拿替身值當真值**:說明是給人讀的散文,
+    它的措辭改一個字,這裡撈到的東西就變了,而且不會有任何跡象。
+    產生端已經把數字明寫成 `facts`,這裡照讀。
+
+    fail-closed:沒有 `facts` 就不產。
     """
-    import re
-    d = o["description"]
-    es = re.findall(r"effect size (-?\d+\.\d+)", d)
-    ns = re.findall(r"([\d,]+) participants", d)
-    if len(es) == 2 and len(ns) == 2:
-        return float(es[0]), float(es[1]), ns[0], ns[1], None
-    # 名案格式
-    m = re.search(r"\b([dgr]) = (-?\d+\.\d+)", d)
-    n = re.search(r"([\d,]+) people", d)
-    cited = re.search(r"cited ([\d,]+) times", d)
-    if m and n:
-        return None, float(m.group(2)), (cited.group(1) if cited else None), \
-               n.group(1), m.group(1)
-    return None
+    f = o.get("facts")
+    if not f:
+        return None
+    return f
 
 
 def fit(plt, text, base, max_frac=0.92, weight="bold"):
@@ -147,7 +155,12 @@ def draw(plt, o, out_path):
     if not f:
         print(f"  跳過(讀不回數字):{o['title'][:40]}")
         return False
-    eo, er, n_left, n_right, _kind = f
+    eo, n_r = f.get("es_o"), f.get("n_r")
+    # 名案沒有 `has_original` 以外的線索;FReD 那批一定有原始研究。
+    has_orig = f.get("has_original", True)
+    if n_r is None or (not has_orig and not f.get("k")):
+        print(f"  跳過(數字不齊):{o['title'][:40]}")
+        return False
     tone = o["tone"]
     col = COLOR[tone]
     word = VERDICT[tone]
@@ -183,11 +196,13 @@ def draw(plt, o, out_path):
             fontsize=fit(plt, word, 168, 0.86), color="#0E1116",
             weight="bold", zorder=3)
 
-    # 佐證:數字從事實庫來,措辭依定調。降到最小 —— 它是支持不是主角。
-    n_r = int(str(n_right).replace(",", ""))
+    # 佐證:數字從事實庫來,措辭依**資料裡有什麼**。降到最小 ——
+    # 它是支持不是主角。
     key = ("shrunk_real_nocmp" if tone == "shrunk_real" and eo is None
            else tone)
-    sub = EVIDENCE[key].format(n=n_r)
+    sub = (SCALE[has_orig].format(n=int(n_r), k=f.get("k"),
+                                  k_word=f.get("k_word") or "studies")
+           + " " + OUTCOME[key])
     ax.text(0.5, 0.115, sub, ha="center", va="center",
             fontsize=fit(plt, sub, 48, 0.90, "normal"), color="#8A929C")
     ax.text(0.985, 0.028, "THEY RAN IT AGAIN", ha="right", va="bottom",

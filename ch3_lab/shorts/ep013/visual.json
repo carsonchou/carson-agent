@@ -1,0 +1,55 @@
+{
+ "accent": "#FFC23D",
+ "canvas": [
+  1080,
+  1920,
+  30
+ ],
+ "card": "The effect did not survive.",
+ "claim_lines": [
+  "THINKING ABOUT HEAT",
+  "MAKES YOU SEE HOSTILITY"
+ ],
+ "color": "#F5A54E",
+ "end_card": [
+  "Every number",
+  "from the record"
+ ],
+ "frames": "5f54d8d5afbbb481",
+ "fs": {
+  "big": 280,
+  "card": 58,
+  "claim": {
+   "fs": 80,
+   "lines": [
+    "THINKING",
+    "ABOUT HEAT",
+    "MAKES YOU",
+    "SEE HOSTILITY"
+   ],
+   "ys": [
+    0.6535,
+    0.5812,
+    0.5088,
+    0.4365
+   ]
+  },
+  "end": 75,
+  "kicker": 46,
+  "meas": 50,
+  "src": 27,
+  "sub": 41
+ },
+ "kicker": "A STUDY FOUND",
+ "palette": [
+  "#0E1116",
+  "#E8EAED",
+  "#8A9099"
+ ],
+ "safe": [
+  0.86,
+  0.24,
+  0.93
+ ],
+ "source": "FORRT Replication Database (FReD), OSF 2tbvd"
+}

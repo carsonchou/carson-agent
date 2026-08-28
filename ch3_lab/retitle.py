@@ -30,6 +30,7 @@ import argparse
 import json
 import pathlib
 import sys
+from datetime import datetime
 
 import quota  # noqa: E402  (同目錄)
 
@@ -38,6 +39,7 @@ ROOT = pathlib.Path(__file__).resolve().parent
 CH2 = pathlib.Path(r"D:\carson-agent\yt_ch2")
 META = ROOT / "publish_meta.json"
 LEDGER = ROOT / "uploaded.json"
+BACKUP = ROOT / "_backup"
 EXPECT_CHANNEL = "UCbo4EytWhZ7zAGSoIPioJ5g"
 
 # 結尾由 tone 決定。標題不能比片子講得重 —— gone 是「測不出來」不是「假的」。
@@ -143,6 +145,17 @@ def main():
         o = by_key.get(key)
         if not o:
             continue
+        # 🔴 名案 5 支跳過。`build()` 對 famous 回 None(它們要加通用搜尋詞,
+        #    由 retitle_live 負責),所以 publish_meta 裡它們的標題**永遠是
+        #    舊的論文語言版**。而這個迴圈走訪的是整本帳本、送出的是
+        #    `o["title"]` 而不是 build() 的結果 —— 於是 retitle_live 剛推好的
+        #    「Ego depletion: willpower runs out as you use it? 23 labs,
+        #    2,141 people.」會被推回「… 23 laboratories tested it: 0.04.」。
+        #    5 支全中。「產生新值的那份跳過、送出的那份沒跳過」是同一個
+        #    半套毛病:閘門只接上一半。
+        if o.get("kind") == "famous":
+            print(f"  {key:<14}名案,交給 retitle_live(這裡不動)")
+            continue
         got = yt.videos().list(part="snippet", id=vid).execute().get("items", [])
         if not got:
             print(f"  {key:<14}⛔ 查無此片")
@@ -152,7 +165,8 @@ def main():
         # 原封不動送 `o["description"]`,發布後沒有任何地方會再改它),
         # 而說明的第一行現在是白話句 —— 那是搜尋結果裡跟標題一起顯示的
         # 那一段。只改標題會讓線上的第一行停在論文語言。
-        same = sn["title"] == o["title"] and             sn.get("description", "") == o["description"]
+        same = (sn["title"] == o["title"]
+                and sn.get("description", "") == o["description"])
         if same:
             print(f"  {key:<14}標題與說明都已是新的")
             continue
@@ -169,11 +183,36 @@ def main():
         for k in ("defaultLanguage", "defaultAudioLanguage"):
             if sn.get(k):
                 snip[k] = sn[k]
+        # 🔴 覆蓋線上說明之前先留一份。`publish_meta.json` 不知道線上發生過
+        #    什麼:如果曾經在 Studio 手動加過連結、更正、或 #hashtag,
+        #    這裡會直接蓋掉,而且**沒有退路** —— YouTube 沒有版本歷史。
+        #    程式手上就有線上的 sn,卻只在事後印一行「不符」。
+        #    存檔很便宜,不可逆的動作沒有理由不留備份。
+        live_desc = sn.get("description", "")
+        if live_desc and live_desc != o["description"]:
+            BACKUP.mkdir(exist_ok=True)
+            stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+            (BACKUP / f"desc_{vid}_{stamp}.txt").write_text(
+                live_desc, encoding="utf-8")
+            # 只有**線上有、新版沒有**的行才值得看 —— 這次的改動是純插入,
+            # 所以正常情況這裡應該是空的。不是空的就代表線上被人改過。
+            lost = [ln for ln in live_desc.split("\n")
+                    if ln.strip() and ln not in o["description"]]
+            if lost:
+                print(f"  {key:<14}⚠️ 線上說明有 {len(lost)} 行不在新版裡"
+                      f",已備份:{lost[0][:60]}")
         if not quota.can(quota.TITLE):
             print(f"  {key:<14}⛔ 配額不足({quota.remaining():,}),停在這裡")
             break
-        yt.videos().update(part="snippet",
-                           body={"id": vid, "snippet": snip}).execute()
+        try:
+            yt.videos().update(part="snippet",
+                               body={"id": vid, "snippet": snip}).execute()
+        except Exception as e:                                # noqa: BLE001
+            # 每支各自包:整批中途 traceback 死掉的話,已經改掉的那幾支
+            # 不會出現在任何輸出裡 —— 而它們已經被改了。
+            print(f"  {key:<14}⛔ 送出失敗:{str(e)[:110]}")
+            bad += 1
+            continue
         quota.spend(quota.TITLE, f"title {key}")
         back = yt.videos().list(part="snippet",
                                 id=vid).execute()["items"][0]["snippet"]
@@ -181,8 +220,15 @@ def main():
         # 而 videos.update 整包覆蓋,說明正是最容易被清掉的那個。
         ok = (back["title"] == o["title"]
               and back.get("description", "") == o["description"])
+        bad += 0 if ok else 1
+        done += 1
         print(f"  {key:<14}{'✓' if ok else '⚠️ 不符'}  {back['title'][:60]}")
-    return 0
+    # 🔴 回讀結果要收進 exit code。舊版把兩個欄位都比對了、也印了「⚠️ 不符」,
+    #    然後無條件 `return 0` —— 11 支全部不符也是成功。
+    #    這支的驗證**結構上不可能失敗**(memory verification-that-cannot-fail),
+    #    而姊妹檔 retitle_live 做對了:同一件事兩份實作,又只修了其中一份。
+    print(f"\n{done - bad}/{done} 支回讀相符")
+    return 1 if bad else 0
 
 
 if __name__ == "__main__":

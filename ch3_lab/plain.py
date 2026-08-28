@@ -42,9 +42,32 @@ def get(*keys):
             continue
         for cand in (k, f"eps/{k}", f"eps_famous/{k}"):
             v = d.get(cand)
-            if isinstance(v, dict) and v.get("lines") and v.get("spoken"):
+            if _valid(v):
                 return v
     return None
+
+
+def _valid(v):
+    """這一筆合不合格。**產線走這條**,不是只有手動跑 `python plain.py` 才驗。
+
+    舊版的檢查全在 `__main__` 底下 —— 那等於沒有檢查:產線 import 進來
+    永遠不會執行到。實測 3 行也照樣放行,而 `make_thumbs` 只畫 [0][1],
+    第三行會被靜默吃掉。「宣告了沒接上」在這條線上已經犯過四次。
+    """
+    if not isinstance(v, dict):
+        return False
+    lines, spoken = v.get("lines"), v.get("spoken")
+    if not isinstance(lines, list) or len(lines) != 2:
+        return False
+    if not all(isinstance(x, str) and x.strip() for x in lines):
+        return False
+    if not isinstance(spoken, str) or not spoken.strip().endswith("?"):
+        return False
+    # 數字一律由事實庫填,手寫句裡不該有。有數字就是有人手寫了一個
+    # 沒經過溯源守門的值。
+    if any(ch.isdigit() for ch in " ".join(lines) + spoken):
+        return False
+    return True
 
 
 def lines(*keys):
@@ -66,10 +89,7 @@ if __name__ == "__main__":
         if k.startswith("_"):
             continue
         n += 1
-        assert isinstance(v, dict), k
-        assert len(v["lines"]) == 2, k
-        assert v["spoken"].endswith("?"), k       # 開場是問句,不是斷言
-        assert not any(ch.isdigit() for ch in " ".join(v["lines"])), k
+        assert _valid(v), k          # 同一個判準,不寫第二份
         long = max(len(x) for x in v["lines"])
         flag = "  ⚠ 偏長" if long > 26 else ""
         print(f"{k:34s} {v['lines'][0]} / {v['lines'][1]}{flag}")
