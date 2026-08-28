@@ -35,10 +35,17 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 ROOT = pathlib.Path(__file__).resolve().parent
 CH2 = pathlib.Path(r"D:\carson-agent\yt_ch2")
 LEDGER = ROOT / "uploaded_shorts.json"
+sys.path.insert(0, str(ROOT))
+import quota  # noqa: E402  (同目錄;COST 要引用它)
+
 LONG_LEDGER = ROOT / "uploaded.json"
 META = ROOT / "publish_meta.json"
 EXPECT_CHANNEL = "UCbo4EytWhZ7zAGSoIPioJ5g"
-COST = 1600 + 41
+#: 印給人看的估算 —— **引用預算判準那一份**,不要自己再寫一個。
+#: 舊版寫死 1600+41,而真正的判準是 quota.SHORT(1600+6,輪詢
+#: 已經從 20 次降到 6 次)。同一件事兩個數字,而印出來給人
+#: 做決定的是錯的那個。
+COST = quota.SHORT
 
 #: build_meta 查過的長片狀態,供 cta_gate 沿用(不重查、不重印警告)
 _LONGS_ALL, _LONGS_PUB = {}, {}
@@ -207,8 +214,29 @@ def cta_gate(items, longs_pub, longs_all):
             if any(c in t for c in CLAIM):
                 said = True
                 break
-        # 片尾卡的畫面文字是寫死的,只要有 end 段就一定印了那兩行
-        if (d / "narr_end.txt").exists():
+        # 片尾卡的**實際兩行**在 `visual.json` 裡(渲染當下落檔),讀它。
+        # 🔴 舊版寫「只要有 end 段就一定印了那兩行」—— 那在片尾卡是寫死的
+        #    年代成立,但 `make_short.render` 早就改成依 `has_full` 分流:
+        #    長片還沒發的那批渲進去的是中性卡「Every number / from the
+        #    record」,**根本沒有宣稱**。舊假設讓這 13 支全部被誤擋,
+        #    而我今天把補件也納入閘門之後,可發數量從 5 掉到 4。
+        #    近似值在它所近似的東西改掉之後,就只是個錯的值。
+        #
+        #    這是**放寬**閘門,所以判準要比原本更硬,不是更軟:
+        #    讀的是渲染當下落檔的實際字串,而 `visual_stale` 會用現行碼
+        #    重算 + 重畫 9 幀比對,確認 visual.json 真的等於畫面。
+        #    沒有 visual.json 就退回舊的保守假設(fail-closed)。
+        vj = d / "visual.json"
+        if vj.exists():
+            try:
+                card = " ".join(json.loads(
+                    vj.read_text(encoding="utf-8")).get("end_card") or []).lower()
+                if any(c.replace("is on the channel", "on the channel") in card
+                       for c in CLAIM):
+                    said = True
+            except Exception:                                # noqa: BLE001
+                said = True                                  # 讀不了就當有
+        elif (d / "narr_end.txt").exists():
             said = True
         if not said:
             continue
@@ -461,11 +489,25 @@ def main():
         print("   → 先跳過它們,改發下一批。長片轉回 public 之後那句話"
               "自己就成立了,不必重渲。")
         todo = [o for o in todo if o["key"] not in keys]
-        # 被擋掉幾支就從候補補幾支上來,不要讓當天的發布名額憑空少掉
+        # 被擋掉幾支就從候補補幾支上來,不要讓當天的發布名額憑空少掉。
+        # 🔴 **補進來的也要過閘門。** 舊版只對 `todo[:limit]` 跑一次
+        #    cta_gate,補件在那之後 —— 補進來的那支是「閘門會擋、但沒被
+        #    檢查到」的狀態。實測:擋掉 implicit_bias_test 之後補進 ep006,
+        #    而對補件後的清單再跑一次 cta_gate,ep006 也會被擋。
+        #    今天不會出事(ep006 的片尾卡是中性版,那是 cta_gate 的誤報),
+        #    但那是**靠巧合安全**:前 5 支和第 6 支同時是壞的時候,第二支
+        #    壞的就會被送出去。所以補一支就檢查一次。
         rest = [o for o in items
                 if o["key"] not in done and o["key"] not in keys
                 and o not in todo]
-        todo += rest[:a.limit - len(todo)]
+        while len(todo) < a.limit and rest:
+            todo.append(rest.pop(0))
+            again = cta_gate(todo, _LONGS_PUB, _LONGS_ALL)
+            if again:
+                k2 = {k for k, _ in again}
+                for k, why in again:
+                    print(f"   {k:<22}{why}(候補,同樣擋下)")
+                todo = [o for o in todo if o["key"] not in k2]
     vchanged, vunknown = visual_stale(todo)
     if vchanged:
         print("⛔ 這幾支的**畫面**已經跟現行碼不一樣了(旁白沒變所以陳舊檢查看不到):")
@@ -492,7 +534,8 @@ def main():
               f"{_dt.datetime.fromtimestamp(src):%Y-%m-%d %H:%M},"
               f"重跑 make_short.py 後再發。")
         return 1
-    print(f"要上傳 {len(todo)} 支,估算配額 {len(todo) * COST:,}")
+    sent, planned = 0, len(todo)
+    print(f"要上傳 {planned} 支,估算配額 {planned * COST:,}")
     for o in todo:
         print(f"  {o['key']:<20}{o['title'][:70]}")
     if a.dry:
@@ -505,7 +548,6 @@ def main():
         print(f"⛔ 頻道不符:{me['id']}")
         return 1
     from googleapiclient.http import MediaFileUpload
-    import quota
     for o in todo:
         # 🔴 逐支問額度,不是整批估一次。三支發布器共用同一個每日 10,000,
         #    而排程一天跑兩個時段 —— 各自估自己那批,就會各自以為還有滿額。
@@ -535,6 +577,7 @@ def main():
                        encoding="utf-8")
         tmp.replace(LEDGER)
         quota.spend(quota.SHORT, o["key"])      # 成功才記
+        sent += 1
         print(f"    videoId={vid}  https://youtube.com/shorts/{vid}"
               f"  (配額剩 {quota.remaining():,})")
         # 15 秒的直式影片處理很快,實測幾秒內就 processed。
@@ -546,8 +589,13 @@ def main():
                 print("    處理完成 ✓")
                 break
             time.sleep(15)
-    print(f"\n完成。Shorts 帳本共 {len(done)} 支。")
-    return 0
+    # 🔴 「停在這裡」和「什麼都沒做」都**不是成功**。舊版無條件 return 0:
+    #    配額不足在第 2 支 break 是 0、閘門把 todo 清空(for 迴圈根本不跑)
+    #    也是 0 —— 而後者讀起來像「完成」。`if not todo: return 0` 那道檢查
+    #    排在閘門**之前**,閘門之後沒有再看一次。
+    #    跟 retitle.py 配額不足回 0 是同一個模式。
+    print(f"\n完成:上傳 {sent}/{planned} 支。Shorts 帳本共 {len(done)} 支。")
+    return 0 if (planned and sent == planned) else 1
 
 
 if __name__ == "__main__":
