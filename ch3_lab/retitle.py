@@ -47,6 +47,8 @@ TAIL = {
     "gone":        "A bigger replication couldn't find it.",
     "shrunk_real": "It's real — but much smaller than the first study said.",
     "flipped":     "The replication found the opposite.",
+    # 方向翻了但量級不到慣例的「小」—— 見 make_episode.copy_tone。
+    "flipped_tiny": "The replication found the opposite, but only just.",
     "held":        "It held up.",
     "stronger":    "It came back stronger.",
 }
@@ -80,7 +82,10 @@ def build(o):
         # fail-closed:沒有手寫白話句就不動它。退回論文語言等於這次改版
         # 沒發生,而那種退化是靜默的。
         return None
-    tail = TAIL.get(o["tone"], "")
+    from make_episode import copy_tone
+    f = o.get("facts") or {}
+    tail = TAIL.get(copy_tone(o["tone"], f.get("es_r"),
+                              f.get("es_kind", "d")), "")
     for cand in (f"{q} {tail}", q):
         if cand and len(cand) <= 100:
             return cand
@@ -139,6 +144,13 @@ def main():
     if me["id"] != EXPECT_CHANNEL:
         print(f"⛔ 頻道不符:{me['id']}")
         return 1
+    # ⚠️ 這兩個計數器**一定要在迴圈外初始化**。上一版忘了(我以為 sed 插進去
+    #    了,但那個 replace 的目標字串因為前一次編輯已經不存在,靜默沒中),
+    #    於是新寫的 exit-code 程式碼**一次都沒有被執行過**:第一支
+    #    `bad += 0 if ok else 1` 就 UnboundLocalError,而那時 update 已經送出、
+    #    配額已經記帳。這正是 memory verification-that-cannot-fail 的
+    #    「寫完檢查先故意讓它失敗一次」—— 我寫了檢查,沒讓它跑過。
+    bad = done = 0
     by_key = {(o.get("slug") or o["dir"]): o for o in meta}
     print(f"\n改 {len(led)} 支已上線的影片:")
     for key, vid in led.items():

@@ -23,7 +23,8 @@
    "es_o": 0.25,
    "es_r": 0.01,
    "n_o": 77,
-   "n_r": 6608
+   "n_r": 6608,
+   "es_kind": "d"
   }
  },
  {
@@ -50,7 +51,8 @@
    "es_o": 0.27,
    "es_r": -0.07,
    "n_o": 405,
-   "n_r": 1283
+   "n_r": 1283,
+   "es_kind": "d"
   }
  },
  {
@@ -77,7 +79,8 @@
    "es_o": 0.3,
    "es_r": 0.08,
    "n_o": 50,
-   "n_r": 1086
+   "n_r": 1086,
+   "es_kind": "r"
   }
  },
  {
@@ -104,7 +107,8 @@
    "es_o": -0.25,
    "es_r": -0.23,
    "n_o": 197,
-   "n_r": 1550
+   "n_r": 1550,
+   "es_kind": "r"
   }
  },
  {
@@ -113,7 +117,7 @@
   "dir": "eps/ep004",
   "video": "eps/ep004/ep004.mp4",
   "tone": "flipped",
-  "title": "Being short on money drains your self-control? The replication found the opposite.",
+  "title": "Being short on money drains your self-control? The replication found the opposite, but only just.",
   "description": "Being short on money drains your self-control?\n\nScarcity-induced focus leads to cognitive fatigue on subsequent cognitive control task.\n\nOriginal study (2012): Some Consequences of Having Too Little\n  60 participants — effect size -0.54 (d)\n  doi:10.1126/science.1222426\n\nReplication: An exercise in self-replication: Replicating Shah, Mullainathan, and Shafir (2012)\n  997 participants — effect size 0.13\n  doi:10.1016/j.joep.2018.12.001\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
   "tags": [
    "replication crisis",
@@ -131,7 +135,8 @@
    "es_o": -0.542,
    "es_r": 0.128,
    "n_o": 60,
-   "n_r": 997
+   "n_r": 997,
+   "es_kind": "d"
   }
  },
  {
@@ -158,7 +163,8 @@
    "es_o": 0.819,
    "es_r": 0.222,
    "n_o": 171,
-   "n_r": 823
+   "n_r": 823,
+   "es_kind": "r"
   }
  },
  {
@@ -188,6 +194,8 @@
    "n_r": 2141,
    "k": 23,
    "k_word": "laboratories",
+   "es_kind": "d",
+   "is_replication": true,
    "has_original": true
   }
  },
@@ -218,6 +226,8 @@
    "n_r": 242,
    "k": null,
    "k_word": null,
+   "es_kind": "d",
+   "is_replication": true,
    "has_original": true
   }
  },
@@ -248,6 +258,8 @@
    "n_r": 7700,
    "k": 105,
    "k_word": "independent effect sizes",
+   "es_kind": "g",
+   "is_replication": false,
    "has_original": true
   }
  },
@@ -278,6 +290,8 @@
    "n_r": 2004,
    "k": 91,
    "k_word": "experiments",
+   "es_kind": "g",
+   "is_replication": false,
    "has_original": false
   }
  },
@@ -308,6 +322,8 @@
    "n_r": 14900,
    "k": 184,
    "k_word": "independent samples",
+   "es_kind": "r",
+   "is_replication": false,
    "has_original": false
   }
  },
@@ -335,7 +351,8 @@
    "es_o": 0.8,
    "es_r": 0.4,
    "n_o": 54,
-   "n_r": 723
+   "n_r": 723,
+   "es_kind": "d"
   }
  },
  {
@@ -362,7 +379,8 @@
    "es_o": -0.75,
    "es_r": -0.87,
    "n_o": 219,
-   "n_r": 776
+   "n_r": 776,
+   "es_kind": "r"
   }
  },
  {
@@ -389,7 +407,8 @@
    "es_o": 0.43,
    "es_r": 0.18,
    "n_o": 95,
-   "n_r": 564
+   "n_r": 564,
+   "es_kind": "d"
   }
  },
  {
@@ -416,7 +435,8 @@
    "es_o": 0.574,
    "es_r": 0.14,
    "n_o": 61,
-   "n_r": 556
+   "n_r": 556,
+   "es_kind": "d"
   }
  },
  {
@@ -443,7 +463,8 @@
    "es_o": 0.42,
    "es_r": 0.06,
    "n_o": 140,
-   "n_r": 488
+   "n_r": 488,
+   "es_kind": "d"
   }
  },
  {
@@ -470,7 +491,8 @@
    "es_o": 0.371,
    "es_r": 0.65,
    "n_o": 121,
-   "n_r": 743
+   "n_r": 743,
+   "es_kind": "d"
   }
  },
  {
@@ -497,7 +519,8 @@
    "es_o": -0.374,
    "es_r": 0.03,
    "n_o": 60,
-   "n_r": 404
+   "n_r": 404,
+   "es_kind": "d"
   }
  },
  {
@@ -524,7 +547,8 @@
    "es_o": 0.63,
    "es_r": 0.0,
    "n_o": 72,
-   "n_r": 331
+   "n_r": 331,
+   "es_kind": "d"
   }
  },
  {
@@ -551,7 +575,8 @@
    "es_o": 0.39,
    "es_r": 0.08,
    "n_o": 92,
-   "n_r": 316
+   "n_r": 316,
+   "es_kind": "r"
   }
  },
  {
@@ -578,7 +603,8 @@
    "es_o": 0.355,
    "es_r": 0.342,
    "n_o": 135,
-   "n_r": 740
+   "n_r": 740,
+   "es_kind": "d"
   }
  },
  {
@@ -605,7 +631,8 @@
    "es_o": 0.305,
    "es_r": 0.073,
    "n_o": 46,
-   "n_r": 246
+   "n_r": 246,
+   "es_kind": "d"
   }
  },
  {
@@ -632,7 +659,8 @@
    "es_o": 0.48,
    "es_r": 0.36,
    "n_o": 97,
-   "n_r": 321
+   "n_r": 321,
+   "es_kind": "d"
   }
  },
  {
@@ -659,7 +687,8 @@
    "es_o": -0.96,
    "es_r": -0.85,
    "n_o": 37,
-   "n_r": 240
+   "n_r": 240,
+   "es_kind": "r"
   }
  }
 ]

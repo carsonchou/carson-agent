@@ -138,6 +138,30 @@ def thresholds(kind):
            (0.8, 0.5, 0.2, 0.05)
 
 
+def copy_tone(tone, es_r, es_kind):
+    """**文案用**的定調。跟 `tone_of` 的分類不同層,不要混用。
+
+    ## 為什麼需要第二個
+    `tone_of` 回答的是「這次重測發生了什麼」,判準是方向 + 顯著性,
+    ep004 判 flipped 是對的:d 從 -0.54 變成 +0.13,方向相反且 p=0.042。
+    把它改判 gone 會讓片尾唸出一句**假話** —— `CLOSES_ALL["gone"]` 明講
+    「with this many people, the effect cannot be told apart from zero」,
+    而 +0.13 是分得出來的(勉強)。08-25 那次修正就是為了拿掉這句假話。
+
+    但**壓縮過的版面**(縮圖那個滿版判決字、標題結尾那句)沒有地方放
+    信賴區間。「IT REVERSED」+「The replication found the opposite.」
+    讀起來像是發現了一個確實存在的反向效應,而 ep004 的 95% CI 下界是
+    0.004 —— 離零只有千分之四。分類沒錯,是**文案在沒有餘裕的地方
+    講得比資料重**。
+
+    所以這裡只做一件事:方向翻了但量級連慣例的「小」都不到時,換一組
+    比較保守的說法。門檻取自 `thresholds()`,不另寫一組;失敗方向朝弱。
+    """
+    if tone == "flipped" and abs(es_r or 0) < thresholds(es_kind)[2]:
+        return "flipped_tiny"
+    return tone
+
+
 def size_word(es, kind):
     """Cohen(1988)的慣例門檻。說「按慣例算是大的」而不是斷言它就是大的。
 

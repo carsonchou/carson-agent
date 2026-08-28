@@ -196,7 +196,13 @@ def fred_meta(row, key=None):
     from retitle import TAIL as PLAIN_TAIL
     q = plain.spoken(key) if key else None
     if q:
-        for cand in (f"{q} {PLAIN_TAIL.get(tone, '')}".strip(), q):
+        # 🔴 結尾那句要走 `copy_tone`,跟 retitle.build 同一條 —— 否則這裡
+        #    產「The replication found the opposite.」、retitle 產
+        #    「…, but only just.」,同一個欄位兩個寫入者又對不上。
+        #    實測就是這樣:改完 copy_tone 之後 retitle 回報「1/24 則標題會改」。
+        from make_episode import copy_tone
+        ct = copy_tone(tone, er, str(row.get("es_type_o") or "d").lower())
+        for cand in (f"{q} {PLAIN_TAIL.get(ct, '')}".strip(), q):
             if len(cand) <= 100:
                 title = cand
                 break
@@ -421,7 +427,9 @@ def main():
                     #    散文**裡撈第一個「N participants」——那是拿替身值
                     #    當真值,而替身跟真值不等的時候不會有任何跡象。
                     "facts": {"es_o": eo_of(row), "es_r": er_of(row),
-                              "n_o": no_of(row), "n_r": nr_of(row)}})
+                              "n_o": no_of(row), "n_r": nr_of(row),
+                              "es_kind": str(row.get("es_type_o")
+                                             or "d").lower()}})
 
     fam = json.loads(FAMOUS.read_text(encoding="utf-8"))["episodes"]
     for E in fam:
@@ -448,6 +456,16 @@ def main():
                               "n_r": t_["n"],
                               "k": t_.get("k"),
                               "k_word": t_.get("k_word"),
+                              "es_kind": t_.get("es_kind", "d"),
+                              # 🔴 判準是「這次是**重做**還是**統合**」,
+                              #    不是「有沒有列出原始研究」。用
+                              #    has_original 的話 bystander_effect 會
+                              #    印成「Retested on 7,700 people」——
+                              #    它是 105 個獨立效果量的統合分析
+                              #    (test.kind 就寫著 meta-analysis),
+                              #    沒有人「重做」過那 7,700 人。
+                              "is_replication":
+                                  t_.get("kind") != "meta-analysis",
                               "has_original": bool(E.get("original"))}})
 
     # 🔴 被刷掉的要彙總印出來,不能只是 continue(2026-08-25)。

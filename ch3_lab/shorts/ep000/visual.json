@@ -7,29 +7,31 @@
  ],
  "card": "The effect did not survive.",
  "claim_lines": [
-  "A WATER-SAVING NUDGE",
-  "CHANGES WHAT YOU EXPECT"
+  "REMINDING PEOPLE OF SHOPPING",
+  "CHANGES WHO THEY THINK"
  ],
  "color": "#F5A54E",
  "end_card": [
   "Full episode",
   "on the channel"
  ],
- "frames": "fd5e947a6eb6cb6b",
+ "frames": "a1b2ab94a68e5d8e",
  "fs": {
   "big": 280,
   "card": 58,
   "claim": {
-   "fs": 61,
+   "fs": 58,
    "lines": [
-    "A WATER-SAVING",
-    "NUDGE CHANGES",
-    "WHAT YOU EXPECT"
+    "REMINDING PEOPLE",
+    "OF SHOPPING",
+    "CHANGES WHO",
+    "THEY THINK"
    ],
    "ys": [
-    0.6001,
-    0.545,
-    0.4899
+    0.6236,
+    0.5712,
+    0.5188,
+    0.4664
    ]
   },
   "end": 75,

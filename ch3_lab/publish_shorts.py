@@ -78,8 +78,17 @@ def stale(items):
     正解跟 preflight 一樣:mtime 舊只是**觸發**,真正的判準是把稿子
     **重新生一次逐字比對**。一樣的字 = 那次改動對這支是輸出中性的。
     """
+    # 🔴 觸發集合要含**資料檔**,不只程式碼。旁白那句現在來自手寫的
+    #    `facts/plain_claims.json`(經 `plain.py`),但這兩個檔一開始不在
+    #    集合裡 —— 於是 08-29 改完 24 句白話句之後,mtime 閘門把 18/24 支
+    #    直接跳過,連稿子都不會重生。那次剛好被 `visual_stale` 接住
+    #    (兩行大寫跟著改了),但只要哪天**只潤了 spoken、兩行沒動**,
+    #    visual_stale 比的是 claim_lines → 一樣 → 放行,這裡被 mtime 跳過
+    #    → 放行,兩道全開,發出一支開場唸舊句子的片,而且完全靜默。
+    #    判準沒錯(重生稿子逐字比),錯在觸發集合漏了真正會變的那個檔。
     src = max((ROOT / n).stat().st_mtime for n in
-              ("make_short.py", "make_episode.py") if (ROOT / n).exists())
+              ("make_short.py", "make_episode.py", "plain.py",
+               "facts/plain_claims.json") if (ROOT / n).exists())
     sys.path.insert(0, str(ROOT))
     from make_short import collect, build_script
     bad = []

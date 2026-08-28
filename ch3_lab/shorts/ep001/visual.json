@@ -8,14 +8,14 @@
  "card": "The effect did not survive.",
  "claim_lines": [
   "FEELING UNSURE OF YOURSELF",
-  "MAKES YOU CLING TO STUFF"
+  "YOU KEEP WHAT DEFINES YOU"
  ],
  "color": "#F5A54E",
  "end_card": [
   "Full episode",
   "on the channel"
  ],
- "frames": "3b5907893188f076",
+ "frames": "c92fa644b3d50f66",
  "fs": {
   "big": 233,
   "card": 58,
@@ -24,8 +24,8 @@
    "lines": [
     "FEELING UNSURE",
     "OF YOURSELF",
-    "MAKES YOU",
-    "CLING TO STUFF"
+    "YOU KEEP WHAT",
+    "DEFINES YOU"
    ],
    "ys": [
     0.6372,

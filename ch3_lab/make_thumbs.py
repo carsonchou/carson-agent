@@ -84,6 +84,14 @@ SCALE = {
 OUTCOME = {
     "gone": "Not found.",
     "flipped": "It went the other way.",
+    # 🔴 方向翻了、但量很小的那種要講出來。ep004 是 -0.54 → **+0.13**:
+    #    方向確實相反、n=997 也顯著,所以判 flipped 沒錯 —— 但滿版紅字
+    #    「IT REVERSED」配上「It went the other way.」讀起來像是發現了一個
+    #    反向的**真效應**,而 0.13 連 Cohen 慣例的「小」(d 是 0.2)都不到。
+    #    判決字只講方向不講大小,所以大小要由佐證那行補上,否則整張圖
+    #    合起來講的比資料多。門檻取自 make_episode.thresholds —— 那是這條線
+    #    的唯一來源,不在這裡另寫一組。
+    "flipped_tiny": "It went the other way — but barely.",
     "shrunk_real": "Real, but much smaller.",
     "shrunk_real_nocmp": "Real, but small.",
     "held": "It held.",
@@ -157,7 +165,9 @@ def draw(plt, o, out_path):
         return False
     eo, n_r = f.get("es_o"), f.get("n_r")
     # 名案沒有 `has_original` 以外的線索;FReD 那批一定有原始研究。
-    has_orig = f.get("has_original", True)
+    # 規模那句依「重做 vs 統合」選,不是依「有沒有原始研究」。
+    # FReD 那 19 支全部是逐篇重做,所以預設 True。
+    has_orig = f.get("is_replication", True)
     if n_r is None or (not has_orig and not f.get("k")):
         print(f"  跳過(數字不齊):{o['title'][:40]}")
         return False
@@ -200,6 +210,9 @@ def draw(plt, o, out_path):
     # 它是支持不是主角。
     key = ("shrunk_real_nocmp" if tone == "shrunk_real" and eo is None
            else tone)
+    # 量級敏感的說法由 copy_tone 決定 —— 唯一來源,不在這裡另寫門檻。
+    from make_episode import copy_tone
+    key = copy_tone(tone, f.get("es_r"), f.get("es_kind", "d"))         if tone == "flipped" else key
     sub = (SCALE[has_orig].format(n=int(n_r), k=f.get("k"),
                                   k_word=f.get("k_word") or "studies")
            + " " + OUTCOME[key])
