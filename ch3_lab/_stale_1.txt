@@ -1,5 +1,0 @@
-ep000
-ep005
-ep009
-ep015
-ego_depletion
