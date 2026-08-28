@@ -64,9 +64,20 @@ BAND, GREY = "#151A21", "#49515D"
 #     規則那邊已經改成缺區間就必須手寫定調;用字也從 TINY 放寬到 SMALL,
 #     因為這一檔真正的意思是「測得到,但撐不起原本那麼強的說法」。
 VERDICT = {"gone": "NOT FOUND", "flipped": "IT REVERSED",
+           # 🔴 判決字也要跟著量級走,不能只讓佐證那行去補。
+           #    我原本的分工是「判決字只講方向,大小交給下面那行」——
+           #    但本檔開頭自己寫著:手機上縮圖約 210~320px 寬,**所有
+           #    小於 40pt 的註解句在小圖上都不是資訊,是髒污**。而佐證
+           #    那行正是 48pt 起跳、灰色、貼在最底的那個元素。
+           #    等於把緩和語放進我自己認定會先消失的地方,縮到 320px
+           #    之後觀眾看到的還是滿版紅字「IT REVERSED」,而 ep004 的
+           #    95% CI 下界是 0.004。三個尺寸的元素要講同一件事。
+           "flipped_tiny": "BARELY REVERSED",
            "shrunk_real": "REAL BUT SMALL", "held": "IT HELD UP",
            "stronger": "EVEN BIGGER"}
 COLOR = {"gone": "#FF4A2E", "flipped": "#FF4A2E", "shrunk_real": "#4A9EFF",
+         # 借 shrunk_real 那檔的藍:它不是乾淨的失敗,也不是乾淨的反轉。
+         "flipped_tiny": "#4A9EFF",
          "held": "#22D67F", "stronger": "#22D67F"}
 #: 判決之後那一行佐證。數字用事實庫的真值填,措辭依定調 ——
 #: 手寫的只有主張那兩行,這裡不是。
@@ -172,8 +183,12 @@ def draw(plt, o, out_path):
         print(f"  跳過(數字不齊):{o['title'][:40]}")
         return False
     tone = o["tone"]
-    col = COLOR[tone]
-    word = VERDICT[tone]
+    # 判決字/顏色/佐證句**全部**用 copy_tone 的結果當 key ——
+    # 原本它算得比用得晚,於是只有佐證那行接上了。
+    from make_episode import copy_tone
+    ctone = copy_tone(tone, f.get("es_r"), f.get("es_kind", "d"))
+    col = COLOR[ctone]
+    word = VERDICT[ctone]
     lines = plain_claim(o)
     if not lines:
         print(f"  ⛔ 缺白話主張(facts/plain_claims.json):"
@@ -209,10 +224,7 @@ def draw(plt, o, out_path):
     # 佐證:數字從事實庫來,措辭依**資料裡有什麼**。降到最小 ——
     # 它是支持不是主角。
     key = ("shrunk_real_nocmp" if tone == "shrunk_real" and eo is None
-           else tone)
-    # 量級敏感的說法由 copy_tone 決定 —— 唯一來源,不在這裡另寫門檻。
-    from make_episode import copy_tone
-    key = copy_tone(tone, f.get("es_r"), f.get("es_kind", "d"))         if tone == "flipped" else key
+           else ctone)
     sub = (SCALE[has_orig].format(n=int(n_r), k=f.get("k"),
                                   k_word=f.get("k_word") or "studies")
            + " " + OUTCOME[key])

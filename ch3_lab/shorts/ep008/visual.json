@@ -8,30 +8,28 @@
  "card": "Smaller — but still there.",
  "claim_lines": [
   "LOOKING FORWARD TO A TRIP",
-  "BEATS THE TRIP ITSELF"
+  "BEATS LOOKING BACK ON IT"
  ],
  "color": "#8FA3C8",
  "end_card": [
   "Every number",
   "from the record"
  ],
- "frames": "605362ae46fdf270",
+ "frames": "80765a3d4bcff844",
  "fs": {
   "big": 280,
   "card": 58,
   "claim": {
-   "fs": 73,
+   "fs": 54,
    "lines": [
-    "LOOKING",
-    "FORWARD TO A",
-    "TRIP BEATS THE",
-    "TRIP ITSELF"
+    "LOOKING FORWARD",
+    "TO A TRIP BEATS",
+    "LOOKING BACK ON IT"
    ],
    "ys": [
-    0.644,
-    0.578,
-    0.512,
-    0.446
+    0.5938,
+    0.545,
+    0.4962
    ]
   },
   "end": 75,

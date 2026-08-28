@@ -45,9 +45,21 @@ def main():
                 with wave.open(str(f)) as w:
                     durs[f.stem[4:]] = w.getnframes() / w.getframerate()
             D["_fs"] = now["fs"]
-            now["frames"] = M.frame_digest(plt, D, durs) if durs else None
-            for k in now:
-                if json.dumps(now[k], sort_keys=True) != \
+            try:
+                now["frames"] = M.frame_digest(plt, D, durs) if durs else None
+            except SystemExit as e:
+                # ⚠️ 不包的話,一支觸發版面斷言就會**中止整支程式**,後面
+                #    沒檢查的集數一行都不會印 —— 而這支的輸出是拿去餵
+                #    shell 迴圈的:清單被截斷 = 被截掉的那幾支不會重渲,
+                #    而且看起來像「沒問題」。publish_shorts 早就包了。
+                why.append(f"現行碼會越界({str(e)[:40]})")
+                print(f"{key}\t{','.join(why)}")
+                continue
+            # ⚠️ 要比**兩邊的鍵集合**。只走 now 的鍵,漏得掉「舊 visual.json
+            #    有、現行碼已經拿掉」的殘留欄位;publish_shorts 是整包
+            #    json.dumps 比對,比得出來。少報的方向正好是最危險的那個。
+            for k in set(now) | set(was):
+                if json.dumps(now.get(k), sort_keys=True) != \
                         json.dumps(was.get(k), sort_keys=True):
                     why.append(k)
         if why:

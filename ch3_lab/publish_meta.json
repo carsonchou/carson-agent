@@ -25,7 +25,8 @@
    "n_o": 77,
    "n_r": 6608,
    "es_kind": "d"
-  }
+  },
+  "thumb": "eps/ep000/thumb.jpg"
  },
  {
   "kind": "fred",
@@ -53,7 +54,8 @@
    "n_o": 405,
    "n_r": 1283,
    "es_kind": "d"
-  }
+  },
+  "thumb": "eps/ep001/thumb.jpg"
  },
  {
   "kind": "fred",
@@ -81,7 +83,8 @@
    "n_o": 50,
    "n_r": 1086,
    "es_kind": "r"
-  }
+  },
+  "thumb": "eps/ep002/thumb.jpg"
  },
  {
   "kind": "fred",
@@ -109,7 +112,8 @@
    "n_o": 197,
    "n_r": 1550,
    "es_kind": "r"
-  }
+  },
+  "thumb": "eps/ep003/thumb.jpg"
  },
  {
   "kind": "fred",
@@ -137,7 +141,8 @@
    "n_o": 60,
    "n_r": 997,
    "es_kind": "d"
-  }
+  },
+  "thumb": "eps/ep004/thumb.jpg"
  },
  {
   "kind": "fred",
@@ -165,7 +170,8 @@
    "n_o": 171,
    "n_r": 823,
    "es_kind": "r"
-  }
+  },
+  "thumb": "eps/ep005/thumb.jpg"
  },
  {
   "kind": "famous",
@@ -197,7 +203,8 @@
    "es_kind": "d",
    "is_replication": true,
    "has_original": true
-  }
+  },
+  "thumb": "eps_famous/ego_depletion/thumb.jpg"
  },
  {
   "kind": "famous",
@@ -229,7 +236,8 @@
    "es_kind": "d",
    "is_replication": true,
    "has_original": true
-  }
+  },
+  "thumb": "eps_famous/romantic_red/thumb.jpg"
  },
  {
   "kind": "famous",
@@ -261,7 +269,8 @@
    "es_kind": "g",
    "is_replication": false,
    "has_original": true
-  }
+  },
+  "thumb": "eps_famous/bystander_effect/thumb.jpg"
  },
  {
   "kind": "famous",
@@ -293,7 +302,8 @@
    "es_kind": "g",
    "is_replication": false,
    "has_original": false
-  }
+  },
+  "thumb": "eps_famous/sleep_memory/thumb.jpg"
  },
  {
   "kind": "famous",
@@ -325,7 +335,8 @@
    "es_kind": "r",
    "is_replication": false,
    "has_original": false
-  }
+  },
+  "thumb": "eps_famous/implicit_bias_test/thumb.jpg"
  },
  {
   "kind": "fred",
@@ -353,7 +364,8 @@
    "n_o": 54,
    "n_r": 723,
    "es_kind": "d"
-  }
+  },
+  "thumb": "eps/ep006/thumb.jpg"
  },
  {
   "kind": "fred",
@@ -381,7 +393,8 @@
    "n_o": 219,
    "n_r": 776,
    "es_kind": "r"
-  }
+  },
+  "thumb": "eps/ep007/thumb.jpg"
  },
  {
   "kind": "fred",
@@ -409,7 +422,8 @@
    "n_o": 95,
    "n_r": 564,
    "es_kind": "d"
-  }
+  },
+  "thumb": "eps/ep008/thumb.jpg"
  },
  {
   "kind": "fred",
@@ -437,7 +451,8 @@
    "n_o": 61,
    "n_r": 556,
    "es_kind": "d"
-  }
+  },
+  "thumb": "eps/ep009/thumb.jpg"
  },
  {
   "kind": "fred",
@@ -465,7 +480,8 @@
    "n_o": 140,
    "n_r": 488,
    "es_kind": "d"
-  }
+  },
+  "thumb": "eps/ep010/thumb.jpg"
  },
  {
   "kind": "fred",
@@ -493,7 +509,8 @@
    "n_o": 121,
    "n_r": 743,
    "es_kind": "d"
-  }
+  },
+  "thumb": "eps/ep011/thumb.jpg"
  },
  {
   "kind": "fred",
@@ -521,7 +538,8 @@
    "n_o": 60,
    "n_r": 404,
    "es_kind": "d"
-  }
+  },
+  "thumb": "eps/ep012/thumb.jpg"
  },
  {
   "kind": "fred",
@@ -549,7 +567,8 @@
    "n_o": 72,
    "n_r": 331,
    "es_kind": "d"
-  }
+  },
+  "thumb": "eps/ep013/thumb.jpg"
  },
  {
   "kind": "fred",
@@ -577,7 +596,8 @@
    "n_o": 92,
    "n_r": 316,
    "es_kind": "r"
-  }
+  },
+  "thumb": "eps/ep014/thumb.jpg"
  },
  {
   "kind": "fred",
@@ -605,7 +625,8 @@
    "n_o": 135,
    "n_r": 740,
    "es_kind": "d"
-  }
+  },
+  "thumb": "eps/ep015/thumb.jpg"
  },
  {
   "kind": "fred",
@@ -633,7 +654,8 @@
    "n_o": 46,
    "n_r": 246,
    "es_kind": "d"
-  }
+  },
+  "thumb": "eps/ep016/thumb.jpg"
  },
  {
   "kind": "fred",
@@ -661,7 +683,8 @@
    "n_o": 97,
    "n_r": 321,
    "es_kind": "d"
-  }
+  },
+  "thumb": "eps/ep017/thumb.jpg"
  },
  {
   "kind": "fred",
@@ -689,6 +712,7 @@
    "n_o": 37,
    "n_r": 240,
    "es_kind": "r"
-  }
+  },
+  "thumb": "eps/ep018/thumb.jpg"
  }
 ]

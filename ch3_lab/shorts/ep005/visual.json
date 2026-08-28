@@ -7,31 +7,31 @@
  ],
  "card": "Smaller — but still there.",
  "claim_lines": [
-  "BRAND NAMES THAT SOUND",
-  "THICKER FEEL THICKER"
+  "A DEEPER-SOUNDING NAME",
+  "MAKES IT FEEL THICKER"
  ],
  "color": "#8FA3C8",
  "end_card": [
   "Full episode",
   "on the channel"
  ],
- "frames": "bc99856bffbc12d5",
+ "frames": "bbe5cba21388b3bf",
  "fs": {
   "big": 280,
   "card": 58,
   "claim": {
-   "fs": 76,
+   "fs": 59,
    "lines": [
-    "BRAND NAMES",
-    "THAT SOUND",
-    "THICKER",
+    "A",
+    "DEEPER-SOUNDING",
+    "NAME MAKES IT",
     "FEEL THICKER"
    ],
    "ys": [
-    0.6481,
-    0.5794,
-    0.5106,
-    0.4419
+    0.625,
+    0.5717,
+    0.5183,
+    0.465
    ]
   },
   "end": 75,
