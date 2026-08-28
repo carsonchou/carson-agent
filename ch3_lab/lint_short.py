@@ -41,8 +41,20 @@ ROOT = pathlib.Path(__file__).resolve().parent
 #    當成「這支片版面沒問題」的證據,而頻道標記在**頂端** y≈0.955
 #    (Shorts 頂端有「Shorts」標籤與搜尋圖示),它從來沒被檢查過。
 #    只驗兩個邊卻宣稱驗過版面,是過度宣稱 —— 跟今天其他幾次同一個形狀。
-LEFT_LIMIT, RIGHT_LIMIT = 0.05, 0.88
-TOP_LIMIT, BOTTOM_LIMIT = 0.07, 0.78
+# 🔴 門檻**從 make_short 的實測 UI 覆蓋比例推**,不要在這裡再寫一組。
+#    原本這裡寫死 0.05/0.88/0.07/0.78,而 make_short 的設計邊界是
+#    0.14/0.86/0.24/0.93 —— 左緣差了 0.09。同一件事兩份門檻,而且
+#    render 的斷言是 SystemExit(整支渲染中止)、這裡只是報告,
+#    所以不一致的後果是「渲染死掉,而錯誤訊息說的位置依這裡的標準
+#    根本沒被蓋住」。本檔的檔頭自己就寫著「必須跟常數一致」。
+#
+#    這裡量的是**已渲好的檔案有沒有真的被 UI 蓋到**,所以用 UI 的
+#    實測值(不加 render 那邊的設計餘裕)——render 比這裡嚴是刻意的。
+sys.path.insert(0, str(ROOT))
+from make_short import UI_RIGHT, UI_BOTTOM, UI_TOP      # noqa: E402
+
+LEFT_LIMIT, RIGHT_LIMIT = 0.05, 1 - UI_RIGHT            # 左緣沒有 UI,只防貼邊
+TOP_LIMIT, BOTTOM_LIMIT = UI_TOP, 1 - UI_BOTTOM
 #: 取樣時間點。每段的字是逐步淡入的,只看一幀會漏掉後面才出現的元素。
 SAMPLE_HZ = 2.0
 

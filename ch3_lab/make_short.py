@@ -70,9 +70,21 @@ def _plt():
     return plt
 
 
-#: Shorts 的 UI 覆蓋區。內容只能待在這塊裡面 ——
-#  右邊是按讚/留言/分享那一欄,下面是標題列與頻道名。
-SAFE_X, SAFE_LO, SAFE_HI = 0.86, 0.24, 0.93
+#: Shorts 的 UI **實測覆蓋比例**(從各自那一邊算起)。這是**事實**:
+#  右邊是按讚/留言/分享那一欄、下面是標題列與頻道名、上面是「Shorts」
+#  標籤與搜尋圖示。`lint_short` 量已渲好的檔案時用的就是這三個數。
+UI_RIGHT, UI_BOTTOM, UI_TOP = 0.12, 0.22, 0.07
+
+#: 渲染時的**設計邊界**,刻意比 UI 覆蓋更保守(留餘裕:字身邊緣、
+#  抗鋸齒、不同機型的 UI 大小)。所以 render 的斷言比 lint 嚴 ——
+#  這是設計選擇,不是兩份互相矛盾的門檻。
+#  🔴 兩邊的數字**從這裡推**,不要各寫一組:`lint_short` 原本自己寫
+#     0.05/0.88/0.07/0.78,跟這裡的 0.14/0.86/0.24/0.93 左緣差了 0.09。
+#     同一件事兩份門檻,正是這條線最常出事的型態。
+MARGIN = 0.02
+SAFE_X = 1 - UI_RIGHT - MARGIN               # 0.86
+SAFE_LO = UI_BOTTOM + MARGIN                 # 0.24
+SAFE_HI = 1 - UI_TOP - MARGIN                # 0.91
 
 
 def ease(x):
@@ -477,7 +489,7 @@ def render(plt, name, t, dur, D):
     # 🔴 版面下緣 22% 與右緣 12% 是 Shorts 的 UI 覆蓋區(標題列、頻道名、
     #    按讚/留言/分享),頂端也有「Shorts」標籤與搜尋圖示。所有內容一律
     #    待在 SAFE_LO ~ SAFE_HI 之間。
-    ax.text(0.5, 0.900, "THEY RAN IT AGAIN", ha="center", fontsize=36,
+    ax.text(0.5, 0.884, "THEY RAN IT AGAIN", ha="center", fontsize=36,
             color="#3C4450", weight="bold")
 
     # 🔴 **把安全區真的接上**。`SAFE_LO` / `SAFE_HI` 原本只是宣告在模組

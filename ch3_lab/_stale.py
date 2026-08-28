@@ -23,6 +23,21 @@ FAMOUS = ["ego_depletion", "bystander_effect", "implicit_bias_test",
 
 
 def main():
+    # 🔴 預設**只列還沒發布的**。已發布的 Short 也會被判陳舊(畫面確實
+    #    跟現行碼不一樣了),但重渲它們沒有意義 —— Short 的畫面沒有
+    #    `thumbnails.set` 那種原地換的路,只能重新上傳,而重新上傳會丟掉
+    #    videoId、發布時間與已累積的觀看時數。
+    #    把它們留在清單裡的真正代價是:「輸出為空才算乾淨」這條判準
+    #    **以後永遠不會成立**,而那會訓練我忽略這支的輸出 —— 跟一個
+    #    恆真的警告一樣糟。要看全部用 --all。
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--all", action="store_true",
+                    help="連已發布的一起列(預設只列待發布的)")
+    a = ap.parse_args()
+    led = ROOT / "uploaded_shorts.json"
+    pub = json.loads(led.read_text(encoding="utf-8")) if led.exists() else {}
+    skipped = []
     plt = M._plt()
     for kind, v in ([("row", r) for r in range(19)] +
                     [("slug", s) for s in FAMOUS]):
@@ -63,7 +78,14 @@ def main():
                         json.dumps(was.get(k), sort_keys=True):
                     why.append(k)
         if why:
+            if key in pub and not a.all:
+                skipped.append(key)
+                continue
             print(f"{key}\t{','.join(why)}")
+    if skipped:
+        # 印到 stderr:stdout 要能直接餵 shell 迴圈
+        print(f"({len(skipped)} 支已發布的也陳舊,重渲無意義,已略過:"
+              f"{', '.join(skipped)})", file=sys.stderr)
 
 
 if __name__ == "__main__":
