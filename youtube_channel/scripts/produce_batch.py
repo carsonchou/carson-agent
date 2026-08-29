@@ -3450,6 +3450,66 @@ def _save_rejected_draft(d, why, stage):
         pass          # 留證失敗不能反過來害到產線
 
 
+def _merge_hook_fragments(v: str) -> str:
+    """把開場的數據碎片接成一句(句號→逗號)。只動開場前 40 個中文字以內的句號。
+
+    「這檔股票。十八年總報酬兩百七十趴。年化七點三趴。」
+        → 「這檔股票,十八年總報酬兩百七十趴,年化七點三趴。」
+    語意不變、句子變完整,而且是確定性的——不必賭一次 LLM 重生。
+
+    保守規則(寧可少修也不要改壞):
+    - 只在開場 40 個中文字以內動手
+    - 只把**句號**換成逗號;問號驚嘆號一律不動(那是刻意的語氣,換掉會毀掉鉤子)
+    - 前後兩片段任一超過 12 個中文字就不合併(那是完整句子,本來就該斷開)
+    - 最多合併 3 次,避免把整個開場黏成一長條
+    """
+    if not v:
+        return v
+    head_limit = 0
+    cn = 0
+    for i, ch in enumerate(v):
+        if "一" <= ch <= "鿿":
+            cn += 1
+        if cn >= 40:
+            head_limit = i
+            break
+    if not head_limit:
+        head_limit = len(v)   # 全文不足 40 個中文字:整篇都算開場,不能因此整個跳過修復
+
+    def _cn(s):
+        return sum(1 for c in s if "一" <= c <= "鿿")
+
+    out = list(v)
+    # 閘門的判準是「開場 40 字裡用『。』切出 >=3 段」,所以修復要對準它:
+    # 把窗內的句號減到只剩一個。兩種改法,都是**本來就該這樣寫**的正確標點:
+    #   ①「但你知道嗎。」→「但你知道嗎?」  疑問句本來就該用問號(而且問號不是斷句點)
+    #   ②「這檔股票。十八年總報酬兩百七十趴。」→ 逗號接起來,變成一句完整敘述
+    # 不是在繞過閘門——閘門測的是「唸起來像不像念報表」,這兩種改法真的讓它不像。
+    QMARK = ("嗎", "呢", "吧", "嘛")
+    dots = [i for i in range(head_limit) if out[i] == "。"]
+
+    def _frag_before(idx):
+        cur = "".join(out)
+        cut = max([cur.rfind(p, 0, idx) for p in "。！？\n"] + [-1])
+        return cur[cut + 1:idx].strip()
+
+    # 第一輪:疑問句的句號一律補成問號。這是**標點本來就寫錯**,和過不過閘門無關,
+    # 所以不受「留最後一個句號」的限制——「但你知道嗎。」錯了就是錯了。
+    for i in dots:
+        a = _frag_before(i)
+        if a and a[-1] in QMARK:
+            out[i] = "？"
+    # 第二輪:還是太多斷點的話,把剩下的句號接成逗號(留最後一個當開場收尾)。
+    rest = [i for i in dots if out[i] == "。"]
+    for i in rest[:-1] if len(rest) > 1 else []:
+        a = _frag_before(i)
+        if a and _cn(a) <= 30:
+            out[i] = "，"          # 接成一句;超過 30 字的本來就是完整句,不動
+    merged = "".join(out)
+    # 契約:只有真的把閘門修過去才算數,否則原樣回傳(呼叫端才不會誤以為修好了)
+    return merged if merged != v and not _long_fragmented_hook(merged) else v
+
+
 def _mech_repair_long(d, gate):
     """終檢/重生前的**確定性修復**:規則修得掉的缺陷,不要浪費一次 LLM 重生。
 
@@ -3490,6 +3550,19 @@ def _mech_repair_long(d, gate):
         # 對每個被咬到的 10 字片語,保留前 2 句、刪掉後面重複的那幾句。
         _touched = True
         nv = _drop_phrase_repeat_sentences(nv)
+    # 🔴 2026-08-30 開場碎句也用確定性修:碎句的本質是「開場 40 字裡斷太多次」
+    # ——「這檔股票。十八年總報酬兩百七十趴。年化七點三趴。」三個沒主詞的數據碎片連發,
+    # 唸出來像念報表(該片留存 17秒 0.82 → 28秒 0.46,一口氣掉 44%)。
+    # 那些句號本來就該是逗號:把它們接起來就是一句完整敘述,語意完全不變。
+    # 為什麼值得在這裡修而不是重生:這道對體檢稿命中 17%(124 支裡 21 支),
+    # 而重生是重擲骰子——如果碎句是 prompt 風格造成的,重生兩次還是碎句 → fail-closed
+    # 報廢整支(13 分鐘 + LLM 費全丟)。合併是確定性的,而且改完必定通過這道閘門。
+    # ⚠️ 只動**開場前 40 個中文字**以內的句號:開場之後的短句是正常節奏,不該碰。
+    if _long_fragmented_hook(nv):
+        _merged = _merge_hook_fragments(nv)
+        if _merged != nv:
+            _touched = True
+            nv = _merged
     if not _touched:          # 沒有任何一項是規則修得掉的(例如純粹「期間偷換」)→ 別假動作
         return None
     nv = re.sub(r"[ \t]{2,}", " ", re.sub(r"\n{2,}", "\n", nv)).strip()
@@ -4372,8 +4445,11 @@ def _clean_narration(text):
 #    非貪婪 ⇒ 只砍到第一個逗號為止,也就是那個連接子句本身。上限也從 40 收到 24:
 #    接縫語的連接子句都很短,放寬只會增加誤砍面積。
 _SEAM_RE = re.compile(
-    r"(?:^|(?<=[。！？\n]))\s*(?:接續上一段|接續前面|延續上一段|回到上一段|上回我們|上次我們|"
-    r"上一集我們|剛才提到|如同前述|承上)[^。！？\n]{0,24}?[，,]\s*")
+    # 開頭可能帶引號(實例:「剛剛我們用亞翔過去二十年驚人的漲幅來開場,但…」),要一起吃掉
+    r"(?:^|(?<=[。！？\n]))\s*[「『\"]?\s*"
+    r"(?:接續上一段|接續前面|接著上一段|延續上一段|回到上一段|承接上一段|承接前面|"
+    r"上回我們|上次我們|上一集我們|剛剛我們|剛才提到|如同前述|承上)"
+    r"[^。！？\n]{0,24}?[，,]\s*")
 _BRAND_BROKEN_RE = re.compile(r"量化阿森(?:頻道)?的量化專家|頻道的量化專家")
 
 
@@ -4397,6 +4473,56 @@ def _fix_artifacts(text):
         if a in text:
             text = text.replace(a, b)
     return _fix_seams(text)
+
+
+# ── 開場品質五道(2026-08-30 抽成共用)───────────────────────────────────────
+# 🔴 為什麼要抽出來:這五道原本寫在 `if kind == "long" and not topic_override:` 分支裡的
+# `_long_bad` closure 中。而**個股體檢永遠有 topic_override**(鎖題機制設的,見 make_one
+# 的 _is_ck 分支)→ 佔產出 **93%** 的主力產品**整組跳過這五道**,只走 `_uncontroversial_bad`
+# 那份只複製了 5 道的簡版。
+#
+# 實際後果(從成片倒推出來的):聯穎3550 那支的**第一句話**是
+#     「你的網格機器人,是設計來盤整賺錢,還是趁你睡覺把本金歸零?」
+# ——加密貨幣網格機器人的鉤子,出現在台股個股體檢片裡。⑤ 就是為了擋這個而寫的,
+# 但它掛在體檢片走不到的那條路上。
+#
+# 而 ④ 開場碎句的原註解寫著「**目前量到最大的完播殺手**」(台半5425 留存 17秒 0.82 →
+# 28秒 0.46,一口氣掉 44%,近 60 支長片 53% 犯這條)——這道也一樣,體檢片沒在查。
+#
+# `_uncontroversial_bad` 的註解說明了為什麼當初用複製:「_long_bad 定義在 not topic_override
+# 分支,跨分支引用會 NameError」。那個顧慮是對的,解法卻是複製——複製就會分岔,
+# 這次分岔了 3 道。(memory yt-duplicate-impl-gate-bypass:閘門兩份→走沒閘門那份;
+# 鐵律是修閘門前先追呼叫端。)抽成 module-level 之後兩條路吃同一份,分岔不可能再發生。
+#
+# 接線前先量過命中率(前人在密度閘門踩過「對體檢文體 5/5 命中 = 整條產線停產」):
+# 現有 124 支體檢稿 → ③0.0% ④16.9% ④b4.8% ⑥11.3% ⑤4.8%,全部在安全區。
+_HEDGE_BOILER = ("風險承受能力", "務必評估", "自行評估風險", "不構成投資建議",
+                 "投資前請", "並自行承擔")
+_CRYPTO_FAM = ("網格", "機器人", "bot", "比特幣", "BTC", "加密", "派網")
+# 標題側額外認「AI選股/神器」:實測「AI選股神器慘賠60%」片開場講「AI選股機器人」
+# 完全切題,但標題不含機器人二字——家族要含工具的同義題面詞,否則誤傷。
+_TITLE_FAM = _CRYPTO_FAM + ("AI選股", "神器", "自動交易")
+
+
+def _long_opening_bad(v: str, title: str):
+    """開場/結構五道。不合格回原因字串,合格回 None。長片兩條路徑共用這一份。"""
+    if not v:
+        return None
+    if _long_topic_drift(v, title):
+        return "主題跑題(後段整段變成另一支片的主題)"
+    if _long_fragmented_hook(v):
+        return "開場碎句(前兩句有短於12字的無主詞碎片,唸起來像念報表)"
+    if _long_preamble(v):
+        return "鉤子後仍在鋪陳(節目預告/頻道自介佔掉15~40秒,實測留存斷崖就在這)"
+    # 正文散撒風險 hedging:留存實測 hedging 句是全片掉人最快的段落型態(1.60x)。
+    # 只檢查正文 10%~80% 區間——片尾那句是合規必要,刻意不在檢查範圍內。
+    _mid = v[int(len(v) * 0.10):int(len(v) * 0.80)]
+    _hn = sum(_mid.count(h) for h in _HEDGE_BOILER)
+    if _hn > 1:
+        return f"正文散撒風險hedging({_hn}句在10%~80%區間,留存殺手1.60x,集中片尾一句即可)"
+    if any(k in v[:60] for k in _CRYPTO_FAM) and not any(k in (title or "") for k in _TITLE_FAM):
+        return "開場罐頭錯位(開場含幣圈工具詞但標題主題無關,疑逐字抄示範鉤)"
+    return None
 
 
 # loop 結尾硬性保底(完播工程 2026-07-14):HOOK_RULES ④已提示 LLM「結尾呼應開頭數字,誘導
@@ -4621,19 +4747,13 @@ def make_one(kind, no_render=False, topic_override=None, script_override=None):
                 return "長度不足"
             if _long_content_padding(_v):
                 return "資訊密度不足(同組數字/片語重複灌水撐時長)"
-            if _long_topic_drift(_v, _d.get("title", "")):
-                return "主題跑題(後段整段變成另一支片的主題)"
-            # ④ 開場碎句(2026-08-11 留存曲線實測,目前量到最大的完播殺手)
-            # 台半5425(近7天觀看最高 1744)開場:「這檔股票。十八年總報酬兩百七十趴。年化七點三趴。」
-            # 留存 17秒 0.82 → 28秒 **0.46**,一口氣掉 44%。近60支長片有 53% 犯這條。
-            # ⚠️ 為什麼長片一直沒擋到:_weak_hook 只掛在 Shorts 那條重生迴圈,
-            #    長片這裡原本**完全沒有開場品質檢查**,碎句因此一路通到發布。
-            if _long_fragmented_hook(_v):
-                return "開場碎句(前兩句有短於12字的無主詞碎片,唸起來像念報表)"
-            # ④b 鉤子之後還在鋪陳(2026-08-19 留存曲線實測:第 15~25 秒走掉一半,
-            # 而鉤子本身守得住 0.93/0.83 —— 死在後面連續三句節目預告+頻道自我介紹)。
-            if _long_preamble(_v):
-                return "鉤子後仍在鋪陳(節目預告/頻道自介佔掉15~40秒,實測留存斷崖就在這)"
+            # ③④④b⑥⑤ 已抽成 module-level 的 _long_opening_bad(見該函式的紅字說明):
+            # 原本這五道只寫在這裡,而這整個 `_long_bad` 掛在 `not topic_override` 分支下,
+            # **個股體檢永遠有 topic_override** → 93% 的產出整組跳過。
+            # 抽出來共用之後,這裡與 _uncontroversial_bad 吃的是同一份實作,不會再分岔。
+            _ob0 = _long_opening_bad(_v, _d.get("title", ""))
+            if _ob0:
+                return _ob0
             # ④c 期間偷換(2026-08-20:64 支已發布片中招)。個股體檢的 long_horizon 是
             # 20 年、three_way 是 10 年,拿前者的個股報酬配後者的 0050 報酬寫「同期」,
             # 數字都真但期間錯,效果是**低估 0050**——正好在觀眾最會檢查的地方出錯。
@@ -4652,27 +4772,7 @@ def make_one(kind, no_render=False, topic_override=None, script_override=None):
                    or _long_title_contradicts_facts(_d.get("title", ""), _d.get("title", "")))
             if _pl:
                 return _pl
-            # ⑤ 開場罐頭錯位(2026-08-12 抓到:高力8996 體檢片開場逐字抄了 playbook 示範句
-            # 「你的網格機器人…」——與主題無關=跨片重複的罐頭簽名(YPP inauthentic 風險)
-            # +幣圈詞開場(留存實測毒藥)。開場 60 字含幣圈工具詞而標題沒有 → 重生。
-            _t60 = _v[:60]
-            _ttl = _d.get("title", "")
-            # ⑥ 正文散撒風險 hedging(2026-08-13):留存實測 hedging 句是全片掉人最快的
-            # 段落型態(1.60x),規則ⓕ已要求「片尾一句就好」但 prompt 遵從度約半——實測
-            # 新批仍有 3 句散在正文。用 gate 不用文字手術(重生零毀損風險):正文 10%~80%
-            # 區間出現 >1 句免責樣板 → 重生。(片尾的必須保留,不在檢查區間。)
-            _mid = _v[int(len(_v) * 0.10):int(len(_v) * 0.80)]
-            _HEDGE = ("風險承受能力", "務必評估", "自行評估風險", "不構成投資建議",
-                      "投資前請", "並自行承擔")
-            _hn = sum(_mid.count(h) for h in _HEDGE)
-            if _hn > 1:
-                return f"正文散撒風險hedging({_hn}句在10%~80%區間,留存殺手1.60x,集中片尾一句即可)"
-            _CRYPTO_FAM = ("網格", "機器人", "bot", "比特幣", "BTC", "加密", "派網")
-            # 標題側額外認「AI選股/神器」:實測「AI選股神器慘賠60%」片開場講「AI選股機器人」
-            # 完全切題,但標題不含機器人二字——家族要含工具的同義題面詞,否則誤傷。
-            _TITLE_FAM = _CRYPTO_FAM + ("AI選股", "神器", "自動交易")
-            if any(k in _t60 for k in _CRYPTO_FAM) and not any(k in _ttl for k in _TITLE_FAM):
-                return "開場罐頭錯位(開場含幣圈工具詞但標題主題無關,疑逐字抄示範鉤)"
+            # (⑤開場罐頭錯位 與 ⑥正文散撒 hedging 已併入上面的 _long_opening_bad)
             return ""
         _lk = 0
         # 每次重生都是一次完整的 LLM 大呼叫(約 US$0.01、耗時數分鐘)。這些迴圈原本
@@ -4821,6 +4921,15 @@ def make_one(kind, no_render=False, topic_override=None, script_override=None):
                 return "長度不足(撐不出真 8-10 分鐘)"
             if _long_content_padding(_v):
                 return "資訊密度不足(同組數字/片語重複灌水撐時長)"
+            # 🔴 2026-08-30 補上開場品質五道(主題跑題/開場碎句/鉤子後鋪陳/散撒hedging/
+            # 開場罐頭錯位)。這五道原本只掛在 not topic_override 那條路上,而**體檢片永遠
+            # 有 topic_override** → 佔產出 93% 的主力產品整組跳過。實測後果:聯穎3550 的
+            # 第一句話是「你的網格機器人,是設計來盤整賺錢…」(幣圈鉤子出現在台股體檢片)。
+            # 現在兩條路吃同一份 module-level 實作,不會再分岔。
+            # 命中率量過:現有 124 支體檢稿 ③0.0% ④16.9% ④b4.8% ⑥11.3% ⑤4.8%,在安全區。
+            _ob = _long_opening_bad(_v, _d.get("title", ""))
+            if _ob:
+                return _ob
             return None
         _mech2 = False
         while _uncontroversial_bad(d) and _t2 < 2:
