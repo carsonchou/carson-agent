@@ -3450,6 +3450,40 @@ def _save_rejected_draft(d, why, stage):
         pass          # 留證失敗不能反過來害到產線
 
 
+def _mid_hedge_count(v: str) -> int:
+    """正文 10%~80% 區間裡有幾句免責樣板(片尾那句不算,它是合規必要)。"""
+    if not v:
+        return 0
+    mid = v[int(len(v) * 0.10):int(len(v) * 0.80)]
+    return sum(mid.count(h) for h in _HEDGE_BOILER)
+
+
+def _collapse_mid_hedge(v: str) -> str:
+    """把散在正文的免責句收攏:刪掉 10%~80% 區間裡**除了最後一句以外**的免責句。
+
+    不是「刪免責」——片尾那句原封不動,揭露次數不減少;刪的是正文裡重複的那幾句
+    (判準本身要的就是「片尾一句就好」)。整句刪,不做半句手術。
+    """
+    if not v:
+        return v
+    import re as _r
+    sents = _r.split(r"(?<=[。！？])", v)
+    lo, hi = len(v) * 0.10, len(v) * 0.80
+    pos, hedged = 0, []
+    for i, s in enumerate(sents):
+        if lo <= pos <= hi and any(h in s for h in _HEDGE_BOILER):
+            hedged.append(i)
+        pos += len(s)
+    if len(hedged) <= 1:
+        return v
+    drop = set(hedged[:-1])          # 保留區間內最後一句,前面的刪掉
+    out = "".join(s for i, s in enumerate(sents) if i not in drop)
+    # 安全網:刪過頭(掉超過 12% 內容)就放棄,寧可重生也不要把稿改殘
+    if _long_chinese_chars(out) < _long_chinese_chars(v) * 0.88:
+        return v
+    return out
+
+
 def _merge_hook_fragments(v: str) -> str:
     """把開場的數據碎片接成一句(句號→逗號)。只動開場前 40 個中文字以內的句號。
 
@@ -3563,6 +3597,17 @@ def _mech_repair_long(d, gate):
         if _merged != nv:
             _touched = True
             nv = _merged
+    # 🔴 2026-08-30 正文散撒 hedging 也用確定性修:判準本身就是「片尾一句就好,正文別散撒」
+    # (留存實測 hedging 句是全片掉人最快的段落型態 1.60x)。那就**刪掉正文 10%~80% 區間裡
+    # 多餘的那幾句、保留最後一句**——這正是判準想要的狀態,不必燒一次 LLM 重生。
+    # ⚠️ 合規安全:只刪**正文中重複的**,片尾那句(80% 之後)一個字都不動。
+    #    memory yt-longform-yield-and-quota-order 記著「免責句被當灌水=懲罰合規」,
+    #    所以這裡刻意不是「刪免責句」,而是「把散在正文的收攏到片尾」——揭露一次不減少。
+    if _long_content_padding(nv) is False and _mid_hedge_count(nv) > 1:
+        _hv = _collapse_mid_hedge(nv)
+        if _hv != nv:
+            _touched = True
+            nv = _hv
     if not _touched:          # 沒有任何一項是規則修得掉的(例如純粹「期間偷換」)→ 別假動作
         return None
     nv = re.sub(r"[ \t]{2,}", " ", re.sub(r"\n{2,}", "\n", nv)).strip()
