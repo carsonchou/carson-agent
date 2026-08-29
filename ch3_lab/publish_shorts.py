@@ -284,6 +284,22 @@ def short_title(key, o):
     if not q:
         return None                       # fail-closed
     f = o.get("facts") or {}
+    # 🔴 **可搜尋的效應名要在標題裡。** 這一集之所以被做,就是因為
+    #    「10000 hour rule」在 effect_scan 拿到 22 個候選裡的第一名。
+    #    只放白話問句(「Is how much you practise what separates the
+    #    best?」)整句不含那五個字 = 需求測試白做。長片標題今晚已經修過
+    #    同一件事,Short 這份漏掉 —— 同一個錯的第二個表面,今晚第四次。
+    # 效應名取長片標題冒號前那一段(publish_meta 已經把它放在最前面)。
+    name = o["title"].split(":")[0] if ":" in o["title"] else ""
+    if o.get("kind") == "domains":
+        best, worst = f.get("best"), f.get("worst")
+        cand = (f"{name}: practice explained {f['pct_best']}% in {best}, "
+                f"under {f['pct_worst']}% in {worst}.")
+        return cand if len(cand) <= 100 else q[:100]
+    if o.get("kind") == "lineup":
+        cand = (f"{name}: {f['k']} replications, {f['n_r']:,} people, "
+                f"{f['n_sig']} worked.")
+        return cand if len(cand) <= 100 else q[:100]
     if f.get("n_r") is None:
         return q[:100]
     scale = SCALE[f.get("is_replication", True)].format(
@@ -313,13 +329,35 @@ def famous_meta(d, o, mp4, longs, longs_all):
     #    那一處 —— 又是「同一件事兩個地方」。)
     link = link_line(d.name, longs, longs_all)
     head = as_claim(o["description"].split("\n")[0])
-    scale = (f"{D['k']} {D['k_word']}, {D['n_r']:,} people" if D.get("k")
-             else f"{D['n_r']:,} people")
-    desc = (link + head + "\n\n"
-            + f"Measured effect: {D['es_r']:+.2f} ({scale})\n".replace("+", "")
+    # 🔴 數字那一行**依這一集真的有什麼而定**。舊版寫死「Measured
+    #    effect: X (N people)」,對跨領域集(數字是每個領域的百分比,
+    #    沒有 es_r 也沒有 n_r)直接丟 TypeError;對效應家族則會把
+    #    6 種做法、12 次重測的中位數講成單一個效果量。
+    if D.get("domains"):
+        from make_domains import fmt_pct
+        nums = ("Percent of the variance in performance explained:\n"
+                + "\n".join(f"  {x['name']}: {fmt_pct(x)}"
+                            for x in D["domains"]) + "\n")
+    elif D.get("k_distinct"):
+        nums = (f"{D['k_distinct']} setups, {D['k']} replications, "
+                f"{D['n_r']:,} people\n"
+                f"Typical original {D['es_o']:+.2f} -> typical replication "
+                f"{D['es_r']:+.2f}\n".replace("+", ""))
+    else:
+        scale = (f"{D['k']} {D['k_word']}, {D['n_r']:,} people" if D.get("k")
+                 else f"{D['n_r']:,} people")
+        nums = f"Measured effect: {D['es_r']:+.2f} ({scale})\n".replace("+", "")
+    # 🔴 來源也寫死了 FReD。名案的數字出自各自的統合分析、跨領域那集
+    #    出自 2014 年一篇統合分析 —— 指錯地方比不寫還糟,而說明欄是
+    #    觀眾唯一能複製貼上去查的地方。**這是同一個假來源的第二份**
+    #    (第一份在 make_short 的旁白與畫面,今晚一起修)。
+    src = str(D.get("source_full") or D.get("source") or "")
+    src_line = ("\nSource: FORRT Replication Database (FReD), osf.io/2tbvd\n"
+                if ("FORRT" in src or "FReD" in src)
+                else f"\nSource: {src}\n")
+    desc = (link + head + "\n\n" + nums
             + (f"{D['card']}\n" if D["card"] else "")
-            + "\nSource: FORRT Replication Database (FReD), osf.io/2tbvd\n"
-              "#Shorts")
+            + src_line + "#Shorts")
     return {"key": d.name, "video": str(mp4.relative_to(ROOT)),
             "title": title, "description": desc, "tags": TAGS,
             "tone": "famous"}
@@ -422,8 +460,18 @@ def build_meta():
         if not mp4.exists():
             continue
         if not d.name.startswith("ep"):
-            o = by_dir.get(f"eps_famous/{d.name}")
+            # 🔴 **不要只找一個前綴。** 舊版只查 `eps_famous/`,於是
+            #    eps_lineup(效應家族)與 eps_domain(跨領域)那兩支
+            #    渲好的 Short 被**靜默跳過** —— 片子在、metadata 在、
+            #    清單裡就是沒有它,而且一個字都不會印。
+            #    這條線今晚已經修過三次同型的靜默跳過。
+            o = next((by_dir.get(f"{pre}/{d.name}")
+                      for pre in ("eps_famous", "eps_lineup", "eps_domain")
+                      if by_dir.get(f"{pre}/{d.name}")), None)
             if not o:
+                print(f"  ⛔ {d.name}:有成片但 publish_meta 裡找不到"
+                      f"(查過 eps_famous / eps_lineup / eps_domain)——"
+                      f"不發,但你現在知道了")
                 continue
             out.append(famous_meta(d, o, mp4, longs, longs_all))
             continue

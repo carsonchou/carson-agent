@@ -156,6 +156,18 @@ def build_script(D):
     「量出來的數字」,而那個說法本身就是鉤子(意志力會用完、旁觀者效應)。
     對零訂閱頻道來說,這反而是唯一有人認得的題材。
     """
+    if D.get("domains"):
+        from make_domains import say_pct
+        doms = D["domains"]
+        return [
+            ("q", D["question"]),
+            ("nums",
+             "Here is how much of the difference in performance it "
+             "actually explains. "
+             + " ".join(f"{d['name'].capitalize()}, {say_pct(d)}."
+                        for d in doms)),
+            ("end", end_line(D, "the paper")),
+        ]
     if D["es_o"] is None:
         # k_word 有兩種:**會做事的**(laboratories / experiments)和
         # **統計單位**(independent effect sizes / samples)。後者不能接
@@ -215,8 +227,16 @@ def end_line(D, papers):
     if D.get("has_full"):
         return (f"The full breakdown, with {papers} and the record it comes "
                 f"from, is on the channel.")
-    return ("Every number here comes from the FORRT Replication Database — "
-            "one public row per finding.")
+    # 🔴 **來源不能寫死。** 這句原本一律唸「FORRT Replication Database」,
+    #    對 FReD 那 19 支是對的,對名案與統合分析那幾支是**假的** ——
+    #    10,000 小時那集的數字來自 2014 年一篇統合分析,跟 FReD 無關,
+    #    而這句話會被烘進音軌,發出去就改不掉了。
+    #    D["source"] 每一條取材路徑都有填,用它。
+    src = str(D.get("source") or "").strip()
+    if "FORRT" in src or "FReD" in src:
+        return ("Every number here comes from the FORRT Replication "
+                "Database — one public row per finding.")
+    return "Every number here comes from the paper itself, named on screen."
 
 
 def visual_plan(plt, D):
@@ -378,7 +398,9 @@ def fit_sizes(plt, D):
     # OF YOURSELF」),所以一定要量。
     fs["claim"] = claim_layout(plt, D)
     fs["kicker"] = fit(plt, KICKER, 46, max_frac=0.55)
-    if D["es_o"] is None:
+    if D.get("domains"):
+        fs["sub"] = fit(plt, "how much practice explains", 46)
+    elif D["es_o"] is None:
         head = (f"{D['k']} {D['k_word']}" if D.get("k") else "tested again")
         fs["head"] = min(fit(plt, ln, 88) for ln in wrap(head, 16)[:2])
         fs["n"] = fit(plt, f"{D['n_r']:,} people", 58)
@@ -387,7 +409,9 @@ def fit_sizes(plt, D):
     if D["card"]:
         fs["card"] = min(fit(plt, ln, 58) for ln in wrap(D["card"], 20)[:2])
     # 上限 300 時字身下緣落在 0.393,壓住 0.385 那行標籤 8 畫素。
-    fs["big"] = fit(plt, f"{D['es_r']:+.2f}".replace("+", ""), 260)
+    # 跨領域集沒有 es_r(它的數字是每個領域的百分比),量了會炸。
+    if D["es_r"] is not None:
+        fs["big"] = fit(plt, f"{D['es_r']:+.2f}".replace("+", ""), 260)
     # 🔴 對比那兩個大數字**原本寫死 240 / 270**,從來沒量過。
     #    「0.82」四個字塞得下,「-0.25」多一個負號就伸到 0.871、
     #    「-0.23」@270pt 伸到 0.917 —— 直接壓在按讚欄底下。
@@ -399,12 +423,14 @@ def fit_sizes(plt, D):
     #    210pt 在 1920 高的畫布上仍有 292 畫素,不影響「大數字」的效果。
     BIG = 210
     fs["es_o"] = fit(plt, f"{D['es_o']:+.2f}".replace("+", ""), BIG)         if D["es_o"] is not None else BIG
-    fs["es_r2"] = fit(plt, f"{D['es_r']:+.2f}".replace("+", ""), BIG)
+    fs["es_r2"] = (fit(plt, f"{D['es_r']:+.2f}".replace("+", ""), BIG)
+                   if D["es_r"] is not None else BIG)
     # ⚠️ **每一段會上畫面的字都要納入**,漏一個就是漏一個越界點。
     #    第一版漏了來源那行:名案的是「FORRT Replication Database (FReD)」
     #    塞得下,FReD 那批多了「, OSF 2tbvd」就伸到 0.948 —— 同一個位置、
     #    同一個字級,只因為文案長度不同。這正是「量」而不是「挑」的理由。
-    fs["src"] = fit(plt, D["source"], 34, weight="normal")
+    fs["src"] = min(fit(plt, ln, 34, weight="normal")
+                    for ln in wrap(D["source"], 34)[:2])
     fs["end"] = min(fit(plt, s, 76) for s in
                     ("Full episode", "on the channel",
                      "Every number", "from the record"))
@@ -457,6 +483,35 @@ def render(plt, name, t, dur, D):
         if w > 0:
             ax.plot([0.5 - 0.36 * w, 0.5 + 0.36 * w], [uy, uy],
                     color=ACCENT, lw=10, solid_capstyle="butt", zorder=2)
+    elif name == "nums" and D.get("domains"):
+        # 直式的橫條圖。滿格 = 表現的全部差異,上色 = 練習解釋掉的部分。
+        from make_domains import fmt_pct
+        ax.text(0.5, 0.86, "how much practice explains", ha="center",
+                va="center", fontsize=fs.get("sub", 46), color=DIM)
+        for i, d in enumerate(D["domains"]):
+            if t < 0.4 + i * 1.5:
+                continue
+            b = ease(min(1.0, (t - 0.4 - i * 1.5) / 0.6))
+            y = 0.74 - i * 0.10
+            hot = d is D["worst"]
+            # 🔴 直式的安全區只有 0.14~0.86 這一段(右邊 12% 是按讚欄)。
+            #    第一版把標籤右對齊在 0.36,「professions」往左伸到 0.095
+            #    —— 守門擋下來了。改成左對齊起於 0.15,條與百分比往右排。
+            ax.text(0.15, y, d["name"], ha="left", va="center", fontsize=38,
+                    color=col if hot else FG, weight="bold", alpha=b)
+            ax.add_patch(plt.Rectangle((0.44, y - 0.016), 0.28, 0.032,
+                                       color="#252C36", alpha=b))
+            ax.add_patch(plt.Rectangle((0.44, y - 0.016),
+                                       d["pct"] / 100 * 0.28, 0.032,
+                                       color=col, alpha=b))
+            ax.text(0.74, y, fmt_pct(d), ha="left", va="center", fontsize=36,
+                    color=col if hot else DIM, weight="bold", alpha=b)
+        if t > 8.0:
+            q = ease(min(1.0, (t - 8.0) / 0.8))
+            for i, ln in enumerate(wrap(D["card"], 20)[:2]):
+                ax.text(0.5, 0.30 - i * 0.05, ln, ha="center", va="top",
+                        fontsize=min(fs.get("card", 58), 54), color=FG,
+                        alpha=q, weight="bold")
     elif name == "nums" and D["es_o"] is None:
         # 名案:沒有原始值可比,所以主體是「規模 → 量到的數字」而不是對比。
         if t > 0.3:
@@ -522,8 +577,12 @@ def render(plt, name, t, dur, D):
                 fontsize=fs.get("end", 76), color=FG, weight="bold")
         ax.text(0.5, 0.575, b, ha="center",
                 fontsize=fs.get("end", 76), color=FG, weight="bold")
-        ax.text(0.5, 0.45, D["source"], ha="center",
-                fontsize=fs.get("src", 34), color=DIM)
+        # 🔴 來源改成**換行顯示**。FReD 那句 44 個字塞得下,論文標題
+        #    64 個字連縮到 fit() 的下限 24pt 都還是伸到 0.083 —— 而
+        #    「縮不下去就讓它出界」是靜默的,只有斷言擋下來我才知道。
+        for i, ln in enumerate(wrap(D["source"], 34)[:2]):
+            ax.text(0.5, 0.46 - i * 0.028, ln, ha="center", va="top",
+                    fontsize=fs.get("src", 34), color=DIM)
 
     # 🔴 版面下緣 22% 與右緣 12% 是 Shorts 的 UI 覆蓋區(標題列、頻道名、
     #    按讚/留言/分享),頂端也有「Shorts」標籤與搜尋圖示。所有內容一律
@@ -653,6 +712,32 @@ def collect(slug=None, row=None):
             "color": BUCKET_COLOR[TONE_META[F["tone"]]["bucket"]],
             "source": F["source"],
         }
+    dm = ROOT / "eps_domain" / str(slug) / "facts.json"
+    if dm.exists():
+        from make_episode import CARD_TEXT, TONE_META
+        E = json.loads(dm.read_text(encoding="utf-8"))
+        T = E["test"]
+        pc = _plain(f"eps_domain/{slug}")
+        tone = E.get("tone", "shrunk_real")
+        worst = min(T["domains"], key=lambda x: x["pct"])
+        return {
+            "key": slug,
+            "question": pc["spoken"],
+            "claim_lines": pc["lines"],
+            "has_original": False,
+            "es_o": None, "es_r": None,
+            "n_o": None, "n_r": None,
+            "say_o": None, "say_r": None,
+            "domains": T["domains"], "worst": worst,
+            "card": "Not the whole story.",
+            "tone": tone,
+            "color": BUCKET_COLOR[TONE_META[tone]["bucket"]],
+            "has_full": _has_full(f"eps_domain/{slug}"),
+            "source": T["title"][:60],
+            # 畫面那行要短(安全區只有 0.14~0.86),說明欄可以放完整引用。
+            "source_full": f"{T['title']} (doi:{T['doi']})",
+        }
+
     lu = ROOT / "eps_lineup" / str(slug) / "facts.json"
     if lu.exists():
         from make_episode import CARD_TEXT, TONE_META, say_num as lsay
@@ -717,7 +802,16 @@ def collect(slug=None, row=None):
         "k": t.get("k"), "k_word": t.get("k_word", "studies"),
         "card": card, "color": BUCKET_COLOR[bucket], "tone": tone,
         "has_full": _has_full(slug),
-        "source": "FORRT Replication Database (FReD)",
+        # 🔴 **名案不是從 FReD 來的。** 這裡原本寫死「FORRT Replication
+        #    Database (FReD)」,而 ego_depletion 的數字出自 Hagger 等人
+        #    2016 那篇多實驗室重複、bystander 出自一篇統合分析 ——
+        #    FReD 裡根本沒有這些列(所以才需要 famous 這條路,那正是
+        #    make_famous 檔頭第一句寫的話)。
+        #    畫面上那行來源是**觀眾唯一能拿去查證的線索**,指錯地方
+        #    比不寫還糟。⚠️ 5 支已上線的 Short 帶著這個錯,換片要重上傳。
+        "source": t["title"][:64],
+        "source_full": (f"{t['title']} (doi:{t['doi']})" if t.get("doi")
+                        else t["title"]),
     }
 
 
@@ -738,9 +832,13 @@ def main():
         (out / f"narr_{n}.txt").write_text(txt, encoding="utf-8")
     words = sum(len(t.split()) for _, t in segs)
     print(f"[{D['key']}] {D['question'][:60]}")
-    gap = (f"{D['es_o']:+.2f} → " if D["es_o"] is not None
-           else f"{D['k']} {D['k_word']} → " if D.get("k") else "")
-    print(f"  稿 {words} 字   {gap}{D['es_r']:+.2f}   {D['card']}")
+    if D.get("domains"):
+        gap = " · ".join(f"{d['name']} {d['pct']}%" for d in D["domains"])
+        print(f"  稿 {words} 字   {gap}   {D['card']}")
+    else:
+        gap = (f"{D['es_o']:+.2f} → " if D["es_o"] is not None
+               else f"{D['k']} {D['k_word']} → " if D.get("k") else "")
+        print(f"  稿 {words} 字   {gap}{D['es_r']:+.2f}   {D['card']}")
     if a.script_only:
         for n, t in segs:
             print(f"  --- {n} ---\n  {t}")

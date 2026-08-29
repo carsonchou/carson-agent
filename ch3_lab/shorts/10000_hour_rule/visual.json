@@ -5,41 +5,41 @@
   1920,
   30
  ],
- "card": "It predicts — but weakly.",
+ "card": "Not the whole story.",
  "claim_lines": [
-  "CAN A TEST REVEAL",
-  "YOUR HIDDEN BIAS?"
+  "PRACTICE IS WHAT",
+  "SEPARATES THE BEST"
  ],
  "color": "#8FA3C8",
  "end_card": [
-  "Full episode",
-  "on the channel"
+  "Every number",
+  "from the record"
  ],
- "frames": "dd35dc802ad02e83",
+ "frames": "d18d351e9b8b0933",
  "fs": {
-  "big": 260,
   "card": 58,
   "claim": {
-   "fs": 82,
+   "fs": 105,
    "lines": [
-    "CAN A TEST",
-    "REVEAL YOUR",
-    "HIDDEN BIAS?"
+    "PRACTICE",
+    "IS WHAT",
+    "SEPARATES",
+    "THE BEST"
    ],
    "ys": [
-    0.6191,
-    0.545,
-    0.4709
+    0.6874,
+    0.5925,
+    0.4975,
+    0.4026
    ]
   },
   "end": 75,
   "es_o": 210,
   "es_r2": 210,
-  "head": 70,
   "kicker": 46,
   "meas": 50,
-  "n": 58,
-  "src": 34
+  "src": 34,
+  "sub": 42
  },
  "kicker": "THE CLAIM",
  "palette": [
@@ -52,5 +52,5 @@
   0.24,
   0.9099999999999999
  ],
- "source": "Understanding and using the Implicit Association Test: III. Meta"
+ "source": "Deliberate practice and performance in music, games, sports,"
 }
