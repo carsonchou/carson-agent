@@ -15,9 +15,9 @@
   "Full episode",
   "on the channel"
  ],
- "frames": "ed8b37d1afdbbf87",
+ "frames": "449a6246f6a65f38",
  "fs": {
-  "big": 280,
+  "big": 260,
   "card": 58,
   "claim": {
    "fs": 82,
@@ -33,8 +33,8 @@
    ]
   },
   "end": 75,
-  "es_o": 240,
-  "es_r2": 270,
+  "es_o": 210,
+  "es_r2": 210,
   "head": 70,
   "kicker": 46,
   "meas": 50,

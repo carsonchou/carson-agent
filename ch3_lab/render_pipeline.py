@@ -29,6 +29,39 @@ import numpy as np
 from make_episode import SEG_GAP          # noqa: E402
 
 
+def _claim(out):
+    """同一個輸出目錄只准一個渲染程序。回傳鎖檔路徑,拿不到就中止。"""
+    import os
+    import time
+    lk = out / ".render.lock"
+    if lk.exists():
+        try:
+            pid, ts = lk.read_text(encoding="utf-8").split()
+            pid, ts = int(pid), float(ts)
+        except Exception:
+            pid, ts = -1, 0.0
+        if pid == os.getpid():
+            return lk
+        frames = out / "frames"
+        live = 0.0
+        if frames.exists():
+            for f in frames.glob("*.png"):
+                live = max(live, f.stat().st_mtime)
+        # 🔴 「舊」不等於「死」。只有**又舊又沒在動**才接管 ——
+        #    只看時間的死亡判準已經害過一次(長片天生渲超過門檻被判死,
+        #    分身互搶記憶體死亡螺旋)。
+        if time.time() - max(ts, live) < 90:
+            raise SystemExit(
+                f"⛔ {out.name} 已經有一個渲染程序在跑(PID {pid},"
+                f"{time.time() - max(ts, live):.0f} 秒前還有動作)。"
+                f"不重複啟動 —— 兩個實例會互刪影格,產出音軌對不上畫面"
+                f"而且**回報成功**。")
+        print(f"  接管過期的鎖(PID {pid},靜止 "
+              f"{time.time() - max(ts, live):.0f} 秒)")
+    lk.write_text(f"{os.getpid()} {time.time()}", encoding="utf-8")
+    return lk
+
+
 def tts(out, segs, voice="am_michael", speed=0.98):
     """用 Kokoro(3.11 獨立 venv)把每段旁白轉成 seg_<name>.wav。
 
@@ -72,6 +105,7 @@ def render_and_mux(out, segs, render_fn, mp4_name, W, H, FPS, ctx=None):
     **mp4 最後才寫** —— 中途被砍只會留下舊檔,不會留半截檔案
     (2026-08-29 兩個編排實例互殺時,19 支長片一支都沒損毀就是因為這個)。
     """
+    lock = _claim(out)
     import imageio.v2 as iio
     frames = out / "frames"
     frames.mkdir(exist_ok=True)
@@ -84,6 +118,18 @@ def render_and_mux(out, segs, render_fn, mp4_name, W, H, FPS, ctx=None):
                         render_fn(n, i / FPS, dur, ctx))
             idx += 1
         print(f"  畫面 {n:<12}{dur:>6.1f}s")
+
+    # 🔴 影格數必須配得上音軌長度。兩個實例互刪影格時,mux **照樣成功**
+    #    ——ffmpeg 拿到幾張就編幾張,不會抱怨少了 1500 張。實測產出
+    #    「音軌 65.1 秒、影像 13.8 秒」而函式回報完成。
+    #    完成訊號必須配一個成敗證明,這就是那個證明。
+    want = sum(int(durs[n] * FPS) for n, _ in segs)
+    if abs(idx - want) > FPS:
+        lock.unlink(missing_ok=True)
+        raise SystemExit(
+            f"⛔ 影格數對不上:畫了 {idx} 張,應該是 {want} 張"
+            f"({idx / FPS:.1f}s vs {want / FPS:.1f}s)。"
+            f"通常是兩個實例寫同一個 frames/。不 mux。")
 
     voice = out / "voice.wav"
     with wave.open(str(voice), "wb") as w:
@@ -104,4 +150,5 @@ def render_and_mux(out, segs, render_fn, mp4_name, W, H, FPS, ctx=None):
     for f in frames.glob("*.png"):
         f.unlink()
     frames.rmdir()
+    lock.unlink(missing_ok=True)
     return mp4, idx / FPS
