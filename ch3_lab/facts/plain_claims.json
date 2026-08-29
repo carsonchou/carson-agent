@@ -187,5 +187,12 @@
   ],
   "spoken": "Does seeing a number first pull your guess toward it?"
  },
- "_lineup": "效應家族集型的白話主張。單位是**一整條研究路線**不是一篇論文,所以主張要寫成那個路線共同宣稱的東西(social priming = 看一個詞就改變行為),不是某一篇的特定操弄。判決字也不同:單篇是 NOT FOUND / IT HELD UP,家族是「12 個裡 0 個」——那是個數字,所以它必須從 facts 來,不能手寫。"
+ "_lineup": "效應家族集型的白話主張。單位是**一整條研究路線**不是一篇論文,所以主張要寫成那個路線共同宣稱的東西(social priming = 看一個詞就改變行為),不是某一篇的特定操弄。判決字也不同:單篇是 NOT FOUND / IT HELD UP,家族是「12 個裡 0 個」——那是個數字,所以它必須從 facts 來,不能手寫。",
+ "eps_lineup/ep0": {
+  "lines": [
+   "FAMOUS EXPERIMENTS",
+   "RUN AGAIN"
+  ],
+  "spoken": "What happens when someone runs a famous experiment again?"
+ }
 }

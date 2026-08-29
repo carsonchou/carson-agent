@@ -46,6 +46,36 @@ from make_short import BUCKET_COLOR                      # noqa: E402
 from make_episode import TONE_META, copy_tone            # noqa: E402
 
 
+#: 畫面上的四組。**點的顏色、標籤的數字、旁白唸的數字全部從這裡來** ——
+#: 三個表面一份分類。第一版點用三桶、標籤用五類,結果 13 顆橘點配
+#: 「12 gone」。
+GROUP_LABEL = {
+    "gone": "gone",
+    "shrunk": "smaller, still there",
+    "flipped": "went the other way",
+    "held": "held up",
+}
+GROUP_ORDER = {"gone": 0, "shrunk": 1, "flipped": 2, "held": 3}
+GROUP_COLOR = {
+    "gone": BUCKET_COLOR["fail"],
+    "shrunk": BUCKET_COLOR["mixed"],
+    # 翻向要自己一個顏色。歸進 fail 色就是把「方向相反」講成「沒有效應」,
+    # 而那兩件事在片裡是分開講的。
+    "flipped": "#C88FD4",
+    "held": BUCKET_COLOR["held"],
+}
+
+
+def group_of(r):
+    """一集屬於哪一組。判準只有這一個。"""
+    t = r["tone"]
+    if t in ("held", "stronger"):
+        return "held"
+    if t in ("flipped", "flipped_tiny"):
+        return "flipped"
+    return "shrunk" if t == "shrunk_real" else "gone"
+
+
 def tally():
     """從 publish_meta 算戰績。**一個數字都不手寫。**"""
     m = json.loads((ROOT / "publish_meta.json").read_text(encoding="utf-8"))
@@ -62,13 +92,14 @@ def tally():
     c = {}
     for r in rows:
         c[r["tone"]] = c.get(r["tone"], 0) + 1
-    survived = c.get("held", 0) + c.get("stronger", 0)
+    # 四組的數字**從 group_of 數出來**,跟畫面上點的顏色同一個來源。
+    g = {k: sum(1 for r in rows if group_of(r) == k) for k in GROUP_LABEL}
+    if sum(g.values()) != len(rows):
+        raise SystemExit(f"⛔ 分組加總 {sum(g.values())} ≠ {len(rows)}")
     return {"rows": rows, "k": len(rows), "n_sum": n_sum, "counts": c,
-            "gone": c.get("gone", 0), "held": c.get("held", 0),
-            "stronger": c.get("stronger", 0),
-            "shrunk": c.get("shrunk_real", 0),
-            "flipped": c.get("flipped", 0) + c.get("flipped_tiny", 0),
-            "survived": survived}
+            "gone": g["gone"], "shrunk": g["shrunk"],
+            "flipped": g["flipped"], "survived": g["held"],
+            "held": c.get("held", 0), "stronger": c.get("stronger", 0)}
 
 
 def say(n):
@@ -195,8 +226,12 @@ def render_scene(name, t, dur, ctx):
     elif name == "verdict":
         # 每一集一個點,依判決上色。**點的總數就是集數** —— 觀眾數得出來,
         # 所以它不能跟旁白講的數字對不上。
-        rows = sorted(T["rows"], key=lambda r: {"fail": 0, "mixed": 1,
-                                                "held": 2}[r["bucket"]])
+        # 🔴 點的顏色和下面的標籤**必須出自同一個分類**。
+        #    第一版點用 `bucket`(三桶)、標籤用 `copy_tone`(五類):
+        #    flipped_tiny 被歸進 fail 桶,於是畫面上 13 顆橘點、標籤寫
+        #    「12 gone」。觀眾數得出來,而我的稿子檢查只驗旁白、驗不到
+        #    畫面。今天第四個「同一件事兩份分類」。
+        rows = sorted(T["rows"], key=lambda r: GROUP_ORDER[group_of(r)])
         cols, size = 10, 0.055
         x0, y0 = 0.5 - (cols - 1) * size / 2, 0.66
         for i, r in enumerate(rows):
@@ -211,16 +246,14 @@ def render_scene(name, t, dur, ctx):
             ax.add_patch(Ellipse(
                 (x0 + (i % cols) * size, y0 - (i // cols) * size * (W / H)),
                 width=0.038, height=0.038 * (W / H),
-                color=BUCKET_COLOR[r["bucket"]], alpha=b))
+                color=GROUP_COLOR[group_of(r)], alpha=b))
         if t > 2.8:
             b = ease(min(1.0, (t - 2.8) / 0.7))
-            for i, (lab, n, key) in enumerate((
-                    ("gone", T["gone"], "fail"),
-                    ("smaller, still there", T["shrunk"], "mixed"),
-                    ("held up", T["survived"], "held"))):
-                ax.text(0.5, 0.30 - i * 0.085, f"{n}  {lab}", ha="center",
-                        va="center", fontsize=46,
-                        color=BUCKET_COLOR[key], weight="bold", alpha=b)
+            for i, (g, lab) in enumerate(GROUP_LABEL.items()):
+                n = sum(1 for r in T["rows"] if group_of(r) == g)
+                ax.text(0.5, 0.295 - i * 0.072, f"{n}  {lab}", ha="center",
+                        va="center", fontsize=42,
+                        color=GROUP_COLOR[g], weight="bold", alpha=b)
     elif name == "why":
         txt(0.62, f"{T['survived']} of {T['k']} held up.", 78)
         if t > 1.8:

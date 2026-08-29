@@ -585,7 +585,10 @@ def main():
             f"the original.{nl}{nl}"
             f"Every episode, with the replication effect size and sample:{nl}"
             + nl.join(lines) + footer_for(2))
-        out.append({
+        # 🔴 **插在最前面。** upload.py 照 meta 的順序取待發清單,append 的話
+        #    預告會排在 14 集後面 —— 明天 16:25 的 cron 會發 ep007,而預告
+        #    是整條線上最強的訂閱轉化器,晚兩週才出等於白做。
+        out.insert(0, {
             "kind": "trailer", "slug": "ep0", "dir": "eps_lineup/ep0",
             "video": "eps_lineup/ep0/ep0.mp4",
             "thumb": "eps_lineup/ep0/thumb.jpg",
@@ -598,7 +601,7 @@ def main():
                       "es_kind": "d", "is_replication": True,
                       "k": T["k"], "n_sig": T["survived"]},
         })
-        print(f"  ✓ ep0:{out[-1]['title']}")
+        print(f"  ✓ ep0(排在最前):{out[0]['title']}")
 
     # 🔴 被刷掉的要彙總印出來,不能只是 continue(2026-08-25)。
     #    上一版有 4 集被靜默丟掉(退格字元讓「論文標題那行不掃」失效,

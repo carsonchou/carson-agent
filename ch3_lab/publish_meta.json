@@ -368,6 +368,37 @@
   }
  },
  {
+  "kind": "trailer",
+  "slug": "ep0",
+  "dir": "eps_lineup/ep0",
+  "video": "eps_lineup/ep0/ep0.mp4",
+  "thumb": "eps_lineup/ep0/thumb.jpg",
+  "tone": "held",
+  "title": "25 famous psychology claims, retested on 58,653 people. 8 held up.",
+  "description": "25 claims people repeat as fact. We looked up the study each one came from, then looked up what happened when somebody ran it again.\n\n58,653 people took part in the replications.\n12 of the claims are gone - the retest could not tell them apart from nothing.\n4 came back smaller but still measurable.\n1 went the other way.\n8 held up, 2 of them larger than the original.\n\nEvery episode, with the replication effect size and sample:\n  bystander_effect         -0.35    7,700 people   held up\n  ep003                    -0.23    1,550 people   held up\n  ep007                    -0.87      776 people   held up\n  ep011                    +0.65      743 people   held up\n  ep015                    +0.34      740 people   held up\n  ep017                    +0.36      321 people   held up\n  ep018                    -0.85      240 people   held up\n  sleep_memory             +0.29    2,004 people   held up\n  ego_depletion            +0.04    2,141 people   gone\n  ep000                    +0.01    6,608 people   gone\n  ep001                    -0.07    1,283 people   gone\n  ep002                    +0.08    1,086 people   gone\n  ep004                    +0.13      997 people   gone\n  ep005                    +0.22      823 people   smaller, still there\n  ep006                    +0.40      723 people   smaller, still there\n  ep008                    +0.18      564 people   smaller, still there\n  ep009                    +0.14      556 people   gone\n  ep010                    +0.06      488 people   gone\n  ep012                    +0.03      404 people   gone\n  ep013                    +0.00      331 people   gone\n  ep014                    +0.08      316 people   gone\n  ep016                    +0.07      246 people   gone\n  implicit_bias_test       +0.27   14,900 people   smaller, still there\n  romantic_red             +0.09      242 people   gone\n  social_priming           +0.07   12,871 people   gone\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "tags": [
+   "replication crisis",
+   "psychology",
+   "effect size",
+   "science",
+   "research",
+   "statistics",
+   "meta-analysis",
+   "replication study",
+   "open science",
+   "social psychology"
+  ],
+  "facts": {
+   "es_o": null,
+   "es_r": null,
+   "n_r": 58653,
+   "es_kind": "d",
+   "is_replication": true,
+   "k": 25,
+   "n_sig": 8
+  }
+ },
+ {
   "kind": "fred",
   "row": 7,
   "dir": "eps/ep007",

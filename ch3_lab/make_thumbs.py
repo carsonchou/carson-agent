@@ -189,6 +189,13 @@ def draw(plt, o, out_path):
     ctone = copy_tone(tone, f.get("es_r"), f.get("es_kind", "d"))
     col = COLOR[ctone]
     word = VERDICT[ctone]
+    if o.get("kind") == "trailer":
+        # 🔴 預告片沒有「一個判決」。VERDICT["held"] 會印「IT HELD UP」——
+        #    那是在對整個頻道下一個它沒有的結論(25 集裡只有 8 個撐住)。
+        #    ⚠️ 這一段**必須在畫之前**。第一版把它寫在算 sub 的地方,
+        #    而那裡已經在 ax.text 之後 —— 賦值成功、畫面沒變,
+        #    是那種「改了、跑了、沒作用、也不報錯」的靜默失敗。
+        word = f"{f['n_sig']} OF {f['k']} HELD UP"
     lines = plain_claim(o)
     if not lines:
         print(f"  ⛔ 缺白話主張(facts/plain_claims.json):"
@@ -225,7 +232,12 @@ def draw(plt, o, out_path):
     # 它是支持不是主角。
     key = ("shrunk_real_nocmp" if tone == "shrunk_real" and eo is None
            else ctone)
-    if o.get("kind") == "lineup":
+    if o.get("kind") == "trailer":
+        # 🔴 預告片沒有「一個判決」。套 VERDICT["held"] 會印出
+        #    「IT HELD UP」——那是在對整個頻道下一個它沒有的結論。
+        #    它的判決塊就是戰績本身。
+        sub = f"{int(n_r):,} people in the replications."
+    elif o.get("kind") == "lineup":
         # 🔴 家族集:判決塊已經寫了 NOT FOUND,這行**不再複述**。
         #    它要回答的是「憑什麼這麼說」——次數與人數,那才是新資訊。
         sub = (f"{f['k']} replications. {int(n_r):,} people. "
