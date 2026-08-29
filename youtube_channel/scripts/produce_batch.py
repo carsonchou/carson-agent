@@ -5081,6 +5081,36 @@ def make_one(kind, no_render=False, topic_override=None, script_override=None):
             # `_mech_repair_long` 只在修完**通過 gate** 時才回傳,回傳後 while 條件必為假。
             _mech2 = False
         _why2 = _uncontroversial_bad(d)
+        # 🔴 2026-08-30:證據等級「弱」的閘門不准成為 fail-closed 的理由。
+        # `_long_preamble`(鉤子後仍在鋪陳)的**原註解自己寫著**:
+        #     「⚠️ 證據等級:弱…拿它去分割 91 支真長片的實際留存,違反這條的只有 n=2,
+        #      統計上驗不出差異(符合 21.7% vs 違反 20.9%)…**不是**因為數據證明它有效。
+        #      如果之後累積到 n>15 仍看不出差異,就該把它拿掉。」
+        # 它原本只掛在 A4 路徑(命中約 10%),今天併進共用實作後套到體檢片 = **93% 的產出**,
+        # 而體檢路徑只有 2 次重生預算 —— 實跑第一支就是被它 fail-closed 掉的
+        # (燿華2367,連續三道不同閘門用光預算)。
+        # 拿一道「作者自己說沒有統計支持」的判準去報廢整支片(13 分鐘 + LLM 費),
+        # 這個交換不划算。**讓它觸發重生(便宜的改善嘗試),但重生用完只剩它時放行並記警告**
+        # ——這是本檔既有的「已放行需人工複查」模式(見 A1b/A1c 兩道)。
+        # 其他六道(期間偷換/【】/洩漏/分鏡/長度/密度)都是**確定性的事實或合規缺陷**,
+        # 維持 fail-closed 不變。
+        if _why2 and _why2.startswith("鉤子後仍在鋪陳"):
+            _rest = dict(d)
+            _rest["voice_text"] = _rest.get("voice_text", "")
+            # 確認拿掉這道之後真的沒有別的問題,才放行(不能把別的缺陷一起放掉)
+            _others = [f() for f in (
+                lambda: "期間偷換" if _long_mixed_period(_rest["voice_text"], _rest.get("title", "")) else "",
+                lambda: "【】洩漏" if "【" in _rest["voice_text"] else "",
+                lambda: _long_prompt_leak(_rest["voice_text"]) or "",
+                lambda: _long_stage_direction(_rest["voice_text"]) or "",
+                lambda: "長度不足" if _long_underlength(_rest["voice_text"]) else "",
+                lambda: "資訊密度" if _long_content_padding(_rest["voice_text"]) else "")]
+            if not any(_others):
+                log_ops("補產部門",
+                        f"⚠️ 鉤子後仍在鋪陳·重生{_t2}次仍命中,已放行需人工複查"
+                        f"(該判準證據等級=弱,n=2 統計上驗不出差異,不值得報廢整支)"
+                        f":{d.get('title','')[:26]}")
+                _why2 = None
         if _why2:
             _save_rejected_draft(d, _why2, "鎖題終檢")
             log_ops("補產部門", f"⛔ 鎖題長片終檢:重生2次仍{_why2},fail-closed 不輸出:{d.get('title','')[:24]}")
