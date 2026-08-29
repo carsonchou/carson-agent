@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import os
 import sys
 import time
 from pathlib import Path
@@ -72,10 +73,23 @@ def _emphasize(text: str) -> str:
 async def _synth(text: str, voice: str, rate: str, out_path: Path) -> list:
     """串流合成:一邊寫音檔,一邊擷取 WordBoundary 真實時間戳(供字幕精準同步)。
     回傳 [{"t":秒,"d":秒,"text":詞}]。串流失敗則退回 .save(無時間戳,回 [])——絕不讓字幕同步需求弄壞配音。"""
+    # 🔴 2026-08-29 改成「寫暫存檔 → 原子改名」。原本 `open(out_path,"wb")` 直接開在**最終
+    # 路徑**上邊收邊寫,長片配音要 140 秒,那 140 秒裡 output/{slug}.mp3 一直存在而且一直在
+    # 長大 —— 讀到的人會拿到一個**格式合法、內容不全**的 mp3(不是壞檔,所以任何
+    # 「檔案在不在 / 能不能解析」的檢查都看不出來)。
+    # 實際後果:渲染迴圈每 180 秒掃一次,判準只有 `mp3.exists()`(hybrid_render.cloud_pending),
+    # 兩個窗口撞上就用半截音檔開渲。實測 08-29 中美晶5483:
+    #     01:28 開始配音 → 01:30:20 mp3 寫完(722.4s)
+    #     01:34 成片完成,音軌只有 553.9s(**少 168 秒 = 23% 的旁白**)
+    # 而同一批的加高8182(mp3 寫完後隔 14 分鐘才渲)完全正常(比值 1.01)。
+    # 這也解釋了為什麼三道截斷閘門(make_video/render_ffmpeg/build_video)全都沒響:
+    # 渲染當下影片與音檔**是自洽的**,兩邊都是那個半截的長度,閘門無從發現。
+    # → 半成品不該出現在最終路徑上。os.replace 在同一磁碟是原子的,讀者只會看到完整檔。
     marks = []
+    tmp_path = out_path.with_suffix(out_path.suffix + ".part")
     try:
         communicate = edge_tts.Communicate(text, voice, rate=rate)
-        with open(out_path, "wb") as f:
+        with open(tmp_path, "wb") as f:
             async for chunk in communicate.stream():
                 ct = chunk.get("type")
                 if ct == "audio" and chunk.get("data"):
@@ -86,13 +100,20 @@ async def _synth(text: str, voice: str, rate: str, out_path: Path) -> list:
                     marks.append({"t": round(chunk.get("offset", 0) / 1e7, 3),
                                   "d": round(chunk.get("duration", 0) / 1e7, 3),
                                   "text": chunk.get("text", ""), "type": ct})
-        if out_path.exists() and out_path.stat().st_size > 0:
+        if tmp_path.exists() and tmp_path.stat().st_size > 0:
+            os.replace(str(tmp_path), str(out_path))   # 原子:讀者看到的一定是完整檔
             return marks
         raise RuntimeError("串流輸出為空")
     except Exception:
-        # 退回最穩的 save(可能因串流被節流),此時無逐字時間戳
+        # 退回最穩的 save(可能因串流被節流),此時無逐字時間戳。
+        # 這條路徑同樣不能直接寫最終路徑——.save 一樣是邊下載邊寫。
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except Exception:  # noqa: BLE001
+            pass
         communicate = edge_tts.Communicate(text, voice, rate=rate)
-        await communicate.save(str(out_path))
+        await communicate.save(str(tmp_path))
+        os.replace(str(tmp_path), str(out_path))
         return []
 
 

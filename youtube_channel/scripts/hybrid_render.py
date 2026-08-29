@@ -45,6 +45,39 @@ def _now():
     return _t.time()
 
 
+def _media_dur(path) -> float:
+    """媒體時長(秒);量不到回 0.0。純唯讀,失敗一律回 0 讓呼叫端放行。"""
+    # ⚠️ 別用 imageio_ffmpeg.get_ffmpeg_exe().replace("ffmpeg","ffprobe") 推 ffprobe 路徑:
+    # 那支叫 ffmpeg-win64-vX.Y.Z.exe,字串替換連目錄名一起換掉 → 路徑不存在 → 這裡永遠回 0
+    # → 呼叫端「量不到就放行」→ **閘門靜默全放行**。第一版就是這樣寫的,測出來三支全判正常。
+    import subprocess as _sp
+    try:
+        r = _sp.run(["ffprobe", "-v", "error", "-show_entries", "format=duration",
+                     "-of", "csv=p=0", str(path)],
+                    capture_output=True, text=True, timeout=30)
+        v = float((r.stdout or "").strip() or 0)
+        if v > 0:
+            return v
+    except Exception:  # noqa: BLE001
+        pass
+    # ffprobe 不在 PATH:退回 ffmpeg -i 解 stderr 的 Duration(同 audit_truncation 的作法)
+    try:
+        import re as _re
+        try:
+            import imageio_ffmpeg
+            _ff = imageio_ffmpeg.get_ffmpeg_exe()
+        except Exception:  # noqa: BLE001
+            _ff = "ffmpeg"
+        r = _sp.run([_ff, "-i", str(path)], capture_output=True, text=True,
+                    encoding="utf-8", errors="replace", timeout=30)
+        m = _re.search(r"Duration:\s*(\d+):(\d+):(\d+\.?\d*)", r.stderr or "")
+        if m:
+            return int(m.group(1)) * 3600 + int(m.group(2)) * 60 + float(m.group(3))
+    except Exception:  # noqa: BLE001
+        pass
+    return 0.0
+
+
 def _render_local(slug: str, env=None) -> bool:
     env = env or os.environ.copy()
     if slug.startswith("S_"):
@@ -54,7 +87,28 @@ def _render_local(slug: str, env=None) -> bool:
         args = ["--slug", slug]
     subprocess.run([str(PY), "scripts/make_video.py", *args], cwd=str(ROOT), env=env, **_NO_WINDOW)
     mp4 = OUT / f"{slug}.mp4"
-    return mp4.exists() and mp4.stat().st_size > 100 * 1024
+    if not (mp4.exists() and mp4.stat().st_size > 100 * 1024):
+        return False
+    # 🔴 2026-08-29:原本到上面那行就 return——「檔案在、超過 100KB」就算成功。
+    # 那個判準看不見**斷尾**:實測 L_個股體檢聯強2347 的成片音軌只有 461.7s,而旁白
+    # mp3 是 569.9s(wordtimes 也走到 560.8s)—— **結尾 108 秒的旁白從沒進畫面**,
+    # 而編排層回報「渲染完成」。同批還有聯穎3550(599.0/673.4)。
+    # make_video 與 render_ffmpeg 各自都有截斷閘門,而且實測是好的
+    # (拿聯強那支去跑 _probe_render_output 會正確回「片長過短」)——問題是那些閘門
+    # 驗的是「渲染當下的音檔」,而音檔事後被重配過(memory:改稿重配音三坑之一=截斷 mp3)。
+    # 也就是說:**在子程序內部驗,驗不到子程序跑完之後才發生的事。**
+    # 這裡改成編排層自己量產物:成片音軌要 >= 旁白的 95%。這道獨立於「跑了哪條渲染路徑」,
+    # 也擋得住「音檔後來變長但成片沒跟著重渲」。判不出來就放行(不擋產線)。
+    try:
+        _v = _media_dur(mp4)
+        _a = _media_dur(OUT / f"{slug}.mp3")
+        if _v > 0 and _a > 0 and _v < (_a * 0.95):
+            log_ops("hybrid_render/斷尾",
+                    f"{slug[:40]}:成片 {_v:.1f}s < 旁白 {_a:.1f}s×0.95,判定斷尾不算完成")
+            return False
+    except Exception:  # noqa: BLE001
+        pass
+    return True
 
 
 # ───────────────────────── 雲端模式（本機檔案＋本機鎖）─────────────────────────

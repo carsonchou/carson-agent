@@ -127,9 +127,15 @@ def main() -> int:
     wav = Path(tempfile.gettempdir()) / (out.stem + ".kok.wav")
     sf.write(str(wav), full, sr)
     # wav → mp3（pipeline 統一吃 mp3）
+    # 🔴 2026-08-29:先寫 .part 再原子改名,理由同 tts_edge 的紅字——ffmpeg 直接寫最終路徑時,
+    # 轉檔那幾秒 output/{slug}.mp3 是個「格式合法、內容不全」的檔;渲染迴圈只看
+    # `mp3.exists()` 就會撿走,渲出來的片跟半截音檔自洽 → 三道截斷閘門全部看不見。
+    # (edge 引擎那邊實測過真的會撞上:中美晶5483 少掉 23% 的旁白。)
+    _part = out.with_suffix(out.suffix + ".part")
     try:
         subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(wav),
-                        "-b:a", "128k", str(out)], check=True)
+                        "-b:a", "128k", str(_part)], check=True)
+        os.replace(str(_part), str(out))
         wav.unlink(missing_ok=True)
     except Exception as e:
         print(f"[FATAL] ffmpeg 轉 mp3 失敗：{e}", file=sys.stderr); return 3

@@ -52,7 +52,23 @@ def _ffmpeg_exe() -> str:
 
 
 def probe_duration(path: Path) -> float:
-    """回傳媒體檔時長(秒)；探測失敗回 0.0。純唯讀，不寫任何檔案。"""
+    """回傳媒體檔時長(秒)；探測失敗回 0.0。純唯讀，不寫任何檔案。
+
+    🔴 2026-08-29 改用 ffprobe:原本走 `ffmpeg -i` 解 stderr 的 Duration——那會讓 ffmpeg
+    去 demux/解析整個檔頭,單檔約 0.5~1s。output/ 有 1,090 支 mp4(加上對應 mp3 = 2,180 次
+    子程序),整輪要跑 20~35 分鐘,而且工具是「全掃完才印」→ 實際上**沒有人會等它跑完**,
+    等於這道稽核長期形同不存在。ffprobe 只讀 container metadata,同一批快一個量級,
+    快到可以每天排程跑。ffprobe 不在 PATH 時仍退回原本的 ffmpeg -i 解析。
+    """
+    try:
+        r = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration",
+                            "-of", "csv=p=0", str(path)],
+                           capture_output=True, text=True, timeout=25)
+        v = float((r.stdout or "").strip() or 0)
+        if v > 0:
+            return v
+    except Exception:  # noqa: BLE001
+        pass
     try:
         ff = _ffmpeg_exe()
         out = subprocess.run([ff, "-i", str(path)], capture_output=True, text=True,
