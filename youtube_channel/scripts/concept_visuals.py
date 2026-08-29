@@ -160,8 +160,21 @@ def _year_ticks(ax, dates, n_max=6):
     uniq = sorted(set(yrs.tolist()))
     step = max(1, len(uniq) // n_max)
     picks = uniq[::step]
-    ax.set_xticks([int((yrs == y).argmax()) for y in picks])
-    ax.set_xticklabels([str(y) for y in picks])
+    pos = [int((yrs == y).argmax()) for y in picks]
+    # 🔴 2026-08-30:刻度放在「該年第一次出現的索引」,而序列若從年底開始
+    # (實例:聯穎3550 的回撤圖從 2010-12-13 起),2010 只有十幾個交易日 →
+    # 2010 與 2011 的刻度只差 12 個索引,在 1,700 點的圖上直接疊成「2012011」,
+    # 兩個年份都讀不出來。成片實抽第 3.5 秒的畫面就是這樣。
+    # 丟掉間距不足全寬 7% 的刻度(保留先出現的那個)——標籤四個字,7% 大約就是它的寬度。
+    span = max(len(yrs) - 1, 1)
+    keep_p, keep_l = [], []
+    for p, y in zip(pos, picks):
+        if keep_p and (p - keep_p[-1]) < span * 0.07:
+            continue
+        keep_p.append(p)
+        keep_l.append(str(y))
+    ax.set_xticks(keep_p)
+    ax.set_xticklabels(keep_l)
     ax.tick_params(axis="x", colors=MUTED, labelsize=16, length=0)
 
 

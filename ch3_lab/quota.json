@@ -1,136 +1,36 @@
 {
- "day": "2026-08-28",
- "spent": 9080,
+ "day": "2026-08-29",
+ "spent": 9693,
  "items": [
   {
-   "at": "02:31",
-   "cost": 50,
-   "what": "title eps/ep000"
+   "at": "16:25",
+   "cost": 1663,
+   "what": "PGptAV8wg1A"
   },
   {
-   "at": "02:31",
-   "cost": 50,
-   "what": "title eps/ep001"
-  },
-  {
-   "at": "02:31",
-   "cost": 50,
-   "what": "title eps/ep002"
-  },
-  {
-   "at": "02:31",
-   "cost": 50,
-   "what": "title eps/ep003"
-  },
-  {
-   "at": "02:31",
-   "cost": 50,
-   "what": "title eps/ep004"
-  },
-  {
-   "at": "02:31",
-   "cost": 50,
-   "what": "title eps/ep005"
-  },
-  {
-   "at": "02:36",
-   "cost": 50,
-   "what": "thumb eps/ep000"
-  },
-  {
-   "at": "02:36",
-   "cost": 50,
-   "what": "thumb eps/ep001"
-  },
-  {
-   "at": "02:37",
-   "cost": 50,
-   "what": "thumb eps/ep002"
-  },
-  {
-   "at": "02:37",
-   "cost": 50,
-   "what": "thumb eps/ep003"
-  },
-  {
-   "at": "02:37",
-   "cost": 50,
-   "what": "thumb eps/ep004"
-  },
-  {
-   "at": "02:37",
-   "cost": 50,
-   "what": "thumb ego_depletion"
-  },
-  {
-   "at": "02:37",
-   "cost": 50,
-   "what": "thumb romantic_red"
-  },
-  {
-   "at": "02:37",
-   "cost": 50,
-   "what": "thumb bystander_effect"
-  },
-  {
-   "at": "02:37",
-   "cost": 50,
-   "what": "thumb sleep_memory"
-  },
-  {
-   "at": "02:38",
-   "cost": 50,
-   "what": "thumb implicit_bias_test"
-  },
-  {
-   "at": "02:39",
-   "cost": 50,
-   "what": "title ego_depletion"
-  },
-  {
-   "at": "02:39",
-   "cost": 50,
-   "what": "title romantic_red"
-  },
-  {
-   "at": "02:39",
-   "cost": 50,
-   "what": "title bystander_effect"
-  },
-  {
-   "at": "02:39",
-   "cost": 50,
-   "what": "title sleep_memory"
-  },
-  {
-   "at": "02:39",
-   "cost": 50,
-   "what": "title implicit_bias_test"
-  },
-  {
-   "at": "03:03",
+   "at": "16:26",
    "cost": 1606,
-   "what": "ep002"
+   "what": "ep007"
   },
   {
-   "at": "03:03",
+   "at": "16:26",
    "cost": 1606,
-   "what": "ep003"
+   "what": "ep008"
   },
   {
-   "at": "03:04",
+   "at": "17:53",
    "cost": 1606,
-   "what": "ep004"
+   "what": "ep009"
   },
   {
-   "at": "03:04",
+   "at": "17:54",
    "cost": 1606,
-   "what": "ep005"
+   "what": "ep010"
   },
   {
-   "at": "03:05",
+   "at": "17:54",
    "cost": 1606,
-   "what": "ep006"
+   "what": "ep011"
   }
  ]
 }

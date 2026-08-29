@@ -172,5 +172,20 @@
   "spoken": "Red makes a woman look more attractive?"
  },
  "_fidelity": "2026-08-29 逐支對照 episode_queue.csv 的 description 與原始論文標題重讀一次,7 支要改。改的全是**我自己寫的**白話句往外飄:ep008 原文標題就叫「Anticipation is more evocative than retrospection」——比的是「期待 vs 回想」,我寫成「beats the trip itself」(那趟旅行是假設的,根本沒發生);ep012 原文分「究責過程 → 降低追加投入」與「究責結果 → 反而升高」兩半,我只寫「被究責就會停手」,把會反轉的那半丟了;ep015 原文是「用付出代價的懲罰去排斥外團體批評」,我寫成「比較刺痛」——把行為講成感受;ep002 原文是 correlated,我寫成「and you start seeing」帶了因果;ep005 原文是後母音,我寫成循環的「sound thicker → feel thicker」;ep001 丟了「與身分相關的產品」;ep000 丟了「對別人的期待」。縮圖那兩行是壓縮版,允許更模糊但**不允許更強**;spoken 那句要把限定條件帶回來。",
- "_fidelity2": "2026-08-29 第二輪(獨立驗證回報)。第一輪我自己抓到 7 支,驗證又抓到 5 支我漏的:ep000 我把自變項(消費主義線索)和依變項(對別人的規範信念)**兩邊都換掉**了;ep009 丟了 self-reported(量的是「說自己會冒險」);ep018 縮圖那兩行丟掉 perceive/tend to,把邏輯上不可能的事印成斷言,而 spoken 版本來就有保留 —— 同一支片兩個版本不一致;implicit_bias_test 丟掉「can」;bystander 把「機率降低」寫成「阻止」。通則:壓縮成兩行時最先被丟掉的就是**限定詞**(can / tend to / self-reported / correlated),而限定詞正是把「可能」變成「一定」的那個開關。"
+ "_fidelity2": "2026-08-29 第二輪(獨立驗證回報)。第一輪我自己抓到 7 支,驗證又抓到 5 支我漏的:ep000 我把自變項(消費主義線索)和依變項(對別人的規範信念)**兩邊都換掉**了;ep009 丟了 self-reported(量的是「說自己會冒險」);ep018 縮圖那兩行丟掉 perceive/tend to,把邏輯上不可能的事印成斷言,而 spoken 版本來就有保留 —— 同一支片兩個版本不一致;implicit_bias_test 丟掉「can」;bystander 把「機率降低」寫成「阻止」。通則:壓縮成兩行時最先被丟掉的就是**限定詞**(can / tend to / self-reported / correlated),而限定詞正是把「可能」變成「一定」的那個開關。",
+ "eps_lineup/social_priming": {
+  "lines": [
+   "READ A WORD",
+   "AND BEHAVE DIFFERENTLY"
+  ],
+  "spoken": "Does reading a word change how you behave?"
+ },
+ "eps_lineup/anchoring": {
+  "lines": [
+   "SEE A NUMBER FIRST",
+   "AND YOUR GUESS MOVES TOWARD IT"
+  ],
+  "spoken": "Does seeing a number first pull your guess toward it?"
+ },
+ "_lineup": "效應家族集型的白話主張。單位是**一整條研究路線**不是一篇論文,所以主張要寫成那個路線共同宣稱的東西(social priming = 看一個詞就改變行為),不是某一篇的特定操弄。判決字也不同:單篇是 NOT FOUND / IT HELD UP,家族是「12 個裡 0 個」——那是個數字,所以它必須從 facts 來,不能手寫。"
 }

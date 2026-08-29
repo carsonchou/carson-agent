@@ -130,6 +130,24 @@ def wrap(s, n):
     return out
 
 
+#: 對比兩行的標籤。**單數 / 複數兩套**:FReD 單列真的是一篇對一篇,
+#: 家族集的 0.59 / 0.07 是 6 種做法、12 次重測的中位數,講成
+#: 「the original / the replication」等於宣稱有那麼一篇研究。
+#: ⚠️ 旁白那份(build_script)先改了,畫面這份漏掉 —— 同一個錯的第二個
+#:    表面,而畫面那份是觀眾真的會盯著看的那個。
+LBL_O = "the original — {n_o:,} people"
+LBL_R = "the replication — {n_r:,} people"
+LBL_O_FAM = "typical original — {k_distinct} setups"
+LBL_R_FAM = "typical replication — {k} runs, {n_r:,} people"
+
+
+def _lbl(D):
+    """(上標籤, 下標籤)。有 k_distinct 就是家族集,用複數那套。"""
+    if D.get("k_distinct"):
+        return LBL_O_FAM.format(**D), LBL_R_FAM.format(**D)
+    return LBL_O.format(**D), LBL_R.format(**D)
+
+
 def build_script(D):
     """三段,約 32 秒。刻意不下存在性結論 —— 那需要信賴區間,而這裡沒有版面。
 
@@ -157,6 +175,18 @@ def build_script(D):
             ("q", f"{D['question']}"),
             ("nums", scale + f"The effect came back {D['say_r']}."),
             ("end", end_line(D, "the paper")),
+        ]
+    if D.get("k_distinct"):
+        # 家族集:先講**有幾種做法、重測幾次**,再講中位數,而且明講
+        # 那是「typical」。少了 typical 這個字,同一句話就變成宣稱
+        # 有一篇量到 0.59 的研究。
+        return [
+            ("q", f"{D['question']}"),
+            ("nums", f"{D['k_distinct']} different setups. {D['k']} "
+                     f"replications, on {D['n_r']:,} people. "
+                     f"The typical original measured {D['say_o']}. "
+                     f"The typical replication measured {D['say_r']}."),
+            ("end", end_line(D, "every paper")),
         ]
     return [
         ("q", f"{D['question']}"),
@@ -353,19 +383,23 @@ def fit_sizes(plt, D):
         fs["head"] = min(fit(plt, ln, 88) for ln in wrap(head, 16)[:2])
         fs["n"] = fit(plt, f"{D['n_r']:,} people", 58)
     else:
-        fs["sub"] = min(fit(plt, s, 46) for s in (
-            f"the original — {D['n_o']:,} people",
-            f"the replication — {D['n_r']:,} people"))
+        fs["sub"] = min(fit(plt, s, 46) for s in _lbl(D))
     if D["card"]:
         fs["card"] = min(fit(plt, ln, 58) for ln in wrap(D["card"], 20)[:2])
-    fs["big"] = fit(plt, f"{D['es_r']:+.2f}".replace("+", ""), 300)
+    # 上限 300 時字身下緣落在 0.393,壓住 0.385 那行標籤 8 畫素。
+    fs["big"] = fit(plt, f"{D['es_r']:+.2f}".replace("+", ""), 260)
     # 🔴 對比那兩個大數字**原本寫死 240 / 270**,從來沒量過。
     #    「0.82」四個字塞得下,「-0.25」多一個負號就伸到 0.871、
     #    「-0.23」@270pt 伸到 0.917 —— 直接壓在按讚欄底下。
     #    而 19 集裡有一半的效果量是負的。這是「字級要用量的不是挑的」
     #    這條規則自己漏掉的兩個位置。
-    fs["es_o"] = fit(plt, f"{D['es_o']:+.2f}".replace("+", ""), 240)         if D["es_o"] is not None else 240
-    fs["es_r2"] = fit(plt, f"{D['es_r']:+.2f}".replace("+", ""), 270)
+    # 🔴 上限從 240/270 降到 210。不是美感問題:240pt 置中在 0.80 時字身
+    #    下緣落在 0.713,而下面那行標籤的字頂在 0.729 —— **重疊 9 畫素**。
+    #    重疊守門量出來的,肉眼在成片上看是「數字和標籤黏在一起」。
+    #    210pt 在 1920 高的畫布上仍有 292 畫素,不影響「大數字」的效果。
+    BIG = 210
+    fs["es_o"] = fit(plt, f"{D['es_o']:+.2f}".replace("+", ""), BIG)         if D["es_o"] is not None else BIG
+    fs["es_r2"] = fit(plt, f"{D['es_r']:+.2f}".replace("+", ""), BIG)
     # ⚠️ **每一段會上畫面的字都要納入**,漏一個就是漏一個越界點。
     #    第一版漏了來源那行:名案的是「FORRT Replication Database (FReD)」
     #    塞得下,FReD 那批多了「, OSF 2tbvd」就伸到 0.948 —— 同一個位置、
@@ -438,14 +472,14 @@ def render(plt, name, t, dur, D):
         if t > 2.0:
             q = ease(min(1.0, (t - 2.0) / 0.9))
             ax.text(0.5, 0.505, f"{D['es_r']:+.2f}".replace("+", ""),
-                    ha="center", va="center", fontsize=fs.get("big", 300),
+                    ha="center", va="center", fontsize=fs.get("big", 260),
                     color=col, alpha=q, weight="bold")
-            ax.text(0.5, 0.385, "the measured effect", ha="center",
+            ax.text(0.5, 0.392, "the measured effect", ha="center", va="top",
                     fontsize=fs.get("meas", 50), color=col, alpha=q)
         if t > 4.0 and D["card"]:
             q = ease(min(1.0, (t - 4.0) / 0.9))
             for i, ln in enumerate(wrap(D["card"], 20)[:2]):
-                ax.text(0.5, 0.33 - i * 0.05, ln, ha="center",
+                ax.text(0.5, 0.345 - i * 0.05, ln, ha="center", va="top",
                         fontsize=fs.get("card", 58), color=FG, alpha=q,
                         weight="bold")
     elif name == "nums":
@@ -453,25 +487,30 @@ def render(plt, name, t, dur, D):
         if t > 0.3:
             q = ease(min(1.0, (t - 0.3) / 0.9))
             ax.text(0.5, 0.80, f"{D['es_o']:+.2f}".replace("+", ""),
-                    ha="center", va="center", fontsize=fs.get("es_o", 240),
+                    ha="center", va="center", fontsize=fs.get("es_o", 210),
                     color=DIM, alpha=q, weight="bold")
-            ax.text(0.5, 0.705, f"the original — {D['n_o']:,} people",
-                    ha="center", fontsize=fs.get("sub", 46), color=DIM, alpha=q)
+            # va="top":基線定位會讓字往上長進大數字的字身,量不出來也
+            # 想不到 —— 上面那對就是這樣重疊了 9 畫素。
+            ax.text(0.5, 0.712, _lbl(D)[0], ha="center", va="top",
+                    fontsize=fs.get("sub", 46), color=DIM, alpha=q)
         if t > 1.8:
             q = ease(min(1.0, (t - 1.8) / 0.9))
             ax.text(0.5, 0.60, "↓", ha="center", va="center", fontsize=100,
                     color=DIM, alpha=q)
         if t > 2.6:
             q = ease(min(1.0, (t - 2.6) / 0.9))
-            ax.text(0.5, 0.45, f"{D['es_r']:+.2f}".replace("+", ""),
-                    ha="center", va="center", fontsize=fs.get("es_r2", 270),
+            ax.text(0.5, 0.475, f"{D['es_r']:+.2f}".replace("+", ""),
+                    ha="center", va="center", fontsize=fs.get("es_r2", 210),
                     color=col, alpha=q, weight="bold")
-            ax.text(0.5, 0.345, f"the replication — {D['n_r']:,} people",
-                    ha="center", fontsize=fs.get("sub", 46), color=col, alpha=q)
+            ax.text(0.5, 0.388, _lbl(D)[1], ha="center", va="top",
+                    fontsize=fs.get("sub", 46), color=col, alpha=q)
         if t > 4.4:
             q = ease(min(1.0, (t - 4.4) / 0.9))
+            # 🔴 用 va="top" 定位,位置才可預測。原本是預設的 baseline,
+            #    字身往**上**長,於是「卡片在 0.32、標籤在 0.345」看起來
+            #    有 0.025 的間距,實際上重疊 0.017。已上線的 16 支都中招。
             for i, ln in enumerate(wrap(D["card"], 20)[:2]):
-                ax.text(0.5, 0.32 - i * 0.05, ln, ha="center",
+                ax.text(0.5, 0.345 - i * 0.05, ln, ha="center", va="top",
                         fontsize=fs.get("card", 58), color=FG, alpha=q,
                         weight="bold")
     else:
@@ -527,6 +566,31 @@ def render(plt, name, t, dur, D):
                 raise SystemExit(
                     f"⛔ 版面越界:「{_what}」{_ax}緣 {_v:.3f} 超出 "
                     f"[{_lo:.2f}, {_hi:.2f}] —— 那個位置在真機上被 UI 蓋住。")
+    # 🔴 **兩兩相交**。上面那圈逐個檢查邊界,對「兩個都在界內但壓在一起」
+    #    結構上是盲的 —— 判決卡壓在 the replication 那行上面,16 支已上線
+    #    的 Short 全部都是,而守門一次都沒響過。
+    #    只比 texts:壓在色塊上是設計(判決字就在色塊裡)。
+    #    水平也要真的相交,否則左右錯開的兩行會被誤報。
+    _boxes = []
+    for _o in ax.texts:
+        try:
+            _b = _o.get_window_extent(renderer=_r)
+        except TypeError:
+            _b = _o.get_window_extent()
+        if _o.get_alpha() is not None and _o.get_alpha() < 0.35:
+            continue          # 還在淡入的不算 —— 它下一幀就滿版了
+        _boxes.append((_o.get_text()[:24], _b))
+    for _i in range(len(_boxes)):
+        for _j in range(_i + 1, len(_boxes)):
+            (_ta, _a), (_tb, _b2) = _boxes[_i], _boxes[_j]
+            _ox = min(_a.x1, _b2.x1) - max(_a.x0, _b2.x0)
+            _oy = min(_a.y1, _b2.y1) - max(_a.y0, _b2.y0)
+            if _ox > 2 and _oy > 2:
+                raise SystemExit(
+                    f"⛔ 文字重疊:「{_ta}」和「{_tb}」重疊 "
+                    f"{_ox:.0f}×{_oy:.0f} 畫素 —— 版面斷言只看得到出界,"
+                    f"這種只有抽幀看得到,所以在這裡擋。")
+
     # 上面量框時已經 draw 過,不要再畫一次 —— 每支片 450 幀,多一次
     # 全畫布重繪就是把渲染時間加倍。
     buf = np.asarray(fig.canvas.buffer_rgba())[:, :, :3].copy()
@@ -589,6 +653,31 @@ def collect(slug=None, row=None):
             "color": BUCKET_COLOR[TONE_META[F["tone"]]["bucket"]],
             "source": F["source"],
         }
+    lu = ROOT / "eps_lineup" / str(slug) / "facts.json"
+    if lu.exists():
+        from make_episode import CARD_TEXT, TONE_META, say_num as lsay
+        L = json.loads(lu.read_text(encoding="utf-8"))
+        pc = _plain(f"eps_lineup/{slug}")
+        # 家族集的定調是**數出來的**,不是判出來的:有幾個重測達到
+        # p<0.05。0 個就是 gone,不需要再過一次 tone_of —— 那支是為
+        # 「單一效應」寫的,拿家族的中位數餵它是把兩件事混在一起。
+        tone = "gone" if L["n_sig"] == 0 else "shrunk_real"
+        return {
+            "key": slug,
+            "question": pc["spoken"],
+            "claim_lines": pc["lines"],
+            "has_original": True,
+            "es_o": L["eo_med"], "es_r": L["er_med"],
+            "n_o": L["no_sum"], "n_r": L["nr_sum"],
+            "say_o": lsay(L["eo_med"]), "say_r": lsay(L["er_med"]),
+            "k": L["k"], "k_word": "replications",
+            "k_distinct": L["k_distinct"], "n_sig": L["n_sig"],
+            "card": CARD_TEXT[tone], "tone": tone,
+            "color": BUCKET_COLOR[TONE_META[tone]["bucket"]],
+            "has_full": _has_full(f"eps_lineup/{slug}"),
+            "source": L["source"],
+        }
+
     eps = json.loads((ROOT / "facts" / "famous_episodes.json")
                      .read_text(encoding="utf-8"))["episodes"]
     E = next(e for e in eps if e["slug"] == slug)

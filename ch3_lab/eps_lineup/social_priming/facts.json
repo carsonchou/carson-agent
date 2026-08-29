@@ -1,0 +1,148 @@
+{
+ "family": "social_priming",
+ "name": "Social priming",
+ "hook": "Read a word. Behave differently.",
+ "k": 12,
+ "k_distinct": 6,
+ "es_kind": "d",
+ "eo_med": 0.59,
+ "er_med": 0.07,
+ "eo_lo": 0.31,
+ "eo_hi": 0.8,
+ "er_lo": 0.0,
+ "er_hi": 0.14,
+ "no_sum": 660,
+ "nr_sum": 12871,
+ "scale": 20,
+ "n_sig": 0,
+ "n_p": 12,
+ "n_still": 0,
+ "n_flip": 1,
+ "small_floor": 0.2,
+ "papers_o": 6,
+ "papers_r": 6,
+ "items": [
+  {
+   "claim": "money priming increases system justification",
+   "eo": 0.8,
+   "er": 0.02,
+   "no": 30,
+   "nr": 6340,
+   "p": 0.44,
+   "doi_o": "10.1037/a0029288",
+   "doi_r": "10.1027/1864-9335/a000178"
+  },
+  {
+   "claim": "Analytic Priming",
+   "eo": 0.6,
+   "er": 0.07,
+   "no": 57,
+   "nr": 952,
+   "p": 0.38,
+   "doi_o": "10.1126/science.1215647",
+   "doi_r": "10.1371/journal.pone.0172636"
+  },
+  {
+   "claim": "Priming “heat” increases belief in global warming",
+   "eo": 0.31,
+   "er": 0.03,
+   "no": 300,
+   "nr": 4204,
+   "p": 0.27,
+   "doi_o": "10.1038/nclimate2093",
+   "doi_r": "10.1177/2515245918810225"
+  },
+  {
+   "claim": "Implicitly priming God using the scrambled-sentence paradigm increases self-reported risk taking",
+   "eo": 0.57,
+   "er": 0.14,
+   "no": 61,
+   "nr": 556,
+   "p": 0.106,
+   "doi_o": "10.1177/0956797614563108",
+   "doi_r": "10.1177/0956797620922477"
+  },
+  {
+   "claim": "Heat-Priming is associated with increased hostile perceptions",
+   "eo": 0.63,
+   "er": 0.0,
+   "no": 72,
+   "nr": 331,
+   "p": 0.99,
+   "doi_o": "10.1016/j.jesp.2009.05.003",
+   "doi_r": "10.17605/osf.io/xszk6"
+  },
+  {
+   "claim": "Heat-Priming is associated with increased hostile perceptions",
+   "eo": 0.67,
+   "er": 0.06,
+   "no": 72,
+   "nr": 326,
+   "p": 0.58,
+   "doi_o": "10.1016/j.jesp.2009.05.003",
+   "doi_r": "10.17605/osf.io/xszk6"
+  },
+  {
+   "claim": "Priming analytic thinking using the scrambled sentence task reduces belief in conspiracy theories",
+   "eo": 0.42,
+   "er": 0.06,
+   "no": 140,
+   "nr": 488,
+   "p": 0.529,
+   "doi_o": "10.1016/j.cognition.2014.08.006",
+   "doi_r": "10.1016/j.jesp.2023.104549"
+  },
+  {
+   "claim": "Priming analytic thinking using the scrambled sentence task reduces belief in conspiracy theories",
+   "eo": 0.34,
+   "er": 0.11,
+   "no": 140,
+   "nr": 488,
+   "p": 0.206,
+   "doi_o": "10.1016/j.cognition.2014.08.006",
+   "doi_r": "10.1016/j.jesp.2023.104549"
+  },
+  {
+   "claim": "Implicitly priming God using the scrambled-sentence paradigm increases self-reported risk taking",
+   "eo": 0.32,
+   "er": 0.11,
+   "no": 202,
+   "nr": 548,
+   "p": 0.187,
+   "doi_o": "10.1177/0956797614563108",
+   "doi_r": "10.1177/0956797620922477"
+  },
+  {
+   "claim": "Priming analytic thinking using the scrambled sentence task reduces belief in conspiracy theories",
+   "eo": 0.46,
+   "er": 0.12,
+   "no": 112,
+   "nr": 302,
+   "p": 0.282,
+   "doi_o": "10.1016/j.cognition.2014.08.006",
+   "doi_r": "10.1016/j.jesp.2023.104549"
+  },
+  {
+   "claim": "Heat-Priming is associated with increased hostile perceptions",
+   "eo": 0.67,
+   "er": 0.12,
+   "no": 48,
+   "nr": 121,
+   "p": 0.5,
+   "doi_o": "10.1016/j.jesp.2009.05.003",
+   "doi_r": "10.17605/osf.io/xszk6"
+  },
+  {
+   "claim": "Heat-Priming is associated with increased hostile perceptions",
+   "eo": 0.63,
+   "er": 0.02,
+   "no": 48,
+   "nr": 120,
+   "p": 0.87,
+   "doi_o": "10.1016/j.jesp.2009.05.003",
+   "doi_r": "10.17605/osf.io/xszk6"
+  }
+ ],
+ "text_col_conflicts": 1,
+ "source": "FORRT Replication Database (FReD), OSF 2tbvd"
+}

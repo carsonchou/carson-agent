@@ -86,6 +86,50 @@ def _encode_timeout(total_sec: float) -> int:
     return int(max(600, total_sec * 1.5 + 240))
 
 
+HOOK_CARD_LIMIT = 16      # 片頭卡鉤子的字數上限(超過會爆框,字級雖會自適應但太小就沒衝擊力)
+
+
+def hook_from_title(title: str, limit: int = HOOK_CARD_LIMIT) -> str:
+    """從標題取片頭卡的鉤子句——**每支片的第一個畫面**上那行字。
+
+    ## 為什麼要改(2026-08-30,從成片倒推)
+    抽聯穎3550 成片第 0.5 秒的畫面,片頭卡上寫的是:
+        「個股體檢【聯穎 3550】 15.」
+    一句被切斷的樣板標籤,鉤子一個字都沒露出來。兩個疊加的原因:
+      ①系列前綴「個股體檢【聯穎 3550】」就吃掉 13 個字,而上限只有 16
+      ②截斷保護只看 `isdigit()`,遇到小數點就失效 → 「15.8年」被切成「15.」
+
+    ## 現在的取法
+    先剝掉系列前綴,再**優先挑帶「數字＋單位」的那一段**——觀眾點進來是為了那個數字,
+    不是為了股票名。實測 `蜜望實8043｜18.6年賺967%…` 舊寫法在「｜」切完只剩
+    「蜜望實8043」(股名代號,零資訊);現在會挑到「18.6年賺967%」。
+    """
+    t = re.sub(r"#\S+", "", title or "").strip("？?，,。、 ")
+    # 剝系列前綴:「個股體檢EP60」「個股體檢【聯穎 3550】」以及裸的「【材料*-KY 4763】」
+    t = re.sub(r"^個股體檢\s*(?:EP\d+)?\s*", "", t)
+    # ⚠️ 括號群要整組 optional。第一版寫成 `[（(]?[^）)]{0,8}[）)]?` —— 沒有括號時
+    #    `[^）)]{0,8}` 會**任意吃掉 8 個字**:
+    #      「【聯穎 3550】15.8年只賺54.3%？…」→ 鉤子變成「4.3%」
+    #      「【台積電 2330】20年翻84倍但你要先熬過這些」→ 變成「你要先熬過這些」(數字沒了)
+    #    比修之前更糟。改成 `(?:\s*[（(][^）)]{0,8}[）)])?` 整組可有可無,沒括號就不吃。
+    t = re.sub(r"^[【\[][^】\]]{0,18}[】\]](?:\s*[（(][^）)]{0,8}[）)])?\s*", "", t)
+    t = t.strip("？?，,。、 ")
+    # 切成候選片段,挑第一個含「數字＋單位」的;都沒有就用第一段
+    frags = [f.strip() for f in re.split(r"[｜|，,。？?！!]", t) if f.strip()]
+    if not frags:
+        return "你知道嗎"
+    unit = re.compile(r"\d[\d.]*\s*[%％倍年]")
+    hook = next((f for f in frags if unit.search(f)), frags[0])
+    if len(hook) > limit:
+        cut = limit
+        # 退到數字邊界:不把 14 切成 1、不把 15.8 切成 15.、不把 967% 切成 967
+        while cut > 1 and (hook[cut - 1].isdigit() or hook[cut - 1] == ".") \
+                and (hook[cut].isdigit() or hook[cut] in ".%％倍年"):
+            cut -= 1
+        hook = hook[:cut]
+    return hook.strip(" .。、（(「【") or "你知道嗎"
+
+
 def _encode_and_validate(cmd, final_out: Path, tmp_dir: Path, *, stage: str, timeout: int,
                          min_dur: float = 1.0) -> bool:
     """執行組片 cmd（cmd 最後一個元素會被改寫成暫存輸出路徑，呼叫端傳入的原值僅供參考）。
@@ -299,21 +343,7 @@ def _render_hook_card(title, width, height, accent, tmp_dir):
     #    切字 bug 一旦切在數字中間就直接變成假話,不是排版瑕疵。
     #    修法:①先在「｜」這種天然分隔處收尾(比硬切乾淨);②真的還太長才切,且**絕不切在
     #    數字中間**;③字級本來就會自適應縮到不爆框(見下),所以限長只是最後一道保險。
-    hook = re.sub(r'#\S+', '', title).strip("？?，,。、 ")
-    hook = re.split(r'[，,。]', hook)[0].strip()
-    _LIM = 16
-    if len(hook) > _LIM:
-        for _sep in ("｜", "|"):
-            if _sep in hook:
-                _head = hook.split(_sep)[0].strip()
-                if _head:
-                    hook = _head
-                break
-    if len(hook) > _LIM:
-        _cut = _LIM
-        while _cut > 1 and hook[_cut - 1].isdigit() and hook[_cut].isdigit():
-            _cut -= 1  # 退到數字串邊界,不把 14 切成 1
-        hook = hook[:_cut].strip()
+    hook = hook_from_title(title)
     hook = hook or "你知道嗎"
     hfs = int(height * 0.048)
     hf = mv._load_font(hfs, bold=True)

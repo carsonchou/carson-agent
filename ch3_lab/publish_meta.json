@@ -174,6 +174,35 @@
   }
  },
  {
+  "kind": "fred",
+  "row": 6,
+  "dir": "eps/ep006",
+  "video": "eps/ep006/ep006.mp4",
+  "tone": "shrunk_real",
+  "title": "We value a life more when fewer lives are at risk?",
+  "description": "We value a life more when fewer lives are at risk?\n\nLife-saving interventions would be valued more highly when the number of lives at risk was small than when the number at risk was large.\n\nOriginal study (1997): Insensitivity to the Value of Human Life: A Study of Psychophysical Numbing\n  54 participants — effect size 0.80 (d)\n  doi:10.1023/a:1007744326393\n\nReplication: Numbing or sensitization? Replications and extensions of Fetherstonhaugh et al. (1997)'s “Insensitivity to the Value of Human Life”\n  723 participants — effect size 0.40\n  doi:10.1016/j.jesp.2021.104222\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "tags": [
+   "replication crisis",
+   "psychology",
+   "effect size",
+   "science",
+   "research",
+   "statistics",
+   "meta-analysis",
+   "replication study",
+   "open science",
+   "social psychology"
+  ],
+  "thumb": "eps/ep006/thumb.jpg",
+  "facts": {
+   "es_o": 0.8,
+   "es_r": 0.4,
+   "n_o": 54,
+   "n_r": 723,
+   "es_kind": "d"
+  }
+ },
+ {
   "kind": "famous",
   "slug": "ego_depletion",
   "dir": "eps_famous/ego_depletion",
@@ -336,35 +365,6 @@
    "es_kind": "r",
    "is_replication": false,
    "has_original": false
-  }
- },
- {
-  "kind": "fred",
-  "row": 6,
-  "dir": "eps/ep006",
-  "video": "eps/ep006/ep006.mp4",
-  "tone": "shrunk_real",
-  "title": "We value a life more when fewer lives are at risk?",
-  "description": "We value a life more when fewer lives are at risk?\n\nLife-saving interventions would be valued more highly when the number of lives at risk was small than when the number at risk was large.\n\nOriginal study (1997): Insensitivity to the Value of Human Life: A Study of Psychophysical Numbing\n  54 participants — effect size 0.80 (d)\n  doi:10.1023/a:1007744326393\n\nReplication: Numbing or sensitization? Replications and extensions of Fetherstonhaugh et al. (1997)'s “Insensitivity to the Value of Human Life”\n  723 participants — effect size 0.40\n  doi:10.1016/j.jesp.2021.104222\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
-  "tags": [
-   "replication crisis",
-   "psychology",
-   "effect size",
-   "science",
-   "research",
-   "statistics",
-   "meta-analysis",
-   "replication study",
-   "open science",
-   "social psychology"
-  ],
-  "thumb": "eps/ep006/thumb.jpg",
-  "facts": {
-   "es_o": 0.8,
-   "es_r": 0.4,
-   "n_o": 54,
-   "n_r": 723,
-   "es_kind": "d"
   }
  },
  {
@@ -713,6 +713,39 @@
    "n_o": 37,
    "n_r": 240,
    "es_kind": "r"
+  }
+ },
+ {
+  "kind": "lineup",
+  "slug": "social_priming",
+  "dir": "eps_lineup/social_priming",
+  "video": "eps_lineup/social_priming/social_priming.mp4",
+  "thumb": "eps_lineup/social_priming/thumb.jpg",
+  "tone": "gone",
+  "title": "Social priming: does reading a word change how you behave? 12 replications, 0 worked.",
+  "description": "Does reading a word change how you behave?\n\nSocial priming: 12 replications drawn from 6 replication papers, 12,871 participants in total against 660 in the originals.\nOriginal effect sizes ran 0.31 to 0.80 (median 0.59); the replications ran 0.00 to 0.14 (median 0.07).\n0 of the 12 replications that report a p-value reached p < 0.05.\n\nEvery row on screen:\n  money priming increases system justification\n    0.80 on 30 -> 0.02 on 6,340  doi:10.1027/1864-9335/a000178\n  Analytic Priming\n    0.60 on 57 -> 0.07 on 952  doi:10.1371/journal.pone.0172636\n  Priming “heat” increases belief in global warming\n    0.31 on 300 -> 0.03 on 4,204  doi:10.1177/2515245918810225\n  Implicitly priming God using the scrambled-sentence paradigm increases self-reported risk taking\n    0.57 on 61 -> 0.14 on 556  doi:10.1177/0956797620922477\n  Heat-Priming is associated with increased hostile perceptions\n    0.63 on 72 -> 0.00 on 331  doi:10.17605/osf.io/xszk6\n  Heat-Priming is associated with increased hostile perceptions\n    0.67 on 72 -> 0.06 on 326  doi:10.17605/osf.io/xszk6\n  Priming analytic thinking using the scrambled sentence task reduces belief in conspiracy theorie\n    0.42 on 140 -> 0.06 on 488  doi:10.1016/j.jesp.2023.104549\n  Priming analytic thinking using the scrambled sentence task reduces belief in conspiracy theorie\n    0.34 on 140 -> 0.11 on 488  doi:10.1016/j.jesp.2023.104549\n  Implicitly priming God using the scrambled-sentence paradigm increases self-reported risk taking\n    0.32 on 202 -> 0.11 on 548  doi:10.1177/0956797620922477\n  Priming analytic thinking using the scrambled sentence task reduces belief in conspiracy theorie\n    0.46 on 112 -> 0.12 on 302  doi:10.1016/j.jesp.2023.104549\n  Heat-Priming is associated with increased hostile perceptions\n    0.67 on 48 -> 0.12 on 121  doi:10.17605/osf.io/xszk6\n  Heat-Priming is associated with increased hostile perceptions\n    0.63 on 48 -> 0.02 on 120  doi:10.17605/osf.io/xszk6\n\nSource: FORRT Replication Database (FReD), OSF 2tbvd\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "tags": [
+   "replication crisis",
+   "psychology",
+   "effect size",
+   "science",
+   "research",
+   "statistics",
+   "meta-analysis",
+   "replication study",
+   "open science",
+   "social psychology"
+  ],
+  "facts": {
+   "es_o": 0.59,
+   "es_r": 0.07,
+   "n_o": 660,
+   "n_r": 12871,
+   "es_kind": "d",
+   "is_replication": true,
+   "k": 12,
+   "n_sig": 0,
+   "n_p": 12
   }
  }
 ]

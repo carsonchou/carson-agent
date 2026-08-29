@@ -1,0 +1,405 @@
+[
+ {
+  "paperId": "b6da12bd8a7a57d64119ccb9ab551086027ec03e",
+  "externalIds": {
+   "MAG": "2134702245",
+   "DOI": "10.1177/0956797614553946",
+   "CorpusId": 28372856,
+   "PubMed": "25810452"
+  },
+  "title": "Assessing the Robustness of Power Posing",
+  "venue": "Psychology Science",
+  "year": 2015,
+  "citationCount": 186,
+  "openAccessPdf": {
+   "url": "",
+   "status": "CLOSED",
+   "license": null,
+   "disclaimer": "Notice: The following paper fields have been elided by the publisher: {'abstract'}. Paper or abstract available at https://api.unpaywall.org/v2/10.1177/0956797614553946?email=<INSERT_YOUR_EMAIL> or https://doi.org/10.1177/0956797614553946, which is subject to the license by the author or copyright owner provided with this content. Please go to the source to verify the license and copyright information for your use."
+  },
+  "authors": [
+   {
+    "authorId": "6364192",
+    "name": "Eva Ranehill"
+   },
+   {
+    "authorId": "3488772",
+    "name": "Anna Dreber"
+   },
+   {
+    "authorId": "145281248",
+    "name": "M. Johannesson"
+   },
+   {
+    "authorId": "2178712",
+    "name": "Susanne Leiberg"
+   },
+   {
+    "authorId": "4104093",
+    "name": "Sunhae Sul"
+   },
+   {
+    "authorId": "2557660",
+    "name": "Roberto A. Weber"
+   }
+  ],
+  "abstract": null,
+  "topic": "power_posing",
+  "role": "test",
+  "doi": "10.1177/0956797614553946",
+  "expect": "Assessing the Robustness of Power Posing",
+  "title_ok": true,
+  "abstract_chars": 0
+ },
+ {
+  "paperId": "0d96ab4b0d14915efccddc79c7dcbea228e9a32c",
+  "externalIds": {
+   "MAG": "2025815442",
+   "DOI": "10.1016/j.jsp.2014.10.002",
+   "CorpusId": 206516995,
+   "PubMed": "25636259"
+  },
+  "title": "Does stereotype threat influence performance of girls in stereotyped domains? A meta-analysis.",
+  "venue": "Journal of School Psychology",
+  "year": 2015,
+  "citationCount": 334,
+  "openAccessPdf": {
+   "url": "",
+   "status": "CLOSED",
+   "license": null,
+   "disclaimer": "Notice: The following paper fields have been elided by the publisher: {'abstract'}. Paper or abstract available at https://api.unpaywall.org/v2/10.1016/j.jsp.2014.10.002?email=<INSERT_YOUR_EMAIL> or https://doi.org/10.1016/j.jsp.2014.10.002, which is subject to the license by the author or copyright owner provided with this content. Please go to the source to verify the license and copyright information for your use."
+  },
+  "authors": [
+   {
+    "authorId": "34336810",
+    "name": "P. Flore"
+   },
+   {
+    "authorId": "2748685",
+    "name": "J. Wicherts"
+   }
+  ],
+  "abstract": null,
+  "topic": "stereotype_threat",
+  "role": "test",
+  "doi": "10.1016/j.jsp.2014.10.002",
+  "expect": "Does stereotype threat influence performance of girls",
+  "title_ok": true,
+  "abstract_chars": 0
+ },
+ {
+  "paperId": "ebdfcb211c96ee5418a436df02e218e3fbc009c0",
+  "externalIds": {
+   "MAG": "2154195903",
+   "DOI": "10.1037/A0037478",
+   "CorpusId": 1297488
+  },
+  "title": "Matching Learning Style to Instructional Method: Effects on Comprehension.",
+  "venue": "",
+  "year": 2015,
+  "citationCount": 212,
+  "openAccessPdf": {
+   "url": "https://zenodo.org/records/977853/files/article.pdf",
+   "status": "GREEN",
+   "license": null,
+   "disclaimer": "Notice: The following paper fields have been elided by the publisher: {'abstract'}. Paper or abstract available at https://api.unpaywall.org/v2/10.1037/A0037478?email=<INSERT_YOUR_EMAIL> or https://doi.org/10.1037/A0037478, which is subject to the license by the author or copyright owner provided with this content. Please go to the source to verify the license and copyright information for your use."
+  },
+  "authors": [
+   {
+    "authorId": "6646067",
+    "name": "B. Rogowsky"
+   },
+   {
+    "authorId": "39921768",
+    "name": "B. Calhoun"
+   },
+   {
+    "authorId": "3796025",
+    "name": "P. Tallal"
+   }
+  ],
+  "abstract": null,
+  "topic": "learning_styles",
+  "role": "test",
+  "doi": "10.1037/a0037478",
+  "expect": "Matching learning style to instructional method",
+  "title_ok": true,
+  "abstract_chars": 0
+ },
+ {
+  "error": "HTTP Error 404: Not Found",
+  "topic": "10000_hour_rule",
+  "role": "test2",
+  "doi": "10.1177/0956797614535810",
+  "expect": "Deliberate Practice and Performance",
+  "title_ok": false,
+  "abstract_chars": 0
+ },
+ {
+  "paperId": "d0383326b54dbd083ecf88e6450ba73b46d3084e",
+  "externalIds": {
+   "MAG": "1941783251",
+   "DOI": "10.1027/1864-9335/A000178",
+   "CorpusId": 19617004
+  },
+  "title": "Investigating Variation in Replicability: A “Many Labs” Replication Project",
+  "venue": "",
+  "year": 2022,
+  "citationCount": 1018,
+  "openAccessPdf": {
+   "url": "http://eprints.lse.ac.uk/65158/1/__lse.ac.uk_storage_LIBRARY_Secondary_libfile_shared_repository_Content_Kappes%2C%20H_Investigating%20variation_Kappes_Investigating%20variation_2016.pdf",
+   "status": "GREEN",
+   "license": null,
+   "disclaimer": "Notice: Paper or abstract available at https://api.unpaywall.org/v2/10.1027/1864-9335/A000178?email=<INSERT_YOUR_EMAIL> or https://doi.org/10.1027/1864-9335/A000178, which is subject to the license by the author or copyright owner provided with this content. Please go to the source to verify the license and copyright information for your use."
+  },
+  "authors": [
+   {
+    "authorId": "47762062",
+    "name": "R. A. Klein"
+   },
+   {
+    "authorId": "4412299",
+    "name": "Kate A. Ratliff"
+   },
+   {
+    "authorId": "46989769",
+    "name": "M. Vianello"
+   },
+   {
+    "authorId": "2164408",
+    "name": "Reginald B. Adams"
+   },
+   {
+    "authorId": "5252377",
+    "name": "Š. Bahník"
+   },
+   {
+    "authorId": "3411250",
+    "name": "M. Bernstein"
+   },
+   {
+    "authorId": "37075490",
+    "name": "K. Bocian"
+   },
+   {
+    "authorId": "145470466",
+    "name": "M. Brandt"
+   },
+   {
+    "authorId": "48484415",
+    "name": "B. Brooks"
+   },
+   {
+    "authorId": "6031609",
+    "name": "C. Brumbaugh"
+   },
+   {
+    "authorId": "2473981",
+    "name": "Z. Cemalcılar"
+   },
+   {
+    "authorId": "48719411",
+    "name": "Jesse J. Chandler"
+   },
+   {
+    "authorId": "39829915",
+    "name": "Winnee Cheong"
+   },
+   {
+    "authorId": "120334000",
+    "name": "W. E. Davis"
+   },
+   {
+    "authorId": "3045833",
+    "name": "T. Devos"
+   },
+   {
+    "authorId": "114549513",
+    "name": "M. Eisner"
+   },
+   {
+    "authorId": "35468026",
+    "name": "Natalia Frankowska"
+   },
+   {
+    "authorId": "4541879",
+    "name": "D. Furrow"
+   },
+   {
+    "authorId": "52169965",
+    "name": "E. Galliani"
+   },
+   {
+    "authorId": "3390722",
+    "name": "F. Hasselman"
+   },
+   {
+    "authorId": "2600988",
+    "name": "Joshua A. Hicks"
+   },
+   {
+    "authorId": "47607576",
+    "name": "James F. Hovermale"
+   },
+   {
+    "authorId": "153601560",
+    "name": "S. Hunt"
+   },
+   {
+    "authorId": "3938619",
+    "name": "Jeffrey Huntsinger"
+   },
+   {
+    "authorId": "145846140",
+    "name": "H. Ijzerman"
+   },
+   {
+    "authorId": "40605769",
+    "name": "Melissa-Sue John"
+   },
+   {
+    "authorId": "1400158286",
+    "name": "Jennifer A. Joy-Gaba"
+   },
+   {
+    "authorId": "4049176",
+    "name": "H. Kappes"
+   },
+   {
+    "authorId": "47729104",
+    "name": "Lacy E. Krueger"
+   },
+   {
+    "authorId": "4960056",
+    "name": "Jaime L. Kurtz"
+   },
+   {
+    "authorId": "2248921",
+    "name": "Carmel A. Levitan"
+   },
+   {
+    "authorId": "34455201",
+    "name": "Robyn K. Mallett"
+   },
+   {
+    "authorId": "39040906",
+    "name": "Wendy L. Morris"
+   },
+   {
+    "authorId": "143954507",
+    "name": "A. J. Nelson"
+   },
+   {
+    "authorId": "3846620",
+    "name": "J. Nier"
+   },
+   {
+    "authorId": "2660285",
+    "name": "Grant Packard"
+   },
+   {
+    "authorId": "3523112",
+    "name": "Ronaldo Pilati"
+   },
+   {
+    "authorId": "6431015",
+    "name": "Abraham M. Rutchick"
+   },
+   {
+    "authorId": "49371070",
+    "name": "Kathleen Schmidt"
+   },
+   {
+    "authorId": "143804040",
+    "name": "Jeanine L. M. Skorinko"
+   },
+   {
+    "authorId": "2115488657",
+    "name": "Robert W. Smith"
+   },
+   {
+    "authorId": "9565786",
+    "name": "Troy G Steiner"
+   },
+   {
+    "authorId": "6057562",
+    "name": "Justin Storbeck"
+   },
+   {
+    "authorId": "2094506116",
+    "name": "Lyn M. Van Swol"
+   },
+   {
+    "authorId": "2304917111",
+    "name": "Donna M. Thompson"
+   },
+   {
+    "authorId": "143861972",
+    "name": "A. V. Veer"
+   },
+   {
+    "authorId": "40359662",
+    "name": "L. Vaughn"
+   },
+   {
+    "authorId": "6446775",
+    "name": "M. Vranka"
+   },
+   {
+    "authorId": "34973214",
+    "name": "A. Wichman"
+   },
+   {
+    "authorId": "5351577",
+    "name": "Julie A. Woodzicka"
+   },
+   {
+    "authorId": "2862527",
+    "name": "Brian A. Nosek"
+   }
+  ],
+  "abstract": "Although replication is a central tenet of science, direct replications are rare in psychology. This research tested variation in the replicability of thirteen classic and contemporary effects across 36 independent samples totaling 6,344 participants. In the aggregate, ten effects replicated consistently. One effect – imagined contact reducing prejudice – showed weak support for replicability. And two effects – flag priming influencing conservatism and currency priming influencing system justification – did not replicate. We compared whether the conditions such as lab versus online or U.S. versus international sample predicted effect magnitudes. By and large they did not. The results of this small sample of effects suggest that replicability is more dependent on the effect itself than on the sample and setting used to investigate the effect.",
+  "topic": "anchoring",
+  "role": "test2",
+  "doi": "10.1027/1864-9335/a000178",
+  "expect": "Investigating Variation in Replicability",
+  "title_ok": true,
+  "abstract_chars": 853
+ },
+ {
+  "paperId": "3432a4f4a0962bf874a4bf9169ea38a8787429c6",
+  "externalIds": {
+   "DBLP": "journals/mansci/AmrominS14",
+   "MAG": "2101679768",
+   "DOI": "10.1287/mnsc.2013.1806",
+   "CorpusId": 3387369
+  },
+  "title": "From the Horse's Mouth: Economic Conditions and Investor Expectations of Risk and Return",
+  "venue": "Management Sciences",
+  "year": 2014,
+  "citationCount": 146,
+  "openAccessPdf": {
+   "url": "",
+   "status": "CLOSED",
+   "license": null,
+   "disclaimer": "Notice: The following paper fields have been elided by the publisher: {'abstract'}. Paper or abstract available at https://api.unpaywall.org/v2/10.1287/mnsc.2013.1806?email=<INSERT_YOUR_EMAIL> or https://doi.org/10.1287/mnsc.2013.1806, which is subject to the license by the author or copyright owner provided with this content. Please go to the source to verify the license and copyright information for your use."
+  },
+  "authors": [
+   {
+    "authorId": "48486575",
+    "name": "G. Amromin"
+   },
+   {
+    "authorId": "32432880",
+    "name": "Steven A. Sharpe"
+   }
+  ],
+  "abstract": null,
+  "topic": "loss_aversion",
+  "role": "test2",
+  "doi": "10.1287/mnsc.2013.1806",
+  "expect": "Reference-dependent preferences / loss aversion field",
+  "title_ok": false,
+  "abstract_chars": 0
+ }
+]

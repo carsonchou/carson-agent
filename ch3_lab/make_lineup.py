@@ -101,6 +101,37 @@ def text_vs_column(desc, er):
     return (float(m.group(1)) < 0) != (float(er) < 0)
 
 
+#: 一個家族至少要有幾個**互不相同的範式**才值得做成一集。
+#: 見檔頭:低於這個數,樣本缺口會被說成研究路線的失敗。
+MIN_DISTINCT = 4
+
+
+def norm_claim(t):
+    """把主張正規化到「同一個範式算同一個」的粒度。
+
+    只做保守的處理:小寫、去標點、壓空白、砍尾巴的補語。
+    刻意**不做語意合併** —— 寧可把兩個其實一樣的算成兩個(少報獨立性
+    的風險是低估故事,方向安全),也不要把兩個不同的併成一個。
+    """
+    t = re.sub(r"[^a-z0-9 ]+", " ", str(t).lower())
+    t = re.sub(r"\s+", " ", t).strip()
+    return t[:60]
+
+
+def dedupe(items):
+    """回傳 (範式數, 每個範式取樣本最大的那一列)。
+
+    重複列多半是同一批受試者的不同依變項(實測:兩列 nr 是 331 / 326)。
+    取最大而不是相加,是因為**相加會把同一個人算兩次**。
+    """
+    best = {}
+    for it in items:
+        k = norm_claim(it["claim"])
+        if k not in best or it["nr"] > best[k]["nr"]:
+            best[k] = it
+    return len(best), list(best.values())
+
+
 def collect(family):
     """把一個家族的所有 FReD 列整成事實。**只算,不編。**"""
     f = FAMILIES[family]
@@ -127,16 +158,26 @@ def collect(family):
     items.sort(key=lambda x: -(x["nr"] / max(x["no"], 1)))
     conflicts = int(sum(text_vs_column(r["description"], r["er"])
                         for _, r in s.iterrows()))
+    k_distinct, uniq = dedupe(items)
+    if k_distinct < MIN_DISTINCT:
+        raise SystemExit(
+            f"⛔ {family}:{len(s)} 列但只有 {k_distinct} 個互不相同的範式"
+            f"(需要 {MIN_DISTINCT})。\n"
+            f"   資料庫在這個家族的覆蓋不足以代表整條研究路線,"
+            f"出片會變成用取樣缺口指控一個效應。不出。")
+    no_sum = sum(u["no"] for u in uniq)
+    nr_sum = sum(u["nr"] for u in uniq)
     return {
         "family": family, "name": f["name"], "hook": f["hook"],
-        "k": len(s),
+        "k": len(s), "k_distinct": k_distinct,
         "es_kind": str(s["es_type_o"].iloc[0] or "d").lower(),
         "eo_med": round(float(s["eo"].median()), 2),
         "er_med": round(float(s["er"].median()), 2),
         "eo_lo": round(float(s["eo"].min()), 2), "eo_hi": round(float(s["eo"].max()), 2),
         "er_lo": round(float(s["er"].min()), 2), "er_hi": round(float(s["er"].max()), 2),
-        "no_sum": int(s["no"].sum()), "nr_sum": int(s["nr"].sum()),
-        "scale": round(float(s["nr"].sum() / s["no"].sum())),
+        # 🔴 跨列相加會把同一批受試者算兩次 —— 見 dedupe。
+        "no_sum": no_sum, "nr_sum": nr_sum,
+        "scale": round(nr_sum / max(no_sum, 1)),
         "n_sig": n_sig, "n_p": n_p,
         "n_still": int((s["er"].abs() >= lo).sum()),
         "n_flip": int(((s["eo"] > 0) != (s["er"] > 0)).sum()),
@@ -155,7 +196,8 @@ def build_script(F):
     return [
         ("hook",
          f"{F['hook']} That is the claim behind {F['name'].lower()}. "
-         f"It has been tested again — not once, but {F['k']} times."),
+         f"It has been tested again. {F['k_distinct']} different setups, "
+         f"{F['k']} separate replication attempts."),
         ("original",
          f"Across {F['papers_o']} original papers, the effect sizes ran from "
          f"{say_num(F['eo_lo'])} to {say_num(F['eo_hi'])}, with a middle value of "
@@ -201,7 +243,7 @@ def audit(segs, F):
     """稿裡的數字都要在事實裡找得到 —— 跟 make_episode 同一條規矩。"""
     import re
     ok = set()
-    for k in ("k", "no_sum", "nr_sum", "scale", "n_sig", "n_p", "n_still",
+    for k in ("k", "k_distinct", "no_sum", "nr_sum", "scale", "n_sig", "n_p", "n_still",
               "n_flip", "papers_o", "papers_r"):
         ok |= {str(F[k]), f"{F[k]:,}"}
     for k in ("eo_med", "er_med", "eo_lo", "eo_hi", "er_lo", "er_hi"):
@@ -237,7 +279,8 @@ def render_scene(name, t, dur, F):
                     color=ACCENT, weight="bold",
                     alpha=ease(min(1.0, (t - 1.6) / 1.0)))
         if t > 2.8:
-            ax.text(0.5, 0.27, f"{F['k']} replications", ha="center",
+            ax.text(0.5, 0.27, f"{F['k_distinct']} setups · "
+                    f"{F['k']} replications", ha="center",
                     fontsize=34, color=DIM,
                     alpha=ease(min(1.0, (t - 2.8) / 1.0)))
 
@@ -262,7 +305,11 @@ def render_scene(name, t, dur, F):
     elif name == "collapse":
         # 🔴 這一幕是整支片的理由:15 條線同時塌下來。
         #    單篇研究的片畫不出這張圖 —— 它需要一整個家族。
-        ax2 = fig.add_axes([0.16, 0.16, 0.68, 0.60]); ax2.set_facecolor(BG)
+        # 🔴 座標軸底部要留出 x 軸標籤 + 結語那一行的空間。
+        #    第一版 bottom=0.16、結語放 y=0.085 —— 抽幀出來「0 of 12
+        #    reached p < 0.05」**直接壓在 original / replication 兩個標籤上**。
+        #    版面沒有守門看得到這種重疊(斷言只管出不出界),只能抽幀看。
+        ax2 = fig.add_axes([0.16, 0.27, 0.68, 0.52]); ax2.set_facecolor(BG)
         for sp in ("top", "right"):
             ax2.spines[sp].set_visible(False)
         for sp in ("bottom", "left"):
@@ -283,10 +330,10 @@ def render_scene(name, t, dur, F):
             ax2.scatter([1], [abs(it["er"])], s=70, color=ACCENT, zorder=3)
         if t > dur * 0.62:
             q = ease(min(1.0, (t - dur * 0.62) / 1.2))
-            fig.text(0.5, 0.085,
+            fig.text(0.5, 0.115,
                      f"{F['n_sig']} of {F['n_p']} reached p < 0.05",
                      ha="center", fontsize=52, color=WARN, weight="bold", alpha=q)
-        fig.text(0.5, 0.88, "What happened when they ran it again",
+        fig.text(0.5, 0.885, "What happened when they ran it again",
                  ha="center", fontsize=46, color=FG, weight="bold")
 
     elif name == "standout":

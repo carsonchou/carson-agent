@@ -488,6 +488,77 @@ def main():
                                   t_.get("kind") != "meta-analysis",
                               "has_original": bool(E.get("original"))}})
 
+
+
+    # ── 效應家族(lineup)────────────────────────────────────────────
+    # 🔴 走**同一本 publish_meta**、同一支 make_thumbs、同一支 upload。
+    #    新集型最容易做的事是配一套自己的 metadata/縮圖/發布 —— 那正是
+    #    這條線今天修了一整天的病(同一件事多份實作,已經第九次)。
+    #    所以它只是多一種 `kind`,不是多一條產線。
+    lu_dir = ROOT / "eps_lineup"
+    if lu_dir.exists():
+        import plain as _plain
+        from make_lineup import FAMILIES as _FAM
+        for fam in _FAM:
+            fj = lu_dir / fam / "facts.json"
+            if not fj.exists():
+                continue
+            L = json.loads(fj.read_text(encoding="utf-8"))
+            key = "eps_lineup/" + fam
+            q = _plain.spoken(key)
+            if not q:
+                print(f"  ⛔ {fam}:缺手寫白話句,跳過")
+                continue
+            # 標題:白話問句 + 規模。**不放效果量** —— 小數對滑過去的人
+            # 不構成訊息(今天已經在四個表面上證明過)。規模才是這集的賣點:
+            # 不是「一個研究沒重現」,是「整條研究路線 k 個裡 0 個」。
+            # 🔴 **可搜尋的效應名必須在標題裡,而且要在最前面。**
+            #    第一版標題是「Does reading a word change how you behave? 12
+            #    replications...」—— 白話問句很好唸,但整句沒有出現
+            #    "social priming" 這四個字。而這一集之所以被選中,就是因為
+            #    那個查詢詞通過了需求測試(切題 20 筆、中位觀看 14,743、
+            #    小頻道 11 支)。標題不含它 = 需求測試整個白做。
+            lead = f"{L['name']}: {q[0].lower() + q[1:]}"
+            tail = f" {L['k']} replications, {L['n_sig']} worked."
+            title = lead + tail
+            if len(title) > 100:
+                title = (f"{L['name']}: {L['k']} replications, "
+                         f"{L['nr_sum']:,} people, {L['n_sig']} worked.")
+            rows = []
+            for it in L["items"]:
+                cite = ("  doi:" + it["doi_r"]) if it.get("doi_r") else ""
+                rows.append(f"  {it['claim'][:96]}")
+                rows.append(f"    {es_fmt(it['eo'])} on {n_fmt(it['no'])} -> "
+                            f"{es_fmt(it['er'])} on {n_fmt(it['nr'])}{cite}")
+            items = chr(10).join(rows)
+            nl = chr(10)
+            desc = (
+                f"{q}{nl}{nl}"
+                f"{L['name']}: {L['k']} replications drawn from "
+                f"{L['papers_r']} replication papers, {L['nr_sum']:,} "
+                f"participants in total against {L['no_sum']:,} in the "
+                f"originals.{nl}"
+                f"Original effect sizes ran {es_fmt(L['eo_lo'])} to "
+                f"{es_fmt(L['eo_hi'])} (median {es_fmt(L['eo_med'])}); the "
+                f"replications ran {es_fmt(L['er_lo'])} to "
+                f"{es_fmt(L['er_hi'])} (median {es_fmt(L['er_med'])}).{nl}"
+                f"{L['n_sig']} of the {L['n_p']} replications that report a "
+                f"p-value reached p < 0.05.{nl}{nl}"
+                f"Every row on screen:{nl}{items}{nl}{nl}"
+                f"Source: {L['source']}") + footer_for(2)
+            out.append({
+                "kind": "lineup", "slug": fam, "dir": key,
+                "video": f"{key}/{fam}.mp4",
+                "thumb": f"{key}/thumb.jpg",
+                "tone": "gone" if L["n_sig"] == 0 else "shrunk_real",
+                "title": title, "description": desc, "tags": TAGS,
+                "facts": {"es_o": L["eo_med"], "es_r": L["er_med"],
+                          "n_o": L["no_sum"], "n_r": L["nr_sum"],
+                          "es_kind": L["es_kind"], "is_replication": True,
+                          "k": L["k"], "n_sig": L["n_sig"], "n_p": L["n_p"]},
+            })
+            print(f"  ✓ {fam}:{title}")
+
     # 🔴 被刷掉的要彙總印出來,不能只是 continue(2026-08-25)。
     #    上一版有 4 集被靜默丟掉(退格字元讓「論文標題那行不掃」失效,
     #    於是「Many Labs 2」的那個 2 被當成編造數字),而 publish_meta.json

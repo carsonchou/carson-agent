@@ -1,0 +1,61 @@
+{
+ "_note": "第三種集型的事實庫:**同一個宣稱、跨多個領域**。跟 famous(一篇對一篇)和 lineup(一個效應家族的多次重測)都不同 —— 這裡的數字不是效果量,是『這個因素解釋了多少變異』,分領域列出。2026-08-30 建立,每個數字都附 quote(它出自摘要的哪一句)。",
+ "_why_new_kind": "10,000 小時法則在 effect_scan 裡分數 24,311,是 22 個候選裡的第一名,而且是第二名的 2.3 倍。但它的頭條數字是**變異數百分比**,套不進 make_episode.thresholds() 的 d / r 兩軌。硬轉成 r=sqrt(R^2) 雖然數學上精確,螢幕上卻會出現一個觀眾去查論文查不到的數字(論文寫 26%,我印 0.51)。所以寧可多一種集型,不要多一個對不上的數字。",
+ "_missing_note": "缺的欄位一律留 null 並在 missing 裡點名,**不推估**。統合分析涵蓋幾篇研究、總共多少人,摘要裡沒有,四個來源(OpenAlex / Semantic Scholar / PubMed / Europe PMC)抓到的摘要都一樣。要用就得我自己讀原文,在那之前旁白不准提。",
+ "episodes": [
+  {
+   "slug": "10000_hour_rule",
+   "arc": "domains",
+   "claim": "how much you practise is what separates the best from everyone else",
+   "popular_name": "the 10,000 hour rule",
+   "search_term": "10000 hour rule",
+   "scan": {
+    "on_topic": 15,
+    "median_views": 72933,
+    "small_channels": 5,
+    "median_subs": 44200,
+    "score": 24311,
+    "measured": "2026-08-29 effect_scan.py"
+   },
+   "original": {
+    "year": 1993,
+    "title": "The role of deliberate practice in the acquisition of expert performance",
+    "journal": "Psychological Review",
+    "doi": "10.1037/0033-295X.100.3.363",
+    "cited_by": 8990,
+    "cited_by_source": "OpenAlex, retrieved 2026-08-30",
+    "cited_by_approx": 8900,
+    "cited_by_approx_note": "文案用的『超過 N 次』。無條件捨去到百位,所以一定是保守的下界。"
+   },
+   "test": {
+    "year": 2014,
+    "kind": "meta-analysis",
+    "title": "Deliberate practice and performance in music, games, sports, education, and professions: a meta-analysis",
+    "journal": "Psychological Science",
+    "doi": "10.1177/0956797614535810",
+    "pmid": "24986855",
+    "cited_by": 652,
+    "cited_by_source": "OpenAlex, retrieved 2026-08-30",
+    "k": null,
+    "n": null,
+    "missing": ["k", "n"],
+    "missing_note": "涵蓋研究數與總人數不在摘要裡,四個來源都沒有。**旁白與畫面都不准提**,直到我讀過原文。",
+    "unit": "percent of variance in performance explained by deliberate practice",
+    "domains": [
+     {"name": "games", "pct": 26},
+     {"name": "music", "pct": 21},
+     {"name": "sports", "pct": 18},
+     {"name": "education", "pct": 4},
+     {"name": "professions", "pct": 1, "pct_is_upper_bound": true,
+      "pct_note": "原文是『less than 1%』。存成 1 並標記為上界 —— 畫面與旁白都要唸『less than one percent』,不能唸成 1%。"}
+    ],
+    "quote": "We found that deliberate practice explained 26% of the variance in performance for games, 21% for music, 18% for sports, 4% for education, and less than 1% for professions. [Macnamara, Hambrick & Oswald 2014, abstract]",
+    "verdict_quote": "We conclude that deliberate practice is important, but not as important as has been argued. [same abstract]"
+   },
+   "hook": "How much you practise is what separates the best from everyone else?",
+   "hook_short": "Practice is what separates the best?",
+   "tone": "shrunk_real",
+   "tone_manual_why": "作者自己的結論是『important, but not as important as has been argued』—— 那是『真的有、但比宣稱的小』,不是『不存在』。判 gone 會是**過度宣稱**,而且直接跟我引用的那句話矛盾。這個欄位必須手填:famous_tone 靠信賴區間分檔,這裡沒有信賴區間,讓它自己猜就是拿缺漏當斷言(bystander_effect 那次的錯法)。"
+  }
+ ]
+}

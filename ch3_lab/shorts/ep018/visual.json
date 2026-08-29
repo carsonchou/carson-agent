@@ -15,7 +15,7 @@
   "Every number",
   "from the record"
  ],
- "frames": "e5a0cbbc5cf677f1",
+ "frames": "e8cd888dbb2a6eec",
  "fs": {
   "big": 233,
   "card": 58,
@@ -35,6 +35,8 @@
    ]
   },
   "end": 75,
+  "es_o": 233,
+  "es_r2": 233,
   "kicker": 46,
   "meas": 50,
   "src": 27,
@@ -49,7 +51,7 @@
  "safe": [
   0.86,
   0.24,
-  0.93
+  0.9099999999999999
  ],
  "source": "FORRT Replication Database (FReD), OSF 2tbvd"
 }

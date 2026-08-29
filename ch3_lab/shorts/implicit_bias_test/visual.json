@@ -15,7 +15,7 @@
   "Full episode",
   "on the channel"
  ],
- "frames": "4e554bd5ddbd626a",
+ "frames": "ed8b37d1afdbbf87",
  "fs": {
   "big": 280,
   "card": 58,
@@ -33,6 +33,8 @@
    ]
   },
   "end": 75,
+  "es_o": 240,
+  "es_r2": 270,
   "head": 70,
   "kicker": 46,
   "meas": 50,
@@ -48,7 +50,7 @@
  "safe": [
   0.86,
   0.24,
-  0.93
+  0.9099999999999999
  ],
  "source": "FORRT Replication Database (FReD)"
 }

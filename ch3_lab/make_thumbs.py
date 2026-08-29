@@ -225,9 +225,15 @@ def draw(plt, o, out_path):
     # 它是支持不是主角。
     key = ("shrunk_real_nocmp" if tone == "shrunk_real" and eo is None
            else ctone)
-    sub = (SCALE[has_orig].format(n=int(n_r), k=f.get("k"),
-                                  k_word=f.get("k_word") or "studies")
-           + " " + OUTCOME[key])
+    if o.get("kind") == "lineup":
+        # 🔴 家族集:判決塊已經寫了 NOT FOUND,這行**不再複述**。
+        #    它要回答的是「憑什麼這麼說」——次數與人數,那才是新資訊。
+        sub = (f"{f['k']} replications. {int(n_r):,} people. "
+               f"{f['n_sig']} worked.")
+    else:
+        sub = (SCALE[has_orig].format(n=int(n_r), k=f.get("k"),
+                                      k_word=f.get("k_word") or "studies")
+               + " " + OUTCOME[key])
     ax.text(0.5, 0.115, sub, ha="center", va="center",
             fontsize=fit(plt, sub, 48, 0.90, "normal"), color="#8A929C")
     ax.text(0.985, 0.028, "THEY RAN IT AGAIN", ha="right", va="bottom",
