@@ -1034,6 +1034,45 @@ def upload_one(yt, slug: str, privacy: str) -> str:
     return vid
 
 
+def _ypp_lines():
+    """YPP 進度:從 ypp_meter 的實測落檔算,不寫死。
+
+    🔴 2026-08-29:原本這裡是兩行寫死的文案——
+        「主攻 Shorts 衝 1000 萬觀看／訂閱 1000。Shorts 優先上架中。」
+    那是**已經被頻道自己的資料推翻的策略**,卻每天在報告裡對 Carson 複述一次:
+      · Shorts 轉化 0.05%(長片 0.46~0.50%,十倍差),觀看時數只佔 3.7%,
+        而且 Shorts 觀看**不計入 YPP 4000 小時**(政策事實,非統計)。
+      · 實際排序早在 08-24 就改成長片優先 5:1(見 LONG_PER_CYCLE 的實測註解),
+        報告卻還在說「Shorts 優先上架中」——**說的跟做的相反**。
+      · 兩條 YPP 路徑的實際距離也跟那句話相反(見下方本函式算出來的數字)。
+    寫死的宣稱會過期而且不會有人發現;改成從 STUDIO/ypp_meter.jsonl 的每日實測算,
+    數字自己會跟著現實走。讀不到就明說讀不到,不填假的。
+    """
+    try:
+        p = PROJECT_ROOT / "STUDIO" / "ypp_meter.jsonl"
+        last = None
+        for ln in p.read_text(encoding="utf-8").splitlines():
+            ln = ln.strip()
+            if ln:
+                last = json.loads(ln)
+        if not last:
+            raise ValueError("ypp_meter.jsonl 是空的")
+        subs = int(last.get("subscribers") or 0)
+        lf_h = float(last.get("longform_minutes_365") or 0) / 60.0
+        sv = int(last.get("shorts_views_90") or 0)
+        through = last.get("data_through", "?")
+        return [
+            f"- 長片路徑：觀看時數 **{lf_h:,.0f} / 4,000 小時（{lf_h / 40:.1f}%）**"
+            f"、訂閱 **{subs} / 1,000（{subs / 10:.1f}%）**",
+            f"- Shorts 路徑：90 天觀看 **{sv:,} / 10,000,000（{sv / 100000:.2f}%）**"
+            f"　← 兩條路徑取其一即可,目前長片路徑領先數十倍",
+            f"（資料截至 {through};Analytics 延遲 2~4 天,見 ypp_meter.py）",
+        ]
+    except Exception as e:  # noqa: BLE001
+        return [f"- ⚠️ 讀不到 YPP 進度({str(e)[:60]});跑 python scripts/ypp_meter.py 補",
+                "  (這裡刻意不填預設值:寫死的進度宣稱會過期而且沒人會發現)"]
+
+
 def write_report(date: str, results: list, remaining: int, quota_hit: bool, privacy: str,
                  quarantined: list = None) -> None:
     REPORTS.mkdir(parents=True, exist_ok=True)
@@ -1063,11 +1102,7 @@ def write_report(date: str, results: list, remaining: int, quota_hit: bool, priv
         lines += ["", f"## ⚠️ 審核部門攔下 {len(quarantined)} 支（未發布，待修）"]
         for slug, reasons in quarantined:
             lines.append(f"- **{slug}**：{'；'.join(reasons)}")
-    lines += [
-        "",
-        "## 達標提醒（YPP）",
-        "- 主攻 Shorts 衝 1000 萬觀看／訂閱 1000。Shorts 優先上架中。",
-        "- 細部訂閱/觀看時數需接 Analytics scope 才能自動抓。",
+    lines += ["", "## 達標提醒（YPP）"] + _ypp_lines() + [
         "",
         "> ⚠️ 內容遵守誠信鐵則：不編造損益、不保證收益。",
     ]
