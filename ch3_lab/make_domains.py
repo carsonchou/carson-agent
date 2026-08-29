@@ -259,12 +259,13 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     for n, t in segs:
         (out / f"narr_{n}.txt").write_text(t, encoding="utf-8")
+    # 🔴 先寫 facts.json 再渲 —— 理由同 make_ep0(preflight 的順序慣例)。
+    (out / "facts.json").write_text(json.dumps(E, ensure_ascii=False,
+                                               indent=1), encoding="utf-8")
     from render_pipeline import tts, render_and_mux
     tts(out, segs)
     mp4, dur = render_and_mux(out, segs, render_scene, f"{a.slug}.mp4",
                               W, H, FPS, ctx={"plt": _plt(), "E": E})
-    (out / "facts.json").write_text(json.dumps(E, ensure_ascii=False,
-                                               indent=1), encoding="utf-8")
     print(f"完成 → {mp4}  ({dur:.0f}s)")
     return 0
 

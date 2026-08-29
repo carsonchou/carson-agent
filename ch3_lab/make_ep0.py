@@ -312,12 +312,17 @@ def main():
     OUT.mkdir(parents=True, exist_ok=True)
     for n, t in segs:
         (OUT / f"narr_{n}.txt").write_text(t, encoding="utf-8")
+    # 🔴 **先寫 facts.json,再渲。** preflight 的判準是「mp4 比 facts.json
+    #    舊 = 渲染死在寫 facts 之後、mux 之前」——那是對的,而我把順序寫反了
+    #    (渲完才寫),於是每一支新集型都會被判成陳舊而**擋在發布前**。
+    #    修產線對齊慣例,不要去改那道守門。
+    OUT.mkdir(parents=True, exist_ok=True)
+    (OUT / "facts.json").write_text(json.dumps(T, ensure_ascii=False,
+                                               indent=1), encoding="utf-8")
     from render_pipeline import tts, render_and_mux
     tts(OUT, segs)
     mp4, dur = render_and_mux(OUT, segs, render_scene, "ep0.mp4", W, H, FPS,
                               ctx={"plt": _plt(), "T": T})
-    (OUT / "facts.json").write_text(json.dumps(T, ensure_ascii=False,
-                                               indent=1), encoding="utf-8")
     print(f"完成 → {mp4}  ({dur:.0f}s)")
     return 0
 

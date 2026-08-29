@@ -122,6 +122,49 @@ def semantic_gate(o):
     """
     d = ROOT / o["dir"]
     facts_p = d / "facts.json"
+    kind = o.get("kind")
+    # ── 新集型:facts.json 的形狀不同,要各自的檢查 ──────────────────
+    # 🔴 舊版直接讀 `F["orig"]["es"]`,對 lineup / domains / trailer 三種
+    #    都丟 KeyError,然後 fail-closed 把**三支新片全部擋在發布前**。
+    #    fail-closed 是對的(所以我才會發現),但「認不得」不等於
+    #    「不用檢查」——每一種都有它自己撐不撐得住的問題。
+    if kind in ("lineup", "domains", "trailer"):
+        try:
+            F = json.loads(facts_p.read_text(encoding="utf-8"))
+        except Exception as e:           # noqa: BLE001
+            return f"讀不了 facts.json({str(e)[:40]})"
+        text = " ".join(f.read_text(encoding="utf-8").lower()
+                        for f in sorted(d.glob("narr_*.txt")))
+        if kind == "lineup":
+            # 一個都沒達顯著才可以講「不存在」;有的話那句就是假的。
+            if F.get("n_sig", 0) > 0 and any(_asserted(text, c)
+                                             for c in _CLAIMS_NONE):
+                return (f"稿子說效應不存在,但 {F['n_sig']}/{F['n_p']} 個"
+                        f"重測達到 p<0.05")
+            # 反過來:一個都沒達顯著卻講「站得住」也不行。
+            if F.get("n_sig", 0) == 0 and any(_asserted(text, c)
+                                              for c in _CLAIMS_REAL):
+                return "稿子說效應站得住,但 0 個重測達到 p<0.05"
+            if F.get("k_distinct", 0) < 4:
+                return f"只有 {F.get('k_distinct')} 個互不相同的範式"
+        elif kind == "domains":
+            T = F.get("test", {})
+            # 事實庫標成 missing 的欄位不准出現在稿子裡(旁白端已擋一次,
+            # 這裡是發布前的第二道 —— 產稿端改壞了也還有人擋)。
+            for miss, words in (("k", ("studies", "papers")),
+                                ("n", ("participants",))):
+                if miss in (T.get("missing") or []):
+                    for w in words:
+                        if w in text:
+                            return f"{miss} 標成 missing 卻在稿子裡提到「{w}」"
+            if not T.get("quote"):
+                return "跨領域集沒有登記原文引句"
+        else:                                    # trailer
+            g = ("gone", "shrunk", "flipped", "survived")
+            if sum(F.get(x, 0) for x in g) != F.get("k"):
+                return (f"四組加總 {sum(F.get(x, 0) for x in g)} ≠ 集數 "
+                        f"{F.get('k')} —— 畫面上的點數會跟旁白對不上")
+        return None
     if facts_p.exists():
         try:
             F = json.loads(facts_p.read_text(encoding="utf-8"))
