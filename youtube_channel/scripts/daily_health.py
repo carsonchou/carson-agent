@@ -123,7 +123,35 @@ def _supplies():
     except Exception:  # noqa: BLE001
         pass
 
-    # ③ LLM 餘額:唯一沒被監控過的單點故障(已有 llm_credit_watch,這裡併進同一張表)
+    # ③ 產線良率:昨天到底產出幾支稿。
+    # 🔴 2026-08-30 加這項的理由:產線 08-29 **整天零成稿**(17 支被期間偷換閘門殺掉),
+    # 而這份健檢當天照樣回報「✅ 全部正常」——因為它看的是題庫存量、音檔、LLM 餘額,
+    # 沒有一項會因為「一支都沒產出來」而變紅。庫存 22 支、每天發 6.5 支,
+    # 也就是**斷貨前只有三天,而三天內不會有任何警訊**。
+    # 存量(題庫/庫存)看的是水位,良率看的是水龍頭有沒有出水 —— 兩個都要有。
+    try:
+        import re as _re
+        _log = (ROOT / "STUDIO" / "ops_log.txt").read_text(encoding="utf-8", errors="replace")
+        _yst = time.strftime("%m-%d", time.localtime(time.time() - 86400))
+        _made = _fail = 0
+        for _l in _log.splitlines():
+            if not _l.startswith(f"[{_yst}"):
+                continue
+            if "已備妥待渲染" in _l:
+                _made += 1
+            elif "fail-closed" in _l or "⛔" in _l:
+                _fail += 1
+        lines.append(f"昨天({_yst})產線: 成稿 {_made} 支 / fail-closed {_fail} 支")
+        if _made == 0 and _fail > 0:
+            warns.append(f"昨天零成稿(閘門殺{_fail}支)")
+            lines.append("   🔴 **一支都沒產出來而閘門殺了很多** = 閘門把正常的稿也擋掉了,"
+                         "去看 output/_rejected/ 最新幾支;庫存見底前不會有別的警訊")
+        elif _made and _fail > _made * 2:
+            warns.append(f"昨天良率低({_made}成稿/{_fail}報廢)")
+    except Exception:  # noqa: BLE001
+        pass
+
+    # ④ LLM 餘額:唯一沒被監控過的單點故障(已有 llm_credit_watch,這裡併進同一張表)
     try:
         import llm_credit_watch as lcw
         bal, _used, _tot = lcw.balance()
