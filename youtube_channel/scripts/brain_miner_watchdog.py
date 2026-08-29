@@ -30,7 +30,7 @@ BRAIN = (Path(__file__).resolve().parent.parent.parent
 # ⚠️ 新增挖礦階段時**這裡一定要跟著加**（2026-08-29 差點漏掉 universe_sweep）：
 # 守門認不出來就會判定「沒在跑」→ 再拉一個起來 → 兩個程序互搶那 2 個併發槽。
 # 同一份名單在 brain_auto._pid_alive_miner 也有一份（鎖的活性判斷用），要一起改。
-PATTERN = ("field_miner", "second_order", "brain_auto", "universe_sweep")
+PATTERN = ("field_miner", "second_order", "brain_auto", "universe_sweep", "hybrid_miner")
 
 
 def miner_running() -> bool:

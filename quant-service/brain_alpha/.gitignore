@@ -10,3 +10,8 @@ miner_*.err
 watchdog_restart.log
 *.bak-*
 miner.lock
+pnl_cache.json
+hybrid.log
+hybrid.err
+uni_sweep.log
+uni_sweep.err
