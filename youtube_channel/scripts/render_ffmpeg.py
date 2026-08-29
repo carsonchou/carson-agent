@@ -302,16 +302,35 @@ def _render_hook_card(title, width, height, accent, tmp_dir):
     #    判準(2026-07-17 定):集數不是績效,它就不該長得像績效 → 方向錯的那邊(膨脹)。
     # 修法:只有帶「結果單位」(%/倍/萬/成/億)的數字才配當衝擊主視覺;
     #      撈不到 → 回 None → **不畫這張卡**(fail-safe:寧可少一張卡,不要把集數演成報酬)。
-    cands = re.findall(r'\d+\.?\d*\s*[%倍萬]', title)
-    if cands:
-        num = max(cands, key=lambda s: float(re.findall(r'[\d.]+', s)[0])).replace(" ", "")
-    else:  # 阿拉伯抓不到→抓中文數字結果詞(三倍/九成/一萬);**不含**年/天/次(那是區間與次數,不是結果)
-        m = re.search(r'[一二三四五六七八九十百千兩]+\s*[%倍萬成億]', title)
-        num = m.group(0).replace(" ", "") if m else None
+    # 🔴 2026-08-30:數字要取自**鉤子那句話**,不是整個標題挑最大的。
+    # 舊寫法 `max(cands, key=float)` 挑標題裡數值最大的那個,而個股體檢標題同時含
+    # 「報酬」與「最大回撤」兩組數字 —— 表現差的股票回撤反而比報酬大,於是:
+    #     「個股體檢【聯穎 3550】15.8年只賺54.3%？年化2.8%與63.7%最大回撤的殘酷真相」
+    #     → 大紅字砸出 **63.7%**(那是回撤),而同一張卡上的鉤子寫「只賺54.3%」
+    #     → 觀眾看到的兩個數字講的是兩件事,而且很可能把 63.7% 讀成報酬。
+    # 現在先取鉤子(hook_from_title),數字從鉤子裡挑 —— 大字與它下面那行字必然一致。
+    # 鉤子裡沒有帶單位的數字才退回原本的「整句挑最大」。
+    _hook_for_num = hook_from_title(title)
+
+    def _pick(src):
+        c = re.findall(r'-?\d+\.?\d*\s*[%倍萬]', src)
+        if c:
+            return max(c, key=lambda s: abs(float(re.findall(r'-?[\d.]+', s)[0]))).replace(" ", "")
+        m = re.search(r'[一二三四五六七八九十百千兩]+\s*[%倍萬成億]', src)
+        return m.group(0).replace(" ", "") if m else None
+
+    num = _pick(_hook_for_num) or _pick(title)
     if not num:
         return None
     try:
-        bg = mv._card_background(width, height, accent, seed=title).convert("RGBA")
+        # 🔴 decor_line=False。_card_background 的裝飾走勢線是 rng 產的,原本的判準是
+        # 「一般品牌卡維持 True,那條線是品牌紋理、**不宣稱標的**」——但片頭卡不屬於那一類:
+        # 它把某一支股票的數字砸在那條線正上方,線就變成在宣稱這支股票的走勢。
+        # 實例(聯穎3550 成片第 0.5 秒):背景是一條穩定上升的線,而這支片講的是
+        # 「15.8 年只賺 54.3%、最大回撤 63.7%」——**畫面和事實方向相反**。
+        # 對量化頻道來說那就是擺一張假圖(同 _card_background 註解自己的說法)。
+        bg = mv._card_background(width, height, accent, seed=title,
+                                 decor_line=False).convert("RGBA")
     except Exception:  # noqa: BLE001
         bg = Image.new("RGBA", (width, height), (10, 14, 26, 255))
     d = ImageDraw.Draw(bg)
@@ -357,11 +376,17 @@ def _render_hook_card(title, width, height, accent, tmp_dir):
     for dx, dy in ((-2, 0), (2, 0), (0, -2), (0, 2)):
         d.text((hx + dx, int(height * 0.27) + dy), hook, fill=(0, 0, 0, 255), font=hf)
     d.text((hx, int(height * 0.27)), hook, fill=(240, 240, 240, 255), font=hf)
-    # 下方懸念
-    sf2 = mv._load_font(int(height * 0.040), bold=True)
-    sub = "你猜是多少？"
-    sbb = d.textbbox((0, 0), sub, font=sf2)
-    d.text(((width - (sbb[2] - sbb[0])) // 2, y + th + int(height * 0.045)), sub, fill=accent + (255,), font=sf2)
+    # 下方懸念。⚠️ 只有在鉤子句**沒有把數字講出來**時才問「你猜是多少?」——
+    # 鉤子已經寫著「15.8年只賺54.3%」,大字又砸出 54.3%,底下再問一句「你猜是多少?」
+    # 就是答案在上、問題在下,讀起來像沒寫完的模板。
+    # (聯穎3550 成片第 0.5 秒實際長這樣。舊版因為大字挑的是標題裡**最大**的數字、
+    #  常常和鉤子不同一個,所以這個矛盾一直被那個不一致遮住。)
+    if num.replace(" ", "") not in hook.replace(" ", ""):
+        sf2 = mv._load_font(int(height * 0.040), bold=True)
+        sub = "你猜是多少？"
+        sbb = d.textbbox((0, 0), sub, font=sf2)
+        d.text(((width - (sbb[2] - sbb[0])) // 2, y + th + int(height * 0.045)), sub,
+               fill=accent + (255,), font=sf2)
     dest = tmp_dir / "hookcard.png"
     bg.convert("RGB").save(dest, "PNG")
     return str(dest)
