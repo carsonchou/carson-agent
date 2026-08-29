@@ -786,7 +786,7 @@ def _pid_alive_miner(pid: int) -> bool:
             capture_output=True, text=True, timeout=30).stdout
     except Exception:  # noqa: BLE001
         return True          # 查不出來就當它活著,寧可少跑一批也不要兩個互撞
-    return any(k in out for k in ("field_miner", "second_order", "brain_auto"))
+    return any(k in out for k in ("field_miner", "second_order", "brain_auto", "universe_sweep"))
 
 
 def claim_lock() -> bool:

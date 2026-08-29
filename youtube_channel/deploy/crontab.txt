@@ -56,6 +56,14 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # ⚠️ 別再往上加太多:每檔要打 yfinance 約 5 次,實測 42 檔連跑會被 Yahoo 限流
 #    (見 checkup_fundamentals_backfill.py 的重試說明)。
 50 5 * * * /root/yt/run.sh scripts/stock_checkup_daily.py --count 16 >> /root/yt/logs/cron.log 2>&1
+# 🔴 2026-08-29 題庫補種:上面那行只做「backlog 隊伍最前面的**下一檔新股票**」,從不回頭。
+#   實測落差:事實庫涵蓋 522 檔,題庫只種過 207 檔 → **315 檔有事實、沒種題**(1,896 組事實
+#   躺著沒用)。那批的 FinMind 額度與運算成本早就付過了,只差一次 LLM 生題。
+#   而題庫見底的後果不是「少產幾支」:抽不到題 → 模型自由生題(沒有事實可依據)→ 灌水
+#   → 密度閘門擋下 → 整條長片產線 fail-closed(08-28 18:11 起連續 7 小時零產出)。
+#   這行不打 FinMind(事實已在檔),只花 LLM,所以放在 checkup_daily 之後不搶 yfinance 額度。
+#   水位由 daily_health._supplies() 每天 09:00 監看,低於 20 題會 ntfy。
+20 6 * * * /root/yt/run.sh scripts/seed_checkup_backfill.py --apply --max 25 >> /root/yt/logs/cron.log 2>&1
 # 2026-08-01 需求偵測(週三 06:10,週三是排程最空的一天)。只做一件事:讀自己 Analytics 的
 #   真實搜尋詞,若出現「有人在搜、但 backlog 還沒做」的股票,就把那幾檔提到最前面。
 #   依據:近28天只有搜尋在漲(+95%),而搜尋詞前25名裡個股名/代號佔 64%(459/718 觀看);
@@ -603,6 +611,15 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 #   Carson 在等第一筆分數(08-27 交了 2 條,score 仍為 0),排在刷新後 15 分跑,
 #   有變動就 Telegram 推播。score_watch 只讀不寫,不影響搜尋。
 15 15 * * * /root/yt/run.sh scripts/brain_score_watch.py >> /root/yt/logs/cron.log 2>&1
+# 🔴 2026-08-29 實測推翻「結算 = 台北 15:00」。score_history 的唯一一次落帳：
+#     08-28 15:15  score 0.0     ← 上面那條盯哨量到的
+#     08-28 16:00  score 2000.0
+#   → 真正落帳在 **15:15~16:00 之間**,15:15 那條永遠早一步、然後回報「無變動」。
+#   官方文件寫的 ET 03:00 是**開始刷新**的時間,不是算完的時間。
+#   只有 n=1,所以不是把 15:15 挪走而是**加點**:多跑幾次成本是零(沒變動就靜默),
+#   漏掉一天的結算卻要等 24 小時才知道。
+10 16 * * * /root/yt/run.sh scripts/brain_score_watch.py >> /root/yt/logs/cron.log 2>&1
+10 17 * * * /root/yt/run.sh scripts/brain_score_watch.py >> /root/yt/logs/cron.log 2>&1
 
 # LLM 儲值餘額看門(2026-08-28 事故:餘額用完 → 長片完全產不出來,而且零警訊)。
 # 每支長片約 US$0.025,每天 10 支 ≈ 7 美元/月;剩不到約 120 支(3 天量)就推 ntfy。

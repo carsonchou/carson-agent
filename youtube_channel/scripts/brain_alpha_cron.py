@@ -65,6 +65,24 @@ def unscanned_fields() -> int:
         return 1
 
 
+def unswept_universe() -> int:
+    """universe 重跑還剩幾條。
+
+    例外時回 **0**（跟 unscanned_fields 的 fail-closed 方向相反，這裡是刻意的）：
+    這一階段是**加分項**，判斷不出來就跳過、讓一階繼續跑；
+    一階是**主線**，判斷不出來要留在原地不能掉進雙胞胎工廠。
+    「fail 往哪邊倒」要看那條路壞掉的後果，不是統一寫一種。
+    """
+    try:
+        sys.path.insert(0, str(BRAIN))
+        import brain_auto as B
+        import universe_sweep as U
+        return len(U.build(B.load_ledger()))
+    except Exception as e:  # noqa: BLE001
+        print(f"[cron] 判斷 universe 階段失敗（跳過，改跑一階）：{e}", file=sys.stderr)
+        return 0
+
+
 def unscanned_second_order() -> int:
     """二階還有幾條沒跑。命中率遠高於一階,所以排在前面。"""
     try:
@@ -105,6 +123,26 @@ def main() -> int:
     # → 命中率高（15%）不代表有用：同 base 的第二條交不出去。
     #   真正稀缺的是**獨立的 base**，那只能靠一階掃新欄位。
     # 所以：**一階優先**，二階降為補充（每個 base 只需要一條能交）。
+    # 🔵 2026-08-29 universe 重跑：開了又關，**實測否決**。
+    # 提案是「Universe 越小 Quality Factor 越高，而 field_miner 寫死 TOP3000
+    # = 白白丟掉的分數」。跑了 30 條就被自己的資料打臉：
+    #
+    #     分子                        TOP3000   TOP1000   TOP500
+    #     est_eps                      1.48      1.21      1.13
+    #     operating_income             1.10      0.80✗     0.57✗
+    #     unrecognized_tax_benefits    1.58      0.72✗       -
+    #
+    # **每一條都變差，沒有例外**，而且今天剛交的那條在 TOP1000 直接跌破
+    # LOW_FITNESS 門檻 1.0（1.58 → 0.72）＝根本交不出去。
+    # 錯在把 Universe 當成能單獨調的旋鈕，但 **fitness 也是 Quality Factor 的一項**，
+    # 縮池子是拿 fitness 去換 universe，而且換得極差。
+    #
+    # 更根本的是這在解一個不存在的問題：08-27（全 TOP3000、fitness 均 1.195）與
+    # 08-28（兩條 TOP1000、fitness 均 1.313）**分數都是剛好 2000.0** ——
+    # 上限已經吃滿，Quality Factor 現在對總分沒有可觀測的影響。
+    # → universe_sweep.py 留著（報表有用、以後上限不再是瓶頸時可以重開），
+    #   但不排進自動輪替。
+
     left = unscanned_fields()
     if left > 0:
         target, phase = BRAIN / "field_miner.py", f"一階全欄位掃描（剩 {left} 個欄位，找獨立 base）"
