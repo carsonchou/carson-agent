@@ -1668,15 +1668,107 @@ def _checkup_finalize(result, next_name):
     # ⚠️ 誠信:數字**當場從真實檔案算**,絕不寫死(見 memory yt-integrity-methodology-claims)。
     #    算不出來就整句不加,不用約略值糊弄。
     _done, _total = _checkup_progress()
+    _series_line = ""
     if _done and _total and "全台股" not in v and "整個台股" not in v:
-        tail_bits.append(
-            f"這個系列會把全台股{_total}檔一檔一檔體檢完，目前完成{_done}檔，"
-            f"你手上那幾檔遲早會輪到，訂閱就不會錯過自己的股票。")
+        _series_line = (f"這個系列會把全台股{_total}檔一檔一檔體檢完，目前完成{_done}檔，"
+                        f"你手上那幾檔遲早會輪到，訂閱就不會錯過自己的股票。")
+    # 🔬 2026-08-30 早段訂閱邀請 A/B(完整說明見 _early_series_cta):
+    # 這句是全頻道最強的訂閱理由,但它在**片尾**——實測留存曲線(近兩月觀看最高 20 支加權)
+    # 片尾只剩 8% 的觀眾,第 48 秒還有 41%。**同一句話往前搬 = 5 倍觸及。**
+    # 實驗組是「搬」不是「加」:同一句話只出現一次,只有位置不同。
+    #   ①加一份會跟片尾那句幾乎一字不差 → 直接踩到整句去重與密度閘門
+    #   ②只有位置變、內容與長度不變,才分離得出「位置」本身的效果
+    if _series_line:
+        v2 = _early_series_cta(v, _series_line, result)
+        if v2 is not v:
+            v = v2                      # 實驗組:已插到前段,片尾就不再放
+        else:
+            tail_bits.append(_series_line)   # 對照組:維持原本的片尾位置
     if tail_bits:
         result["voice_text"] = v + ("" if v.endswith(("。", "！", "？")) else "。") + "".join(tail_bits)
     elif v != str(result.get("voice_text", "") or "").rstrip():
         result["voice_text"] = v
     return result
+
+
+# ── 早段訂閱邀請 A/B(2026-08-30 建)──────────────────────────────────────────
+# ## 為什麼
+# 實測近 7 天:9,554 次觀看換到 50 個訂閱 = **0.523%**,而且 99% 的觀看來自未訂閱者
+# (SUBSCRIBED 只有 108 次),所以這是乾淨的真實轉化率、沒有訂閱者重複看的稀釋。
+#
+# 轉化率的驅動因子量出來了(近兩個月 200 支,只取觀看>=100 的 194 支):
+#     r(平均觀看秒, 轉化率) = **+0.502**
+#     對照 r(觀看數, 轉化率) = -0.003  ← 不是小分母爆比率造成的假訊號
+#     平均看 13 秒→0.050% / 20 秒→0.045% / 61 秒→0.355% / 135 秒→0.542%
+# 也就是說:**人要聽得夠久才會訂閱**。
+#
+# 而頻道最強的訂閱理由是片尾那句「你手上那幾檔遲早會輪到」——對搜自己股票進來的人
+# 精準命中。問題是它放在**片尾**。真實留存曲線(近兩個月觀看最高的 20 支長片加權):
+#     24 秒 → 還剩 56%    48 秒 → 41%    96 秒 → 31%
+#     168 秒 → 24%        480 秒(片尾) → **8%**
+# 這句話目前只講給 8% 的人聽。搬到第 48 秒 = 41% 聽得到,**5 倍觸及**。
+# (實抽三支還發現位置根本不一致:有的在 34%、有的只有片尾、有的三處都有。)
+#
+# ## 為什麼做成 A/B 而不是直接全面改
+# memory yt-retention-is-audience-not-content:內容假設在這個頻道**三度落空**,
+# 每次都是因為先用小樣本肉眼比對就下結論。這次的機制面是算術(41% vs 8%),很硬;
+# 但「早點聽到」是否等於「一樣會訂」則是假設。照 slug 雜湊分兩組,對照組不加,
+# 兩週後用 subscribersGained 比。成本只是一個雜湊函式,沒有理由不放對照組。
+_EARLY_CTA_CHARS = 200      # 插在第幾個中文字之後的句尾;4.5 字/秒 ⇒ 約第 45~55 秒
+_EARLY_CTA_STATE = ROOT / "STUDIO" / "early_cta_ab.json"
+
+
+def _early_cta_arm(slug_or_title: str) -> str:
+    """照標題雜湊分組(確定性,不用隨機——重跑同一支不會換組)。"""
+    import hashlib
+    h = hashlib.sha1((slug_or_title or "").encode("utf-8")).hexdigest()
+    return "treat" if int(h[:8], 16) % 2 == 0 else "control"
+
+
+def _record_cta_arm(title: str, arm: str, at_char=None) -> None:
+    """兩組都要落檔——只記實驗組的話,兩週後就沒有對照組名單可比。"""
+    try:
+        st = json.loads(_EARLY_CTA_STATE.read_text(encoding="utf-8")) if _EARLY_CTA_STATE.exists() else {}
+    except Exception:  # noqa: BLE001
+        st = {}
+    st[title[:80]] = {"arm": arm, "at_char": at_char, "ts": time.time(),
+                      "date": time.strftime("%Y-%m-%d")}
+    try:
+        _EARLY_CTA_STATE.parent.mkdir(parents=True, exist_ok=True)
+        _EARLY_CTA_STATE.write_text(json.dumps(st, ensure_ascii=False, indent=1), encoding="utf-8")
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _early_series_cta(v: str, line: str, result: dict):
+    """實驗組:把系列承諾句插到約第 48 秒的句尾,回傳新 voice_text。
+    對照組(或插不進去)一律**回傳原物件本身**,呼叫端用 `is` 判斷要不要改走片尾。
+
+    安全:
+    - 插在**句尾**,不會把句子切一半。
+    - 章節對齊是「每段旁白前 8 字在字幕流裡單調搜尋」(chapters.align_segment_starts),
+      插入的句子不屬於任何段落,後面每段的錨點照樣找得到 → 章節不會跑掉。
+      (memory yt-internal-metrics-blind-to-viewer 記過「章節偏 64 秒」,所以特別確認過。)
+    - 句子內容與數字由呼叫端算好傳進來,這裡不自己造數字。
+    - 稿太短 / 找不到句尾就不插(回原物件),寧可留在片尾也不要擠在開場。
+    """
+    title = str(result.get("title", "") or "")
+    arm = _early_cta_arm(title)
+    result["_early_cta_arm"] = arm
+    if arm != "treat" or not v or len(v) < _EARLY_CTA_CHARS + 120:
+        _record_cta_arm(title, "control" if arm != "treat" else "control(稿太短)")
+        return v
+    pos = -1
+    for i in range(_EARLY_CTA_CHARS, min(len(v), _EARLY_CTA_CHARS + 260)):
+        if v[i] in "。！？":
+            pos = i + 1
+            break
+    if pos < 0:
+        _record_cta_arm(title, "control(找不到句尾)")
+        return v
+    _record_cta_arm(title, "treat", pos)
+    log_ops("訂閱實驗", f"早段CTA插在第{pos}字(約{pos/4.5:.0f}秒)｜{title[:24]}")
+    return v[:pos] + line + v[pos:]
 
 
 def _checkup_context(topic):

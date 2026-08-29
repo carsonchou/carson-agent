@@ -355,6 +355,10 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 20 3 * * 5 /root/yt/run.sh scripts/ab_thumbnail.py --limit 6 >> /root/yt/logs/cron.log 2>&1
 # 每日工作室健檢(每天 09:00:憑證/json完整性/cron失敗/名單/洗版洩漏 → ntfy)
 0 9 * * * /root/yt/run.sh scripts/daily_health.py --notify >> /root/yt/logs/cron.log 2>&1
+# 🔬 早段訂閱邀請 A/B 的判讀提醒(每天 09:05,樣本夠了才推 ntfy;不夠就只印不吵)。
+#   為什麼要排這行:2026-08-29 發現節奏實驗 08-26 就到期,結果**三天沒有人去讀**——
+#   實驗做完沒人讀 = 那段期間的產能白花。實驗一開始就把「何時該讀」一起排進去。
+5 9 * * * /root/yt/run.sh scripts/early_cta_report.py --notify >> /root/yt/logs/cron.log 2>&1
 # 北極星整合(每天 09:05:訂閱/觀看/各源收入/YPP缺口/飛輪贏家 → northstar.json + ntfy)
 5 9 * * * /root/yt/run.sh scripts/northstar.py --notify >> /root/yt/logs/cron.log 2>&1
 # E2 低報校正確認(每天 09:07,排北極星之後:純讀當天northstar.json,不打API;RECORRECT_AFTER
