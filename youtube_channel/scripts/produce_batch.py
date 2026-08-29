@@ -4659,12 +4659,32 @@ def _fix_seams(text):
     return out
 
 
+# 🔴 2026-08-30:疊字修復的**合法複合詞例外**。
+# `_ARTIFACT_FIXES` 是「A+AB → AB」形狀的規則(例:網網格→網格),但當前一個詞正好以 A 結尾時
+# 就會誤修:**「派網」+「網格」→ 被縮成「派網格」**(派網=Pionex 品牌名,網格=grid,
+# 兩個都是正確的詞)。實測 1,697 份文本(旁白+已發布標題)中有 **10 份**中招,
+# 其中 6 個是**已發布影片的標題**。
+# 同型風險還有「決定+定投」「上回+回測」「投機+機器人」等,實測發生率都是 0,
+# 所以只針對真的發生的那個做例外;之後若出現新的,照同樣方式加進來。
+# 通則:任何「刪掉重複字」的規則都要問「前一個字會不會讓它變成合法複合詞」。
+_ARTIFACT_KEEP = ("派網網格",)
+
+
 def _fix_artifacts(text):
     if not isinstance(text, str):
         return text
+    # 先把合法複合詞換成佔位符,躲過疊字規則,最後再換回來
+    _ph = {}
+    for i, w in enumerate(_ARTIFACT_KEEP):
+        if w in text:
+            k = f"\x00KEEP{i}\x00"
+            _ph[k] = w
+            text = text.replace(w, k)
     for a, b in _ARTIFACT_FIXES.items():
         if a in text:
             text = text.replace(a, b)
+    for k, w in _ph.items():
+        text = text.replace(k, w)
     return _fix_seams(text)
 
 
