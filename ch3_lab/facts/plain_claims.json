@@ -194,5 +194,12 @@
    "RUN AGAIN"
   ],
   "spoken": "What happens when someone runs a famous experiment again?"
+ },
+ "eps_domain/10000_hour_rule": {
+  "lines": [
+   "PRACTICE IS WHAT",
+   "SEPARATES THE BEST"
+  ],
+  "spoken": "Is how much you practise what separates the best?"
  }
 }

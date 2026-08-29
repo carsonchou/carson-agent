@@ -169,6 +169,13 @@ def fit(plt, text, base, max_frac=0.92, weight="bold"):
     return base if frac <= max_frac else max(20, int(base * max_frac / frac))
 
 
+def _dom_rows(o):
+    """跨領域集的每個領域。從 facts.json 讀,不從說明欄回推。"""
+    import json as _j
+    p = ROOT / o["dir"] / "facts.json"
+    return _j.loads(p.read_text(encoding="utf-8"))["test"]["domains"]
+
+
 def draw(plt, o, out_path):
     f = facts_of(o)
     if not f:
@@ -179,7 +186,13 @@ def draw(plt, o, out_path):
     # 規模那句依「重做 vs 統合」選,不是依「有沒有原始研究」。
     # FReD 那 19 支全部是逐篇重做,所以預設 True。
     has_orig = f.get("is_replication", True)
-    if n_r is None or (not has_orig and not f.get("k")):
+    if o.get("kind") == "domains":
+        # 跨領域集沒有 n_r(它不是「重測了幾個人」),它的數字是每個領域
+        # 解釋掉多少變異。**閘門不是放行,是換一個該檢查的東西。**
+        if not f.get("pct_worst") and f.get("pct_worst") != 0:
+            print(f"  跳過(沒有百分比):{o['title'][:40]}")
+            return False
+    elif n_r is None or (not has_orig and not f.get("k")):
         print(f"  跳過(數字不齊):{o['title'][:40]}")
         return False
     tone = o["tone"]
@@ -189,7 +202,12 @@ def draw(plt, o, out_path):
     ctone = copy_tone(tone, f.get("es_r"), f.get("es_kind", "d"))
     col = COLOR[ctone]
     word = VERDICT[ctone]
-    if o.get("kind") == "trailer":
+    if o.get("kind") == "domains":
+        # 跨領域集沒有效果量,也沒有「重測了幾個人」——它的證據是
+        # **同一個宣稱在不同領域解釋掉多少**。硬套 SCALE 會印出
+        # 「Retested on None people」。
+        word = f"<{f['pct_worst']}% AT WORK"
+    elif o.get("kind") == "trailer":
         # 🔴 預告片沒有「一個判決」。VERDICT["held"] 會印「IT HELD UP」——
         #    那是在對整個頻道下一個它沒有的結論(25 集裡只有 8 個撐住)。
         #    ⚠️ 這一段**必須在畫之前**。第一版把它寫在算 sub 的地方,
@@ -232,7 +250,14 @@ def draw(plt, o, out_path):
     # 它是支持不是主角。
     key = ("shrunk_real_nocmp" if tone == "shrunk_real" and eo is None
            else ctone)
-    if o.get("kind") == "trailer":
+    if o.get("kind") == "domains":
+        # 🔴 上界要標成上界。原文是「less than 1%」,印成「1%」是把上界
+        #    講成點估計 —— 旁白端(make_domains.say_pct)有守著這件事,
+        #    縮圖端沒有。同一個錯的第二個表面,今晚第三次。
+        # 寫法從 make_domains 匯入 —— 一個規則一份實作。
+        from make_domains import fmt_pct
+        sub = " · ".join(f"{x['name']} {fmt_pct(x)}" for x in _dom_rows(o))
+    elif o.get("kind") == "trailer":
         # 🔴 預告片沒有「一個判決」。套 VERDICT["held"] 會印出
         #    「IT HELD UP」——那是在對整個頻道下一個它沒有的結論。
         #    它的判決塊就是戰績本身。
