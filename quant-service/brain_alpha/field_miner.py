@@ -182,7 +182,26 @@ def load_fields(led=None):
 
 
 def forms_for(ftype: str) -> dict:
-    return VEC_FORMS if ftype == "VECTOR" else FORMS
+    """欄位型別 → 該用哪組模板。**不認得的型別回空 dict（跳過），不要猜。**
+
+    🔴 2026-08-29 這裡踩了兩次同型錯誤，第二次才改成白名單：
+      1. 第一次：只有一組模板，VECTOR 欄位全滅（1,233 次模擬）
+      2. 第二次：改成「VECTOR 用 vec 模板、其他一律當 MATRIX」——
+         結果 `GROUP` 型別（分類欄位，例如 `pv13_1l_scibr` 是 sector 分群）
+         被當成 MATRIX 丟進算術運算子，開場連撞 14 次 `Incompatible unit`。
+
+    平台實際有 **5 種** type，不是 2 種：
+        MATRIX 2,828 · VECTOR 1,387 · GROUP 142 · SYMBOL 4 · UNIVERSE 6
+    `pv13` 的 165 個欄位裡有 **135 個是 GROUP** —— 所以一掃 pv13 就整片失敗。
+
+    「其他一律當 X」是黑名單思維：每出現一種沒想到的型別就再燒一輪模擬才發現。
+    改成白名單 —— 只有明確知道怎麼處理的型別才產生候選，其餘直接跳過。
+    """
+    if ftype == "VECTOR":
+        return VEC_FORMS
+    if ftype == "MATRIX":
+        return FORMS
+    return {}                      # GROUP / SYMBOL / UNIVERSE：算術運算子吃不下
 
 
 def cmd_yield():
@@ -215,7 +234,7 @@ def cmd_plan(n=40):
     print(f"\n… 另外 {max(0, len(fs)-n)} 個")
 
 
-def cmd_run(n, only_type=None):
+def cmd_run(n, only_type=None, only_ds=None):
     """掃描順序：**同一個欄位的三種形式排在一起**，不是掃完 raw 才掃 per_px。
 
     這樣才能對每個欄位一次得到完整判斷（原始值沒訊號但比率有，是很常見的），
@@ -226,6 +245,8 @@ def cmd_run(n, only_type=None):
     todo = []
     for ds, f, cov, ac, ty in fs:
         if only_type and ty != only_type:
+            continue
+        if only_ds and ds not in only_ds:
             continue
         for form, pat in forms_for(ty).items():
             expr = TEMPLATE.format(X=pat.format(F=f))
@@ -259,7 +280,17 @@ def main():
     elif "--run" in a:
         i = a.index("--run")
         ot = "VECTOR" if "--vector" in a else ("MATRIX" if "--matrix" in a else None)
-        cmd_run(int(a[i + 1]) if len(a) > i + 1 else 100, only_type=ot)
+        # --only ds1,ds2 —— 強制只掃指定資料集。
+        # 為什麼需要:預設排序是「產出率優先」,而產出率是從帳本算的,
+        # 沒掃過的資料集只拿到 0.25 先驗,永遠排在已證明高產的 fundamental2 後面。
+        # 但 2026-08-29 發現真正缺的不是「更多有訊號的欄位」而是**不相關的資料領域**,
+        # 而選擇權/風險模型/社群這三個領域是 0 次模擬 —— 要能手動插隊。
+        ods = None
+        if "--only" in a:
+            j = a.index("--only")
+            if len(a) > j + 1:
+                ods = set(a[j + 1].split(","))
+        cmd_run(int(a[i + 1]) if len(a) > i + 1 else 100, only_type=ot, only_ds=ods)
     else:
         print(__doc__)
     return 0

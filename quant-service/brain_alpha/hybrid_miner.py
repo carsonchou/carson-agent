@@ -57,14 +57,30 @@ import brain_auto as B  # noqa: E402
 # ── 價格側：機制互不相同的訊號，不是同一個東西換參數 ──
 # 每一個的經濟機制都不一樣，所以彼此天生就該低相關；
 # 若只是把 ts_delta 的窗口從 3 換成 5，那又是「換數學」，會回到 0.9。
-PRICE = {
-    "rev3":   "rank(-ts_delta(close, 3))",                      # 短期反轉
-    "rev10":  "rank(-ts_delta(close, 10))",                     # 兩週反轉
-    "mom60":  "rank(ts_delta(close, 60))",                      # 中期動量（與反轉反向）
-    "lowvol": "rank(-ts_std_dev(returns, 20))",                 # 低波動異常
-    "pvcorr": "rank(-ts_corr(close, volume, 20))",              # 量價背離
-    "illiq":  "rank(-ts_mean(volume, 20))",                     # 流動性
+# ⚠️ 正負號一律**兩個方向都跑**，不要照教科書先驗挑一邊（2026-08-29 實測）。
+# 第一版我照先驗選了單一方向（反轉取負、動量取正、低波動取負、流動性取負），
+# 前 11 條的結果是：
+#     rev3   fit  0.57  turnover 60.0%   ← 方向對,週轉率太高
+#     rev10  fit  0.58  turnover 34.4%   ← 方向對,週轉率太高
+#     mom60  fit -0.64  turnover 13.8%   ← 週轉率漂亮,**方向反了**
+#     lowvol fit -0.16  turnover  9.0%   ← 同上
+#     pvcorr fit  0.07  turnover 20.0%   ← 同上
+#     illiq  fit -0.33  turnover  3.1%   ← 同上
+# **四個裡四個反了。** 教科書先驗是在「單獨、無中性化、全市場」的設定下講的，
+# 而這裡是 TOP3000 + delay 1 + 產業中性化 + 跟財報混合 —— 條件全不一樣。
+# 正負號翻一下是零成本的，用猜的沒有任何道理。
+_MECH = {
+    "rev3":   "ts_delta(close, 3)",          # 短期反轉／動量
+    "rev10":  "ts_delta(close, 10)",         # 兩週
+    "mom60":  "ts_delta(close, 60)",         # 中期
+    "lowvol": "ts_std_dev(returns, 20)",     # 波動
+    "pvcorr": "ts_corr(close, volume, 20)",  # 量價關係
+    "illiq":  "ts_mean(volume, 20)",         # 流動性
 }
+PRICE = {}
+for _k, _v in _MECH.items():
+    PRICE[f"{_k}+"] = f"rank({_v})"
+    PRICE[f"{_k}-"] = f"rank(-{_v})"
 
 # ── 財報側：直接用一階已驗證有訊號的分子 ──
 FUND = "rank(ts_rank(ts_backfill({F}, 120), 252))"
