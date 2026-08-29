@@ -323,8 +323,20 @@ def run_pc(maxn: int) -> int:
 # 實測 2026-07-28 09:40:同時 20 個 hybrid_render + 16 個 make_video + 27 個 ffmpeg,
 # 15.7GB 記憶體只剩 0.4GB(3%),產線連續噴 MemoryError 與 ffmpeg 逾時 600s、當天渲染全數失敗。
 # per-slug 鎖擋不住這種:每個實例各自挑不同影片,誰也沒違規,合起來把機器壓垮。
-_PROC_LOCK = OUT / ".hybrid_render.proc.lock"
+# 🔴 2026-08-29 鎖改成**分模式**。原本 --cloud 與 --pc 共用同一把全域鎖,而鎖是在
+# 分派模式**之前**取得的 —— 一個 `--pc --loop` 常駐實例會把每 15 分鐘的 `--cloud` cron
+# 班全部餓死。實況:Windows 排程工作 CarsonQuant_PCRender(每次登入自啟,
+# 見 scripts/_setup_pc_autorender.ps1)跑 `--pc --loop --interval 600`,而 --pc 是
+# SFTP 連**雲端 droplet** 的模式,那台早就欠費停權、cloud.json 也不存在了。
+# 於是它每 600 秒連線失敗一次、印個錯、繼續睡、**繼續握著鎖**,CPU 用量 0,
+# 而 11:30 與 11:45 兩班 cloud 渲染都秒退「已有實例在跑」——待渲染的片就一直積著。
+# 兩邊渲的是完全不同的來源(cloud=本機待辦 / pc=雲端待辦),本來就不該互斥;
+# 真正要防的「兩個實例同時渲爆記憶體」是**同模式**的重入,分開就好。
+# (local_cron.py:176 早就把 crontab 裡的 --pc 濾掉了 —— 但沒人記得還有個 Windows
+#  排程工作也在跑它。memory studio-black-window-popups-fix 記過:Windows 排程是
+#  另一個容易被遺忘的面,改東西要記得掃它。)
 _PROC_LOCK_STALE = 3600     # 秒;超過視為上個實例已崩潰,可接手
+_PROC_LOCK = OUT / ".hybrid_render.proc.lock"   # 預設值,main() 依模式覆寫
 
 
 def _pid_alive(pid: int) -> bool:
@@ -389,6 +401,17 @@ def main() -> int:
     args = ap.parse_args()
     if not (args.cloud or args.pc):
         print("請指定 --cloud 或 --pc"); return 2
+    # --pc 是 SFTP 連雲端 droplet 的模式。cloud.json 不在 = 沒有雲端可連(droplet 已停權,
+    # 產線 2026-07 就搬回本機了)。與其讓它每 600 秒失敗一次、握著鎖空轉,直接退出。
+    if args.pc and not (ROOT / "cloud.json").exists():
+        print("[hybrid] --pc 需要 cloud.json(SFTP 連雲端),檔案不存在 → 雲端模式已停用,直接結束。\n"
+              "         本機待辦請用 --cloud(crontab 每 15 分鐘那班)。\n"
+              "         若這是開機自啟的 Windows 排程工作 CarsonQuant_PCRender,它已無用途,"
+              "可用系統管理員權限執行:Unregister-ScheduledTask -TaskName CarsonQuant_PCRender -Confirm:$false",
+              file=sys.stderr)
+        return 0
+    global _PROC_LOCK
+    _PROC_LOCK = OUT / f".hybrid_render.{'cloud' if args.cloud else 'pc'}.proc.lock"
     if not _acquire_proc_lock():
         _age = _now() - _PROC_LOCK.stat().st_mtime
         print(f"[hybrid] 已有實例在跑({_age:.0f}s 前),本次跳過(防記憶體耗盡)。")
