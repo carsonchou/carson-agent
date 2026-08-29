@@ -4191,6 +4191,83 @@ def _long_no_early_contrast(voice_text):
     return n < 2
 
 
+_CN_DIGIT = {"零": 0, "〇": 0, "一": 1, "二": 2, "兩": 2, "三": 3, "四": 4,
+             "五": 5, "六": 6, "七": 7, "八": 8, "九": 9}
+_CN_UNIT = {"十": 10, "百": 100, "千": 1000, "萬": 10000}
+
+
+def _cn_num(s: str):
+    """中文數字轉 float;轉不了回 None。
+
+    🔴 為什麼需要(2026-08-30):旁白為了 TTS 唸得對,數字幾乎都寫成中文
+    (「六百八十五點三趴」「四千三百二十二點四」),而期間偷換閘門的**事實錨定**
+    只認阿拉伯數字 `685.3%` —— 於是那道最精準的判準在真實旁白上**幾乎從來沒生效過**,
+    一直是靠「同句必須有年數」那條粗規則在擋。粗規則誤殺率高,而且 08-28 餵料端修好之後
+    直接把產線擋到零成稿。看得懂中文數字,才談得上「放寬粗規則、靠錨定守住」。
+
+    支援「六百八十五點三」「四千三百二十二點四」「二十」「十」「七百一十二點零」。
+    """
+    if not s:
+        return None
+    s = s.strip()
+    if "點" in s:
+        a, _, b = s.partition("點")
+        ai = _cn_num(a)
+        if ai is None:
+            return None
+        frac = ""
+        for ch in b:
+            if ch not in _CN_DIGIT:
+                break
+            frac += str(_CN_DIGIT[ch])
+        # ai 是 float(685.0),直接內插會變成 "685.0.3" → 要先取整數部分
+        return float(f"{int(ai)}.{frac}") if frac else float(ai)
+    total, cur = 0, 0
+    for ch in s:
+        if ch in _CN_DIGIT:
+            cur = _CN_DIGIT[ch]
+        elif ch in _CN_UNIT:
+            u = _CN_UNIT[ch]
+            if u == 10000:
+                total = (total + cur) * u
+                cur = 0
+            else:
+                total += (cur or 1) * u
+                cur = 0
+        else:
+            return None
+    return float(total + cur)
+
+
+def _nums_in(text: str):
+    """抽出文字裡所有「像報酬率的數字」——阿拉伯與中文兩種寫法都收。"""
+    import re as _r
+    out = []
+    for x in _r.findall(r"(\d+(?:\.\d+)?)\s*(?:%|％|趴|個百分點)", text or ""):
+        try:
+            out.append(float(x))
+        except ValueError:
+            pass
+    for x in _r.findall(r"([零〇一二三四五六七八九十百千萬兩]+(?:點[零〇一二三四五六七八九]+)?)"
+                        r"\s*(?:%|％|趴|個百分點)", text or ""):
+        v = _cn_num(x)
+        if v is not None:
+            out.append(v)
+    # 「百分之六百三十八點二」——單位寫在**前面**。可成/TPK 那批全是這種寫法,
+    # 只掃後綴會整片漏掉(第一版就漏了,視窗數字抓出來是空的)。
+    for x in _r.findall(r"百分之\s*([零〇一二三四五六七八九十百千萬兩]+"
+                        r"(?:點[零〇一二三四五六七八九]+)?)", text or ""):
+        v = _cn_num(x)
+        if v is not None:
+            out.append(v)
+    for x in _r.findall(r"百分之\s*(\d+(?:\.\d+)?)", text or ""):
+        try:
+            out.append(float(x))
+        except ValueError:
+            pass
+    return out
+
+
 def _long_mixed_period(voice_text, slug=""):
     """旁白拿「不同期間的兩個數字」當同期對比 → 回 True(不合格)。
 
@@ -4236,56 +4313,110 @@ def _long_mixed_period(voice_text, slug=""):
         # ——而前一句那個「二十年」正是問題本身(685.3% 其實是 10 年的)。
         # 觀眾聽到對照那一句時就必須知道是哪段期間,所以年數要在同一句裡。
         # 年數要連小數一起抓:「10.0年」若只抓到「0」,會把正確句子誤判成偷換(實測踩到)。
+        # 🔴 2026-08-30 兩個修正(產線因此整天零成稿,17 支全滅,見下)
+        #
+        # 【修正一:年數看「這一句 + 前後各一句」的視窗,不再只看本句】
+        # 原判準「年數必須在同一句」在 08-28 餵料端修法(把年數黏進 0050 的數字本身)之後
+        # 變成**幾乎擋掉全部**:模型現在確實會把期間講出來,只是很自然地分成兩句寫——
+        #     句52「把這組資料與同期的大盤零零五零進行比較時…」  ← 過場句,一個數字都沒有
+        #     句53「在同樣的近十年區間（2016-08-01起），0050 總報酬 712.0%」 ← 年數在這
+        # 前者被判偷換 → fail-closed。實測 08-29 **17 支被殺、成稿 0**。
+        # 逐句診斷四支報廢稿,觸發的全是這種「過場句」或「年數在鄰句」,**沒有一支是真的偷換**。
+        # 用視窗不會放掉謊言:真正的偷換靠下面的事實錨定抓(年數對不上 three_way 就擋),
+        # 而那道是**數值比對**,不管年數寫在哪一句都成立。
+        # 🔴 2026-08-30 重構(產線 08-29 整天零成稿、17 支被這道殺掉,見下)
+        #
+        # 判準改成兩層,**精準的優先**:
+        #   ①事實錨定(精準):視窗裡有沒有把 long_horizon 的個股報酬和 three_way 的
+        #     0050 報酬並列 —— 那正是「偷換」這個動作本身,不必猜年數寫在哪。
+        #   ②年數規則(粗):只有在錨不上(非體檢片/查不到事實/沒引到 0050 數字)時才用。
+        #
+        # 為什麼要這樣改:原本只有②,而②要求「年數必須在同一句」。08-28 餵料端把年數
+        # 黏進 0050 的數字之後,模型確實會講期間,只是自然地分成兩三句寫:
+        #     「把這組資料與同期的大盤0050比較時…」(過場句,零數字)
+        #     「在同樣的近十年區間(2016-08-01起),0050 總報酬 712.0%」(年數在這)
+        # ②把前者判成偷換 → fail-closed。實測 08-29 **17 支被殺、成稿 0**,
+        # 逐句診斷五支報廢稿,觸發的全是過場句或年數在鄰句,**沒有一支是真偷換**。
+        #
+        # ⚠️ 放寬閘門是紅旗方向(memory yt-duplicate-impl-gate-bypass),所以①必須先真的能用:
+        # 錨定的兩個正則在 08-28 之後就對不上 claim 了(見下),而且它只認阿拉伯數字,
+        # 而旁白為了 TTS 幾乎都寫中文(「六百八十五點三趴」「百分之六百三十八點二」)
+        # —— 也就是說**這道最精準的判準在真實旁白上幾乎從來沒生效過**。
+        # 先修好①(正則 + 中文數字 + 百分之前綴),再放寬②。
+        _win = "".join(sents[max(0, i - 1):i + 2])
         _yrs_in_s = _re.findall(
-            r"([\d零一二三四五六七八九十]{1,3}(?:[.．點][\d零一二三四五六七八九]+)?)\s*年", s)
-        if not _yrs_in_s:
-            return True
-        # 🔴 2026-08-22 A/B 實測補的第二個洞:「同一句有年數就放行」預設一句只有一個
-        # 期間,可是最惡劣的偷換正好是**同句**發生的:
-        #     「加高 18.6 年賺 239%，同期 0050 賺 729.4%」
-        # 那句有年數(18.6)所以舊判準放行,但 729.4% 是 10 年的數字——這句話字面上
-        # 就在宣稱 0050 十年的報酬是 18.6 年的成績。純文字判準到此為止,
-        # 再往下只能**用事實庫錨定**:0050 的報酬數字只存在於 three_way 那一組,
-        # 而那組的年數是已知的;句子裡搬出的年份若跟它對不上 → 就是偷換。
-        # 查不到事實(非體檢片/無代號)就維持原本的文字判準,不亂擋。
+            r"([\d零一二三四五六七八九十]{1,3}(?:[.．點][\d零一二三四五六七八九]+)?)\s*年", _win)
+        _anchored = False
         # slug/標題裡的數字不只代號(「存20年賺6100%」也會中),所以把所有 4~6 位數字
-        # 都試一遍,取**真的有 three_way 事實**的那個當代號——查得到才算數,查不到就
-        # 退回文字判準。這樣呼叫端傳 slug 或標題都行。
-        _cands = _re.findall(r"(\d{4,6})", slug or "")
+        # 都試一遍,取**真的有 three_way 事實**的那個當代號。
+        # ⚠️ 用滑動視窗抽 4 位代號,不能只用 `\d{4,6}`:呼叫端有時傳的是**去掉標點的 slug**
+        # (「可成247420年總報酬165…」),那時 `\d{4,6}` 會抓到「247420」而不是「2474」
+        # → 查不到事實 → 錨定失效 → 退回粗規則 → **正確的稿被擋掉**。
+        # (今天在算搜尋覆蓋率時踩過同一個坑:台積電2330 20年 → 233020,漏掉 31 支。)
+        _cands = []
+        for _m in _re.findall(r"\d{4,}", slug or ""):
+            for _k in range(len(_m) - 3):
+                _sub = _m[_k:_k + 4]
+                if _sub not in _cands:
+                    _cands.append(_sub)
         if _cands:
             try:
                 _fp = ROOT / "STUDIO" / "stock_checkup_facts.json"
                 _fj = json.loads(_fp.read_text(encoding="utf-8"))["results"]
-                _tw = ""
+                _tw = _lh = ""
                 for _c in _cands:
-                    _cand = (_fj.get("checkup_three_way__" + _c) or {}).get("claim", "")
-                    if _cand:
-                        _tw = _cand
+                    _t1 = (_fj.get("checkup_three_way__" + _c) or {}).get("claim", "")
+                    if _t1:
+                        _tw = _t1
+                        _lh = (_fj.get("checkup_long_horizon__" + _c) or {}).get("claim", "")
                         break
-                _ty = _re.match(r"近([\d.]+)年", _tw)
-                _b50 = _re.search(r"0050）總報酬 (-?[\d.]+)%", _tw)
+                # ⚠️ 這兩個正則被 08-28 的餵料端修法弄失效了:那次把年數黏進數字,claim 從
+                #     「…（0050）總報酬 712.0%」→「同一10.0年區間（…）…（0050）近10.0年總報酬 712.0%」
+                # 而舊寫法是 `re.match(r"近([\d.]+)年")`(錨在**開頭**,開頭已變成「同一10.0年」)
+                # 與 `0050）總報酬`(中間被插進「近10.0年」)→ 兩個都對不上,錨定靜默失效。
+                _ty = _re.search(r"(?:同一|近)([\d.]+)年", _tw)
+                _b50 = _re.search(r"0050）(?:近[\d.]+年)?總報酬 (-?[\d.]+)%", _tw)
+                _lhr = _re.search(r"總報酬 (-?[\d.]+)%", _lh or "")
+                _lhy = _re.search(r"約([\d.]+)年", _lh or "")
                 if _ty and _b50:
                     _tyv = float(_ty.group(1))
-                    # 這句有沒有搬出 three_way 的 0050 數字(容忍四捨五入到整數)
                     _n50 = float(_b50.group(1))
-                    _cited = any(abs(float(x) - _n50) < 1.0
-                                 for x in _re.findall(r"(\d+(?:\.\d+)?)\s*%", s))
-                    if _cited:
-                        _cn = {"十": 10, "二十": 20, "十八": 18, "十五": 15, "十二": 12}
-                        _ok = False
-                        for _y in _yrs_in_s:
-                            _v = _cn.get(_y)
-                            if _v is None:
+                    _wn = _nums_in(_win)     # 中文/阿拉伯/百分之前綴 三種寫法都收
+                    if any(abs(x - _n50) < 1.0 for x in _wn):
+                        _anchored = True
+                        # ①-a 偷換的動作本身:同一個視窗同時搬出 long_horizon 的個股報酬
+                        #     與 three_way 的 0050 報酬,而兩者期間不同。
+                        if _lhr and _lhy and abs(float(_lhy.group(1)) - _tyv) >= 1.0:
+                            _lhv = float(_lhr.group(1))
+                            if any(abs(x - _lhv) < 1.0 for x in _wn):
+                                return True
+                        # ①-b 引了 three_way 的 0050 數字,期間必須講得出來。
+                        # 用**段落大小**的視窗(前 6 句 + 後 2 句 ≈ 30~40 秒旁白):
+                        # 口語敘事常在段首講一次「近十年,也就是從 2016-08-01 起」,
+                        # 後面幾句都沿用「同一期間」——那不算誤導,觀眾剛聽過。
+                        # 但如果**整段都沒講過期間**,觀眾就真的不知道在比哪一段 → 擋。
+                        _para = "".join(sents[max(0, i - 6):i + 3])
+                        _yrs_in_s = _re.findall(
+                            r"([\d零一二三四五六七八九十]{1,3}"
+                            r"(?:[.．點][\d零一二三四五六七八九]+)?)\s*年", _para)
+                        if not _yrs_in_s:
+                            return True
+                        if _yrs_in_s:
+                            _ok = False
+                            for _y in _yrs_in_s:
                                 try:
                                     _v = float(_y.replace("點", "."))
                                 except ValueError:
-                                    continue
-                            if abs(_v - _tyv) < 1.0:
-                                _ok = True
-                        if not _ok:
-                            return True      # 引用了 10 年的 0050 數字,卻掛在別的年數上
+                                    _v = _cn_num(_y)
+                                if _v is not None and abs(_v - _tyv) < 1.0:
+                                    _ok = True
+                            if not _ok:
+                                return True
             except Exception:  # noqa: BLE001
-                pass                          # 事實庫讀不到就不加碼判,維持文字判準
+                pass                          # 事實庫讀不到就退回粗規則,不亂擋
+        # ②粗規則:錨不上時才用 —— 對照句附近必須出現年數,否則觀眾不知道在比哪一段。
+        if not _anchored and not _yrs_in_s:
+            return True
     return False
 
 
