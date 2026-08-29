@@ -156,6 +156,17 @@ def build_script(D):
     「量出來的數字」,而那個說法本身就是鉤子(意志力會用完、旁觀者效應)。
     對零訂閱頻道來說,這反而是唯一有人認得的題材。
     """
+    if D.get("scoreboard"):
+        T = D["scoreboard"]
+        return [
+            ("q", D["question"]),
+            ("nums",
+             f"So far, {T['k']} of them, and {T['n_sum']:,} people in the "
+             f"replications. {T['gone']} are gone. {T['shrunk']} came back "
+             f"smaller but still there. {T['flipped']} went the other way. "
+             f"And {T['survived']} held up."),
+            ("end", end_line(D, "every paper")),
+        ]
     if D.get("domains"):
         from make_domains import say_pct
         doms = D["domains"]
@@ -232,6 +243,9 @@ def end_line(D, papers):
     #    10,000 小時那集的數字來自 2014 年一篇統合分析,跟 FReD 無關,
     #    而這句話會被烘進音軌,發出去就改不掉了。
     #    D["source"] 每一條取材路徑都有填,用它。
+    if D.get("scoreboard"):
+        return ("Every number here comes from the published record, "
+                "and each episode names its own papers.")
     src = str(D.get("source") or "").strip()
     if "FORRT" in src or "FReD" in src:
         return ("Every number here comes from the FORRT Replication "
@@ -398,7 +412,15 @@ def fit_sizes(plt, D):
     # OF YOURSELF」),所以一定要量。
     fs["claim"] = claim_layout(plt, D)
     fs["kicker"] = fit(plt, KICKER, 46, max_frac=0.55)
-    if D.get("domains"):
+    if D.get("scoreboard"):
+        T = D["scoreboard"]
+        fs["sb_head"] = fit(plt, f"{T['k']} claims, retested", 54)
+        fs["sb_sub"] = fit(plt, f"{T['n_sum']:,} people", 42)
+        from make_ep0 import GROUP_LABEL, group_of
+        fs["sb_lab"] = min(
+            fit(plt, f"{sum(1 for r in T['rows'] if group_of(r) == g)}  {lab}",
+                38) for g, lab in GROUP_LABEL.items())
+    elif D.get("domains"):
         fs["sub"] = fit(plt, "how much practice explains", 46)
     elif D["es_o"] is None:
         head = (f"{D['k']} {D['k_word']}" if D.get("k") else "tested again")
@@ -483,6 +505,46 @@ def render(plt, name, t, dur, D):
         if w > 0:
             ax.plot([0.5 - 0.36 * w, 0.5 + 0.36 * w], [uy, uy],
                     color=ACCENT, lw=10, solid_capstyle="butt", zorder=2)
+    elif name == "nums" and D.get("scoreboard"):
+        # 每一集一個點,依判決上色。**顏色與分組從 make_ep0 匯入** ——
+        # 長片、長片裡的標籤、這支 Short,三個表面一份分類。
+        from make_ep0 import group_of, GROUP_COLOR, GROUP_LABEL, GROUP_ORDER
+        from matplotlib.patches import Ellipse
+        T = D["scoreboard"]
+        # 🔴 0.87 是**頻道標記**的位置(THEY RAN IT AGAIN),放這裡會壓上去。
+        #    重疊守門抓到 479×22 畫素 —— 舊版斷言看不到,因為兩者都在界內。
+        ax.text(0.5, 0.825, f"{T['k']} claims, retested", ha="center",
+                va="center", fontsize=fs.get("sb_head", 54), color=FG,
+                weight="bold")
+        ax.text(0.5, 0.778, f"{T['n_sum']:,} people", ha="center",
+                va="center", fontsize=fs.get("sb_sub", 42), color=DIM)
+        rows = sorted(T["rows"], key=lambda r: GROUP_ORDER[group_of(r)])
+        cols, step = 5, 0.088
+        x0, y0 = 0.5 - (cols - 1) * step / 2, 0.695
+        for i, r in enumerate(rows):
+            if t < 0.4 + i * 0.06:
+                continue
+            b = ease(min(1.0, (t - 0.4 - i * 0.06) / 0.4))
+            # 直式畫布:圓要把**寬度**乘上 H/W(1.78),不是高度。
+            # 🔴 直式畫布上「圓」的寬高比:width_frac × W == height_frac × H
+            #    → width = height × H/W = height × 1.778。
+            #    我第一版寫成 `0.052 * (H/W) * (W/H)` —— 兩個係數自己抵銷,
+            #    等於沒乘,畫出來是上下拉長的橢圓,而且高度 0.052 大於
+            #    列距 0.0495,五列直接黏成一條。抽幀才看得到。
+            DOT_H = 0.036
+            ax.add_patch(Ellipse(
+                (x0 + (i % cols) * step, y0 - (i // cols) * step * (W / H)),
+                width=DOT_H * (H / W), height=DOT_H,
+                color=GROUP_COLOR[group_of(r)], alpha=b))
+        if t > 2.4:
+            b = ease(min(1.0, (t - 2.4) / 0.6))
+            for i, (g, lab) in enumerate(GROUP_LABEL.items()):
+                n = sum(1 for r in T["rows"] if group_of(r) == g)
+                ax.text(0.5, 0.435 - i * 0.048, f"{n}  {lab}", ha="center",
+                        va="center", fontsize=fs.get("sb_lab", 38),
+                        color=GROUP_COLOR[g], weight="bold", alpha=b)
+        # 判決卡在這一景**不畫**:標籤那四行已經寫了「8 held up」,
+        # 再放一次是複述,而且四行標籤之後剩下的空間低於安全區下緣 0.24。
     elif name == "nums" and D.get("domains"):
         # 直式的橫條圖。滿格 = 表現的全部差異,上色 = 練習解釋掉的部分。
         from make_domains import fmt_pct
@@ -712,6 +774,32 @@ def collect(slug=None, row=None):
             "color": BUCKET_COLOR[TONE_META[F["tone"]]["bucket"]],
             "source": F["source"],
         }
+    if str(slug) == "ep0":
+        fj = ROOT / "eps_lineup" / "ep0" / "facts.json"
+        if fj.exists():
+            import make_ep0 as _E
+            T = json.loads(fj.read_text(encoding="utf-8"))
+            pc = _plain("eps_lineup/ep0")
+            return {
+                "key": "ep0",
+                "question": pc["spoken"],
+                "claim_lines": pc["claim_lines"] if "claim_lines" in pc
+                               else pc["lines"],
+                "has_original": False,
+                "es_o": None, "es_r": None, "n_o": None, "n_r": None,
+                "say_o": None, "say_r": None,
+                "scoreboard": T,
+                "card": f"{T['survived']} of {T['k']} held up.",
+                "tone": "held",
+                "color": BUCKET_COLOR["held"],
+                "has_full": _has_full("eps_lineup/ep0"),
+                # 🔴 戰績橫跨 25 集,其中 19 集來自 FReD、6 集來自各自的
+                #    統合分析。寫「FORRT Replication Database」等於宣稱
+                #    全部出自同一個資料庫 —— 那是假的,而且是**我自己**
+                #    在同一個晚上第三次寫下同一句假來源。
+                "source": "FReD, plus the paper named in each episode",
+            }
+
     dm = ROOT / "eps_domain" / str(slug) / "facts.json"
     if dm.exists():
         from make_episode import CARD_TEXT, TONE_META
@@ -832,8 +920,12 @@ def main():
         (out / f"narr_{n}.txt").write_text(txt, encoding="utf-8")
     words = sum(len(t.split()) for _, t in segs)
     print(f"[{D['key']}] {D['question'][:60]}")
-    if D.get("domains"):
-        gap = " · ".join(f"{d['name']} {d['pct']}%" for d in D["domains"])
+    if D.get("scoreboard"):
+        T = D["scoreboard"]
+        print(f"  稿 {words} 字   {T['k']} 集 · {T['n_sum']:,} 人   {D['card']}")
+    elif D.get("domains"):
+        from make_domains import fmt_pct
+        gap = " · ".join(f"{d['name']} {fmt_pct(d)}" for d in D["domains"])
         print(f"  稿 {words} 字   {gap}   {D['card']}")
     else:
         gap = (f"{D['es_o']:+.2f} → " if D["es_o"] is not None

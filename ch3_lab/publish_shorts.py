@@ -28,6 +28,7 @@ videos.insert 同樣 1600/支。Shorts 與長片共用同一個每日 10,000。
 import argparse
 import json
 import pathlib
+import re
 import sys
 import time
 
@@ -52,6 +53,19 @@ _LONGS_ALL, _LONGS_PUB = {}, {}
 
 TAGS = ["Shorts", "psychology", "replication crisis", "science", "research",
         "effect size", "statistics"]
+
+
+#: 一個資料夾是不是「FReD 那批」。
+#: 🔴 **不能用 `startswith("ep")`。** 新的頻道戰績 Short 叫 `ep0`,前綴一樣,
+#:    於是 `int(key[2:])` 算出 row=0 —— 它會被當成 ep000 的 Short,
+#:    掛上 ep000 的標題與說明送出去。前綴約定看起來夠用,直到有第二個
+#:    以它開頭的名字為止。改成精確比對三位數字。
+_EPN = re.compile(r"^ep\d{3}$")
+
+
+def is_row(name):
+    return bool(_EPN.match(name))
+
 
 
 def svc():
@@ -110,8 +124,8 @@ def stale(items):
         try:
             key = o["key"]
             segs = build_script(collect(
-                slug=None if key.startswith("ep") else key,
-                row=int(key[2:]) if key.startswith("ep") else None))
+                slug=None if is_row(key) else key,
+                row=int(key[2:]) if is_row(key) else None))
         except Exception as e:                                # noqa: BLE001
             bad.append(f"{o['key']}(稿子重生失敗:{str(e)[:40]})")
             continue
@@ -161,8 +175,8 @@ def visual_stale(items):
             unknown.append((o["key"], probs))
             continue
         key = o["key"]
-        D = collect(slug=None if key.startswith("ep") else key,
-                    row=int(key[2:]) if key.startswith("ep") else None)
+        D = collect(slug=None if is_row(key) else key,
+                    row=int(key[2:]) if is_row(key) else None)
         now = visual_plan(plt, D)
         # 🔴 幀雜湊要**用現行碼重畫**再比。只讀已渲好的檔只能證明「mp4 沒
         #    被換掉」,答不了真正的問題:「現行碼渲出來會不會不一樣」。
@@ -206,7 +220,7 @@ def cta_gate(items, longs_pub, longs_all):
     blocked = []
     for o in items:
         key = o["key"]
-        lk = key if not key.startswith("ep") else key.replace("ep", "eps/ep")
+        lk = f"eps/{key}" if is_row(key) else key
         d = ROOT / "shorts" / key
         said = False
         for f in d.glob("narr_*.txt"):
@@ -291,6 +305,12 @@ def short_title(key, o):
     #    同一件事,Short 這份漏掉 —— 同一個錯的第二個表面,今晚第四次。
     # 效應名取長片標題冒號前那一段(publish_meta 已經把它放在最前面)。
     name = o["title"].split(":")[0] if ":" in o["title"] else ""
+    if o.get("kind") == "trailer":
+        # 🔴 **不要跟長片掛一模一樣的標題。** 長片是「25 famous psychology
+        #    claims, retested on 58,653 people. 8 held up.」——同一句再用一次,
+        #    對觀眾是重複,對 YPP 的模板化審查是紅旗(見本函式 docstring)。
+        return (f"We checked {f['k']} famous psychology claims. "
+                f"{f['n_sig']} held up.")
     if o.get("kind") == "domains":
         best, worst = f.get("best"), f.get("worst")
         cand = (f"{name}: practice explained {f['pct_best']}% in {best}, "
@@ -333,7 +353,15 @@ def famous_meta(d, o, mp4, longs, longs_all):
     #    effect: X (N people)」,對跨領域集(數字是每個領域的百分比,
     #    沒有 es_r 也沒有 n_r)直接丟 TypeError;對效應家族則會把
     #    6 種做法、12 次重測的中位數講成單一個效果量。
-    if D.get("domains"):
+    if D.get("scoreboard"):
+        T = D["scoreboard"]
+        nums = (f"{T['k']} claims, {T['n_sum']:,} people in the "
+                f"replications\n"
+                f"  {T['gone']} gone\n"
+                f"  {T['shrunk']} smaller, still there\n"
+                f"  {T['flipped']} went the other way\n"
+                f"  {T['survived']} held up\n")
+    elif D.get("domains"):
         from make_domains import fmt_pct
         nums = ("Percent of the variance in performance explained:\n"
                 + "\n".join(f"  {x['name']}: {fmt_pct(x)}"
@@ -454,12 +482,12 @@ def build_meta():
     # 排序讓名案排在前面 —— 那是唯一有人認得、會主動搜的題材,而這個
     # 頻道現在最缺的是「被發現」,不是「有貨」。
     dirs = sorted((ROOT / "shorts").iterdir(),
-                  key=lambda d: (d.name.startswith("ep"), d.name))
+                  key=lambda d: (is_row(d.name), d.name))
     for d in dirs:
         mp4 = d / f"{d.name}_short.mp4"
         if not mp4.exists():
             continue
-        if not d.name.startswith("ep"):
+        if not is_row(d.name):
             # 🔴 **不要只找一個前綴。** 舊版只查 `eps_famous/`,於是
             #    eps_lineup(效應家族)與 eps_domain(跨領域)那兩支
             #    渲好的 Short 被**靜默跳過** —— 片子在、metadata 在、
