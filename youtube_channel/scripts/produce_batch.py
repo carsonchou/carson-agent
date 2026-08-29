@@ -548,6 +548,23 @@ def pull_topic(kind):
     # 帶 kind:EP 實測 franchise 只在 short 觸發(call_claude 的 is_ep 第一個條件就是 kind=="short"),
     # 長片路徑套這道只會誤殺「個股體檢EPn」這種同樣含 EP 但綁 checkup_ fact_key 的有憑據長片題。
     cand = _ep_stale_filter(cand, kind)
+    # 🔴 2026-08-30 長片必須有事實依據:沒有 fact_key 的長片題 = 模型只能自由發揮,
+    # 而 8-10 分鐘的長片沒有真數據可講就只會灌水 → 資訊密度閘門擋下 → fail-closed。
+    # 實測 08-28 的補產日誌:A4 通用題連續 7 小時全滅,原因清一色是「資訊密度不足」與
+    # 「長度不足」;而當時未用的非體檢長片題 26 題裡,**12 題完全沒有 fact_key**、
+    # 另外 14 題的 fact_key 全被事實層去重擋著(dca_vs_allin__0050 近期已產過)
+    # —— 也就是那 26 題**每一題都是死路**,而 bucket 配額還是會定期從裡面抽,
+    # 一抽就是 5 次 LLM 呼叫(1 次抽題 + 4 次重生)換 0 產出。
+    # 短片不套這道:30~45 秒講一個觀念,沒有 fact_key 也寫得出來(而且短片本來就少)。
+    # fail-safe:濾完剩不到 5 題就整個放棄這道 —— 寧可燒幾次 LLM,也不要把產線濾到停產。
+    if kind == "long":
+        _grounded = [t for t in cand if str(t.get("fact_key", "") or "").strip()]
+        if len(_grounded) >= 5:
+            if len(_grounded) < len(cand):
+                log_ops("補產部門",
+                        f"長片選題:濾掉 {len(cand) - len(_grounded)} 題無事實依據的"
+                        f"(沒有 fact_key 的長片只會灌水,必被密度閘門擋下)")
+            cand = _grounded
     # 治本:①乾淨題優先於新聞旁路來源題(修「回測/你的」讓幣圈恐慌題誤命中 _NUM_KW 插隊贏過乾淨題的 bug)
     #       ②同組內再靠「數字戳破直覺」會紅題(完播高)優先;工具教學/純新聞題排後、自然餓死
     # 2026-07 成長衝刺(growth_sprint_plan.md B 段):台股/ETF/0050×定投對比×回測打臉直覺＝
