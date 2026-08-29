@@ -236,6 +236,16 @@ def marker_onset(mp4, ep_dir):
     回傳 0~1 的比例,或 None(整幕都沒出現)。
     """
     import imageio.v2 as iio
+    # 🔴 **名案走的是另一套版面**(`make_famous.py`:橫向數線、沒有
+    #    「this study」標記),而 MARK_ROI 的座標是照 `make_episode` 的
+    #    `ax2 = add_axes([0.12, 0.28, 0.76, 0.30])` 算的。硬套上去它會回
+    #    一個**看起來很合理的數字**(實測 implicit_bias_test 0.189、
+    #    ego_depletion 0.784),而那個數字沒有意義 —— 0.784 還會被印成
+    #    「⛔ 標記到 78% 才出現」,對一個根本不存在的元素發假警報。
+    #    這正是今天反覆出現的形狀:檢查能跑、有輸出、看起來在把關,
+    #    而它回答的是另一個問題。不適用就要說不適用,不要給數字。
+    if "eps_famous" in str(ep_dir).replace("\\", "/"):
+        return "n/a"
     b = scene_bounds(ep_dir)
     if not b:
         return None
@@ -266,7 +276,8 @@ def check(mp4):
     dur, at = worst_run(s)
     med = float(np.median([x for _, x in s]))
     onset = marker_onset(mp4, mp4.parent)
-    late = onset is None or onset > MARK_LATE
+    # "n/a" = 這個判準對這支不適用(名案版面不同),不是「沒找到」。
+    late = onset != "n/a" and (onset is None or onset > MARK_LATE)
     return {"n": len(s), "min_ink": min(x for _, x in s),
             "med_ink": med, "empty_s": dur, "empty_at": at,
             "mark_at": onset, "mark_late": late,
@@ -324,7 +335,8 @@ def main():
                      else f"  ⛔ 標記到 {r['mark_at']:.0%} 才出現")
         if not r["ok"]:
             bad += 1
-        mk = "—" if r["mark_at"] is None else f"{r['mark_at']:.0%}"
+        mk = ("n/a" if r["mark_at"] == "n/a"
+              else "—" if r["mark_at"] is None else f"{r['mark_at']:.0%}")
         print(f"{p.parent.name:22s} 取樣 {r['n']:3d}  中位墨水 {r['med_ink']:.3f}"
               f"  標記 {mk:>4s}"
               f"  最低 {r['min_ink']:.3f}  最長近空 {r['empty_s']:.1f}s"
