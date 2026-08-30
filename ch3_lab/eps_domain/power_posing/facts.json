@@ -1,0 +1,79 @@
+{
+ "slug": "power_posing",
+ "arc": "outcomes",
+ "unit": "d",
+ "claim": "standing in a powerful pose for two minutes makes you more powerful",
+ "popular_name": "power posing",
+ "search_term": "power posing",
+ "scan": {
+  "on_topic": 15,
+  "median_views": 23711,
+  "small_channels": 6,
+  "median_subs": 43000,
+  "score": 9484,
+  "measured": "2026-08-29 effect_scan.py"
+ },
+ "original": {
+  "year": 2010,
+  "title": "Power Posing: Brief Nonverbal Displays Affect Neuroendocrine Levels and Risk Tolerance",
+  "journal": "Psychological Science",
+  "doi": "10.1177/0956797610383437",
+  "n": 42,
+  "cited_by": 868,
+  "cited_by_source": "OpenAlex, retrieved 2026-08-30",
+  "cited_by_approx": 800,
+  "quote": "That a person can, by assuming two simple 1-min poses, embody power and instantly become more powerful has real-world, actionable implications. [Carney, Cuddy & Yap 2010, abstract]",
+  "n_quote": "Carney et al. found that power posing affected levels of hormones such as testosterone and cortisol, financial risk taking, and self-reported feelings of power in a sample of 42 participants [Ranehill et al. 2015, p.653]"
+ },
+ "test": {
+  "year": 2015,
+  "kind": "conceptual replication, experimenter blind to condition",
+  "title": "Assessing the Robustness of Power Posing: No Effect on Hormones and Risk Tolerance in a Large Sample of Men and Women",
+  "journal": "Psychological Science 26(5), 653-656",
+  "doi": "10.1177/0956797614553946",
+  "pmid": "25810452",
+  "n": 200,
+  "cited_by": 242,
+  "cited_by_source": "OpenAlex, retrieved 2026-08-30",
+  "source_pdf": "https://faculty.haas.berkeley.edu/dana_carney/ranehill.pdf",
+  "power_quote": "Our statistical power to detect an effect of the magnitude reported by Carney et al. was more than 95% [Ranehill et al. 2015, p.653]",
+  "outcomes": [
+   {
+    "name": "felt more powerful",
+    "d": 0.344,
+    "p": 0.017,
+    "sig": true,
+    "quote": "mean difference = 0.245, 95% CI = [0.044, 0.446], t(193) = 2.399, p = .017, Cohen's d = 0.344"
+   },
+   {
+    "name": "testosterone",
+    "d": -0.2,
+    "p": 0.162,
+    "sig": false,
+    "quote": "mean difference = -4.077, 95% CI = [-9.801, 1.647], t(196) = -1.405, p = .162, Cohen's d = -0.200"
+   },
+   {
+    "name": "cortisol",
+    "d": -0.157,
+    "p": 0.272,
+    "sig": false,
+    "quote": "mean difference = -0.028, 95% CI = [-0.078, 0.022], t(196) = -1.101, p = .272, Cohen's d = -0.157"
+   },
+   {
+    "name": "risk taking",
+    "d": -0.176,
+    "p": 0.215,
+    "sig": false,
+    "quote": "mean difference = -0.033, 95% CI = [-0.085, 0.019], t(198) = -1.245, p = .215, Cohen's d = -0.176"
+   }
+  ],
+  "extra_quote": "Neither of the other two behavioral tasks yielded significant differences by condition. [Ranehill et al. 2015, p.654]",
+  "verdict_quote": "Using a much larger sample size but similar procedures as Carney et al. did, we failed to confirm an effect of power posing on testosterone, cortisol, and financial risk taking. We did find that power posing affected self-reported feelings of power; however, this did not yield behavioral effects. [Ranehill et al. 2015, p.654]",
+  "missing": [],
+  "missing_note": "這一集沒有缺漏欄位 —— 全文讀過,每個數字都附原句。"
+ },
+ "hook": "Standing in a powerful pose for two minutes makes you more powerful?",
+ "hook_short": "Two minutes in a power pose?",
+ "tone": "shrunk_real",
+ "tone_manual_why": "四個結果裡有一個顯著(felt power, p=.017)、三個不顯著。判 gone 是**過度宣稱** —— 有一個真的重現了,而且是原作者也量的那一個。判 held 也不對 —— 那個頻道賣點的三個生理與行為結果全都沒重現。這一集的重點就是**哪一個活下來**,所以定調必須是 shrunk_real 並在片裡講清楚是哪一個。"
+}

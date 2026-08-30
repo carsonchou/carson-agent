@@ -73,7 +73,66 @@ def fmt_pct(dm):
     return f"{'<' if dm.get('pct_is_upper_bound') else ''}{dm['pct']}%"
 
 
+#: Cohen's d 的唸法。**用 make_episode.say_num,不要自己寫一個。**
+#: 🔴 我自己寫的第一版是 `f"{abs(x):.2f}".replace("0.", "zero point ")`,
+#:    產出「zero point 34」—— 小數點後面的數字沒有被拆開唸,TTS 會唸成
+#:    「三十四」。而 say_num 早就把這件事做對了,連負號要唸出來(方向相反
+#:    和變小是兩個結論)都處理過。同一件事第二份實作,今晚第 N 次。
+from make_episode import say_num as say_d                    # noqa: E402
+
+
+def build_outcomes_script(E):
+    """`arc: outcomes` —— 一個宣稱、原作者量了好幾個結果、重測只有一部分回來。
+
+    🔴 這一集的重點**不是「沒重現」**,是**哪一個重現了**。四個結果裡
+    felt power 顯著(p=.017),三個生理與行為結果不顯著。把它講成
+    「power posing 沒用」是過度宣稱,而且跟我自己引用的原文矛盾。
+    """
+    o, t = E["original"], E["test"]
+    outs = t["outcomes"]
+    kept = [x for x in outs if x["sig"]]
+    lost = [x for x in outs if not x["sig"]]
+    return [
+        ("hook",
+         "Stand like this for two minutes and you become more powerful. "
+         "You have heard this one."),
+        ("origin",
+         f"The {o['year']} study measured {len(outs)} things on "
+         f"{o['n']} people: how powerful they felt, their testosterone, "
+         f"their cortisol, and whether they took a financial risk. "
+         f"All {len(outs)} moved."),
+        ("test",
+         f"In {t['year']} another team ran it on {t['n']} people, with the "
+         f"experimenter blind to which pose you were in. Their power to "
+         f"detect an effect the size of the original was above 95 percent."),
+        ("outcomes",
+         # 🔴 **p 值不唸,只上畫面。** TTS 把「.017」唸成一串怪音,而
+         #    畫面上有精確值可以查。旁白負責「顯不顯著」這個判斷,
+         #    畫面負責那個可查證的數字 —— 兩邊講的是同一件事的兩個層次,
+         #    不是同一件事講兩次。
+         "Here is what came back. "
+         + " ".join(
+             f"{x['name'].capitalize()}, {say_d(x['d'])}"
+             f"{', significant.' if x['sig'] else ', not significant.'}"
+             for x in outs)),
+        ("punch",
+         f"{len(kept)} of the {len(outs)} came back. "
+         f"The one you can only find out by asking. "
+         f"The {len(lost)} you could actually measure from the outside "
+         f"did not."),
+        ("verdict",
+         "The authors put it plainly: using a much larger sample, they "
+         "failed to confirm an effect on testosterone, cortisol, or "
+         "financial risk taking. Power posing changed how people said "
+         "they felt. It did not change what they did."),
+        ("close",
+         "One claim, the numbers behind it, no adjectives."),
+    ]
+
+
 def build_script(E):
+    if E.get("arc") == "outcomes":
+        return build_outcomes_script(E)
     o, t = E["original"], E["test"]
     doms = t["domains"]
     by = {d["name"]: d for d in doms}
@@ -115,9 +174,24 @@ def audit(E, segs):
     成立而給了假綠燈 —— 同一個錯不能在下一支再犯一次。
     """
     o, t = E["original"], E["test"]
-    ok = {str(o["year"]), str(t["year"]), str(o["cited_by_approx"]),
-          f"{o['cited_by_approx']:,}"}
-    ok |= {str(d["pct"]) for d in t["domains"]}
+    ok = {str(o["year"]), str(t["year"])}
+    if o.get("cited_by_approx"):
+        ok |= {str(o["cited_by_approx"]), f"{o['cited_by_approx']:,}"}
+    if E.get("arc") == "outcomes":
+        outs = t["outcomes"]
+        ok |= {str(o["n"]), str(t["n"]), str(len(outs)),
+               str(sum(1 for x in outs if x["sig"])),
+               str(sum(1 for x in outs if not x["sig"])), "95"}
+        for x in outs:
+            # 🔴 溯源正則抓的是**純數字 token**:旁白寫「p equals .017」,
+            #    抓出來的是 `017`,不是 `.017` 也不是 `0.017`。
+            #    所以放行清單要放**它真的會抓到的那個形式**,而不是我
+            #    心裡想的那個形式。第一版就因此把自己的稿子擋下來。
+            ok |= {f"{abs(x['d']):.2f}", f"{x['d']:.2f}", str(x["p"]),
+                   f"{x['p']:.3f}".split(".")[1],          # 017
+                   f"{abs(x['d']):.2f}".split(".")[1]}     # 34
+    else:
+        ok |= {str(d["pct"]) for d in t["domains"]}
     bad = []
     for name, txt in segs:
         for num in re.findall(r"\d(?:[\d,]*\d)?", txt):
@@ -169,6 +243,33 @@ def render_scene(name, t_now, dur, ctx):
     elif name == "test":
         txt(0.60, str(T["year"]), 150, DIM)
         txt(0.42, "somebody added up every study", 52, FG, "normal")
+    elif name in ("outcomes", "punch") and E.get("arc") == "outcomes":
+        # 四列:量了什麼 / 效果量 / p 值 / 成不成立。
+        # 🔴 **不畫長條。** d 沒有「佔滿格的幾分之幾」這種讀法,畫成長條
+        #    等於發明一個觀眾無法解讀的比例尺(而且負的 d 要往哪邊長?)。
+        #    清單反而更誠實:數字就是數字,旁邊寫它過不過門檻。
+        txt(0.90, "what came back", 46, DIM, "normal")
+        outs = T["outcomes"]
+        for i, x in enumerate(outs):
+            step = 1.9 if name == "outcomes" else 0.0
+            if t_now < 0.4 + i * step:
+                continue
+            b = ease(min(1.0, (t_now - 0.4 - i * step) / 0.6))
+            y = 0.72 - i * 0.145
+            hot = x["sig"]
+            col = "#5FC98A" if hot else DIM
+            # 四欄的 x 座標從安全區倒推,不是挑出來的:
+            # 名稱 0.08→0.44、d 收在 0.56、p 收在 0.70、判決 0.73→0.92。
+            ax.text(0.08, y, x["name"], ha="left", va="center", fontsize=40,
+                    color=FG if hot else DIM, weight="bold", alpha=b)
+            ax.text(0.60, y, f"d = {x['d']:+.2f}".replace("+", " "),
+                    ha="right", va="center", fontsize=42, color=col,
+                    weight="bold", alpha=b)
+            ax.text(0.735, y, f"p = {x['p']:.3f}".replace("0.", "."),
+                    ha="right", va="center", fontsize=36, color=DIM, alpha=b)
+            ax.text(0.765, y, "held" if hot else "not significant",
+                    ha="left", va="center", fontsize=32, color=col,
+                    weight="bold", alpha=b)
     elif name in ("domains", "punch"):
         # 滿格的條 = 表現的全部差異。上色的那一段 = 練習解釋掉的部分。
         # 26% 印成字看起來很大,畫成條就是四分之一 —— 兩者是同一個數字。

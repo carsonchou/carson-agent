@@ -201,5 +201,12 @@
    "SEPARATES THE BEST"
   ],
   "spoken": "Is how much you practise what separates the best?"
+ },
+ "eps_domain/power_posing": {
+  "lines": [
+   "STAND LIKE THIS",
+   "AND BECOME MORE POWERFUL"
+  ],
+  "spoken": "Does standing in a powerful pose make you more powerful?"
  }
 }

@@ -49,6 +49,15 @@ FOOTER = (
     "Replication data: FORRT Replication Database (FReD), osf.io/2tbvd")
 
 
+def t_n(T):
+    """重測人數。**沒有就回報沒有,不要填 0。**"""
+    n = T.get("n")
+    if n is None:
+        raise SystemExit("⛔ outcomes 集缺 test.n —— 標題會講一個假數字")
+    return f"{int(n):,}"
+
+
+
 def footer_for(n_papers):
     """頁尾要跟說明裡**實際有幾篇論文**一致。
 
@@ -617,8 +626,46 @@ def main():
             key = f"eps_domain/{d.name}"
             if not _plain.spoken(key):
                 print(f"  ⛔ {d.name}:缺手寫白話句,跳過"); continue
-            by = {x["name"]: x for x in T["domains"]}
             nl = chr(10)
+            if E.get("arc") == "outcomes":
+                outs = T["outcomes"]
+                kept = [x for x in outs if x["sig"]]
+                title = (f"{E['popular_name'].capitalize()}: they measured "
+                         f"{len(outs)} things on {t_n(T)} people. "
+                         f"{len(kept)} came back.")
+                rows = nl.join(
+                    f"  {x['name']:<20} d = {x['d']:+.2f}   p = "
+                    f"{x['p']:.3f}   "
+                    f"{'significant' if x['sig'] else 'not significant'}"
+                    for x in outs)
+                desc = (
+                    f"{_plain.spoken(key)}{nl}{nl}"
+                    f"The original: {O['title']} ({O['year']}), "
+                    f"n = {O['n']}, doi:{O['doi']}{nl}"
+                    f"The replication: {T['title']} ({T['year']}), "
+                    f"n = {T['n']}, doi:{T['doi']}{nl}{nl}"
+                    f"What the replication found:{nl}{rows}{nl}{nl}"
+                    f"Quoted from the replication:{nl}"
+                    + nl.join('  "' + x["quote"] + '"' for x in outs) + nl
+                    + f'  "{T["extra_quote"]}"{nl}{nl}'
+                    f"The authors' own summary:{nl}"
+                    f'"{T["verdict_quote"]}"{nl}{nl}'
+                    f"On statistical power:{nl}"
+                    f'"{T["power_quote"]}"') + footer_for(2)
+                out.append({
+                    "kind": "domains", "slug": d.name, "dir": key,
+                    "video": f"{key}/{d.name}.mp4",
+                    "thumb": f"{key}/thumb.jpg",
+                    "tone": E.get("tone", "shrunk_real"),
+                    "title": title, "description": desc, "tags": TAGS,
+                    "facts": {"es_o": None, "es_r": None, "n_r": None,
+                              "es_kind": "d", "is_replication": True,
+                              "k": len(outs), "k_word": "outcomes",
+                              "n_kept": len(kept), "arc": "outcomes"},
+                })
+                print(f"  ✓ {d.name}:{title}")
+                continue
+            by = {x["name"]: x for x in T["domains"]}
             best = max(T["domains"], key=lambda x: x["pct"])
             worst = min(T["domains"], key=lambda x: x["pct"])
             title = (f"The {E['popular_name'].replace('the ', '')}: practice "

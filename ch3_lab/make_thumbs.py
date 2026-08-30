@@ -170,10 +170,17 @@ def fit(plt, text, base, max_frac=0.92, weight="bold"):
 
 
 def _dom_rows(o):
-    """跨領域集的每個領域。從 facts.json 讀,不從說明欄回推。"""
+    """跨領域集的每一列。從 facts.json 讀,不從說明欄回推。
+
+    兩種形狀:`domains`(百分比)與 `outcomes`(每個結果的 d 與 p)。
+    回傳 (是不是 outcomes, 列)。
+    """
     import json as _j
-    p = ROOT / o["dir"] / "facts.json"
-    return _j.loads(p.read_text(encoding="utf-8"))["test"]["domains"]
+    E = _j.loads((ROOT / o["dir"] / "facts.json").read_text(encoding="utf-8"))
+    T = E["test"]
+    if E.get("arc") == "outcomes":
+        return True, T["outcomes"]
+    return False, T["domains"]
 
 
 def draw(plt, o, out_path):
@@ -189,7 +196,12 @@ def draw(plt, o, out_path):
     if o.get("kind") == "domains":
         # 跨領域集沒有 n_r(它不是「重測了幾個人」),它的數字是每個領域
         # 解釋掉多少變異。**閘門不是放行,是換一個該檢查的東西。**
-        if not f.get("pct_worst") and f.get("pct_worst") != 0:
+        # 兩種形狀各查各的必要欄位。**不要放行,是換一個該檢查的東西。**
+        if f.get("arc") == "outcomes":
+            if f.get("n_kept") is None or not f.get("k"):
+                print(f"  跳過(沒有結果數):{o['title'][:40]}")
+                return False
+        elif not f.get("pct_worst") and f.get("pct_worst") != 0:
             print(f"  跳過(沒有百分比):{o['title'][:40]}")
             return False
     elif n_r is None or (not has_orig and not f.get("k")):
@@ -206,7 +218,12 @@ def draw(plt, o, out_path):
         # 跨領域集沒有效果量,也沒有「重測了幾個人」——它的證據是
         # **同一個宣稱在不同領域解釋掉多少**。硬套 SCALE 會印出
         # 「Retested on None people」。
-        word = f"<{f['pct_worst']}% AT WORK"
+        if f.get("arc") == "outcomes":
+            # 判決字講**哪一個活下來**,不是「全部沒重現」——四個裡有一個
+            # 顯著,講成全滅是過度宣稱,而且跟說明欄引的原文矛盾。
+            word = f"{f['n_kept']} OF {f['k']} HELD"
+        else:
+            word = f"<{f['pct_worst']}% AT WORK"
     elif o.get("kind") == "trailer":
         # 🔴 預告片沒有「一個判決」。VERDICT["held"] 會印「IT HELD UP」——
         #    那是在對整個頻道下一個它沒有的結論(25 集裡只有 8 個撐住)。
@@ -255,8 +272,13 @@ def draw(plt, o, out_path):
         #    講成點估計 —— 旁白端(make_domains.say_pct)有守著這件事,
         #    縮圖端沒有。同一個錯的第二個表面,今晚第三次。
         # 寫法從 make_domains 匯入 —— 一個規則一份實作。
-        from make_domains import fmt_pct
-        sub = " · ".join(f"{x['name']} {fmt_pct(x)}" for x in _dom_rows(o))
+        is_out, rows = _dom_rows(o)
+        if is_out:
+            sub = " · ".join(
+                f"{x['name']} {'held' if x['sig'] else 'no'}" for x in rows)
+        else:
+            from make_domains import fmt_pct
+            sub = " · ".join(f"{x['name']} {fmt_pct(x)}" for x in rows)
     elif o.get("kind") == "trailer":
         # 🔴 預告片沒有「一個判決」。套 VERDICT["held"] 會印出
         #    「IT HELD UP」——那是在對整個頻道下一個它沒有的結論。

@@ -813,5 +813,38 @@
    "best": "games",
    "worst": "professions"
   }
+ },
+ {
+  "kind": "domains",
+  "slug": "power_posing",
+  "dir": "eps_domain/power_posing",
+  "video": "eps_domain/power_posing/power_posing.mp4",
+  "thumb": "eps_domain/power_posing/thumb.jpg",
+  "tone": "shrunk_real",
+  "title": "Power posing: they measured 4 things on 200 people. 1 came back.",
+  "description": "Does standing in a powerful pose make you more powerful?\n\nThe original: Power Posing: Brief Nonverbal Displays Affect Neuroendocrine Levels and Risk Tolerance (2010), n = 42, doi:10.1177/0956797610383437\nThe replication: Assessing the Robustness of Power Posing: No Effect on Hormones and Risk Tolerance in a Large Sample of Men and Women (2015), n = 200, doi:10.1177/0956797614553946\n\nWhat the replication found:\n  felt more powerful   d = +0.34   p = 0.017   significant\n  testosterone         d = -0.20   p = 0.162   not significant\n  cortisol             d = -0.16   p = 0.272   not significant\n  risk taking          d = -0.18   p = 0.215   not significant\n\nQuoted from the replication:\n  \"mean difference = 0.245, 95% CI = [0.044, 0.446], t(193) = 2.399, p = .017, Cohen's d = 0.344\"\n  \"mean difference = -4.077, 95% CI = [-9.801, 1.647], t(196) = -1.405, p = .162, Cohen's d = -0.200\"\n  \"mean difference = -0.028, 95% CI = [-0.078, 0.022], t(196) = -1.101, p = .272, Cohen's d = -0.157\"\n  \"mean difference = -0.033, 95% CI = [-0.085, 0.019], t(198) = -1.245, p = .215, Cohen's d = -0.176\"\n  \"Neither of the other two behavioral tasks yielded significant differences by condition. [Ranehill et al. 2015, p.654]\"\n\nThe authors' own summary:\n\"Using a much larger sample size but similar procedures as Carney et al. did, we failed to confirm an effect of power posing on testosterone, cortisol, and financial risk taking. We did find that power posing affected self-reported feelings of power; however, this did not yield behavioral effects. [Ranehill et al. 2015, p.654]\"\n\nOn statistical power:\n\"Our statistical power to detect an effect of the magnitude reported by Carney et al. was more than 95% [Ranehill et al. 2015, p.653]\"\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "tags": [
+   "replication crisis",
+   "psychology",
+   "effect size",
+   "science",
+   "research",
+   "statistics",
+   "meta-analysis",
+   "replication study",
+   "open science",
+   "social psychology"
+  ],
+  "facts": {
+   "es_o": null,
+   "es_r": null,
+   "n_r": null,
+   "es_kind": "d",
+   "is_replication": true,
+   "k": 4,
+   "k_word": "outcomes",
+   "n_kept": 1,
+   "arc": "outcomes"
+  }
  }
 ]
