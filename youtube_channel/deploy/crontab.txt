@@ -253,7 +253,13 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 #   目前通過所有閘門的長片候選只有 9 支,所以實際發得掉的就在這個安全帶內。
 #   配額試算:6 支上傳 ≈ 9,600 units + 音軌 3,000 + 追劇鏈 2,000 + 加註 765 ≈ 15,400 < 18,000。
 #   ⚠️ 這是在節奏實驗(7→3/天,至 08-26)最後兩天**刻意加量**,08-28 報告要記這個偏離。
-30 18 * * * /root/yt/run.sh scripts/daily_publish.py --max 5 >> /root/yt/logs/cron.log 2>&1
+# 🔴 2026-08-30 --max 5 → 6。上面兩條省下約 2,350 units ≈ 1 支片的發布成本。
+#   產能 10 支/天 > 發布 6.5 支/天,庫存 32 支持續累積 —— **沒發布的片對觀看時數貢獻是零**,
+#   而觀看時數正是 YPP 的卡點(912/4000 小時)。把省下的配額換成多發一支。
+#   配額試算:現況 18,017/19,645(只發 5 支);省 2,350 + 多發 1 支 2,200 → 約 17,867,仍在上限內。
+#   ⚠️ 不再往上加:memory yt-search-entry-decides-views 記著「單日 >=21 支那 16 天觀看中位 3
+#   vs 其他日 37」——一次倒太多會互相稀釋。7 支/天離那個水位還很遠,但別再試探。
+30 18 * * * /root/yt/run.sh scripts/daily_publish.py --max 6 >> /root/yt/logs/cron.log 2>&1
 # 台股收盤後覆盤情緒黃金窗口 —— 2026-07-13 依實測改停靠早盤強桶(09:00 時段 retention 49.75%/
 # n=26,views_per_day 2.34/n=27,樣本夠大且表現佳,優於原 13:40)
 # 2026-07-17 由「只交易日 1-5」改成每天:新的 interleave 讓三批取到 L,L,(L,S,S),但這批只在
@@ -499,7 +505,12 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # 系列有新片時舊片的 next 指向自動更新(state 檔比對,只更新有變的,50 quota/支)
 # 解的問題:實測 50 支長片 0 支互相連結、播放清單來源 137秒/次(最高)卻 28 天只有 49 次
 # 見 scripts/binge_chain.py;首輪 225 支已於 2026-08-21 手動跑完
-5 17 * * * YT_QUOTA_RESERVE=13200 /root/yt/run.sh scripts/binge_chain.py --apply --max 40 >> /root/yt/logs/cron.log 2>&1
+# 🔴 2026-08-30 --max 40 → 8。配額實測:連播鏈每天燒 **2,000 units**(40 支 × 50),
+#   而它帶來的流量是 PLAYLIST 10 觀看/週 + END_SCREEN 1 觀看/週。
+#   同樣 2,000 units 幾乎等於**再發一支長片**(每支 2,200),而一支長片一生約 10 小時觀看時數。
+#   狀態檔顯示它已處理 241/255 支卻天天跑滿 40 = 目標一直在變的 churn,不是在收尾。
+#   降到 8 仍會照「流量優先序」更新最重要的那幾支,只是不再每天重排整條鏈。
+5 17 * * * YT_QUOTA_RESERVE=13200 /root/yt/run.sh scripts/binge_chain.py --apply --max 8 >> /root/yt/logs/cron.log 2>&1
 
 # 櫥窗一次性重建(⚠️ 只該跑 2026-08-22 這一次,跑完請刪本行):08-21 兩實例互洗+facelift
 #   同日改門面,櫥窗翻倍到 10 個。storefront 已改成不碰 trailer、個股體檢排位置 1,
@@ -527,7 +538,10 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # 自動翻譯字幕來源、自動配音資格與**語言別推薦對象**,標成英語=把中文台股片推給英語觀眾。
 # 上傳端已修(daily_publish),存量 808 支分批補:每日 60 支 ≈ 3,000 units,約 14 天補完。
 # 冪等(已是 zh* 就跳過),補完會自己變成 no-op,不必記得回來刪。
-25 15 * * * YT_QUOTA_RESERVE=13200 /root/yt/run.sh scripts/fix_audio_language.py --apply --max 20 >> /root/yt/logs/cron.log 2>&1
+# 🔴 2026-08-30 --max 20 → 5。每天 1,000 units 補舊片的音訊語言 metadata,還剩 574 檔
+#   (照 20/天要 29 天)。那是舊片的長尾 metadata,而同樣的配額拿去發片是 0.45 支/天。
+#   新片在上傳時就會帶正確語言,這條只影響舊片;降到 5 讓它慢慢補,不跟發布搶配額。
+25 15 * * * YT_QUOTA_RESERVE=13200 /root/yt/run.sh scripts/fix_audio_language.py --apply --max 5 >> /root/yt/logs/cron.log 2>&1
 
 # 搜尋縮圖翻新(2026-08-23 建):近28天 YT_SEARCH 佔 40% 觀看時數,搜尋詞全是赤裸股票名
 # → 體檢片是「台股個股的搜尋佔位」,搜尋結果那張縮圖就是點擊決策點,而且是常青的。
