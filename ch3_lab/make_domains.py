@@ -276,8 +276,18 @@ def audit(E, segs):
     if bad:
         raise SystemExit(f"⛔ 稿子裡有溯源不到的數字:{bad}")
     # 缺的欄位不准出現在稿子裡(k 與 n 摘要沒給,我還沒讀原文)
-    for miss in t.get("missing", []):
-        raise_if = {"k": ("studies", "papers"), "n": ("participants",)}[miss]
+    # 🔴 `missing` 有兩種用途,分開:
+    #    · `missing_fields`:**欄位名**(k / n),機器拿來擋「稿子提到了但
+    #      事實庫沒有」的情況
+    #    · `missing`:給人看的說明(「付費牆,一手驗不到」),不參與檢查
+    #    第一版只有一個欄位,於是我寫成人看的句子之後,audit 拿它去查表
+    #    直接 KeyError。**一個欄位兩種用途,遲早會撞。**
+    _WORDS = {"k": ("studies", "papers"), "n": ("participants",)}
+    for miss in t.get("missing_fields", []):
+        if miss not in _WORDS:
+            raise SystemExit(f"⛔ missing_fields 只收欄位名(k / n),"
+                             f"收到「{miss}」—— 給人看的說明請放 `missing`")
+        raise_if = _WORDS[miss]
         for name, txt in segs:
             for w in raise_if:
                 if w in txt.lower():

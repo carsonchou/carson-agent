@@ -1,0 +1,101 @@
+{
+ "slug": "anchoring",
+ "arc": "outcomes",
+ "unit": "d",
+ "claim": "showing someone a number first pulls their estimate toward it",
+ "popular_name": "the anchoring effect",
+ "search_term": "anchoring effect",
+ "scan": {
+  "on_topic": 20,
+  "median_views": 12708,
+  "small_channels": 11,
+  "median_subs": 7580,
+  "score": 6989,
+  "measured": "2026-08-29 effect_scan.py"
+ },
+ "original": {
+  "year": 1995,
+  "title": "Measures of Anchoring in Estimation Tasks",
+  "journal": "Personality and Social Psychology Bulletin 21(11), 1161-1166",
+  "doi": "10.1177/01461672952111004",
+  "n": null,
+  "n_note": "**MISSING,而且是刻意留白。** 全文在付費牆後,Unpaywall 與 OpenAlex 都確認無 OA 版。網路搜尋給了「N=156(校準組 53 + 錨定組 103)」—— 細節度高到讓人想直接用,但一手驗不到。**不要用。**",
+  "⚠️_which_paper": "ML1 重測的是 **Jacowitz & Kahneman 1995**,不是 Tversky & Kahneman 1974 那篇祖師論文 —— 後者兩邊都沒有直接重測。片裡不能說「他們重現了 1974 年那篇」。",
+  "say_origin": "The idea is older, but the version that got retested is from 1995. You are asked whether something is more or less than a specific number - how many babies are born in the United States each day, how tall is Mount Everest - and then asked to estimate it. The number you were shown first pulls your answer toward it."
+ },
+ "test": {
+  "year": 2014,
+  "title": "Investigating Variation in Replicability: A 'Many Labs' Replication Project",
+  "journal": "Social Psychology 45(3), 142-152",
+  "doi": "10.1027/1864-9335/a000178",
+  "n": 6344,
+  "k": 36,
+  "k_word": "independent samples",
+  "n_quote": "This research tested variation in the replicability of 13 classic and contemporary effects across 36 independent samples totaling 6,344 participants.",
+  "⚠️_no_comparison": "**畫面上不放「原始 vs 重測」的對比。** 四題共用同一個原始 d = 0.93,而且 ML1 自己說算不出各題的:原始是 test-retest 設計的點二系列相關,重測是受試者間設計 —— **兩個數字不在同一把尺上**。可以講「四題全數成立」,**不可以講「效果變成 2.6 倍」**。",
+  "quote_scale": "The original anchoring article did not provide sufficient information to calculate effect sizes for individual scenarios, therefore an overall effect size is reported. The Anchoring original effect size is a mean point-biserial correlation computed across 15 different questions in a test-retest design, whereas the present replication adopted a between-subjects design with random assignments. [Klein et al. 2014]",
+  "outcomes": [
+   {
+    "name": "babies born each day",
+    "d": 2.42,
+    "p": 0.001,
+    "sig": true,
+    "is_claim": true,
+    "stat": "weighted d = 2.42, 99% CI [2.33, 2.51], t = 90.49, N = 5,609",
+    "quote": "Anchoring - babies born ... 2.42 2.33, 2.51 0.00 1.00 0.00 t = 90.49 5,607 5,609 <.001 [Klein et al. 2014, Table 2]"
+   },
+   {
+    "name": "height of Mount Everest",
+    "d": 2.23,
+    "p": 0.001,
+    "sig": true,
+    "is_claim": true,
+    "stat": "weighted d = 2.23, 99% CI [2.14, 2.32], t = 83.66, N = 5,627",
+    "quote": "Anchoring - Mt. Everest ... 2.23 2.14, 2.32 0.00 1.00 0.00 t = 83.66 5,625 5,627 <.001 [Table 2]"
+   },
+   {
+    "name": "population of Chicago",
+    "d": 1.79,
+    "p": 0.001,
+    "sig": true,
+    "is_claim": true,
+    "stat": "weighted d = 1.79, 99% CI [1.71, 1.87], t = 65.00, N = 5,284",
+    "quote": "Anchoring - Chicago ... 1.79 1.71, 1.87 0.00 1.00 0.00 t = 65.00 5,282 5,284 <.001 [Table 2]"
+   },
+   {
+    "name": "distance to New York",
+    "d": 1.17,
+    "p": 0.001,
+    "sig": true,
+    "is_claim": true,
+    "stat": "weighted d = 1.17, 99% CI [1.09, 1.25], t = 42.86, N = 5,362",
+    "quote": "Anchoring - distance to NYC ... 1.17 1.09, 1.25 0.00 1.00 0.00 t = 42.86 5,360 5,362 <.001 [Table 2]"
+   }
+  ],
+  "say_test": "In 2014, thirty-six independent samples ran thirteen classic psychology experiments the same way. Six thousand three hundred and forty-four people. Four of the thirteen were anchoring questions.",
+  "say_punch": "Every one of the four came back. And not narrowly. Across all thirty-six samples, the proportion that found the effect in the right direction and reached significance was one hundred percent. The proportion that went the other way: zero. The proportion that found nothing: zero. One thing I am not going to tell you is how much bigger it got, because the original paper measured it a different way and the two numbers are not on the same scale.",
+  "say_verdict": "So this is one of the ones that held. But be careful with the word. There is a different effect that also gets called anchoring - where a number you were never asked about, just something in the room, is supposed to move your estimate. That one was retested in 2018 on six thousand eight hundred and twenty-six people and came back at zero point zero four. Indistinguishable from zero. Same word. Two different claims. One held, one did not.",
+  "sibling_failure": {
+   "name": "incidental anchoring",
+   "year": 2018,
+   "title": "Many Labs 2: Investigating Variation in Replicability Across Samples and Settings",
+   "journal": "Advances in Methods and Practices in Psychological Science 1(4), 443-490",
+   "doi": "10.1177/2515245918810225",
+   "n": 6826,
+   "d": 0.04,
+   "original_paper": "Critcher & Gilovich 2008, Incidental environmental anchors, doi:10.1002/bdm.586",
+   "original_d": 0.3,
+   "quote": "This result does not support the hypothesis that sales estimates are influenced by incidental anchors. The effect size was in the same direction as the original effect size, but much smaller (d = 0.04, 95% CI = [-0.01, 0.09], vs. original d = 0.30) and indistinguishable from zero. [Klein et al. 2018]"
+  },
+  "missing": [
+   "原始論文的樣本數(付費牆,一手驗不到)",
+   "四題各自的原始效果量(原論文結構上就沒有)"
+  ],
+  "missing_note": "agent 從 ML1/ML2 的 PDF 用 pypdf 抽文字讀出 Table 2,每個數字附原句。",
+  "missing_fields": []
+ },
+ "hook": "Showing someone a number first pulls their estimate toward it?",
+ "hook_short": "A number first pulls your guess?",
+ "tone": "held",
+ "tone_manual_why": "四題全部同向顯著、36 個樣本無一例外 → held。這是這個頻道需要的「不是每個都失敗」那一集,而它是真的。但**必須同時講清楚**:(1) 不能講效果量變大幾倍(量尺不同),(2) 有另一個也叫 anchoring 的東西沒重現(incidental anchoring, d = 0.04),少講第二點就是讓觀眾把兩件事混為一談。"
+}

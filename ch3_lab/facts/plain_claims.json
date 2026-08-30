@@ -229,5 +229,12 @@
    "MEASURES THEIR ABILITY"
   ],
   "spoken": "Does being told a test measures your ability make you do worse on it?"
+ },
+ "eps_domain/anchoring": {
+  "lines": [
+   "SHOW A NUMBER FIRST",
+   "AND THE GUESS MOVES"
+  ],
+  "spoken": "Does showing someone a number first pull their estimate toward it?"
  }
 }
