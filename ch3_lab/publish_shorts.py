@@ -18,7 +18,11 @@ Shorts 的角色不一樣,所以文案規則也不一樣:
 
 ## 配額
 videos.insert 同樣 1600/支。Shorts 與長片共用同一個每日 10,000。
-所以排程要**分流**:長片一天 3 支、Shorts 一天 2 支,合計約 8,455 單位。
+排程實際是 **16:25(1 長 + 2 短)+ 22:25(3 短)= 1,663 + 5×1,606 = 9,693**,
+而每日可用是 10,000 - RESERVE(300) = **9,700** —— 也就是說跑完一天只剩 7。
+⚠️ 這一行以前寫「3 長 + 2 短 = 8,455」,跟 crontab 對不上。這條線出事最多的
+型態就是「同一件事兩個數字,而人拿來做決定的是舊的那個」。要改發布量,
+改 crontab 之後**回來改這裡**。
 
 用法:
   python publish_shorts.py --list
@@ -271,6 +275,42 @@ def ledger(p):
         raise SystemExit(f"⛔ 帳本 {p} 讀不了({e})——繼續跑會重傳。")
 
 
+def with_search_name(cand, q, o):
+    """把可搜尋的效應名補到標題最前面。**所有回傳路徑都要經過這裡。**
+
+    🔴 第一版寫在 short_title 的最後一行,而 `n_r is None` 的那條路
+    **在它之前就 return 了** —— 於是 bystander_effect 與
+    implicit_bias_test 這兩支(正好是需求分數有過關的)照樣沒有名字。
+    「修在一條路上,而實際走的是另一條」,今天第三次。
+
+    白話句是刻意寫成不含術語的,對已經在看的人好讀,但**沒有人會搜
+    那句話** —— 有人搜的是 implicit bias test、IAT、ego depletion。
+    這條線 40% 的入口來自搜尋。
+    ⚠️ 長片與 Short 不掛同一個標題(模板化紅旗):只借名字,後面接的
+    規模句跟長片的定調結語不同。
+    """
+    def lower1(s):
+        return s[0].lower() + s[1:] if s else s
+
+    name = (o["title"].split(":")[0].strip()
+            if ":" in o.get("title", "") else "")
+    key = name.lower()
+    key = key[4:] if key.startswith("the ") else key
+    have = bool(name) and bool(key) and key not in cand.lower()
+
+    # 🔴 **候選要照「名字優先於規模句」排。**
+    #    第一版只試「名字 + 完整候選」,塞不下就整個放棄退回裸問句。
+    #    而 bystander_effect 的完整候選本來就已經 101 字元 —— 於是加不加
+    #    名字都超長,兩個都被丟掉,結果是**最不該留的那個版本**留下來:
+    #    沒有名字、也沒有規模。規模句沒有名字重要:規模在說明欄裡有,
+    #    而名字是搜尋唯一的入口。
+    for c in ((f"{name}: {lower1(cand)}",) if have else ()) + (cand,) + \
+             ((f"{name}: {lower1(q)}",) if have else ()) + (q,):
+        if len(c) <= 100:
+            return c
+    return q[:100]
+
+
 def short_title(key, o):
     """Short 的標題。**兩個分支共用一份**,而且不放裸的效果量。
 
@@ -328,11 +368,19 @@ def short_title(key, o):
                 f"{f['n_sig']} worked.")
         return cand if len(cand) <= 100 else q[:100]
     if f.get("n_r") is None:
-        return q[:100]
+        return with_search_name(q, q, o)
     scale = SCALE[f.get("is_replication", True)].format(
         n=int(f["n_r"]), k=f.get("k"), k_word=f.get("k_word") or "studies")
     cand = f"{q} {scale}"
-    return cand if len(cand) <= 100 else q[:100]
+    # 🔴 **可搜尋的名字要在標題裡。** 這一批的白話句是刻意寫成不含術語的
+    #    (「Can a reaction-time test reveal your hidden bias?」),對「已經
+    #    在看」的人很好讀,但**沒有人會搜那句話** —— 有人搜的是
+    #    「implicit bias test」「IAT」「ego depletion」。而這條線 40% 的
+    #    入口來自搜尋(memory yt-search-capture-engine)。
+    #    長片標題冒號前那一段就是那個名字,publish_meta 已經把它放在最前面。
+    #    ⚠️ 長片與 Short **不掛同一個標題**(模板化紅旗),所以只借名字,
+    #    後面接的規模句跟長片的定調結語不同。
+    return with_search_name(cand, q, o)
 
 
 def famous_meta(d, o, mp4, longs, longs_all):
@@ -515,7 +563,15 @@ def build_meta():
                       f"(查過 eps_famous / eps_lineup / eps_domain)——"
                       f"不發,但你現在知道了")
                 continue
-            out.append(famous_meta(d, o, mp4, longs, longs_all))
+            # 🔴 famous_meta 缺白話句時回 None。FReD 那條分支有
+            #    `if not title: continue` 擋著,這條**沒有** —— None 進了
+            #    items,下一步 `o["key"]` 就 TypeError,整輪一支都發不出去。
+            #    同一分支兩套標準(獨立驗證抓到的)。
+            m = famous_meta(d, o, mp4, longs, longs_all)
+            if m is None:
+                print(f"  ⛔ {d.name}:算不出標題(缺白話句)—— 跳過")
+                continue
+            out.append(m)
             continue
         row = int(d.name.replace("ep", ""))
         F = build_facts(q.iloc[row])
@@ -587,46 +643,43 @@ def main():
         print(f"\n共 {len(items)} 支,已上傳 {len(done)},待上傳 {len(todo)}")
         return 0
 
-    todo = todo[:a.limit]
+    # ── 閘門 + 補件:**單一入口** ────────────────────────────────
+    # 🔴 舊版 cta_gate 擋了會補件、visual_stale 擋了不補。後果不是少發
+    #    一支:排序把名案排在最前面,前幾支被畫面閘門擋住之後,
+    #    ep012–ep018 那幾支乾淨的片**永遠輪不到**。實測明天 16:25 只發
+    #    得出 1 支(排程要 2)、22:25 只發得出 1 支(要 3)。
+    #    一個補了不檢查、一個檢查了不補 —— 同一個位置的鏡像問題,
+    #    而我上一次只修了前者。
+    def _gate(batch):
+        """所有發布前閘門跑一遍。回傳 ({key: 理由}, 無法判斷的)。"""
+        bad = {}
+        for k, why in cta_gate(batch, _LONGS_PUB, _LONGS_ALL):
+            bad[k] = why
+        ch, unk = visual_stale(batch)
+        for k, w in ch:
+            bad.setdefault(k, f"畫面已跟現行碼不同(差在 {w})")
+        return bad, unk
+
+    pool = todo
+    todo, rest = pool[:a.limit], pool[a.limit:]
+    blocked_all, vunknown = {}, []
+    for _round in range(12):          # 有界:候補用完或名額補滿就停
+        bad, vunknown = _gate(todo)
+        if not bad:
+            break
+        blocked_all.update(bad)
+        todo = [o for o in todo if o["key"] not in bad]
+        if not rest:
+            break
+        while len(todo) < a.limit and rest:
+            todo.append(rest.pop(0))
+    if blocked_all:
+        print("⛔ 這幾支被閘門擋下(已從候補補件):")
+        for k_, why in blocked_all.items():
+            print(f"   {k_:<22}{why}")
     if not todo:
         print("沒有待上傳的 Short")
         return 0
-    # build_meta 已經查過一次長片狀態,這裡沿用它算好的 —— 重查會多花
-    # 配額,而且會把同一行警告印兩遍。
-    blocked = cta_gate(todo, _LONGS_PUB, _LONGS_ALL)
-    if blocked:
-        keys = {k for k, _ in blocked}
-        print("⛔ 這幾支片子自己會說「完整版在本頻道」,但那句話現在不成立:")
-        for k, why in blocked:
-            print(f"   {k:<22}{why}")
-        print("   → 先跳過它們,改發下一批。長片轉回 public 之後那句話"
-              "自己就成立了,不必重渲。")
-        todo = [o for o in todo if o["key"] not in keys]
-        # 被擋掉幾支就從候補補幾支上來,不要讓當天的發布名額憑空少掉。
-        # 🔴 **補進來的也要過閘門。** 舊版只對 `todo[:limit]` 跑一次
-        #    cta_gate,補件在那之後 —— 補進來的那支是「閘門會擋、但沒被
-        #    檢查到」的狀態。實測:擋掉 implicit_bias_test 之後補進 ep006,
-        #    而對補件後的清單再跑一次 cta_gate,ep006 也會被擋。
-        #    今天不會出事(ep006 的片尾卡是中性版,那是 cta_gate 的誤報),
-        #    但那是**靠巧合安全**:前 5 支和第 6 支同時是壞的時候,第二支
-        #    壞的就會被送出去。所以補一支就檢查一次。
-        rest = [o for o in items
-                if o["key"] not in done and o["key"] not in keys
-                and o not in todo]
-        while len(todo) < a.limit and rest:
-            todo.append(rest.pop(0))
-            again = cta_gate(todo, _LONGS_PUB, _LONGS_ALL)
-            if again:
-                k2 = {k for k, _ in again}
-                for k, why in again:
-                    print(f"   {k:<22}{why}(候補,同樣擋下)")
-                todo = [o for o in todo if o["key"] not in k2]
-    vchanged, vunknown = visual_stale(todo)
-    if vchanged:
-        print("⛔ 這幾支的**畫面**已經跟現行碼不一樣了(旁白沒變所以陳舊檢查看不到):")
-        for k_, w in vchanged:
-            print(f"   {k_:<22}差在:{w}")
-        todo = [o for o in todo if o["key"] not in {k_ for k_, _ in vchanged}]
     if vunknown:
         print("❗ 這幾支沒有畫面計畫檔(舊版渲的)。算不出它當時的計畫,"
               "所以改成**直接量檔案**:")

@@ -148,6 +148,34 @@ def _lbl(D):
     return LBL_O.format(**D), LBL_R.format(**D)
 
 
+def source_lines(D):
+    """畫面上的來源行。**不准掉字。**
+
+    🔴 獨立驗證抓到的:舊做法是 `title[:64]` 再 `wrap(..., 34)[:2]`,
+    **兩次截斷都沒有任何標記**,於是畫面上出現半個論文名 ——
+
+        A Multilab Preregistered / Replication of the Ego-Depletion
+                                                     ↑「Effect」不見了
+        The bystander-effect: A / meta-analytic review on bystander
+
+    來源行是觀眾唯一能拿去查證的東西。指向一個**半個名字**跟指錯地方
+    是同一件事,而我自己才寫過「指錯地方比不寫還糟」。
+
+    正解:塞得下就完整顯示(最多三行);塞不下就改印 **DOI** ——
+    DOI 短、精確、而且比截斷的標題更好查。
+    """
+    s = str(D.get("source") or "").strip()
+    lines = wrap(s, 34)
+    if len(lines) <= 3 and " ".join(lines) == " ".join(s.split()):
+        return lines
+    doi = D.get("source_doi")
+    if doi:
+        return [f"doi:{doi}"]
+    raise SystemExit(
+        f"⛔ 來源行放不下而且沒有 DOI 可退:{s[:60]}… "
+        f"寧可不出片,也不要在畫面上印半個論文名。")
+
+
 def build_script(D):
     """三段,約 32 秒。刻意不下存在性結論 —— 那需要信賴區間,而這裡沒有版面。
 
@@ -468,7 +496,7 @@ def fit_sizes(plt, D):
     #    塞得下,FReD 那批多了「, OSF 2tbvd」就伸到 0.948 —— 同一個位置、
     #    同一個字級,只因為文案長度不同。這正是「量」而不是「挑」的理由。
     fs["src"] = min(fit(plt, ln, 34, weight="normal")
-                    for ln in wrap(D["source"], 34)[:2])
+                    for ln in source_lines(D))
     fs["end"] = min(fit(plt, s, 76) for s in
                     ("Full episode", "on the channel",
                      "Every number", "from the record"))
@@ -678,7 +706,7 @@ def render(plt, name, t, dur, D):
         # 🔴 來源改成**換行顯示**。FReD 那句 44 個字塞得下,論文標題
         #    64 個字連縮到 fit() 的下限 24pt 都還是伸到 0.083 —— 而
         #    「縮不下去就讓它出界」是靜默的,只有斷言擋下來我才知道。
-        for i, ln in enumerate(wrap(D["source"], 34)[:2]):
+        for i, ln in enumerate(source_lines(D)):
             ax.text(0.5, 0.46 - i * 0.028, ln, ha="center", va="top",
                     fontsize=fs.get("src", 34), color=DIM)
 
@@ -857,7 +885,7 @@ def collect(slug=None, row=None):
                 "tone": tone,
                 "color": BUCKET_COLOR[TONE_META[tone]["bucket"]],
                 "has_full": _has_full(f"eps_domain/{slug}"),
-                "source": T["title"][:60],
+                "source": T["title"], "source_doi": T["doi"],
                 "source_full": f"{T['title']} (doi:{T['doi']})",
             }
         worst = min(T["domains"], key=lambda x: x["pct"])
@@ -874,7 +902,7 @@ def collect(slug=None, row=None):
             "tone": tone,
             "color": BUCKET_COLOR[TONE_META[tone]["bucket"]],
             "has_full": _has_full(f"eps_domain/{slug}"),
-            "source": T["title"][:60],
+            "source": T["title"], "source_doi": T["doi"],
             # 畫面那行要短(安全區只有 0.14~0.86),說明欄可以放完整引用。
             "source_full": f"{T['title']} (doi:{T['doi']})",
         }
@@ -950,7 +978,7 @@ def collect(slug=None, row=None):
         #    make_famous 檔頭第一句寫的話)。
         #    畫面上那行來源是**觀眾唯一能拿去查證的線索**,指錯地方
         #    比不寫還糟。⚠️ 5 支已上線的 Short 帶著這個錯,換片要重上傳。
-        "source": t["title"][:64],
+        "source": t["title"], "source_doi": t.get("doi"),
         "source_full": (f"{t['title']} (doi:{t['doi']})" if t.get("doi")
                         else t["title"]),
     }
