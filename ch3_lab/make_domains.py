@@ -103,6 +103,44 @@ def short_stat(stat):
     return s
 
 
+
+def fit_w(plt, text, base, max_frac, weight="bold"):
+    """量出這段字在 base 字級下有多寬,超過 max_frac 就回傳縮小後的字級。
+
+    🔴 **字級要用量的,不是挑的。** 這條線在 Shorts 那邊已經學過一次:
+    肉眼調過兩輪、兩輪都還是越界,因為**文案長度會變** ——
+    「felt more powerful」和「choice changed the attitude」放同一個位置,
+    一個字級不可能同時對。
+    這裡的名稱欄同樣:power posing 的名稱短、cognitive dissonance 的長,
+    寫死 40pt 就是後者撞上數字欄。
+    """
+    fig = plt.figure(figsize=(W / 100, H / 100), dpi=100)
+    ax = fig.add_axes([0, 0, 1, 1]); ax.axis("off")
+    ax.set_xlim(0, 1); ax.set_ylim(0, 1)
+    t = ax.text(0.5, 0.5, text, ha="center", va="center",
+                fontsize=base, weight=weight)
+    fig.canvas.draw()
+    frac = t.get_window_extent(
+        renderer=fig.canvas.get_renderer()).width / W
+    plt.close(fig)
+    if frac <= max_frac or frac == 0:
+        return base
+    return max(22, int(base * max_frac / frac))
+
+
+
+def _need(E, field):
+    """缺了就中止,不要用預設值頂替。
+
+    這條線反覆出事的形狀是「A 集的預設值被 B 集用上」——
+    模板化的產線裡,一個看似無害的 fallback 就是一句別人的話。
+    """
+    raise SystemExit(
+        f"⛔ {E['slug']} 缺 `{field}`,而這一段沒有可以安全共用的預設值 "
+        f"—— 上一版的預設是 power posing 的結論,其他集用上就是唸別人的話。"
+        f"不出片。")
+
+
 def build_outcomes_script(E):
     """`arc: outcomes` —— 一個宣稱、原作者量了好幾個結果、重測只有一部分回來。
 
@@ -146,11 +184,14 @@ def build_outcomes_script(E):
           f"The one you can only find out by asking. "
           f"The {len(lost)} you could actually measure from the outside "
           f"did not.")),
-        ("verdict", t.get("say_verdict") or
-         ("The authors put it plainly: using a much larger sample, they "
-          "failed to confirm an effect on testosterone, cortisol, or "
-          "financial risk taking. Power posing changed how people said "
-          "they felt. It did not change what they did.")),
+        # 🔴 **結論不能有預設值。** 這一段是整支片的收尾,而預設值寫的是
+        #    power posing 的結論(睪固酮、皮質醇)。stereotype threat 那集
+        #    我還沒填 say_verdict,稿子就直接唸出別集的結論 ——
+        #    而且旁白、畫面、說明欄三個表面都會這樣出去。
+        #    hook 是同一個病(learning styles 差點唸「Stand like this for
+        #    two minutes」),那次我修了 hook 沒修這裡。
+        #    **fail-closed:沒有就不出片。**
+        ("verdict", t.get("say_verdict") or _need(E, "test.say_verdict")),
         ("close",
          "One claim, the numbers behind it, no adjectives."),
     ]
@@ -319,6 +360,19 @@ def render_scene(name, t_now, dur, ctx):
             pv = f"p = {x['p']:.3f}".replace("0.", ".")
             if x.get("d") is not None:
                 # d 很短,四欄放得下:名稱 | d | p | 判決
+                # 🔴 名稱這一行是我修「名稱被畫兩次」時**拿掉之後忘了補回來**的
+                #    —— 兩行版面補了,這條沒補,於是有 d 的那幾集整排標籤消失,
+                #    畫面上只剩「d = -0.03  p = .790  not significant」。
+                #    版面守門看不到:少畫一個元素不會出界、也不會重疊。
+                # 名稱欄可用寬度:0.08 起,數字欄最寬的那個右對齊收在 0.60,
+                # 中間留 0.03 空白 → 量到最長的那個名稱來決定整組字級。
+                _w = max(fit_w(plt, f"d = {z['d']:+.2f}".replace("+", " "),
+                               42, 0.20) and 0.14 for z in outs)
+                _nf = min(fit_w(plt, z["name"], 40, 0.60 - _w - 0.11)
+                          for z in outs)
+                ax.text(0.08, y, x["name"], ha="left", va="center",
+                        fontsize=_nf, color=FG if hot else DIM,
+                        weight="bold", alpha=b)
                 ax.text(0.60, y, f"d = {x['d']:+.2f}".replace("+", " "),
                         ha="right", va="center", fontsize=42, color=col,
                         weight="bold", alpha=b)
@@ -373,6 +427,24 @@ def render_scene(name, t_now, dur, ctx):
     else:
         txt(0.60, "THEY RAN IT AGAIN", 92)
         txt(0.42, "one claim · the numbers behind it", 42, DIM, "normal")
+
+    # 🔴 **內容存在性**:版面守門只管「有沒有出界」和「有沒有重疊」,
+    #    對「該畫的東西根本沒畫」是全盲的 —— 而那正是今天發生的事。
+    #    這一列已經淡入了(alpha 夠),它的名稱就必須在畫布上找得到。
+    if name in ("outcomes", "punch") and E.get("arc") == "outcomes":
+        drawn = " | ".join(o.get_text() for o in ax.texts
+                           if (o.get_alpha() or 1) >= 0.5)
+        for x in T["outcomes"]:
+            # 這一列的數字有沒有畫上去(有 d 用 d,沒有用 p)
+            key = (f"{x['d']:+.2f}".replace("+", " ")
+                   if x.get("d") is not None
+                   else f"{x['p']:.3f}".replace("0.", "."))
+            shown = any(key in o.get_text() and (o.get_alpha() or 1) >= 0.5
+                        for o in ax.texts)
+            if shown and x["name"] not in drawn:
+                raise SystemExit(
+                    f"⛔ {name}:「{x['name']}」的數字畫上去了但**名稱沒有** "
+                    f"—— 觀眾會看到一排沒有標籤的數字。畫面上有:{drawn[:90]}")
 
     fig.canvas.draw()
     r = fig.canvas.get_renderer()

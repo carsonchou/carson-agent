@@ -222,5 +222,12 @@
    "TO LIE, AND THEY BELIEVE IT LESS"
   ],
   "spoken": "If you pay someone more to say something they do not believe, do they change their mind less?"
+ },
+ "eps_domain/stereotype_threat": {
+  "lines": [
+   "TELL SOMEONE A TEST",
+   "MEASURES THEIR ABILITY"
+  ],
+  "spoken": "Does being told a test measures your ability make you do worse on it?"
  }
 }

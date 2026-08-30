@@ -43,34 +43,39 @@
     "d": 0.344,
     "p": 0.017,
     "sig": true,
-    "quote": "mean difference = 0.245, 95% CI = [0.044, 0.446], t(193) = 2.399, p = .017, Cohen's d = 0.344"
+    "quote": "mean difference = 0.245, 95% CI = [0.044, 0.446], t(193) = 2.399, p = .017, Cohen's d = 0.344",
+    "is_claim": true
    },
    {
     "name": "testosterone",
     "d": -0.2,
     "p": 0.162,
     "sig": false,
-    "quote": "mean difference = -4.077, 95% CI = [-9.801, 1.647], t(196) = -1.405, p = .162, Cohen's d = -0.200"
+    "quote": "mean difference = -4.077, 95% CI = [-9.801, 1.647], t(196) = -1.405, p = .162, Cohen's d = -0.200",
+    "is_claim": true
    },
    {
     "name": "cortisol",
     "d": -0.157,
     "p": 0.272,
     "sig": false,
-    "quote": "mean difference = -0.028, 95% CI = [-0.078, 0.022], t(196) = -1.101, p = .272, Cohen's d = -0.157"
+    "quote": "mean difference = -0.028, 95% CI = [-0.078, 0.022], t(196) = -1.101, p = .272, Cohen's d = -0.157",
+    "is_claim": true
    },
    {
     "name": "risk taking",
     "d": -0.176,
     "p": 0.215,
     "sig": false,
-    "quote": "mean difference = -0.033, 95% CI = [-0.085, 0.019], t(198) = -1.245, p = .215, Cohen's d = -0.176"
+    "quote": "mean difference = -0.033, 95% CI = [-0.085, 0.019], t(198) = -1.245, p = .215, Cohen's d = -0.176",
+    "is_claim": true
    }
   ],
   "extra_quote": "Neither of the other two behavioral tasks yielded significant differences by condition. [Ranehill et al. 2015, p.654]",
   "verdict_quote": "Using a much larger sample size but similar procedures as Carney et al. did, we failed to confirm an effect of power posing on testosterone, cortisol, and financial risk taking. We did find that power posing affected self-reported feelings of power; however, this did not yield behavioral effects. [Ranehill et al. 2015, p.654]",
   "missing": [],
-  "missing_note": "這一集沒有缺漏欄位 —— 全文讀過,每個數字都附原句。"
+  "missing_note": "這一集沒有缺漏欄位 —— 全文讀過,每個數字都附原句。",
+  "_claim_note": "四項都是同一個宣稱的不同量法,所以「4 個裡回來 1 個」是對的說法。"
  },
  "hook": "Standing in a powerful pose for two minutes makes you more powerful?",
  "hook_short": "Two minutes in a power pose?",

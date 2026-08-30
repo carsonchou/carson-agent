@@ -1,6 +1,6 @@
 {
  "day": "2026-08-30",
- "spent": 16329,
+ "spent": 19598,
  "items": [
   {
    "at": "16:25",
@@ -91,6 +91,16 @@
    "at": "16:43",
    "cost": 1,
    "what": "fix_meta list (readback 2)"
+  },
+  {
+   "at": "17:25",
+   "cost": 1663,
+   "what": "MyJiJWfGex4"
+  },
+  {
+   "at": "17:26",
+   "cost": 1606,
+   "what": "ep018"
   }
  ],
  "history": []

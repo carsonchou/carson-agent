@@ -1,0 +1,68 @@
+{
+ "slug": "stereotype_threat",
+ "arc": "outcomes",
+ "unit": "g",
+ "claim": "telling people a test measures their ability makes the stereotyped group score worse",
+ "popular_name": "stereotype threat",
+ "search_term": "stereotype threat",
+ "scan": {
+  "on_topic": 18,
+  "median_views": 11044,
+  "small_channels": 10,
+  "median_subs": 9540,
+  "score": 6136,
+  "measured": "2026-08-29 effect_scan.py"
+ },
+ "original": {
+  "year": 1995,
+  "title": "Stereotype Threat and the Intellectual Test Performance of African Americans",
+  "journal": "Journal of Personality and Social Psychology 69(5), 797-811",
+  "doi": "10.1037/0022-3514.69.5.797",
+  "n": 114,
+  "n_note": "⚠️ **論文沒有給全篇總樣本數。** 114 是**研究一**的分析人數(招募 117、3 人沒提供 SAT 成績被排除)。片裡只能說「研究一 114 人」,不能說「這篇研究 114 人」。⚠️⚠️ 網路搜尋告訴 agent 是 **76 人 —— 那是錯的**,論文原文寫 117/114。搜尋摘要給的數字不能直接用。",
+  "quote": "Reflecting the pressure of this vulnerability, Blacks underperformed in relation to Whites in the ability-diagnostic condition but not in the nondiagnostic condition (with Scholastic Aptitude Tests controlled). [Steele & Aronson 1995, abstract]",
+  "quote_n": "We recruited 117 male and female. Black and White Stanford undergraduates... The data from 3 participants were excluded from the analysis because they failed to provide their verbal SAT scores. This left a total of 114 participants",
+  "quote_stat": "The ANCOVA on the number of items participants got correct, using their self-reported SAT scores as the covariate (Black mean = 592, White mean = 632) revealed a significant condition main effect, F(2, 107) = 4.74, p < .02",
+  "say_origin": "In 1995 two researchers at Stanford gave Black and White students the same hard verbal test. Half were told it measured intellectual ability. Half were told it did not. The Black students who were told it measured ability scored lower. The students who were told it did not, did not. Study one: a hundred and fourteen people."
+ },
+ "test": {
+  "year": 2015,
+  "title": "Does stereotype threat influence performance of girls in stereotyped domains? A meta-analysis",
+  "journal": "Journal of School Psychology 53(1), 25-44",
+  "doi": "10.1016/j.jsp.2014.10.002",
+  "n": 3760,
+  "k": 47,
+  "n_quote": "The total sample, obtained by simply adding all participants of the included studies, consisted of N = 3760 girls, of which nST = 1926 girls were assigned to the experimental condition and nC = 1834 girls were assigned to the control condition.",
+  "outcomes": [
+   {
+    "name": "as published",
+    "d": -0.22,
+    "p": 0.001,
+    "sig": true,
+    "is_claim": true,
+    "stat": "g = -0.22, z = -3.63, 95% CI [-0.34, -0.10]",
+    "quote": "To estimate the overall effect size, we used a random effects model... we found a small average standardized mean difference, g = -0.22, z = -3.63, p < .001, CI95 = -0.34; -0.10, indicating that girls who have been exposed to a stereotype threat on average score lower on the MSSS tests compared to girls who have not been exposed to such a threat."
+   },
+   {
+    "name": "with the missing studies added back",
+    "d": -0.07,
+    "p": 0.27,
+    "sig": false,
+    "is_claim": true,
+    "stat": "g = -0.07, z = -1.10, 95% CI [-0.21, 0.06]",
+    "quote": "According to the estimations of the trim and fill method... the funnel plot would be symmetric if 11 effect sizes would have been imputed on the right side of the funnel plot. Actual imputation of those missing effect sizes reduced the estimated effect size to g = -0.07, z = -1.10, p = .27, CI95 = -0.21; 0.06."
+   }
+  ],
+  "say_test": "In 2015 two researchers pooled every experiment they could find that tested this on schoolgirls in maths, science and spatial tasks. Forty-seven effect sizes. Three thousand seven hundred and sixty girls.",
+  "say_punch": "As published, the effect is there. Minus zero point two two, and it is statistically significant. Then they asked a different question: which studies are missing? The pattern of results implied eleven experiments that were never published. Put those back in, at the size the pattern predicts, and the effect becomes minus zero point zero seven. Not significant. Same literature. Two numbers. The difference is what you assume about the studies nobody wrote up.",
+  "missing": [],
+  "missing_note": "agent 從 Wicherts 自架的論文 PDF 用 pypdf 抽文字讀出,每個數字附原句。",
+  "verdict_quote": "We conclude that publication bias might seriously distort the literature on the effects of stereotype threat among schoolgirls. We propose a large replication study to provide a less biased effect size estimate. [Flore & Wicherts 2015, abstract]",
+  "say_verdict": "The authors' own conclusion is not that the effect is fake. It is that publication bias might seriously distort the literature, and that somebody should run one large replication to get a less biased estimate. That study has not been run. So what you are looking at is not an answer. It is the size of the gap between what got published and what we can actually be sure of."
+ },
+ "hook": "Being told a test measures your ability makes you do worse on it?",
+ "hook_short": "Told it measures ability, do worse?",
+ "tone": "shrunk_real",
+ "tone_manual_why": "⚠️ 這題政治上敏感,框架必須極度精確。**不能講成「刻板印象威脅是假的」** —— 已發表的估計是 g = -0.22 而且顯著。**也不能只講 -0.22** —— 作者自己做了出版偏誤校正,補回 11 個推估遺失的效果量之後掉到 g = -0.07、p = .27。誠實的故事是:**同一批文獻,兩個數字,差別在於你怎麼假設那些沒被寫出來的研究。**定調 shrunk_real:測得到,但證據強度取決於一個沒人能直接觀察的東西。",
+ "_sensitive": "這一集談的是「文獻的證據強度」,不是「某個群體的能力」。旁白全程只講方法與數字,不解釋原因、不外推到任何群體的特質。作者自己呼籲做大型重測 —— 那句要放進去(等 agent 回報原句)。"
+}

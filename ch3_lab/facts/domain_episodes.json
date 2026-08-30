@@ -153,7 +153,8 @@
     "verdict_quote": "Using a much larger sample size but similar procedures as Carney et al. did, we failed to confirm an effect of power posing on testosterone, cortisol, and financial risk taking. We did find that power posing affected self-reported feelings of power; however, this did not yield behavioral effects. [Ranehill et al. 2015, p.654]",
     "missing": [],
     "missing_note": "這一集沒有缺漏欄位 —— 全文讀過,每個數字都附原句。",
-    "_claim_note": "四項都是同一個宣稱的不同量法,所以「4 個裡回來 1 個」是對的說法。"
+    "_claim_note": "四項都是同一個宣稱的不同量法,所以「4 個裡回來 1 個」是對的說法。",
+    "say_verdict": "The authors put it plainly: using a much larger sample, they failed to confirm an effect on testosterone, cortisol, or financial risk taking. Power posing changed how people said they felt. It did not change what they did."
    },
    "hook": "Standing in a powerful pose for two minutes makes you more powerful?",
    "hook_short": "Two minutes in a power pose?",
@@ -313,7 +314,7 @@
     "verdict_quote_2": "Despite a large sample and an improved methodology, we did not observe the expected effect of choice on attitude. We did observe that performing counterattitudinal behavior, regardless of perceived choice, affected attitudes.",
     "say_test": "In 2024, thirty-nine laboratories in nineteen countries ran the modern version of the same paradigm. Three thousand nine hundred and ninety-six people. One thing you should know: they did not retest the money. Since the sixties researchers stopped varying the reward and started varying how free the person felt to say no. That is the half they retested.",
     "say_punch": "The thing the theory needs - feeling you chose it - came back at minus zero point zero three. Nothing. It was measured a second way, and that came back at nothing too. But writing the thing at all, whether or not you felt you had a choice, did move people. Zero point two six.",
-    "say_verdict": "The authors put it plainly: the results call into question whether this paradigm provides robust evidence for cognitive dissonance. Note what that does and does not say. It is about this way of testing the idea, on this half of it. The money version has not been retested at this scale.",
+    "say_verdict": "The authors put it plainly: freedom of choice, they write, typically considered a vital component of this paradigm, does not reliably produce attitude change. But note what that does and does not say. It is about this way of testing the idea, on this half of it - the money version has not been retested at this scale. And the debate is live: a commentary responding to this replication was published in the same journal later that year. It is linked below.",
     "missing": [],
     "missing_note": "agent 讀過全文,每個數字都附原句。",
     "extra_outcome": {
@@ -325,12 +326,93 @@
      "stat": "t(1969.56) = 0.38, 95% CI [-0.071, 0.11]",
      "quote": "we did not observe a significant difference between the HC-CE condition (M = 1.00, SD = 1.81) and LC-CE condition (M = 0.97, SD = 1.80), t(1,969.56) = 0.38, p = .35, d = 0.017, 95% CI = [-0.071, 0.11]."
     },
-    "_precision_note": "第二個測量 d = 0.017,畫面用兩位小數會印成 0.02 —— 跟論文對不上。而它跟第一項是同一個檢定的第二個測量,畫面上是冗的。移到說明欄用原句完整呈現(extra_outcome)。**通則:畫面只放能用兩位小數如實表示的數字**,其餘留給說明欄。"
+    "_precision_note": "第二個測量 d = 0.017,畫面用兩位小數會印成 0.02 —— 跟論文對不上。而它跟第一項是同一個檢定的第二個測量,畫面上是冗的。移到說明欄用原句完整呈現(extra_outcome)。**通則:畫面只放能用兩位小數如實表示的數字**,其餘留給說明欄。",
+    "verdict_quote_3": "Freedom of choice, typically considered to be a vital component of the induced-compliance paradigm, does not reliably produce attitude change. Consequently, this raises serious doubts about previous findings that stem from this paradigm and certain interpretations of CDT... Consistent with the core principles of CDT, writing a counterattitudinal essay did lead to attitude change.",
+    "quote_sample": "In a total of 39 labs from 19 countries and 14 languages, participants (N = 4,898) were assigned to one of three conditions: writing a counterattitudinal essay under high choice, writing a counterattitudinal essay under low choice, or writing a neutral essay under high choice.",
+    "quote_paradigm_lineage": "In the first studies using this paradigm, participants were asked to perform a counterattitudinal task in exchange for either a small or sizable reward (e.g., Brehm & Cohen, 1962; Festinger & Carlsmith, 1959)... In later studies, researchers shifted from manipulating reward size to manipulating the choice given to participants as a justification for their counterattitudinal behavior (see Linder et al., 1967). [Vaidis et al. 2024 —— 這是「他們沒有重測報酬」的出處]",
+    "rebuttal": {
+     "year": 2024,
+     "title": "Dissonance in the Induced-Compliance Paradigm: A Commentary on Vaidis et al. (2024)",
+     "authors": "Eddie Harmon-Jones, Cindy Harmon-Jones",
+     "journal": "Advances in Methods and Practices in Psychological Science",
+     "doi": "10.1177/25152459241268308",
+     "verified": "OpenAlex 2026-08-30 核對標題與作者",
+     "⚠️": "**我沒有讀過它的內文。** 所以片裡與說明欄只講「有一篇評論回應了這篇重測」並附 DOI,不宣稱它主張什麼。只講重測不提反駁是選擇性呈現;宣稱它說了什麼而我沒讀過,是更糟的那種錯。"
+    },
+    "_ocr_note": "⚠️ Festinger & Carlsmith 1959 那份 PDF 的 OCR 把句點讀成逗號:「t = 2,48」實際是 2.48、「t = 2,22」是 2.22、「Ss」被讀成「5s」。agent 抓到的。從 OCR 抄數字前要看它有沒有這種系統性錯讀。"
    },
    "hook": "Being paid more to say something you do not believe makes you change your mind less?",
    "hook_short": "Paid more, change your mind less?",
    "tone": "gone",
    "tone_manual_why": "要測的那一項(選擇自由 → 態度改變)d = -0.03、p = .79 → gone。但片裡**必須**同時講清楚兩件事:(1) 有一項是顯著的(寫了那篇文章本身 d = 0.26),(2) **被重測的不是 $1/$20 那一半**。少講第二點就是把一個範圍有限的結果講成推翻了整個經典實驗。"
+  },
+  {
+   "slug": "stereotype_threat",
+   "arc": "outcomes",
+   "unit": "g",
+   "claim": "telling people a test measures their ability makes the stereotyped group score worse",
+   "popular_name": "stereotype threat",
+   "search_term": "stereotype threat",
+   "scan": {
+    "on_topic": 18,
+    "median_views": 11044,
+    "small_channels": 10,
+    "median_subs": 9540,
+    "score": 6136,
+    "measured": "2026-08-29 effect_scan.py"
+   },
+   "original": {
+    "year": 1995,
+    "title": "Stereotype Threat and the Intellectual Test Performance of African Americans",
+    "journal": "Journal of Personality and Social Psychology 69(5), 797-811",
+    "doi": "10.1037/0022-3514.69.5.797",
+    "n": 114,
+    "n_note": "⚠️ **論文沒有給全篇總樣本數。** 114 是**研究一**的分析人數(招募 117、3 人沒提供 SAT 成績被排除)。片裡只能說「研究一 114 人」,不能說「這篇研究 114 人」。⚠️⚠️ 網路搜尋告訴 agent 是 **76 人 —— 那是錯的**,論文原文寫 117/114。搜尋摘要給的數字不能直接用。",
+    "quote": "Reflecting the pressure of this vulnerability, Blacks underperformed in relation to Whites in the ability-diagnostic condition but not in the nondiagnostic condition (with Scholastic Aptitude Tests controlled). [Steele & Aronson 1995, abstract]",
+    "quote_n": "We recruited 117 male and female. Black and White Stanford undergraduates... The data from 3 participants were excluded from the analysis because they failed to provide their verbal SAT scores. This left a total of 114 participants",
+    "quote_stat": "The ANCOVA on the number of items participants got correct, using their self-reported SAT scores as the covariate (Black mean = 592, White mean = 632) revealed a significant condition main effect, F(2, 107) = 4.74, p < .02",
+    "say_origin": "In 1995 two researchers at Stanford gave Black and White students the same hard verbal test. Half were told it measured intellectual ability. Half were told it did not. The Black students who were told it measured ability scored lower. The students who were told it did not, did not. Study one: a hundred and fourteen people."
+   },
+   "test": {
+    "year": 2015,
+    "title": "Does stereotype threat influence performance of girls in stereotyped domains? A meta-analysis",
+    "journal": "Journal of School Psychology 53(1), 25-44",
+    "doi": "10.1016/j.jsp.2014.10.002",
+    "n": 3760,
+    "k": 47,
+    "n_quote": "The total sample, obtained by simply adding all participants of the included studies, consisted of N = 3760 girls, of which nST = 1926 girls were assigned to the experimental condition and nC = 1834 girls were assigned to the control condition.",
+    "outcomes": [
+     {
+      "name": "as published",
+      "d": -0.22,
+      "p": 0.001,
+      "sig": true,
+      "is_claim": true,
+      "stat": "g = -0.22, z = -3.63, 95% CI [-0.34, -0.10]",
+      "quote": "To estimate the overall effect size, we used a random effects model... we found a small average standardized mean difference, g = -0.22, z = -3.63, p < .001, CI95 = -0.34; -0.10, indicating that girls who have been exposed to a stereotype threat on average score lower on the MSSS tests compared to girls who have not been exposed to such a threat."
+     },
+     {
+      "name": "with the missing studies added back",
+      "d": -0.07,
+      "p": 0.27,
+      "sig": false,
+      "is_claim": true,
+      "stat": "g = -0.07, z = -1.10, 95% CI [-0.21, 0.06]",
+      "quote": "According to the estimations of the trim and fill method... the funnel plot would be symmetric if 11 effect sizes would have been imputed on the right side of the funnel plot. Actual imputation of those missing effect sizes reduced the estimated effect size to g = -0.07, z = -1.10, p = .27, CI95 = -0.21; 0.06."
+     }
+    ],
+    "say_test": "In 2015 two researchers pooled every experiment they could find that tested this on schoolgirls in maths, science and spatial tasks. Forty-seven effect sizes. Three thousand seven hundred and sixty girls.",
+    "say_punch": "As published, the effect is there. Minus zero point two two, and it is statistically significant. Then they asked a different question: which studies are missing? The pattern of results implied eleven experiments that were never published. Put those back in, at the size the pattern predicts, and the effect becomes minus zero point zero seven. Not significant. Same literature. Two numbers. The difference is what you assume about the studies nobody wrote up.",
+    "missing": [],
+    "missing_note": "agent 從 Wicherts 自架的論文 PDF 用 pypdf 抽文字讀出,每個數字附原句。",
+    "verdict_quote": "We conclude that publication bias might seriously distort the literature on the effects of stereotype threat among schoolgirls. We propose a large replication study to provide a less biased effect size estimate. [Flore & Wicherts 2015, abstract]",
+    "say_verdict": "The authors' own conclusion is not that the effect is fake. It is that publication bias might seriously distort the literature, and that somebody should run one large replication to get a less biased estimate. That study has not been run. So what you are looking at is not an answer. It is the size of the gap between what got published and what we can actually be sure of."
+   },
+   "hook": "Being told a test measures your ability makes you do worse on it?",
+   "hook_short": "Told it measures ability, do worse?",
+   "tone": "shrunk_real",
+   "tone_manual_why": "⚠️ 這題政治上敏感,框架必須極度精確。**不能講成「刻板印象威脅是假的」** —— 已發表的估計是 g = -0.22 而且顯著。**也不能只講 -0.22** —— 作者自己做了出版偏誤校正,補回 11 個推估遺失的效果量之後掉到 g = -0.07、p = .27。誠實的故事是:**同一批文獻,兩個數字,差別在於你怎麼假設那些沒被寫出來的研究。**定調 shrunk_real:測得到,但證據強度取決於一個沒人能直接觀察的東西。",
+   "_sensitive": "這一集談的是「文獻的證據強度」,不是「某個群體的能力」。旁白全程只講方法與數字,不解釋原因、不外推到任何群體的特質。作者自己呼籲做大型重測 —— 那句要放進去(等 agent 回報原句)。"
   }
  ],
  "_unit_note": "兩種單位:`pct`(變異數百分比,10,000 小時那集)與 `d`(Cohen's d,power posing 那集)。**單位不同,畫面就不同** —— d 沒辦法畫成「佔滿格的幾分之幾」,所以走清單而不是長條。硬用同一種畫法就會出現一個觀眾無法解讀的比例尺。"

@@ -67,7 +67,7 @@
   "verdict_quote_2": "Despite a large sample and an improved methodology, we did not observe the expected effect of choice on attitude. We did observe that performing counterattitudinal behavior, regardless of perceived choice, affected attitudes.",
   "say_test": "In 2024, thirty-nine laboratories in nineteen countries ran the modern version of the same paradigm. Three thousand nine hundred and ninety-six people. One thing you should know: they did not retest the money. Since the sixties researchers stopped varying the reward and started varying how free the person felt to say no. That is the half they retested.",
   "say_punch": "The thing the theory needs - feeling you chose it - came back at minus zero point zero three. Nothing. It was measured a second way, and that came back at nothing too. But writing the thing at all, whether or not you felt you had a choice, did move people. Zero point two six.",
-  "say_verdict": "The authors put it plainly: the results call into question whether this paradigm provides robust evidence for cognitive dissonance. Note what that does and does not say. It is about this way of testing the idea, on this half of it. The money version has not been retested at this scale.",
+  "say_verdict": "The authors put it plainly: freedom of choice, they write, typically considered a vital component of this paradigm, does not reliably produce attitude change. But note what that does and does not say. It is about this way of testing the idea, on this half of it - the money version has not been retested at this scale. And the debate is live: a commentary responding to this replication was published in the same journal later that year. It is linked below.",
   "missing": [],
   "missing_note": "agent 讀過全文,每個數字都附原句。",
   "extra_outcome": {
@@ -79,7 +79,20 @@
    "stat": "t(1969.56) = 0.38, 95% CI [-0.071, 0.11]",
    "quote": "we did not observe a significant difference between the HC-CE condition (M = 1.00, SD = 1.81) and LC-CE condition (M = 0.97, SD = 1.80), t(1,969.56) = 0.38, p = .35, d = 0.017, 95% CI = [-0.071, 0.11]."
   },
-  "_precision_note": "第二個測量 d = 0.017,畫面用兩位小數會印成 0.02 —— 跟論文對不上。而它跟第一項是同一個檢定的第二個測量,畫面上是冗的。移到說明欄用原句完整呈現(extra_outcome)。**通則:畫面只放能用兩位小數如實表示的數字**,其餘留給說明欄。"
+  "_precision_note": "第二個測量 d = 0.017,畫面用兩位小數會印成 0.02 —— 跟論文對不上。而它跟第一項是同一個檢定的第二個測量,畫面上是冗的。移到說明欄用原句完整呈現(extra_outcome)。**通則:畫面只放能用兩位小數如實表示的數字**,其餘留給說明欄。",
+  "verdict_quote_3": "Freedom of choice, typically considered to be a vital component of the induced-compliance paradigm, does not reliably produce attitude change. Consequently, this raises serious doubts about previous findings that stem from this paradigm and certain interpretations of CDT... Consistent with the core principles of CDT, writing a counterattitudinal essay did lead to attitude change.",
+  "quote_sample": "In a total of 39 labs from 19 countries and 14 languages, participants (N = 4,898) were assigned to one of three conditions: writing a counterattitudinal essay under high choice, writing a counterattitudinal essay under low choice, or writing a neutral essay under high choice.",
+  "quote_paradigm_lineage": "In the first studies using this paradigm, participants were asked to perform a counterattitudinal task in exchange for either a small or sizable reward (e.g., Brehm & Cohen, 1962; Festinger & Carlsmith, 1959)... In later studies, researchers shifted from manipulating reward size to manipulating the choice given to participants as a justification for their counterattitudinal behavior (see Linder et al., 1967). [Vaidis et al. 2024 —— 這是「他們沒有重測報酬」的出處]",
+  "rebuttal": {
+   "year": 2024,
+   "title": "Dissonance in the Induced-Compliance Paradigm: A Commentary on Vaidis et al. (2024)",
+   "authors": "Eddie Harmon-Jones, Cindy Harmon-Jones",
+   "journal": "Advances in Methods and Practices in Psychological Science",
+   "doi": "10.1177/25152459241268308",
+   "verified": "OpenAlex 2026-08-30 核對標題與作者",
+   "⚠️": "**我沒有讀過它的內文。** 所以片裡與說明欄只講「有一篇評論回應了這篇重測」並附 DOI,不宣稱它主張什麼。只講重測不提反駁是選擇性呈現;宣稱它說了什麼而我沒讀過,是更糟的那種錯。"
+  },
+  "_ocr_note": "⚠️ Festinger & Carlsmith 1959 那份 PDF 的 OCR 把句點讀成逗號:「t = 2,48」實際是 2.48、「t = 2,22」是 2.22、「Ss」被讀成「5s」。agent 抓到的。從 OCR 抄數字前要看它有沒有這種系統性錯讀。"
  },
  "hook": "Being paid more to say something you do not believe makes you change your mind less?",
  "hook_short": "Paid more, change your mind less?",
