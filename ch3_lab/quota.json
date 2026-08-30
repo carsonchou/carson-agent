@@ -1,6 +1,6 @@
 {
  "day": "2026-08-29",
- "spent": 16178,
+ "spent": 19802,
  "items": [
   {
    "at": "16:25",
@@ -71,6 +71,76 @@
    "at": "10:52",
    "cost": 1,
    "what": "unlist readback"
+  },
+  {
+   "at": "11:02",
+   "cost": 1663,
+   "what": "MW_XoKidwdA"
+  },
+  {
+   "at": "11:03",
+   "cost": 1,
+   "what": "fix_meta public_only"
+  },
+  {
+   "at": "11:03",
+   "cost": 1,
+   "what": "fix_meta public_only"
+  },
+  {
+   "at": "11:03",
+   "cost": 1,
+   "what": "fix_meta channels.list"
+  },
+  {
+   "at": "11:03",
+   "cost": 1,
+   "what": "fix_meta list (before)"
+  },
+  {
+   "at": "11:03",
+   "cost": 50,
+   "what": "fix_meta ego_depletion"
+  },
+  {
+   "at": "11:03",
+   "cost": 50,
+   "what": "fix_meta romantic_red"
+  },
+  {
+   "at": "11:03",
+   "cost": 50,
+   "what": "fix_meta sleep_memory"
+  },
+  {
+   "at": "11:03",
+   "cost": 50,
+   "what": "fix_meta ep000"
+  },
+  {
+   "at": "11:03",
+   "cost": 50,
+   "what": "fix_meta ep001"
+  },
+  {
+   "at": "11:03",
+   "cost": 50,
+   "what": "fix_meta ep006"
+  },
+  {
+   "at": "11:03",
+   "cost": 50,
+   "what": "fix_meta ep0"
+  },
+  {
+   "at": "11:03",
+   "cost": 1,
+   "what": "fix_meta list (readback 1)"
+  },
+  {
+   "at": "11:04",
+   "cost": 1606,
+   "what": "10000_hour_rule"
   }
  ]
 }
