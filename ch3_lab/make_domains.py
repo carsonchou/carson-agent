@@ -141,6 +141,46 @@ def _need(E, field):
         f"不出片。")
 
 
+
+def say_exact(x):
+    """唸出**存進事實庫的那個精度**,不要自作主張四捨五入。
+
+    🔴 `say_num` 固定兩位小數。對 d 沒問題(論文多半就報兩位),
+    但 loss aversion 的 lambda 是 2.295 / 1.125 —— 唸成「two point two nine」
+    之後,觀眾打開論文 grep「2.29」**找不到**,grep「2.295」才找得到。
+    而且同一集裡 outcomes 唸 2.29、punch 唸 2.295,是自己跟自己不同調。
+    這條線唯一的資產是「觀眾自己查得到」,四捨五入就是把它磨掉。
+    """
+    from make_episode import say_num
+    s = f"{abs(x):.6f}".rstrip("0").rstrip(".")
+    if "." not in s or len(s.split(".")[1]) <= 2:
+        return say_num(x)
+    whole, frac = s.split(".")
+    words = {"0": "zero", "1": "one", "2": "two", "3": "three", "4": "four",
+             "5": "five", "6": "six", "7": "seven", "8": "eight", "9": "nine"}
+    out = ("minus " if x < 0 else "") + (words.get(whole) or whole)
+    return out + " point " + " ".join(words[c] for c in frac)
+
+
+
+#: 效果量的**符號**要跟論文一致。
+#: 🔴 第一版全部印 `d = `,而 stereotype threat 那篇報的是 Hedges' g、
+#:    loss aversion 報的是 lambda。印 `d = 1.12` 有兩個錯:符號錯,而且
+#:    精度被砍(論文寫 1.125)。觀眾拿著畫面上的東西去論文裡找,兩個都找不到。
+UNIT_SYM = {"d": "d", "g": "g", "lambda": "λ", "r": "r"}
+
+
+def val_str(E, v):
+    """畫面上的效果量:**符號跟著論文、精度跟著存的值**。"""
+    sym = UNIT_SYM.get(E.get("unit"), "d")
+    s = f"{abs(v):.6f}".rstrip("0").rstrip(".")
+    dec = len(s.split(".")[1]) if "." in s else 0
+    # 正數不印 +、負數印 -,而且等號後面**永遠一個空格**。
+    # (第一版用 `:+.2f` 再把 + 換成空格,於是負數變成「d =-0.03」——
+    #  少一個空格,是那種抽幀才看得到的醜。)
+    return f"{sym} = {v:.{max(2, min(dec, 3))}f}"
+
+
 def build_outcomes_script(E):
     """`arc: outcomes` —— 一個宣稱、原作者量了好幾個結果、重測只有一部分回來。
 
@@ -174,7 +214,7 @@ def build_outcomes_script(E):
          #    不是同一件事講兩次。
          "Here is what came back. "
          + " ".join(
-             (f"{x['name'].capitalize()}, {say_d(x['d'])}"
+             (f"{x['name'].capitalize()}, {say_exact(x['d'])}"
               if x.get("d") is not None
               else f"{x['name'].capitalize()}")
              + (", significant." if x["sig"] else ", not significant.")
@@ -259,7 +299,12 @@ def audit(E, segs):
             #    抓出來的是 `017`,不是 `.017` 也不是 `0.017`。
             #    所以放行清單要放**它真的會抓到的那個形式**,而不是我
             #    心裡想的那個形式。第一版就因此把自己的稿子擋下來。
-            ok |= {str(x["p"]), f"{x['p']:.3f}".split(".")[1]}
+            # p 值不是每一集都有:loss aversion 報的是 lambda 中位數,
+            # 論文對那些數字**沒有做顯著性檢定**。缺就跳過,不要假設它在。
+            if x.get("p") is not None:
+                ok |= {str(x["p"]), f"{x['p']:.3f}".split(".")[1]}
+            if x.get("k") is not None:
+                ok.add(str(x["k"]))
             if x.get("d") is not None:
                 ok |= {f"{abs(x['d']):.2f}", f"{x['d']:.2f}",
                        f"{abs(x['d']):.2f}".split(".")[1]}
@@ -367,7 +412,9 @@ def render_scene(name, t_now, dur, ctx):
             #    「F(1, 110) = 4.92, eta2 = 0.04」在這一欄會撞到名稱
             #    (實測重疊 376 畫素)。少放不等於藏 —— 說明欄有完整原句,
             #    而畫面要能一眼讀完。
-            pv = f"p = {x['p']:.3f}".replace("0.", ".")
+            pv = (f"p = {x['p']:.3f}".replace("0.", ".")
+                  if x.get("p") is not None
+                  else (f"k = {x['k']}" if x.get("k") else ""))
             if x.get("d") is not None:
                 # d 很短,四欄放得下:名稱 | d | p | 判決
                 # 🔴 名稱這一行是我修「名稱被畫兩次」時**拿掉之後忘了補回來**的
@@ -376,16 +423,18 @@ def render_scene(name, t_now, dur, ctx):
                 #    版面守門看不到:少畫一個元素不會出界、也不會重疊。
                 # 名稱欄可用寬度:0.08 起,數字欄最寬的那個右對齊收在 0.60,
                 # 中間留 0.03 空白 → 量到最長的那個名稱來決定整組字級。
-                _w = max(fit_w(plt, f"d = {z['d']:+.2f}".replace("+", " "),
-                               42, 0.20) and 0.14 for z in outs)
-                _nf = min(fit_w(plt, z["name"], 40, 0.60 - _w - 0.11)
-                          for z in outs)
+                # 名稱欄可用寬度 = 從 0.08 到「數值欄左緣」再留 0.03 空白。
+                # 數值欄的寬度**要量最長的那個字串**,不要寫死 —— λ = 1.125
+                # 比 d = -0.03 寬得多,寫死 0.14 就是後者撞上名稱。
+                _vals = [val_str(E, z["d"]) for z in outs]
+                _vw = max(len(v) for v in _vals) * 0.024
+                _nf = min(fit_w(plt, z["name"], 40,
+                                max(0.20, 0.60 - _vw - 0.06)) for z in outs)
                 ax.text(0.08, y, x["name"], ha="left", va="center",
                         fontsize=_nf, color=FG if hot else DIM,
                         weight="bold", alpha=b)
-                ax.text(0.60, y, f"d = {x['d']:+.2f}".replace("+", " "),
-                        ha="right", va="center", fontsize=42, color=col,
-                        weight="bold", alpha=b)
+                ax.text(0.60, y, val_str(E, x["d"]), ha="right", va="center",
+                        fontsize=42, color=col, weight="bold", alpha=b)
                 ax.text(0.735, y, pv, ha="right", va="center",
                         fontsize=36, color=DIM, alpha=b)
                 ax.text(0.765, y, "held" if hot else "not significant",
@@ -446,9 +495,10 @@ def render_scene(name, t_now, dur, ctx):
                            if (o.get_alpha() or 1) >= 0.5)
         for x in T["outcomes"]:
             # 這一列的數字有沒有畫上去(有 d 用 d,沒有用 p)
-            key = (f"{x['d']:+.2f}".replace("+", " ")
+            key = (val_str(E, x["d"])
                    if x.get("d") is not None
-                   else f"{x['p']:.3f}".replace("0.", "."))
+                   else (f"{x['p']:.3f}".replace("0.", ".")
+                         if x.get("p") is not None else x["name"]))
             shown = any(key in o.get_text() and (o.get_alpha() or 1) >= 0.5
                         for o in ax.texts)
             if shown and x["name"] not in drawn:

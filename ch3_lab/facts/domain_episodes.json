@@ -545,11 +545,10 @@
     "year": 2025,
     "title": "Loss aversion is not robust: A re-meta-analysis",
     "journal": "Journal of Economic Psychology 107, 102801",
-    "doi": null,
+    "doi": "10.1016/j.joep.2025.102801",
     "n": 149218,
     "k": 163,
     "k_word": "estimates from 84 papers",
-    "⚠️_no_doi": "agent 沒有回報這篇的 DOI。**發布前必須補上** —— 這條線的說明欄要能讓觀眾自己去查。缺 DOI 就不發。",
     "baseline": {
      "year": 2024,
      "title": "Meta-analysis of Empirical Estimates of Loss Aversion",
@@ -567,34 +566,42 @@
     },
     "outcomes": [
      {
-      "name": "losses smaller, items ordered",
+      "name": "losses smaller, ordered",
       "d": 2.295,
       "p": null,
       "sig": true,
       "is_claim": false,
       "stat": "median lambda = 2.295 (k = 62)",
-      "quote": "Ordered / L<G: 2.295 (k=62) [Yechiam & Zeif 2025, Table 1]"
+      "quote": "Ordered / L<G: 2.295 (k=62) [Yechiam & Zeif 2025, Table 1]",
+      "k": 62,
+      "name_long": "losses smaller, items ordered by size"
      },
      {
-      "name": "symmetric, not ordered",
+      "name": "same size, not ordered",
       "d": 1.125,
       "p": null,
       "sig": false,
       "is_claim": true,
-      "stat": "median lambda = 1.125 (k = 22)",
-      "quote": "for studies with symmetric gains and losses and no ordering of items, the loss aversion parameter was approximately 1.07 and not significantly above 1.0, suggesting similar weighting of gains and losses."
+      "stat": "median lambda = 1.125 (k = 22); model estimate 1.07",
+      "quote": "for studies with symmetric gains and losses and no ordering of items, the loss aversion parameter was approximately 1.07 and not significantly above 1.0, suggesting similar weighting of gains and losses.",
+      "k": 22,
+      "name_long": "same size on average, not ordered by size"
      }
     ],
     "quote_design": "Altering each of these design features reduces the median loss aversion estimate (asymmetric losses by 34%; ordering by 23%), and when both of these features are avoided the median lambda is 1.125 which implies very weak loss aversion. [Yechiam & Zeif 2025]",
     "quote_same_data": "A meta-analysis of all estimates included in the current analysis yielded an overall lambda of 1.82 (CIlow = 1.73, CIhigh = 1.91) which is approximately the mean observed in Brown et al.'s (2024) original meta-analysis —— 證明不是他們把資料切壞了,而是同一批資料在不同設計下給出不同的數字。",
     "say_test": "In 2024 a team pooled six hundred and seven estimates of that number from a hundred and fifty papers. The average came out at one point nine five. About two. The classic answer. Then in 2025 another team took the same data and cut it a different way. They asked: does the number depend on how the question was asked?",
-    "say_punch": "It does. When the possible loss was smaller than the possible gain, and the options were listed in order, the median came out at two point three. When the loss and the gain were the same size and the options were not ordered, it came out at one point one three. One point zero seven in their model. Not significantly above one. One means losing and winning weigh the same.",
-    "say_verdict": "So the argument is not whether people dislike losing. It is how much of that famous number - about two - is the mind, and how much is the way the question was built. And this is the same data. Nobody found new people. They re-cut the pile.",
+    "say_punch": "It does. When the possible loss was smaller than the possible gain, and the items were ordered by size, the median came out at two point two nine five. When the losses and the gains were the same size on average, and the items were not ordered by size, the median came out at one point one two five. Their model put it at one point zero seven - and that is not significantly above one. One means losing and winning weigh the same.",
+    "say_verdict": "Before you decide they just cut the data badly: they checked. Run the whole pile together and you get one point eight two, which is essentially the number the original meta-analysis reported. The overall result reproduces. It is only when you split it by how the question was built that the number moves. So the argument is not whether people dislike losing. It is how much of that famous number - about two - is the mind, and how much is the questionnaire.",
     "missing_fields": [],
     "missing": [
-     "Yechiam & Zeif 2025 的 DOI(agent 沒回報,發布前必補)",
      "Tversky & Kahneman 1992 的 lambda = 2.25 原文(付費牆,只有二手轉述)"
-    ]
+    ],
+    "doi_note": "agent 手上是作者自存的 preprint(沒印 DOI),它從卷期 + article number 推出 DOI 再回 Crossref **驗標題對得上**才給。Crossref 回傳:title 逐字一致、作者 Eldad Yechiam / Dana Zeif、update-to 與 updated-by 皆空(無撤稿或更正)。",
+    "quote_abstract": "The results showed that while the findings of strong loss aversion are replicated when losses are smaller than gains and when gains and losses are presented in an ordered fashion, for studies with symmetric gains and losses and no ordering of items, the loss aversion parameter was approximately 1.07 and not significantly above 1.0, suggesting similar weighting of gains and losses.",
+    "quote_table": "Table 1: Median loss aversion parameter λ in the studies from Brown et al. (2024). Studies are divided according to whether the average absolute size of losses was smaller to that of gains (L<G), equal to that of gains (L=G), or larger (L>G); and whether gains/losses were ordered from the smallest to the largest. k = Number of estimates.",
+    "⚠️_three_numbers": "**1.07 / 1.08 / 1.125 是三件不同的事,不能混用:**\n· 1.125 = 描述統計的**中位數**(Table 1,k = 22)。論文**沒有對它做顯著性檢定** ——\n  把「not significantly above 1.0」掛在它上面是錯的。\n· 1.07 = **摘要**裡的模型估計,「not significantly above 1.0」是掛在這個上面。\n· 1.08 = **內文** meta-regression 的預測值(「a predicted λ estimate of 1.08」)。\n旁白說「in their model」而觀眾去 grep 內文模型段,看到的是 1.08 不是 1.07 ——\n所以要嘛講清楚是摘要的估計,要嘛兩個都不指定來源只講「their model」並接受這個模糊。",
+    "_label_note": "畫面標籤縮短了,完整說法在 name_long(說明欄用)與旁白裡(「the losses and the gains were the same size on average, and the items were not ordered by size」)。**name 是顯示標籤不是引文,可以為版面縮短;quote 與 stat 不能動。**"
    },
    "hook": "Does losing hurt about twice as much as winning the same amount feels good?",
    "hook_short": "Losing hurts twice as much?",
