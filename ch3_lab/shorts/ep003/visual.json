@@ -15,7 +15,7 @@
   "Full episode",
   "on the channel"
  ],
- "frames": "03ddaa9fc9782a72",
+ "frames": "9a428d75e3e9df51",
  "fs": {
   "big": 233,
   "card": 58,
@@ -35,9 +35,11 @@
    ]
   },
   "end": 75,
+  "es_o": 210,
+  "es_r2": 210,
   "kicker": 46,
   "meas": 50,
-  "src": 27,
+  "src": 34,
   "sub": 38
  },
  "kicker": "A STUDY FOUND",
@@ -49,7 +51,7 @@
  "safe": [
   0.86,
   0.24,
-  0.93
+  0.9099999999999999
  ],
  "source": "FORRT Replication Database (FReD), OSF 2tbvd"
 }

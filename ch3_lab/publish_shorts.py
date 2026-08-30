@@ -533,6 +533,29 @@ def build_meta():
     return out
 
 
+def insert_one(yt, o, path):
+    """把一支 Short 上傳成 public,回傳 videoId。**唯一一份 insert。**
+
+    重上傳(reupload_shorts.py)走的是同一個函式 —— 兩份 insert 就會有
+    一份先被改對、另一份留著舊的欄位組合,而那種差異在成品上是看不出來的。
+    這條線上「同一件事兩份實作」已經數不清第幾次。
+    """
+    from googleapiclient.http import MediaFileUpload
+    req = yt.videos().insert(part="snippet,status", body={
+        "snippet": {"title": o["title"], "description": o["description"],
+                    "tags": o["tags"], "categoryId": "27",
+                    "defaultLanguage": "en"},
+        "status": {"privacyStatus": "public",
+                   "selfDeclaredMadeForKids": False,
+                   "license": "youtube", "embeddable": True},
+    }, media_body=MediaFileUpload(str(path), chunksize=4 * 1024 * 1024,
+                                  resumable=True, mimetype="video/mp4"))
+    resp = None
+    while resp is None:
+        _, resp = req.next_chunk()
+    return resp["id"]
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--limit", type=int, default=2)
@@ -623,7 +646,6 @@ def main():
     if me["id"] != EXPECT_CHANNEL:
         print(f"⛔ 頻道不符:{me['id']}")
         return 1
-    from googleapiclient.http import MediaFileUpload
     for o in todo:
         # 🔴 逐支問額度,不是整批估一次。三支發布器共用同一個每日 10,000,
         #    而排程一天跑兩個時段 —— 各自估自己那批,就會各自以為還有滿額。
@@ -633,19 +655,7 @@ def main():
             break
         p = ROOT / o["video"]
         print(f"\n[{o['key']}] {o['title'][:60]}")
-        req = yt.videos().insert(part="snippet,status", body={
-            "snippet": {"title": o["title"], "description": o["description"],
-                        "tags": o["tags"], "categoryId": "27",
-                        "defaultLanguage": "en"},
-            "status": {"privacyStatus": "public",
-                       "selfDeclaredMadeForKids": False,
-                       "license": "youtube", "embeddable": True},
-        }, media_body=MediaFileUpload(str(p), chunksize=4 * 1024 * 1024,
-                                      resumable=True, mimetype="video/mp4"))
-        resp = None
-        while resp is None:
-            _, resp = req.next_chunk()
-        vid = resp["id"]
+        vid = insert_one(yt, o, p)
         # 拿到 id 立刻寫帳本(insert 之後的任何例外都不該造成重傳)
         done[o["key"]] = vid
         tmp = LEDGER.with_suffix(".tmp")

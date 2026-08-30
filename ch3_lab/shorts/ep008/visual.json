@@ -15,9 +15,9 @@
   "Every number",
   "from the record"
  ],
- "frames": "839bef6d5db9ef46",
+ "frames": "fe9d3b29fef9ff96",
  "fs": {
-  "big": 280,
+  "big": 260,
   "card": 58,
   "claim": {
    "fs": 54,
@@ -33,11 +33,11 @@
    ]
   },
   "end": 75,
-  "es_o": 240,
-  "es_r2": 270,
+  "es_o": 210,
+  "es_r2": 210,
   "kicker": 46,
   "meas": 50,
-  "src": 27,
+  "src": 34,
   "sub": 41
  },
  "kicker": "A STUDY FOUND",

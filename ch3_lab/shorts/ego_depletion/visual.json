@@ -15,9 +15,9 @@
   "Full episode",
   "on the channel"
  ],
- "frames": "847d78f1cbbd90b3",
+ "frames": "5a78e598a9acc040",
  "fs": {
-  "big": 280,
+  "big": 260,
   "card": 58,
   "claim": {
    "fs": 94,
@@ -35,6 +35,8 @@
    ]
   },
   "end": 75,
+  "es_o": 210,
+  "es_r2": 210,
   "head": 79,
   "kicker": 46,
   "meas": 50,
@@ -50,7 +52,7 @@
  "safe": [
   0.86,
   0.24,
-  0.93
+  0.9099999999999999
  ],
- "source": "FORRT Replication Database (FReD)"
+ "source": "A Multilab Preregistered Replication of the Ego-Depletion Effect"
 }

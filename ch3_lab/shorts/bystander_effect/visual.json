@@ -15,7 +15,7 @@
   "Full episode",
   "on the channel"
  ],
- "frames": "1d71ea4096662f6a",
+ "frames": "f144b83c12a2079f",
  "fs": {
   "big": 233,
   "card": 58,
@@ -35,6 +35,8 @@
    ]
   },
   "end": 75,
+  "es_o": 210,
+  "es_r2": 210,
   "head": 70,
   "kicker": 46,
   "meas": 50,
@@ -50,7 +52,7 @@
  "safe": [
   0.86,
   0.24,
-  0.93
+  0.9099999999999999
  ],
- "source": "FORRT Replication Database (FReD)"
+ "source": "The bystander-effect: A meta-analytic review on bystander interv"
 }
