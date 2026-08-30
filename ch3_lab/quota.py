@@ -39,7 +39,22 @@ from datetime import datetime, timedelta
 
 ROOT = pathlib.Path(__file__).resolve().parent
 STATE = ROOT / "quota.json"
-DAILY = 10000
+#: 每日配額上限。**這個數字是量出來的,不是預設值。**
+#: 🔴 舊版寫死 10,000(Google 專案的預設值),而兩條獨立實測都推翻它:
+#:    · ch3 自己:配額日 2026-08-28 實際發了 1 長 + 12 短 = **20,935 單位**
+#:      (台北 08-28 16:25 ~ 08-29 03:05,那些片現在都還在線上)
+#:    · memory yt-quota-budget-2026-07:2026-07-30 主頻道實測 **≥18,000**
+#:    於是「一天最多 6 支」這個我一直拿來做決定的數字,其實是**我們自己
+#:    設的預算**造成的,不是 API 的限制。而 memory 的原話是
+#:    「真瓶頸是可發庫存不是配額」。
+#: ⚠️ 獨立驗證推翻了上面第二條:memory 那個 ≥18,000 量的是**主頻道的
+#:    專案**(524513894332),而 ch3 跑在 881902283633,08-20 才切過去、
+#:    從來沒送過提額申請。所以只剩證據 1。
+#: 🔴 而 18,000 是三個選項裡最差的:13×1600 = 20,800 > 18,000,
+#:    它**重現不了它自己引用的那個觀測**。改成 20,800 ——
+#:    這是這個專案唯一直接量到的數字,而且明確是**下界**。
+#:    真上限如果更低,下一次 403 會免費地、大聲地告訴我們。
+DAILY = 20800
 #: 留給雜項的預留額度:播放清單同步、健檢、狀態查詢、失敗重試。
 #: 實測一天的雜項約 60~120。留 300 而不是更多,是因為 6 支/天需要
 #: 9,636,再多留就發不到 6 支 —— 但也不能不留:超額那一刻是在最後
@@ -74,7 +89,11 @@ def _load():
     except Exception:                                        # noqa: BLE001
         return {"day": _day(), "spent": 0, "items": []}
     if st.get("day") != _day():
-        return {"day": _day(), "spent": 0, "items": []}
+        # 🔴 **`history` 要跨日保留。** 舊版換日回傳全新 dict,於是
+        #    `note_exhausted()` 辛苦記下來的觀測值下一次 `spend()` 就被
+        #    寫掉了 —— 量到的東西活不過換日,等於沒量。
+        return {"day": _day(), "spent": 0, "items": [],
+                "history": st.get("history", [])}
     return st
 
 
@@ -115,3 +134,24 @@ def report():
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     report()
+
+
+def note_exhausted(label=""):
+    """真的吃到 quotaExceeded 時記一筆。**這是唯一能量到真上限的方法。**
+
+    寫死一個 DAILY 只能猜;被 API 擋下來的那一刻,今天到底花了多少是
+    **觀測值**。記進帳本,下次就有真數字可以校準,而不是繼續猜。
+
+    呼叫端:發布器 catch 到訊息含 "quota" 的例外時呼叫它,然後停。
+    """
+    st = _load()
+    st["exhausted_at"] = st["spent"]
+    st["exhausted_label"] = label
+    st.setdefault("history", []).append(
+        {"day": st["day"], "spent": st["spent"], "what": label})
+    tmp = STATE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(st, ensure_ascii=False, indent=1),
+                   encoding="utf-8")
+    tmp.replace(STATE)
+    print(f"  📏 配額在花掉 {st['spent']:,} 之後被擋 —— 已記進帳本。"
+          f"目前 DAILY 設 {DAILY:,},下次可以照這個實測值校準。")

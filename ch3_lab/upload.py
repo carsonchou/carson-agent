@@ -477,7 +477,20 @@ def main():
         return _w
 
     for o in todo:
-        upload_one(yt, o, a.privacy, on_uploaded=record(key_of(o)))
+        # 🔴 insert 外面**必須有 try/except**,而且 403 要呼叫
+        #    `quota.note_exhausted()`。舊版直接往上炸:後面的集不會試、
+        #    「發了幾支、為什麼停」沒有紀錄,而且**唯一能量到真配額上限
+        #    的機會就這樣丟掉了**。配額被擋是這條線的常態,不是理論風險。
+        try:
+            upload_one(yt, o, a.privacy, on_uploaded=record(key_of(o)))
+        except Exception as e:                                # noqa: BLE001
+            if "quota" in str(e).lower():
+                import quota as _q
+                _q.note_exhausted(f"long insert {key_of(o)}")
+                print(f"  ⛔ 配額被 API 擋下,停在 {key_of(o)}")
+                break
+            print(f"  ⛔ {key_of(o)} 上傳失敗:{str(e)[:90]}")
+            continue
     print(f"\n完成。帳本 {LEDGER.name} 共 {len(done)} 支。")
     return 0
 

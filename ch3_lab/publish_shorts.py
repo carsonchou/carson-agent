@@ -17,12 +17,11 @@ Shorts 的角色不一樣,所以文案規則也不一樣:
 放信賴區間,所以它**不下存在性結論**——結論在完整版裡。
 
 ## 配額
-videos.insert 同樣 1600/支。Shorts 與長片共用同一個每日 10,000。
-排程實際是 **16:25(1 長 + 2 短)+ 22:25(3 短)= 1,663 + 5×1,606 = 9,693**,
-而每日可用是 10,000 - RESERVE(300) = **9,700** —— 也就是說跑完一天只剩 7。
-⚠️ 這一行以前寫「3 長 + 2 短 = 8,455」,跟 crontab 對不上。這條線出事最多的
-型態就是「同一件事兩個數字,而人拿來做決定的是舊的那個」。要改發布量,
-改 crontab 之後**回來改這裡**。
+videos.insert 同樣 1600/支,Shorts 與長片共用同一本帳(`quota.py`)。
+**每日上限不要在這裡寫死** —— 它已經被寫錯過兩次(先是 8,455 跟 crontab
+對不上,接著是 10,000 而實測那天做了 13 支)。判準只有一個地方:
+`quota.DAILY`,而它的註解裡有那個數字的觀測來源。要看今天還剩多少就跑
+`python quota.py`。
 
 用法:
   python publish_shorts.py --list
@@ -722,7 +721,19 @@ def main():
             break
         p = ROOT / o["video"]
         print(f"\n[{o['key']}] {o['title'][:60]}")
-        vid = insert_one(yt, o, p)
+        # 🔴 insert 外面**必須有 try/except**。舊版 403 直接往上炸:
+        #    後面的片不會試、`note_exhausted()` 不會執行、
+        #    「發了幾支、為什麼停」完全沒有紀錄。
+        #    而配額被擋是這條線的常態,不是理論風險。
+        try:
+            vid = insert_one(yt, o, p)
+        except Exception as e:                                # noqa: BLE001
+            if "quota" in str(e).lower():
+                quota.note_exhausted(f"shorts insert {o['key']}")
+                print(f"  ⛔ 配額被 API 擋下,停在 {o['key']}")
+                break
+            print(f"  ⛔ {o['key']} 上傳失敗:{str(e)[:80]}")
+            continue
         # 拿到 id 立刻寫帳本(insert 之後的任何例外都不該造成重傳)
         done[o["key"]] = vid
         tmp = LEDGER.with_suffix(".tmp")

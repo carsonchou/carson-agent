@@ -321,9 +321,20 @@ def main():
         }, media_body=MediaFileUpload(str(ROOT / r["video"]),
                                       chunksize=8 * 1024 * 1024,
                                       resumable=True, mimetype="video/mp4"))
-        resp = None
-        while resp is None:
-            _, resp = req.next_chunk()
+        # 🔴 三支發布器裡最後一支接上 403 處理的。舊版直接往上炸,
+        #    而合輯一支就是 1,600 —— 它常常是壓垮當天配額的那一支。
+        try:
+            resp = None
+            while resp is None:
+                _, resp = req.next_chunk()
+        except Exception as e:                               # noqa: BLE001
+            import quota as _q
+            if "quota" in str(e).lower():
+                _q.note_exhausted(f"comp insert {r['bucket']}")
+                print(f"  ⛔ 配額被 API 擋下,停在 {r['bucket']}")
+                break
+            print(f"  ⛔ {r['bucket']} 上傳失敗:{str(e)[:80]}")
+            continue
         vid = resp["id"]
         # 配額在 insert 回來的當下就花掉了,所以這裡就記(理由同帳本)。
         try:
