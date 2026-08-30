@@ -276,9 +276,15 @@ def render_scene(name, t_now, dur, ctx):
         txt(0.48, "the paper everyone is quoting", 46, DIM, "normal")
         if t_now > 2.4:
             b = ease(min(1.0, (t_now - 2.4) / 0.7))
-            txt(0.30, f"cited more than "
-                      f"{E['original']['cited_by_approx']:,} times",
-                58, ACCENT, "bold", b)
+            # 🔴 引用數是選填的:不是每一集都查得到,而**沒有就不要放**。
+            #    有 n 就改印樣本數 —— 那對「這個結論是從多少人來的」
+            #    反而比引用數更切題。都沒有就只留年份。
+            o = E["original"]
+            if o.get("cited_by_approx"):
+                txt(0.30, f"cited more than {o['cited_by_approx']:,} times",
+                    58, ACCENT, "bold", b)
+            elif o.get("n"):
+                txt(0.30, f"{o['n']:,} people", 58, ACCENT, "bold", b)
     elif name == "test":
         txt(0.60, str(T["year"]), 150, DIM)
         txt(0.42, "somebody added up every study", 52, FG, "normal")

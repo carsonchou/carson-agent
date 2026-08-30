@@ -215,5 +215,12 @@
    "AND I LEARN BETTER"
   ],
   "spoken": "Do you learn better when you are taught in your own style?"
+ },
+ "eps_domain/cognitive_dissonance": {
+  "lines": [
+   "PAY SOMEONE MORE",
+   "TO LIE, AND THEY BELIEVE IT LESS"
+  ],
+  "spoken": "If you pay someone more to say something they do not believe, do they change their mind less?"
  }
 }
