@@ -669,28 +669,57 @@ def main():
             if E.get("arc") == "outcomes":
                 outs = T["outcomes"]
                 kept = [x for x in outs if x["sig"]]
-                title = (f"{E['popular_name'].capitalize()}: they measured "
-                         f"{len(outs)} things on {t_n(T)} people. "
-                         f"{len(kept)} came back.")
+                # 🔴 **「N 個裡回來 M 個」只有在 N 項都在測同一個宣稱時才對。**
+                #    learning styles 的三項裡只有一項是那個宣稱,另外兩項是
+                #    順帶量到的、而且都跟理論無關 —— 寫「3 個裡回來 2 個」
+                #    讀起來像理論部分成立,而真相是**要成立的那一個沒回來**。
+                #    每個數字都溯源得到,框架卻是反的:今晚同型的第五次。
+                claims = [x for x in outs if x.get("is_claim", True)]
+                c_kept = [x for x in claims if x["sig"]]
+                if len(claims) < len(outs):
+                    # 混合型:先講宣稱本身怎麼了
+                    verdict = ("held" if c_kept else
+                               f"came back at p = {claims[0]['p']:.2f}")
+                    title = (f"{E['popular_name'].capitalize()}: the one thing "
+                             f"the idea needs {verdict}.")
+                else:
+                    title = (f"{E['popular_name'].capitalize()}: they measured "
+                             f"{len(outs)} things on {t_n(T)} people. "
+                             f"{len(kept)} came back.")
+                # 有 d 就寫 d,沒有的寫它真正報的統計式。**不硬換算** ——
+                # learning styles 那篇報的是 F 與 p,編一個 d 出來就是
+                # 在說明欄放一個查不到的數字。
                 rows = nl.join(
-                    f"  {x['name']:<20} d = {x['d']:+.2f}   p = "
-                    f"{x['p']:.3f}   "
-                    f"{'significant' if x['sig'] else 'not significant'}"
+                    f"  {x.get('name_long') or x['name']:<26} "
+                    + (f"d = {x['d']:+.2f}   " if x.get("d") is not None
+                       else f"{x.get('stat') or ''}   ")
+                    + f"p = {x['p']:.3f}   "
+                    + ("significant" if x["sig"] else "not significant")
                     for x in outs)
                 desc = (
                     f"{_plain.spoken(key)}{nl}{nl}"
-                    f"The original: {O['title']} ({O['year']}), "
-                    f"n = {O['n']}, doi:{O['doi']}{nl}"
+                    # 🔴 「原始」不一定是一篇有受試者的研究。learning styles
+                    #    那集的原始是 Pashler 2009 —— 一篇**評論**,它從頭
+                    #    到尾就在說這個主張沒有證據,沒有 n。硬寫
+                    #    「n = None」或編一個數字都是假的。
+                    f"The claim as stated: {O['title']} ({O['year']}), "
+                    + (f"n = {O['n']}, " if O.get("n") else "")
+                    + f"doi:{O['doi']}{nl}"
                     f"The replication: {T['title']} ({T['year']}), "
                     f"n = {T['n']}, doi:{T['doi']}{nl}{nl}"
                     f"What the replication found:{nl}{rows}{nl}{nl}"
                     f"Quoted from the replication:{nl}"
                     + nl.join('  "' + x["quote"] + '"' for x in outs) + nl
-                    + f'  "{T["extra_quote"]}"{nl}{nl}'
-                    f"The authors' own summary:{nl}"
-                    f'"{T["verdict_quote"]}"{nl}{nl}'
-                    f"On statistical power:{nl}"
-                    f'"{T["power_quote"]}"') + footer_for(2)
+                    # 選填的引句:有就放,沒有就不放。**不要假設每一集
+                    # 都有同一組欄位** —— 這是 outcomes 這條路徑今天第
+                    # 三次因為「假設某個欄位一定在」而炸掉。
+                    + (f'  "{T["extra_quote"]}"{nl}'
+                       if T.get("extra_quote") else "")
+                    + nl
+                    + f"The authors' own summary:{nl}"
+                    + f'"{T["verdict_quote"]}"{nl}'
+                    + (f'{nl}On statistical power:{nl}"{T["power_quote"]}"'
+                       if T.get("power_quote") else "")) + footer_for(2)
                 out.append({
                     "kind": "domains", "slug": d.name, "dir": key,
                     "video": f"{key}/{d.name}.mp4",
@@ -700,7 +729,12 @@ def main():
                     "facts": {"es_o": None, "es_r": None, "n_r": None,
                               "es_kind": "d", "is_replication": True,
                               "k": len(outs), "k_word": "outcomes",
-                              "n_kept": len(kept), "arc": "outcomes"},
+                              "n_kept": len(kept), "arc": "outcomes",
+                              # 宣稱本身的結果 —— Short 端要靠它決定框架,
+                              # 否則會退回「N 個裡回來 M 個」那種誤導說法。
+                              "claim_p": (claims[0]["p"] if len(claims)
+                                          < len(outs) else None),
+                              "claim_sig": bool(c_kept)},
                 })
                 print(f"  ✓ {d.name}:{title}")
                 continue

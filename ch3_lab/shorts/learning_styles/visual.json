@@ -5,30 +5,30 @@
   1920,
   30
  ],
- "card": "8 of 25 held up.",
+ "card": "2 of 3 came back.",
  "claim_lines": [
-  "FAMOUS EXPERIMENTS",
-  "RUN AGAIN"
+  "TEACH ME MY WAY",
+  "AND I LEARN BETTER"
  ],
- "color": "#5FC98A",
+ "color": "#F5A54E",
  "end_card": [
   "Every number",
   "from the record"
  ],
- "frames": "11d5303a9c62d78d",
+ "frames": "49cb2fe20287ea60",
  "fs": {
   "card": 58,
   "claim": {
-   "fs": 82,
+   "fs": 79,
    "lines": [
-    "FAMOUS",
-    "EXPERIMENTS",
-    "RUN AGAIN"
+    "TEACH ME MY",
+    "WAY AND I",
+    "LEARN BETTER"
    ],
    "ys": [
-    0.6191,
+    0.6164,
     0.545,
-    0.4709
+    0.4736
    ]
   },
   "end": 75,
@@ -36,12 +36,11 @@
   "es_r2": 210,
   "kicker": 46,
   "meas": 50,
-  "sb_head": 54,
-  "sb_lab": 38,
-  "sb_sub": 42,
-  "src": 34
+  "o_name": 35,
+  "src": 34,
+  "sub": 46
  },
- "kicker": "THE CLAIM",
+ "kicker": "A STUDY FOUND",
  "palette": [
   "#0E1116",
   "#E8EAED",
@@ -52,5 +51,5 @@
   0.24,
   0.9099999999999999
  ],
- "source": "FReD, plus the paper named in each episode"
+ "source": "Providing Instruction Based on Students' Learning Style Preferences Does Not Improve Learning"
 }

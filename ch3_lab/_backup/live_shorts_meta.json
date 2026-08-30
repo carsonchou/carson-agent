@@ -360,5 +360,163 @@
     "defaultAudioLanguage": "en"
    }
   }
+ },
+ {
+  "at": "2026-08-30 16:43:06",
+  "snippets": {
+   "bvU1mY4bzX0": {
+    "publishedAt": "2026-08-29T08:26:19Z",
+    "channelId": "UCbo4EytWhZ7zAGSoIPioJ5g",
+    "title": "The more useful something is, the safer it seems? Retested on 776 people.",
+    "description": "The full episode goes up on this channel.\n\nThe more useful something is, the safer it seems?\n\nOriginal study: 219 people, effect size -0.75\nReplication: 776 people, effect size -0.87\nIt came back larger.\n\nSource: FORRT Replication Database (FReD), osf.io/2tbvd\n#Shorts",
+    "thumbnails": {
+     "default": {
+      "url": "https://i.ytimg.com/vi/bvU1mY4bzX0/default.jpg",
+      "width": 120,
+      "height": 90
+     },
+     "medium": {
+      "url": "https://i.ytimg.com/vi/bvU1mY4bzX0/mqdefault.jpg",
+      "width": 320,
+      "height": 180
+     },
+     "high": {
+      "url": "https://i.ytimg.com/vi/bvU1mY4bzX0/hqdefault.jpg",
+      "width": 480,
+      "height": 360
+     },
+     "standard": {
+      "url": "https://i.ytimg.com/vi/bvU1mY4bzX0/sddefault.jpg",
+      "width": 640,
+      "height": 480
+     },
+     "maxres": {
+      "url": "https://i.ytimg.com/vi/bvU1mY4bzX0/maxresdefault.jpg",
+      "width": 1280,
+      "height": 720
+     }
+    },
+    "channelTitle": "One Quiet Hour",
+    "tags": [
+     "Shorts",
+     "effect size",
+     "psychology",
+     "replication crisis",
+     "research",
+     "science",
+     "statistics"
+    ],
+    "categoryId": "27",
+    "liveBroadcastContent": "none",
+    "defaultLanguage": "en",
+    "localized": {
+     "title": "The more useful something is, the safer it seems? Retested on 776 people.",
+     "description": "The full episode goes up on this channel.\n\nThe more useful something is, the safer it seems?\n\nOriginal study: 219 people, effect size -0.75\nReplication: 776 people, effect size -0.87\nIt came back larger.\n\nSource: FORRT Replication Database (FReD), osf.io/2tbvd\n#Shorts"
+    },
+    "defaultAudioLanguage": "en"
+   },
+   "_jSrEYCgU8E": {
+    "publishedAt": "2026-08-30T02:47:25Z",
+    "channelId": "UCbo4EytWhZ7zAGSoIPioJ5g",
+    "title": "Power posing: they measured 4 things. 1 came back.",
+    "description": "The full episode goes up on this channel.\n\nDoes standing in a powerful pose make you more powerful?\n\nWhat the replication found:\n  felt more powerful   d = +0.34  p = 0.017  significant\n  testosterone         d = -0.20  p = 0.162  not significant\n  cortisol             d = -0.16  p = 0.272  not significant\n  risk taking          d = -0.18  p = 0.215  not significant\n1 of 4 came back.\n\nSource: Assessing the Robustness of Power Posing: No Effect on Hormones and Risk Tolerance in a Large Sample of Men and Women (doi:10.1177/0956797614553946)\n#Shorts",
+    "thumbnails": {
+     "default": {
+      "url": "https://i.ytimg.com/vi/_jSrEYCgU8E/default.jpg",
+      "width": 120,
+      "height": 90
+     },
+     "medium": {
+      "url": "https://i.ytimg.com/vi/_jSrEYCgU8E/mqdefault.jpg",
+      "width": 320,
+      "height": 180
+     },
+     "high": {
+      "url": "https://i.ytimg.com/vi/_jSrEYCgU8E/hqdefault.jpg",
+      "width": 480,
+      "height": 360
+     },
+     "standard": {
+      "url": "https://i.ytimg.com/vi/_jSrEYCgU8E/sddefault.jpg",
+      "width": 640,
+      "height": 480
+     },
+     "maxres": {
+      "url": "https://i.ytimg.com/vi/_jSrEYCgU8E/maxresdefault.jpg",
+      "width": 1280,
+      "height": 720
+     }
+    },
+    "channelTitle": "One Quiet Hour",
+    "tags": [
+     "Shorts",
+     "effect size",
+     "psychology",
+     "replication crisis",
+     "research",
+     "science",
+     "statistics"
+    ],
+    "categoryId": "27",
+    "liveBroadcastContent": "none",
+    "defaultLanguage": "en",
+    "localized": {
+     "title": "Power posing: they measured 4 things. 1 came back.",
+     "description": "The full episode goes up on this channel.\n\nDoes standing in a powerful pose make you more powerful?\n\nWhat the replication found:\n  felt more powerful   d = +0.34  p = 0.017  significant\n  testosterone         d = -0.20  p = 0.162  not significant\n  cortisol             d = -0.16  p = 0.272  not significant\n  risk taking          d = -0.18  p = 0.215  not significant\n1 of 4 came back.\n\nSource: Assessing the Robustness of Power Posing: No Effect on Hormones and Risk Tolerance in a Large Sample of Men and Women (doi:10.1177/0956797614553946)\n#Shorts"
+    },
+    "defaultAudioLanguage": "en"
+   },
+   "CJdPBbB-lP0": {
+    "publishedAt": "2026-08-30T08:40:25Z",
+    "channelId": "UCbo4EytWhZ7zAGSoIPioJ5g",
+    "title": "Learning styles: they measured 3 things. 2 came back.",
+    "description": "Full episode: https://youtu.be/m14CWlRhpvA\n\nDo you learn better when you are taught in your own style?\n\nWhat the replication found:\n  teaching to their style    F(1, 38) = 1.16  p = 0.290  not significant\n  listening beat reading, for everyone F(1, 110) = 4.92, eta2 = 0.04  p = 0.030  significant\n  visual types scored higher at both F(1, 32) = 12.92, eta2 = 0.29  p = 0.001  significant\n2 of 3 came back.\n\nSource: Providing Instruction Based on Students' Learning Style Preferences Does Not Improve Learning (doi:10.3389/fpsyg.2020.00164)\n#Shorts",
+    "thumbnails": {
+     "default": {
+      "url": "https://i.ytimg.com/vi/CJdPBbB-lP0/default.jpg",
+      "width": 120,
+      "height": 90
+     },
+     "medium": {
+      "url": "https://i.ytimg.com/vi/CJdPBbB-lP0/mqdefault.jpg",
+      "width": 320,
+      "height": 180
+     },
+     "high": {
+      "url": "https://i.ytimg.com/vi/CJdPBbB-lP0/hqdefault.jpg",
+      "width": 480,
+      "height": 360
+     },
+     "standard": {
+      "url": "https://i.ytimg.com/vi/CJdPBbB-lP0/sddefault.jpg",
+      "width": 640,
+      "height": 480
+     },
+     "maxres": {
+      "url": "https://i.ytimg.com/vi/CJdPBbB-lP0/maxresdefault.jpg",
+      "width": 1280,
+      "height": 720
+     }
+    },
+    "channelTitle": "One Quiet Hour",
+    "tags": [
+     "Shorts",
+     "effect size",
+     "psychology",
+     "replication crisis",
+     "research",
+     "science",
+     "statistics"
+    ],
+    "categoryId": "27",
+    "liveBroadcastContent": "none",
+    "defaultLanguage": "en",
+    "localized": {
+     "title": "Learning styles: they measured 3 things. 2 came back.",
+     "description": "Full episode: https://youtu.be/m14CWlRhpvA\n\nDo you learn better when you are taught in your own style?\n\nWhat the replication found:\n  teaching to their style    F(1, 38) = 1.16  p = 0.290  not significant\n  listening beat reading, for everyone F(1, 110) = 4.92, eta2 = 0.04  p = 0.030  significant\n  visual types scored higher at both F(1, 32) = 12.92, eta2 = 0.29  p = 0.001  significant\n2 of 3 came back.\n\nSource: Providing Instruction Based on Students' Learning Style Preferences Does Not Improve Learning (doi:10.3389/fpsyg.2020.00164)\n#Shorts"
+    },
+    "defaultAudioLanguage": "en"
+   }
+  }
  }
 ]

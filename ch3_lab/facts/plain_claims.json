@@ -208,5 +208,12 @@
    "AND BECOME MORE POWERFUL"
   ],
   "spoken": "Does standing in a powerful pose make you more powerful?"
+ },
+ "eps_domain/learning_styles": {
+  "lines": [
+   "TEACH ME MY WAY",
+   "AND I LEARN BETTER"
+  ],
+  "spoken": "Do you learn better when you are taught in your own style?"
  }
 }

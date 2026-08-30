@@ -1,0 +1,84 @@
+{
+ "slug": "learning_styles",
+ "arc": "outcomes",
+ "unit": "p",
+ "claim": "you learn better when you are taught in your own learning style",
+ "popular_name": "learning styles",
+ "search_term": "learning styles myth",
+ "scan": {
+  "on_topic": 15,
+  "median_views": 17117,
+  "small_channels": 7,
+  "median_subs": 28600,
+  "score": 7988,
+  "measured": "2026-08-29 effect_scan.py"
+ },
+ "original": {
+  "year": 2009,
+  "title": "Learning Styles: Concepts and Evidence",
+  "journal": "Psychological Science in the Public Interest",
+  "doi": "10.1111/j.1539-6053.2009.01038.x",
+  "cited_by": 2103,
+  "cited_by_source": "OpenAlex, retrieved 2026-08-30",
+  "cited_by_approx": 2100,
+  "claim_quote": "They called this interaction the meshing hypothesis which states that an individual learns better when taught in a mode of instruction (for example listening versus reading) that aligns with their preferred learning style (auditory, visual, respectively). [Rogowsky et al. 2020, Introduction, describing Pashler et al. 2009]",
+  "note": "這不是一篇提出主張的原始研究,而是**指出這個主張沒有證據、並且訂出該怎麼測**的評論。所以片裡不能說「2009 年有人發現…」——它從頭到尾都在說沒有。",
+  "say_origin": "This one does not come from a study that found it. In 2009 four researchers reviewed the whole literature and reported that almost nobody had run the experiment that could test it. So they wrote down exactly what that experiment would have to look like."
+ },
+ "test": {
+  "year": 2020,
+  "kind": "experiment following the prescribed design, whole 5th grade",
+  "title": "Providing Instruction Based on Students' Learning Style Preferences Does Not Improve Learning",
+  "journal": "Frontiers in Psychology",
+  "doi": "10.3389/fpsyg.2020.00164",
+  "pmcid": "PMC7033468",
+  "n": 125,
+  "n_quote": "Eligible participants included the entire population of 5th graders (ages 10-11 years) enrolled in a public middle school in rural Pennsylvania (N = 136). The actual participants were those students present for three consecutive days during which the study occurred (n = 125; 64 females/61 males).",
+  "source_text": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC7033468/fullTextXML",
+  "outcomes": [
+   {
+    "name": "taught in their style",
+    "d": null,
+    "p": 0.29,
+    "sig": false,
+    "stat": "F(1, 38) = 1.16",
+    "note": "這就是整個理論要成立的那一項",
+    "quote": "There was not a significant main effect of instruction (F(1, 32) = 1.15, p = 0.29), nor an instruction by learning styles interaction (F(1, 38) = 1.16; p = 0.29).",
+    "name_long": "teaching to their style",
+    "is_claim": true
+   },
+   {
+    "name": "listening beat reading",
+    "d": null,
+    "p": 0.03,
+    "sig": true,
+    "stat": "F(1, 110) = 4.92, eta2 = 0.04",
+    "quote": "A significant main effect for instruction was found (F(1, 110) = 4.92; p = 0.03) with students performing better when listening (M = 36.0, SE = 0.9) than reading (M = 34.4, SE = 0.8). This corresponds to an effect size of eta 2 = 0.04, which is considered small.",
+    "name_long": "listening beat reading, for everyone",
+    "is_claim": false
+   },
+   {
+    "name": "visual types, both tasks",
+    "d": null,
+    "p": 0.001,
+    "sig": true,
+    "stat": "F(1, 32) = 12.92, eta2 = 0.29",
+    "quote": "There was a significant main effect of learning styles (auditory vs. visual; F (1, 32) = 12.92; p = 0.001) with an effect size of eta 2 = 0.29 ... These results indicate that visual learners were significantly better at both listening and reading comprehension, as compared to auditory learners.",
+    "name_long": "visual types scored higher at both",
+    "is_claim": false
+   }
+  ],
+  "verdict_quote": "Results failed to find a significant relationship between auditory or visual learning style preference and comprehension. Fifth graders with a visual learning style scored higher than those with an auditory learning style on listening and reading comprehension measures. As such, and counter to current educational beliefs and practices, teachers may actually be doing a disservice to students by using resources to determine their learning style and then tailoring the curriculum to match that learning style. [abstract]",
+  "missing": [],
+  "missing_note": "全文(Europe PMC fullTextXML)自己讀過,每個數字都附原句。",
+  "say_test": "In 2020 a team ran it, on the entire fifth grade of one American public school. 125 children. Every child was tested for listening and for reading, and then taught in one mode or the other.",
+  "say_punch": "The thing the whole idea rests on - being taught in your own style - came back at p of zero point two nine. Nothing. But two other things did come back, and neither of them is the theory. Everybody did better listening than reading. And the children labelled visual scored higher at both - reading and listening. That effect was seven times the size of the one that was significant in the other direction.",
+  "say_verdict": "So the label does not tell you how to teach someone. At most it tells you who tests better overall. The authors put it plainly: teachers may actually be doing a disservice to students by using resources to determine their learning style and then tailoring the curriculum to match it.",
+  "_name_note": "name 是**畫面上的顯示標籤**(我寫的),不是引文 —— 所以可以為了版面縮短。真正不能動的是 quote 與 stat。原本較長的說法留在 name_long。",
+  "_claim_note": "只有第一項是**那個宣稱本身**(教學方式 × 學習風格的交互作用)。另外兩項是順帶量到的、而且都跟理論無關。所以標題不能寫「3 個裡回來 2 個」——那讀起來像理論部分成立,而真相是**要成立的那一個沒回來**。"
+ },
+ "hook": "You learn better when you are taught in your own learning style?",
+ "hook_short": "Taught in your own learning style?",
+ "tone": "gone",
+ "tone_manual_why": "要測的那一項(教學方式 × 學習風格的交互作用)p = 0.29,不顯著 → gone。但**片裡必須講清楚有兩件事是顯著的**,而且它們都跟理論無關:所有人聽比讀好(p = 0.03, eta2 = 0.04),以及被歸類成視覺型的人**兩種都比較強**(p = 0.001, eta2 = 0.29 —— 比那個小效應大七倍)。只講「沒效」會漏掉這一集真正的發現:分類沒有告訴你怎麼教一個人,它只告訴你誰考得比較好。"
+}

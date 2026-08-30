@@ -234,6 +234,35 @@
   }
  },
  {
+  "kind": "fred",
+  "row": 7,
+  "dir": "eps/ep007",
+  "video": "eps/ep007/ep007.mp4",
+  "tone": "stronger",
+  "title": "The more useful something is, the safer it seems? It came back stronger.",
+  "description": "The more useful something is, the safer it seems?\n\nIncreasing benefits leads people to judge its risks as lower.\n\nOriginal study (2000): The affect heuristic in judgments of risks and benefits\n  219 participants — effect size -0.75 (r)\n  doi:10.1002/(sici)1099-0771(200001/03)13:1%3C1::aid-bdm333%3E3.0.co;2-s\n\nReplication: Risky Therefore Not Beneficial: Replication and Extension of Finucane et al.’s (2000) Affect Heuristic Experiment\n  776 participants — effect size -0.87\n  doi:10.1177/19485506211056761\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "tags": [
+   "replication crisis",
+   "psychology",
+   "effect size",
+   "science",
+   "research",
+   "statistics",
+   "meta-analysis",
+   "replication study",
+   "open science",
+   "social psychology"
+  ],
+  "thumb": "eps/ep007/thumb.jpg",
+  "facts": {
+   "es_o": -0.75,
+   "es_r": -0.87,
+   "n_o": 219,
+   "n_r": 776,
+   "es_kind": "r"
+  }
+ },
+ {
   "kind": "famous",
   "slug": "ego_depletion",
   "dir": "eps_famous/ego_depletion",
@@ -399,13 +428,14 @@
   }
  },
  {
-  "kind": "fred",
-  "row": 7,
-  "dir": "eps/ep007",
-  "video": "eps/ep007/ep007.mp4",
-  "tone": "stronger",
-  "title": "The more useful something is, the safer it seems? It came back stronger.",
-  "description": "The more useful something is, the safer it seems?\n\nIncreasing benefits leads people to judge its risks as lower.\n\nOriginal study (2000): The affect heuristic in judgments of risks and benefits\n  219 participants — effect size -0.75 (r)\n  doi:10.1002/(sici)1099-0771(200001/03)13:1%3C1::aid-bdm333%3E3.0.co;2-s\n\nReplication: Risky Therefore Not Beneficial: Replication and Extension of Finucane et al.’s (2000) Affect Heuristic Experiment\n  776 participants — effect size -0.87\n  doi:10.1177/19485506211056761\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "kind": "domains",
+  "slug": "learning_styles",
+  "dir": "eps_domain/learning_styles",
+  "video": "eps_domain/learning_styles/learning_styles.mp4",
+  "thumb": "eps_domain/learning_styles/thumb.jpg",
+  "tone": "gone",
+  "title": "Learning styles: the one thing the idea needs came back at p = 0.29.",
+  "description": "Do you learn better when you are taught in your own style?\n\nThe claim as stated: Learning Styles: Concepts and Evidence (2009), doi:10.1111/j.1539-6053.2009.01038.x\nThe replication: Providing Instruction Based on Students' Learning Style Preferences Does Not Improve Learning (2020), n = 125, doi:10.3389/fpsyg.2020.00164\n\nWhat the replication found:\n  teaching to their style    F(1, 38) = 1.16   p = 0.290   not significant\n  listening beat reading, for everyone F(1, 110) = 4.92, eta2 = 0.04   p = 0.030   significant\n  visual types scored higher at both F(1, 32) = 12.92, eta2 = 0.29   p = 0.001   significant\n\nQuoted from the replication:\n  \"There was not a significant main effect of instruction (F(1, 32) = 1.15, p = 0.29), nor an instruction by learning styles interaction (F(1, 38) = 1.16; p = 0.29).\"\n  \"A significant main effect for instruction was found (F(1, 110) = 4.92; p = 0.03) with students performing better when listening (M = 36.0, SE = 0.9) than reading (M = 34.4, SE = 0.8). This corresponds to an effect size of eta 2 = 0.04, which is considered small.\"\n  \"There was a significant main effect of learning styles (auditory vs. visual; F (1, 32) = 12.92; p = 0.001) with an effect size of eta 2 = 0.29 ... These results indicate that visual learners were significantly better at both listening and reading comprehension, as compared to auditory learners.\"\n\nThe authors' own summary:\n\"Results failed to find a significant relationship between auditory or visual learning style preference and comprehension. Fifth graders with a visual learning style scored higher than those with an auditory learning style on listening and reading comprehension measures. As such, and counter to current educational beliefs and practices, teachers may actually be doing a disservice to students by using resources to determine their learning style and then tailoring the curriculum to match that learning style. [abstract]\"\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
   "tags": [
    "replication crisis",
    "psychology",
@@ -418,13 +448,18 @@
    "open science",
    "social psychology"
   ],
-  "thumb": "eps/ep007/thumb.jpg",
   "facts": {
-   "es_o": -0.75,
-   "es_r": -0.87,
-   "n_o": 219,
-   "n_r": 776,
-   "es_kind": "r"
+   "es_o": null,
+   "es_r": null,
+   "n_r": null,
+   "es_kind": "d",
+   "is_replication": true,
+   "k": 3,
+   "k_word": "outcomes",
+   "n_kept": 2,
+   "arc": "outcomes",
+   "claim_p": 0.29,
+   "claim_sig": false
   }
  },
  {
@@ -822,7 +857,7 @@
   "thumb": "eps_domain/power_posing/thumb.jpg",
   "tone": "shrunk_real",
   "title": "Power posing: they measured 4 things on 200 people. 1 came back.",
-  "description": "Does standing in a powerful pose make you more powerful?\n\nThe original: Power Posing: Brief Nonverbal Displays Affect Neuroendocrine Levels and Risk Tolerance (2010), n = 42, doi:10.1177/0956797610383437\nThe replication: Assessing the Robustness of Power Posing: No Effect on Hormones and Risk Tolerance in a Large Sample of Men and Women (2015), n = 200, doi:10.1177/0956797614553946\n\nWhat the replication found:\n  felt more powerful   d = +0.34   p = 0.017   significant\n  testosterone         d = -0.20   p = 0.162   not significant\n  cortisol             d = -0.16   p = 0.272   not significant\n  risk taking          d = -0.18   p = 0.215   not significant\n\nQuoted from the replication:\n  \"mean difference = 0.245, 95% CI = [0.044, 0.446], t(193) = 2.399, p = .017, Cohen's d = 0.344\"\n  \"mean difference = -4.077, 95% CI = [-9.801, 1.647], t(196) = -1.405, p = .162, Cohen's d = -0.200\"\n  \"mean difference = -0.028, 95% CI = [-0.078, 0.022], t(196) = -1.101, p = .272, Cohen's d = -0.157\"\n  \"mean difference = -0.033, 95% CI = [-0.085, 0.019], t(198) = -1.245, p = .215, Cohen's d = -0.176\"\n  \"Neither of the other two behavioral tasks yielded significant differences by condition. [Ranehill et al. 2015, p.654]\"\n\nThe authors' own summary:\n\"Using a much larger sample size but similar procedures as Carney et al. did, we failed to confirm an effect of power posing on testosterone, cortisol, and financial risk taking. We did find that power posing affected self-reported feelings of power; however, this did not yield behavioral effects. [Ranehill et al. 2015, p.654]\"\n\nOn statistical power:\n\"Our statistical power to detect an effect of the magnitude reported by Carney et al. was more than 95% [Ranehill et al. 2015, p.653]\"\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "description": "Does standing in a powerful pose make you more powerful?\n\nThe claim as stated: Power Posing: Brief Nonverbal Displays Affect Neuroendocrine Levels and Risk Tolerance (2010), n = 42, doi:10.1177/0956797610383437\nThe replication: Assessing the Robustness of Power Posing: No Effect on Hormones and Risk Tolerance in a Large Sample of Men and Women (2015), n = 200, doi:10.1177/0956797614553946\n\nWhat the replication found:\n  felt more powerful         d = +0.34   p = 0.017   significant\n  testosterone               d = -0.20   p = 0.162   not significant\n  cortisol                   d = -0.16   p = 0.272   not significant\n  risk taking                d = -0.18   p = 0.215   not significant\n\nQuoted from the replication:\n  \"mean difference = 0.245, 95% CI = [0.044, 0.446], t(193) = 2.399, p = .017, Cohen's d = 0.344\"\n  \"mean difference = -4.077, 95% CI = [-9.801, 1.647], t(196) = -1.405, p = .162, Cohen's d = -0.200\"\n  \"mean difference = -0.028, 95% CI = [-0.078, 0.022], t(196) = -1.101, p = .272, Cohen's d = -0.157\"\n  \"mean difference = -0.033, 95% CI = [-0.085, 0.019], t(198) = -1.245, p = .215, Cohen's d = -0.176\"\n  \"Neither of the other two behavioral tasks yielded significant differences by condition. [Ranehill et al. 2015, p.654]\"\n\nThe authors' own summary:\n\"Using a much larger sample size but similar procedures as Carney et al. did, we failed to confirm an effect of power posing on testosterone, cortisol, and financial risk taking. We did find that power posing affected self-reported feelings of power; however, this did not yield behavioral effects. [Ranehill et al. 2015, p.654]\"\n\nOn statistical power:\n\"Our statistical power to detect an effect of the magnitude reported by Carney et al. was more than 95% [Ranehill et al. 2015, p.653]\"\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
   "tags": [
    "replication crisis",
    "psychology",
@@ -844,7 +879,9 @@
    "k": 4,
    "k_word": "outcomes",
    "n_kept": 1,
-   "arc": "outcomes"
+   "arc": "outcomes",
+   "claim_p": null,
+   "claim_sig": true
   }
  }
 ]

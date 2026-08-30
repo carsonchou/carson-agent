@@ -121,34 +121,39 @@
       "d": 0.344,
       "p": 0.017,
       "sig": true,
-      "quote": "mean difference = 0.245, 95% CI = [0.044, 0.446], t(193) = 2.399, p = .017, Cohen's d = 0.344"
+      "quote": "mean difference = 0.245, 95% CI = [0.044, 0.446], t(193) = 2.399, p = .017, Cohen's d = 0.344",
+      "is_claim": true
      },
      {
       "name": "testosterone",
       "d": -0.2,
       "p": 0.162,
       "sig": false,
-      "quote": "mean difference = -4.077, 95% CI = [-9.801, 1.647], t(196) = -1.405, p = .162, Cohen's d = -0.200"
+      "quote": "mean difference = -4.077, 95% CI = [-9.801, 1.647], t(196) = -1.405, p = .162, Cohen's d = -0.200",
+      "is_claim": true
      },
      {
       "name": "cortisol",
       "d": -0.157,
       "p": 0.272,
       "sig": false,
-      "quote": "mean difference = -0.028, 95% CI = [-0.078, 0.022], t(196) = -1.101, p = .272, Cohen's d = -0.157"
+      "quote": "mean difference = -0.028, 95% CI = [-0.078, 0.022], t(196) = -1.101, p = .272, Cohen's d = -0.157",
+      "is_claim": true
      },
      {
       "name": "risk taking",
       "d": -0.176,
       "p": 0.215,
       "sig": false,
-      "quote": "mean difference = -0.033, 95% CI = [-0.085, 0.019], t(198) = -1.245, p = .215, Cohen's d = -0.176"
+      "quote": "mean difference = -0.033, 95% CI = [-0.085, 0.019], t(198) = -1.245, p = .215, Cohen's d = -0.176",
+      "is_claim": true
      }
     ],
     "extra_quote": "Neither of the other two behavioral tasks yielded significant differences by condition. [Ranehill et al. 2015, p.654]",
     "verdict_quote": "Using a much larger sample size but similar procedures as Carney et al. did, we failed to confirm an effect of power posing on testosterone, cortisol, and financial risk taking. We did find that power posing affected self-reported feelings of power; however, this did not yield behavioral effects. [Ranehill et al. 2015, p.654]",
     "missing": [],
-    "missing_note": "這一集沒有缺漏欄位 —— 全文讀過,每個數字都附原句。"
+    "missing_note": "這一集沒有缺漏欄位 —— 全文讀過,每個數字都附原句。",
+    "_claim_note": "四項都是同一個宣稱的不同量法,所以「4 個裡回來 1 個」是對的說法。"
    },
    "hook": "Standing in a powerful pose for two minutes makes you more powerful?",
    "hook_short": "Two minutes in a power pose?",
@@ -179,7 +184,8 @@
     "cited_by_source": "OpenAlex, retrieved 2026-08-30",
     "cited_by_approx": 2100,
     "claim_quote": "They called this interaction the meshing hypothesis which states that an individual learns better when taught in a mode of instruction (for example listening versus reading) that aligns with their preferred learning style (auditory, visual, respectively). [Rogowsky et al. 2020, Introduction, describing Pashler et al. 2009]",
-    "note": "這不是一篇提出主張的原始研究,而是**指出這個主張沒有證據、並且訂出該怎麼測**的評論。所以片裡不能說「2009 年有人發現…」——它從頭到尾都在說沒有。"
+    "note": "這不是一篇提出主張的原始研究,而是**指出這個主張沒有證據、並且訂出該怎麼測**的評論。所以片裡不能說「2009 年有人發現…」——它從頭到尾都在說沒有。",
+    "say_origin": "This one does not come from a study that found it. In 2009 four researchers reviewed the whole literature and reported that almost nobody had run the experiment that could test it. So they wrote down exactly what that experiment would have to look like."
    },
    "test": {
     "year": 2020,
@@ -193,34 +199,45 @@
     "source_text": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC7033468/fullTextXML",
     "outcomes": [
      {
-      "name": "teaching to their style",
+      "name": "taught in their style",
       "d": null,
       "p": 0.29,
       "sig": false,
       "stat": "F(1, 38) = 1.16",
       "note": "這就是整個理論要成立的那一項",
-      "quote": "There was not a significant main effect of instruction (F(1, 32) = 1.15, p = 0.29), nor an instruction by learning styles interaction (F(1, 38) = 1.16; p = 0.29)."
+      "quote": "There was not a significant main effect of instruction (F(1, 32) = 1.15, p = 0.29), nor an instruction by learning styles interaction (F(1, 38) = 1.16; p = 0.29).",
+      "name_long": "teaching to their style",
+      "is_claim": true
      },
      {
-      "name": "listening beat reading, for everyone",
+      "name": "listening beat reading",
       "d": null,
       "p": 0.03,
       "sig": true,
       "stat": "F(1, 110) = 4.92, eta2 = 0.04",
-      "quote": "A significant main effect for instruction was found (F(1, 110) = 4.92; p = 0.03) with students performing better when listening (M = 36.0, SE = 0.9) than reading (M = 34.4, SE = 0.8). This corresponds to an effect size of eta 2 = 0.04, which is considered small."
+      "quote": "A significant main effect for instruction was found (F(1, 110) = 4.92; p = 0.03) with students performing better when listening (M = 36.0, SE = 0.9) than reading (M = 34.4, SE = 0.8). This corresponds to an effect size of eta 2 = 0.04, which is considered small.",
+      "name_long": "listening beat reading, for everyone",
+      "is_claim": false
      },
      {
-      "name": "visual types scored higher at both",
+      "name": "visual types, both tasks",
       "d": null,
       "p": 0.001,
       "sig": true,
       "stat": "F(1, 32) = 12.92, eta2 = 0.29",
-      "quote": "There was a significant main effect of learning styles (auditory vs. visual; F (1, 32) = 12.92; p = 0.001) with an effect size of eta 2 = 0.29 ... These results indicate that visual learners were significantly better at both listening and reading comprehension, as compared to auditory learners."
+      "quote": "There was a significant main effect of learning styles (auditory vs. visual; F (1, 32) = 12.92; p = 0.001) with an effect size of eta 2 = 0.29 ... These results indicate that visual learners were significantly better at both listening and reading comprehension, as compared to auditory learners.",
+      "name_long": "visual types scored higher at both",
+      "is_claim": false
      }
     ],
     "verdict_quote": "Results failed to find a significant relationship between auditory or visual learning style preference and comprehension. Fifth graders with a visual learning style scored higher than those with an auditory learning style on listening and reading comprehension measures. As such, and counter to current educational beliefs and practices, teachers may actually be doing a disservice to students by using resources to determine their learning style and then tailoring the curriculum to match that learning style. [abstract]",
     "missing": [],
-    "missing_note": "全文(Europe PMC fullTextXML)自己讀過,每個數字都附原句。"
+    "missing_note": "全文(Europe PMC fullTextXML)自己讀過,每個數字都附原句。",
+    "say_test": "In 2020 a team ran it, on the entire fifth grade of one American public school. 125 children. Every child was tested for listening and for reading, and then taught in one mode or the other.",
+    "say_punch": "The thing the whole idea rests on - being taught in your own style - came back at p of zero point two nine. Nothing. But two other things did come back, and neither of them is the theory. Everybody did better listening than reading. And the children labelled visual scored higher at both - reading and listening. That effect was seven times the size of the one that was significant in the other direction.",
+    "say_verdict": "So the label does not tell you how to teach someone. At most it tells you who tests better overall. The authors put it plainly: teachers may actually be doing a disservice to students by using resources to determine their learning style and then tailoring the curriculum to match it.",
+    "_name_note": "name 是**畫面上的顯示標籤**(我寫的),不是引文 —— 所以可以為了版面縮短。真正不能動的是 quote 與 stat。原本較長的說法留在 name_long。",
+    "_claim_note": "只有第一項是**那個宣稱本身**(教學方式 × 學習風格的交互作用)。另外兩項是順帶量到的、而且都跟理論無關。所以標題不能寫「3 個裡回來 2 個」——那讀起來像理論部分成立,而真相是**要成立的那一個沒回來**。"
    },
    "hook": "You learn better when you are taught in your own learning style?",
    "hook_short": "Taught in your own learning style?",

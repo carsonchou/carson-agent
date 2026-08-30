@@ -81,6 +81,28 @@ def fmt_pct(dm):
 from make_episode import say_num as say_d                    # noqa: E402
 
 
+
+def short_stat(stat):
+    """畫面上的統計式:拿掉 eta2 那半,**保留完整的 F(df, df) = value**。
+
+    🔴 第一版寫 `stat.split(",")[0]` —— 而那個逗號在**括號裡面**
+    (`F(1, 38) = 1.16`),於是畫面上印出「F(1」。無聲截斷,而且
+    截出來的東西沒有意義。這跟一小時前 Shorts 來源行被
+    `wrap(...)[:2]` 切成半個論文名是同一類錯:**用一個看起來夠用的
+    分隔符去切結構化字串**。
+
+    這裡改成只拿掉 eta2 那一段,並且斷言切完仍然是完整的式子。
+    """
+    s = (stat or "").strip()
+    if not s:
+        return ""
+    s = re.sub(r",\s*eta\s*2?\s*=\s*[\d.]+\s*$", "", s).strip().rstrip(",")
+    # 切完必須還是「有等號、括號成對」的完整式子,否則寧可整個不印
+    if "=" not in s or s.count("(") != s.count(")"):
+        return ""
+    return s
+
+
 def build_outcomes_script(E):
     """`arc: outcomes` —— 一個宣稱、原作者量了好幾個結果、重測只有一部分回來。
 
@@ -93,18 +115,20 @@ def build_outcomes_script(E):
     kept = [x for x in outs if x["sig"]]
     lost = [x for x in outs if not x["sig"]]
     return [
-        ("hook",
-         "Stand like this for two minutes and you become more powerful. "
-         "You have heard this one."),
-        ("origin",
-         f"The {o['year']} study measured {len(outs)} things on "
-         f"{o['n']} people: how powerful they felt, their testosterone, "
-         f"their cortisol, and whether they took a financial risk. "
-         f"All {len(outs)} moved."),
-        ("test",
-         f"In {t['year']} another team ran it on {t['n']} people, with the "
-         f"experimenter blind to which pose you were in. Their power to "
-         f"detect an effect the size of the original was above 95 percent."),
+        # 🔴 hook 也要從事實庫來。第一版寫死 power posing 的那句,
+        #    於是 learning styles 那集的開場唸「Stand like this for two
+        #    minutes」—— 完全不相干,而且旁白與畫面都會這樣出去。
+        #    新增集型時最容易漏的就是這種「看起來像模板其實是硬編」的地方。
+        ("hook", E.get("say_hook") or (E["hook"] + " You have heard this one.")),
+        ("origin", o.get("say_origin") or
+         (f"The {o['year']} study measured {len(outs)} things on "
+          f"{o['n']} people: how powerful they felt, their testosterone, "
+          f"their cortisol, and whether they took a financial risk. "
+          f"All {len(outs)} moved.")),
+        ("test", t.get("say_test") or
+         (f"In {t['year']} another team ran it on {t['n']} people, with the "
+          f"experimenter blind to which pose you were in. Their power to "
+          f"detect an effect the size of the original was above 95 percent.")),
         ("outcomes",
          # 🔴 **p 值不唸,只上畫面。** TTS 把「.017」唸成一串怪音,而
          #    畫面上有精確值可以查。旁白負責「顯不顯著」這個判斷,
@@ -112,19 +136,21 @@ def build_outcomes_script(E):
          #    不是同一件事講兩次。
          "Here is what came back. "
          + " ".join(
-             f"{x['name'].capitalize()}, {say_d(x['d'])}"
-             f"{', significant.' if x['sig'] else ', not significant.'}"
+             (f"{x['name'].capitalize()}, {say_d(x['d'])}"
+              if x.get("d") is not None
+              else f"{x['name'].capitalize()}")
+             + (", significant." if x["sig"] else ", not significant.")
              for x in outs)),
-        ("punch",
-         f"{len(kept)} of the {len(outs)} came back. "
-         f"The one you can only find out by asking. "
-         f"The {len(lost)} you could actually measure from the outside "
-         f"did not."),
-        ("verdict",
-         "The authors put it plainly: using a much larger sample, they "
-         "failed to confirm an effect on testosterone, cortisol, or "
-         "financial risk taking. Power posing changed how people said "
-         "they felt. It did not change what they did."),
+        ("punch", t.get("say_punch") or
+         (f"{len(kept)} of the {len(outs)} came back. "
+          f"The one you can only find out by asking. "
+          f"The {len(lost)} you could actually measure from the outside "
+          f"did not.")),
+        ("verdict", t.get("say_verdict") or
+         ("The authors put it plainly: using a much larger sample, they "
+          "failed to confirm an effect on testosterone, cortisol, or "
+          "financial risk taking. Power posing changed how people said "
+          "they felt. It did not change what they did.")),
         ("close",
          "One claim, the numbers behind it, no adjectives."),
     ]
@@ -137,9 +163,9 @@ def build_script(E):
     doms = t["domains"]
     by = {d["name"]: d for d in doms}
     return [
-        ("hook",
-         "How much you practise is what separates the best from everyone "
-         "else. You have heard this one."),
+        # 跟 outcomes 那條同樣的理由:hook 從事實庫來,不要寫死。
+        # 目前 domains 只有一集,寫死看起來沒事 —— 直到有第二集為止。
+        ("hook", E.get("say_hook") or (E["hook"] + " You have heard this one.")),
         ("origin",
          f"It comes from a paper published in {o['year']}. Its claim was "
          f"that individual differences, even among elite performers, are "
@@ -179,17 +205,26 @@ def audit(E, segs):
         ok |= {str(o["cited_by_approx"]), f"{o['cited_by_approx']:,}"}
     if E.get("arc") == "outcomes":
         outs = t["outcomes"]
-        ok |= {str(o["n"]), str(t["n"]), str(len(outs)),
+        ok |= {str(t["n"]), str(len(outs)),
                str(sum(1 for x in outs if x["sig"])),
                str(sum(1 for x in outs if not x["sig"])), "95"}
+        if o.get("n"): ok.add(str(o["n"]))
+        for fld in ("say_origin", "say_test", "say_punch", "say_verdict"):
+            for tok in re.findall(r"\d(?:[\d,.]*\d)?",
+                                  str(t.get(fld) or o.get(fld) or "")):
+                ok.add(tok)
         for x in outs:
             # 🔴 溯源正則抓的是**純數字 token**:旁白寫「p equals .017」,
             #    抓出來的是 `017`,不是 `.017` 也不是 `0.017`。
             #    所以放行清單要放**它真的會抓到的那個形式**,而不是我
             #    心裡想的那個形式。第一版就因此把自己的稿子擋下來。
-            ok |= {f"{abs(x['d']):.2f}", f"{x['d']:.2f}", str(x["p"]),
-                   f"{x['p']:.3f}".split(".")[1],          # 017
-                   f"{abs(x['d']):.2f}".split(".")[1]}     # 34
+            ok |= {str(x["p"]), f"{x['p']:.3f}".split(".")[1]}
+            if x.get("d") is not None:
+                ok |= {f"{abs(x['d']):.2f}", f"{x['d']:.2f}",
+                       f"{abs(x['d']):.2f}".split(".")[1]}
+            # 統計式裡的數字(F(1, 38) = 1.16 之類)也要放行
+            for tok in re.findall(r"\d(?:[\d,.]*\d)?", str(x.get("stat") or "")):
+                ok.add(tok)
     else:
         ok |= {str(d["pct"]) for d in t["domains"]}
     bad = []
@@ -227,8 +262,12 @@ def render_scene(name, t_now, dur, ctx):
                 weight=w, alpha=a if al is None else al)
 
     if name == "hook":
-        txt(0.60, "Practice is what", 70)
-        txt(0.47, "separates the best.", 70)
+        # 兩行來自手寫的白話主張(plain_claims),不是寫死的字串。
+        import plain as _plain
+        _pc = _plain.get(f"eps_domain/{E['slug']}") or {}
+        _l = _pc.get("lines") or ["", ""]
+        txt(0.60, _l[0].title() if _l[0] else "", 70)
+        txt(0.47, (_l[1].title() + ".") if _l[1] else "", 70)
         if t_now > 2.0:
             b = ease(min(1.0, (t_now - 2.0) / 0.7))
             txt(0.30, E["popular_name"], 46, ACCENT, "bold", b)
@@ -255,21 +294,49 @@ def render_scene(name, t_now, dur, ctx):
             if t_now < 0.4 + i * step:
                 continue
             b = ease(min(1.0, (t_now - 0.4 - i * step) / 0.6))
-            y = 0.72 - i * 0.145
+            step_y = 0.145 if outs[0].get("d") is not None else 0.205
+            y = 0.72 - i * step_y
             hot = x["sig"]
             col = "#5FC98A" if hot else DIM
             # 四欄的 x 座標從安全區倒推,不是挑出來的:
             # 名稱 0.08→0.44、d 收在 0.56、p 收在 0.70、判決 0.73→0.92。
-            ax.text(0.08, y, x["name"], ha="left", va="center", fontsize=40,
-                    color=FG if hot else DIM, weight="bold", alpha=b)
-            ax.text(0.60, y, f"d = {x['d']:+.2f}".replace("+", " "),
-                    ha="right", va="center", fontsize=42, color=col,
-                    weight="bold", alpha=b)
-            ax.text(0.735, y, f"p = {x['p']:.3f}".replace("0.", "."),
-                    ha="right", va="center", fontsize=36, color=DIM, alpha=b)
-            ax.text(0.765, y, "held" if hot else "not significant",
-                    ha="left", va="center", fontsize=32, color=col,
-                    weight="bold", alpha=b)
+            # 名稱由下面兩種版面各自畫 —— 單行版畫在 y,兩行版畫在
+            # y+0.035。這裡**不要先畫一次**:我上一版留著這行,結果
+            # 兩行版把名稱畫了兩次,重疊守門抓到「自己疊自己」628×19。
+            # 有 d 就印 d,沒有就印它真正報的統計式(F 值)。
+            # 🔴 **不要為了版面整齊而編一個 d 出來** —— learning styles
+            #    那篇報的是 F 與 p,硬換算成 d 會出現一個查不到的數字。
+            # 🔴 畫面只放 F,**η² 留給說明欄**。完整的
+            #    「F(1, 110) = 4.92, eta2 = 0.04」在這一欄會撞到名稱
+            #    (實測重疊 376 畫素)。少放不等於藏 —— 說明欄有完整原句,
+            #    而畫面要能一眼讀完。
+            pv = f"p = {x['p']:.3f}".replace("0.", ".")
+            if x.get("d") is not None:
+                # d 很短,四欄放得下:名稱 | d | p | 判決
+                ax.text(0.60, y, f"d = {x['d']:+.2f}".replace("+", " "),
+                        ha="right", va="center", fontsize=42, color=col,
+                        weight="bold", alpha=b)
+                ax.text(0.735, y, pv, ha="right", va="center",
+                        fontsize=36, color=DIM, alpha=b)
+                ax.text(0.765, y, "held" if hot else "not significant",
+                        ha="left", va="center", fontsize=32, color=col,
+                        weight="bold", alpha=b)
+            else:
+                # 🔴 F 值那種很長(`F(1, 110) = 4.92`)。我先後試過
+                #    「只留 F」(切在括號內的逗號 → 畫面印出「F(1」)、
+                #    「統計式與 p 併成一欄」(仍然撞到名稱 85 畫素)——
+                #    **橫向就是不夠**,而縱向這一集只有三列、空了半個畫面。
+                #    所以改成一列兩行:名稱一行,統計一行。
+                #    橫向擠不下的時候不要繼續縮字,把它排到縱向去。
+                st = short_stat(x.get("stat"))
+                ax.text(0.08, y + 0.035, x["name"], ha="left", va="center",
+                        fontsize=44, color=FG if hot else DIM,
+                        weight="bold", alpha=b)
+                ax.text(0.10, y - 0.045,
+                        (st + "    " if st else "") + pv + "    "
+                        + ("held" if hot else "not significant"),
+                        ha="left", va="center", fontsize=32,
+                        color=col if hot else DIM, alpha=b)
     elif name in ("domains", "punch"):
         # 滿格的條 = 表現的全部差異。上色的那一段 = 練習解釋掉的部分。
         # 26% 印成字看起來很大,畫成條就是四分之一 —— 兩者是同一個數字。

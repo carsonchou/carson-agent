@@ -202,6 +202,37 @@ def visual_stale(items):
     return changed, unknown
 
 
+def scoreboard_gate(items):
+    """戰績 Short 的數字必須等於**發布當下重算**的戰績。
+
+    🔴 2026-08-30 實測:預告片一進 publish_meta,`make_ep0.tally()` 就把
+    自己也數進去 → facts.json 變成 26 集 / 117,306 人。我發現長片有問題、
+    修好了長片,**卻沒檢查同一份 facts 也餵給了 Short** —— 於是第二支
+    帶錯數字的片照樣上線(bCV0bHwob6k 說「26 of them, 117,306 people,
+    9 held up」,三個數字全錯)。
+    「修在一條路上,而實際走的是另一條」——長片那道守門加了,這條沒加。
+    """
+    bad = []
+    for o in items:
+        if o["key"] != "ep0":
+            continue
+        try:
+            from make_ep0 import tally
+            now = tally()
+            F = json.loads((ROOT / "eps_lineup" / "ep0" /
+                            "facts.json").read_text(encoding="utf-8"))
+        except Exception as e:                                # noqa: BLE001
+            bad.append((o["key"], f"重算戰績失敗:{str(e)[:50]}"))
+            continue
+        for fld in ("k", "n_sum", "gone", "shrunk", "flipped", "survived"):
+            if F.get(fld) != now.get(fld):
+                bad.append((o["key"],
+                            f"片裡的戰績跟現在重算的對不上:{fld} "
+                            f"片中 {F.get(fld)} vs 現在 {now.get(fld)}"))
+                break
+    return bad
+
+
 def cta_gate(items, longs_pub, longs_all):
     """擋下「片子自己講了一件當下不成立的事」的 Short。
 
@@ -355,8 +386,17 @@ def short_title(key, o):
         # outcomes 那種沒有百分比,直接 KeyError 把整個 build_meta 炸掉,
         # 連帶讓當晚一支 Short 都發不出去。
         if f.get("arc") == "outcomes":
-            cand = (f"{name}: they measured {f['k']} things. "
-                    f"{f['n_kept']} came back.")
+            # 🔴 **「N 個裡回來 M 個」只有在 N 項都在測同一個宣稱時才對。**
+            #    長片端已經改成「先講宣稱本身怎麼了」,這份漏掉 ——
+            #    於是 learning styles 的 Short 掛著「3 個裡回來 2 個」出去,
+            #    讀起來像理論部分成立,而真相是**要成立的那一個沒回來**。
+            #    同一個錯的第二個表面,而且這次是在片子已經送出之後才發現。
+            if f.get("claim_p") is not None and not f.get("claim_sig"):
+                cand = (f"{name}: the one thing the idea needs came back at "
+                        f"p = {f['claim_p']:.2f}.")
+            else:
+                cand = (f"{name}: they measured {f['k']} things. "
+                        f"{f['n_kept']} came back.")
             return cand if len(cand) <= 100 else q[:100]
         best, worst = f.get("best"), f.get("worst")
         cand = (f"{name}: practice explained {f['pct_best']}% in {best}, "
@@ -416,11 +456,16 @@ def famous_meta(d, o, mp4, longs, longs_all):
                 f"  {T['flipped']} went the other way\n"
                 f"  {T['survived']} held up\n")
     elif D.get("outcomes"):
+        # 有 d 就寫 d,沒有的寫它真正報的統計式 —— **不硬換算**。
+        # (長片端已經處理過這件事,這份漏掉:同一個錯的第二個表面,
+        #  而 outcomes 這條路徑今天已經因為「假設某個欄位一定在」炸了四次。)
         nums = ("What the replication found:\n"
                 + "\n".join(
-                    f"  {x['name']:<20} d = {x['d']:+.2f}  p = "
-                    f"{x['p']:.3f}  "
-                    f"{'significant' if x['sig'] else 'not significant'}"
+                    f"  {x.get('name_long') or x['name']:<26} "
+                    + (f"d = {x['d']:+.2f}  " if x.get("d") is not None
+                       else f"{x.get('stat') or ''}  ")
+                    + f"p = {x['p']:.3f}  "
+                    + ("significant" if x["sig"] else "not significant")
                     for x in D["outcomes"]) + "\n")
     elif D.get("domains"):
         from make_domains import fmt_pct
@@ -659,6 +704,8 @@ def main():
         ch, unk = visual_stale(batch)
         for k, w in ch:
             bad.setdefault(k, f"畫面已跟現行碼不同(差在 {w})")
+        for k, why in scoreboard_gate(batch):
+            bad.setdefault(k, why)
         return bad, unk
 
     pool = todo

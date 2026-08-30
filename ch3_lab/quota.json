@@ -1,146 +1,97 @@
 {
- "day": "2026-08-29",
- "spent": 19802,
+ "day": "2026-08-30",
+ "spent": 16329,
  "items": [
   {
    "at": "16:25",
    "cost": 1663,
-   "what": "PGptAV8wg1A"
+   "what": "MuCFl66-dbc"
   },
   {
    "at": "16:26",
    "cost": 1606,
-   "what": "ep007"
+   "what": "social_priming"
   },
   {
    "at": "16:26",
    "cost": 1606,
-   "what": "ep008"
+   "what": "ep013"
   },
   {
-   "at": "17:53",
-   "cost": 1606,
-   "what": "ep009"
-  },
-  {
-   "at": "17:54",
-   "cost": 1606,
-   "what": "ep010"
-  },
-  {
-   "at": "17:54",
-   "cost": 1606,
-   "what": "ep011"
-  },
-  {
-   "at": "09:43",
-   "cost": 1,
-   "what": "fix_meta public_only"
-  },
-  {
-   "at": "09:44",
-   "cost": 1,
-   "what": "fix_meta public_only"
-  },
-  {
-   "at": "09:44",
-   "cost": 1,
-   "what": "fix_meta public_only"
-  },
-  {
-   "at": "10:45",
+   "at": "16:38",
    "cost": 1663,
-   "what": "cpmOqGi1Nqw"
+   "what": "m14CWlRhpvA"
   },
   {
-   "at": "10:46",
+   "at": "16:39",
    "cost": 1606,
    "what": "ep0"
   },
   {
-   "at": "10:47",
+   "at": "16:40",
    "cost": 1606,
-   "what": "power_posing"
+   "what": "learning_styles"
   },
   {
-   "at": "10:47",
+   "at": "16:40",
    "cost": 1606,
-   "what": "ep012"
+   "what": "ep014"
   },
   {
-   "at": "10:52",
-   "cost": 1,
-   "what": "unlist readback"
+   "at": "16:41",
+   "cost": 1606,
+   "what": "ep015"
   },
   {
-   "at": "11:02",
-   "cost": 1663,
-   "what": "MW_XoKidwdA"
+   "at": "16:41",
+   "cost": 1606,
+   "what": "ep016"
   },
   {
-   "at": "11:03",
+   "at": "16:42",
+   "cost": 1606,
+   "what": "ep017"
+  },
+  {
+   "at": "16:43",
    "cost": 1,
    "what": "fix_meta public_only"
   },
   {
-   "at": "11:03",
-   "cost": 1,
-   "what": "fix_meta public_only"
-  },
-  {
-   "at": "11:03",
+   "at": "16:43",
    "cost": 1,
    "what": "fix_meta channels.list"
   },
   {
-   "at": "11:03",
+   "at": "16:43",
    "cost": 1,
    "what": "fix_meta list (before)"
   },
   {
-   "at": "11:03",
+   "at": "16:43",
    "cost": 50,
-   "what": "fix_meta ego_depletion"
+   "what": "fix_meta ep007"
   },
   {
-   "at": "11:03",
+   "at": "16:43",
    "cost": 50,
-   "what": "fix_meta romantic_red"
+   "what": "fix_meta power_posing"
   },
   {
-   "at": "11:03",
+   "at": "16:43",
    "cost": 50,
-   "what": "fix_meta sleep_memory"
+   "what": "fix_meta learning_styles"
   },
   {
-   "at": "11:03",
-   "cost": 50,
-   "what": "fix_meta ep000"
-  },
-  {
-   "at": "11:03",
-   "cost": 50,
-   "what": "fix_meta ep001"
-  },
-  {
-   "at": "11:03",
-   "cost": 50,
-   "what": "fix_meta ep006"
-  },
-  {
-   "at": "11:03",
-   "cost": 50,
-   "what": "fix_meta ep0"
-  },
-  {
-   "at": "11:03",
+   "at": "16:43",
    "cost": 1,
    "what": "fix_meta list (readback 1)"
   },
   {
-   "at": "11:04",
-   "cost": 1606,
-   "what": "10000_hour_rule"
+   "at": "16:43",
+   "cost": 1,
+   "what": "fix_meta list (readback 2)"
   }
- ]
+ ],
+ "history": []
 }

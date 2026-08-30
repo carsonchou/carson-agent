@@ -202,9 +202,13 @@ def build_script(D):
             ("q", D["question"]),
             ("nums",
              f"They measured {len(outs)} things. "
+             # 有 d 就唸 d,沒有的(只報 F 與 p 的那種)就只講顯不顯著。
+             # 🔴 長片端已經處理過這件事,Short 這份漏掉 —— 同一個錯的
+             #    第二個表面,今天第 N 次。
              + " ".join(
-                 f"{x['name'].capitalize()}, {say_num(x['d'])}"
-                 f"{', significant.' if x['sig'] else ', not significant.'}"
+                 (f"{x['name'].capitalize()}, {say_num(x['d'])}"
+                  if x.get("d") is not None else x["name"].capitalize())
+                 + (", significant." if x["sig"] else ", not significant.")
                  for x in outs)),
             ("end", end_line(D, "the paper")),
         ]
@@ -463,7 +467,11 @@ def fit_sizes(plt, D):
                 38) for g, lab in GROUP_LABEL.items())
     elif D.get("outcomes"):
         fs["sub"] = fit(plt, "what came back", 46)
-        fs["o_name"] = min(fit(plt, x["name"], 40) for x in D["outcomes"])
+        # 🔴 名稱要按**它實際能用的寬度**量,不是整個安全區。
+        #    名稱從 0.15 起,右邊那欄收在 0.84 → 中間要留白,可用約 0.50。
+        #    用預設(整個安全區 0.72)量出來的字級太大,實測撞上右欄 9 畫素。
+        fs["o_name"] = min(fit(plt, x["name"], 40, max_frac=0.50)
+                           for x in D["outcomes"])
     elif D.get("domains"):
         fs["sub"] = fit(plt, "how much practice explains", 46)
     elif D["es_o"] is None:
@@ -601,8 +609,12 @@ def render(plt, name, t, dur, D):
             ax.text(0.15, y, x["name"], ha="left", va="center",
                     fontsize=fs.get("o_name", 40),
                     color=FG if x["sig"] else DIM, weight="bold", alpha=b)
-            ax.text(0.84, y, f"{x['d']:+.2f}".replace("+", " "), ha="right",
-                    va="center", fontsize=40, color=c, weight="bold", alpha=b)
+            right = (f"{x['d']:+.2f}".replace("+", " ")
+                     if x.get("d") is not None
+                     else f"p = {x['p']:.3f}".replace("0.", "."))
+            ax.text(0.84, y, right, ha="right", va="center",
+                    fontsize=40 if x.get("d") is not None else 34,
+                    color=c, weight="bold", alpha=b)
         if t > 7.5:
             q = ease(min(1.0, (t - 7.5) / 0.6))
             for i, ln in enumerate(wrap(D["card"], 20)[:2]):
@@ -1002,7 +1014,9 @@ def main():
     words = sum(len(t.split()) for _, t in segs)
     print(f"[{D['key']}] {D['question'][:60]}")
     if D.get("outcomes"):
-        gap = " · ".join(f"{x['name']} {x['d']:+.2f}" for x in D["outcomes"])
+        gap = " · ".join(
+            f"{x['name']} " + (f"{x['d']:+.2f}" if x.get("d") is not None
+                               else f"p={x['p']}") for x in D["outcomes"])
         print(f"  稿 {words} 字   {gap}   {D['card']}")
     elif D.get("scoreboard"):
         T = D["scoreboard"]
