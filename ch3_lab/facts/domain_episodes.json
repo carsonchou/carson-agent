@@ -515,6 +515,91 @@
    "hook_short": "A number first pulls your guess?",
    "tone": "held",
    "tone_manual_why": "四題全部同向顯著、36 個樣本無一例外 → held。這是這個頻道需要的「不是每個都失敗」那一集,而它是真的。但**必須同時講清楚**:(1) 不能講效果量變大幾倍(量尺不同),(2) 有另一個也叫 anchoring 的東西沒重現(incidental anchoring, d = 0.04),少講第二點就是讓觀眾把兩件事混為一談。"
+  },
+  {
+   "slug": "loss_aversion",
+   "arc": "outcomes",
+   "unit": "lambda",
+   "claim": "losing something hurts about twice as much as gaining the same thing feels good",
+   "popular_name": "loss aversion",
+   "search_term": "loss aversion",
+   "scan": {
+    "on_topic": 19,
+    "median_views": 16562,
+    "small_channels": 12,
+    "median_subs": 5600,
+    "score": 10460,
+    "measured": "2026-08-29 effect_scan.py"
+   },
+   "original": {
+    "year": 1979,
+    "title": "Prospect Theory: An Analysis of Decision under Risk",
+    "journal": "Econometrica 47(2), 263-291",
+    "doi": "10.2307/1914185",
+    "n": null,
+    "n_note": "**沒有總樣本數。** 原文只逐題標 N,值域 64~95。受試者原句:「The demonstrations are based on the responses of students and university faculty to hypothetical choice problems.」—— 假設性選擇、以色列鎊計價。",
+    "quote": "A salient characteristic of attitudes to changes in welfare is that losses loom larger than gains. The aggravation that one experiences in losing a sum of money appears to be greater than the pleasure associated with gaining the same amount. [Kahneman & Tversky 1979]",
+    "say_origin": "The phrase is from a 1979 paper: losses loom larger than gains. Later work put a number on it. The number people quote is about two - losing feels roughly twice as strong as winning the same amount. That number has its own name. Lambda."
+   },
+   "test": {
+    "year": 2025,
+    "title": "Loss aversion is not robust: A re-meta-analysis",
+    "journal": "Journal of Economic Psychology 107, 102801",
+    "doi": null,
+    "n": 149218,
+    "k": 163,
+    "k_word": "estimates from 84 papers",
+    "⚠️_no_doi": "agent 沒有回報這篇的 DOI。**發布前必須補上** —— 這條線的說明欄要能讓觀眾自己去查。缺 DOI 就不發。",
+    "baseline": {
+     "year": 2024,
+     "title": "Meta-analysis of Empirical Estimates of Loss Aversion",
+     "journal": "Journal of Economic Literature 62(2), 485-516",
+     "doi": "10.1257/jel.20221698",
+     "k": 607,
+     "papers": 150,
+     "lam": 1.955,
+     "ci": [
+      1.82,
+      2.102
+     ],
+     "quote": "We examine 607 empirical estimates of loss aversion from 150 articles... Our analysis indicates that the mean loss aversion coefficient is 1.955 with a 95 percent probability that the true value falls in the interval [1.820, 2.102]. [Brown, Imai, Vieider & Camerer 2024]",
+     "⚠️": "⚠️ 另一篇論文引用這個 CI 時寫成 [1.820, 2.105] —— 以 AEA 一手為準。"
+    },
+    "outcomes": [
+     {
+      "name": "losses smaller, items ordered",
+      "d": 2.295,
+      "p": null,
+      "sig": true,
+      "is_claim": false,
+      "stat": "median lambda = 2.295 (k = 62)",
+      "quote": "Ordered / L<G: 2.295 (k=62) [Yechiam & Zeif 2025, Table 1]"
+     },
+     {
+      "name": "symmetric, not ordered",
+      "d": 1.125,
+      "p": null,
+      "sig": false,
+      "is_claim": true,
+      "stat": "median lambda = 1.125 (k = 22)",
+      "quote": "for studies with symmetric gains and losses and no ordering of items, the loss aversion parameter was approximately 1.07 and not significantly above 1.0, suggesting similar weighting of gains and losses."
+     }
+    ],
+    "quote_design": "Altering each of these design features reduces the median loss aversion estimate (asymmetric losses by 34%; ordering by 23%), and when both of these features are avoided the median lambda is 1.125 which implies very weak loss aversion. [Yechiam & Zeif 2025]",
+    "quote_same_data": "A meta-analysis of all estimates included in the current analysis yielded an overall lambda of 1.82 (CIlow = 1.73, CIhigh = 1.91) which is approximately the mean observed in Brown et al.'s (2024) original meta-analysis —— 證明不是他們把資料切壞了,而是同一批資料在不同設計下給出不同的數字。",
+    "say_test": "In 2024 a team pooled six hundred and seven estimates of that number from a hundred and fifty papers. The average came out at one point nine five. About two. The classic answer. Then in 2025 another team took the same data and cut it a different way. They asked: does the number depend on how the question was asked?",
+    "say_punch": "It does. When the possible loss was smaller than the possible gain, and the options were listed in order, the median came out at two point three. When the loss and the gain were the same size and the options were not ordered, it came out at one point one three. One point zero seven in their model. Not significantly above one. One means losing and winning weigh the same.",
+    "say_verdict": "So the argument is not whether people dislike losing. It is how much of that famous number - about two - is the mind, and how much is the way the question was built. And this is the same data. Nobody found new people. They re-cut the pile.",
+    "missing_fields": [],
+    "missing": [
+     "Yechiam & Zeif 2025 的 DOI(agent 沒回報,發布前必補)",
+     "Tversky & Kahneman 1992 的 lambda = 2.25 原文(付費牆,只有二手轉述)"
+    ]
+   },
+   "hook": "Does losing hurt about twice as much as winning the same amount feels good?",
+   "hook_short": "Losing hurts twice as much?",
+   "tone": "shrunk_real",
+   "tone_manual_why": "要成立的那一項(對稱且未排序時 lambda 顯著高於 1)沒有成立 —— 1.07 且與 1.0 無顯著差異。但**不能講成「損失趨避不存在」**:全樣本的 lambda 是 1.82,而且 Brown 2024 那篇 607 個估計的統合分析支持它。誠實的故事是:**那個經典的 2 有多少是實驗設計做出來的。**"
   }
  ],
  "_unit_note": "兩種單位:`pct`(變異數百分比,10,000 小時那集)與 `d`(Cohen's d,power posing 那集)。**單位不同,畫面就不同** —— d 沒辦法畫成「佔滿格的幾分之幾」,所以走清單而不是長條。硬用同一種畫法就會出現一個觀眾無法解讀的比例尺。"

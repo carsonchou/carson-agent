@@ -161,6 +161,13 @@ def semantic_gate(o):
             # outcomes 是每個結果一句 + 一句 verdict_quote。
             # **不要只認一種** —— fail-closed 認不得就擋,而擋錯的代價是
             # 一支查證做得比誰都紮實的片子發不出去。
+            # 🔴 **沒有 DOI 就不發。** 這條線唯一的資產是「觀眾自己查得到」,
+            #    而說明欄裡指不到任何地方的一集,等於把那個資產拿掉。
+            #    loss_aversion 的重測論文 agent 只給到期刊卷期沒給 DOI ——
+            #    我在事實庫寫了「發布前必補」,但**寫在註解裡的規則遲早被忽略**。
+            if not T.get("doi"):
+                return (f"重測論文沒有 DOI({T.get('title', '?')[:50]})—— "
+                        f"說明欄指不到任何地方,不發")
             has_q = bool(T.get("quote")) or (
                 T.get("outcomes") and all(x.get("quote") for x in T["outcomes"])
                 and T.get("verdict_quote"))

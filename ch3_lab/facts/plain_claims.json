@@ -236,5 +236,12 @@
    "AND THE GUESS MOVES"
   ],
   "spoken": "Does showing someone a number first pull their estimate toward it?"
+ },
+ "eps_domain/loss_aversion": {
+  "lines": [
+   "LOSING HURTS MORE",
+   "THAN WINNING FEELS GOOD"
+  ],
+  "spoken": "Does losing hurt more than winning the same amount feels good?"
  }
 }
