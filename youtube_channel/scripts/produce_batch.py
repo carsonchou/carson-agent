@@ -1623,19 +1623,48 @@ def _checkup_progress():
     ⚠️ 誠信:這兩個數字**每次從真實檔案現算**,不可寫死也不可用約略值——
     「已體檢 N 檔」是對觀眾的事實宣稱,寫死的話某天就會變成假話
     (見 memory yt-integrity-methodology-claims-blindspot:EP.0 把假話寫死在表裡繞過守門)。
-    來源:STUDIO/stock_checkup_facts.json 的 by_code(已算出事實的檔數)
+    來源:STUDIO/uploaded_ledger.json(**真的發布出去的**個股體檢片,不是算過事實的檔數)
           STUDIO/stock_checkup_backlog.json 的全市場名單長度
+
+    ⚠️ 2026-08-30 修正前算的是「已算出回測事實的檔數」(457),而旁白講的是
+    「目前**完成**N檔」—— 觀眾理解成集數,真值只有 112,高估四倍。
+    原註解強調「絕不寫死、當場從真實檔案算」,而它確實照做了 ——
+    **防寫死的守門有效,但「算法正確、意義錯誤」沒有任何東西擋得住**。
     """
     try:
         _sd = ROOT / "STUDIO"
-        facts = json.loads((_sd / "stock_checkup_facts.json").read_text(encoding="utf-8"))
-        done = len(facts.get("by_code") or {})
         bl = json.loads((_sd / "stock_checkup_backlog.json").read_text(encoding="utf-8"))
         # backlog 的鍵是 items(不是 rows),而且檔案自帶 n_total —— 優先用它自己算好的數字。
         if isinstance(bl, dict):
             total = int(bl.get("n_total") or 0) or len(bl.get("items") or [])
         else:
             total = len(bl or [])
+        # 🔴 2026-08-30 修正:done 以前算的是 stock_checkup_facts.json 的 by_code 長度,
+        # 那是「已算出回測事實的檔數」(每天批次算,遠多於做成影片的),
+        # 而旁白講的是「目前**完成**N檔」= 觀眾理解成「已經做了幾集」。
+        # 實測那天旁白講 457/489/409,真實已發布覆蓋只有 112 —— 高估四倍。
+        # 改成從 ledger 數**真的發布出去的片**,兩道條件:
+        #   ①股號要在 backlog 白名單裡(滑動視窗抽,因為 slug 標點被剝掉)
+        #   ②股名也要出現在 slug 裡(少了這道會誤抓 38 檔:「總報酬1218%」→ 1218 泰山)
+        _uni = {}
+        for _r in (bl.get("items") if isinstance(bl, dict) else bl) or []:
+            if isinstance(_r, dict) and _r.get("code"):
+                _uni[str(_r["code"])] = _r.get("name", "")
+        _led = json.loads((_sd / "uploaded_ledger.json").read_text(encoding="utf-8"))
+        _hit = set()
+        for _slug in _led:
+            if not _slug.startswith("L_"):
+                continue
+            _body = _slug[2:]
+            for _chunk in re.sub(r"\D", " ", _body).split():
+                for _i in range(max(len(_chunk) - 3, 0) + 1):
+                    _c = _chunk[_i:_i + 4]
+                    if len(_c) != 4 or _c not in _uni:
+                        continue
+                    _nm = re.sub(r"[*\-]|KY|ky", "", _uni[_c])
+                    if _nm and _nm[:2] and _nm[:2] in _body:
+                        _hit.add(_c)
+        done = len(_hit)
     except Exception:  # noqa: BLE001
         return (0, 0)
     if done < 1 or total < done:
@@ -2113,6 +2142,44 @@ def _symbols_in(text):
     return {s for s in _FACT_SYMBOLS if s in (text or "")}
 
 
+
+# ── 個股體檢事實排序(2026-08-30)────────────────────────────────────────
+# 事實檔的自然順序是「價格面5 → 崩盤面3 → 基本面5 → 相對面1」,而 body 段落最多吃得下
+# 10 條 → 被砍掉的正好是基本面尾巴 + industry_rank,也就是實測漏最兇的那幾條
+# (industry_rank 89%、annual_extremes 57%、基本面各 41~45%)。
+# 改成**按資訊領域輪流取**,讓前 10 個位子涵蓋 4 個領域而不是吃滿 2 個。
+# 崩盤面刻意墊底:它和 halvings/underwater 講同一件事(跌得多慘),邊際資訊最少
+# (同一個性質見 memory brain-alpha-mining:只有換資料領域才帶來獨立資訊)。
+# ⚠️ 領域之間的優先順序是編輯判斷,無觀眾偏好實測;可證的只有「涵蓋 4 個領域 > 吃滿 2 個」。
+_CK_DOMAINS = (
+    ("price", ("long_horizon", "annual_extremes", "three_way", "underwater", "halvings")),
+    ("fund", ("revenue_trend", "eps_trend", "gross_margin", "dividend_history", "valuation_position")),
+    ("rel", ("industry_rank",)),
+    ("crash", ()),   # 空 tuple = 收容所有沒被上面認領的(crash__* 等),排在最後
+)
+
+
+def _ck_order(own):
+    """把一檔的事實按資訊領域輪流取,回傳重排後的 list。長度與內容不變,只換順序。"""
+    def _kind(e):
+        k = e["key"].replace("checkup_", "")
+        for name, keys in _CK_DOMAINS:
+            if any(k.startswith(x) for x in keys):
+                return name
+        return "crash"
+    buckets = {name: [] for name, _ in _CK_DOMAINS}
+    for e in own:
+        buckets[_kind(e)].append(e)
+    # 收容桶(crash)**排在輪替之外**,整包墊底。放進輪替的話它每一輪都會被取一條,
+    # 3 條崩盤事實會全部擠進前 10 個位子,正好是要避免的那件事(自驗抓到)。
+    _rr = [n for n, _ in _CK_DOMAINS if n != "crash"]
+    out = []
+    while any(buckets[n] for n in _rr):
+        for name in _rr:
+            if buckets[name]:
+                out.append(buckets[name].pop(0))
+    return out + buckets["crash"]
+
 def _relevant_facts_list(facts, topic):
     """把 tw facts 挑成與本題相關(primary)/不相關(extension)兩份清單，每項含 key/desc/summary/keywords。
     供 _densify_long 逐段分配專屬事實、做主題鎖定用。
@@ -2144,6 +2211,22 @@ def _relevant_facts_list(facts, topic):
                         "summary": str(summary), "keywords": item.get("keywords") or []})
     if not entries or not text.strip():
         return entries, []
+    # 🔴 2026-08-30 個股體檢:本檔的事實一律 primary,不走標題關鍵字分類。
+    # 實測 141 支:industry_rank 89% 的片整條沒講、annual_extremes 漏 57%——不是隨機漏,
+    # 是每次都漏同兩條。因為體檢的 11 條事實全屬同一檔股票(按定義沒有一條離題),
+    # 但它們的關鍵字不會出現在標題裡(標題是從 long_horizon 生出來的)→ 每次都被
+    # 下面的 `if hits` 判成離題 → 打進 extension(全片最多 1 段、字數壓到 260-340)。
+    # _tw_facts_context 早在 2026-07-15 就為此加了 _ck_code 分支(「走通用 keyword 路徑
+    # 有兩個坑…全給不設 6 條限」),但做**逐段分配**的這支沒跟上:注入層修好了、分配層沒有。
+    # 這裡沿用同一個判準,不新發明一套。順序維持事實檔自然順序(價格面在前、基本面在後),
+    # 確定性且是合理的敘事順序;不拿標題命中數排,否則又會偏向生出標題的那一條。
+    _ck = _checkup_extract_code(str(topic.get("fact_key", ""))) if topic and \
+        str(topic.get("fact_key", "")).startswith("checkup_") else None
+    if _ck:
+        _own = [e for e in entries if e["key"].endswith(f"__{_ck}") or f"__{_ck}__" in e["key"]]
+        if _own:
+            return _ck_order(_own), [e for e in entries if e not in _own]
+
     title_syms = _symbols_in(text)
     scored = []
     for e in entries:
@@ -3274,6 +3357,13 @@ _PROMPT_LEAK_MARKERS = (
     # 事實/格式規定區
     "一律用中文口語念法", "不要寫成", "旁白引用時", "不得據此",
     "以上為示意", "本段專屬事實", "前面各段重點摘要",
+    # 🔴 2026-08-30 補:_LONG_DATA_DISCIPLINE 那段整個被唸進旁白(閎康 3587 實例:
+    # 「…這類具體價位/點位全部禁止(系統沒有這些真實資料,講了就是捏造史實)。
+    #   要舉例就用「假設」「打個比方」「示意」開頭,別講得像真的發生過。」)。
+    # 舊清單接不住,而「示意」的計數門檻只在洩漏多次時才觸發(這裡只出現一次)。
+    # 照本檔的校準紀律只收「在旁白裡完全講不通的」——
+    # 刻意不收「全部禁止」(講法規時可能出現)與「要舉例就用」(常見中文)。
+    "捏造史實", "別講得像真的發生過", "這類具體價位",
     # 🔴 2026-08-28 補:規則區 / 人設區 / 骨架區的原文也整段被唸出來。
     # 這批是追「上架2支、隔離44支」時挖出來的 —— 稿子把**禁語規則本身**唸出來
     # (「④嚴禁出現誇大/保證詞:穩賺、穩賺不賠、保證獲利…」),而規則裡就含禁語,
@@ -3302,6 +3392,10 @@ _PROMPT_LEAK_SYIY = 6
 
 
 _APPROX_TITLE = re.compile(r"破|超過|逾|上看|近|約|大約|將近|接近|以上|多")
+# 標題裡**不是總報酬**的指標標籤 —— 這些數字不該拿去跟總報酬事實比對。
+# 2026-08-30 加:原本只用「<100% 就跳過」當代理,對高飆股會誤殺
+# (兆聯6944 三年多漲 1038%,年化 109% 就超過 100)。
+_OTHER_METRIC = re.compile(r"年化|回撤|殖利率|年增|毛利率|營益率|年報酬|勝率|佔比|比重")
 
 
 def _long_title_contradicts_facts(title, slug=""):
@@ -3345,6 +3439,13 @@ def _long_title_contradicts_facts(title, slug=""):
         return None
     for mm in re.finditer(r"(\d[\d,\.]*)\s*%", t):
         v = float(mm.group(1).replace(",", ""))
+        # 🔴 2026-08-30:先看**標籤**再看量級。原本只靠「<100 就跳過」,
+        # 理由是「年化/回撤/殖利率都在這個量級」—— 但那對高飆股不成立:
+        # 「兆聯6944:3.3年狂飆1038%!**年化109%**」被拿去跟總報酬比對 → 誤殺,
+        # 而 1038 明明對得上。3.3 年漲 1038% 的年化本來就是 109%。
+        # 數字前面緊接著別的指標的標籤 → 那不是總報酬,不該比。
+        if _OTHER_METRIC.search(t[max(0, mm.start() - 5):mm.start()]):
+            continue
         if v < 100:
             continue
         # 數字前 6 個字有約略語 → 合法口語,不算矛盾
@@ -3895,21 +3996,43 @@ def _densify_long(d, facts_ctx, is_tw, facts=None, topic=None):
         primary_pool, extension_pool = _relevant_facts_list(facts, topic)
         used_keys = []
         n_segs = len(segs)
+        # 🔴 2026-08-30 每段事實數:事實池夠厚就給 2 條。
+        # 實測(141 支個股體檢):手上事實中位 11 條、旁白實際講到中位 6 條,因為
+        # 「用得到的事實數 = 段數」。industry_rank 89% 的片整條沒講、annual_extremes 漏 57%。
+        # 那些事實**早就算完付過錢了**,只是結構上進不了片子。
+        # 附帶效果:char_budget 520-620 字配 1 條事實 = 一個數字撐 550 字,那正是 07-13
+        # 病灶A「換比喻重講同一組數字」的成因;給 2 條之後每條只要撐 275 字,灌水壓力減半。
+        # 分配規則(逐段判斷,不是全片常數——段數是 LLM 決定的 3~6 浮動值,
+        # 用常數會在不特定的片上悄悄失效):**還剩的事實 > 還剩的段數就給 2 條,否則給 1 條**。
+        # 性質:每段一定至少拿到 1 條(不會把後段排擠成「無新事實可引用」),
+        # 多的往前段放——實測平均觀看只有 79~146 秒,前兩分鐘才是真的有人在聽的地方。
         ext_assigned = False  # 全片最多 1 個延伸比較段落(篇幅上限靠字數預算壓低+事後裁切雙重把關)
         ext_seg_indexes = set()
         bodies, prev = [], "開場鉤子"
         for i, seg in enumerate(segs, 1):
             heading = ((seg.get("heading") if isinstance(seg, dict) else str(seg)) or f"重點{i}")
-            # 逐段挑一個「本段專屬、還沒被其他段引用過」的 primary 事實；primary 池用完才考慮 extension。
-            seg_fact = next((f for f in primary_pool if f["key"] not in used_keys), None)
+            # 逐段挑「本段專屬、還沒被其他段引用過」的 primary 事實；primary 池用完才考慮 extension。
+            # 🔴 2026-08-30:每段 1 條 → _per_seg 條(見下方 _per_seg 的說明)。
+            _avail = [_f for _f in primary_pool if _f["key"] not in used_keys]
+            _remain_segs = n_segs - i + 1          # 含本段在內、還沒寫的段數
+            _take = 2 if len(_avail) > _remain_segs else 1
+            seg_facts = _avail[:_take]
+            seg_fact = seg_facts[0] if seg_facts else None
             is_extension_seg = False
             if seg_fact is None and extension_pool and not ext_assigned and i >= max(2, n_segs - 1):
                 seg_fact = extension_pool[0]
+                seg_facts = [seg_fact]   # 延伸段維持單條(本來就要壓低篇幅)
                 is_extension_seg = True
                 ext_assigned = True
-            if seg_fact:
-                used_keys.append(seg_fact["key"])
-            if seg_fact:
+            for _f in seg_facts:
+                used_keys.append(_f["key"])
+            if len(seg_facts) > 1:
+                _fl = "\n".join(f"  ·{_f['desc']}：{_f['summary']}" for _f in seg_facts)
+                fact_line = (f"\n【本段專屬事實({len(seg_facts)} 條,本段只准引用這些,"
+                             f"而且**每一條都要真的用到**——不是提一下代號就算,"
+                             f"要把每條的數字講出它對觀眾的意義;"
+                             f"不得重複其他段落已引用過的數字/結論)】\n{_fl}\n")
+            elif seg_fact:
                 fact_line = (f"\n【本段專屬事實(本段只准引用這一條,不得重複其他段落已引用過的數字/結論)】\n"
                              f"  ·{seg_fact['desc']}：{seg_fact['summary']}\n")
             else:
@@ -4651,6 +4774,91 @@ def _take_hook(sents, min_chars=45, max_sents=6):
     return "".join(out).strip()
 
 
+# ── 保證詞改寫(2026-08-30)──────────────────────────────────────────────────
+# _LONG_DATA_DISCIPLINE ④ 已經明寫:「就算是要拆穿『大家以為穩賺不賠』的迷思也不要
+# 寫出這四個字,改用『以為很安全』『以為不會賠』這種說法」。模型照寫不誤 ——
+# 08-30 掃未發布長片 43 支,7 支旁白命中禁語,全部是渲染**完成之後**才在發布端被
+# audit_video 擋下(產製端只 log 一行 warning,ok 仍是 True,片子就永遠卡在庫存裡)。
+#
+# ⚠️ 這不是繞過 audit_video。繞過是換一個沒被列進 BANNED 的同義保證詞(「只賺不賠」),
+#    那只是把同一個承諾換件衣服。這裡的替換詞**不宣稱任何保證**:「以為很安全」
+#    「不會賠」是在描述別人的預期,語意仍是破除 —— 是要求產製端達標,不是放寬閘門。
+# 由長到短排,否則「穩賺不賠」會先被「穩賺」吃掉變成「很安全不賠」。
+_PROMO_SOFTEN = (
+    ("穩賺不賠", "不會賠"),
+    ("穩穩賺錢", "一直賺錢"),
+    ("穩定報酬率", "報酬率穩定"),
+    ("穩定獲利", "獲利穩定"),
+    ("躺著就能賺", "什麼都不用做就有錢賺"),
+    ("閉著眼睛賺", "不用看盤就有錢賺"),
+    ("保證獲利", "獲利有保障的說法"),
+    ("保證收益", "收益有保障的說法"),
+    ("保證賺", "賺錢有保障的說法"),
+    ("零風險", "沒有風險"),
+    ("一定獲利", "必定有獲利"),
+    ("一定賺", "必定會賺"),
+    ("穩賺", "很安全"),
+    ("必賺", "一定會賺到"),
+    ("包賺", "包準會賺"),
+    ("保本保息", "本金和利息都保得住"),
+    ("穩定月收", "每月收入穩定"),
+)
+
+
+# 否定詞:判準與 audit_video.NEG_CHARS 對齊。禁語前面是這些字 = 誠實聲明,不是違規,
+# 所以也不該改寫 —— 實測抓到「不保證收益」被改成「不收益有保障的說法」,整句壞掉。
+_NEG_BEFORE = "不沒別非勿未拒避免絕毋≠"
+
+
+def _soften_promo(text):
+    """把保證型禁語換成不帶保證意味的說法。確定性字串替換,不燒 LLM。
+
+    **被否定的用法不改**:「不保證收益」「絕不穩賺」這類是合規聲明,
+    audit_video 的 NEG_CHARS 本來就豁免它們,改了沒有閘門收益、只會把句子弄壞。
+    """
+    if not isinstance(text, str) or not text:
+        return text
+    out = text
+    for bad, good in _PROMO_SOFTEN:
+        if bad not in out:
+            continue
+        buf, i = [], 0
+        while True:
+            j = out.find(bad, i)
+            if j < 0:
+                buf.append(out[i:])
+                break
+            buf.append(out[i:j])
+            negated = j > 0 and out[j - 1] in _NEG_BEFORE
+            buf.append(bad if negated else good)
+            i = j + len(bad)
+        out = "".join(buf)
+    return out
+
+
+def _assert_soften_table():
+    """替換詞自己不可以再命中禁語 —— 否則就是換湯不換藥。
+
+    這道自我檢查不是形式:寫這張表時第一版就把「穩穩賺錢」換成「一定賺得到錢」,
+    裡面還有「一定賺」。有這行,那種錯在 import 時就爆,不會等到產線上。
+    """
+    try:
+        import audit_video as _av
+    except Exception:  # noqa: BLE001
+        return
+    bad = [(b, g) for b, g in _PROMO_SOFTEN if _av.find_banned_hits(g)]
+    if bad:
+        raise AssertionError(f"_PROMO_SOFTEN 的替換詞本身仍命中禁語:{bad}")
+
+
+_assert_soften_table()
+
+# 重複標點:_cap_repeated_phrase 換轉場詞時,替代詞自帶「，」而原句的逗號沒被吃掉,
+# 於是出現「更耐人尋味的是，，歷史回測顯示…」。實測 61 支已發布 + 22 支未發布
+# 共 160 處。voice.txt 就是 TTS 的輸入,連續兩個逗號會被念成一個過長的停頓。
+_DUP_PUNCT_RE = re.compile(r"([，。、；：！？])\1+")
+
+
 def _clean_narration(text):
     """把 LLM 的「文件式」輸出洗成「說出來會順」的旁白。只清形式,不動內容。"""
     if not isinstance(text, str) or not text:
@@ -4667,11 +4875,20 @@ def _clean_narration(text):
     # 旁白帶著「· 中美晶長期含息還原體檢:…」這種開頭 —— voice.txt 就是 TTS 的輸入,
     # 那個符號會被唸成一個突兀的停頓或雜音。15 支都還沒渲染,所以沒有出廠的缺陷。
     # 空白也改成可有可無:實測有「·中美晶」這種沒空格的寫法,原本的 `\s+` 接不住。
-    t = re.sub(r"(?m)^\s{0,3}[-*•·・]\s*", "", t)       # - / · / ・ 條列
+    # ⚠️ 半形 `-` 與 `*` 後面**必須有空白**才算條列。2026-08-30 獨立驗證抓到:
+    # 原本寫 `[-*•·・]\s*`(空白可有可無)會把「-58.4% 是最大回撤」吃成
+    # 「58.4% 是最大回撤」—— 本頻道整個產品就是負的最大回撤,這是地雷。
+    # 中點類(• · ・)不會出現在數字前,維持 \s* 即可。
+    t = re.sub(r"(?m)^\s{0,3}(?:[-*] +|[•·・]\s*)", "", t)   # - / · / ・ 條列
     t = re.sub(r"(?m)^\s{0,3}([1-5])[.、)]\s+",
                lambda m: _LIST_NUM[m.group(1)], t)        # 1. → 第一，
     t = re.sub(r"(?m)^\s{0,3}\d{1,2}[.、)]\s+", "", t)  # 其餘編號直接拿掉
     t = t.replace("→", "，").replace("⇒", "，").replace("~", "到")
+    # 2026-08-30 撤回 _soften_promo(獨立驗證推翻):58% 的改寫是發布端本來就放行的句子
+    # (find_banned_hits 有語境放行)、28% 被改成語法壞句,而且**它在規避字面清單**:
+    # 「這檔股票必賺,我跟你保證」→「一定會賺到,我跟你保證」就從被擋變成放行。
+    # 改成命中禁語直接重生,見 _long_opening_bad。
+    t = _DUP_PUNCT_RE.sub(r"\1", t)                       # 「，，」→「，」
     t = re.sub(r"[ \t]{2,}", " ", t)
     t = re.sub(r"\n{3,}", "\n\n", t)
     return t.strip()
@@ -4795,6 +5012,30 @@ def _long_opening_bad(v: str, title: str):
         return f"正文散撒風險hedging({_hn}句在10%~80%區間,留存殺手1.60x,集中片尾一句即可)"
     if any(k in v[:60] for k in _CRYPTO_FAM) and not any(k in (title or "") for k in _TITLE_FAM):
         return "開場罐頭錯位(開場含幣圈工具詞但標題主題無關,疑逐字抄示範鉤)"
+    # 禁語:同樣用**發布端那支函式本身**(它帶語境放行,「不保證收益」這種誠實聲明不會命中)。
+    # 2026-08-30:原本是產製端寫確定性改寫,被獨立驗證推翻 —— 改寫會把
+    # 「必賺,我跟你保證」變成「一定會賺到,我跟你保證」從被擋變放行 = 規避而非改正。
+    # 命中就重生:真喊單的稿被丟掉,破除語境誤觸的也重生,而 prompt 本來就明令
+    # 「拆穿迷思也不要寫出那四個字」。發布端本來就放行的句子根本不會進到這裡。
+    try:
+        import audit_video as _av2
+        _ban = _av2.find_banned_hits(v)
+        if _ban:
+            return f"誇大/保證禁語({'、'.join(_ban[:3])};發布端會擋,改寫規避不可接受)"
+    except Exception:  # noqa: BLE001
+        pass
+    # 編造統計:直接用**發布端那支函式本身**,不另寫一份寬鬆版。
+    # 2026-08-30 實例:「我們看到夏普比率雖然高達3.5」——那個 3.5 是 spec 裡
+    # 「回測夏普>3常是假的」這句教學被抄進旁白當成本檔股票的真數字,產線算不出
+    # 任何個股夏普。發布端 audit_video 抓得到、產製端沒有這道,於是整支片渲染完
+    # 才被擋在發布端,永遠卡庫存(43 支未發布長片裡 2 支是這樣死的)。
+    try:
+        import audit_video as _av
+        _fab = _av.find_fabricated_stats(v)
+        if _fab:
+            return f"編造統計({'、'.join(_fab[:3])};產線算不出這些數字,發布端會擋)"
+    except Exception:  # noqa: BLE001
+        pass
     return None
 
 
@@ -5205,6 +5446,11 @@ def make_one(kind, no_render=False, topic_override=None, script_override=None):
                 return _ob
             return None
         _mech2 = False
+        # 每一稿各自的不合格原因,報廢時一起印出來。
+        # 為什麼要記:重生的 log 印的是「被換掉那一稿」的理由,廢棄訊息印的是「最後一稿」的,
+        # 兩者本來就不同,但舊訊息寫成「重生2次**仍**X」會讀成 X 一直沒解決。
+        # 2026-08-30 我因此誤判過一次:以為「標題數字矛盾」是主要死因(實際 10 天只佔 2%)。
+        _hist = []
         while _uncontroversial_bad(d) and _t2 < 2:
             if not _mech2:
                 _mech2 = True
@@ -5215,6 +5461,7 @@ def make_one(kind, no_render=False, topic_override=None, script_override=None):
                     d = _fix
                     continue
             _t2 += 1
+            _hist.append(_uncontroversial_bad(d))
             log_ops("補產·重生", f"鎖題長片終檢第{_t2}次重生:{_uncontroversial_bad(d)}｜{d.get('title','')[:20]}")
             d = call_claude(kind, _ex, topic_override)
             # 重生出來的**新稿**也要能吃確定性修復:旗標原本在第一次嘗試前就設 True,
@@ -5255,7 +5502,10 @@ def make_one(kind, no_render=False, topic_override=None, script_override=None):
                 _why2 = None
         if _why2:
             _save_rejected_draft(d, _why2, "鎖題終檢")
-            log_ops("補產部門", f"⛔ 鎖題長片終檢:重生2次仍{_why2},fail-closed 不輸出:{d.get('title','')[:24]}")
+            _trace = " → ".join(f"第{i+1}稿 {r[:18]}" for i, r in enumerate(_hist + [_why2]))
+            log_ops("補產部門",
+                    f"⛔ 鎖題長片終檢:重生 {_t2} 次後最後一稿仍不合格({_why2})"
+                    f"｜歷程 {_trace}｜fail-closed 不輸出:{d.get('title','')[:24]}")
             print(f"[skip] long 鎖題終檢不過({_why2}),不輸出:{d.get('title','')[:24]}")
             return None
     # loop 結尾硬性保底(完播工程 2026-07-14):只對非系列 Shorts 補——EP/台股真相實驗室
