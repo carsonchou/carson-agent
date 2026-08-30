@@ -123,7 +123,21 @@ def render_and_mux(out, segs, render_fn, mp4_name, W, H, FPS, ctx=None):
     #    ——ffmpeg 拿到幾張就編幾張,不會抱怨少了 1500 張。實測產出
     #    「音軌 65.1 秒、影像 13.8 秒」而函式回報完成。
     #    完成訊號必須配一個成敗證明,這就是那個證明。
+    # 🔴 **要數磁碟上真正有幾張,不是數迴圈跑了幾次。**
+    #    `idx` 是自己的迴圈計數 —— 兩個實例互刪影格時,**每一個實例的 idx
+    #    都是對的**,因為它確實畫了那麼多次;被刪掉的是檔案。
+    #    所以這道守門對它要防的那件事結構上是盲的,而且它盲得很安靜:
+    #    2026-08-30 anchoring 就這樣產出「影像 95.6 秒 / 音軌 121.5 秒」
+    #    而守門全綠,我還抽了一幀看起來好好的(壞的是最後 26 秒)。
+    #    「寫完檢查先問它驗的是什麼」——這一個驗的是我的意圖,不是結果。
+    on_disk = len(list(frames.glob("*.png")))
     want = sum(int(durs[n] * FPS) for n, _ in segs)
+    if abs(on_disk - want) > FPS:
+        lock.unlink(missing_ok=True)
+        raise SystemExit(
+            f"⛔ 磁碟上只有 {on_disk} 張影格,應該是 {want} 張"
+            f"({on_disk / FPS:.1f}s vs {want / FPS:.1f}s)。"
+            f"幾乎一定是兩個實例寫同一個 frames/。不 mux。")
     if abs(idx - want) > FPS:
         lock.unlink(missing_ok=True)
         raise SystemExit(
