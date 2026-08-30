@@ -157,7 +157,14 @@ def semantic_gate(o):
                     for w in words:
                         if w in text:
                             return f"{miss} 標成 missing 卻在稿子裡提到「{w}」"
-            if not T.get("quote"):
+            # 兩種形狀各自的引句欄位:domains 是一句 `quote`,
+            # outcomes 是每個結果一句 + 一句 verdict_quote。
+            # **不要只認一種** —— fail-closed 認不得就擋,而擋錯的代價是
+            # 一支查證做得比誰都紮實的片子發不出去。
+            has_q = bool(T.get("quote")) or (
+                T.get("outcomes") and all(x.get("quote") for x in T["outcomes"])
+                and T.get("verdict_quote"))
+            if not has_q:
                 return "跨領域集沒有登記原文引句"
         else:                                    # trailer
             g = ("gone", "shrunk", "flipped", "survived")

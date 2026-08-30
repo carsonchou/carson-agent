@@ -167,6 +167,19 @@ def build_script(D):
              f"And {T['survived']} held up."),
             ("end", end_line(D, "every paper")),
         ]
+    if D.get("outcomes"):
+        from make_episode import say_num
+        outs = D["outcomes"]
+        return [
+            ("q", D["question"]),
+            ("nums",
+             f"They measured {len(outs)} things. "
+             + " ".join(
+                 f"{x['name'].capitalize()}, {say_num(x['d'])}"
+                 f"{', significant.' if x['sig'] else ', not significant.'}"
+                 for x in outs)),
+            ("end", end_line(D, "the paper")),
+        ]
     if D.get("domains"):
         from make_domains import say_pct
         doms = D["domains"]
@@ -420,6 +433,9 @@ def fit_sizes(plt, D):
         fs["sb_lab"] = min(
             fit(plt, f"{sum(1 for r in T['rows'] if group_of(r) == g)}  {lab}",
                 38) for g, lab in GROUP_LABEL.items())
+    elif D.get("outcomes"):
+        fs["sub"] = fit(plt, "what came back", 46)
+        fs["o_name"] = min(fit(plt, x["name"], 40) for x in D["outcomes"])
     elif D.get("domains"):
         fs["sub"] = fit(plt, "how much practice explains", 46)
     elif D["es_o"] is None:
@@ -545,6 +561,26 @@ def render(plt, name, t, dur, D):
                         color=GROUP_COLOR[g], weight="bold", alpha=b)
         # 判決卡在這一景**不畫**:標籤那四行已經寫了「8 held up」,
         # 再放一次是複述,而且四行標籤之後剩下的空間低於安全區下緣 0.24。
+    elif name == "nums" and D.get("outcomes"):
+        ax.text(0.5, 0.84, "what came back", ha="center", va="center",
+                fontsize=fs.get("sub", 46), color=DIM)
+        for i, x in enumerate(D["outcomes"]):
+            if t < 0.4 + i * 1.7:
+                continue
+            b = ease(min(1.0, (t - 0.4 - i * 1.7) / 0.6))
+            y = 0.72 - i * 0.115
+            c = BUCKET_COLOR["held"] if x["sig"] else DIM
+            ax.text(0.15, y, x["name"], ha="left", va="center",
+                    fontsize=fs.get("o_name", 40),
+                    color=FG if x["sig"] else DIM, weight="bold", alpha=b)
+            ax.text(0.84, y, f"{x['d']:+.2f}".replace("+", " "), ha="right",
+                    va="center", fontsize=40, color=c, weight="bold", alpha=b)
+        if t > 7.5:
+            q = ease(min(1.0, (t - 7.5) / 0.6))
+            for i, ln in enumerate(wrap(D["card"], 20)[:2]):
+                ax.text(0.5, 0.30 - i * 0.05, ln, ha="center", va="top",
+                        fontsize=min(fs.get("card", 58), 52), color=FG,
+                        alpha=q, weight="bold")
     elif name == "nums" and D.get("domains"):
         # 直式的橫條圖。滿格 = 表現的全部差異,上色 = 練習解釋掉的部分。
         from make_domains import fmt_pct
@@ -807,6 +843,23 @@ def collect(slug=None, row=None):
         T = E["test"]
         pc = _plain(f"eps_domain/{slug}")
         tone = E.get("tone", "shrunk_real")
+        if E.get("arc") == "outcomes":
+            outs = T["outcomes"]
+            kept = [x for x in outs if x["sig"]]
+            return {
+                "key": slug,
+                "question": pc["spoken"], "claim_lines": pc["lines"],
+                "has_original": True,
+                "es_o": None, "es_r": None, "n_o": None, "n_r": None,
+                "say_o": None, "say_r": None,
+                "outcomes": outs, "n_kept": len(kept),
+                "card": f"{len(kept)} of {len(outs)} came back.",
+                "tone": tone,
+                "color": BUCKET_COLOR[TONE_META[tone]["bucket"]],
+                "has_full": _has_full(f"eps_domain/{slug}"),
+                "source": T["title"][:60],
+                "source_full": f"{T['title']} (doi:{T['doi']})",
+            }
         worst = min(T["domains"], key=lambda x: x["pct"])
         return {
             "key": slug,
@@ -920,7 +973,10 @@ def main():
         (out / f"narr_{n}.txt").write_text(txt, encoding="utf-8")
     words = sum(len(t.split()) for _, t in segs)
     print(f"[{D['key']}] {D['question'][:60]}")
-    if D.get("scoreboard"):
+    if D.get("outcomes"):
+        gap = " · ".join(f"{x['name']} {x['d']:+.2f}" for x in D["outcomes"])
+        print(f"  稿 {words} 字   {gap}   {D['card']}")
+    elif D.get("scoreboard"):
         T = D["scoreboard"]
         print(f"  稿 {words} 字   {T['k']} 集 · {T['n_sum']:,} 人   {D['card']}")
     elif D.get("domains"):

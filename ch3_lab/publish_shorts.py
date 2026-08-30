@@ -312,6 +312,13 @@ def short_title(key, o):
         return (f"We checked {f['k']} famous psychology claims. "
                 f"{f['n_sig']} held up.")
     if o.get("kind") == "domains":
+        # kind=domains 底下有兩種形狀。**分開處理,不要假設有 pct_best** ——
+        # outcomes 那種沒有百分比,直接 KeyError 把整個 build_meta 炸掉,
+        # 連帶讓當晚一支 Short 都發不出去。
+        if f.get("arc") == "outcomes":
+            cand = (f"{name}: they measured {f['k']} things. "
+                    f"{f['n_kept']} came back.")
+            return cand if len(cand) <= 100 else q[:100]
         best, worst = f.get("best"), f.get("worst")
         cand = (f"{name}: practice explained {f['pct_best']}% in {best}, "
                 f"under {f['pct_worst']}% in {worst}.")
@@ -361,6 +368,13 @@ def famous_meta(d, o, mp4, longs, longs_all):
                 f"  {T['shrunk']} smaller, still there\n"
                 f"  {T['flipped']} went the other way\n"
                 f"  {T['survived']} held up\n")
+    elif D.get("outcomes"):
+        nums = ("What the replication found:\n"
+                + "\n".join(
+                    f"  {x['name']:<20} d = {x['d']:+.2f}  p = "
+                    f"{x['p']:.3f}  "
+                    f"{'significant' if x['sig'] else 'not significant'}"
+                    for x in D["outcomes"]) + "\n")
     elif D.get("domains"):
         from make_domains import fmt_pct
         nums = ("Percent of the variance in performance explained:\n"
