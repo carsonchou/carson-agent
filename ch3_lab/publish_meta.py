@@ -58,6 +58,45 @@ def t_n(T):
 
 
 
+_DOI_ANGLE = re.compile(r"(doi:\S*?)([<>])")
+
+
+def api_safe(text, where=""):
+    """把文字清成 YouTube metadata 收得下的樣子。**fail-closed。**
+
+    🔴 `videos.insert` 對標題/說明裡的 `<` `>` 回 HTTP 400(2026-08-30 實測,
+    一次送 5 支被擋 2 支)。而角括號有三種來源,處理方式不一樣:
+
+    - **DOI 裡的**(Wiley SICI 格式,例如
+      `10.1002/(sici)1099-0771(200001/03)13:1<1::aid-bdm333>3.0.co;2-s`)
+      → 百分比編碼。改寫成文字會讓那個 DOI 查不到,而 DOI 是這條線
+      唯一叫觀眾去驗證的東西。
+    - **數學比較**(`p < 0.05`、`<1%`)→ 改成文字,意思一樣而且更好唸。
+    - **箭頭**(`->`)→ `to`。
+
+    清完再斷言一次:還有角括號就中止。清洗函式會漏掉新的來源,斷言不會。
+    """
+    s = text
+    # 1) DOI 內的角括號:百分比編碼(反覆做到沒有為止,一個 DOI 可能兩個)
+    for _ in range(8):
+        new = _DOI_ANGLE.sub(
+            lambda m: m.group(1) + ("%3C" if m.group(2) == "<" else "%3E"), s)
+        if new == s:
+            break
+        s = new
+    # 2) 箭頭與比較
+    s = s.replace(" -> ", " to ").replace("->", " to ")
+    s = s.replace("< ", "less than ").replace(" <", " less than ")
+    s = s.replace("> ", "more than ").replace(" >", " more than ")
+    s = s.replace("<", "under ").replace(">", "over ")
+    # 3) 斷言
+    if "<" in s or ">" in s:
+        raise SystemExit(
+            f"⛔ {where} 的 metadata 清洗後仍有角括號 —— YouTube 會回 400。"
+            f"不出片。原文片段:{text[:80]}")
+    return s
+
+
 def footer_for(n_papers):
     """頁尾要跟說明裡**實際有幾篇論文**一致。
 
@@ -726,6 +765,12 @@ def main():
     out = ([o for o in out if k(o) in led]
            + sorted([o for o in out if k(o) not in led],
                     key=lambda o: 0 if o["kind"] == "famous" else 1))
+    # 🔴 **出口統一清洗。** 逐個生成點去修會漏 ——
+    #    今天就漏了三個不同來源(百分比上界、箭頭、DOI 裡的角括號)。
+    for _o in out:
+        _o["title"] = api_safe(_o["title"], _o.get("slug") or _o["dir"])
+        _o["description"] = api_safe(
+            _o["description"], _o.get("slug") or _o["dir"])
     OUT.write_text(json.dumps(out, ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"\n{len(out)} 集的標題與說明已寫入 {OUT.name}")
     over = [o for o in out if len(o["title"]) > 100]

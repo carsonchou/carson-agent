@@ -85,13 +85,6 @@
    "n_r": 14900
   },
   {
-   "slug": "ep0",
-   "tone": "held",
-   "bucket": "held",
-   "es_r": null,
-   "n_r": 58653
-  },
-  {
    "slug": "ep007",
    "tone": "stronger",
    "bucket": "held",
@@ -183,11 +176,11 @@
    "n_r": 12871
   }
  ],
- "k": 26,
- "n_sum": 117306,
+ "k": 25,
+ "n_sum": 58653,
  "counts": {
   "gone": 12,
-  "held": 7,
+  "held": 6,
   "flipped_tiny": 1,
   "shrunk_real": 4,
   "stronger": 2
@@ -195,7 +188,7 @@
  "gone": 12,
  "shrunk": 4,
  "flipped": 1,
- "survived": 9,
- "held": 7,
+ "survived": 8,
+ "held": 6,
  "stronger": 2
 }

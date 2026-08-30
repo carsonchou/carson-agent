@@ -1,6 +1,6 @@
 {
  "day": "2026-08-29",
- "spent": 9693,
+ "spent": 16178,
  "items": [
   {
    "at": "16:25",
@@ -31,6 +31,46 @@
    "at": "17:54",
    "cost": 1606,
    "what": "ep011"
+  },
+  {
+   "at": "09:43",
+   "cost": 1,
+   "what": "fix_meta public_only"
+  },
+  {
+   "at": "09:44",
+   "cost": 1,
+   "what": "fix_meta public_only"
+  },
+  {
+   "at": "09:44",
+   "cost": 1,
+   "what": "fix_meta public_only"
+  },
+  {
+   "at": "10:45",
+   "cost": 1663,
+   "what": "cpmOqGi1Nqw"
+  },
+  {
+   "at": "10:46",
+   "cost": 1606,
+   "what": "ep0"
+  },
+  {
+   "at": "10:47",
+   "cost": 1606,
+   "what": "power_posing"
+  },
+  {
+   "at": "10:47",
+   "cost": 1606,
+   "what": "ep012"
+  },
+  {
+   "at": "10:52",
+   "cost": 1,
+   "what": "unlist readback"
   }
  ]
 }

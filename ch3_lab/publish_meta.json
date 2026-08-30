@@ -1,5 +1,36 @@
 [
  {
+  "kind": "trailer",
+  "slug": "ep0",
+  "dir": "eps_lineup/ep0",
+  "video": "eps_lineup/ep0/ep0.mp4",
+  "thumb": "eps_lineup/ep0/thumb.jpg",
+  "tone": "held",
+  "title": "25 famous psychology claims, retested on 58,653 people. 8 held up.",
+  "description": "25 claims people repeat as fact. We looked up the study each one came from, then looked up what happened when somebody ran it again.\n\n58,653 people took part in the replications.\n12 of the claims are gone - the retest could not tell them apart from nothing.\n4 came back smaller but still measurable.\n1 went the other way.\n8 held up, 2 of them larger than the original.\n\nEvery episode, with the replication effect size and sample:\n  bystander_effect         -0.35    7,700 people   held up\n  ep003                    -0.23    1,550 people   held up\n  ep007                    -0.87      776 people   held up\n  ep011                    +0.65      743 people   held up\n  ep015                    +0.34      740 people   held up\n  ep017                    +0.36      321 people   held up\n  ep018                    -0.85      240 people   held up\n  sleep_memory             +0.29    2,004 people   held up\n  ego_depletion            +0.04    2,141 people   gone\n  ep000                    +0.01    6,608 people   gone\n  ep001                    -0.07    1,283 people   gone\n  ep002                    +0.08    1,086 people   gone\n  ep004                    +0.13      997 people   gone\n  ep005                    +0.22      823 people   smaller, still there\n  ep006                    +0.40      723 people   smaller, still there\n  ep008                    +0.18      564 people   smaller, still there\n  ep009                    +0.14      556 people   gone\n  ep010                    +0.06      488 people   gone\n  ep012                    +0.03      404 people   gone\n  ep013                    +0.00      331 people   gone\n  ep014                    +0.08      316 people   gone\n  ep016                    +0.07      246 people   gone\n  implicit_bias_test       +0.27   14,900 people   smaller, still there\n  romantic_red             +0.09      242 people   gone\n  social_priming           +0.07   12,871 people   gone\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "tags": [
+   "replication crisis",
+   "psychology",
+   "effect size",
+   "science",
+   "research",
+   "statistics",
+   "meta-analysis",
+   "replication study",
+   "open science",
+   "social psychology"
+  ],
+  "facts": {
+   "es_o": null,
+   "es_r": null,
+   "n_r": 58653,
+   "es_kind": "d",
+   "is_replication": true,
+   "k": 25,
+   "n_sig": 8
+  }
+ },
+ {
   "kind": "fred",
   "row": 0,
   "dir": "eps/ep000",
@@ -368,44 +399,13 @@
   }
  },
  {
-  "kind": "trailer",
-  "slug": "ep0",
-  "dir": "eps_lineup/ep0",
-  "video": "eps_lineup/ep0/ep0.mp4",
-  "thumb": "eps_lineup/ep0/thumb.jpg",
-  "tone": "held",
-  "title": "25 famous psychology claims, retested on 58,653 people. 8 held up.",
-  "description": "25 claims people repeat as fact. We looked up the study each one came from, then looked up what happened when somebody ran it again.\n\n58,653 people took part in the replications.\n12 of the claims are gone - the retest could not tell them apart from nothing.\n4 came back smaller but still measurable.\n1 went the other way.\n8 held up, 2 of them larger than the original.\n\nEvery episode, with the replication effect size and sample:\n  bystander_effect         -0.35    7,700 people   held up\n  ep003                    -0.23    1,550 people   held up\n  ep007                    -0.87      776 people   held up\n  ep011                    +0.65      743 people   held up\n  ep015                    +0.34      740 people   held up\n  ep017                    +0.36      321 people   held up\n  ep018                    -0.85      240 people   held up\n  sleep_memory             +0.29    2,004 people   held up\n  ego_depletion            +0.04    2,141 people   gone\n  ep000                    +0.01    6,608 people   gone\n  ep001                    -0.07    1,283 people   gone\n  ep002                    +0.08    1,086 people   gone\n  ep004                    +0.13      997 people   gone\n  ep005                    +0.22      823 people   smaller, still there\n  ep006                    +0.40      723 people   smaller, still there\n  ep008                    +0.18      564 people   smaller, still there\n  ep009                    +0.14      556 people   gone\n  ep010                    +0.06      488 people   gone\n  ep012                    +0.03      404 people   gone\n  ep013                    +0.00      331 people   gone\n  ep014                    +0.08      316 people   gone\n  ep016                    +0.07      246 people   gone\n  implicit_bias_test       +0.27   14,900 people   smaller, still there\n  romantic_red             +0.09      242 people   gone\n  social_priming           +0.07   12,871 people   gone\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
-  "tags": [
-   "replication crisis",
-   "psychology",
-   "effect size",
-   "science",
-   "research",
-   "statistics",
-   "meta-analysis",
-   "replication study",
-   "open science",
-   "social psychology"
-  ],
-  "facts": {
-   "es_o": null,
-   "es_r": null,
-   "n_r": 58653,
-   "es_kind": "d",
-   "is_replication": true,
-   "k": 25,
-   "n_sig": 8
-  }
- },
- {
   "kind": "fred",
   "row": 7,
   "dir": "eps/ep007",
   "video": "eps/ep007/ep007.mp4",
   "tone": "stronger",
   "title": "The more useful something is, the safer it seems? It came back stronger.",
-  "description": "The more useful something is, the safer it seems?\n\nIncreasing benefits leads people to judge its risks as lower.\n\nOriginal study (2000): The affect heuristic in judgments of risks and benefits\n  219 participants — effect size -0.75 (r)\n  doi:10.1002/(sici)1099-0771(200001/03)13:1<1::aid-bdm333>3.0.co;2-s\n\nReplication: Risky Therefore Not Beneficial: Replication and Extension of Finucane et al.’s (2000) Affect Heuristic Experiment\n  776 participants — effect size -0.87\n  doi:10.1177/19485506211056761\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "description": "The more useful something is, the safer it seems?\n\nIncreasing benefits leads people to judge its risks as lower.\n\nOriginal study (2000): The affect heuristic in judgments of risks and benefits\n  219 participants — effect size -0.75 (r)\n  doi:10.1002/(sici)1099-0771(200001/03)13:1%3C1::aid-bdm333%3E3.0.co;2-s\n\nReplication: Risky Therefore Not Beneficial: Replication and Extension of Finucane et al.’s (2000) Affect Heuristic Experiment\n  776 participants — effect size -0.87\n  doi:10.1177/19485506211056761\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
   "tags": [
    "replication crisis",
    "psychology",
@@ -754,7 +754,7 @@
   "thumb": "eps_lineup/social_priming/thumb.jpg",
   "tone": "gone",
   "title": "Social priming: does reading a word change how you behave? 12 replications, 0 worked.",
-  "description": "Does reading a word change how you behave?\n\nSocial priming: 12 replications drawn from 6 replication papers, 12,871 participants in total against 660 in the originals.\nOriginal effect sizes ran 0.31 to 0.80 (median 0.59); the replications ran 0.00 to 0.14 (median 0.07).\n0 of the 12 replications that report a p-value reached p < 0.05.\n\nEvery row on screen:\n  money priming increases system justification\n    0.80 on 30 -> 0.02 on 6,340  doi:10.1027/1864-9335/a000178\n  Analytic Priming\n    0.60 on 57 -> 0.07 on 952  doi:10.1371/journal.pone.0172636\n  Priming “heat” increases belief in global warming\n    0.31 on 300 -> 0.03 on 4,204  doi:10.1177/2515245918810225\n  Implicitly priming God using the scrambled-sentence paradigm increases self-reported risk taking\n    0.57 on 61 -> 0.14 on 556  doi:10.1177/0956797620922477\n  Heat-Priming is associated with increased hostile perceptions\n    0.63 on 72 -> 0.00 on 331  doi:10.17605/osf.io/xszk6\n  Heat-Priming is associated with increased hostile perceptions\n    0.67 on 72 -> 0.06 on 326  doi:10.17605/osf.io/xszk6\n  Priming analytic thinking using the scrambled sentence task reduces belief in conspiracy theorie\n    0.42 on 140 -> 0.06 on 488  doi:10.1016/j.jesp.2023.104549\n  Priming analytic thinking using the scrambled sentence task reduces belief in conspiracy theorie\n    0.34 on 140 -> 0.11 on 488  doi:10.1016/j.jesp.2023.104549\n  Implicitly priming God using the scrambled-sentence paradigm increases self-reported risk taking\n    0.32 on 202 -> 0.11 on 548  doi:10.1177/0956797620922477\n  Priming analytic thinking using the scrambled sentence task reduces belief in conspiracy theorie\n    0.46 on 112 -> 0.12 on 302  doi:10.1016/j.jesp.2023.104549\n  Heat-Priming is associated with increased hostile perceptions\n    0.67 on 48 -> 0.12 on 121  doi:10.17605/osf.io/xszk6\n  Heat-Priming is associated with increased hostile perceptions\n    0.63 on 48 -> 0.02 on 120  doi:10.17605/osf.io/xszk6\n\nSource: FORRT Replication Database (FReD), OSF 2tbvd\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "description": "Does reading a word change how you behave?\n\nSocial priming: 12 replications drawn from 6 replication papers, 12,871 participants in total against 660 in the originals.\nOriginal effect sizes ran 0.31 to 0.80 (median 0.59); the replications ran 0.00 to 0.14 (median 0.07).\n0 of the 12 replications that report a p-value reached p less than 0.05.\n\nEvery row on screen:\n  money priming increases system justification\n    0.80 on 30 to 0.02 on 6,340  doi:10.1027/1864-9335/a000178\n  Analytic Priming\n    0.60 on 57 to 0.07 on 952  doi:10.1371/journal.pone.0172636\n  Priming “heat” increases belief in global warming\n    0.31 on 300 to 0.03 on 4,204  doi:10.1177/2515245918810225\n  Implicitly priming God using the scrambled-sentence paradigm increases self-reported risk taking\n    0.57 on 61 to 0.14 on 556  doi:10.1177/0956797620922477\n  Heat-Priming is associated with increased hostile perceptions\n    0.63 on 72 to 0.00 on 331  doi:10.17605/osf.io/xszk6\n  Heat-Priming is associated with increased hostile perceptions\n    0.67 on 72 to 0.06 on 326  doi:10.17605/osf.io/xszk6\n  Priming analytic thinking using the scrambled sentence task reduces belief in conspiracy theorie\n    0.42 on 140 to 0.06 on 488  doi:10.1016/j.jesp.2023.104549\n  Priming analytic thinking using the scrambled sentence task reduces belief in conspiracy theorie\n    0.34 on 140 to 0.11 on 488  doi:10.1016/j.jesp.2023.104549\n  Implicitly priming God using the scrambled-sentence paradigm increases self-reported risk taking\n    0.32 on 202 to 0.11 on 548  doi:10.1177/0956797620922477\n  Priming analytic thinking using the scrambled sentence task reduces belief in conspiracy theorie\n    0.46 on 112 to 0.12 on 302  doi:10.1016/j.jesp.2023.104549\n  Heat-Priming is associated with increased hostile perceptions\n    0.67 on 48 to 0.12 on 121  doi:10.17605/osf.io/xszk6\n  Heat-Priming is associated with increased hostile perceptions\n    0.63 on 48 to 0.02 on 120  doi:10.17605/osf.io/xszk6\n\nSource: FORRT Replication Database (FReD), OSF 2tbvd\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
   "tags": [
    "replication crisis",
    "psychology",
@@ -787,7 +787,7 @@
   "thumb": "eps_domain/10000_hour_rule/thumb.jpg",
   "tone": "shrunk_real",
   "title": "The 10,000 hour rule: practice explained 26% in games, 4% in education, under 1% in professions.",
-  "description": "Is how much you practise what separates the best?\n\n2014 meta-analysis, Deliberate practice and performance in music, games, sports, education, and professions: a meta-analysis\ndoi:10.1177/0956797614535810\n\nPercent of the variance in performance explained by deliberate practice:\n  games        26%\n  music        21%\n  sports       18%\n  education    4%\n  professions  <1%\n\nQuoted from the abstract:\n\"We found that deliberate practice explained 26% of the variance in performance for games, 21% for music, 18% for sports, 4% for education, and less than 1% for professions. [Macnamara, Hambrick & Oswald 2014, abstract]\"\n\nThe authors' own conclusion:\n\"We conclude that deliberate practice is important, but not as important as has been argued. [same abstract]\"\n\nThe claim being tested comes from The role of deliberate practice in the acquisition of expert performance (1993), doi:10.1037/0033-295X.100.3.363, cited 8,990 times (OpenAlex).\nNote: this meta-analysis reports variance explained, not an effect size in d or r, so no d or r is shown anywhere in this video.\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "description": "Is how much you practise what separates the best?\n\n2014 meta-analysis, Deliberate practice and performance in music, games, sports, education, and professions: a meta-analysis\ndoi:10.1177/0956797614535810\n\nPercent of the variance in performance explained by deliberate practice:\n  games        26%\n  music        21%\n  sports       18%\n  education    4%\n  professions  less than 1%\n\nQuoted from the abstract:\n\"We found that deliberate practice explained 26% of the variance in performance for games, 21% for music, 18% for sports, 4% for education, and less than 1% for professions. [Macnamara, Hambrick & Oswald 2014, abstract]\"\n\nThe authors' own conclusion:\n\"We conclude that deliberate practice is important, but not as important as has been argued. [same abstract]\"\n\nThe claim being tested comes from The role of deliberate practice in the acquisition of expert performance (1993), doi:10.1037/0033-295X.100.3.363, cited 8,990 times (OpenAlex).\nNote: this meta-analysis reports variance explained, not an effect size in d or r, so no d or r is shown anywhere in this video.\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
   "tags": [
    "replication crisis",
    "psychology",

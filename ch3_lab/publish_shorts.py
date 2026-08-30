@@ -430,7 +430,7 @@ def famous_meta(d, o, mp4, longs, longs_all):
     elif D.get("k_distinct"):
         nums = (f"{D['k_distinct']} setups, {D['k']} replications, "
                 f"{D['n_r']:,} people\n"
-                f"Typical original {D['es_o']:+.2f} -> typical replication "
+                f"Typical original {D['es_o']:+.2f} then typical replication "
                 f"{D['es_r']:+.2f}\n".replace("+", ""))
     else:
         scale = (f"{D['k']} {D['k_word']}, {D['n_r']:,} people" if D.get("k")
@@ -447,6 +447,8 @@ def famous_meta(d, o, mp4, longs, longs_all):
     desc = (link + head + "\n\n" + nums
             + (f"{D['card']}\n" if D["card"] else "")
             + src_line + "#Shorts")
+    from publish_meta import api_safe
+    title, desc = api_safe(title, d.name), api_safe(desc, d.name)
     return {"key": d.name, "video": str(mp4.relative_to(ROOT)),
             "title": title, "description": desc, "tags": TAGS,
             "tone": "famous"}

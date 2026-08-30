@@ -82,6 +82,13 @@ def tally():
     rows, n_sum = [], 0
     for o in m:
         f = o.get("facts") or {}
+        # 🔴 **預告片不能算進自己的戰績。** 它在 publish_meta 裡的 facts
+        #    帶著 n_r(= 全部集數的人數總和),所以一旦它自己進了
+        #    publish_meta,下一次 tally() 就會把它當成第 26 集數進去 ——
+        #    而且它的 es_r 是 None,直接讓 publish_meta 崩掉。
+        #    自我指涉:一個統計自己的東西,把自己也統計進去。
+        if o.get("kind") == "trailer":
+            continue
         if not f or f.get("n_r") is None:
             continue
         ct = copy_tone(o["tone"], f.get("es_r"), f.get("es_kind", "d"))

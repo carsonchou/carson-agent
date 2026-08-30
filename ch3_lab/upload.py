@@ -171,6 +171,24 @@ def semantic_gate(o):
             if sum(F.get(x, 0) for x in g) != F.get("k"):
                 return (f"四組加總 {sum(F.get(x, 0) for x in g)} ≠ 集數 "
                         f"{F.get('k')} —— 畫面上的點數會跟旁白對不上")
+            # 🔴 **片裡的戰績必須等於發布當下重算的戰績。**
+            #    上面那道「四組加總 = 集數」是**自洽檢查**:它拿 facts 自己的
+            #    分類驗 facts 自己的總數,永遠成立。實測 2026-08-30:
+            #    ep0 一旦進了 publish_meta 就把**自己**也數進去,facts.json
+            #    變成 26 集 / 117,306 人(人數剛好翻倍),而那道檢查照樣綠燈,
+            #    片子發出去了。標題寫 25 集、片子裡唸 26 集,自己跟自己打架。
+            #    自洽不等於正確 —— 要跟外部真值比。
+            try:
+                sys.path.insert(0, str(ROOT))
+                from make_ep0 import tally as _tally
+                now = _tally()
+            except Exception as e:               # noqa: BLE001
+                return f"重算戰績失敗,無法確認片中數字({str(e)[:50]})"
+            for fld in ("k", "n_sum", "gone", "shrunk", "flipped", "survived"):
+                if F.get(fld) != now.get(fld):
+                    return (f"片裡的戰績跟現在重算的對不上:{fld} "
+                            f"片中 {F.get(fld)} vs 現在 {now.get(fld)}"
+                            f" —— 要重渲,不能就這樣發")
         return None
     if facts_p.exists():
         try:

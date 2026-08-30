@@ -89,12 +89,27 @@ def main():
     st["privacyStatus"] = a.to
     yt.videos().update(part="status", body={"id": a.id, "status": st}).execute()
 
-    back = yt.videos().list(part="status", id=a.id).execute()["items"][0]["status"]
-    now = back["privacyStatus"]
+    # 🔴 **回讀要延遲重試。** `videos.list` 緊接在 `videos.update` 之後會拿到
+    #    **舊值** —— 那是快取,不是沒寫進去。memory `yt-readback-stale-cache`
+    #    記過:6 支全部寫成功卻報 5 支不符。
+    #    2026-08-30 這支自己又中一次:立刻回讀說 public,10 秒後讀是
+    #    unlisted。而它當時回 rc=1,讀起來像「改失敗了」——
+    #    **假警報比沒有檢查更糟**,因為它會讓人去做第二次補救。
+    import time as _t
+    for i in range(4):
+        back = yt.videos().list(
+            part="status", id=a.id).execute()["items"][0]["status"]
+        now = back["privacyStatus"]
+        if now == a.to:
+            break
+        if i < 3:
+            print(f"  回讀還是 {now},{6 * (i + 1)}s 後重試(很可能是快取)")
+            _t.sleep(6 * (i + 1))
     kids = back.get("selfDeclaredMadeForKids")
     print(f"  回讀:privacyStatus={now}  madeForKids={kids}")
     if now != a.to:
-        print(f"⛔ 回讀不符 —— 還是 {now}。API 回 200 但沒改,這條線有前科。")
+        print(f"⛔ 回讀不符 —— 重試四次仍是 {now}。"
+              f"API 回 200 但沒改,這條線有前科。")
         return 1
     print("  ✓ 確認已改")
     return 0
