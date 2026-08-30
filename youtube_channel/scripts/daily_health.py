@@ -234,6 +234,29 @@ def main() -> int:
     base = _leak_check()
     lines.append(f"洗版洩漏基準線: {base if base is not None else '未建'}(每週 weekly_winners 監控是否突破)")
 
+    # 🔴 2026-08-30:配額水位 + 昨天有沒有撞牆。
+    # 加這項的理由:今天把發布從 6 支/天提到 7 支(保留額度 13,200 → 15,400),
+    # 等於把其餘操作壓到 4,245 units,而昨天非發布的花費約 10,000 —— **這個改動有撞牆風險**。
+    # 而撞牆的樣子是「發布靜默少發一支」,不會噴錯:daily_publish 遇到 quotaExceeded 就跳過,
+    # 隔天冪等補上。庫存夠的時候完全看不出來,直到某天發現時數不再成長。
+    # 「被拒次數」比「已用量」更早示警:額度還沒滿就開始被拒 = 上限比我們以為的低。
+    try:
+        import quota_meter as _qm
+        _b = (_qm._load().get("days") or {}).get(_qm._pacific_date(), {})
+        _spent = int(_b.get("spent", 0))
+        _rej = int(_b.get("rejected_calls", 0))
+        _lim = _qm.DAILY_LIMIT
+        lines.append(f"YouTube 配額: {_spent:,}/{_lim:,} = {_spent/max(_lim,1)*100:.0f}%"
+                     f"｜配額用罄被拒 {_rej} 次")
+        if _rej > 0:
+            warns.append(f"配額撞牆({_rej}次被拒)")
+            lines.append("   🔴 **有呼叫因配額用罄被拒** = 當天有東西沒做成(多半是發布少發一支,"
+                         "而它不會噴錯、只會靜默跳過)。跑 python scripts/quota_meter.py 看是誰吃掉的")
+        elif _spent > _lim * 0.95:
+            warns.append(f"配額 {_spent/_lim*100:.0f}%")
+    except Exception:  # noqa: BLE001
+        pass
+
     summary = "\n".join(lines)
     verdict = ("🔴 有異常: " + "、".join(warn)) if warn else "✅ 全部正常"
     print(summary)
