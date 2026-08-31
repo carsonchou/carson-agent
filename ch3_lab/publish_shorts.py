@@ -464,7 +464,13 @@ def famous_meta(d, o, mp4, longs, longs_all):
                     f"  {x.get('name_long') or x['name']:<26} "
                     + (f"d = {x['d']:+.2f}  " if x.get("d") is not None
                        else f"{x.get('stat') or ''}  ")
-                    + f"p = {x['p']:.3f}  "
+                    # 🔴 註解就在上面兩行,寫著「outcomes 這條路徑今天已經
+                    #    因為假設某個欄位一定在炸了四次」—— 然後同一個
+                    #    運算式裡的 p 還是直接格式化。**第五次,同一段。**
+                    #    loss aversion 報的是 lambda 中位數,論文對那些
+                    #    數字沒有做顯著性檢定,p 是 None。
+                    + (f"p = {x['p']:.3f}  " if x.get("p") is not None
+                       else "")
                     + ("significant" if x["sig"] else "not significant")
                     for x in D["outcomes"]) + "\n")
     elif D.get("domains"):
@@ -587,6 +593,48 @@ def build_meta():
               json.loads(META.read_text(encoding="utf-8"))}
     out = []
     # 名案的資料夾名是 slug(bystander_effect…),FReD 那批是 ep013。
+    # ── 新格式的 35~45 秒短片(reels/)────────────────────────────
+    # 🔴 這一批**排在最前面**,而且理由是量出來的,不是偏好:
+    #    2026-08-31 實測 28 支舊 Short(14~26 秒)拿到 289 次觀看、
+    #    **0 留言 0 分享 1 個讚**。Analytics 顯示 feed 有在推(131/141)、
+    #    留存 64.6~79.3% 也不差 —— 沒有人有理由反應才是問題。
+    #    Shorts 的分發靠前一批曝光回收的訊號決定要不要放大,所以
+    #    **再發一批同樣不會被回應的片,不會改變任何事**。
+    rd = ROOT / "reels"
+    if rd.exists():
+        for d in sorted(rd.iterdir()):
+            mp4 = d / f"{d.name}_reel.mp4"
+            fj = d / "facts.json"
+            if not (mp4.exists() and fj.exists()):
+                continue
+            E = json.loads(fj.read_text(encoding="utf-8"))
+            r = E.get("reel") or {}
+            if not r.get("belief") or not r.get("ask"):
+                print(f"  ⛔ {d.name}:reel 文案不全,不發")
+                continue
+            T, O = E["test"], E["original"]
+            if not T.get("doi") or not O.get("doi"):
+                print(f"  ⛔ {d.name}:缺 DOI,不發")
+                continue
+            nl = chr(10)
+            title = f"{E['popular_name']}: {E['story_type_short']}"
+            if len(title) > 95:
+                title = title[:95].rsplit(" ", 1)[0]
+            desc = (
+                f"{r['belief']}{nl}{nl}"
+                f"{r['verdict']}{nl}{nl}"
+                f"{r['ask']}{nl}{nl}"
+                f"Original: {O.get('title', '')} ({O['year']}){nl}"
+                f"  doi:{O['doi']}{nl}"
+                f"Retest: {T.get('title', '')} ({T['year']}){nl}"
+                f"  doi:{T['doi']}{nl}{nl}"
+                f"Every number here was read out of the paper itself and is "
+                f"stored with the sentence it came from.{nl}#Shorts")
+            out.append({"key": f"reel_{d.name}",
+                        "video": str(mp4.relative_to(ROOT)),
+                        "title": title, "description": desc, "tags": TAGS,
+                        "tone": E.get("tone", "shrunk_real")})
+
     # 排序讓名案排在前面 —— 那是唯一有人認得、會主動搜的題材,而這個
     # 頻道現在最缺的是「被發現」,不是「有貨」。
     dirs = sorted((ROOT / "shorts").iterdir(),

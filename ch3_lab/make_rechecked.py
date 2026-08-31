@@ -590,7 +590,29 @@ def _quote_lines(plt, q):
         lines = wrap(q, width)
         if len(lines) <= 7:
             return lines
-    raise SystemExit(f"⛔ 引言太長,7 行放不下也不准截斷:{q[:70]}…")
+    raise SystemExit(
+        f"⛔ 引言 {len(q)} 字元,七行放不下,而截斷是不准的:{q[:60]}…\n"
+        f"   正解不是縮小字級硬塞(一面牆的小字沒有人會讀),是在事實庫加\n"
+        f"   `verdict_display`:從同一段原文裡挑**一個完整的句子**,逐字,\n"
+        f"   完整版留在說明欄。挑句子跟砍句子是兩件事。")
+
+
+def display_quote(E, full):
+    """畫面上要顯示的那一段引文。
+
+    🔴 **挑一個完整的句子 ≠ 把句子砍掉一半。** 前者是引用,後者是造假,
+       而這條線出過後者(縮圖主標「個股體檢【元大金」、章節「vs 0050,
+       誰是贏」)。所以 `verdict_display` 一定要能在完整原文裡逐字找到 ——
+       找不到就中止,不給任何「大概是這樣」的空間。
+    """
+    d = (E.get("verdict_display") or "").strip()
+    if not d:
+        return full
+    if d not in full:
+        raise SystemExit(
+            f"⛔ {E['slug']} 的 verdict_display 在原文裡逐字找不到 —— "
+            f"那就不是引用了:\n   顯示「{d[:70]}」")
+    return d if d.rstrip().endswith((".", "!", "?")) else d + " …"
 
 
 def render_scene(name, t_now, dur, ctx):
@@ -641,9 +663,16 @@ def render_scene(name, t_now, dur, ctx):
 
     elif name == "test":
         txt(0.68, str(T["year"]), 150, DIM)
+        # 🔴 這一行原本單行硬畫:hungry judges 的 kind 是
+        #    「letter — reanalysis with a different dataset plus interviews」,
+        #    52pt 單行寬到左緣 -0.051 —— 越界守門擋下,而它擋對了。
+        #    修法是斷行 + 量字級,不是把字級寫小一點(下一個更長的還是會爆)。
         lab = (f"{say_int(T['k'])} {T['k_word']}" if T.get("k")
                and T.get("k_word") else (T.get("kind") or "the retest"))
-        txt(0.48, lab, 52, FG, "normal")
+        ll = wrap(lab, 34)[:2]
+        lfs = fit_w(plt, max(ll, key=len), 52, 0.84, "normal")
+        for i, ln in enumerate(ll):
+            txt(0.50 - i * 0.085, ln, lfs, FG, "normal")
         if t_now > 1.8 and T.get("n"):
             floor = "more than " if T.get("n_is_floor") else ""
             txt(0.28, f"{floor}{say_int(T['n'])} people", 62, ACCENT,
@@ -698,7 +727,8 @@ def render_scene(name, t_now, dur, ctx):
             q, by = r["quotes"][0], f"— {r['who'].split('(')[0].strip()}, {r['year']}"
             bycol = ACCENT
         else:
-            q, by, bycol = T["verdict_quote"], "— the authors, in the paper", DIM
+            q = display_quote(E, T["verdict_quote"])
+            by, bycol = "— the authors, in the paper", DIM
         lines = _quote_lines(plt, q)
         fs = fit_w(plt, max(lines, key=len), 44, 0.84, "normal")
         # 整塊置中,署名貼在塊的正下方 —— 不是釘在畫面底部。
