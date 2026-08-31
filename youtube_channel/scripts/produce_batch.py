@@ -2154,15 +2154,24 @@ def _symbols_in(text):
 _CK_DOMAINS = (
     ("price", ("long_horizon", "annual_extremes", "three_way", "underwater", "halvings")),
     ("fund", ("revenue_trend", "eps_trend", "gross_margin", "dividend_history", "valuation_position")),
-    ("rel", ("industry_rank",)),
-    ("crash", ()),   # 空 tuple = 收容所有沒被上面認領的(crash__* 等),排在最後
+    ("crash", ()),   # 空 tuple = 收容所有沒被上面認領的(crash__* / industry_rank),排在最後
 )
+# industry_rank 刻意**不進輪替**,和 crash 一起墊底。理由不是它不重要,是它的母體
+# 是「本頻道已體檢過的個股」這個任意樣本(不是該產業全部上市櫃公司),在十一條裡
+# 資訊品質最弱——要老實講就得說「在我們做過的 125 檔電子股裡排第 40」,對觀眾接近沒意義;
+# 要講得漂亮就會變成「在電子股裡排第 40」= 誤導(這正是 08-30 抓到 18 句沒帶母體的那個坑)。
+# 實測後果:它排第 3 位時佔掉一個黃金位子,而且和同段的 annual_extremes 一起被跳過
+# (6 支新稿 6/6 漏同樣這兩條)。讓路之後前 10 個位子 = 價格面 5 條 + 基本面 5 條全上,
+# 都是母體定義清楚的標準事實。industry_rank 仍在池子裡,段數夠多時照樣輪得到。
+_CK_TAIL_KEYS = ("industry_rank",)
 
 
 def _ck_order(own):
     """把一檔的事實按資訊領域輪流取,回傳重排後的 list。長度與內容不變,只換順序。"""
     def _kind(e):
         k = e["key"].replace("checkup_", "")
+        if any(k.startswith(x) for x in _CK_TAIL_KEYS):
+            return "crash"
         for name, keys in _CK_DOMAINS:
             if any(k.startswith(x) for x in keys):
                 return name
