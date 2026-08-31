@@ -540,8 +540,12 @@ def render_scene(name, t_now, dur, ctx):
         step = (dur - 1.4) / n
         lefts = [str(r.get("year") or r.get("label", "")) for r in use]
         whats = [r["what"] for r in use] or [""]
-        lf = min(fit_w(plt, w, 44, 0.13) for w in lefts if w) if any(lefts) else 44
-        nf = min(fit_w(plt, w, 40, 0.44, "normal") for w in whats if w)
+        # 左欄 0.08→0.30、中欄 0.32→0.76、數值欄右對齊收在 0.94。
+        # 🔴 左欄寬度給太窄(0.13)時,fit_w 會把「a random shooter」縮到
+        #    28pt,而中欄還是 40pt —— 抽幀看出來像兩種字級硬拼在一起。
+        #    欄寬是版面決定的,不是「塞得下就好」。
+        lf = min(fit_w(plt, w, 44, 0.20) for w in lefts if w) if any(lefts) else 44
+        nf = min(fit_w(plt, w, 40, 0.42, "normal") for w in whats if w)
         for i, r in enumerate(use):
             if t_now < 0.4 + i * step:
                 continue
@@ -552,7 +556,7 @@ def render_scene(name, t_now, dur, ctx):
             ax.text(0.08, y, lefts[i], ha="left", va="center",
                     fontsize=lf, color=ACCENT if hot else DIM,
                     weight="bold", alpha=b)
-            ax.text(0.30, y, r["what"], ha="left", va="center",
+            ax.text(0.32, y, r["what"], ha="left", va="center",
                     fontsize=nf, color=FG if hot else DIM,
                     weight="normal", alpha=b)
             if r.get("es") is not None and r.get("es_kind"):

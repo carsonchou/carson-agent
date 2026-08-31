@@ -48,6 +48,21 @@ FOOTER = (
     "their own episodes.\n\n"
     "Replication data: FORRT Replication Database (FReD), osf.io/2tbvd")
 
+#: 🔴 `rechecked` 這批**不是**從 FReD 來的,是逐篇讀原文抽出來的,所以
+#:    不能沿用上面那個頁尾 —— 標錯資料來源比不標更糟。
+#:    另外這批的結局不只有「倒了」:有的是原始分析有偏誤(結論反過來)、
+#:    有的是方法倒了而假說活著、有的至今仍有爭議。頁尾要講清楚,否則
+#:    觀眾會拿「又一個倒了」的框架去讀一支不是那個意思的片。
+RECHECKED_FOOTER = (
+    "\n\nHow this channel works\n"
+    "Every number here was read out of the paper itself, and each one is "
+    "stored with the sentence it came from. Nothing is estimated, rounded "
+    "for effect, or carried over from a summary. Where we could not get the "
+    "original document, that is said above rather than filled in.\n\n"
+    "Not every episode is a debunking. Some of these findings held up, some "
+    "turned out to be a problem with the original analysis rather than the "
+    "result, and at least one is still an open argument.")
+
 
 def t_n(T):
     """重測人數。**沒有就回報沒有,不要填 0。**"""
@@ -678,8 +693,30 @@ def main():
                 c_kept = [x for x in claims if x["sig"]]
                 if len(claims) < len(outs):
                     # 混合型:先講宣稱本身怎麼了
-                    verdict = ("held" if c_kept else
-                               f"came back at p = {claims[0]['p']:.2f}")
+                    # 🔴 **p 值不是每一集都有。** loss aversion 那篇報的是
+                    #    lambda 的中位數,對那些數字**沒有做顯著性檢定** ——
+                    #    而這行直接 `:.2f` 格式化 None,整支 publish_meta
+                    #    連同前面產好的二十幾集一起沒寫出去。
+                    #    這是同一段程式裡第二個「假設某個欄位一定在」,
+                    #    修第一個的時候就該把整段掃過。
+                    #    沒有 p 就用它真正報的那個值 + 它自己的單位符號,
+                    #    **精度照事實庫存的**(1.125 不准變成 1.13 ——
+                    #    觀眾拿 1.13 去論文裡 grep 找不到)。
+                    c0 = claims[0]
+                    if c_kept:
+                        verdict = "held"
+                    elif c0.get("p") is not None:
+                        verdict = f"came back at p = {c0['p']:.2f}"
+                    elif c0.get("d") is not None:
+                        _sym = {"lambda": "λ", "g": "g", "r": "r",
+                                "d": "d"}.get(E.get("unit"), "d")
+                        _v = f"{c0['d']:.6f}".rstrip("0").rstrip(".")
+                        verdict = f"came back at {_sym} = {_v}"
+                    else:
+                        dropped.append(
+                            (key, "宣稱那一項既沒有 p 也沒有效果量,"
+                                  "標題無法講清楚它怎麼了"))
+                        continue
                     title = (f"{E['popular_name'].capitalize()}: the one thing "
                              f"the idea needs {verdict}.")
                 else:
@@ -693,7 +730,16 @@ def main():
                     f"  {x.get('name_long') or x['name']:<26} "
                     + (f"d = {x['d']:+.2f}   " if x.get("d") is not None
                        else f"{x.get('stat') or ''}   ")
-                    + f"p = {x['p']:.3f}   "
+                    # 🔴 同一段裡第三個「假設 p 一定在」。前兩個(標題的
+                    #    verdict、混合型判斷)我一個一個修,而正確的做法是
+                    #    **修第一個的時候就把整段 grep 過** —— 這一段的
+                    #    outcomes 有三個選填欄位(d / p / stat),每一個都
+                    #    有集數沒有它。
+                    #    沒有 p 的那幾列改印它真正報的統計式(median lambda
+                    #    = 2.295 (k = 62)),那比一個空的 p 欄有用得多。
+                    + (f"p = {x['p']:.3f}   " if x.get("p") is not None
+                       else (f"{x['stat']}   " if x.get("stat")
+                             and x.get("d") is None else ""))
                     + ("significant" if x["sig"] else "not significant")
                     for x in outs)
                 desc = (
@@ -716,8 +762,19 @@ def main():
                     + (f'  "{T["extra_quote"]}"{nl}'
                        if T.get("extra_quote") else "")
                     + nl
-                    + f"The authors' own summary:{nl}"
-                    + f'"{T["verdict_quote"]}"{nl}'
+                    # 🔴 上面那段註解說「不要假設每一集都有同一組欄位」,
+                    #    然後隔兩行就 `T["verdict_quote"]` 直接索引 ——
+                    #    anchoring 與 loss_aversion 沒有這一欄,整支
+                    #    publish_meta 在它們身上 KeyError,而**前面已經
+                    #    產好的二十幾集也一起沒寫出去**。
+                    #    註解記住了教訓,程式沒有:同一段裡兩種寫法並存,
+                    #    就是還沒改完。
+                    #    有就放、沒有就連標題一起不放 —— 不要印一對空引號。
+                    #    (影片本身的結論不受影響:make_domains 對
+                    #     `say_verdict` 是 fail-closed 的,那一段一定在。)
+                    + (f"The authors' own summary:{nl}"
+                       f'"{T["verdict_quote"]}"{nl}'
+                       if T.get("verdict_quote") else "")
                     + (f'{nl}On statistical power:{nl}"{T["power_quote"]}"'
                        if T.get("power_quote") else "")) + footer_for(2)
                 out.append({
@@ -775,6 +832,135 @@ def main():
                           "k": len(T["domains"]), "k_word": "domains",
                           "pct_best": best["pct"], "pct_worst": worst["pct"],
                           "best": best["name"], "worst": worst["name"]},
+            })
+            print(f"  ✓ {d.name}:{title}")
+
+    # ── 重新檢查(rechecked)─────────────────────────────────────────
+    # 這一批跟前四種的差別是**故事類型不一樣**,所以說明欄也不能共用
+    # 一個模板:hot hand 要講「偏誤有多大」,backfire 要講「原作者自己
+    # 怎麼說」,hungry judges 要講「這件事還沒定案」。
+    rc_dir = ROOT / "eps_rechecked"
+    if rc_dir.exists():
+        import plain as _plain
+        for d in sorted(rc_dir.glob("*")):
+            fj = d / "facts.json"
+            if not (fj.exists() and (d / f"{d.name}.mp4").exists()):
+                continue
+            E = json.loads(fj.read_text(encoding="utf-8"))
+            T, O = E["test"], E["original"]
+            key = f"eps_rechecked/{d.name}"
+            if not _plain.spoken(key):
+                dropped.append((key, "缺手寫白話句")); continue
+            # 🔴 DOI 是硬需求,不是選填。這個頻道唯一的資產是「觀眾自己
+            #    查得到」,沒有 DOI 的那一集不該存在。
+            if not T.get("doi") or not O.get("doi"):
+                dropped.append((key, "缺 DOI")); continue
+            nl = chr(10)
+            # `facts.json` 是**渲染當下**的快照 —— 說明欄要描述的是真的
+            # 被渲出來的那支片,所以優先用快照。但事實庫後來新增的欄位
+            # (popular_name 是標題用的,不影響任何一格畫面)快照裡不會有,
+            # 而為了一個沒進畫面的欄位重渲三分鐘是浪費。
+            # → 快照沒有就回主檔查,**用 slug 對回去**,對不上就不出片:
+            #   靜默拿到別集的名字比缺這一欄糟得多。
+            pn = E.get("popular_name")
+            if not pn:
+                _src = json.loads(
+                    (ROOT / "facts" / "rechecked_episodes.json")
+                    .read_text(encoding="utf-8"))
+                _hit = [x for x in _src["episodes"] if x["slug"] == d.name]
+                if len(_hit) != 1 or not _hit[0].get("popular_name"):
+                    dropped.append((key, "事實庫查不到唯一的 popular_name"))
+                    continue
+                pn = _hit[0]["popular_name"]
+            if not E.get("story_type_short"):
+                dropped.append((key, "缺 story_type_short(標題與說明都靠它)"))
+                continue
+
+            # 標題:**搜尋詞放最前面**。零訂閱的頻道只有搜尋一個入口,
+            # 而 08-30 實測 14 支 16:9 長片標題全是學術句子,總共 3 次觀看。
+            title = f"{pn}: {E['story_type_short']}."
+
+            # 論文清單:原始 → 重測 →(可能的)第二個質疑方 → 原作者回應。
+            # 每一篇都要有 DOI,而且**順序就是片子講的順序**。
+            papers = [("The original", O), ("The retest", T)]
+            if E.get("test2"):
+                papers.append(("A second challenge", E["test2"]))
+            if E.get("author_recantation"):
+                papers.append(("The original author, later",
+                               E["author_recantation"]))
+            # 🔴 樣本那一行有兩個坑,兩個都會製造一個假的第二組人:
+            #    ① `n_word` 不是每一集都是 participants —— hot hand 是
+            #       26 名**球員**、hungry judges 是 1,112 筆**裁決**
+            #       (不是人也不是天數)。印 participants 就是換掉單位。
+            #    ② 重分析用的是**同一批**資料。原始 26、重測 26 各印一行
+            #       「26 participants」,讀起來像兩組獨立樣本各 26 人,
+            #       而真相是同一批 26 人被算了第二次 —— 那正好是這一集
+            #       在講的事情,說明欄卻把它講反了。
+            def _people(p):
+                if not p.get("n"):
+                    return ""
+                same = "reanalysis" in (p.get("kind") or "").lower()
+                # 重分析用的就是原始那批人 —— 單位也該跟著原始那筆走,
+                # 否則會寫出「the same 26 participants」而上一行是
+                # 「26 players」,同一批人在同一段裡有兩個名字。
+                w = p.get("n_word") or (O.get("n_word") if same
+                                        else None) or "participants"
+                return (f"{nl}  the same {p['n']:,} {w}" if same
+                        else f"{nl}  {p['n']:,} {w}")
+            plist = nl.join(
+                f"{lab}: {p.get('title', '')} ({p['year']})" + nl
+                + f"  doi:{p['doi']}" + _people(p)
+                for lab, p in papers if p.get("doi"))
+
+            # 時間軸:畫面上出現過的每一列,連單位一起寫進說明欄。
+            # 🔴 **單位一定要印。** 第一版寫 `{r['es']:+g}`,說明欄印出
+            #    「+4 / -8 / +13」—— 那是百分點,但看起來像效果量 d。
+            #    畫面上有 pp、說明欄沒有,同一支片兩個表面講不同的話,
+            #    而說明欄是觀眾拿去跟論文對照的那一份。
+            #    符號從 make_rechecked.val_str 來,**不要在這裡再寫一份**
+            #    (同一件事兩份實作是這條線最貴的重複錯誤)。
+            from make_rechecked import val_str as _vs
+            tl = nl.join(
+                f"  {r['year']}  {r['what']}"
+                + (f"   {_vs(r['es_kind'], r['es'])}"
+                   if r.get("es") is not None and r.get("es_kind") else "")
+                for r in (E.get("timeline") or []))
+
+            # 逐字原句 —— 這是說明欄存在的主要理由。
+            quotes = [("The original study", O.get("quote")),
+                      ("The retest", T.get("verdict_quote"))]
+            if E.get("author_recantation"):
+                quotes.append(("The original author, later",
+                               E["author_recantation"]["quotes"][1]))
+            qtxt = nl.join(f"{who}:{nl}\"{q}\"{nl}"
+                           for who, q in quotes if q)
+
+            # 🔴 **查不到的東西要寫出來。** 事實庫的 `missing` 是給人看的,
+            #    而讓觀眾知道哪一格是空的,比假裝全都查到了更有說服力 ——
+            #    也讓任何人可以接手去補。
+            miss = E.get("missing") or []
+            mtxt = ("" if not miss else
+                    nl + "What we could not verify first-hand:" + nl
+                    + nl.join(f"  - {m}" for m in miss) + nl)
+
+            desc = (
+                f"{_plain.spoken(key)}{nl}{nl}"
+                f"{E['story_type_short'].capitalize()}.{nl}{nl}"
+                f"{plist}{nl}{nl}"
+                + (f"What happened to the number:{nl}{tl}{nl}{nl}" if tl else "")
+                + f"{qtxt}{nl}{mtxt}"
+                + RECHECKED_FOOTER)
+
+            out.append({
+                "kind": "rechecked", "slug": d.name, "dir": key,
+                "video": f"{key}/{d.name}.mp4",
+                "thumb": f"{key}/thumb.jpg",
+                "tone": E.get("tone", "shrunk_real"),
+                "title": title, "description": desc, "tags": TAGS,
+                "facts": {"es_o": O.get("es"), "es_r": T.get("es"),
+                          "n_r": T.get("n"), "es_kind": T.get("es_kind", "d"),
+                          "is_replication": True,
+                          "story_type": E["story_type_short"]},
             })
             print(f"  ✓ {d.name}:{title}")
 

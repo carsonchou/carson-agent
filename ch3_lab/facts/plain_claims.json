@@ -243,5 +243,117 @@
    "THAN WINNING FEELS GOOD"
   ],
   "spoken": "Does losing hurt more than winning the same amount feels good?"
+ },
+ "eps_rechecked/hot_hand": {
+  "lines": [
+   "DOES A BASKETBALL PLAYER",
+   "EVER GET A HOT HAND?"
+  ],
+  "spoken": "Does a basketball player ever really get a hot hand?"
+ },
+ "hot_hand": {
+  "lines": [
+   "DOES A BASKETBALL PLAYER",
+   "EVER GET A HOT HAND?"
+  ],
+  "spoken": "Does a basketball player ever really get a hot hand?"
+ },
+ "eps_rechecked/hungry_judges": {
+  "lines": [
+   "DOES A JUDGE GO EASIER",
+   "RIGHT AFTER LUNCH?"
+  ],
+  "spoken": "Does a judge go easier on you right after lunch?"
+ },
+ "hungry_judges": {
+  "lines": [
+   "DOES A JUDGE GO EASIER",
+   "RIGHT AFTER LUNCH?"
+  ],
+  "spoken": "Does a judge go easier on you right after lunch?"
+ },
+ "eps_rechecked/facial_feedback": {
+  "lines": [
+   "DOES HOLDING A PEN",
+   "IN YOUR TEETH CHEER YOU UP?"
+  ],
+  "spoken": "Does holding a pen in your teeth actually cheer you up?"
+ },
+ "facial_feedback": {
+  "lines": [
+   "DOES HOLDING A PEN",
+   "IN YOUR TEETH CHEER YOU UP?"
+  ],
+  "spoken": "Does holding a pen in your teeth actually cheer you up?"
+ },
+ "eps_rechecked/moral_licensing": {
+  "lines": [
+   "DOES DOING ONE GOOD THING",
+   "LET YOU DO A BAD ONE?"
+  ],
+  "spoken": "Does doing one good thing give you permission to do a bad one?"
+ },
+ "moral_licensing": {
+  "lines": [
+   "DOES DOING ONE GOOD THING",
+   "LET YOU DO A BAD ONE?"
+  ],
+  "spoken": "Does doing one good thing give you permission to do a bad one?"
+ },
+ "eps_rechecked/terror_management": {
+  "lines": [
+   "DOES THINKING ABOUT DEATH",
+   "HARDEN YOUR BELIEFS?"
+  ],
+  "spoken": "Does thinking about your own death harden your beliefs?"
+ },
+ "terror_management": {
+  "lines": [
+   "DOES THINKING ABOUT DEATH",
+   "HARDEN YOUR BELIEFS?"
+  ],
+  "spoken": "Does thinking about your own death harden your beliefs?"
+ },
+ "eps_rechecked/backfire_effect": {
+  "lines": [
+   "DOES CORRECTING SOMEONE",
+   "MAKE THEM BELIEVE IT MORE?"
+  ],
+  "spoken": "Does correcting someone make them believe the wrong thing more?"
+ },
+ "backfire_effect": {
+  "lines": [
+   "DOES CORRECTING SOMEONE",
+   "MAKE THEM BELIEVE IT MORE?"
+  ],
+  "spoken": "Does correcting someone make them believe the wrong thing more?"
+ },
+ "eps_rechecked/false_memory": {
+  "lines": [
+   "CAN SOMEONE PLANT",
+   "A CHILDHOOD MEMORY IN YOU?"
+  ],
+  "spoken": "Can someone plant a childhood memory in you that never happened?"
+ },
+ "false_memory": {
+  "lines": [
+   "CAN SOMEONE PLANT",
+   "A CHILDHOOD MEMORY IN YOU?"
+  ],
+  "spoken": "Can someone plant a childhood memory in you that never happened?"
+ },
+ "eps_rechecked/marshmallow_test": {
+  "lines": [
+   "DOES WAITING FOR A SWEET",
+   "AT FOUR PREDICT YOUR LIFE?"
+  ],
+  "spoken": "Does waiting for a sweet at age four predict how your life goes?"
+ },
+ "marshmallow_test": {
+  "lines": [
+   "DOES WAITING FOR A SWEET",
+   "AT FOUR PREDICT YOUR LIFE?"
+  ],
+  "spoken": "Does waiting for a sweet at age four predict how your life goes?"
  }
 }

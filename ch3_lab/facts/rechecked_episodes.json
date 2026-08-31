@@ -153,7 +153,8 @@
           "es_kind": "percentage_points",
           "hot": true
         }
-      ]
+      ],
+      "popular_name": "The hot hand fallacy"
     },
     {
       "slug": "hungry_judges",
@@ -322,7 +323,8 @@
           "es": null,
           "hot": true
         }
-      ]
+      ],
+      "popular_name": "The hungry judge effect"
     },
     {
       "slug": "facial_feedback",
@@ -503,7 +505,8 @@
           "es_kind": "raw_diff_7pt_scale",
           "hot": true
         }
-      ]
+      ],
+      "popular_name": "The facial feedback hypothesis"
     },
     {
       "slug": "moral_licensing",
@@ -716,7 +719,8 @@
           "es_kind": "d",
           "hot": true
         }
-      ]
+      ],
+      "popular_name": "Moral licensing"
     },
     {
       "slug": "terror_management",
@@ -839,7 +843,8 @@
           "es": 0.01,
           "es_kind": "meta-regression b"
         }
-      ]
+      ],
+      "popular_name": "Terror management theory"
     },
     {
       "slug": "backfire_effect",
@@ -978,7 +983,8 @@
           "es": 0,
           "es_kind": "count"
         }
-      ]
+      ],
+      "popular_name": "The backfire effect"
     },
     {
       "slug": "false_memory",
@@ -1110,7 +1116,8 @@
           "es_kind": "pct",
           "hot": true
         }
-      ]
+      ],
+      "popular_name": "The lost in the mall study"
     },
     {
       "slug": "marshmallow_test",
@@ -1270,7 +1277,8 @@
           "es_kind": "beta",
           "hot": true
         }
-      ]
+      ],
+      "popular_name": "The marshmallow test"
     }
   ]
 }
