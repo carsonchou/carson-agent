@@ -5748,6 +5748,12 @@ def main() -> int:
     ap.add_argument("--no-render", action="store_true",
                     help="雲端模式：只產腳本+配音，渲染交給 PC 端 render_watcher")
     ap.add_argument("--topic", default=None, help="指定題目（金融時事優先製作，繞過排程/題庫，立刻產 1 支）")
+    ap.add_argument("--stock", default=None, metavar="CODE",
+                    help="對指定個股立刻產 1 支**綁事實**的長片(蹭熱點用)。"
+                         "例:--stock 3037 --title '欣興3037漲263%之後'")
+    ap.add_argument("--fact-key", default="long_horizon", dest="fact_key",
+                    help="--stock 綁哪一條事實(預設 long_horizon;熱點常用 annual_extremes)")
+    ap.add_argument("--title", default=None, help="--stock 的標題(不給就讓模型自己下)")
     ap.add_argument("--angle", default=None, help="切入點（搭配 --topic）")
     ap.add_argument("--publish", action="store_true", help="產完立刻發布（時事片用：消息面要即時上架，不等排程）")
     ap.add_argument("--manual", action="store_true", help="手動補產：照 --shorts/--long 數量，不被人事部員額覆蓋")
@@ -5878,6 +5884,47 @@ def main() -> int:
         return 0 if slug_made else 3
 
     # 🔥 金融時事優先：給了 --topic 就立刻產 1 支相關 Short，不管排程/片庫上限。
+    if args.stock:
+        # 熱點直達:繞過 topic_bank 的排序(熱點有時效,不能等 _rank 輪到它),
+        # 但**不繞過事實綁定** —— topic_override 帶 fact_key,下游 _tw_facts_context /
+        # _relevant_facts_list 認 `checkup_` 前綴就會取該代號的全部事實,
+        # 與排程產片走同一條路(不另開一套實作)。
+        import json as _json
+        _fp = ROOT / "STUDIO" / "stock_checkup_facts.json"
+        _fj = _json.loads(_fp.read_text(encoding="utf-8")).get("results") or {}
+        _key = f"checkup_{args.fact_key}__{args.stock}"
+        if _key not in _fj:
+            _avail = sorted({k.split("__")[0].replace("checkup_", "")
+                             for k in _fj if k.endswith(f"__{args.stock}")})
+            print(f"[FAIL] 事實庫沒有 {_key}。"
+                  + (f"這檔有的事實:{'、'.join(_avail)}" if _avail
+                     else f"事實庫裡完全沒有 {args.stock} 這檔,要先跑 stock_checkup_facts.py"),
+                  file=sys.stderr)
+            return 1
+        # angle 預設用該條事實的原文;給 --angle 就用自訂的。
+        # 為什麼需要自訂:實測欣興 3037 第一句寫成「被動元件大廠欣興」——欣興是 PCB/IC 載板廠,
+        # 而事實庫只有「電子零組件業」這個**廣義分類**,模型就自己把它收窄成一個錯的 specific。
+        # 守門驗數字、不驗「這家公司做什麼」,這種錯誤現在只有人看得出來 → 熱點題要把
+        # 正確的業務描述明講進 angle。
+        _tov = {"title": args.title or "",
+                "angle": args.angle or str(_fj[_key].get("claim", ""))[:300],
+                "fact_key": _key, "category": "個股體檢"}
+        slug_made = None
+        for t in range(3):
+            try:
+                slug_made = make_one("long", no_render=args.no_render, topic_override=_tov)
+                if slug_made:
+                    break
+            except Exception as exc:  # noqa: BLE001
+                print(f"[err 熱點第{t+1}次] {exc}", file=sys.stderr)
+        log_ops("熱點製作",
+                f"{'已產出' if slug_made else '⚠️ 失敗'}：{args.stock} / {args.fact_key}"
+                f"{'｜' + str(slug_made)[:40] if slug_made else ''}")
+        print(f"[{'ok' if slug_made else 'FAIL'}] 熱點長片 {args.stock}：{slug_made or '未產出'}")
+        if slug_made and args.publish:
+            _publish_now(slug_made) if "_publish_now" in globals() else None
+        return 0 if slug_made else 1
+
     if args.topic:
         if not _has_llm_key():
             print("[FATAL] 找不到任一 LLM 供應商金鑰(OPENROUTER/ANTHROPIC/DEEPSEEK/GEMINI/GROQ)。", file=sys.stderr)

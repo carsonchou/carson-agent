@@ -220,6 +220,30 @@ def calc_long_horizon(s):
 
 
 # ── 事實類型 B：最慘一年 / 最猛一年（年度報酬序列，計整年至少約100個交易日）───
+
+# 🔴 2026-08-31 未完結年度要標示。本函式收年度報酬時的門檻是「至少約 100 交易日」,
+# 所以**還沒過完的今年**會被收進來 —— 而舊的 summary 字面稱它「完整年度」,
+# 等於把半年的漲幅講成一整年的。實例:欣興 3037「最猛一年是 2026年,該年報酬 263.3%」,
+# 而 2026 只有 129 根(完整年度 244~251 根)。548 檔裡有 50 檔(9%)踩到。
+#
+# 標示刻意寫進**那一年自己的片語裡**,不是加在句尾當補充句 —— 句尾的補充是
+# 可以被單獨丟掉的(同日實測:警語獨立成句時,28 句裡 18 句把它丟了)。
+_FULL_YEAR_BARS = 200   # 完整年度實測 244~251 根;低於 200 就不是完整年度
+
+
+def _yr_label(row, series):
+    """把年度標成「2008年」或「2026年(僅到 07-17、尚未過完)」。"""
+    y = row["year"]
+    if row.get("n_bars", 0) >= _FULL_YEAR_BARS:
+        return f"{y}年"
+    try:
+        last = series.index[-1]
+        if last.year == y:
+            return f"{y}年（僅到 {last.month:02d}-{last.day:02d}、尚未過完）"
+    except Exception:  # noqa: BLE001
+        pass
+    return f"{y}年（資料不足一整年）"
+
 def calc_annual_extremes(s):
     if s is None or len(s) < MIN_BARS:
         return None
@@ -246,9 +270,9 @@ def calc_annual_extremes(s):
         "start": str(s.index[0].date()), "end": str(s.index[-1].date()),
         "worst_year": worst, "best_year": best,
         "annual_returns": rows,
-        "summary": (f"完整年度資料共 {len(rows)} 年：最慘一年是 {worst['year']}年，"
-                    f"該年報酬 {pct(worst['return'])}；最猛一年是 {best['year']}年，"
-                    f"該年報酬 {pct(best['return'])}"),
+        "summary": (f"年度資料共 {len(rows)} 年（{_yr_label(worst, s)}最慘，"
+                    f"報酬 {pct(worst['return'])}；{_yr_label(best, s)}最強，"
+                    f"報酬 {pct(best['return'])}）"),
     }
 
 
