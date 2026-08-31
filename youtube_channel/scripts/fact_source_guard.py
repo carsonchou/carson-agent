@@ -500,7 +500,16 @@ def _sourced_unit(val: float, raw: str, pool: set[float], strict: bool) -> bool:
         # 單位池不可信(建置失敗、事實庫壞掉)→ 退回舊行為,而不是把全部片judged成無憑據
         if sum(len(v) for v in tp.values()) < 10 or len(tp.get("pct", ())) < 10:
             raise RuntimeError("typed pool 太小/不可信")
-        return _sourced_typed(val, _unit_of_claim(raw), tp, strict)[0]
+        # 🔴 2026-08-31 億/萬換算不對稱(實案:穩懋3105「一百八十三點三億元」被判查無來源,
+        # 而 revenue_trend 事實白紙黑字寫著 183.3億元)。
+        # 池那側 _units_from_string 對「億」是 `amount_wan ← v × 10000`(183.3億 → 1,833,000);
+        # 宣稱這側 _unit_of_claim 只回單位、**不換算**,拿 183.3 去找 1,833,000 → 永遠找不到。
+        # 兩個方向都錯:①真的億元金額一律判無憑據(fail-closed 擋發布)
+        # ②反過來,某個**萬元**事實若剛好等於 183.3,編造的「183.3億」會被當成有憑據放行。
+        # 這裡照池那側的同一條規則換算,讓兩邊講同一種單位。
+        _u = _unit_of_claim(raw)
+        _v = val * 10000.0 if (_u == "amount_wan" and "億" in (raw or "")) else val
+        return _sourced_typed(_v, _u, tp, strict)[0]
     except Exception:  # noqa: BLE001
         return old
 
