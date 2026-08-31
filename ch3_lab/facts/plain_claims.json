@@ -355,5 +355,19 @@
    "AT FOUR PREDICT YOUR LIFE?"
   ],
   "spoken": "Does waiting for a sweet at age four predict how your life goes?"
+ },
+ "eps_rechecked/grit": {
+  "lines": [
+   "DOES GRIT MATTER MORE",
+   "THAN TALENT?"
+  ],
+  "spoken": "Does grit matter more than raw talent?"
+ },
+ "grit": {
+  "lines": [
+   "DOES GRIT MATTER MORE",
+   "THAN TALENT?"
+  ],
+  "spoken": "Does grit matter more than raw talent?"
  }
 }
