@@ -636,11 +636,39 @@ def main() -> int:
         return 2
     date = tw_today()
     log_ops("決策部門", "開始拉數據做決策…")
+    fetch = {}
     try:
-        rows = gather_stats(yt_service())
+        rows = gather_stats(yt_service(), report=fetch)
     except Exception as exc:  # noqa: BLE001
         print(f"[warn] 取數據失敗，以空數據決策：{exc}", file=sys.stderr)
         rows = []
+    # 🔴 2026-09-01 fail-closed:分塊查詢只要有一塊失敗(多半是 403 quotaExceeded),
+    # 回來的 rows 就是殘缺的,拿它當「全頻道現況」去決策等於用半份資料下令。
+    # 實測當日 21 塊有 13 塊 403,而這裡照樣走到 write_orders()。
+    #
+    # gather_stats 本來就會算完整性,但放在**選填的 report 參數**裡 ——
+    # retro_dept.py 2026-08-24 接了,這裡沒接。**同一件事兩個現場只修了一個**,
+    # 而沒修的正是會寫生產指令的那支。
+    #
+    # 後果不是「今天數據少一點」:memory yt-quota-partial-failure-silent-bad-data 記著
+    # 殘缺快照讓趨勢算出 -98.5% 假崩盤,growth_agent 每 2 小時對假訊號出手、一天灌 20 支題,
+    # 而且 07-11/07-15/08-22 重複三次沒人發現。
+    #
+    # 判準用「有沒有失敗塊」這個結構事實,不用跌幅門檻(門檻要校準又擋不住 07-11 的 -53.5%)。
+    if rows and not fetch.get("complete", True):
+        _msg = ("抓取殘缺:%s/%s 塊失敗,只回 %s/%s 筆(多半是配額耗盡)"
+                % (fetch.get("chunks_failed"), fetch.get("chunks_total"),
+                   fetch.get("returned"), fetch.get("requested")))
+        log_ops("決策部門", f"⚠️ {_msg} → 保留舊指令,不用半份資料決策")
+        print(f"[decision_dept][ABORT] {_msg}", file=sys.stderr)
+        try:
+            from notify import push
+            push("量化阿森·決策部門停手",
+                 f"{_msg}\n已保留昨天的生產指令。配額日重置後會自動恢復。",
+                 tag="warning")
+        except Exception:  # noqa: BLE001
+            pass
+        return 1
     try:
         d = decide(rows)
     except Exception as exc:  # noqa: BLE001

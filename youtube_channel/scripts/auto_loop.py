@@ -57,12 +57,43 @@ ORDERS = STUDIO / "production_orders.json"
 ACTIONS_LOG = STUDIO / "auto_actions_log.json"
 
 # ── 門檻(對齊本頻道實證:channel_28d 平均完播 ~43%)──────────────────────────────
-WIN_PCT = 60.0          # 完播率 ≥ 此值 = 明顯贏家(高於頻道均值一大截)
+# 🔴 2026-09-01 完播門檻改成**分格式**。原本 60/40 是單一全域值,而實測分布是:
+#     長片 n=80   中位 22%  最高 51%  → 舊門檻下贏家 **0 支**、輸家 77 支
+#     短片 n=118  中位 47%  最高100%  → 舊門檻下贏家 31 支、輸家 35 支
+# 長片**一支贏家都不可能有**(最高 51% < 門檻 60%),而 96% 的長片題材被寫進 avoid_topics
+# ——包括「低完播降權:個股/回測」,而個股體檢正是帶來 47% 搜尋觀看分鐘的核心產品。
+# 等於一台把頻道推回 Shorts 的機器,而 Shorts 佔 39% 發布名額只回饋 2% 訂閱、3.7% 時數,
+# **且不計入 YPP 的 4000 小時**(memory yt-shorts-not-converting)。
+#
+# 根因不是門檻訂錯,是**門檻沒跟著產品換**:60/40 幾乎正好是 Shorts 的 P75/P25(60/38),
+# 那是 Shorts 時代校準的值,2026-07 翻成長片主力之後沒人回頭改。
+#
+# 新值直接取各格式**自己的** P75/P25(2026-09-01 實測),讓兩種格式有同樣的鑑別力。
+_PCT_BY_FORMAT = {
+    "long":  {"win": 27.0, "lose": 17.0},   # 長片實測 P75=27 / P25=17(中位 22)
+    "short": {"win": 60.0, "lose": 38.0},   # 短片實測 P75=60 / P25=38(與舊值幾乎相同)
+}
+
+
+def _fmt_of(slug: str) -> str:
+    """從 slug 前綴判格式。認不出來當 short —— 那是舊行為,不會因為認錯而放寬。"""
+    return "long" if str(slug or "").startswith("L_") else "short"
+
+
+def _win_pct(slug: str) -> float:
+    return _PCT_BY_FORMAT[_fmt_of(slug)]["win"]
+
+
+def _lose_pct(slug: str) -> float:
+    return _PCT_BY_FORMAT[_fmt_of(slug)]["lose"]
+
+
+WIN_PCT = 60.0          # 完播率 ≥ 此值 = 明顯贏家(短片預設值;長片走 _win_pct)
 WIN_MIN_VIEWS = 60      # 贏家最低觀看樣本(80→60:台股爆款更快達標、更早進贏家迴圈加碼)
 WIN_MAX = 3             # 一次最多押幾個贏家角度(控節奏、控 token)
 WIN_VARIANTS = 9        # 每輪產幾支續集/變體上限(7→9:瘋狂引流·贏家全押更兇,雙主軸AI×交易+台股續集)
 
-LOSE_PCT = 40.0         # 完播率 < 此值 = 明顯輸家(低於頻道均值)
+LOSE_PCT = 40.0         # 完播率 < 此值 = 明顯輸家(短片預設值;長片走 _lose_pct)
 LOSE_MIN_VIEWS = 60     # 輸家最低觀看樣本(夠樣本才算數,避免誤殺新片)
 LOSE_MAX = 6            # 一輪最多降權幾個題材(避免一次砍太多)
 
@@ -144,7 +175,7 @@ def _collect_winners() -> list[dict]:
             continue
         slug = str(v.get("slug") or v.get("title") or "")
         pct, views = v.get("avg_pct"), v.get("views")
-        if slug and _num(pct) and pct >= WIN_PCT and (not _num(views) or views >= WIN_MIN_VIEWS):
+        if slug and _num(pct) and pct >= _win_pct(slug) and (not _num(views) or views >= WIN_MIN_VIEWS):
             winners[slug] = {"slug": slug, "title": _clean_title(v.get("title") or slug),
                              "pct": float(pct), "views": views if _num(views) else None}
 
@@ -154,7 +185,7 @@ def _collect_winners() -> list[dict]:
             continue
         slug = str(x.get("slug") or "")
         ret, views = x.get("retention"), x.get("views")
-        if slug and _num(ret) and ret >= WIN_PCT and _num(views) and views >= WIN_MIN_VIEWS:
+        if slug and _num(ret) and ret >= _win_pct(slug) and _num(views) and views >= WIN_MIN_VIEWS:
             prev = winners.get(slug)
             if not prev or float(ret) > prev["pct"]:
                 winners[slug] = {"slug": slug, "title": _clean_title(x.get("title") or slug),
@@ -320,8 +351,12 @@ def _collect_losers() -> list[dict]:
         if not isinstance(x, dict):
             continue
         ret, views = x.get("retention"), x.get("views")
-        # retention 需 >0(=0 多為無數據,別誤殺);< 門檻且觀看夠樣本才算輸家
-        if _num(ret) and 0 < ret < LOSE_PCT and _num(views) and views >= LOSE_MIN_VIEWS:
+        _slug = str(x.get("slug") or "")
+        # retention 需 >0(=0 多為無數據,別誤殺);< 門檻且觀看夠樣本才算輸家。
+        # 🔴 2026-09-01 門檻改成**該格式自己的** P25:舊的單一 40% 把 80 支長片中的 77 支
+        # 判成輸家(長片完播中位只有 22%,結構上不可能到 40%),等於每天把核心產品寫進
+        # avoid_topics 降權。見檔頭 _PCT_BY_FORMAT 的說明。
+        if _num(ret) and 0 < ret < _lose_pct(_slug) and _num(views) and views >= LOSE_MIN_VIEWS:
             losers.append({"slug": str(x.get("slug") or ""),
                            "title": _clean_title(x.get("title") or x.get("slug") or ""),
                            "ret": float(ret), "views": int(views)})
@@ -332,8 +367,9 @@ def _collect_losers() -> list[dict]:
 def loop_loser(dry: bool) -> dict:
     losers = _collect_losers()
     if not losers:
-        print("③ 輸家自動汰：目前沒有低完播且夠樣本的輸家(門檻 完播<%.0f%% / 觀看≥%d),略過。"
-              % (LOSE_PCT, LOSE_MIN_VIEWS))
+        print("③ 輸家自動汰：目前沒有低完播且夠樣本的輸家"
+              "(門檻 長片<%.0f%% / 短片<%.0f%% / 觀看≥%d),略過。"
+              % (_PCT_BY_FORMAT["long"]["lose"], _PCT_BY_FORMAT["short"]["lose"], LOSE_MIN_VIEWS))
         return {"losers": 0, "downweighted": 0}
 
     pool = _keyword_pool()
