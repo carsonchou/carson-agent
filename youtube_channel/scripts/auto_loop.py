@@ -351,6 +351,40 @@ def loop_comment(dry: bool) -> dict:
 
 # ── 迴圈③ 輸家自動汰 ──────────────────────────────────────────────────────────
 
+
+# 🔴 2026-09-01 降權前先算富集度。原本只看「這個詞有沒有出現在輸家標題裡」,
+# 而關鍵詞池混著**品類詞**:實測已發布 1021 支裡「回測」佔 48.1%、「網格」32.0%。
+# 那 6 支輸家抽出來的正是「回測」「回測/套牢/0050」→ avoid_topics 出現
+# 「低完播降權:回測」= **叫產線避開這個頻道的全部內容**。
+#
+# **一個出現在幾乎所有片子裡的詞,不可能解釋為什麼其中 6 支表現差。**
+# 改看富集度:該詞在輸家裡的比例 ÷ 在全片庫裡的比例,>=2 倍且至少 2 支輸家含它才算。
+# 用相對量而不是普及率門檻,是因為門檻要人工校準又會隨關鍵詞池變動。
+_ENRICH_MIN = 2.0      # 輸家身上的出現頻率至少是全片庫平均的 2 倍
+_ENRICH_MIN_HITS = 2   # 且至少 2 支輸家含它(1 支是雜訊,不足以歸因)
+
+
+def _discriminating_kws(losers: list, pool: list) -> dict:
+    """回 {slug: [可歸因的關鍵詞]}。品類詞(全片庫普遍存在)會被濾掉。"""
+    q = _load(QUALITY, {})
+    corpus = [str(x.get("title") or x.get("slug") or "")
+              for x in (q.get("published") or []) if isinstance(x, dict)]
+    if not corpus or not losers:
+        return {}
+    n_lose = len(losers)
+    keep = set()
+    for k in pool:
+        if not k:
+            continue
+        base = sum(1 for t in corpus if k in t) / len(corpus)
+        hits = sum(1 for L in losers if k in str(L.get("title", "")))
+        if hits < _ENRICH_MIN_HITS or base <= 0:
+            continue
+        if (hits / n_lose) / base >= _ENRICH_MIN:
+            keep.add(k)
+    return {str(L.get("slug", "")): [k for k in _match_keywords(str(L.get("title", "")), pool)
+                                     if k in keep] for L in losers}
+
 def _collect_losers() -> list[dict]:
     """已發布片:完播明顯低於門檻且觀看夠樣本 = 輸家(要降權的題材)。"""
     q = _load(QUALITY, {})
@@ -390,8 +424,11 @@ def loop_loser(dry: bool) -> dict:
     existing = "\n".join(str(a) for a in avoid)
 
     new_entries, planned = [], []
+    # 只留「輸家身上特別多」的詞;品類詞(如佔 48% 的「回測」)會被濾掉,
+    # 否則 6 支爛片會把整個品類寫進 avoid_topics(見 _discriminating_kws 說明)。
+    _disc = _discriminating_kws(losers, pool)
     for L in losers:
-        kws = _match_keywords(L["title"], pool)
+        kws = _disc.get(str(L.get("slug", "")), [])
         frag = L["title"][:20]
         # 去重:同片段已在 avoid 就跳過(避免每天重複塞爆)
         if frag and frag in existing:
