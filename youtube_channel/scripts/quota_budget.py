@@ -41,7 +41,11 @@ ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS = ROOT / "scripts"
 CRONTAB = ROOT / "deploy" / "crontab.txt"
 
-DAILY_LIMIT = 10000
+# 🔴 2026-08-31 10,000 → 19,645。10,000 是 Google 文件的預設值,**不是本專案的實際額度**。
+# 實測:08-25 花 18,914 零被拒;08-31 發 8 支用 18,100、meter 回報剩 1,475(合計 19,575)。
+# 舊常數的後果不是少花錢,是**每次跑都喊「超標 356%」**——一個永遠在響的警報等於沒有警報,
+# 真的超標時沒人會注意到。上限仍未在 19,645 以上實測過,拿到新證據要往上修。
+DAILY_LIMIT = 19645
 
 # YouTube Data API v3 官方單價(units/次)
 COST = {
@@ -182,6 +186,22 @@ def parse_crontab():
     return out
 
 
+# 🔴 2026-08-31 委派成本修正。apis_of 只掃**進入點那一個檔**,所以寫在 helper 裡的
+# API 呼叫整個看不見:daily_publish 被估成 1,700/支,而帳本(by_op)實測是 2,150 ——
+# 漏掉的 captions.insert(400)在 upload_youtube.py。這是整份表最大的一項,低估 21%,
+# 而發布正是唯一沒有 RESERVE 保護、直接決定「今天發得出幾支」的那條。
+#
+# ⚠️ 試過「跟進一層本地 import」自動解決,**實測更糟**:總估算 33,500 → 67,371,
+# 因為 produce_batch/ypp_meter/comment_watchdog 只是 import 了 daily_publish
+# 就繼承它全部的 API —— 而 produce_batch 根本不吃 YouTube 配額(只走 LLM)。
+# **import 一個模組不等於會呼叫它昂貴的函式。** 故改成這張定點表:
+# 只列「已用帳本量過」的委派成本,沒量過的不猜。
+_DELEGATED = {
+    # script: (每次 --max 的額外 units, 來源)
+    "daily_publish.py": (400, "captions.insert@upload_youtube;08-31 by_op 實測每支 2,150"),
+}
+
+
 def estimate(script, args, per_day):
     """估算單一 job 的每日 units。回傳 (units, 明細字串)。"""
     apis = apis_of(script)
@@ -198,6 +218,10 @@ def estimate(script, args, per_day):
     for a in write:
         units += COST[a] * n
         detail.append("%s×%d" % (a, n))
+    if script in _DELEGATED:
+        _extra, _src = _DELEGATED[script]
+        units += _extra * n
+        detail.append("委派+%d×%d" % (_extra, n))
     for a in read:
         units += COST[a] * n
         detail.append("%s×%d" % (a, n))
@@ -210,14 +234,42 @@ def main() -> int:
     ap.add_argument("--top", type=int, default=20, help="列出最貴的前 N 支")
     args_ns = ap.parse_args()
 
-    rows = []
+    # 🔴 2026-08-31 把 YT_QUOTA_RESERVE 算進去。原本加總的是理論上限(每支 --max 全用滿),
+    # 但帶 RESERVE 的工作合起來最多只花得到 `DAILY_LIMIT − RESERVE`。
+    # 實測落差:08-31 估 37,236、實際 18,100 —— 差兩倍,而且**每次跑都 [ALERT]**。
+    # 一個永遠在響的警報等於沒有警報:真的超標時沒人會注意到。
+    # 封頂是**組層級**:五支都帶 19350 的工作是合起來分那 295,不是各自都能花 295
+    # (逐支封頂會把估算灌水五倍,正是這次要修的病)。
+    raw_rows, groups = [], {}
     for script, args, per_day, _raw in parse_crontab():
         units, detail = estimate(script, args, per_day)
-        if units > 0:
-            rows.append((units, script, args, per_day, detail))
+        if units <= 0:
+            continue
+        m = re.search(r"YT_QUOTA_RESERVE=(\d+)", _raw)
+        res = int(m.group(1)) if m else 0
+        raw_rows.append([units, script, args, per_day, detail, res])
+        groups.setdefault(res, []).append(raw_rows[-1])
+
+    capped_note = []
+    for res, members in groups.items():
+        if res <= 0:
+            continue                      # 沒 RESERVE 的(主線發布)本來就該優先吃配額
+        room = max(0, DAILY_LIMIT - res)
+        raw_sum = sum(m[0] for m in members)
+        if raw_sum <= room:
+            continue
+        scale = room / raw_sum
+        for m in members:
+            m[0] *= scale                 # 按比例壓到組上限
+        capped_note.append((res, raw_sum, room, len(members)))
+
+    rows = [(m[0], m[1], m[2], m[3], m[4]) for m in raw_rows]
     rows.sort(reverse=True)
 
     total = sum(r[0] for r in rows)
+    for res, raw_sum, room, n in sorted(capped_note):
+        print(f"[封頂] RESERVE={res:,} 的 {n} 支工作:理論 {raw_sum:,.0f} → "
+              f"實際最多 {room:,}(上限 {DAILY_LIMIT:,} 減掉預留額度)")
     print("=" * 74)
     print("YouTube API 每日配額預算(靜態估算)  上限 %s units" % f"{DAILY_LIMIT:,}")
     print("=" * 74)
