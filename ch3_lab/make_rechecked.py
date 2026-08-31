@@ -68,6 +68,11 @@ UNIT_SYM = {
     "pct": "%", "percentage_points": "pp",
     "raw_diff_10pt_likert": "pts", "raw_diff_7pt_scale": "pts",
 }
+#: 🔴 **百分位不是百分比。** 論文寫「scored in the 12th percentile」,
+#:    印成「12%」是換掉了那個數字的意思(一個是排名位置、一個是比例),
+#:    而觀眾拿 12% 去論文裡是找不到的。抽幀才看到,因為兩者都是「12」。
+#:    同型:η² = 0.20 用 `pct` 渲成「0.2%」—— 0.20 的 η² 是**大**效果
+#:    (解釋掉兩成變異),印成 0.2% 看起來微不足道,**整列的意思反了**。
 #: 🔴 掃描稿子用的正則**必須吃小數點**。不吃的話 `0.08` 會被切成 `0` 與
 #:    `08` 兩個 token,而 `0` 幾乎不可能在白名單裡 —— 於是每一句帶小數的
 #:    旁白都被自己的閘門擋下,看起來像閘門太嚴,其實是切錯了。
@@ -147,6 +152,10 @@ def say_es(kind, v):
     """
     if kind == "pct":
         return f"{v:g} percent"
+    if kind == "percentile":
+        return f"the {_ordinal(int(v))} percentile"
+    if kind == "eta2":
+        return f"{say_exact(v)}, in eta squared"
     if kind == "percentage_points":
         # 🔴 正號要唸出來。畫面印 `+4pp` 和 `-8pp`,對比一眼看得到;旁白
         #    唸「four percentage points」和「minus eight percentage points」,
@@ -175,10 +184,22 @@ def say_es(kind, v):
     return say_exact(v)
 
 
+def _ordinal(n):
+    if 10 <= n % 100 <= 20:
+        suf = "th"
+    else:
+        suf = {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+    return f"{n}{suf}"
+
+
 def val_str(kind, v):
     """畫面上的效果量:符號跟著論文、精度跟著存的值。"""
     if kind == "pct":
         return f"{v:g}%"
+    if kind == "percentile":
+        return _ordinal(int(v))
+    if kind == "eta2":
+        return f"η² = {v:.2f}"
     if kind == "percentage_points":
         return f"{v:+g}pp"
     if kind in COUNT_KINDS:

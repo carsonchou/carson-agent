@@ -81,34 +81,49 @@ def fit(plt, text, base, max_frac, weight="bold"):
 
 
 def balanced(s, n):
-    """平衡斷句 —— 貪婪換行會生出「AS YOU USE / IT」那種孤字。
+    """平衡斷句 —— 每一行盡量一樣長,不要有孤字行也不要有超長行。
 
-    先用貪婪算出需要幾行,再把每行的目標寬度均分。
+    🔴 舊版有一個會**把標題壓到看不見**的 bug。它先貪婪算出需要 k 行,
+       再用平均字數當目標重排,而重排那一趟寫著 `len(out) < k - 1`:
+       一旦已經產出 k-1 行,剩下的詞**全部倒進最後一行**。
+       實測 marshmallow 的開場被斷成
+       `['A', 'four-year-old', 'who waits for', 'the', 'marshmallow does better in life.']`
+       —— 兩個孤字行,末行 32 字元(目標是 16)。而 `fit()` 是拿**最長那行**
+       去反推字級,所以整句被壓到 30pt,比同一畫面寫死 40pt 的副標還小。
+
+       **三道守門全部看不見**:安全區逐元素驗四個邊(每一行都在界內)、
+       重疊守門驗兩兩相交(行與行不重疊)、第 0 幀守門只驗「每個字都出現」
+       (每個字都在)。錯的是**它們合起來的樣子** —— 這是這條線第 N 次
+       踩到同一個形狀。
+
+    改法:不要猜目標寬度。先貪婪求出需要幾行 k,再從「最長的那個詞」開始
+    把寬度一格一格放寬,取**第一個仍然只用 k 行**的寬度 —— 那就是能塞進
+    k 行的最窄寬度,而最窄寬度等價於最平均的分行。
     """
     words = s.split()
     if not words:
         return [""]
-    greedy, line = [], ""
-    for w in words:
-        if len(line) + len(w) + 1 > n:
-            greedy.append(line); line = w
-        else:
-            line = (line + " " + w).strip()
-    if line:
-        greedy.append(line)
-    k = len(greedy)
+
+    def greedy(width):
+        out, line = [], ""
+        for w in words:
+            if line and len(line) + len(w) + 1 > width:
+                out.append(line); line = w
+            else:
+                line = (line + " " + w).strip()
+        if line:
+            out.append(line)
+        return out
+
+    k = len(greedy(n))
     if k <= 1:
-        return greedy
-    target = max(len(s) // k + 1, max(len(w) for w in words))
-    out, line = [], ""
-    for w in words:
-        if line and len(line) + len(w) + 1 > target and len(out) < k - 1:
-            out.append(line); line = w
-        else:
-            line = (line + " " + w).strip()
-    if line:
-        out.append(line)
-    return out
+        return greedy(n)
+    lo = max(len(w) for w in words)
+    for width in range(lo, max(lo, len(s)) + 1):
+        cand = greedy(width)
+        if len(cand) <= k:
+            return cand
+    return greedy(n)
 
 
 def build_script(E):
@@ -190,6 +205,13 @@ def render_scene(name, t_now, dur, ctx):
                 ha="center", va="center", fontsize=42, color=DIM,
                 weight="normal")
         n = max(1, len(rows))
+        # 🔴 **爆點不要比旁白早二十秒出現。** 列是照時間均分揭露的,跟旁白
+        #    唸到哪裡無關 —— 實測 hot_hand 的 +13 在畫面上掛了 5 秒之後,
+        #    旁白才唸到「minus 8」,而 +13 那句要到下一段(verdict)才唸。
+        #    這支自己的註解寫著「旁白與畫面講不同的事,是這條線最貴的那種錯」。
+        #    沒有逐列的時間戳可以對齊,但至少可以做一件事:
+        #    **把標了 hot 的那一列押到這一段的最後**。
+        hot_i = next((i for i, x in enumerate(rows) if x.get("hot")), None)
         step = (dur - 1.2) / n
         gap = min(0.125, 0.50 / n)
         top = 0.60 + (n - 1) * gap / 2
@@ -205,9 +227,12 @@ def render_scene(name, t_now, dur, ctx):
         lf = min(fit(plt, w, 40, left_max - 0.06, "bold") for w in lefts if w)
         nf = min(fit(plt, w, 34, left_max - 0.06, "normal") for w in whats if w)
         for i, x in enumerate(rows):
-            if t_now < 0.3 + i * step:
+            at = 0.3 + i * step
+            if hot_i is not None and i == hot_i:
+                at = max(at, dur * 0.80)
+            if t_now < at:
                 continue
-            b = ease((t_now - 0.3 - i * step) / 0.5)
+            b = ease((t_now - at) / 0.5)
             y = top - i * gap
             hot = bool(x.get("hot"))
             ax.text(0.06, y + 0.022, lefts[i], ha="left", va="center",

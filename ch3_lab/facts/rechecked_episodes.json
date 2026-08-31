@@ -35,8 +35,8 @@
         "punchline_location": "p.313(已核對 PDF 頁眉)",
         "cited_by": 1700,
         "cited_by_source": "OpenAlex, retrieved 2026-08-31",
-        "cited_by_approx": 1700,
-        "cited_by_approx_note": "文案用的「超過 N 次」。無條件捨去到百位,所以它一定是保守的下界。明確登記在此,否則稿子審核會擋(它只認事實庫裡有的數字)。"
+        "cited_by_approx": 1600,
+        "cited_by_approx_note": "文案用的「超過 N 次」。取 (真值-1) 無條件捨去到百位,**保證嚴格小於真值** —— 舊版單純捨去,遇到真值剛好是 100 的倍數時(hot hand 的 1700)會產出一個等於真值的『下界』,而旁白唸的是「more than」,那就是假的。"
       },
       "test": {
         "year": 2018,
@@ -143,12 +143,6 @@
           "es_kind": "percentage_points"
         },
         {
-          "label": "so the gap",
-          "what": "above random was",
-          "es": 12,
-          "es_kind": "percentage_points"
-        },
-        {
           "label": "corrected",
           "what": "average difference",
           "es": 13,
@@ -160,8 +154,8 @@
       "verdict_gloss": "GVT = Gilovich, Vallone and Tversky, the 1985 authors",
       "reel": {
         "belief": "Basketball players get hot streaks.",
-        "weight": "For thirty years, psychology said that was an illusion. The 1985 paper is cited more than 1,700 times.",
-        "turn": "In 2018 two economists checked the arithmetic. If you pick out the shots that follow three hits, a perfectly random shooter does not score zero on that measure. He scores minus 8 percentage points. So the plus 4 the original found was not nothing. It was 12 points above random.",
+        "weight": "For thirty years psychology said that was an illusion. The 1985 paper is cited more than 1,600 times.",
+        "turn": "In 2018 somebody checked the arithmetic. If you pick out only the shots that follow a run of hits, a perfectly random shooter does not score zero on that measure. He scores minus 8 percentage points. The players scored plus 4. Correct the bias and the average difference comes out at plus 13.",
         "verdict": "Corrected, the hot hand is plus 13 percentage points. The illusion was in the arithmetic.",
         "ask": "Did you ever believe the hot hand was fake?"
       }
@@ -189,7 +183,7 @@
         "cited_by": 1426,
         "cited_by_source": "OpenAlex, retrieved 2026-08-31",
         "cited_by_approx": 1400,
-        "cited_by_approx_note": "文案用的「超過 N 次」。無條件捨去到百位,所以它一定是保守的下界。明確登記在此,否則稿子審核會擋(它只認事實庫裡有的數字)。",
+        "cited_by_approx_note": "文案用的「超過 N 次」。取 (真值-1) 無條件捨去到百位,**保證嚴格小於真值** —— 舊版單純捨去,遇到真值剛好是 100 的倍數時(hot hand 的 1700)會產出一個等於真值的『下界』,而旁白唸的是「more than」,那就是假的。",
         "key_numbers": {
           "approx_favorable_pct": 65,
           "judges": 8,
@@ -389,7 +383,7 @@
         "cited_by": 1810,
         "cited_by_source": "OpenAlex, retrieved 2026-08-31",
         "cited_by_approx": 1800,
-        "cited_by_approx_note": "文案用的「超過 N 次」。無條件捨去到百位,所以它一定是保守的下界。明確登記在此,否則稿子審核會擋(它只認事實庫裡有的數字)。"
+        "cited_by_approx_note": "文案用的「超過 N 次」。取 (真值-1) 無條件捨去到百位,**保證嚴格小於真值** —— 舊版單純捨去,遇到真值剛好是 100 的倍數時(hot hand 的 1700)會產出一個等於真值的『下界』,而旁白唸的是「more than」,那就是假的。"
       },
       "test": {
         "year": 2016,
@@ -556,8 +550,8 @@
       ],
       "popular_name": "The facial feedback hypothesis",
       "reel": {
-        "belief": "Holding a pen in your teeth makes things funnier, because your face feeds back into how you feel.",
-        "weight": "It is the textbook demonstration that the body drives the mind. Cited more than 1,800 times.",
+        "belief": "Holding a pen in your teeth makes things funnier.",
+        "weight": "The idea is that your face feeds back into how you feel. It is the textbook demonstration, cited more than 1,800 times.",
         "turn": "In 2016, 17 laboratories ran it on 1,894 people. The difference was 0.03 points on a ten point scale, and 0 of the 17 pointed the right way. Six years later a bigger group tried three ways of making people smile. Copying a smiling face worked. Posing it yourself worked. The pen still did nothing.",
         "verdict": "The pen died. The idea behind it did not — and the original author co-signed the paper that showed it.",
         "ask": "Which would you have bet on?"
@@ -581,7 +575,7 @@
         "cited_by": 1009,
         "cited_by_source": "OpenAlex, retrieved 2026-08-31",
         "cited_by_approx": 1000,
-        "cited_by_approx_note": "文案用的「超過 N 次」。無條件捨去到百位,所以它一定是保守的下界。明確登記在此,否則稿子審核會擋(它只認事實庫裡有的數字)。"
+        "cited_by_approx_note": "文案用的「超過 N 次」。取 (真值-1) 無條件捨去到百位,**保證嚴格小於真值** —— 舊版單純捨去,遇到真值剛好是 100 的倍數時(hot hand 的 1700)會產出一個等於真值的『下界』,而旁白唸的是「more than」,那就是假的。"
       },
       "test": {
         "year": 2015,
@@ -810,7 +804,7 @@
         "cited_by": 884,
         "cited_by_source": "OpenAlex, retrieved 2026-08-31",
         "cited_by_approx": 800,
-        "cited_by_approx_note": "文案用的「超過 N 次」。無條件捨去到百位,所以它一定是保守的下界。明確登記在此,否則稿子審核會擋(它只認事實庫裡有的數字)。"
+        "cited_by_approx_note": "文案用的「超過 N 次」。取 (真值-1) 無條件捨去到百位,**保證嚴格小於真值** —— 舊版單純捨去,遇到真值剛好是 100 的倍數時(hot hand 的 1700)會產出一個等於真值的『下界』,而旁白唸的是「more than」,那就是假的。"
       },
       "test": {
         "year": 2022,
@@ -977,7 +971,7 @@
         "cited_by": 3218,
         "cited_by_source": "OpenAlex, retrieved 2026-08-31",
         "cited_by_approx": 3200,
-        "cited_by_approx_note": "文案用的「超過 N 次」。無條件捨去到百位,所以它一定是保守的下界。明確登記在此,否則稿子審核會擋(它只認事實庫裡有的數字)。"
+        "cited_by_approx_note": "文案用的「超過 N 次」。取 (真值-1) 無條件捨去到百位,**保證嚴格小於真值** —— 舊版單純捨去,遇到真值剛好是 100 的倍數時(hot hand 的 1700)會產出一個等於真值的『下界』,而旁白唸的是「more than」,那就是假的。"
       },
       "test": {
         "year": 2019,
@@ -1072,12 +1066,11 @@
           "label": "showing",
           "what": "backfire",
           "es": 2,
-          "es_kind": "count",
-          "hot": true
+          "es_kind": "count"
         },
         {
           "label": "2019",
-          "what": "issues retested on 10,100 people",
+          "what": "issues retested on more than 10,100 people",
           "es": 52,
           "es_kind": "count"
         },
@@ -1085,7 +1078,8 @@
           "label": "showing",
           "what": "backfire",
           "es": 0,
-          "es_kind": "count"
+          "es_kind": "count",
+          "hot": true
         }
       ],
       "popular_name": "The backfire effect",
@@ -1148,7 +1142,7 @@
         "cited_by": 1123,
         "cited_by_source": "OpenAlex, retrieved 2026-08-31",
         "cited_by_approx": 1100,
-        "cited_by_approx_note": "文案用的「超過 N 次」。無條件捨去到百位,所以它一定是保守的下界。明確登記在此,否則稿子審核會擋(它只認事實庫裡有的數字)。"
+        "cited_by_approx_note": "文案用的「超過 N 次」。取 (真值-1) 無條件捨去到百位,**保證嚴格小於真值** —— 舊版單純捨去,遇到真值剛好是 100 的倍數時(hot hand 的 1700)會產出一個等於真值的『下界』,而旁白唸的是「more than」,那就是假的。"
       },
       "test": {
         "year": 2023,
@@ -1354,7 +1348,7 @@
         "cited_by": 1222,
         "cited_by_source": "OpenAlex, retrieved 2026-08-31",
         "cited_by_approx": 1200,
-        "cited_by_approx_note": "文案用的「超過 N 次」。無條件捨去到百位,所以它一定是保守的下界。明確登記在此,否則稿子審核會擋(它只認事實庫裡有的數字)。"
+        "cited_by_approx_note": "文案用的「超過 N 次」。取 (真值-1) 無條件捨去到百位,**保證嚴格小於真值** —— 舊版單純捨去,遇到真值剛好是 100 的倍數時(hot hand 的 1700)會產出一個等於真值的『下界』,而旁白唸的是「more than」,那就是假的。"
       },
       "test": {
         "year": 2018,
@@ -1437,8 +1431,8 @@
         "15 歲行為問題的具體數值(正文只給文字描述,表格經 pypdf 抽取欄位錯位)",
         "Watts PDF 取自 eScholarship,頁碼顯示 1-19 而非 1159-1177"
       ],
-      "story_type_short": "real, and mostly your parents",
-      "say_twist": "The retest is ten times the size, and the first thing it finds is that the effect is there. 0.24, on its own, with nothing controlled for. Real, and about half what the original reported. Then they add what they know about the child before the marshmallow ever appeared — family income, the mother's education, how the home was run, what the child could already do. 0.24 becomes 0.08. Add what was measured at the same time as the test itself, and it is 0.05, and it is no longer distinguishable from nothing. And the piece that does survive is not what the story needs it to be. Most of the difference came from whether a child could wait 20 seconds. Not fifteen minutes. 20 seconds.",
+      "story_type_short": "real, and mostly what came before it",
+      "say_twist": "The retest is ten times the size, and the first thing it finds is that the effect is there. 0.24, on its own, with nothing controlled for. Real, and about half what the original reported. Then they add what they know about the child before the marshmallow ever appeared — family income, the mother's education, how the home was run, what the child could already do. 0.24 becomes 0.08. Add what was measured at the same age as the test itself, and it is 0.05, and it is no longer distinguishable from nothing. And the piece that does survive is not what the story needs it to be. Most of the difference came from whether a child could wait 20 seconds. Not fifteen minutes. 20 seconds.",
       "say_verdict": "So this is not a debunking, and anyone selling it as one is selling you something. Waiting predicts later achievement. It is just that two thirds of what looked like willpower was the family the child went home to. The authors' own sentence: this bivariate correlation was only half the size of those reported in the original studies, and was reduced by two thirds in the presence of controls for family background, early cognitive ability, and the home environment.",
       "say_spread": "It became the story that a four year old's self control predicts the rest of their life — a book, a TED talk, and a great deal of parenting advice.",
       "twist_rows": [
@@ -1493,8 +1487,8 @@
       "reel": {
         "belief": "A four-year-old who waits for the marshmallow does better in life.",
         "weight": "A book, a TED talk, and a great deal of parenting advice are built on it. The 1990 paper is cited more than 1,200 times.",
-        "turn": "In 2018 a team ran it on ten times as many children. The effect was there: a standardised coefficient of 0.24. Then they controlled for the family the child came from. 0.08. Then for everything measured on the same day. 0.05, and no longer distinguishable from nothing.",
-        "verdict": "It is real. Two thirds of it was the family the child went home to.",
+        "turn": "In 2018 a team ran it on ten times as many children. The effect was there: a standardised coefficient of 0.24. Then they controlled for the family the child came from and what the child could already do. 0.08. Then for everything measured at the same age. 0.05, and no longer distinguishable from nothing.",
+        "verdict": "It is real. Two thirds of it was the child's background and what they could already do.",
         "ask": "Would you still run this test on your own kid?"
       }
     },
@@ -1526,7 +1520,8 @@
           "own_conscientiousness_r": 0.77,
           "_note_for_humans": "🔴 .77 是**原始論文 Study 1b 自己報的**:「As we expected, grit related to Conscientiousness (r = .77, p < .001)」——不是後人才發現重疊。這是本集最重要的一點。"
         },
-        "n_sum_warning": "六個樣本合計 N = 5,074 是 fact agent 自己加的,**論文沒有印這個合計數**,不准當原文引用。"
+        "n_sum_warning": "六個樣本合計 N = 5,074 是 fact agent 自己加的,**論文沒有印這個合計數**,不准當原文引用。",
+        "cited_by_approx_note": "文案用的「超過 N 次」。取 (真值-1) 無條件捨去到百位,**保證嚴格小於真值** —— 舊版單純捨去,遇到真值剛好是 100 的倍數時(hot hand 的 1700)會產出一個等於真值的『下界』,而旁白唸的是「more than」,那就是假的。"
       },
       "test": {
         "year": 2017,
@@ -1665,7 +1660,8 @@
           "actual_percentile": 12,
           "estimated_percentile": 62,
           "_note_for_humans": "各研究內文不同:Study 1 是 12→58、Study 2 是 12→62、Study 3 是 10→67。畫面印 12→62 要標明是摘要的跨研究平均。四個研究 n = 65/45/84/140,合計 334 是 agent 自己加的,論文沒印,不准當原文引用。"
-        }
+        },
+        "cited_by_approx_note": "文案用的「超過 N 次」。取 (真值-1) 無條件捨去到百位,**保證嚴格小於真值** —— 舊版單純捨去,遇到真值剛好是 100 的倍數時(hot hand 的 1700)會產出一個等於真值的『下界』,而旁白唸的是「more than」,那就是假的。"
       },
       "test": {
         "year": 2020,
@@ -1687,7 +1683,7 @@
           {
             "name": "the original quartile method, on this data",
             "es": 0.2,
-            "es_kind": "pct",
+            "es_kind": "eta2",
             "p": 0.001,
             "stat": "F(3, 925) = 79.00, p < .001, eta2 = 0.20",
             "is_claim": false,
@@ -1739,13 +1735,13 @@
           "year": 1999,
           "what": "the bottom quarter scored",
           "es": 12,
-          "es_kind": "pct"
+          "es_kind": "percentile"
         },
         {
           "year": 1999,
           "what": "and rated themselves",
           "es": 62,
-          "es_kind": "pct"
+          "es_kind": "percentile"
         },
         {
           "year": 2016,
@@ -1762,9 +1758,8 @@
       "twist_rows": [
         {
           "label": "same 929 people",
-          "what": "the original quartile method",
-          "es": 0.2,
-          "es_kind": "pct"
+          "what": "the original quartile method, effect clearly there",
+          "es": null
         },
         {
           "label": "same 929 people",

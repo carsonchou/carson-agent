@@ -627,7 +627,15 @@ def build_meta():
                 f"Original: {O.get('title', '')} ({O['year']}){nl}"
                 f"  doi:{O['doi']}{nl}"
                 f"Retest: {T.get('title', '')} ({T['year']}){nl}"
-                f"  doi:{T['doi']}{nl}{nl}"
+                f"  doi:{T['doi']}{nl}"
+                # 🔴 backfire 那一集的爆點**就是**原作者 2021 年那篇,
+                #    而說明欄原本只給原始 + 重測兩個 DOI —— 片子裡最重要的
+                #    那篇查不到,而結尾還寫著「每個數字都是從論文裡讀出來的」。
+                + (f"Then the original author: {E['author_recantation'].get('title','')}"
+                   f" ({E['author_recantation']['year']}){nl}"
+                   f"  doi:{E['author_recantation']['doi']}{nl}"
+                   if E.get("author_recantation", {}).get("doi") else "")
+                + f"{nl}"
                 f"Every number here was read out of the paper itself and is "
                 f"stored with the sentence it came from.{nl}#Shorts")
             out.append({"key": f"reel_{d.name}",
@@ -778,6 +786,20 @@ def reel_gate(batch):
             cur = next(x for x in src["episodes"] if x["slug"] == slug)
         except Exception as e:                               # noqa: BLE001
             out.append((key, f"讀不了事實庫({str(e)[:40]})")); continue
+        # 🔴 上面那道比的是**文字對文字**,兩邊都不是音檔 —— 它驗不到
+        #    它宣稱要防的事。實測 hot_hand 的 narr_verdict.txt 在成片之後
+        #    5 分鐘被改過(那次剛好是同內容覆寫所以沒事),而閘門全綠。
+        #    補一個真正能分辨的判準:**旁白檔不可以比成片新**。
+        try:
+            mt = mp4.stat().st_mtime
+            newer = [k for k in ("belief", "weight", "turn", "verdict", "ask")
+                     if (d / f"narr_{k}.txt").exists()
+                     and (d / f"narr_{k}.txt").stat().st_mtime > mt + 2]
+        except OSError:
+            newer = []
+        if newer:
+            out.append((key, f"旁白檔比成片新:{newer} —— 成片裡唸的是舊版,要重渲"))
+            continue
         drift = [k for k in ("belief", "weight", "turn", "verdict", "ask")
                  if (d / f"narr_{k}.txt").exists()
                  and (d / f"narr_{k}.txt").read_text(encoding="utf-8").strip()
@@ -798,6 +820,14 @@ def reel_gate(batch):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--limit", type=int, default=2)
+    # 🔴 **`--limit` 挑的是排序後的前 N 支,不是我剛驗過的那 N 支。**
+    #    獨立驗證抓到:我驗了 hot_hand / backfire_effect / marshmallow_test,
+    #    而 build_meta 收全部 reels/、照字母序,`--limit 2` 會送出
+    #    backfire_effect + facial_feedback —— 其中一支我根本沒驗,
+    #    而且它正好中了那個把標題壓到 30pt 的排版 bug。
+    #    「驗過的」和「發出去的」必須是同一組,而預設不保證這件事。
+    ap.add_argument("--only", default="",
+                    help="逗號分隔的 key,只發這幾支(驗過什麼就發什麼)")
     ap.add_argument("--dry-run", action="store_true", dest="dry")
     ap.add_argument("--list", action="store_true", dest="show")
     a = ap.parse_args()
@@ -805,6 +835,18 @@ def main():
     items = build_meta()
     done = ledger(LEDGER)
     todo = [o for o in items if o["key"] not in done]
+    if a.only:
+        want = [x.strip() for x in a.only.split(",") if x.strip()]
+        have = {o["key"] for o in todo}
+        miss = [w for w in want if w not in have]
+        if miss:
+            raise SystemExit(
+                f"⛔ --only 指名的這幾支不在待上傳清單裡:{miss}
+"
+                f"   (已上傳過?名字打錯?)清單裡有:{sorted(have)[:8]}…
+"
+                f"   不猜、不改發別的 —— 指名什麼就只發什麼。")
+        todo = [o for o in todo if o["key"] in want]
     if a.show:
         for o in items:
             mark = done.get(o["key"], "未上傳")
