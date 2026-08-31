@@ -720,6 +720,81 @@ def insert_one(yt, o, path):
     return resp["id"]
 
 
+def reel_gate(batch):
+    """新格式(reels/)的發布前閘門。回傳 [(key, 理由)]。
+
+    這一批**沒有** `visual.json`,也沒有「完整版在本頻道」那種 CTA,
+    所以舊的四道對它們算不出東西。它要驗的是它自己的那些前提:
+
+    1. 直式、30~60 秒 —— **片長就是這次改版的處置本身**,不驗等於
+       「改了設定當成改了東西」(這條剛在同一天踩過)。
+    2. 影音時長對得上 —— 兩個實例互刪影格時 ffmpeg 照樣 mux 成功。
+    3. **磁碟上的旁白 == 事實庫現在的 reel 文案**。文案是手寫的,
+       手寫的東西沒有任何機械守門看得住;改了文案沒重渲的話,
+       片子唸舊版、說明欄用新版,而兩個表面都會出去。
+    4. 兩篇論文的 DOI 都在說明欄裡 —— 這條線唯一的資產是查得到。
+    """
+    import subprocess as _sp
+    out = []
+    for o in batch:
+        key = o["key"]
+        slug = key[len("reel_"):]
+        d = ROOT / "reels" / slug
+        mp4 = ROOT / o["video"]
+        if not mp4.exists():
+            out.append((key, "mp4 不見了")); continue
+        try:
+            def _dur(stream):
+                r = _sp.run(["ffprobe", "-v", "error", "-select_streams",
+                             stream, "-show_entries", "stream=duration,width,height",
+                             "-of", "default=nw=1", str(mp4)],
+                            capture_output=True, text=True)
+                return r.stdout
+            v = _dur("v:0"); a = _dur("a:0")
+            vd = float([x for x in v.splitlines()
+                        if x.startswith("duration=")][0].split("=")[1])
+            ad = float([x for x in a.splitlines()
+                        if x.startswith("duration=")][0].split("=")[1])
+            wpx = int([x for x in v.splitlines()
+                       if x.startswith("width=")][0].split("=")[1])
+            hpx = int([x for x in v.splitlines()
+                       if x.startswith("height=")][0].split("=")[1])
+        except Exception as e:                               # noqa: BLE001
+            out.append((key, f"量不到影片規格({str(e)[:40]})")); continue
+        if hpx <= wpx:
+            out.append((key, f"不是直式({wpx}x{hpx})—— 進不了 Shorts feed"))
+            continue
+        if not (30 <= vd <= 60):
+            out.append((key, f"片長 {vd:.0f} 秒,不在 30~60 秒"))
+            continue
+        if abs(vd - ad) > 1.0:
+            out.append((key, f"影像 {vd:.1f}s 對不上音軌 {ad:.1f}s"))
+            continue
+        # 旁白 vs 事實庫
+        try:
+            E = json.loads((d / "facts.json").read_text(encoding="utf-8"))
+            src = json.loads((ROOT / "facts" / "rechecked_episodes.json")
+                             .read_text(encoding="utf-8"))
+            cur = next(x for x in src["episodes"] if x["slug"] == slug)
+        except Exception as e:                               # noqa: BLE001
+            out.append((key, f"讀不了事實庫({str(e)[:40]})")); continue
+        drift = [k for k in ("belief", "weight", "turn", "verdict", "ask")
+                 if (d / f"narr_{k}.txt").exists()
+                 and (d / f"narr_{k}.txt").read_text(encoding="utf-8").strip()
+                 != (cur.get("reel") or {}).get(k, "").strip()]
+        if drift:
+            out.append((key, f"片裡唸的跟事實庫現在的 reel 對不上:{drift}"
+                             f" —— 要重渲"))
+            continue
+        for who, p in (("原始", E.get("original") or {}),
+                       ("重測", E.get("test") or {})):
+            if not p.get("doi"):
+                out.append((key, f"{who}論文沒有 DOI")); break
+            if p["doi"] not in o["description"]:
+                out.append((key, f"{who}論文的 DOI 不在說明欄裡")); break
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--limit", type=int, default=2)
@@ -747,13 +822,25 @@ def main():
     def _gate(batch):
         """所有發布前閘門跑一遍。回傳 ({key: 理由}, 無法判斷的)。"""
         bad = {}
-        for k, why in cta_gate(batch, _LONGS_PUB, _LONGS_ALL):
+        # 🔴 舊格式的四道閘門全部綁 `shorts/<key>` 的路徑與 visual.json,
+        #    對 `reel_*` 不是「通過」而是**算不出來**。直接讓它們跳過就是
+        #    fail-open —— 這條線上「認不得 ≠ 不用檢查」已經寫過一次
+        #    (upload.semantic_gate 的新集型分支)。所以把 reels 分流到
+        #    它自己的閘門,不是繞過。
+        reels = [o for o in batch if o["key"].startswith("reel_")]
+        olds = [o for o in batch if not o["key"].startswith("reel_")]
+        for k, why in reel_gate(reels):
             bad[k] = why
-        ch, unk = visual_stale(batch)
-        for k, w in ch:
-            bad.setdefault(k, f"畫面已跟現行碼不同(差在 {w})")
-        for k, why in scoreboard_gate(batch):
-            bad.setdefault(k, why)
+        if olds:
+            for k, why in cta_gate(olds, _LONGS_PUB, _LONGS_ALL):
+                bad[k] = why
+            ch, unk = visual_stale(olds)
+            for k, w in ch:
+                bad.setdefault(k, f"畫面已跟現行碼不同(差在 {w})")
+            for k, why in scoreboard_gate(olds):
+                bad.setdefault(k, why)
+        else:
+            unk = []
         return bad, unk
 
     pool = todo
