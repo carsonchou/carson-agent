@@ -66,7 +66,13 @@ ACCENT, REST, GOOD = "#FFC23D", "#252C36", "#5FC98A"
 UNIT_SYM = {
     "d": "d", "g": "g", "r": "r", "beta": "β", "lambda": "λ",
     "pct": "%", "percentage_points": "pp",
-    "raw_diff_10pt_likert": "pts", "raw_diff_7pt_scale": "pts",
+    # 🔴 **兩把不同的尺不可以印同一個符號。** facial feedback 的表格四列
+    #    同一欄印 `pts = 0.03 / 0.49 / 0.40 / 0.04`,而第一列是十點量表、
+    #    後三列是七點量表 —— 觀眾讀到的是「差 16 倍」,那個比較不成立。
+    #    timeline_rows 的 docstring 自己寫著「放在同一根軸上等於發明一個
+    #    觀眾無法解讀的比例尺」,但那條規則只寫在註解裡,沒有寫進這張表。
+    "raw_diff_10pt_likert": "pts/10", "raw_diff_7pt_scale": "pts/7",
+    "meta_regression_b": "b", "count": "", "iq_points": "IQ",
 }
 #: 🔴 **百分位不是百分比。** 論文寫「scored in the 12th percentile」,
 #:    印成「12%」是換掉了那個數字的意思(一個是排名位置、一個是比例),
@@ -98,7 +104,8 @@ COUNT_KINDS = {
 #:    形狀(測試判斷式永遠不成立 / 完成標記不等於成功),只是這次藏在
 #:    「哪些欄位算證據」這個問題裡。**證據和被檢查的東西不能是同一份文字。**
 PROSE_KEYS = re.compile(
-    r"(^say_|quote|note|warning|trap|traps|missing|_detail|story_type|hook|"
+    r"(^say_|^reel$|quote|note|warning|trap|traps|"
+    r"missing|_detail|story_type|hook|"
     r"claim|title|authors|journal|doi|kind|name|stat|slug|why|source|"
     r"summary|_words|_check|_limits|final_quote|best_visual|nuance)",
     re.I)
@@ -209,10 +216,19 @@ def val_str(kind, v):
         return f"{v:+g}pp"
     if kind in COUNT_KINDS:
         return f"{v:g}"
+    # 🔴 **沒登記的單位要 fail-closed,不是預設成 d。**
+    #    terror management 有一列 `es_kind: "meta-regression b"`(調節係數),
+    #    它不在表裡,而 `UNIT_SYM.get(kind, "d")` 把它靜默印成 `d = 0.01`
+    #    —— 正上方就是真的 `d = 1.34`,觀眾會把「兩組之間的差」讀成同一把
+    #    尺上的效果量。`_need()` 只守「es_kind 缺席」那一格,沒守「寫錯」那格。
+    if kind not in UNIT_SYM:
+        raise SystemExit(
+            f"⛔ 沒登記的效果量單位「{kind}」—— 預設成 d 會把別種係數印成"
+            f"效果量。把它加進 UNIT_SYM,或改用已登記的單位。")
     s = f"{abs(v):.6f}".rstrip("0").rstrip(".")
     dec = len(s.split(".")[1]) if "." in s else 0
-    sym = UNIT_SYM.get(kind, "d")
-    return f"{sym} = {v:.{max(2, min(dec, 3))}f}"
+    sym = UNIT_SYM[kind]
+    return f"{v:.{max(2, min(dec, 3))}f}" if not sym         else f"{sym} = {v:.{max(2, min(dec, 3))}f}"
 
 
 # ─────────────────────────────── 時間軸 ───────────────────────────────
@@ -469,16 +485,29 @@ def build_script(E):
 
 # ─────────────────────────────── 溯源 ───────────────────────────────
 
-def _collect(node, out, key=""):
+#: `timeline` 與 `twist_rows` 是**畫面要畫什麼**,不是證據。
+#: 🔴 它們的 `es` 一度餵進白名單,於是 moral_licensing 的 -0.05 通過了
+#:    數字溯源 —— 而那個值沒有任何 outcome 或 key_numbers 撐著,它只存在於
+#:    「稿子自己要畫的那張表」裡。**稿子的表格在當自己的證據**,這是
+#:    PROSE_KEYS 註解防的那件事(證據和被檢查的東西不能是同一份),
+#:    只是這次藏在結構化欄位裡,所以守門結構上看不見。
+#:    年份與樣本數留著(那些本來就是事實),只擋 `es`。
+_OUTPUT_ONLY = {"timeline", "twist_rows"}
+_OUTPUT_DROP = {"es", "es_kind"}
+
+
+def _collect(node, out, key="", in_output=False):
     """把**結構化欄位**裡的數字收進白名單;自由文字欄位一律跳過。"""
     if isinstance(node, dict):
         for k, v in node.items():
             if PROSE_KEYS.search(k):
                 continue
-            _collect(v, out, k)
+            if in_output and k in _OUTPUT_DROP:
+                continue
+            _collect(v, out, k, in_output or k in _OUTPUT_ONLY)
     elif isinstance(node, list):
         for v in node:
-            _collect(v, out, key)
+            _collect(v, out, key, in_output)
     elif isinstance(node, bool):
         return
     elif isinstance(node, (int, float)):
@@ -504,6 +533,10 @@ def _collect(node, out, key=""):
     elif isinstance(node, str) and not PROSE_KEYS.search(key):
         for tok in NUM_RE.findall(node):
             out.add(tok)
+
+
+def _collect_top(E, out):
+    _collect(E, out)
 
 
 def audit(E, segs):

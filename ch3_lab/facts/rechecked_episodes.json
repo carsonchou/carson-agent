@@ -554,7 +554,7 @@
         "weight": "The idea is that your face feeds back into how you feel. It is the textbook demonstration, cited more than 1,800 times.",
         "turn": "In 2016, 17 laboratories ran it on 1,894 people. The difference was 0.03 points on a ten point scale, and 0 of the 17 pointed the right way. Six years later a bigger group tried three ways of making people smile. Copying a smiling face worked. Posing it yourself worked. The pen still did nothing.",
         "verdict": "The pen died. The idea behind it did not — and the original author co-signed the paper that showed it.",
-        "ask": "Which would you have bet on?"
+        "ask": "The pen, or copying somebody else's smile - which would you have bet on?"
       }
     },
     {
@@ -779,9 +779,21 @@
       "reel": {
         "belief": "Doing one good thing gives you permission to do a bad one.",
         "weight": "It is the standard explanation for why good people do shabby things. Cited more than 1,000 times.",
-        "turn": "Pooled, the effect is 0.31. Split it: published studies 0.43, unpublished 0.11. Correct for that bias and it is minus 0.05, which is another way of writing zero. In 2024 a registered replication on 932 people came back at minus 0.38 — the other way round.",
-        "verdict": "Every retest was bigger. Every retest was smaller. The last one changed sign.",
+        "turn": "Pooled, the effect is 0.31. Split it by whether it got published: published studies 0.43, unpublished 0.11. In 2016 a replication on 3,134 people still found it, at a ninth of the size. Then somebody corrected the whole pile for that publication bias: minus 0.05. And in 2024 a registered replication came back at minus 0.38 on one scenario and 0.08 on the other.",
+        "verdict": "Every retest was bigger, and every retest was smaller. The last one changed sign.",
         "ask": "Do you catch yourself doing this?"
+      },
+      "bias_correction": {
+        "year": 2019,
+        "title": "Is the evidence for moral licensing/cleansing robust?",
+        "journal": "Meta-Psychology 3",
+        "doi": "10.15626/MP.2018.878",
+        "doi_warning": "🔴 那篇 PDF 頁首印錯自己的 DOI(10.17605 是 OSF 前綴),Crossref 註冊的是 10.15626 —— 用後者。",
+        "es": -0.05,
+        "es_kind": "d",
+        "k": 76,
+        "k_word": "effect sizes",
+        "quote": "Over all 76 effect sizes, PET-PEESE indicated a significant positive slope for the standard error, beta = 1.36, t(74) = 2.73, p = .008. The intercept, representing the corrected effect size, was not different from zero, beta = -.05, 95% CI [-0.26; 0.16], t(74) = -0.46, p = .64."
       }
     },
     {
@@ -940,7 +952,7 @@
         "weight": "A whole research programme about fear, politics and prejudice is built on it. The 1994 study reported an effect size of 1.34.",
         "turn": "The usual defence when a result does not come back is that the replicators did it wrong. So this time 7 of the labs ran a protocol the original authors advised on. Those labs got 0.08. The labs left to themselves differed by 0.01, which is not a difference.",
         "verdict": "They let the original authors help design it, and it still did not come back.",
-        "ask": "What would convince you either way?"
+        "ask": "Does being reminded of death change how you argue?"
       }
     },
     {
@@ -1630,8 +1642,8 @@
       "reel": {
         "belief": "Grit beats talent.",
         "weight": "It became a book, a TED talk and a school curriculum. The 2007 paper is cited more than 6,900 times.",
-        "turn": "In 2017 someone pooled 88 samples — 66,807 people. Grit's correlation with academic performance came out at 0.18. Then they checked how much grit overlaps with plain old conscientiousness, which psychologists have measured for decades. 0.84. For scale, two different questionnaires that both claim to measure conscientiousness agree with each other at 0.63.",
-        "verdict": "Grit matches conscientiousness more closely than conscientiousness matches itself.",
+        "turn": "In 2017 someone pooled 88 samples - 66,807 people. Grit predicts academic performance at 0.18. Then they checked how much grit overlaps with plain old conscientiousness. Corrected for measurement error: 0.84. For scale, two different questionnaires that both claim to measure conscientiousness agree with each other at 0.63. And the original 2007 paper had already reported the overlap itself, at 0.77.",
+        "verdict": "Grit matches conscientiousness more closely than conscientiousness matches itself. It still predicts things.",
         "ask": "Is grit a real thing, or a new name for an old one?"
       },
       "missing": []
@@ -1640,7 +1652,7 @@
       "slug": "dunning_kruger",
       "popular_name": "The Dunning-Kruger effect",
       "story_type": "原始分析有偏誤(但作者自己的字是 mostly,不是 entirely)",
-      "story_type_short": "the graph draws itself from noise",
+      "story_type_short": "mostly a statistical artefact",
       "story_type_note": "🔴 不准講成「完全是假的」。論文標題自己帶括號的 (mostly),Discussion 明講 mostly rather than entirely。而且同一篇量到人**確實**judge得出自己的能力(r = 0.28)—— 只講前半是選擇性呈現。",
       "claim": "the least competent people are the most confident — too incompetent to know how incompetent they are",
       "hook": "Take the same 929 people. Analyse them one way and the Dunning-Kruger effect is right there. Analyse them properly and it is gone.",

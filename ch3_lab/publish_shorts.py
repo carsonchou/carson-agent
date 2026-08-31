@@ -620,22 +620,33 @@ def build_meta():
             title = f"{E['popular_name']}: {E['story_type_short']}"
             if len(title) > 95:
                 title = title[:95].rsplit(" ", 1)[0]
+            # 🔴 **說明欄只吐兩個 DOI,而一半的片子講三篇論文。**
+            #    backfire 的判決卡整句就是 Nyhan 2021、DK 的「隨機數也畫得出
+            #    那張圖」只有 2016 那篇撐、moral licensing 的兩個數字分別來自
+            #    Kuper & Bott 與 Xiao 2024 —— 而說明欄結尾寫著「Every number
+            #    here was read out of the paper itself」。
+            #    **五支片子裡,說明欄留不下讓人查那句話的路。**
+            #    改成掃過所有帶 doi 的區塊,一個都不漏。
+            LAB = {"original": "Original", "test": "Retest",
+                   "test2": "A second challenge",
+                   "author_recantation": "Then the original author",
+                   "noise_paper": "The simulation paper",
+                   "bias_correction": "Corrected for publication bias",
+                   "expectancy_study": "The expectancy experiment",
+                   "bbc_study": "Run again, independently",
+                   "uk_trial": "A trial in England"}
+            cites = []
+            for _k, _lab in LAB.items():
+                b = E.get(_k) or {}
+                if isinstance(b, dict) and b.get("doi"):
+                    cites.append(f"{_lab}: {b.get('title', '')} "
+                                 f"({b.get('year', '')}){nl}  doi:{b['doi']}")
+            papers = nl.join(cites)
             desc = (
                 f"{r['belief']}{nl}{nl}"
                 f"{r['verdict']}{nl}{nl}"
                 f"{r['ask']}{nl}{nl}"
-                f"Original: {O.get('title', '')} ({O['year']}){nl}"
-                f"  doi:{O['doi']}{nl}"
-                f"Retest: {T.get('title', '')} ({T['year']}){nl}"
-                f"  doi:{T['doi']}{nl}"
-                # 🔴 backfire 那一集的爆點**就是**原作者 2021 年那篇,
-                #    而說明欄原本只給原始 + 重測兩個 DOI —— 片子裡最重要的
-                #    那篇查不到,而結尾還寫著「每個數字都是從論文裡讀出來的」。
-                + (f"Then the original author: {E['author_recantation'].get('title','')}"
-                   f" ({E['author_recantation']['year']}){nl}"
-                   f"  doi:{E['author_recantation']['doi']}{nl}"
-                   if E.get("author_recantation", {}).get("doi") else "")
-                + f"{nl}"
+                f"{papers}{nl}{nl}"
                 f"Every number here was read out of the paper itself and is "
                 f"stored with the sentence it came from.{nl}#Shorts")
             out.append({"key": f"reel_{d.name}",
@@ -841,11 +852,9 @@ def main():
         miss = [w for w in want if w not in have]
         if miss:
             raise SystemExit(
-                f"⛔ --only 指名的這幾支不在待上傳清單裡:{miss}
-"
-                f"   (已上傳過?名字打錯?)清單裡有:{sorted(have)[:8]}…
-"
-                f"   不猜、不改發別的 —— 指名什麼就只發什麼。")
+                f"⛔ --only 指名的這幾支不在待上傳清單裡:{miss}"
+                f"(已上傳過?名字打錯?)清單裡有:{sorted(have)[:8]}"
+                f" —— 不猜、不改發別的,指名什麼就只發什麼。")
         todo = [o for o in todo if o["key"] in want]
     if a.show:
         for o in items:
