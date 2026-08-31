@@ -383,5 +383,61 @@
    "THE MOST CONFIDENT?"
   ],
   "spoken": "Are the least competent people really the most confident?"
+ },
+ "eps_rechecked/stanford_prison": {
+  "lines": [
+   "DO ORDINARY PEOPLE TURN",
+   "CRUEL IN A UNIFORM?"
+  ],
+  "spoken": "Do ordinary people turn cruel when you put them in a uniform?"
+ },
+ "stanford_prison": {
+  "lines": [
+   "DO ORDINARY PEOPLE TURN",
+   "CRUEL IN A UNIFORM?"
+  ],
+  "spoken": "Do ordinary people turn cruel when you put them in a uniform?"
+ },
+ "eps_rechecked/sugar_hyperactivity": {
+  "lines": [
+   "DOES SUGAR MAKE",
+   "CHILDREN HYPERACTIVE?"
+  ],
+  "spoken": "Does sugar actually make children hyperactive?"
+ },
+ "sugar_hyperactivity": {
+  "lines": [
+   "DOES SUGAR MAKE",
+   "CHILDREN HYPERACTIVE?"
+  ],
+  "spoken": "Does sugar actually make children hyperactive?"
+ },
+ "eps_rechecked/mozart_effect": {
+  "lines": [
+   "DOES LISTENING TO MOZART",
+   "MAKE YOU SMARTER?"
+  ],
+  "spoken": "Does listening to Mozart really make you smarter?"
+ },
+ "mozart_effect": {
+  "lines": [
+   "DOES LISTENING TO MOZART",
+   "MAKE YOU SMARTER?"
+  ],
+  "spoken": "Does listening to Mozart really make you smarter?"
+ },
+ "eps_rechecked/growth_mindset": {
+  "lines": [
+   "DOES BELIEVING YOU CAN",
+   "GROW RAISE YOUR GRADES?"
+  ],
+  "spoken": "Does believing your mind can grow actually raise your grades?"
+ },
+ "growth_mindset": {
+  "lines": [
+   "DOES BELIEVING YOU CAN",
+   "GROW RAISE YOUR GRADES?"
+  ],
+  "spoken": "Does believing your mind can grow actually raise your grades?"
  }
 }

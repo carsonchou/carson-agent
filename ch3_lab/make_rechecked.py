@@ -156,6 +156,8 @@ def say_es(kind, v):
         return f"the {_ordinal(int(v))} percentile"
     if kind == "eta2":
         return f"{say_exact(v)}, in eta squared"
+    if kind == "iq_points":
+        return f"{v:g} I Q points"
     if kind == "percentage_points":
         # 🔴 正號要唸出來。畫面印 `+4pp` 和 `-8pp`,對比一眼看得到;旁白
         #    唸「four percentage points」和「minus eight percentage points」,
@@ -200,6 +202,9 @@ def val_str(kind, v):
         return _ordinal(int(v))
     if kind == "eta2":
         return f"η² = {v:.2f}"
+    if kind == "iq_points":
+        # 🔴 裸的 9 在畫面上沒有意義,而原文寫的是 "8-9 points" 的 IQ 等值。
+        return f"+{v:g} IQ"
     if kind == "percentage_points":
         return f"{v:+g}pp"
     if kind in COUNT_KINDS:
@@ -391,6 +396,12 @@ def build_script(E):
         "letter — reanalysis with a different dataset plus interviews":
             "Not a retest. A different set of hearings, plus interviews with "
             "the people who were actually in the room. ",
+        "archival reinvestigation":
+            "Not a retest. Somebody went into the archive and listened to "
+            "what was actually said at the time. ",
+        "randomised controlled trial":
+            "A trial: students randomised one by one, with the analysis plan "
+            "registered before any data came in. ",
         "simulation":
             "Not a new experiment, and not new data either. A simulation of "
             "what the numbers would look like if nothing were going on. ",
@@ -478,6 +489,13 @@ def _collect(node, out, key=""):
             out.add(str(int(node)))
         s = f"{abs(node):.6f}".rstrip("0").rstrip(".")
         out.add(s)
+        # 🔴 `0.10` 與 `0.1` 是同一個值的兩種寫法,而論文原文寫的是
+        #    「B = 0.10 grade points」—— 唸成 0.1 就跟原文對不上,
+        #    寫 0.10 又被自己的閘門擋下。補的是**同一個值的格式變體**,
+        #    不是新的值,所以白名單沒有變鬆。
+        for dp in (2, 3):
+            out.add(f"{abs(node):.{dp}f}")
+            out.add(f"{node:.{dp}f}")
         if "." in s:
             out.add(s.split(".")[1])          # 「p equals .017」抓到的是 017
         # 帶千分位與不帶,兩種都可能出現在稿子裡
