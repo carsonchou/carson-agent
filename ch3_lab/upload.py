@@ -29,6 +29,7 @@ videos.insert = 1600 單位。ch2 用獨立的 GCP 專案(quiet-hour-yt),一天 
 import argparse
 import json
 import pathlib
+import re
 import sys
 import time
 
@@ -128,6 +129,80 @@ def semantic_gate(o):
     #    都丟 KeyError,然後 fail-closed 把**三支新片全部擋在發布前**。
     #    fail-closed 是對的(所以我才會發現),但「認不得」不等於
     #    「不用檢查」——每一種都有它自己撐不撐得住的問題。
+    if kind == "rechecked":
+        try:
+            F = json.loads(facts_p.read_text(encoding="utf-8"))
+        except Exception as e:                               # noqa: BLE001
+            return f"讀不了 facts.json({str(e)[:40]})"
+        src_p = ROOT / "facts" / "rechecked_episodes.json"
+        try:
+            src = json.loads(src_p.read_text(encoding="utf-8"))
+            cur = next(x for x in src["episodes"]
+                       if x["slug"] == o.get("slug"))
+        except Exception as e:                               # noqa: BLE001
+            return f"事實庫讀不到 {o.get('slug')}({str(e)[:40]})"
+        text = " ".join(f.read_text(encoding="utf-8").lower()
+                        for f in sorted(d.glob("narr_*.txt")))
+
+        # 1) DOI 是硬需求 —— 說明欄指不到任何地方的一集不該存在。
+        for who, p in (("原始", F.get("original") or {}),
+                       ("重測", F.get("test") or {})):
+            if not p.get("doi"):
+                return f"{who}論文沒有 DOI,說明欄指不到任何地方,不發"
+
+        # 2) 被撤稿 / 印錯的 DOI 不准出現在任何 doi 欄位。
+        #    (事實庫的警告欄位會提到它們,那是對的,所以只掃 doi 欄。)
+        blob = json.dumps(F, ensure_ascii=False)
+        for bad, why in (src.get("_doi_traps") or {}).items():
+            for m in re.finditer(r'"doi"\s*:\s*"([^"]+)"', blob):
+                if m.group(1) == bad:
+                    return f"用了地雷 DOI {bad} —— {why[:60]}"
+
+        # 3) `_do_not_fill` 點名的數字不准被講出來。
+        for k, why in (src.get("_do_not_fill") or {}).items():
+            if k.startswith(o.get("slug", "") + "."):
+                w = k.split(".")[-1].replace("_", " ")
+                if w in text:
+                    return f"碰到 _do_not_fill 的 {k}:{why[:60]}"
+
+        # 4) 🔴 **最重要的一道:故事類型不准被講成別的類型。**
+        #    hungry judges 的兩個質疑方都沒有重測、也都沒拿到新的原始資料,
+        #    原作者在同期期刊逐條反駁且原文未撤回。把它講成「被推翻」是
+        #    這一批裡最容易犯、也最傷的錯 —— 而數字溯源守門對它全盲
+        #    (每個數字都對得上,框架是反的)。
+        #    facial feedback 同型:倒的是咬筆這個方法,不是假說本身。
+        _OVERTURNED = ("was overturned", "has been overturned", "was debunked",
+                       "has been debunked", "turned out to be false",
+                       "was disproved", "has been disproved", "is not real",
+                       "was wrong all along")
+        st = (cur.get("story_type") or "") + (cur.get("story_type_note") or "")
+        if "沒有被判定死刑" in st or "仍有爭議" in st:
+            for c in _OVERTURNED:
+                if _asserted(text, c):
+                    return (f"這一集的故事類型是『沒有被判定死刑』,"
+                            f"稿子卻講「{c}」—— 兩個質疑方都沒有重測")
+        if "假說還活著" in st:
+            for c in ("the hypothesis is dead", "facial feedback is not real",
+                      "expressions do not affect"):
+                if _asserted(text, c):
+                    return f"倒的是方法不是假說,稿子卻講「{c}」"
+
+        # 5) 🔴 **渲出來的旁白必須等於事實庫現在的那一段。**
+        #    facts.json 是渲染當下的快照;如果事實庫後來改了 say_twist /
+        #    say_verdict,片子裡唸的就是舊版,而說明欄是用新版產的 ——
+        #    兩個表面講不同的話,而且沒有任何現有守門看得到
+        #    (ep0 就是這樣把「25 集」和片中唸的「26 集」一起發出去的)。
+        for seg in ("twist", "verdict", "spread"):
+            f = d / f"narr_{seg}.txt"
+            want = cur.get(f"say_{seg}")
+            if not want or not f.exists():
+                continue
+            got = f.read_text(encoding="utf-8").strip()
+            if want.strip() not in got:
+                return (f"片裡唸的 {seg} 跟事實庫現在的 say_{seg} 對不上"
+                        f" —— 事實庫改過了,要重渲,不能就這樣發")
+        return None
+
     if kind in ("lineup", "domains", "trailer"):
         try:
             F = json.loads(facts_p.read_text(encoding="utf-8"))

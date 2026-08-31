@@ -421,8 +421,22 @@ def audit(E, segs):
 
 # ─────────────────────────────── 畫面 ───────────────────────────────
 
+#: 量出來的字級快取。
+#: 🔴 **一定要快取。** `fit_w` 每次呼叫都開一張 1920×1080 的 matplotlib
+#:    figure 再關掉,而我把它放在 `render_scene` 裡 —— 也就是**每一格畫面**
+#:    都重量一次,四列的話一格就是八張 figure。實測後果:facial_feedback
+#:    渲到一半,九分鐘沒有產出任何一格,CPU 吃滿一核、記憶體以每秒 9 MB
+#:    往上爬(16 GB 的機器只剩 2.2 GB),整台機器開始換頁。
+#:    看起來像當掉,其實是「對的答案算了一千五百遍」。
+#:    量測結果只跟 (字串, 字級, 欄寬, 粗細) 有關,而那四個在一段裡不變。
+_FIT_CACHE = {}
+
+
 def fit_w(plt, text, base, max_frac, weight="bold"):
     """字級用量的,不是挑的 —— 文案長度會變,一個字級不可能同時對。"""
+    ck = (text, base, round(max_frac, 4), weight)
+    if ck in _FIT_CACHE:
+        return _FIT_CACHE[ck]
     fig = plt.figure(figsize=(W / 100, H / 100), dpi=100)
     ax = fig.add_axes([0, 0, 1, 1]); ax.axis("off")
     ax.set_xlim(0, 1); ax.set_ylim(0, 1)
@@ -432,8 +446,10 @@ def fit_w(plt, text, base, max_frac, weight="bold"):
     frac = t.get_window_extent(
         renderer=fig.canvas.get_renderer()).width / W
     plt.close(fig)
-    return base if (frac <= max_frac or frac == 0) \
-        else max(20, int(base * max_frac / frac))
+    out = (base if (frac <= max_frac or frac == 0)
+           else max(20, int(base * max_frac / frac)))
+    _FIT_CACHE[ck] = out
+    return out
 
 
 def wrap(s, n):
