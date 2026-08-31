@@ -214,7 +214,21 @@ def draw(plt, o, out_path):
     ctone = copy_tone(tone, f.get("es_r"), f.get("es_kind", "d"))
     col = COLOR[ctone]
     word = VERDICT[ctone]
-    if o.get("kind") == "domains":
+    if o.get("kind") == "rechecked":
+        # 🔴 這一批**整個存在的理由就是「判決不只有四種」**,所以
+        #    VERDICT 那張表在這裡是錯的工具。實測第一版:hot hand 印出
+        #    「REAL BUT SMALL」—— 而那一集講的是原始分析有偏誤、修正後
+        #    +13 個百分點(論文自己拿它跟 NBA 三分球中位數到頂尖的差距
+        #    12 個百分點相比)。既不是 small,框架也不是「效果多大」。
+        #    根因:copy_tone 拿 d 的門檻去量一個 percentage_points 的值。
+        #    → 判決字用**手寫的 story_type_short**,那是這一集唯一講得清楚
+        #      自己是什麼故事的地方,而且已經過人工審。
+        st = (f.get("story_type") or "").strip()
+        if not st:
+            print(f"  跳過(rechecked 缺 story_type_short):{o['title'][:40]}")
+            return False
+        word = st.upper()
+    elif o.get("kind") == "domains":
         # 跨領域集沒有效果量,也沒有「重測了幾個人」——它的證據是
         # **同一個宣稱在不同領域解釋掉多少**。硬套 SCALE 會印出
         # 「Retested on None people」。
@@ -259,15 +273,39 @@ def draw(plt, o, out_path):
     # 判決塊:實色滿版,一眼看到成不成立。用字見 VERDICT 的說明 ——
     # punchy 但不 overclaim。
     ax.add_patch(plt.Rectangle((0.03, 0.235), 0.94, 0.36, color=col, zorder=2))
-    ax.text(0.5, 0.415, word, ha="center", va="center",
-            fontsize=fit(plt, word, 168, 0.86), color="#0E1116",
-            weight="bold", zorder=3)
+    # 🔴 判決字**長度差很多**:「NOT FOUND」九個字元,而 rechecked 那批的
+    #    story_type_short 可以到四十幾個(「THE ARITHMETIC WAS WRONG, NOT
+    #    THE PLAYERS」)。單行硬塞的話 fit 會把它縮到很小 —— 一個佔了
+    #    畫面三分之一的實色塊,裡面一行細細的字,在 feed 的縮圖尺寸下
+    #    根本讀不到,而縮圖是唯一的點擊決策點。
+    #    超過門檻就折兩行,折點取**最靠近中間的空格**(不是固定字數),
+    #    兩行才會差不多長。
+    wl = [word]
+    if len(word) > 22 and " " in word:
+        mid = min((abs(i - len(word) / 2), i)
+                  for i, c in enumerate(word) if c == " ")[1]
+        wl = [word[:mid], word[mid + 1:]]
+    wfs = min(fit(plt, x, 168 if len(wl) == 1 else 118, 0.86) for x in wl)
+    for i, ln in enumerate(wl):
+        ax.text(0.5, 0.415 + (0.075 if len(wl) == 2 else 0) - i * 0.15, ln,
+                ha="center", va="center", fontsize=wfs, color="#0E1116",
+                weight="bold", zorder=3)
 
     # 佐證:數字從事實庫來,措辭依**資料裡有什麼**。降到最小 ——
     # 它是支持不是主角。
     key = ("shrunk_real_nocmp" if tone == "shrunk_real" and eo is None
            else ctone)
-    if o.get("kind") == "domains":
+    if o.get("kind") == "rechecked":
+        # 🔴 SCALE 那句寫的是「Retested on N people」,而 hot hand 是
+        #    **同一批 26 名球員被重算了第二次**,不是 26 個新受試者;
+        #    「people」也不對(有一集的 n 是 1,112 筆裁決)。
+        #    這正是我半小時前在 publish_meta 修過的同一個錯 ——
+        #    **同一條規則的第四份實作**(影片、說明欄、縮圖、Short)。
+        #    這裡只講判決塊沒講的那半:是哪兩篇、隔了多久。
+        yo, yr = f.get("year_o"), f.get("year_r")
+        sub = (f"{yo} → {yr}. Both papers linked below."
+               if yo and yr else "Both papers linked below.")
+    elif o.get("kind") == "domains":
         # 🔴 上界要標成上界。原文是「less than 1%」,印成「1%」是把上界
         #    講成點估計 —— 旁白端(make_domains.say_pct)有守著這件事,
         #    縮圖端沒有。同一個錯的第二個表面,今晚第三次。

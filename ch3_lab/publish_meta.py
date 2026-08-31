@@ -960,7 +960,10 @@ def main():
                 "facts": {"es_o": O.get("es"), "es_r": T.get("es"),
                           "n_r": T.get("n"), "es_kind": T.get("es_kind", "d"),
                           "is_replication": True,
-                          "story_type": E["story_type_short"]},
+                          # 縮圖端要拿它當判決字(VERDICT 那四種對這批
+                          # 是錯的工具),年份用來寫「1985 → 2018」。
+                          "story_type": E["story_type_short"],
+                          "year_o": O.get("year"), "year_r": T.get("year")},
             })
             print(f"  ✓ {d.name}:{title}")
 
