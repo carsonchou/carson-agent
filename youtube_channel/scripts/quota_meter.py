@@ -339,6 +339,45 @@ def _maybe_warn(total):
     print(f"[quota] ⚠️ 已用 {total}/{DAILY_LIMIT}", file=sys.stderr)
 
 
+
+# 單支長片的發布成本(2026-08-29 由當日 by_op 反推:videos.insert 1600 + captions.insert 400
+# + thumbnails.set 50 + playlistItems.insert 50 + commentThreads.insert 50)。
+PUBLISH_UNIT_COST = 2150
+
+
+def _reserve_guard(op, units):
+    """預留額度守門。**兩個呼叫端(_execute / _charge_once)共用這一份**——
+    原本兩處各寫一份一模一樣的判斷式,而 2026-08-31 這一天已經踩了三次
+    「同一件事兩份實作、只修了其中一份」,不再留第四個。
+
+    判準是「這次花費**會不會讓還發得出的片數變少**」,不是「剩餘會不會低於 RESERVE」。
+
+    舊判準 `remaining() - units < RESERVE` 在 reserve **還救得回來**時是對的
+    (擋住就保得住)。但實測今天響了三次:配額剩 106、RESERVE 2200 —— 106 永遠湊不到
+    2200,繼續擋救不回那個 reserve,只是讓 1 unit 的抓留言整個配額日都做不了
+    (而抓留言是「知道觀眾想看什麼」的唯一管道)。
+
+    新判準只在「擋住毫無收益」時放寬,擋得住的一個都沒放掉:
+        剩 106 / 花 1              → 0 < min(0,1)=0  放行(本來就發不出)
+        剩 2500 / RESERVE 2200 / 花 400 → 0 < min(1,1)=1  擋(擋住才保得住那支)
+        剩 9000 / RESERVE 9600 / 花 400 → 4 < min(4,4)=4  放行(8600 仍發得出 4 支)
+        剩 8700 / RESERVE 9600 / 花 400 → 3 < min(4,4)=4  擋
+    """
+    if not (units and RESERVE):
+        return
+    r = remaining()
+    now_n = r // PUBLISH_UNIT_COST            # 現在還發得出幾支
+    # ⚠️ 要 clamp:Python 的 floor division 會讓 (0-1)//2150 = **-1** 而不是 0,
+    # 負數會讓下面的比較反過來(-1 < 0 成立)→ 配額歸零時反而擋在 reserve 訊息上,
+    # 而那時該說話的是 ENFORCE 的「配額用盡」。自檢表 rem=0 那格抓到的。
+    after_n = max(0, r - units) // PUBLISH_UNIT_COST  # 花下去之後還發得出幾支
+    want_n = RESERVE // PUBLISH_UNIT_COST      # reserve 想保住幾支
+    if after_n < min(now_n, want_n):
+        raise QuotaExhausted(
+            f"quota reserve:{op} 需 {units} units,今日剩 {r},"
+            f"花下去只剩 {after_n} 支發布額度(要保住 {min(now_n, want_n)} 支)"
+            f" → 停在額度線上(冪等,下個配額日接著跑)")
+
 def install(service=None):
     """把計量掛上去。回傳同一個 service(方便 `return install(build(...))` 直接串)。
 
@@ -363,10 +402,7 @@ def install(service=None):
         # 預設 RESERVE=0(行為不變),由 cron 逐行 opt-in:
         #   15:25 的補件 → YT_QUOTA_RESERVE=9600(留給當天 18:30 的 5 支 + 隔天 1 支)
         #   23:00 的補件 → YT_QUOTA_RESERVE=1600(當天發布已完成,只需留隔天那 1 支)
-        if units and RESERVE and remaining() - units < RESERVE:
-            raise QuotaExhausted(
-                f"quota reserve:{op} 需 {units} units,今日剩 {remaining()},"
-                f"但要留 {RESERVE} 給發布 → 停在額度線上(冪等,下個配額日接著跑)")
+        _reserve_guard(op, units)
         if units and ENFORCE and units > remaining():
             raise QuotaExhausted(f"quota exhausted:{op} 需 {units},今日剩 {remaining()}")
         if getattr(self, "_quota_charged", False):
@@ -402,10 +438,7 @@ def install(service=None):
         if getattr(self, "_quota_charged", False):
             return
         op, units = cost_of(getattr(self, "uri", ""), getattr(self, "method", "GET"))
-        if units and RESERVE and remaining() - units < RESERVE:
-            raise QuotaExhausted(
-                f"quota reserve:{op} 需 {units} units,今日剩 {remaining()},"
-                f"但要留 {RESERVE} 給發布 → 停在額度線上(冪等,下個配額日接著跑)")
+        _reserve_guard(op, units)
         # ENFORCE 這道原本只寫在 `_execute` 裡 —— 而 resumable 上傳走的是這條路徑,
         # 等於「先觀測後執法」真的打開執法時,漏掉的正好是最大的那一筆。
         if units and ENFORCE and units > remaining():
