@@ -55,6 +55,14 @@ TITLES = {
               "worst, because it has no villain."),
     "held": ("{n} psychology findings that actually held up",
              "You have heard a lot about the ones that broke. These did not."),
+    # 🔴 這一支的標題**不能**是「N 個沒撐住的發現」—— 它裡面有三集不是
+    #    那個結局。標題賣的就是「結局不只一種」這件事本身,而那也正好是
+    #    這個頻道跟所有「心理學都是假的」影片的差別。
+    "rechecked": ("{n} famous psychology studies, and {n} different things "
+                  "that happened when somebody checked",
+                  "Not one story. The data were fine and the arithmetic was "
+                  "not. The method fell over and the idea did not. The author "
+                  "says you read him wrong. And one is still an argument."),
 }
 
 
@@ -109,8 +117,49 @@ def cut_before_close(d):
     return cut if cut > 20 else None      # 裁完剩不到 20 秒 = 結構不對
 
 
+def _mp4_of(i, d):
+    """本體影片的路徑。`i` 是 FReD 的列號(int)或 rechecked 的 slug(str)。
+
+    🔴 兩種集型共用這支合輯機器,而它原本到處寫死 `ep{i:03d}.mp4`。
+       路徑組法散在四個地方,加第二種來源時漏掉一個就是「檔案不存在」
+       —— 而 ffprobe 對不存在的檔案回空字串,`float("")` 才炸,
+       錯誤訊息完全指不到真正的原因。集中成一支。
+    """
+    return d / (f"ep{i:03d}.mp4" if isinstance(i, int) else f"{i}.mp4")
+
+
+def pick_rechecked(limit):
+    """從 `eps_rechecked` 挑 —— 這批的賣點是**每一集的結局形狀都不一樣**。
+
+    所以排序不是「落差由大到小」(那是 FReD 那批的邏輯,因為它們的結局
+    只有一種),而是**刻意讓相鄰兩集的故事類型不同**:先講「原始分析有
+    偏誤」,再講「方法倒了假說還活著」,再講「原作者說你們讀錯了」。
+    連著兩集同一種形狀,就是我在自己做出模板化。
+    """
+    src = json.loads((ROOT / "facts" / "rechecked_episodes.json")
+                     .read_text(encoding="utf-8"))
+    by = {e["slug"]: e for e in src["episodes"]}
+    got = []
+    for d in sorted((ROOT / "eps_rechecked").glob("*")):
+        E = by.get(d.name)
+        if not E or not (d / f"{d.name}.mp4").exists():
+            continue
+        got.append((0.0, d.name, E, d))
+    # 相鄰不同型:貪婪地每次挑一個跟上一個不同 story_type 的。
+    out, pool = [], list(got)
+    last = None
+    while pool and len(out) < limit:
+        nxt = next((x for x in pool if x[2]["story_type"] != last), pool[0])
+        pool.remove(nxt)
+        out.append(nxt)
+        last = nxt[2]["story_type"]
+    return out
+
+
 def pick(bucket, limit):
     """挑出該 bucket 已產好的集數,依落差大小排序 —— 最戲劇性的放最前面當鉤子。"""
+    if bucket == "rechecked":
+        return pick_rechecked(limit)
     from make_episode import build_facts, TONE_META
     q = pd.read_csv(ROOT / "facts" / "episode_queue.csv", low_memory=False)
     out = []
@@ -130,6 +179,15 @@ def pick(bucket, limit):
 def card_question(i, F):
     """串場要唸的那句。取該集**已通過審核**的標題(publish_meta),砍掉會
     洩漏結果的後綴 —— 串場的工作是給下一段一個懸念,不是先講答案。"""
+    if not isinstance(i, int):
+        # rechecked:白話問句是手寫的、已經過 plain._valid(必須以問號
+        # 結尾、不准有數字),直接用 —— 那正是串場卡要的東西,
+        # 而且跟縮圖與 Short 開場是同一句(同一個問題只有一個說法)。
+        import plain as _plain
+        q = _plain.spoken(f"eps_rechecked/{i}", i)
+        if not q:
+            raise SystemExit(f"⛔ {i} 缺手寫白話句,串場卡不產")
+        return q
     q = F["claim"].rstrip(". ")
     p = ROOT / "publish_meta.json"
     if p.exists():
@@ -165,6 +223,45 @@ def build_script(bucket, items):
     from make_episode import say_num
     n = len(items)
     lead = items[0][2]
+    if bucket == "rechecked":
+        # 🔴 這一支的開場**不能**是「原始 X,重測 Y」—— 那是 FReD 那批的
+        #    形狀,而這批裡有三集根本不是那個形狀(原始分析有偏誤、方法倒
+        #    了假說還活著、至今仍有爭議)。用那個開場等於在片頭就把後面
+        #    三集講錯。開場講的是這支片**為什麼跟你看過的那種不一樣**。
+        types = []
+        for _, _i, E, _d in items:
+            if E["story_type_short"] not in types:
+                types.append(E["story_type_short"])
+        segs = [("intro",
+                 f"You have heard that psychology has a replication crisis. "
+                 f"What you have probably not heard is that the interesting "
+                 f"part is not the studies that failed. "
+                 f"Here are {n} famous findings, and {n} different things "
+                 f"that happened when somebody checked. "
+                 f"In one of them the original data were fine and the "
+                 f"arithmetic was not. In another the method fell over and "
+                 f"the idea behind it did not. In another the original author "
+                 f"published a paper to say he had been misread. "
+                 f"And one of them is still an open argument, which I will "
+                 f"say plainly when we get there. "
+                 f"Every number comes from the paper it is quoted from, and "
+                 f"every paper is linked below.")]
+        for k, (_, i, E, _d) in enumerate(items, 1):
+            lead_in = "First." if k == 1 else f"Number {k}."
+            segs.append((f"card{k}", f"{lead_in} {card_question(i, E)}"))
+        segs.append(("outro",
+                     "If there is one thing to take from this, it is that "
+                     "\"it did not replicate\" is not one story. Sometimes the "
+                     "finding was never there. Sometimes it was there and much "
+                     "smaller than the headline. Sometimes the result was fine "
+                     "and the analysis was not. Sometimes the argument is still "
+                     "running, and the honest answer is that we do not know "
+                     "yet. Anyone who tells you the whole field is fake is "
+                     "doing the same thing they are accusing it of: picking "
+                     "the result that makes the better story. "
+                     "Every paper here is linked below, with the sentence each "
+                     "number was taken from."))
+        return segs
     segs = [("intro",
              f"In {lead['orig']['year']}, a study reported an effect of "
              f"{say_num(lead['orig']['es'])}. "
@@ -191,7 +288,8 @@ def build_script(bucket, items):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--bucket", default="fail", choices=["fail", "mixed", "held"])
+    ap.add_argument("--bucket", default="fail",
+                    choices=["fail", "mixed", "held", "rechecked"])
     ap.add_argument("--limit", type=int, default=5)
     ap.add_argument("--script-only", action="store_true")
     a = ap.parse_args()
@@ -205,14 +303,17 @@ def main():
     print(f"[{a.bucket}] {title}")
     total = 0.0
     for gap, i, F, d in items:
-        mp4 = d / f"ep{i:03d}.mp4"
+        mp4 = _mp4_of(i, d)
         r = subprocess.run(["ffprobe", "-v", "error", "-show_entries",
                             "format=duration", "-of", "csv=p=0", str(mp4)],
                            capture_output=True, text=True)
         dur = float(r.stdout.strip())
         total += dur
-        print(f"  ep{i:03d}  落差 {gap:.2f}  {dur:>5.0f}s  "
-              f"{F['orig']['es']:+.2f} → {F['repl']['es']:+.2f}")
+        # rechecked 沒有「原始 es → 重測 es」這一對(它的重點就是結局
+        # 形狀不只一種),印它自己那句判決。
+        tail = (F["story_type_short"] if "story_type_short" in F
+                else f"{F['orig']['es']:+.2f} → {F['repl']['es']:+.2f}")
+        print(f"  {str(i):<18}{dur:>5.0f}s  {tail}")
     segs = build_script(a.bucket, items)
     print(f"\n主體 {total:.0f} 秒 = {total/60:.1f} 分,加串場約 "
           f"{(total + 45)/60:.1f} 分")
@@ -289,7 +390,7 @@ def main():
         clips.append(seg)
         # 該集去掉結語(理由見 cut_before_close)。裁不了就整集照用 ——
         # fail-safe 只能往「照原樣」倒,不能往「猜一個秒數」倒。
-        src = d / f"ep{i:03d}.mp4"
+        src = _mp4_of(i, d)
         cut = cut_before_close(d)
         if cut:
             trimmed = out / f"body{k}.mp4"
