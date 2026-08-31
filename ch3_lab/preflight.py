@@ -49,8 +49,13 @@ from make_episode import build_facts, tone_of          # noqa: E402
 META = ROOT / "publish_meta.json"
 QUEUE = ROOT / "facts" / "episode_queue.csv"
 # 產出會受哪些檔案影響——任何一個比 mp4 新,那支 mp4 就是舊的
-SOURCES = ["make_episode.py", "make_famous.py",
-           "facts/episode_queue.csv", "facts/famous_episodes.json"]
+#: 🔴 **新集型上線時這張表最容易漏。** 它列的是「改了會讓 mp4 變舊」的
+#:    來源;漏一項的後果不是報錯,是**這一整批片子的陳舊檢查靜默失效**
+#:    —— 而陳舊正是這條線反覆出事的形狀(碼修好了、mp4 是舊碼的產物)。
+#:    加集型 = 同時加它的產生器和它的事實庫,兩個都要。
+SOURCES = ["make_episode.py", "make_famous.py", "make_rechecked.py",
+           "facts/episode_queue.csv", "facts/famous_episodes.json",
+           "facts/rechecked_episodes.json"]
 
 
 def narration_matches(o):
@@ -70,6 +75,12 @@ def narration_matches(o):
             import make_episode as M
             q = pd.read_csv(QUEUE, low_memory=False)
             segs = M.build_script(M.build_facts(q.iloc[o["row"]]))
+        elif o["kind"] == "rechecked":
+            # 這一批的旁白有一半是**手寫**的(say_twist / say_verdict /
+            # say_spread),而手寫的東西沒有任何機械守門看得住 ——
+            # 逐字比對是唯一能發現「事實庫改了、片子還是舊的」的方法。
+            import make_rechecked as MR
+            segs = MR.build_script(MR.load(o["slug"]))
         else:
             import make_famous as MF
             eps = json.loads((ROOT / "facts" / "famous_episodes.json")

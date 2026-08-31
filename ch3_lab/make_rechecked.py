@@ -598,6 +598,13 @@ def render_scene(name, t_now, dur, ctx):
             txt(top - i * lh, ln, fs, FG, "normal")
         txt(top - len(lines) * lh - 0.06, by, 38, bycol,
             "bold" if name == "authors" else "normal")
+        # 🔴 引句是**逐字**的,不能為了好懂改字 —— 改了就不是引用了。
+        #    但逐字也會留下圈內縮寫:hot hand 那句寫「GVT's data」,
+        #    而觀眾不知道 GVT 是誰(是三位原作者姓氏的縮寫)。
+        #    解法是加一行**注解**,不是動引文:引文照抄,旁邊說明它。
+        g = E.get("verdict_gloss") if name == "verdict" else None
+        if g:
+            txt(top - len(lines) * lh - 0.135, g, 30, DIM, "normal")
 
     else:
         txt(0.60, "THEY RAN IT AGAIN", 92)

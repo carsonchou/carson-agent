@@ -154,7 +154,8 @@
           "hot": true
         }
       ],
-      "popular_name": "The hot hand fallacy"
+      "popular_name": "The hot hand fallacy",
+      "verdict_gloss": "GVT = Gilovich, Vallone and Tversky, the 1985 authors"
     },
     {
       "slug": "hungry_judges",
@@ -844,7 +845,8 @@
           "es_kind": "meta-regression b"
         }
       ],
-      "popular_name": "Terror management theory"
+      "popular_name": "Terror management theory",
+      "verdict_gloss": "TMT = terror management theory"
     },
     {
       "slug": "backfire_effect",
