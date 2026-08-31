@@ -369,5 +369,19 @@
    "THAN TALENT?"
   ],
   "spoken": "Does grit matter more than raw talent?"
+ },
+ "eps_rechecked/dunning_kruger": {
+  "lines": [
+   "ARE THE LEAST COMPETENT",
+   "THE MOST CONFIDENT?"
+  ],
+  "spoken": "Are the least competent people really the most confident?"
+ },
+ "dunning_kruger": {
+  "lines": [
+   "ARE THE LEAST COMPETENT",
+   "THE MOST CONFIDENT?"
+  ],
+  "spoken": "Are the least competent people really the most confident?"
  }
 }
