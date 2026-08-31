@@ -148,14 +148,30 @@ def say_es(kind, v):
     if kind == "pct":
         return f"{v:g} percent"
     if kind == "percentage_points":
-        sign = "minus " if v < 0 else ""
-        return f"{sign}{abs(v):g} percentage points"
+        # 🔴 正號要唸出來。畫面印 `+4pp` 和 `-8pp`,對比一眼看得到;旁白
+        #    唸「four percentage points」和「minus eight percentage points」,
+        #    第一個聽起來像沒有方向 —— 而這一集整個論證就是那兩個符號。
+        return f"{'minus' if v < 0 else 'plus'} {abs(v):g} percentage points"
     if kind in COUNT_KINDS:
         return say_int(v) if abs(v) >= 1 or v == 0 else say_exact(v)
     if kind == "raw_diff_10pt_likert":
         return f"{say_exact(v)} points on a ten point scale"
     if kind == "raw_diff_7pt_scale":
         return f"{say_exact(v)} points on a seven point scale"
+    # 🔴 **裸數字在旁白裡是有歧義的,而畫面上不是。** 畫面印 `r = 0.57` 和
+    #    `β = 0.08`,單位看得一清二楚;旁白唸「zero point five seven」和
+    #    「zero point zero eight」,聽起來就是同一把尺上的兩個點,而觀眾
+    #    會直接得出「掉了 86%」這個我沒有講、也不成立的結論
+    #    (一個是相關係數、一個是標準化迴歸係數)。
+    #    這正是主頻道「A vs B 兩個數字必須同一組事實」那條的聽覺版本。
+    if kind == "r":
+        return f"a correlation of {say_exact(v)}"
+    if kind == "beta":
+        return f"a standardised coefficient of {say_exact(v)}"
+    if kind == "g":
+        return f"{say_exact(v)}, in Hedges' g"
+    if kind == "d":
+        return f"an effect size of {say_exact(v)}"
     return say_exact(v)
 
 
@@ -286,39 +302,113 @@ def build_script(E):
     segs.append(("spread", spread))
 
     # 重測:誰、多少人、怎麼做的。k 有沒有決定講法。
-    if t.get("k") and t.get("k_word"):
-        test_txt = (f"In {t['year']}, {say_int(t['k'])} {t['k_word']} "
-                    f"went back to it")
+    # 🔴 `k_word` 有兩類,而句型只對其中一類成立:
+    #      · **行為者**(laboratories / teams)→「17 個實驗室回頭做了一次」✔
+    #      · **被數的東西**(comparisons / issues)→「91 個比較回頭做了一次」
+    #        —— 比較不會回頭做任何事。實測產出「52 issues went back to it」
+    #        和「91 comparisons went back to it」,兩句都不是英文。
+    #    這種錯不會有任何守門叫,因為數字全對、版面也沒問題;
+    #    只有**把稿子唸出來**才聽得到。
+    ACTORS = {"laboratories", "labs", "teams", "research groups", "sites"}
+    k, kw = t.get("k"), (t.get("k_word") or "").lower()
+    if k and kw in ACTORS:
+        test_txt = f"In {t['year']}, {say_int(k)} {kw} went back to it"
     else:
+        # k 是「被數的東西」時**不要塞進這一句** —— 它屬於方法那一句
+        # (「52 個議題」是怎麼測的一部分,不是誰去測的)。
         test_txt = f"In {t['year']}, somebody went back to it"
     if t.get("n"):
         floor = "more than " if t.get("n_is_floor") else ""
-        test_txt += f" — {floor}{say_int(t['n'])} people"
+        # 🔴 「people」不是每一集都對。hungry judges 的 227 是**裁決**
+        #    (不是人也不是天數 —— 那三個數字在原文裡是分開的),
+        #    marshmallow 的 918 是**兒童**。單位寫錯就是換掉了樣本的意義,
+        #    而說明欄那邊我已經為了同一件事修過一次(`_people`)——
+        #    第二個表面。
+        # 重分析用的就是原始那批人 —— 講「26 players」聽起來像是**另外**
+        # 26 個人。
+        # 🔴 這裡一度寫 `"reanalysis" in kind`,而 hungry judges 的 kind 是
+        #    「letter — reanalysis **with a different dataset**」—— 於是旁白
+        #    說「the same 227 decisions」,意思正好相反。**我在同一個小時內
+        #    為了同一個字串比對錯了兩次**(前一次是方法那一句)。
+        #    關鍵字比對在「描述裡同時出現兩個方法」時必定挑錯,
+        #    而這件事只有兩種狀態、事實庫寫得出來 → 改成明確欄位。
+        same = bool(t.get("same_sample"))
+        w = t.get("n_word") or (o.get("n_word") if same else None) or "people"
+        test_txt += (f" — {'the same ' if same else floor}{say_int(t['n'])} {w}")
     test_txt += ". "
-    kind = (t.get("kind") or "").lower()
-    if "registered" in kind:
-        test_txt += ("Every prediction was registered before the data came "
-                     "in, so nobody could decide afterwards what counted. ")
-    elif "meta" in kind:
-        test_txt += ("Not a new experiment — everything that had already been "
-                     "run, added up. ")
-    elif "reanalysis" in kind:
-        test_txt += ("Not a new experiment. The same data, run through the "
-                     "arithmetic a second time. ")
-    elif "simulation" in kind:
-        test_txt += ("Not a new experiment, and not new data either. "
-                     "A simulation of what the numbers would look like "
-                     "if nothing were going on. ")
+    # 🔴 **這一段一度是關鍵字比對,而它答錯了。** `kind` 寫的是
+    #    「letter — reanalysis with a different dataset plus interviews」,
+    #    我的 `elif "reanalysis" in kind` 命中,於是旁白說「同一份資料,
+    #    重算了一次」—— 而那篇用的是**完全不同的一批聽證資料**,
+    #    同一支片的 twist 段兩分鐘後自己說「他們拿到了另一批聽證紀錄」。
+    #    片子自己跟自己打架,而每個數字都是對的,所以沒有任何守門會叫。
+    #    → 改成**明列**:對得上就用,對不上就要求事實庫寫清楚。
+    #      關鍵字比對在「描述裡同時出現兩個方法」時一定會挑錯一個。
+    METHOD = {
+        "many-labs replication":
+            "Many labs, one shared protocol, and every prediction registered "
+            "before the data came in. ",
+        "preregistered replication and extension":
+            "Every prediction was registered before the data came in, so "
+            "nobody could decide afterwards what counted. ",
+        "registered replication report":
+            "Every prediction was registered before the data came in, so "
+            "nobody could decide afterwards what counted. ",
+        "large-scale replication and extension":
+            "Not one retest but five, across {k} separate {k_word}, on a "
+            "scale the original could not have afforded. ",
+        "conceptual replication":
+            "Not the same experiment — the same question, asked of a very "
+            "much larger group of children, with far more known about each "
+            "of them. ",
+        "meta-analysis":
+            "Not a new experiment — everything that had already been run, "
+            "added up: {k} {k_word} of it. ",
+        "reanalysis of the original data":
+            "Not a new experiment. The same data, run through the arithmetic "
+            "a second time. ",
+        "letter — reanalysis with a different dataset plus interviews":
+            "Not a retest. A different set of hearings, plus interviews with "
+            "the people who were actually in the room. ",
+        "simulation":
+            "Not a new experiment, and not new data either. A simulation of "
+            "what the numbers would look like if nothing were going on. ",
+    }
+    kind = (t.get("kind") or "").strip().lower()
+    if kind not in METHOD:
+        _need(E, f"test.kind(「{kind}」不在 METHOD 表裡)",
+              "旁白要用一句話講清楚這是哪一種檢驗,而『重測』『重算』"
+              "『模擬』對觀眾是三件完全不同的事。把它加進 METHOD,"
+              "不要讓關鍵字去猜。")
+    test_txt += METHOD[kind].format(k=say_int(k) if k else "",
+                                    k_word=t.get("k_word", ""))
     segs.append(("test", test_txt))
 
-    # 時間軸:每一步的數字,各自帶單位。
+    # 時間軸:每一步的數字。
+    # 🔴 **單位混不混,講法不一樣。** 全部同單位時每一列都重複一次單位名
+    #    很囉唆(「an effect size of…」講五遍);但**單位混著的時候不重複
+    #    就是誤導** —— facial feedback 的時間軸上有十點量表的原始差、
+    #    Cohen's d、七點量表的原始差三種,裸數字唸出來聽起來就是同一把尺
+    #    上的三個點,而觀眾會自己算出一個不存在的降幅。
+    #    → 混就逐列標,不混就開頭講一次。
+    kinds = {r["es_kind"] for r in rows if r["es"] is not None}
+    mixed = len(kinds) > 1
     tl = "Here is what happened to the number. "
+    if not mixed and kinds:
+        only = next(iter(kinds))
+        if only in ("d", "g", "r", "beta"):
+            tl = ("Here is what happened to the number — all of these are "
+                  "effect sizes, measured the same way. ")
     for r in rows:
         if r["es"] is None:
             tl += f"{r['year']}, {r['what']}. "
-        else:
+        elif mixed:
             tl += (f"{r['year']}, {r['what']} — "
                    f"{say_es(r['es_kind'], r['es'])}. ")
+        else:
+            tl += f"{r['year']}, {r['what']} — {say_exact(r['es'])}. " \
+                if r["es_kind"] in ("d", "g", "r", "beta") \
+                else f"{r['year']}, {r['what']} — {say_es(r['es_kind'], r['es'])}. "
     segs.append(("timeline", tl))
 
     # 這一集真正的轉折。**逐集手寫,沒有就不出片。**

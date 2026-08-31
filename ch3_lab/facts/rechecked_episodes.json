@@ -90,7 +90,9 @@
           "bias_pp": -8,
           "corrected_pp": 13,
           "_note_for_humans": "4 與 3 的差別見 internal_inconsistency:摘要用 GVT 自報的 .49/.45 相減,Table II 用逐球員資料重算。"
-        }
+        },
+        "same_sample": true,
+        "n_word": "players"
       },
       "internal_inconsistency": "摘要與 §3.2 講 observed +4 percentage points(GVT 自報的 .49/.45 相減);但 Table II 的 Average 列與 §3.3 講的是 +3(逐球員原始資料重算的精確平均)。兩個都是原句,別混用。安全講法:原始 +3~+4pp、修正後 +13pp。",
       "n_trap": "GVT 說每人投 100 球,但腳註 4 寫 Three of the players were not able to complete all 100 shots. Miller & Sanjurjo Table II 印出:男子第 4、7、8 號分別是 90、75、50 球,其餘 23 人 100 球。",
@@ -162,7 +164,7 @@
       "story_type": "原始分析的識別假設被質疑,但沒有被判定死刑",
       "story_type_note": "🔴 這集**不能照 hot hand 的講法拍**。兩個質疑方都沒有重測、也都沒拿到新的原始資料:WM&S 是另一批 227 筆 + 訪談,Glöckner 是電腦模擬(連 Danziger 的資料都沒碰)。原作者在同期 PNAS 逐條反駁,原文至今未撤回。正確說法是『識別假設被質疑』,不是『被推翻』。",
       "claim": "Israeli parole judges grant parole about 65% of the time right after a meal break and almost never right before one",
-      "hook": "The most repeated finding in behavioural economics may be an artifact of who walks into the room first.",
+      "hook": "A parole board grants about 65% of cases first thing, and almost none of them just before lunch. That is the finding. Whether it is about lunch is another question.",
       "original": {
         "year": 2011,
         "title": "Extraneous factors in judicial decisions",
@@ -231,7 +233,9 @@
           "with_counsel_pct": 35,
           "without_counsel_pct": 15,
           "_note_for_humans": "35/15 是含延期案件的版本;排除延期後是 67/39。兩組數字不能混用,片中講的是含延期那組。"
-        }
+        },
+        "n_word": "decisions",
+        "same_sample": false
       },
       "test2": {
         "year": 2016,
@@ -304,7 +308,7 @@
       "story_type_short": "still an open argument",
       "say_twist": "Now, this is the point where these videos normally tell you the finding fell over. This one has not, and it matters that I say so. Neither challenge ran the study again. The first one is a letter. They got hold of a different set of hearings and talked to the people in the room, and what they came back with is that the order of cases is not random. Prisoners without a lawyer tend to go last, and they tend to lose. In their data, prisoners with a lawyer succeeded 35 percent of the time and prisoners without one, 15. The second is not data at all. It is a simulation of a completely rational judge who simply avoids starting a case he cannot finish before the break. That judge produces the same falling line. And the original authors answered both, in the same journal, and have not withdrawn anything.",
       "say_verdict": "So where does that leave it. The original result rests on an assumption stated in the paper — that the order of cases is set by when each prisoner's lawyer turns up, and that nobody in the room can see the schedule. Everything turns on whether that is true, and the people who queried it did not have the case order in their data, so they could not test it directly. Even the simulation's author says his account covers a drop of 15 to 45 percent only, and that the analyses do not provide conclusive evidence. This one is not settled. That is the honest answer, and it is a less satisfying video than the alternative.",
-      "say_spread": "It became the single most quoted result about how little of a decision is the decision.",
+      "say_spread": "It is the study people reach for whenever they want to say that a decision is not really a decision — quoted in law, in management, in every talk about bias on the bench.",
       "twist_rows": [
         {
           "label": "with a lawyer",
@@ -325,7 +329,31 @@
           "hot": true
         }
       ],
-      "popular_name": "The hungry judge effect"
+      "popular_name": "The hungry judge effect",
+      "timeline": [
+        {
+          "year": 2011,
+          "what": "the original finding",
+          "es": 65,
+          "es_kind": "pct"
+        },
+        {
+          "year": 2011,
+          "what": "a different set of hearings, and interviews",
+          "es": null
+        },
+        {
+          "year": 2011,
+          "what": "the original authors reply, and do not withdraw",
+          "es": null
+        },
+        {
+          "year": 2016,
+          "what": "a simulated judge, doing nothing wrong",
+          "es": 36,
+          "es_kind": "pct"
+        }
+      ]
     },
     {
       "slug": "facial_feedback",
@@ -394,7 +422,8 @@
             "quote": "Furthermore, out of 34 preregistered Bayes factor analyses (i.e., two per laboratory), all but one provided evidence in favor of the null hypothesis."
           }
         ],
-        "verdict_quote": "This RRR did not replicate the SMS result and failed to do so in a statistically compelling fashion. Nevertheless, it should be stressed that the RRR results do not invalidate the more general facial feedback hypothesis."
+        "verdict_quote": "This RRR did not replicate the SMS result and failed to do so in a statistically compelling fashion. Nevertheless, it should be stressed that the RRR results do not invalidate the more general facial feedback hypothesis.",
+        "same_sample": false
       },
       "timeline": [
         {
@@ -593,7 +622,8 @@
           "published_d": 0.43,
           "unpublished_d": 0.11,
           "trimfill_added_studies": 21
-        }
+        },
+        "same_sample": false
       },
       "timeline": [
         {
@@ -817,7 +847,8 @@
           "author_advised_n": 699,
           "in_house_labs": 10,
           "in_house_n": 851
-        }
+        },
+        "same_sample": false
       },
       "internal_inconsistency": "🔴 摘要與 Discussion 都寫 1,550 人,但正文 Research Question 1 那段寫 17 labs with 1,578 participants (after exclusions)。Table 1 的 17 站 N 逐一加總 = 1,550(AA 7 站 = 699、IH 10 站 = 851,兩者也對得起來)。**1,578 是筆誤,用 1,550。**",
       "n_trap": "🔴 『21 labs / 2,281 人』是招募總數不是分析樣本(網路摘要常混用)。原句:Twenty-one labs from 18 universities participated in the project and collected data from a total of 2,281 participants. 扣掉 4 個沒收滿 60 人的站等排除後,才是 17 labs / 1,550 人。",
@@ -855,7 +886,32 @@
         }
       ],
       "popular_name": "Terror management theory",
-      "verdict_gloss": "TMT = terror management theory"
+      "verdict_gloss": "TMT = terror management theory",
+      "timeline": [
+        {
+          "year": 1994,
+          "what": "the original study, 59 students",
+          "es": 1.34,
+          "es_kind": "d"
+        },
+        {
+          "year": 2022,
+          "what": "seventeen labs, written their own way",
+          "es": null
+        },
+        {
+          "year": 2022,
+          "what": "seven labs, advised by the original authors",
+          "es": 0.08,
+          "es_kind": "g"
+        },
+        {
+          "year": 2022,
+          "what": "all of them together",
+          "es": 0.07,
+          "es_kind": "g"
+        }
+      ]
     },
     {
       "slug": "backfire_effect",
@@ -945,7 +1001,8 @@
             "quote": "Far from it: for about nine issues in ten, factual information significantly improves the average respondent's accuracy. At least for a brief moment, their perceptual screens dim, and the facts prevail."
           }
         ],
-        "verdict_quote": "We find that backfire is stubbornly difficult to induce, and is thus unlikely to be a characteristic of the public's relationship to factual information. Overwhelmingly, when presented with factual information that corrects politicians - even when the politician is an ally - the average subject accedes to the correction and distances himself from the inaccurate claim."
+        "verdict_quote": "We find that backfire is stubbornly difficult to induce, and is thus unlikely to be a characteristic of the public's relationship to factual information. Overwhelmingly, when presented with factual information that corrects politicians - even when the politician is an ally - the average subject accedes to the correction and distances himself from the inaccurate claim.",
+        "same_sample": false
       },
       "author_recantation": {
         "who": "Brendan Nyhan(原作者第一作者)",
@@ -995,7 +1052,38 @@
           "es_kind": "count"
         }
       ],
-      "popular_name": "The backfire effect"
+      "popular_name": "The backfire effect",
+      "timeline": [
+        {
+          "year": 2010,
+          "what": "conservatives told the correction, before",
+          "es": 32,
+          "es_kind": "pct"
+        },
+        {
+          "year": 2010,
+          "what": "the same people, after the correction",
+          "es": 64,
+          "es_kind": "pct"
+        },
+        {
+          "year": 2019,
+          "what": "issues retested for backfire",
+          "es": 52,
+          "es_kind": "count"
+        },
+        {
+          "year": 2019,
+          "what": "issues that actually backfired",
+          "es": 0,
+          "es_kind": "count"
+        },
+        {
+          "year": 2021,
+          "what": "the original author writes it up again",
+          "es": null
+        }
+      ]
     },
     {
       "slug": "false_memory",
@@ -1084,7 +1172,8 @@
           "rate_after_second_deduction": 11,
           "rate_after_third_deduction": 4,
           "self_reported_pct": 14
-        }
+        },
+        "same_sample": false
       },
       "closing_quote": {
         "note": "Wade 把四個數字並列,很適合當片尾",
@@ -1128,7 +1217,39 @@
           "hot": true
         }
       ],
-      "popular_name": "The lost in the mall study"
+      "popular_name": "The lost in the mall study",
+      "timeline": [
+        {
+          "year": 1995,
+          "what": "the original study",
+          "es": 25,
+          "es_kind": "pct"
+        },
+        {
+          "year": 2023,
+          "what": "the replication, as its authors coded it",
+          "es": 35,
+          "es_kind": "pct"
+        },
+        {
+          "year": 2024,
+          "what": "minus those whose childhood could fit",
+          "es": 17,
+          "es_kind": "pct"
+        },
+        {
+          "year": 2024,
+          "what": "minus those with no memory of being lost",
+          "es": 11,
+          "es_kind": "pct"
+        },
+        {
+          "year": 2024,
+          "what": "minus those who never said they remembered",
+          "es": 4,
+          "es_kind": "pct"
+        }
+      ]
     },
     {
       "slug": "marshmallow_test",
@@ -1254,7 +1375,9 @@
           "bivariate_beta": 0.24,
           "with_background_controls_beta": 0.08,
           "with_concurrent_controls_beta": 0.05
-        }
+        },
+        "n_word": "children",
+        "same_sample": false
       },
       "traps": [
         "Watts 正文有自己的引用筆誤:寫 (third column of Table 1) 實際應為 Table 4,另一處寫 (second column of Table 3)。不影響數字,但要標『出自表幾』時別照抄。",
@@ -1289,7 +1412,33 @@
           "hot": true
         }
       ],
-      "popular_name": "The marshmallow test"
+      "popular_name": "The marshmallow test",
+      "timeline": [
+        {
+          "year": 1990,
+          "what": "the original study, 185 children",
+          "es": 0.57,
+          "es_kind": "r"
+        },
+        {
+          "year": 2018,
+          "what": "ten times the sample, nothing controlled for",
+          "es": 0.24,
+          "es_kind": "beta"
+        },
+        {
+          "year": 2018,
+          "what": "controlling for the family the child came from",
+          "es": 0.08,
+          "es_kind": "beta"
+        },
+        {
+          "year": 2018,
+          "what": "and for everything measured at the same time",
+          "es": 0.05,
+          "es_kind": "beta"
+        }
+      ]
     }
   ]
 }
