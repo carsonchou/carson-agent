@@ -174,6 +174,17 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 #   不會超產),不夠才補。produce_batch **不吃 YouTube 配額**(只走 LLM/OpenRouter),故可安全加班。
 #   注意:電腦真的睡著時這支也不會跑——根治要禁睡眠,那是 Carson 的機器設定,不擅自改。
 30 12 * * * /root/yt/run.sh scripts/produce_batch.py --manual --format-focus --shorts 0 --long 3 --target 30 --no-render >> /root/yt/logs/cron.log 2>&1
+# 🔴 2026-08-31 產能補差額:上面那支 12:30 保底看的是**庫存**(--target 30),
+#   今天庫存 52 早就超過門檻 → 它幫不上忙,而且上限只有 3 支,補不了 8 支的缺口。
+#   當天實錄:清晨網路層斷線,所有 LLM 供應商連不上(HTTPSConnectionPool),
+#   06:07 那批「long 連續失敗,跳過」一支沒產;09:00 網路早就好了,但**沒有任何重試**,
+#   整天排程只拿到 2 支長片 vs 發布 8 支/天 = 淨流失。
+#   stall_watchdog 補不到:它看「最後一次有動」的時戳,門檻是好幾天,單批掛掉它不會叫。
+#   produce_catchup 看的是**今天實際成稿幾支**(數 ops_log 的「已備妥待渲染」),只補差額;
+#   達標就安靜結束(零成本),偵測到 produce_batch 還在跑就跳過(免得兩個實例互搶題目
+#   —— 每支題抽中當下就標 used)。跑兩次是因為 06:07 那批可能跑好幾小時才收工。
+45 8 * * * /root/yt/run.sh scripts/produce_catchup.py --target 8 >> /root/yt/logs/cron.log 2>&1
+0 11 * * * /root/yt/run.sh scripts/produce_catchup.py --target 8 >> /root/yt/logs/cron.log 2>&1
 # 🔴 2026-08-11 EP0 常態化:EP0/系列說明片是實測訂閱轉換最高格式(3-5%,tw_lab EP0
 #   17.5訂閱/千觀看=均值3倍),但先前**沒有任何排程**——只有 session 想到才手動產,產了又
 #   卡品質門檻(67<75,已豁免)+數字過期(已加汰舊),3 支 stale 疊庫存 11 天、最大系列
