@@ -632,6 +632,7 @@ def build_meta():
                    "author_recantation": "Then the original author",
                    "noise_paper": "The simulation paper",
                    "bias_correction": "Corrected for publication bias",
+                   "recoding_paper": "The re-analysis",
                    "expectancy_study": "The expectancy experiment",
                    "bbc_study": "Run again, independently",
                    "uk_trial": "A trial in England"}

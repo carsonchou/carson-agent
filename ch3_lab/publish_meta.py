@@ -76,6 +76,9 @@ def t_n(T):
 _DOI_ANGLE = re.compile(r"(doi:\S*?)([<>])")
 
 
+_CJK_PUB = re.compile(r"[　-鿿＀-￯]")
+
+
 def api_safe(text, where=""):
     """把文字清成 YouTube metadata 收得下的樣子。**fail-closed。**
 
@@ -105,6 +108,14 @@ def api_safe(text, where=""):
     s = s.replace("> ", "more than ").replace(" >", " more than ")
     s = s.replace("<", "under ").replace(">", "over ")
     # 3) 斷言
+    # 🔴 這是英文頻道,而事實庫裡有大量給我自己看的中文備註。它們已經
+    #    從說明欄漏出去過一次(missing 欄整段中文)。清洗函式會漏掉新的
+    #    來源,斷言不會 —— 跟角括號那條同一個道理,放在同一個出口。
+    if _CJK_PUB.search(s):
+        raise SystemExit(
+            f"⛔ {where} 的 metadata 裡有中文:「{_CJK_PUB.search(s).group()}」"
+            f" —— 這是英文頻道,事實庫的中文備註不該漏到公開欄位。不出片。"
+            f" 片段:{s[max(0, _CJK_PUB.search(s).start() - 40):][:90]}")
     if "<" in s or ">" in s:
         raise SystemExit(
             f"⛔ {where} 的 metadata 清洗後仍有角括號 —— YouTube 會回 400。"
@@ -938,7 +949,11 @@ def main():
             # 🔴 **查不到的東西要寫出來。** 事實庫的 `missing` 是給人看的,
             #    而讓觀眾知道哪一格是空的,比假裝全都查到了更有說服力 ——
             #    也讓任何人可以接手去補。
-            miss = E.get("missing") or []
+            # 🔴 `missing` 是**內部備註**,裡面是中文,而它被逐字倒進公開
+            #    說明欄。commit 9e4afcb8 修的是**旁白**路徑的 CJK,說明欄
+            #    這份沒修 —— 同一句話兩份,只修了會出聲的那份。
+            #    改成只吐 `missing_public`(英文,逐集手寫);沒有就不吐。
+            miss = E.get("missing_public") or []
             mtxt = ("" if not miss else
                     nl + "What we could not verify first-hand:" + nl
                     + nl.join(f"  - {m}" for m in miss) + nl)

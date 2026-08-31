@@ -244,6 +244,12 @@ def render_scene(name, t_now, dur, ctx):
         #    這支自己的註解寫著「旁白與畫面講不同的事,是這條線最貴的那種錯」。
         #    沒有逐列的時間戳可以對齊,但至少可以做一件事:
         #    **把標了 hot 的那一列押到這一段的最後**。
+        # 🔴 只押後時間、沒押後**位置** —— 於是 hot 不在最後一列時,揭露
+        #    順序變成 1 → 3 → 2,中間破一個洞。實測 Dunning-Kruger 有
+        #    3.9 秒畫面是「第 1 列、空白、第 3 列」,而那段時間唯一看得到的
+        #    數字是 0.28 —— **意思跟片子正在講的相反**。
+        #    位置也要跟著移到最後,兩件事一起做才成立。
+        rows = sorted(rows, key=lambda x: bool(x.get("hot")))
         hot_i = next((i for i, x in enumerate(rows) if x.get("hot")), None)
         step = (dur - 1.2) / n
         gap = min(0.125, 0.50 / n)

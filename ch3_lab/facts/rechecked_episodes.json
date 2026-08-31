@@ -361,7 +361,11 @@
         "turn": "Two teams challenged it, and neither ran the study again. One got a different set of hearings and found that case order is not random: prisoners without a lawyer go last, and they win 15 percent of the time against 35. The other simulated a judge doing nothing wrong, and got the same falling line.",
         "verdict": "The original authors answered both and withdrew nothing. This one is still an argument.",
         "ask": "Do you think the judges were hungry, or just running late?"
-      }
+      },
+      "missing_public": [
+        "Neither challenge paper reports a p value or a confidence interval.",
+        "The 2016 paper is a simulation, so it has no test statistic."
+      ]
     },
     {
       "slug": "facial_feedback",
@@ -930,7 +934,7 @@
         },
         {
           "year": 2022,
-          "what": "seventeen labs, written their own way",
+          "what": "ten labs, writing their own protocol",
           "es": null
         },
         {
@@ -953,7 +957,10 @@
         "turn": "The usual defence when a result does not come back is that the replicators did it wrong. So this time 7 of the labs ran a protocol the original authors advised on. Those labs got 0.08. The labs left to themselves differed by 0.01, which is not a difference.",
         "verdict": "They let the original authors help design it, and it still did not come back.",
         "ask": "Does being reminded of death change how you argue?"
-      }
+      },
+      "missing_public": [
+        "The In House labs' pooled effect size: the paper never reports one separately, only per-site values and the moderator coefficient."
+      ]
     },
     {
       "slug": "backfire_effect",
@@ -1098,13 +1105,13 @@
       "timeline": [
         {
           "year": 2010,
-          "what": "conservatives told the correction, before",
+          "what": "conservatives in the control group",
           "es": 32,
           "es_kind": "pct"
         },
         {
           "year": 2010,
-          "what": "the same people, after the correction",
+          "what": "a different group, given the correction",
           "es": 64,
           "es_kind": "pct"
         },
@@ -1132,7 +1139,10 @@
         "turn": "That paper ran 5 experiments. Backfire showed up in 2 of them. In 2019 another team tested 52 issues on more than 10,100 people and could not produce it once. For about nine issues in ten, the correction worked.",
         "verdict": "In 2021 the original author published a paper to say he had been misread.",
         "ask": "Have you ever used this study to give up on an argument?"
-      }
+      },
+      "missing_public": [
+        "Nothing missing for this episode."
+      ]
     },
     {
       "slug": "false_memory",
@@ -1305,7 +1315,18 @@
         "turn": "In 2023 it was run again and the rate came back higher: 35 percent, against 25 in the original. Then another team asked what has to be true to count one. Take out those whose real childhood could fit the story: 17. Those with no memory of being lost: 11. Those who never said they remembered it: 4.",
         "verdict": "35 percent or 4 percent, from the same data. It depends what you think the study is for.",
         "ask": "Which number would you accept in a courtroom?"
-      }
+      },
+      "recoding_paper": {
+        "year": 2024,
+        "title": "Lost in the mall: a re-examination of what the data show",
+        "journal": "Applied Cognitive Psychology 38:e70012",
+        "doi": "10.1002/acp.70012",
+        "note": "35 / 17 / 11 / 4 的逐層扣除全部出自這一篇,不是 Murphy 2023。說明欄沒有它,觀眾拿 4% 去 Murphy 是找不到的。"
+      },
+      "missing_public": [
+        "The published typeset version of the 1995 paper; we worked from the author's manuscript.",
+        "The full text of the 2023 replication; its N and 35% figure come from the publisher's abstract and the 2024 re-analysis."
+      ]
     },
     {
       "slug": "marshmallow_test",
@@ -1591,25 +1612,25 @@
       "timeline": [
         {
           "year": 2007,
-          "what": "grit predicts grades",
+          "what": "grit predicts grades, as observed",
           "es": 0.25,
           "es_kind": "r"
         },
         {
           "year": 2007,
-          "what": "and the original paper's own overlap figure",
+          "what": "the paper's own overlap figure, as observed",
           "es": 0.77,
           "es_kind": "r"
         },
         {
           "year": 2017,
-          "what": "88 samples, 66,807 people",
+          "what": "88 samples, corrected for measurement error",
           "es": 0.18,
           "es_kind": "r"
         },
         {
           "year": 2017,
-          "what": "grit against plain conscientiousness",
+          "what": "grit against conscientiousness, corrected",
           "es": 0.84,
           "es_kind": "r"
         }
@@ -1617,20 +1638,20 @@
       "twist_rows": [
         {
           "label": "grit predicts",
-          "what": "academic performance at",
+          "what": "academic performance, corrected",
           "es": 0.18,
           "es_kind": "r"
         },
         {
           "label": "grit matches",
-          "what": "plain conscientiousness at",
+          "what": "conscientiousness, corrected",
           "es": 0.84,
           "es_kind": "r",
           "hot": true
         },
         {
           "label": "for scale",
-          "what": "two conscientiousness scales match at",
+          "what": "two conscientiousness scales",
           "es": 0.63,
           "es_kind": "r"
         }
@@ -1646,7 +1667,11 @@
         "verdict": "Grit matches conscientiousness more closely than conscientiousness matches itself. It still predicts things.",
         "ask": "Is grit a real thing, or a new name for an old one?"
       },
-      "missing": []
+      "missing": [],
+      "same_scale": false,
+      "missing_public": [
+        "Nothing missing for this episode."
+      ]
     },
     {
       "slug": "dunning_kruger",
@@ -1800,6 +1825,9 @@
       },
       "missing": [
         "Krajč & Ortmann 2008(10.1016/j.joep.2007.12.006)全文在付費牆後,DOI 已驗證但沒有拿到逐字原句,所以片中不引它的任何數字"
+      ],
+      "missing_public": [
+        "One 2008 critique is behind a paywall, so no sentence from it is quoted here."
       ]
     },
     {

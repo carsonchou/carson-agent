@@ -440,7 +440,12 @@ def build_script(E):
     #    上的三個點,而觀眾會自己算出一個不存在的降幅。
     #    → 混就逐列標,不混就開頭講一次。
     kinds = {r["es_kind"] for r in rows if r["es"] is not None}
-    mixed = len(kinds) > 1
+    # 🔴 **同一個 es_kind 不代表同一把尺。** grit 的四列都是 `r`,於是
+    #    旁白自動加上「all of these are effect sizes, measured the same way」
+    #    —— 但 0.25 / 0.77 是單一研究的**觀察**相關,0.18 / 0.84 是後設分析
+    #    **校正測量誤差後**的 true-score 相關。宣稱它們一樣,是一句方法論
+    #    宣稱,而方法論宣稱正是守門結構上看不見的那一類。
+    mixed = len(kinds) > 1 or E.get("same_scale") is False
     tl = "Here is what happened to the number. "
     if not mixed and kinds:
         only = next(iter(kinds))
