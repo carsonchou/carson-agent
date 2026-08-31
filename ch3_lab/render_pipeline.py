@@ -29,6 +29,64 @@ import numpy as np
 from make_episode import SEG_GAP          # noqa: E402
 
 
+def _alive(pid):
+    """那個 PID 現在還在不在。
+
+    🔴 這一段本來沒有,而少了它的後果是**反過來的死亡判準**:
+       原本的規則是「又舊又沒在動才接管」—— 對付「長片天生渲很久被誤判死」
+       是對的,但它從頭到尾沒有問過「那個程序還在嗎」。於是一個剛剛
+       fail-closed 中止掉的渲染,留下一個時間戳很新的鎖,把接下來 90 秒
+       內的每一次重試都擋掉,理由是「56 秒前還有動作」——
+       而那個動作正是它死掉的那一刻。
+
+       **活性證明要兩個方向都做:活著不等於在動,不動也不等於活著。**
+       PID 有可能被別的程序重用,那種情況下我們會多等 90 秒 —— 那是
+       安全的方向,寧可多等也不要兩個實例互刪影格。
+    """
+    import ctypes
+    import os
+    if pid is None or pid <= 0:
+        return False
+    if os.name != "nt":
+        try:
+            os.kill(pid, 0)
+            return True
+        except OSError:
+            return False
+    # Windows:OpenProcess 拿不到 handle 就是不在了。
+    #
+    # 🔴 權限要用 PROCESS_QUERY_LIMITED_INFORMATION(0x1000),**不是**
+    #    SYNCHRONIZE(0x00100000)。SYNCHRONIZE 開得到 handle,但拿它去
+    #    GetExitCodeProcess 會回 0(失敗)—— 於是每個活著的程序都被判成
+    #    死的。這正是我第一版量到「自己的 PID → False」的原因,而
+    #    「開得到 handle」看起來就像成功了。
+    #
+    # 🔴 **restype 一定要設。** ctypes 預設把回傳值當 c_int(32 位元),
+    #    而 HANDLE 在 64 位元行程是 64 位元指標 —— 高位被截掉之後,
+    #    後面拿這個半截 handle 去 GetExitCodeProcess 一定失敗,於是
+    #    `_alive(自己的 PID)` 回 False。那是**危險方向的錯**:
+    #    它會讓第二個實例接管一個還活著的鎖,而那正是影格互刪的成因。
+    #    我是先寫「自己的 PID 必須是 True」這個測試才看到的 ——
+    #    只測「死掉的 PID 回 False」的話,這個 bug 會完全通過。
+    k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    k32.OpenProcess.restype = ctypes.c_void_p
+    k32.OpenProcess.argtypes = [ctypes.c_uint32, ctypes.c_int,
+                                ctypes.c_uint32]
+    k32.GetExitCodeProcess.argtypes = [ctypes.c_void_p,
+                                       ctypes.POINTER(ctypes.c_ulong)]
+    k32.CloseHandle.argtypes = [ctypes.c_void_p]
+    h = k32.OpenProcess(0x1000, 0, pid)
+    if not h:
+        # 拒絕存取(5)代表那個 PID **存在**但不是我的程序 —— 保守當它活著。
+        return ctypes.get_last_error() == 5
+    # 拿得到 handle 也可能是**已結束但還沒被回收**的殭屍,
+    # 所以再問一次 exit code:259 (STILL_ACTIVE) 才算真的活著。
+    code = ctypes.c_ulong()
+    ok = k32.GetExitCodeProcess(h, ctypes.byref(code))
+    k32.CloseHandle(h)
+    return bool(ok) and code.value == 259
+
+
 def _claim(out):
     """同一個輸出目錄只准一個渲染程序。回傳鎖檔路徑,拿不到就中止。"""
     import os
@@ -41,6 +99,14 @@ def _claim(out):
         except Exception:
             pid, ts = -1, 0.0
         if pid == os.getpid():
+            return lk
+        if not _alive(pid):
+            # 持鎖的程序已經不在了 —— 不必等 90 秒。**這裡不刪鎖檔**,
+            # 直接覆寫成我的 PID:刪掉再建之間有一個窗口,而
+            # 「每次重啟都先刪 .render.lock」正是上次兩個實例互刪影格、
+            # 產出 95.6 秒畫面配 121.5 秒音軌的原因。
+            print(f"  接管無主的鎖(PID {pid} 已不存在)")
+            lk.write_text(f"{os.getpid()} {time.time()}", encoding="utf-8")
             return lk
         frames = out / "frames"
         live = 0.0
