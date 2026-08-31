@@ -74,6 +74,8 @@ UNIT_SYM = {
 #:    反過來更危險:切碎之後 `08` 這種碎片很容易「剛好」在白名單裡,
 #:    等於放行一個沒人檢查過的數字。**閘門的解析度必須跟被檢查的東西一致。**
 NUM_RE = re.compile(r"\d(?:[\d,]*\d)?(?:\.\d+)?")
+#: 中日韓字元。旁白與畫面用的欄位一律不准出現(理由見 audit)。
+CJK = re.compile(r"[　-鿿＀-￯]")
 #: 這些單位是「幾個」不是「多大」,寫等號會讓它看起來像效果量。
 COUNT_KINDS = {
     "count_of_labs_out_of_17", "count_of_bayes_factors_out_of_34",
@@ -407,6 +409,25 @@ def audit(E, segs):
             if raise_if.lower().replace("_", " ") in txt.lower():
                 raise SystemExit(f"⛔ {name} 碰到 _do_not_fill 的 {k}:{why}")
     print(f"  數字溯源 ✓（{len(ok)} 個結構化可用值）")
+
+    # 🔴 **這是英文頻道,旁白裡不准有中文。** 聽起來像廢話,但實測發生了:
+    #    事實庫是我跟中文 fact agent 一起建的,`timeline[].what` 那些欄位
+    #    直接抄了 agent 的中文描述,而 build_script 把它們接進旁白 ——
+    #    Kokoro 照著唸,`seg_timeline.wav` 產出 **107.6 秒**的雜音
+    #    (整支片其他七段加起來才 138 秒),而且畫面上那一欄也是中文。
+    #    現有的每一道守門都放行:數字溯源只看數字(數字是對的)、版面守門
+    #    只看有沒有出界跟重疊(中文字排得下)、時長比對只看影音對不對得上
+    #    (對得上,因為兩邊都是同一份爛稿)。
+    #    → 「輸出語言」這件事沒有任何一道既有守門在管,它需要自己一道。
+    bad_lang = [(n, CJK.search(t).group())
+                for n, t in segs if CJK.search(t)]
+    if bad_lang:
+        raise SystemExit(
+            f"⛔ 旁白裡有中文:{bad_lang} —— 這是英文頻道,TTS 會照著唸。\n"
+            f"   事實庫裡給人看的欄位(quote_location / note / trap)可以是"
+            f"中文,但**會進旁白或畫面的欄位**(timeline[].what、"
+            f"twist_rows[].label/what、say_*)必須是英文。")
+    print("  輸出語言 ✓")
 
     # DOI 陷阱:被撤稿/印錯的那些,不准出現在這一集的任何欄位裡。
     blob = json.dumps(E, ensure_ascii=False)

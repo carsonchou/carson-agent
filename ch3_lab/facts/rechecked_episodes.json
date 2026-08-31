@@ -399,41 +399,45 @@
       "timeline": [
         {
           "year": 1988,
-          "what": "原始研究:咬筆組 5.14 vs 含筆組 4.32,差 0.82",
+          "what": "the original study, pen in the teeth",
           "n": 92,
           "es": 0.82,
           "doi": "10.1037/0022-3514.54.5.768",
           "quote": "見 original.quote — t(89) = 1.85, p = .03",
-          "es_kind": "raw_diff_10pt_likert"
+          "es_kind": "raw_diff_10pt_likert",
+          "what_zh": "原始研究:咬筆組 5.14 vs 含筆組 4.32,差 0.82"
         },
         {
           "year": 2016,
-          "what": "17 實驗室 RRR:差只有 0.03,信賴區間跨過零,0/17 個實驗室方向正確",
+          "what": "seventeen labs could not find it",
           "n": 1894,
           "es": 0.03,
           "doi": "10.1177/1745691616674458",
           "quote": "Our meta-analysis revealed a rating difference of 0.03 units with a 95% confidence interval ranging from -0.11 to 0.16.",
-          "es_kind": "raw_diff_10pt_likert"
+          "es_kind": "raw_diff_10pt_likert",
+          "what_zh": "17 實驗室 RRR:差只有 0.03,信賴區間跨過零,0/17 個實驗室方向正確"
         },
         {
           "year": 2019,
-          "what": "統合分析:整個表情回饋文獻(不限咬筆)效果顯著但小,d = 0.20;異質性很大",
+          "what": "the wider literature, pooled",
           "n": null,
           "es": 0.2,
           "doi": "10.1037/bul0000194",
           "quote": "Using meta-regression with RVE, the overall size of the effect of facial feedback on self-reported affective experience was d = 0.20, 95% CI [0.14, 0.26], t(137) = 6.42, p = .000000001.",
-          "es_kind": "d"
+          "es_kind": "d",
+          "what_zh": "統合分析:整個表情回饋文獻(不限咬筆)效果顯著但小,d = 0.20;異質性很大"
         },
         {
           "year": 2022,
-          "what": "Many Smiles 對抗式合作:模仿表情與自主擺表情都有效,但咬筆法仍然是零",
+          "what": "posing a happy expression, not the pen",
           "n": 3878,
           "n_analysed": 1504,
           "es": 0.31,
           "doi": "10.1038/s41562-022-01458-9",
           "quote": "Participants also reported more happiness after posing happy versus neutral expressions (Mdiff = 0.31; 95% CI, (0.21, 0.40); 5.17% scale range; F(1, 24.34) = 39.86; P < 0.001; BF10 = 61.06-102.63.",
           "es_kind": "raw_diff_7pt_scale",
-          "es_note": "2022 的 0.31 是 7 點量表上的平均差(原文並列 5.17% scale range),跟 1988/2016 的 10 點量表原始差**不是同一把尺** —— 畫面上兩者各自帶單位,不共用刻度。"
+          "es_note": "2022 的 0.31 是 7 點量表上的平均差(原文並列 5.17% scale range),跟 1988/2016 的 10 點量表原始差**不是同一把尺** —— 畫面上兩者各自帶單位,不共用刻度。",
+          "what_zh": "Many Smiles 對抗式合作:模仿表情與自主擺表情都有效,但咬筆法仍然是零"
         }
       ],
       "many_smiles_2022": {
@@ -594,50 +598,55 @@
       "timeline": [
         {
           "year": 2001,
-          "what": "原始研究 Study 2:先有機會錄取黑人/女性應徵者的人,之後更敢說白人男性比較適合另一份工作",
+          "what": "the original study",
           "n": 132,
           "es": 0.44,
           "doi": "10.1037/0022-3514.81.1.33",
           "quote": "The only significant effect to emerge was the predicted main effect for credentials, F(l, 124) = 6.3, p < .05, all other Fs ns.",
           "es_kind": "d",
-          "es_note": "0.44 是 Xiao 2024 從原文重算的,Monin & Miller 2001 原文沒報 d。"
+          "es_note": "0.44 是 Xiao 2024 從原文重算的,Monin & Miller 2001 原文沒報 d。",
+          "what_zh": "原始研究 Study 2:先有機會錄取黑人/女性應徵者的人,之後更敢說白人男性比較適合另一份工作"
         },
         {
           "year": 2014,
-          "what": "三次重測 Sachdeva 2009 的許可證效果,全部沒複製出來(第三次 N=940,依統合分析算到 95% 檢定力)",
+          "what": "three replications, none of them worked",
           "n": 1195,
           "es": null,
           "doi": "10.1027/1864-9335/a000189",
           "quote": "The first two replication attempts (student samples, 95% power based on the initial findings, NStudy1 = 105, NStudy2 = 150), did not confirm the original results. The third replication attempt (MTurk sample, 95% power based on a meta-analysis on self-licensing, N = 940) also did not confirm the moral licensing effect.",
-          "es_kind": null
+          "es_kind": null,
+          "what_zh": "三次重測 Sachdeva 2009 的許可證效果,全部沒複製出來(第三次 N=940,依統合分析算到 95% 檢定力)"
         },
         {
           "year": 2016,
-          "what": "Many Labs 3 用 3,134 人重測 Monin & Miller Study 1:主效果還在,但效果量只剩原始的九分之一",
+          "what": "3,134 people, the effect is a ninth of the size",
           "n": 3134,
           "es": null,
           "es_note": "eta-p2 .043 → .005",
           "doi": "10.1016/j.jesp.2015.10.012",
           "quote": "In an aggregate analysis of all replication studies (N = 3134), there was a main effect of moral credentials, F(1, 3130) = 17.01, p<.001, eta-p2 = .005, 95% CI = [.001, .012]) such that participants in the \"most\" condition (M = 4.44, SD = 0.94) favored a man more than participants in the \"some\" condition (M = 4.31, SD = 0.83).",
-          "es_kind": null
+          "es_kind": null,
+          "what_zh": "Many Labs 3 用 3,134 人重測 Monin & Miller Study 1:主效果還在,但效果量只剩原始的九分之一"
         },
         {
           "year": 2019,
-          "what": "把統合分析資料重跑並校正出版偏誤:PET-PEESE 校正後效果變成 0(甚至負的),另一種方法只剩 0.18",
+          "what": "corrected for publication bias",
           "n": null,
           "es": -0.05,
           "doi": "10.15626/MP.2018.878",
           "quote": "Over all 76 effect sizes, PET-PEESE indicated a significant positive slope for the standard error, beta = 1.36, t(74) = 2.73, p = .008. The intercept, representing the corrected effect size, was not different from zero, beta = -.05, 95% CI [-0.26; 0.16], t(74) = -0.46, p = .64. A 3-PSM (using the weightr R package; Coburn & Vevea, 2017) over all studies indicated a significant corrected effect size of d = 0.18, 95% CI [0.06; 0.29], Z = 3.11, p = .002.",
-          "es_kind": "d"
+          "es_kind": "d",
+          "what_zh": "把統合分析資料重跑並校正出版偏誤:PET-PEESE 校正後效果變成 0(甚至負的),另一種方法只剩 0.18"
         },
         {
           "year": 2024,
-          "what": "Registered Report 直接重測 Monin & Miller Study 2:種族情境效果幾乎是零,性別情境是反方向的中等效果",
+          "what": "a registered replication of the original",
           "n": 932,
           "es": -0.38,
           "doi": "10.5334/irsp.945",
           "quote": "We observed an opposite signal for the gender scenario and an inconsistent absence of signal for the ethnicity scenario. As such, we found no support for the original findings.",
-          "es_kind": "d"
+          "es_kind": "d",
+          "what_zh": "Registered Report 直接重測 Monin & Miller Study 2:種族情境效果幾乎是零,性別情境是反方向的中等效果"
         }
       ],
       "xiao_2024_table3": {
