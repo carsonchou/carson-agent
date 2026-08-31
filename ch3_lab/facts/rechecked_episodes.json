@@ -524,25 +524,25 @@
       "twist_rows": [
         {
           "label": "2016",
-          "what": "pen in the teeth, 17 labs",
+          "what": "the pen, 17 labs",
           "es": 0.03,
           "es_kind": "raw_diff_10pt_likert"
         },
         {
           "label": "2022",
-          "what": "copying a smiling face",
+          "what": "copying a smile",
           "es": 0.49,
           "es_kind": "raw_diff_7pt_scale"
         },
         {
           "label": "2022",
-          "what": "making the expression yourself",
+          "what": "posing it yourself",
           "es": 0.4,
           "es_kind": "raw_diff_7pt_scale"
         },
         {
           "label": "2022",
-          "what": "pen in the teeth, again",
+          "what": "the pen, again",
           "es": 0.04,
           "es_kind": "raw_diff_7pt_scale",
           "hot": true
@@ -857,7 +857,7 @@
           {
             "name": "兩組差異(protocol version 作為調節變項)",
             "es": 0.01,
-            "es_kind": "meta-regression b",
+            "es_kind": "meta_regression_b",
             "p": 0.842,
             "stat": "95% CI [-0.09, 0.11], SE = 0.05, Z = 0.20",
             "is_claim": true,
@@ -916,7 +916,7 @@
           "label": "difference",
           "what": "between the two",
           "es": 0.01,
-          "es_kind": "meta-regression b"
+          "es_kind": "meta_regression_b"
         }
       ],
       "popular_name": "Terror management theory",
@@ -1500,7 +1500,7 @@
         "belief": "A four-year-old who waits for the marshmallow does better in life.",
         "weight": "A book, a TED talk, and a great deal of parenting advice are built on it. The 1990 paper is cited more than 1,200 times.",
         "turn": "In 2018 a team ran it on ten times as many children. The effect was there: a standardised coefficient of 0.24. Then they controlled for the family the child came from and what the child could already do. 0.08. Then for everything measured at the same age. 0.05, and no longer distinguishable from nothing.",
-        "verdict": "It is real. Two thirds of it was the child's background and what they could already do.",
+        "verdict": "It is real. Two thirds of it was there before the test.",
         "ask": "Would you still run this test on your own kid?"
       }
     },
@@ -1642,7 +1642,7 @@
       "reel": {
         "belief": "Grit beats talent.",
         "weight": "It became a book, a TED talk and a school curriculum. The 2007 paper is cited more than 6,900 times.",
-        "turn": "In 2017 someone pooled 88 samples - 66,807 people. Grit predicts academic performance at 0.18. Then they checked how much grit overlaps with plain old conscientiousness. Corrected for measurement error: 0.84. For scale, two different questionnaires that both claim to measure conscientiousness agree with each other at 0.63. And the original 2007 paper had already reported the overlap itself, at 0.77.",
+        "turn": "In 2017 someone pooled 88 samples - 66,807 people. Grit predicts academic performance at 0.18. Then they checked its overlap with plain old conscientiousness. Corrected for measurement error: 0.84. Two different conscientiousness questionnaires only agree with each other at 0.63. And the original 2007 paper had already reported that overlap itself, at 0.77.",
         "verdict": "Grit matches conscientiousness more closely than conscientiousness matches itself. It still predicts things.",
         "ask": "Is grit a real thing, or a new name for an old one?"
       },
@@ -2196,7 +2196,7 @@
       "say_verdict": "So the effect is real and it is not Mozart. What it looks like is that music, any music, wakes you up a little before a task. And the original paper already told us how long that lasts. Their own sentence: the enhancing effect of the music condition is temporal, and does not extend beyond the 10 to 15 minute period during which subjects were engaged in each spatial task.",
       "verdict_display": "On the whole, there is little evidence left for a specific, performance-enhancing Mozart effect.",
       "reel": {
-        "belief": "Listening to Mozart makes you smarter.",
+        "belief": "Mozart makes you smarter.",
         "weight": "It became a state programme handing classical CDs to newborns, and a shelf of products aimed at parents.",
         "turn": "Pool everything that has been run since. Mozart against silence: 0.37. Real, and small. Then the comparison the headlines never made. Any other music against silence: 0.38 — the same. Mozart against any other music: 0.15. And the original paper already said the effect does not last beyond the 10 to 15 minutes of the task.",
         "verdict": "The effect is real. It is not Mozart, and it is over in fifteen minutes.",

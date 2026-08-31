@@ -80,6 +80,33 @@ def fit(plt, text, base, max_frac, weight="bold"):
     return out
 
 
+_MW = {}
+
+
+def measure_w(plt, text, fs, weight="bold"):
+    """這段字在這個字級下**實際**佔畫面寬度的幾分之幾。
+
+    🔴 原本我用 `fit(...)/base*max_frac` 去反推寬度 —— 那是錯的:`fit` 回傳
+       的是**字級**,而且當字串本來就塞得下時它原封不動回傳 base,於是反推
+       出來的「寬度」永遠等於 max_frac(上限),不是實際寬度。
+       後果是欄寬算太窄,兩欄擠在一起 —— facial feedback 實測重疊 53x7 畫素。
+       要寬度就去量寬度,不要拿另一個量的回傳值去換算。
+    """
+    ck = (text, fs, weight)
+    if ck in _MW:
+        return _MW[ck]
+    fig = plt.figure(figsize=(W / 100, H / 100), dpi=100)
+    ax = fig.add_axes([0, 0, 1, 1]); ax.axis("off")
+    ax.set_xlim(0, 1); ax.set_ylim(0, 1)
+    t = ax.text(0.5, 0.5, text, ha="center", va="center", fontsize=fs,
+                weight=weight)
+    fig.canvas.draw()
+    w = t.get_window_extent(renderer=fig.canvas.get_renderer()).width / W
+    plt.close(fig)
+    _MW[ck] = w
+    return w
+
+
 def balanced(s, n):
     """平衡斷句 —— 每一行盡量一樣長,不要有孤字行也不要有超長行。
 
@@ -176,8 +203,14 @@ def render_scene(name, t_now, dur, ctx):
         把副標貼在它下面。
         """
         lines = balanced(text, wrap_n)
-        fs = fit(plt, max(lines, key=len), base, SAFE_X - (1 - SAFE_X),
-                 weight)
+        # 🔴 **最長的那一行不一定是最寬的那一行。** 用 `max(lines, key=len)`
+        #    挑一行去量,等於假設字元數就是寬度 —— 而大寫、W/M 這類寬字母、
+        #    數字都會讓一行比更長的另一行還寬。實測:mozart 的開場左緣量到
+        #    0.019(界線 0.02)、marshmallow 的判決卡右緣 0.864(界線 0.86),
+        #    兩支都是被沒被量到的那一行撐出去的。
+        #    **每一行都量,取最小的那個字級。**
+        fs = min(fit(plt, ln, base, SAFE_X - (1 - SAFE_X), weight)
+                 for ln in lines if ln.strip())
         lh = fs * 1.30 / 1382.0          # 點 → 圖形高度比例(dpi 100, 19.2in)
         top = mid + (len(lines) - 1) * lh / 2
         for i, ln in enumerate(lines):
@@ -222,8 +255,8 @@ def render_scene(name, t_now, dur, ctx):
         #    重疊 22×10 畫素 —— 兩欄各自都「差不多塞得下」,合起來就撞。
         vals = [val_str(x["es_kind"], x["es"]) for x in rows
                 if x.get("es") is not None and x.get("es_kind")] or ["x"]
-        vw = max(fit(plt, v, 46, 0.30) for v in vals) / 46 * 0.30
-        left_max = max(0.28, SAFE_X - vw - 0.10)      # 留 0.10 的欄間空白
+        vw = max(measure_w(plt, v, 46) for v in vals)
+        left_max = max(0.24, SAFE_X - vw - 0.04)   # 0.04 是欄間淨空
         lf = min(fit(plt, w, 40, left_max - 0.06, "bold") for w in lefts if w)
         nf = min(fit(plt, w, 34, left_max - 0.06, "normal") for w in whats if w)
         for i, x in enumerate(rows):
