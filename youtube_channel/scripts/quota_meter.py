@@ -386,14 +386,20 @@ def _maybe_warn(total):
     if _warned["sent"] or total < effective_limit() * WARN_AT:
         return
     _warned["sent"] = True
+    # 🔴 2026-09-01 訊息改用 effective_limit() —— 上面的**判斷**本來就用它,
+    # 但**顯示**印的是 DAILY_LIMIT 這個舊預設常數(19,645),
+    # 於是實際 24,579/26,001 = 94% 會被印成「24579/19645 = 125%」。
+    # 一個把 94% 說成 125% 的警報,只會訓練人以後不看它
+    # (同日在 quota_budget 修過同型:永遠在響的警報等於沒有警報)。
+    _lim = effective_limit()
     try:
         from notify import push
         push("YT 配額警戒",
-             f"已用 {total}/{DAILY_LIMIT} units("
-             f"{total * 100 // max(DAILY_LIMIT, 1)}%),配額日 {_pacific_date()}")
+             f"已用 {total}/{_lim} units("
+             f"{total * 100 // max(_lim, 1)}%),配額日 {_pacific_date()}")
     except Exception:  # noqa: BLE001
         pass
-    print(f"[quota] ⚠️ 已用 {total}/{DAILY_LIMIT}", file=sys.stderr)
+    print(f"[quota] ⚠️ 已用 {total}/{_lim}({total * 100 // max(_lim, 1)}%)", file=sys.stderr)
 
 
 
