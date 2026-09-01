@@ -50,6 +50,41 @@ def et_today() -> str:
     return (datetime.now(timezone.utc) - timedelta(hours=4)).strftime("%Y-%m-%d")
 
 
+def _prefilter(s, picks, n_want, drop_at=0.68):
+    """離線 PnL 相關預篩：與**已提交池**明顯撞的先剔掉，別浪費平台 check。
+
+    平台的 /check 是遞減資源（也佔模擬額度），而 self-correlation 的定義就是
+    「對已提交池的最大相關」—— 那個我自己算得出來（誤差 ≤0.01）。
+    只有灰區才需要平台裁決。
+
+    取不到 PnL 的**保留**（讓平台判），不是丟掉：
+    這支的作用是省額度，不是當守門員。守門在後面 `ok` 那一關。
+    """
+    import pick_next as P
+    import runway as R
+    cache = R.load_cache()
+    try:
+        sub = [d for d in (R.fetch_pnl(s, a, cache) for a in P.submitted_ids(s)) if d]
+        kept = []
+        for r in picks:
+            d = R.fetch_pnl(s, r.get("alpha_id"), cache)
+            if d is None:
+                kept.append(r); continue
+            w = max((abs(R.corr(d, e) or 1) for e in sub), default=0.0)
+            if w >= drop_at:
+                print(f"  [預篩] {P.numerator(r['expr'])[:30]:<32} 離線相關 {w:.3f} ≥ {drop_at}，不送 check")
+                continue
+            kept.append(r)
+    finally:
+        try:
+            R.CACHE.write_text(json.dumps(cache), encoding="utf-8")
+        except Exception:  # noqa: BLE001
+            pass
+    # 全被篩掉時退回原本清單：預篩是為了省額度，
+    # 不該讓它變成「今天什麼都不交」的原因（那 2,000 分拿不回來）。
+    return (kept or picks)[:n_want]
+
+
 def _decorrelate(s, ok, n_want):
     """從 ok 依序挑 n_want 條，**彼此之間**也要不相關。
 
@@ -137,8 +172,33 @@ def main() -> int:
             continue
         v.sort(key=lambda r: -(r["result"].get("fitness") or 0))
         picks.append(v[0])
+    # 🔴 2026-09-01：不能單純照 fitness 取前 N。
+    # 實測：1,220 條通過裡 fundamental2 一家佔 **1,154 條**（94.6%），
+    # 高分榜單被同一家的孿生體塞滿 —— 今天照舊排序取前 6 條，
+    # 六條全是 fundamental2、全部 self-corr 0.77~0.90 被平台擋下，
+    # 而同一時間 analyst4 / pv13 / option9 有 4 條互不相關的躺在庫存裡沒被看到。
+    #
+    # 另一個實測（同日）：跨資料集兩兩 PnL 相關 10 組只有 1 組 ≥0.7，
+    # 而同資料集內部幾乎全撞。→ **資料集是相關性的主軸**，排序要先跨家分配。
+    # （我一開始以為是「模板決定相關」，量完被自己推翻：跨資料集 0.0~0.53。）
     picks.sort(key=lambda r: -(r["result"].get("fitness") or 0))
-    picks = picks[:N_CHECK]
+    by_ds = defaultdict(list)
+    for r in picks:
+        by_ds[(r.get("label") or "||").split("|")[1]].append(r)
+    # 各家依「該家最佳 fitness」排序，然後一輪一條輪流拿（round-robin）。
+    order = sorted(by_ds.values(), key=lambda v: -(v[0]["result"].get("fitness") or 0))
+    spread = []
+    for i in range(max(len(v) for v in order)):
+        for v in order:
+            if i < len(v):
+                spread.append(v[i])
+        if len(spread) >= N_CHECK * 3:     # 給預篩留挑的空間（篩掉的多半是同一家）
+            break
+    # ── 先用離線 PnL 相關篩掉「一定會被擋」的，再花平台額度做實測 check ──
+    # 實測對照：離線算的 Pearson 與平台回報的 SELF_CORRELATION 誤差 ≤0.01。
+    # 今天 6 條 check 有 5 條回 FAIL —— 那 5 條離線就算得出來，等於白花 5 次額度。
+    # 灰區（0.68~0.72）留給平台判，那是我的方法測不準的範圍。
+    picks = _prefilter(s, spread, N_CHECK)
 
     if not picks:
         B.notify("⚠️ BRAIN 沒有可交的候選",
@@ -166,12 +226,18 @@ def main() -> int:
               f"{'FAIL:' + ','.join(bad) if bad else 'OK'}")
 
     ok = [x for x in rows if not x["bad"] and x["sc"] < SAFE]
+    # SAFE=0.60 是**離線估計**時代留的緩衝（我的方法誤差 ±0.01，但池子會隨提交變動）。
+    # 走到這裡的 sc 已經是**平台自己量的**，門檻就是 0.7 —— 對這種值再扣 0.1 太保守：
+    # 今天 0.6851 那條就是這樣被丟掉的，而丟掉一個名額 = 1,000 分永遠拿不回來。
+    # 折衷：0.60 以下優先，名額沒填滿才用 0.60~0.69 補。真正的風險（先交的那條
+    # 會把池子墊高、讓後交的超過 0.7）由 _decorrelate 把兩條之間壓在 0.60 以下擋住。
+    near = [x for x in rows if not x["bad"] and SAFE <= x["sc"] < 0.69]
     # self-corr 當篩選、不當排序：實測全在 0.42~0.52，遠低於門檻，
     # 拿 0.06 的差距去換掉 fitness 0.4 的差不划算。排序用官方 Quality Factor
     # 真正在意的：fitness，加上「近年還撐不撐得住」（分數每週依樣本外更新）。
     ok.sort(key=lambda x: -((x["fit"] or 0) + (x["ly"] or 0) * 0.5))
 
-    if not ok:
+    if not ok and not near:
         B.notify("⚠️ BRAIN 今天沒有安全的候選",
                  f"ET {today} 跑了 {len(rows)} 條 check，沒有一條同時通過"
                  f"（無 FAIL + self-corr < {SAFE}）。\n"
@@ -183,8 +249,19 @@ def main() -> int:
     # 而 ok[:-1] 不是空清單、是「除了最後一個以外全部」—— 會安靜地推出一堆
     # 不該交的候選。正式路徑有上面的守門碰不到，但負索引切片是會給錯答案
     # 而不報錯的寫法，不留。
+    # --want N 覆蓋當日要挑幾條。存在的理由是**驗證**：正式路徑下
+    # n_want 由「今天交了幾條」決定，補位那條分支在已交滿的日子測不到
+    # （只驗早退路徑等於沒驗，memory verification-that-cannot-fail）。
     n_want = max(0, N_PICK - done_today) or 1
+    if "--want" in sys.argv:
+        n_want = int(sys.argv[sys.argv.index("--want") + 1])
     take = _decorrelate(s, ok, n_want)
+    if len(take) < n_want and near:
+        near.sort(key=lambda x: x["sc"])
+        extra = _decorrelate(s, take + near, n_want)
+        if len(extra) > len(take):
+            print(f"  名額沒填滿，從 0.60~0.69 補了 {len(extra) - len(take)} 條")
+            take = extra
     lines = [f"ET {today}（台北今天）可以交了。已交 {done_today} 條。", ""]
     for i, x in enumerate(take, 1):
         lines.append(f"{i}. {x['num'][:40]}")
