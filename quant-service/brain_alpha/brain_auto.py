@@ -881,11 +881,20 @@ def cmd_run(n, workers=2):
     winners = []
     lock = threading.Lock()
     idx = {"i": 0}
+    # 🔴 2026-09-01：熔斷 + 告警。平台會整段時間收不下任何模擬
+    #   （實測兩次：ET 08-30 13:00~20:00、ET 08-31 17:08~ 都是 6~7 小時全滅，
+    #    然後自己好起來）。而在此之前這件事**完全沒有訊號**：
+    #    每條各自退避 300 秒然後印一行 ✗，看起來像「這個欄位不行」，
+    #    實際上是整條線停擺 6 小時。同一個病：監控只看已發生的事。
+    #   ALERT_AT 條連續沒送出去 → 推播一次；ABORT_AT 條 → 這批直接收工，
+    #   不要再燒好幾小時的牆鐘（cron 兩小時後會自己再來一次）。
+    ALERT_AT, ABORT_AT = 8, 30
+    infra = {"streak": 0, "alerted": False, "abort": False}
 
     def work():
         while True:
             with lock:
-                if idx["i"] >= len(todo):
+                if idx["i"] >= len(todo) or infra["abort"]:
                     return
                 i = idx["i"]; idx["i"] += 1
             label, expr, settings = todo[i]
@@ -895,7 +904,28 @@ def cmd_run(n, workers=2):
             if err:
                 rec.update(ok=False, error=err)
                 line = f"[{i+1}/{len(todo)}] {label}  ✗ {err[:90]}"
+                if _is_infra(rec):
+                    with lock:
+                        infra["streak"] += 1
+                        if infra["streak"] == ALERT_AT and not infra["alerted"]:
+                            infra["alerted"] = True
+                            notify("🔴 BRAIN 模擬送不出去",
+                                   f"連續 {ALERT_AT} 條模擬**根本沒送出平台**"
+                                   f"（{err[:60]}）。\n\n"
+                                   f"這不是欄位沒訊號，是整條搜尋線停擺。\n"
+                                   f"實測過兩次這種全滅，各持續 6~7 小時後自己好。\n"
+                                   f"再連續 {ABORT_AT} 條就收工，兩小時後 cron 自己重試。")
+                        if infra["streak"] >= ABORT_AT:
+                            infra["abort"] = True
+                            print(f"[熔斷] 連續 {infra['streak']} 條沒送出去，這批收工。",
+                                  flush=True)
             else:
+                with lock:
+                    if infra["alerted"]:
+                        notify("✅ BRAIN 模擬恢復了",
+                               f"連續失敗 {infra['streak']} 條之後又能送出模擬了。")
+                        infra["alerted"] = False
+                    infra["streak"] = 0
                 ev = flatten(res["detail"])
                 rec.update(ok=True, alpha_id=res["id"], result=ev)
                 tag = ("★全過" if ev["all_pass"] else
