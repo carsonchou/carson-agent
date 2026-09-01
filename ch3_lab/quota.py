@@ -35,7 +35,7 @@ list 1、insert 50 / `channels.list` 1。
 import json
 import pathlib
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 ROOT = pathlib.Path(__file__).resolve().parent
 STATE = ROOT / "quota.json"
@@ -75,10 +75,46 @@ TITLE = 50                        # videos.update
 THUMB = 50                        # thumbnails.set
 
 
+def _pacific_date(now_utc=None):
+    """YouTube 的配額日 —— **按太平洋時間換日,不是台北也不是 UTC。**
+
+    🔴 舊版寫 `(台北時間 - 16 小時).date()`,那是**冬令時的規則**。
+       美國夏令時(3 月第二個週日 ~ 11 月第一個週日)太平洋是 UTC-7,
+       換算成台北是 **15:00** 換日;冬令才是 UTC-8 = 台北 16:00。
+       所以 09-01 到 10-31 這兩個月,舊公式整整差一小時。
+
+       這次沒咬到是運氣:那幾天剛好沒有任何一支發在台北 15:00~16:00
+       的窗口裡(它落在 14:25 與 20:25 兩個排程之間的空檔)。
+       **加一個 15:30 的排程就會開始錯**,而錯的方向是把配額記到
+       前一天 —— 帳面看起來還有額度,實際已經超了。
+
+       zoneinfo 在沒裝 tzdata 的 Windows 上會炸,所以自己算 DST:
+       規則是「3 月第二個週日 02:00 起、11 月第一個週日 02:00 止」。
+    """
+    now = now_utc or datetime.now(timezone.utc)
+    try:
+        from zoneinfo import ZoneInfo
+        return now.astimezone(ZoneInfo("America/Los_Angeles")).strftime("%Y-%m-%d")
+    except Exception:                                        # noqa: BLE001
+        pass
+    y = now.year
+
+    def _nth_sunday(month, nth):
+        d = datetime(y, month, 1, tzinfo=timezone.utc)
+        d += timedelta(days=(6 - d.weekday()) % 7)           # 第一個週日
+        return d + timedelta(days=7 * (nth - 1))
+
+    # DST 起訖點本身是以本地時間 02:00 定義的;換算成 UTC 是 10:00(PST)
+    # 與 09:00(PDT)。差一小時的邊界只影響那兩天的凌晨,而配額日的界線
+    # 也在那附近 —— 用保守值(較晚開始、較早結束)不會把額度算多。
+    dst_on = _nth_sunday(3, 2) + timedelta(hours=10)
+    dst_off = _nth_sunday(11, 1) + timedelta(hours=9)
+    off = 7 if dst_on <= now < dst_off else 8
+    return (now - timedelta(hours=off)).strftime("%Y-%m-%d")
+
+
 def _day():
-    """配額日。台北 16:00 換日 —— 見上面的說明。"""
-    now = datetime.now()
-    return (now - timedelta(hours=16)).strftime("%Y-%m-%d")
+    return _pacific_date()
 
 
 def _load():

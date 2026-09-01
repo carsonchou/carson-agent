@@ -360,24 +360,45 @@ def render_scene(name, t_now, dur, ctx):
                 _cur = _tx
                 break
         if _cur:
-            # 放在**最後一列下面**的空白。沒有列顯示時就用整個下半部。
+            # 🔴 上一版是**先放再祈禱**:用一個寫死的 0.16 猜區塊高度去算
+            #    中心點,而區塊高度其實是跟著行數與字級長出來的。
+            #    實測 hot_hand 的字幕上緣算到 0.642,而可用上緣是 0.619 ——
+            #    是同一次加的重疊斷言把它擋下來的(擋的又是我自己的 bug)。
+            #    改成**先量再放**:量出這段字要多高,再把它的上緣貼齊
+            #    可用空間的上緣往下長。放不下就縮字級,縮到地板還放不下
+            #    才中止 —— 不截字。
             _shown = [i for i, a in enumerate(ats) if t_now >= a]
             _low = (top - max(_shown) * gap - gap * 0.85) if _shown \
-                else SAFE_HI - 0.16
-            _mid = (max(SAFE_LO, _low - 0.16) + _low) / 2
-            _top_edge, _bot_edge = block(_cur, _mid, 46, 30, DIM, "normal")[:2]
-            # 🔴 字幕不准壓到表格,也不准掉出安全區 —— 兩個都是斷言,
-            #    不是「應該不會」。版面守門對「每個元素各自合法但合起來
-            #    相撞」是盲的,這條線今天已經證明了三次。
-            if _shown and _top_edge > _low + 0.005:
+                else SAFE_HI - 0.06
+            _room = _low - SAFE_LO
+            _placed = False
+            for _base, _wrap in ((46, 30), (40, 34), (34, 40), (28, 46)):
+                _ln = balanced(_cur, _wrap)
+                _fs = min(fit(plt, x, _base, SAFE_X - (1 - SAFE_X), "normal")
+                          for x in _ln if x.strip())
+                _lh = _fs * 1.30 / 1382.0
+                _h = (len(_ln) - 1) * _lh + _lh      # 含上下半行的視覺高度
+                if _h <= _room:
+                    _mid = _low - _h / 2
+                    _t_edge, _b_edge = block(_cur, _mid, _base, _wrap,
+                                             DIM, "normal")[:2]
+                    if _t_edge > _low + 0.006:
+                        raise SystemExit(
+                            f"⛔ {E['slug']} 字幕上緣 {_t_edge:.3f} 仍高於"
+                            f"可用上緣 {_low:.3f} —— 量高度那段算錯了,"
+                            f"不是文案的問題。句子:{_cur[:46]}")
+                    if _b_edge < SAFE_LO - 0.006:
+                        raise SystemExit(
+                            f"⛔ {E['slug']} 字幕下緣 {_b_edge:.3f} 掉出"
+                            f"安全區({SAFE_LO})。句子:{_cur[:46]}")
+                    _placed = True
+                    break
+            if not _placed:
                 raise SystemExit(
-                    f"⛔ {E['slug']} 的字幕壓到表格"
-                    f"(字幕上緣 {_top_edge:.3f} > 可用上緣 {_low:.3f})。"
-                    f"表格 {len(_shown)} 列,句子:{_cur[:50]}")
-            if _bot_edge < SAFE_LO:
-                raise SystemExit(
-                    f"⛔ {E['slug']} 的字幕掉出安全區下緣"
-                    f"({_bot_edge:.3f} < {SAFE_LO})。句子:{_cur[:50]}")
+                    f"⛔ {E['slug']} 這一句字幕縮到 28pt 還放不進表格下方"
+                    f"({_room:.3f} 的空間)。截字是不准的 —— 要縮的是"
+                    f"事實庫裡的那一句,或讓那一列早一點出現。\n"
+                    f"   句子:{_cur}")
 
         # 🔴 **靜止時間才是那個量。** 我原本的判準是「畫面上有沒有東西」,
         #    而 stanford_prison 通過了那個判準(有一列)卻靜止 17.7 秒。
