@@ -176,9 +176,36 @@ def load_fields(led=None):
                 continue
             out.append((ds, fid, cov or 0, ac if ac is not None else 10 ** 9,
                         types.get(fid, "MATRIX")))
-    # 1) 資料集實測產出率高的先 2) 同資料集內冷門的先 3) 覆蓋率高的先
-    out.sort(key=lambda x: (-yld.get(x[0], PRIOR), x[3], -x[2]))
-    return out
+    # 同資料集內：冷門的先、覆蓋率高的先
+    out.sort(key=lambda x: (x[3], -x[2]))
+
+    # 🔴 2026-09-01：**不要**全域照產出率排序。
+    # 那樣整個隊伍前段會是同一個資料集（實測：前 800 條全是 fundamental2），
+    # 而 fundamental2 已經產出 1,154 條「通過」——**可提交的是 0 條**，全是孿生體。
+    # 產出率量的是「過不過閘門」，我們要的是「交不交得出去」，兩者在飽和的
+    # 資料集上完全脫鉤。今天實測：跨資料集兩兩 PnL 相關 10 組只有 1 組 ≥0.7，
+    # **多樣性才是可提交量的來源**。同一個錯誤在 brain_daily_pick 挑片那邊
+    # 也犯了一次（高分榜被 fundamental2 塞滿），這裡是它的上游。
+    #
+    # 改成資料集之間輪流（round-robin），產出率只決定**輪內順序**，
+    # 不再決定「誰先掃完整個資料集」。已證明沒訊號的（掃過 ≥300 條、
+    # 產出率 <0.02）排到最後，但不排除 —— news12 的教訓是低產出率可能
+    # 量的是我自己的 bug，不是資料集本身（見 dataset_yield 的註解）。
+    groups = defaultdict(list)
+    for x in out:
+        groups[x[0]].append(x)
+    live, dead = [], []
+    for ds in groups:
+        (dead if yld.get(ds, PRIOR) < 0.02 else live).append(ds)
+    live.sort(key=lambda d: -yld.get(d, PRIOR))
+    dead.sort(key=lambda d: -yld.get(d, PRIOR))
+    mixed = []
+    for order in (live, dead):
+        for i in range(max((len(groups[d]) for d in order), default=0)):
+            for d in order:
+                if i < len(groups[d]):
+                    mixed.append(groups[d][i])
+    return mixed
 
 
 def forms_for(ftype: str) -> dict:
