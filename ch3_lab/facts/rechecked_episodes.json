@@ -405,8 +405,10 @@
         "ask": "Do you think the judges were hungry, or just running late?"
       },
       "missing_public": [
-        "Neither challenge paper reports a p value or a confidence interval.",
-        "The 2016 paper is a simulation, so it has no test statistic."
+        "Neither paper challenging the original reports a p value or a confidence interval.",
+        "The 2016 paper is a computer simulation, so it has no test statistic to report.",
+        "The original paper's per-factor figures sit in a table the online version scrambles; we did not read them.",
+        "Later commentary papers on this debate, from 2017 and 2022, were not reviewed for this episode."
       ]
     },
     {
@@ -605,7 +607,11 @@
         "turn": "In 2016, 17 laboratories ran it on 1,894 people. The difference was 0.03 points on a ten point scale, and 0 of the 17 pointed the right way. Six years later a bigger group tried three ways of making people smile. Copying a smiling face worked. Posing it yourself worked. The pen still did nothing.",
         "verdict": "The pen died. The idea did not - and the original author co-signed the paper that showed it.",
         "ask": "The pen, or copying someone's smile - which would you have bet on?"
-      }
+      },
+      "missing_public": [
+        "The total number of people in the 2019 review: it counts articles, studies and effect sizes, never people.",
+        "The 1988 pen study never reported a standardised effect size, only a difference on its own rating scale."
+      ]
     },
     {
       "slug": "moral_licensing",
@@ -832,9 +838,9 @@
       ],
       "popular_name": "Moral licensing",
       "reel": {
-        "belief": "Doing one good thing gives you permission to do a bad one.",
+        "belief": "One good deed buys you permission to do a bad one.",
         "weight": "The standard explanation for why good people do shabby things. Cited more than 1,000 times.",
-        "turn": "Pooled, the effect is 0.31. Published studies 0.43, unpublished 0.11. A 2016 replication on 3,134 people still found it, a ninth of the size. Corrected for that publication bias: minus 0.05. And in 2024 a registered replication came back at minus 0.38 on one scenario, 0.08 on the other.",
+        "turn": "Pooled, the effect is 0.31. Published studies 0.43, unpublished 0.11. A 2016 replication on 3,134 people still found it, a ninth the size. Corrected for that publication bias: minus 0.05. And in 2024 a registered replication came back at minus 0.38 on one scenario, 0.08 on the other.",
         "verdict": "Every retest was bigger, and every retest was smaller. The last changed sign.",
         "ask": "Do you catch yourself doing this?"
       },
@@ -849,7 +855,12 @@
         "k": 76,
         "k_word": "effect sizes",
         "quote": "Over all 76 effect sizes, PET-PEESE indicated a significant positive slope for the standard error, beta = 1.36, t(74) = 2.73, p = .008. The intercept, representing the corrected effect size, was not different from zero, beta = -.05, 95% CI [-0.26; 0.16], t(74) = -0.46, p = .64."
-      }
+      },
+      "missing_public": [
+        "The bias-corrected pooled effect in the 2015 review: the paper shows it only on a chart, never as a number.",
+        "The total number of people in the 2019 review: it reports only how many effects it pooled.",
+        "The 2016 multi-lab replication reports a different statistic; the effect size quoted elsewhere for it is second-hand."
+      ]
     },
     {
       "slug": "terror_management",
@@ -1014,7 +1025,7 @@
         "ask": "Does being reminded of death change how you argue?"
       },
       "missing_public": [
-        "The In House labs' pooled effect size: the paper never reports one separately, only per-site values and the moderator coefficient."
+        "The pooled effect for the labs that ran it without the original authors: the paper never reports one separately."
       ]
     },
     {
@@ -1387,8 +1398,8 @@
         "note": "35 / 17 / 11 / 4 的逐層扣除全部出自這一篇,不是 Murphy 2023。說明欄沒有它,觀眾拿 4% 去 Murphy 是找不到的。"
       },
       "missing_public": [
-        "The published typeset version of the 1995 paper; we worked from the author's manuscript.",
-        "The full text of the 2023 replication; its N and 35% figure come from the publisher's abstract and the 2024 re-analysis."
+        "The published typeset version of the 1995 mall study; we worked from the authors' own manuscript.",
+        "The 2023 replication's full text is paywalled; its figures come from the abstract and a later re-analysis."
       ]
     },
     {
@@ -1589,7 +1600,11 @@
         "turn": "In 2018 a team ran it on ten times as many children. The effect was there: a standardised coefficient of 0.24. Then they controlled for the family the child came from and what the child could already do. 0.08. Then for everything measured at the same age. 0.05, and no longer distinguishable from nothing.",
         "verdict": "It is real. Two thirds of it was there before the test.",
         "ask": "Would you still run this test on your own kid?"
-      }
+      },
+      "missing_public": [
+        "The exact figures for behaviour problems at age 15: they sit in a table we could not read reliably.",
+        "We used a university-repository copy of the 2018 paper, whose page numbers differ from the journal's."
+      ]
     },
     {
       "slug": "grit",
@@ -1899,7 +1914,7 @@
         "Krajč & Ortmann 2008(10.1016/j.joep.2007.12.006)全文在付費牆後,DOI 已驗證但沒有拿到逐字原句,所以片中不引它的任何數字"
       ],
       "missing_public": [
-        "One 2008 critique is behind a paywall, so no sentence from it is quoted here."
+        "A 2008 critique of the original paper is behind a paywall, so nothing from it is quoted here."
       ]
     },
     {
@@ -2050,6 +2065,10 @@
         "原始論文沒有效果量(本來就沒有,不要硬算)",
         "Le Texier 2019 沒有效果量",
         "1973 期刊版與技術報告是否逐字相同未能複驗(期刊版是無文字層掃描)"
+      ],
+      "missing_public": [
+        "Neither the 1972 report nor the 2019 investigation gives an effect size; there is none to give.",
+        "We used the 1972 technical report; the 1973 journal version is an image scan we could not compare."
       ]
     },
     {
@@ -2166,6 +2185,11 @@
         "Prinz 1980 的 n、效果量、引文(付費牆 + PubMed 無摘要,一個字都沒拿到)",
         "Wolraich 1995 的跨研究總人數(摘要沒給)",
         "Hoover & Milich 1994 的 F 值 / p 值 / 效果量(摘要沒給)"
+      ],
+      "missing_public": [
+        "The 1980 diet study is behind a paywall with no abstract online; we could not read a word of it.",
+        "How many children the 1995 meta-analysis covered in total: the abstract does not give a number.",
+        "The test statistics from the 1994 study of mothers' expectations: the abstract does not report them."
       ]
     },
     {
@@ -2318,6 +2342,12 @@
         "各結果的 p 值",
         "出版偏誤用的是哪個檢定與其統計量",
         "1993 那篇沒有報 Cohen's d"
+      ],
+      "missing_public": [
+        "The exact number of people in the 2010 review: it gives only a lower bound.",
+        "The p values for the individual comparisons in that review are not reported.",
+        "Which publication-bias test the review used, and what that test returned.",
+        "The 1993 Mozart study never reported a standardised effect size."
       ]
     },
     {
@@ -2455,6 +2485,11 @@
         "Blackwell 2007 的 Cohen's d(成績那個結果只報 b/t)",
         "Sisk 2018 兩個統合分析的效果量數值(全文付費牆;流傳的 d = 0.08 是二手,且 k 值跨來源會漂 43 vs 38、273 vs 129 —— **不要唸出這個數字**)",
         "英國試驗沒有 DOI"
+      ],
+      "missing_public": [
+        "The 2007 study never reported a standardised effect size for its grades result.",
+        "The two 2018 meta-analyses are paywalled; figures quoted elsewhere for them are second-hand and disagree between sources.",
+        "The UK trial is an evaluation report, not a journal paper, so it has no DOI."
       ]
     }
   ],

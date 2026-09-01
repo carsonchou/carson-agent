@@ -51,6 +51,10 @@ EXPECT_CHANNEL = "UCbo4EytWhZ7zAGSoIPioJ5g"
 #: 做決定的是錯的那個。
 COST = quota.SHORT
 
+#: 只讀模式:跳過 VERIFIED 閘門以便**檢視文案**,永遠不放行上傳。
+PREVIEW = False
+out_preview_note = set()
+
 #: build_meta 查過的長片狀態,供 cta_gate 沿用(不重查、不重印警告)
 _LONGS_ALL, _LONGS_PUB = {}, {}
 
@@ -616,15 +620,20 @@ def build_meta():
             #      當時的成片 mtime:**成片重渲過就自動失效**,不會出現
             #      「驗過舊版、發出新版」或反過來。
             vf = d / "VERIFIED"
-            if not vf.exists():
+            # `--preview` 只給**看文案**用:標記之前我得先讀過說明欄,
+            # 而閘門會把還沒標記的整個濾掉。它絕不放行上傳 —— main() 裡
+            # 有一道對應的斷言,preview 模式下連 dry-run 以外的路都不給走。
+            if not PREVIEW and not vf.exists():
                 print(f"  ⛔ {d.name}:沒有 VERIFIED 標記 —— 沒驗過的不進"
                       f"候選池(`python mark_verified.py {d.name}`)")
                 continue
+            if PREVIEW:
+                out_preview_note.add(d.name)
             try:
                 stamp = float(vf.read_text(encoding="utf-8").split()[0])
             except Exception:                                # noqa: BLE001
                 stamp = -1.0
-            if abs(mp4.stat().st_mtime - stamp) > 2:
+            if not PREVIEW and abs(mp4.stat().st_mtime - stamp) > 2:
                 print(f"  ⛔ {d.name}:VERIFIED 標記對不上現在的成片"
                       f"(驗的是另一個檔)—— 重驗再發")
                 continue
@@ -656,7 +665,15 @@ def build_meta():
                    "recoding_paper": "The re-analysis",
                    "expectancy_study": "The expectancy experiment",
                    "bbc_study": "Run again, independently",
-                   "uk_trial": "A trial in England"}
+                   "uk_trial": "A trial in England",
+                   # 🔴 沒登記的 key 會被拆成「Xiao 2024 table3」這種機器名字
+                   #    印給觀眾看。掃描抓到了區塊,標籤卻還是列舉出來的 ——
+                   #    把這幾個補上,而 _label() 的退路留給下一個新區塊。
+                   "xiao_2024_table3": "The 2024 registered replication",
+                   "many_smiles_2022": "The 2022 multi-lab replication",
+                   "coles_2019_trap": "A 2019 meta-analysis",
+                   "original_authors_reply": "The original authors reply",
+                   "targeting_quote": "Pre-registered analysis"}
             # 🔴 上面那段註解寫著「掃過所有帶 doi 的區塊,一個都不漏」,
             #    **而底下是一個寫死的字典 —— 它列舉,它沒有掃。**
             #    獨立稽核實測:14 集裡 8 集有 DOI 區塊落在名單外。最尖銳的是
@@ -672,8 +689,18 @@ def build_meta():
                 b = E.get(_k) or {}
                 _lab = _label(_k)
                 if isinstance(b, dict) and b.get("doi"):
-                    cites.append(f"{_lab}: {b.get('title', '')} "
-                                 f"({b.get('year', '')}){nl}  doi:{b['doi']}")
+                    _t, _y = b.get("title"), b.get("year")
+                    if _t:
+                        _head = f"{_lab}: {_t}" + (f" ({_y})" if _y else "")
+                    else:
+                        # 🔴 沒有標題就不要印空括號。5 個區塊是這樣
+                        #    (xiao_2024_table3 / many_smiles_2022 /
+                        #     coles_2019_trap / original_authors_reply /
+                        #     bbc_study)—— 印出「Xiao 2024 table3:  ()」
+                        #    看起來像壞掉,而且沒給觀眾任何可讀的名字。
+                        #    DOI 本身就是可查的,印它就夠;不編一個標題。
+                        _head = f"{_lab}" + (f" ({_y})" if _y else "")
+                    cites.append(f"{_head}{nl}  doi:{b['doi']}")
             # 有原文、有年份,但**沒有 DOI** 的來源(例如 EEF 評估報告不是
             # 期刊論文)。片子唸了它就要查得到 —— 不給 DOI 不等於不用給名字。
             for _k in _order:
@@ -684,7 +711,17 @@ def build_meta():
             # 🔴 短片說明欄**根本沒有這個區塊**,而長片有 —— 同一個承諾
             #    兩份表面,只做了一份。已上線的短片裡有三支的 missing_public
             #    非空,觀眾一個字都看不到。
+            # 🔴 這裡讀的是**渲染快照**,而 missing_public 是事實庫後來補的。
+            #    長片那份剛修過同一個坑,這份沒修 —— 又一次「同一件事兩份
+            #    實作,只修走到的那一份」,而且是在我剛修完的十分鐘之內。
             miss = E.get("missing_public") or []
+            if not miss:
+                _s2 = json.loads(
+                    (ROOT / "facts" / "rechecked_episodes.json")
+                    .read_text(encoding="utf-8"))
+                _m2 = next((x for x in _s2["episodes"]
+                            if x["slug"] == d.name), None)
+                miss = (_m2 or {}).get("missing_public") or []
             mtxt = ("" if not miss else
                     nl + "What we could not check first-hand:" + nl
                     + nl.join(f"  - {m}" for m in miss) + nl)
@@ -697,8 +734,11 @@ def build_meta():
                 #    溯源閘門只要求數字出現在結構化欄位裡 —— 沒有 quote 的
                 #    欄位照樣過關(facial_feedback 的 0.49 就是),所以
                 #    「每一個」這個保證撐不住。改成照現況為真的講法。
-                f"Both papers are linked above. The numbers are read from "
-                f"them directly, not from a summary.{nl}#Shorts")
+                # 「Both papers」在有第三、第四篇的集數就是錯的
+                # (moral_licensing 有四篇)。跟著實際篇數走。
+                f"{'Both papers are' if len(cites) == 2 else 'The papers are'} "
+                f"linked above. The numbers are read from them directly, "
+                f"not from a summary.{nl}#Shorts")
             out.append({"key": f"reel_{d.name}",
                         "video": str(mp4.relative_to(ROOT)),
                         "title": title, "description": desc, "tags": TAGS,
@@ -893,10 +933,19 @@ def main():
     #    「驗過的」和「發出去的」必須是同一組,而預設不保證這件事。
     ap.add_argument("--only", default="",
                     help="逗號分隔的 key,只發這幾支(驗過什麼就發什麼)")
+    ap.add_argument("--preview", action="store_true",
+                    help="跳過 VERIFIED 閘門只為了看文案;不能上傳")
     ap.add_argument("--dry-run", action="store_true", dest="dry")
     ap.add_argument("--list", action="store_true", dest="show")
     a = ap.parse_args()
 
+    global PREVIEW
+    if a.preview:
+        PREVIEW = True
+        if not (a.dry or a.show):
+            raise SystemExit(
+                "⛔ --preview 只能配 --dry-run 或 --list。它跳過的是"
+                "「驗過沒有」那道閘門 —— 用它上傳等於把閘門關掉。")
     items = build_meta()
     done = ledger(LEDGER)
     todo = [o for o in items if o["key"] not in done]
