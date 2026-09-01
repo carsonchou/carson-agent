@@ -39,19 +39,47 @@ def _bar(cur: float, top: float, width: int = 28) -> str:
 
 
 def snapshot(B, s) -> dict:
-    out = {"err": []}
-    try:
-        r = s.get(f"{B.API}/users/self/competitions", timeout=30)
-        lb = ((r.json().get("results") or [{}])[0] or {}).get("leaderboard") or {}
+    """🔴 2026-09-01 21:40 修：這支自己就是「監控全綠但東西是壞的」第三例。
+
+    原本寫法是 `r.json().get("results") or [{}]` —— session token 過期後平台回
+    401 `{"detail": ...}`，那個式子**不會拋例外**，只是一路 get 到 None，
+    於是板子印「⚠️ 查不到」、`err` 是空的、而且永遠不會重新認證。
+    18:10 到 21:37 三個半小時都是這樣，看板子的人（包括我）沒有任何線索
+    判斷該不該緊張 —— 分數 endpoint 其實好好的。
+
+    兩個修法：
+      1. **先看 r.ok**，不 ok 就把狀態碼和原文記進 err（原文要印在板子上）。
+      2. 401 回報 `reauth`，讓外層換一張 token 再試 —— 不是等它自己好。
+    """
+    out = {"err": [], "reauth": False}
+
+    def _get(path, tag):
+        try:
+            r = s.get(f"{B.API}{path}", timeout=30)
+        except Exception as e:                    # noqa: BLE001
+            out["err"].append(f"{tag} 連線失敗 {e}")
+            return None
+        if not r.ok:
+            out["err"].append(f"{tag} HTTP {r.status_code}: {r.text[:70]}")
+            if r.status_code in (401, 403):
+                out["reauth"] = True
+            return None
+        try:
+            return r.json()
+        except Exception as e:                    # noqa: BLE001
+            out["err"].append(f"{tag} 回傳不是 JSON: {r.text[:60]} ({e})")
+            return None
+
+    j = _get("/users/self/competitions", "competitions")
+    if j is not None:
+        lb = ((j.get("results") or [{}])[0] or {}).get("leaderboard") or {}
         out["score"] = lb.get("score")
         out["rank"] = lb.get("rank")
-    except Exception as e:                        # noqa: BLE001
-        out["err"].append(f"competitions {e}")
-    try:
-        r = s.get(f"{B.API}/users/self/activities/submissions", timeout=30)
-        out["records"] = (r.json().get("records") or {}).get("records") or []
-    except Exception as e:                        # noqa: BLE001
-        out["err"].append(f"submissions {e}")
+        if lb.get("score") is None:
+            out["err"].append(f"competitions 200 但沒有 score：{str(j)[:70]}")
+    j = _get("/users/self/activities/submissions", "submissions")
+    if j is not None:
+        out["records"] = (j.get("records") or {}).get("records") or []
     return out
 
 
@@ -95,7 +123,7 @@ def render(B, s) -> str:
         pass
     for e in d["err"]:
         L.append(f"  ⚠️ {e}")
-    return "\n".join(L)
+    return "\n".join(L), d.get("reauth", False)
 
 
 def main() -> int:
@@ -111,7 +139,15 @@ def main() -> int:
     s = B.auth()
     while True:
         try:
-            body = render(B, s)
+            body, need_reauth = render(B, s)
+            if need_reauth:
+                # 401/403 → 立刻換一張 token 再畫一次，不要等下一輪。
+                # 原本只有「拋例外」才重認證，而 401 不拋例外（見 snapshot 註解）。
+                try:
+                    s = B.auth()
+                    body, _ = render(B, s)
+                except Exception as e:            # noqa: BLE001
+                    body += f"\n  ⚠️ 重新認證失敗：{e}"
         except Exception as e:                    # noqa: BLE001
             body = f"  ⚠️ 取狀態失敗：{e}"
             try:
