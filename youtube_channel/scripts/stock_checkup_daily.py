@@ -259,6 +259,18 @@ def seed_topics_for_code(code: str, name: str = "", dry_run: bool = False) -> in
         for lead in (name, code):
             if lead and hook.startswith(lead):
                 hook = hook[len(lead):].lstrip("：:，,、 ")
+        # 🔴 2026-09-01 上面那圈只擋「hook **開頭**就是股名/代號」,而實際的重複多半是
+        # 帶括號或落在句中,擋不到。實測 63 支標題把代號印兩次(已發布 39 支):
+        #     個股體檢【上海商銀 5876】**(5876)** 抱12年報酬91.5%?…
+        #     個股體檢【一詮 2486】ALL IN 一詮**(2486)** 十年賺2051%…
+        # 標題是**搜尋的曝光面**(搜尋佔 47.1% 觀看分鐘)而 YouTube 在搜尋結果會截斷,
+        # 重複的代號等於白白吃掉約 7 個字元。
+        # 前綴已經帶了代號,hook 裡再出現一次就是冗餘 —— 整段(含括號與前後空白)刪掉。
+        if code:
+            hook = re.sub(r"\s*[（(]\s*" + re.escape(code) + r"\s*[)）]\s*", "", hook)
+            # 裸代號:前後不是數字才刪(避免咬到「20493」這種更長的數字)
+            hook = re.sub(r"(?<!\d)" + re.escape(code) + r"(?!\d)\s*", "", hook, count=1)
+            hook = re.sub(r"\s{2,}", " ", hook).lstrip("：:，,、 ").strip()
         title = f"個股體檢{name}{code}：{hook}" if name else f"個股體檢{code}：{hook}"
         n = tb._norm(title)  # 前綴改變了標題,去重指紋要跟著重算
         angle = str(c.get("angle") or "").strip()
