@@ -788,3 +788,17 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 #   而它是遞減資源(交越多後面越難不相關),挑錯的成本遠高於多跑幾次 check。
 #   **仍然不自動提交**——那是 CLAUDE.md 對外發布紅線,綁 Carson 真實身分(CT30034)。
 20 12 * * * /root/yt/run.sh scripts/brain_daily_pick.py >> /root/yt/logs/cron.log 2>&1
+# 🔴 2026-09-01 事故：08-31 是拿 Gold 的最後一天，那天**一條都沒交**，而監控全綠。
+#   12:20 挑片有跑、挖礦守門有跑、15:15/16:10/17:10 三班盯哨全部回報「無變動」
+#   —— 因為分數確實沒變動。到台北 21:13 Carson 自己問才發現。
+#   根因：上面每一支都在看**已發生的事**（跑了幾條/程序活著/分數變了），
+#   沒有一支在問「**該發生而沒發生**」。而每日上限 2,000 分是用掉就沒有的，
+#   漏一天不是延後一天，是那 2,000 分永遠拿不回來。
+#   ⏰ ET 計分日 = 台北中午 12:00 → 隔天中午 12:00，所以補交機會橫跨台北兩天：
+#      18:00(ET 06:00,還剩18h,輕聲)　22:00(還剩14h)
+#      09:00(ET 21:00,剩3h,🚨)　　　11:00(ET 23:00,剩1h,最後一次)
+#   達標就靜默；API 掛掉會推「無法確認」而不是安靜略過（fail-closed）。
+0 18 * * * /root/yt/run.sh scripts/brain_submit_watch.py >> /root/yt/logs/cron.log 2>&1
+0 22 * * * /root/yt/run.sh scripts/brain_submit_watch.py >> /root/yt/logs/cron.log 2>&1
+0 9 * * * /root/yt/run.sh scripts/brain_submit_watch.py >> /root/yt/logs/cron.log 2>&1
+0 11 * * * /root/yt/run.sh scripts/brain_submit_watch.py >> /root/yt/logs/cron.log 2>&1
