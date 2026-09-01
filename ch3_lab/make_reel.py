@@ -244,14 +244,50 @@ def render_scene(name, t_now, dur, ctx):
         #    這支自己的註解寫著「旁白與畫面講不同的事,是這條線最貴的那種錯」。
         #    沒有逐列的時間戳可以對齊,但至少可以做一件事:
         #    **把標了 hot 的那一列押到這一段的最後**。
-        # 🔴 只押後時間、沒押後**位置** —— 於是 hot 不在最後一列時,揭露
-        #    順序變成 1 → 3 → 2,中間破一個洞。實測 Dunning-Kruger 有
-        #    3.9 秒畫面是「第 1 列、空白、第 3 列」,而那段時間唯一看得到的
-        #    數字是 0.28 —— **意思跟片子正在講的相反**。
-        #    位置也要跟著移到最後,兩件事一起做才成立。
-        rows = sorted(rows, key=lambda x: bool(x.get("hot")))
-        hot_i = next((i for i, x in enumerate(rows) if x.get("hot")), None)
-        step = (dur - 1.2) / n
+        # 🔴 上面那個修法**錯了,而且比原本更糟**。把 hot 排到最後,等於
+        #    讓它後面那一列往前遞補 —— 於是兩列各自出現在對方的旁白時段上。
+        #    獨立驗證逐格量到:已上線的 Dunning-Kruger 在 t≈26~35 秒畫面上
+        #    只有 `r = 0.28`,而旁白正在唸「minus 0.05」 ——
+        #    **我宣稱修好的那個洞原封不動,我只是換了一列掉進去。**
+        #    stanford_prison 的爆點(獄卒被指示扮兇)從頭到尾沒和它的旁白
+        #    同框過;sugar_hyperactivity 同形狀。六支中招。
+        #
+        #    根因不是排序,是**揭露時間從頭到尾都是猜的**:列照時間均分,
+        #    跟旁白唸到哪裡無關。三次修法(押後 hot、押後位置、再排序)
+        #    都在猜,而猜的方向每次都不一樣。
+        #
+        #    改成從旁白文字本身對出來:每一列帶一個 `cue`,是 turn 旁白裡的
+        #    **逐字子字串**;揭露時間 = 該 cue 的字元位置比例 × 這一段長度。
+        #    對不到就中止 —— 不猜、不退回均分。
+        turn_txt = (r.get("turn") or "").strip()
+        cues, pos = [], []
+        for i, x in enumerate(rows):
+            c = (x.get("cue") or "").strip()
+            if not c:
+                raise SystemExit(
+                    f"⛔ {E['slug']} twist_rows[{i}] 沒有 cue —— "
+                    f"揭露時間就只能用猜的,而猜過三次錯三次。\n"
+                    f"   cue 要是 turn 旁白裡逐字抄出來的一小段,"
+                    f"標出「這一列是唸到這裡的時候出現的」。\n"
+                    f"   旁白:{turn_txt[:120]}")
+            if c == "@start":
+                # 背景列:整段從頭就在(它是別的列拿來比的基準),
+                # 不宣稱跟旁白同步 —— 明講「從頭就在」比假裝對得上誠實。
+                cues.append(c); pos.append(-1); continue
+            k = turn_txt.find(c)
+            if k < 0:
+                raise SystemExit(
+                    f"⛔ {E['slug']} twist_rows[{i}] 的 cue 在 turn 旁白裡"
+                    f"逐字找不到:「{c}」\n   旁白:{turn_txt[:160]}")
+            cues.append(c); pos.append(k)
+        bad = [i for i in range(len(pos) - 1) if pos[i] >= pos[i + 1] >= 0]
+        if bad:
+            raise SystemExit(
+                f"⛔ {E['slug']} 表格的列順序跟旁白唸到的順序對不上"
+                f"(第 {bad} 列之後就反了)。\n"
+                f"   位置:{pos}  cues:{cues}\n"
+                f"   正解是把事實庫裡的列**照旁白的順序重排**,"
+                f"不是在畫面上偷偷換位置。")
         gap = min(0.125, 0.50 / n)
         top = 0.60 + (n - 1) * gap / 2
         lefts = [str(x.get("label") or x.get("year") or "") for x in rows]
@@ -265,10 +301,15 @@ def render_scene(name, t_now, dur, ctx):
         left_max = max(0.24, SAFE_X - vw - 0.04)   # 0.04 是欄間淨空
         lf = min(fit(plt, w, 40, left_max - 0.06, "bold") for w in lefts if w)
         nf = min(fit(plt, w, 34, left_max - 0.06, "normal") for w in whats if w)
+        # 早 0.35 秒讓字先站定,再被唸到 —— 晚到會看起來像沒跟上。
+        ats, prev = [], 0.0
+        for k in pos:
+            a = (0.3 if k < 0 else
+                 max(0.3, k / max(1, len(turn_txt)) * dur - 0.35))
+            a = max(a, prev)          # 單調:列不會倒著出現
+            ats.append(a); prev = a
         for i, x in enumerate(rows):
-            at = 0.3 + i * step
-            if hot_i is not None and i == hot_i:
-                at = max(at, dur * 0.80)
+            at = ats[i]
             if t_now < at:
                 continue
             b = ease((t_now - at) / 0.5)

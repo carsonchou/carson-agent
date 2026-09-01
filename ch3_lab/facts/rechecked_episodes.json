@@ -134,20 +134,23 @@
           "label": "a random shooter",
           "what": "scores on this measure",
           "es": -8,
-          "es_kind": "percentage_points"
+          "es_kind": "percentage_points",
+          "cue": "He scores minus 8"
         },
         {
           "label": "the players",
           "what": "scored",
           "es": 4,
-          "es_kind": "percentage_points"
+          "es_kind": "percentage_points",
+          "cue": "The players scored plus 4"
         },
         {
           "label": "corrected",
           "what": "average difference",
           "es": 13,
           "es_kind": "percentage_points",
-          "hot": true
+          "hot": true,
+          "cue": "the average difference comes out at plus 13"
         }
       ],
       "popular_name": "The hot hand fallacy",
@@ -312,22 +315,25 @@
       "say_spread": "It is the study people reach for whenever they want to say that a decision is not really a decision — quoted in law, in management, in every talk about bias on the bench.",
       "twist_rows": [
         {
-          "label": "with a lawyer",
-          "what": "prisoners succeeded",
-          "es": 35,
-          "es_kind": "pct"
+          "label": "and they go",
+          "what": "last in the session",
+          "es": null,
+          "hot": true,
+          "cue": "prisoners without a lawyer go last"
         },
         {
           "label": "without one",
           "what": "prisoners succeeded",
           "es": 15,
-          "es_kind": "pct"
+          "es_kind": "pct",
+          "cue": "they win 15 percent of the time"
         },
         {
-          "label": "and they go",
-          "what": "last in the session",
-          "es": null,
-          "hot": true
+          "label": "with a lawyer",
+          "what": "prisoners succeeded",
+          "es": 35,
+          "es_kind": "pct",
+          "cue": "against 35"
         }
       ],
       "popular_name": "The hungry judge effect",
@@ -530,26 +536,30 @@
           "label": "2016",
           "what": "the pen, 17 labs",
           "es": 0.03,
-          "es_kind": "raw_diff_10pt_likert"
+          "es_kind": "raw_diff_10pt_likert",
+          "cue": "The difference was 0.03"
         },
         {
           "label": "2022",
           "what": "copying a smile",
           "es": 0.49,
-          "es_kind": "raw_diff_7pt_scale"
+          "es_kind": "raw_diff_7pt_scale",
+          "cue": "Copying a smiling face worked"
         },
         {
           "label": "2022",
           "what": "posing it yourself",
           "es": 0.4,
-          "es_kind": "raw_diff_7pt_scale"
+          "es_kind": "raw_diff_7pt_scale",
+          "cue": "Posing it yourself worked"
         },
         {
           "label": "2022",
           "what": "the pen, again",
           "es": 0.04,
           "es_kind": "raw_diff_7pt_scale",
-          "hot": true
+          "hot": true,
+          "cue": "The pen still did nothing"
         }
       ],
       "popular_name": "The facial feedback hypothesis",
@@ -752,31 +762,36 @@
           "label": "published",
           "what": "studies",
           "es": 0.43,
-          "es_kind": "d"
+          "es_kind": "d",
+          "cue": "Published studies 0.43"
         },
         {
           "label": "unpublished",
           "what": "studies, same effect",
           "es": 0.11,
-          "es_kind": "d"
+          "es_kind": "d",
+          "cue": "unpublished 0.11"
         },
         {
           "label": "2016",
           "what": "3,134 people",
-          "es": null
+          "es": null,
+          "cue": "A 2016 replication on 3,134 people"
         },
         {
           "label": "2019",
           "what": "corrected for that bias",
           "es": -0.05,
-          "es_kind": "d"
+          "es_kind": "d",
+          "cue": "Corrected for that publication bias"
         },
         {
           "label": "2024",
           "what": "registered replication, 932 people",
           "es": -0.38,
           "es_kind": "d",
-          "hot": true
+          "hot": true,
+          "cue": "And in 2024 a registered replication"
         }
       ],
       "popular_name": "Moral licensing",
@@ -902,25 +917,29 @@
           "label": "1994",
           "what": "the original effect",
           "es": 1.34,
-          "es_kind": "d"
-        },
-        {
-          "label": "in house",
-          "what": "10 labs, 851 people",
-          "es": null
+          "es_kind": "d",
+          "cue": "@start"
         },
         {
           "label": "author advised",
           "what": "7 labs, 699 people",
           "es": 0.08,
           "es_kind": "g",
-          "hot": true
+          "hot": true,
+          "cue": "So this time 7 of the labs"
+        },
+        {
+          "label": "in house",
+          "what": "10 labs, 851 people",
+          "es": null,
+          "cue": "The labs left to themselves"
         },
         {
           "label": "difference",
           "what": "between the two",
           "es": 0.01,
-          "es_kind": "meta_regression_b"
+          "es_kind": "meta_regression_b",
+          "cue": "differed by 0.01"
         }
       ],
       "popular_name": "Terror management theory",
@@ -1079,26 +1098,30 @@
           "label": "in the paper",
           "what": "experiments",
           "es": 5,
-          "es_kind": "count"
+          "es_kind": "count",
+          "cue": "That paper ran 5 experiments"
         },
         {
           "label": "showing",
           "what": "backfire",
           "es": 2,
-          "es_kind": "count"
+          "es_kind": "count",
+          "cue": "Backfire showed up in 2 of them"
         },
         {
           "label": "2019",
           "what": "issues retested on more than 10,100 people",
           "es": 52,
-          "es_kind": "count"
+          "es_kind": "count",
+          "cue": "In 2019 another team tested 52 issues"
         },
         {
           "label": "showing",
           "what": "backfire",
           "es": 0,
           "es_kind": "count",
-          "hot": true
+          "hot": true,
+          "cue": "could not produce it once"
         }
       ],
       "popular_name": "The backfire effect",
@@ -1254,26 +1277,30 @@
           "label": "as coded",
           "what": "43 of 123 participants",
           "es": 35,
-          "es_kind": "pct"
+          "es_kind": "pct",
+          "cue": "the rate came back higher: 35 percent"
         },
         {
           "label": "minus 22",
           "what": "whose childhood could fit the story",
           "es": 17,
-          "es_kind": "pct"
+          "es_kind": "pct",
+          "cue": "whose real childhood could fit the story: 17"
         },
         {
           "label": "minus 7",
           "what": "with no recall of being lost",
           "es": 11,
-          "es_kind": "pct"
+          "es_kind": "pct",
+          "cue": "Those with no memory of being lost: 11"
         },
         {
           "label": "minus 9",
           "what": "who did not say they remembered it",
           "es": 4,
           "es_kind": "pct",
-          "hot": true
+          "hot": true,
+          "cue": "Those who never said they remembered it: 4"
         }
       ],
       "popular_name": "The lost in the mall study",
@@ -1473,20 +1500,23 @@
           "label": "on its own",
           "what": "waiting predicts achievement at 15",
           "es": 0.24,
-          "es_kind": "beta"
+          "es_kind": "beta",
+          "cue": "a standardised coefficient of 0.24"
         },
         {
           "label": "minus",
           "what": "family background and early ability",
           "es": 0.08,
-          "es_kind": "beta"
+          "es_kind": "beta",
+          "cue": "Then they controlled for the family"
         },
         {
           "label": "minus",
           "what": "everything measured at the same time",
           "es": 0.05,
           "es_kind": "beta",
-          "hot": true
+          "hot": true,
+          "cue": "Then for everything measured at the same age"
         }
       ],
       "popular_name": "The marshmallow test",
@@ -1640,20 +1670,23 @@
           "label": "grit predicts",
           "what": "academic performance, corrected",
           "es": 0.18,
-          "es_kind": "r"
+          "es_kind": "r",
+          "cue": "Grit predicts academic performance at 0.18"
         },
         {
           "label": "grit matches",
           "what": "conscientiousness, corrected",
           "es": 0.84,
           "es_kind": "r",
-          "hot": true
+          "hot": true,
+          "cue": "Its overlap with plain conscientiousness"
         },
         {
           "label": "for scale",
           "what": "two conscientiousness scales",
           "es": 0.63,
-          "es_kind": "r"
+          "es_kind": "r",
+          "cue": "Two conscientiousness questionnaires"
         }
       ],
       "say_spread": "It became a book, a TED talk, and a school curriculum — the answer to why some children get there and others do not.",
@@ -1796,20 +1829,23 @@
         {
           "label": "same 929 people",
           "what": "the original quartile method, effect clearly there",
-          "es": null
+          "es": null,
+          "cue": "Sorted into quartiles"
         },
         {
           "label": "same 929 people",
           "what": "a test built for this data",
           "es": -0.05,
           "es_kind": "r",
-          "hot": true
+          "hot": true,
+          "cue": "Using a test built for this kind of data"
         },
         {
           "label": "and",
           "what": "people do rate themselves about right",
           "es": 0.28,
-          "es_kind": "r"
+          "es_kind": "r",
+          "cue": "ranked against how they actually did"
         }
       ],
       "say_spread": "It became the thing everyone reaches for to explain somebody they disagree with — a name, a graph, and a shortcut.",
@@ -1819,7 +1855,7 @@
       "reel": {
         "belief": "The least competent people are the most confident.",
         "weight": "It has a name, a graph everyone has seen, and the 1999 paper is cited more than 7,000 times.",
-        "turn": "In 2020 a team took 929 people and analysed them twice. Sorted into quartiles the way the original did it, the effect was right there. Using a test built for this kind of data instead, the correlation was minus 0.05, and there was no curve. Same people, same answers, opposite conclusion. And you can draw that famous graph out of random numbers.",
+        "turn": "In 2020 a team took 929 people and analysed them twice. Sorted into quartiles the way the original did it, the effect was right there. Using a test built for this kind of data, the correlation was minus 0.05. Same people, same answers, opposite conclusion. And ranked against how they actually did, self-ratings still track performance, at 0.28.",
         "verdict": "Mostly a statistical artefact. Mostly is the authors' own word, not entirely.",
         "ask": "Have you ever used this one to explain somebody you disagree with?"
       },
@@ -1943,19 +1979,22 @@
         {
           "label": "the paper says",
           "what": "no specific training",
-          "es": null
+          "es": null,
+          "cue": "@start"
         },
         {
           "label": "the tapes say",
           "what": "we need you to play tough guard",
           "es": null,
-          "hot": true
+          "hot": true,
+          "cue": "tells him to play the part of the tough guard"
         },
         {
           "label": "on record",
           "what": "of the 150 hours",
           "es": 15,
-          "es_kind": "pct"
+          "es_kind": "pct",
+          "cue": "less than 15 percent of the 150 hours"
         }
       ],
       "say_spread": "It became the standard proof that ordinary people turn cruel when you give them a uniform — in textbooks, in films, and in arguments about every atrocity since.",
@@ -1966,7 +2005,7 @@
         "belief": "Give ordinary people a uniform and power, and they turn cruel.",
         "weight": "It is in every textbook, and in every argument about how atrocities happen.",
         "turn": "In 2019 somebody went into the Stanford archive and listened to the tapes. At the guard briefing the experimenters say what they want produced: boredom, frustration, fear, a sense of powerlessness. On day three the warden takes a guard aside for being too soft and tells him to play the part of the tough guard. And less than 15 percent of the 150 hours was ever recorded.",
-        "verdict": "The paper says the guards got no training. Zimbardo's own reply says: central in the training of guards.",
+        "verdict": "The paper says the guards got no specific training. Zimbardo's own reply says: central in the training of guards.",
         "ask": "Does it still count if they were told to do it?"
       },
       "missing": [
@@ -2056,19 +2095,22 @@
           "label": "1994",
           "what": "mother and son pairs, all given placebo",
           "es": 35,
-          "es_kind": "count"
+          "es_kind": "count",
+          "cue": "In 1994 a team took 35 boys"
         },
         {
           "label": "told it was sugar",
           "what": "mothers rated them more hyperactive",
           "es": null,
-          "hot": true
+          "hot": true,
+          "cue": "rated him as significantly more hyperactive"
         },
         {
           "label": "1995",
           "what": "of 14 measures cleared zero",
           "es": 0,
-          "es_kind": "count"
+          "es_kind": "count",
+          "cue": "none of the 14 measures cleared zero"
         }
       ],
       "say_spread": "It is one of the most widely held beliefs about children anywhere — birthday parties, bedtimes, and a generation of food rules are built on it.",
@@ -2078,7 +2120,7 @@
       "reel": {
         "belief": "Sugar makes children hyperactive.",
         "weight": "It is one of the most widely held beliefs about children anywhere. Birthday parties are organised around it.",
-        "turn": "In 1994 a team took 35 boys whose mothers said they were sugar sensitive. Every child was given a placebo. The only thing randomised was what the mother was told. The mothers told their son had just had a large dose of sugar rated him as significantly more hyperactive — and observers saw those mothers stay closer to him, criticise him more, and watch him more.",
+        "turn": "In 1994 a team took 35 boys whose mothers said they were sugar sensitive. Every child was given a placebo. The only thing randomised was what the mother was told. The mothers told their son had just had a large dose of sugar rated him as significantly more hyperactive. The year after, 23 studies were pooled: none of the 14 measures cleared zero.",
         "verdict": "What changed was the parent.",
         "ask": "Did you grow up being kept off sugar?"
       },
@@ -2203,20 +2245,23 @@
           "label": "Mozart",
           "what": "against silence",
           "es": 0.37,
-          "es_kind": "d"
+          "es_kind": "d",
+          "cue": "Mozart against silence: 0.37"
         },
         {
           "label": "any other music",
           "what": "against silence",
           "es": 0.38,
-          "es_kind": "d"
+          "es_kind": "d",
+          "cue": "Any other music against silence: 0.38"
         },
         {
           "label": "Mozart",
           "what": "against any other music",
           "es": 0.15,
           "es_kind": "d",
-          "hot": true
+          "hot": true,
+          "cue": "Mozart against any other music: 0.15"
         }
       ],
       "say_spread": "It became a state programme handing out classical CDs to newborns, and a shelf of products aimed at parents.",
@@ -2339,25 +2384,28 @@
           "label": "6,320 students",
           "what": "lower-achieving",
           "es": 0.11,
-          "es_kind": "d"
+          "es_kind": "d",
+          "cue": "Lower-achieving students gained a tenth of a grade point"
         },
         {
           "label": "6,170 students",
           "what": "higher-achieving",
           "es": 0.01,
           "es_kind": "d",
-          "hot": true
+          "hot": true,
+          "cue": "Higher-achieving students: 0.01"
         },
         {
           "label": "in England",
           "what": "5,018 pupils, no effect",
-          "es": null
+          "es": null,
+          "cue": "And a trial in England with 5,018 pupils"
         }
       ],
       "say_spread": "It became a school programme, a bestseller, and a poster in a great many classrooms.",
       "say_twist": "So they ran it properly. 65 schools, 12,490 students, randomised individually, with the analysis plan registered before the data came in. And they found it. Lower-achieving students earned 0.10 of a grade point more — an effect size of 0.11. Then look at the other half of the sample. Higher-achieving students: 0.01, p equals 0.634. And in England, a trial with 5,018 pupils found no additional progress in reading, in grammar, or in maths.",
       "say_verdict": "So this is not a debunking, and the people who say growth mindset is dead have not read the biggest test of it. What the evidence supports is much narrower than the poster: a tenth of a grade point, for the students who were already behind, in schools where their classmates made it safe to try something hard.",
-          "reel": {
+      "reel": {
         "belief": "Teach a child that intelligence can grow, and their grades go up.",
         "weight": "It became a school programme, a bestseller, and a poster in a great many classrooms.",
         "turn": "So they ran it properly: 65 schools, 12,490 students, randomised individually, analysis plan registered in advance. And they found it. Lower-achieving students gained a tenth of a grade point — an effect size of 0.11. Now the other half of the sample. Higher-achieving students: 0.01, p equals 0.634. And a trial in England with 5,018 pupils found nothing at all.",
