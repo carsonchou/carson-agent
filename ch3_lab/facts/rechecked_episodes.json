@@ -795,7 +795,7 @@
         "Kuper & Bott 2019 總受試人數",
         "Many Labs 3 的 d(只報 partial eta squared;流傳的 d = 0.15 是二手轉述,未從 Ebersole 原文驗到)"
       ],
-      "story_type_short": "every retest was bigger, and smaller",
+      "story_type_short": "the effect shrank every time the sample grew",
       "say_twist": "The meta-analysis is where it gets uncomfortable, because it answers a question nobody asked it. Split the studies by whether they got published. Published: 0.43. Sitting in a drawer, unpublished: 0.11. The funnel plot test for that asymmetry came back significant, and the correction for it wanted to add 21 studies that do not exist. Then follow the number forward. In 2016, 3,134 people — the effect is still there, and it is a ninth of the size. In 2019 somebody re-ran the whole pile correcting for that publication bias, and the corrected estimate was minus 0.05, which is another way of writing zero. In 2024, a registered replication of the original study, 932 people. Minus 0.38. Not smaller. The other way round.",
       "say_verdict": "So the shape here is not one study falling over. It is a number that got smaller every single time somebody looked at it with more people, and then changed sign. And the person who ran the first failed replication is one of the authors of the meta-analysis that found the bias. That is what it looks like when a field checks itself. The 2024 team's own sentence: we could not replicate the original findings.",
       "say_spread": "It became the standard explanation for why people who have just done something good then do something bad.",
@@ -841,7 +841,7 @@
         "belief": "One good deed buys permission to do a bad one.",
         "weight": "The standard explanation for why good people do shabby things. Cited over 1,000 times.",
         "turn": "Pooled, the effect is 0.31. Published studies 0.43, unpublished 0.11. A 2016 replication on 3,134 people still found it, much smaller. Correct for publication bias one way: minus 0.05. In 2024 a registered replication: minus 0.38 on one scenario, 0.08 on the other.",
-        "verdict": "Every retest was bigger and every retest smaller. The last changed sign.",
+        "verdict": "Every retest made the sample bigger and the effect smaller. The last one changed sign.",
         "ask": "Do you catch yourself doing this?"
       },
       "bias_correction": {

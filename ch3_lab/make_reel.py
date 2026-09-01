@@ -47,6 +47,7 @@ from make_rechecked import (CJK, NUM_RE, _collect, load,   # noqa: E402
                             twist_rows, val_str)
 #: 安全區是**實測**出來的,而且只有一份 —— 從 make_short 匯入,不要再抄一份。
 #: (這條線上「同一個常數兩份實作」已經第九次。)
+from render_pipeline import spoken_text            # noqa: E402
 from make_short import (UI_RIGHT, UI_BOTTOM, UI_TOP,       # noqa: E402
                         MARGIN, SAFE_X, SAFE_LO, SAFE_HI)
 
@@ -312,11 +313,23 @@ def render_scene(name, t_now, dur, ctx):
         left_max = max(0.24, SAFE_X - vw - 0.04)   # 0.04 是欄間淨空
         lf = min(fit(plt, w, 40, left_max - 0.06, "bold") for w in lefts if w)
         nf = min(fit(plt, w, 34, left_max - 0.06, "normal") for w in whats if w)
+        # 🔴 揭露時間原本用 `narr` 的字元位置換算,而**音軌唸的是
+        #    `spoken` 那一份**(數字拼成字之後長度不一樣:grit 的 turn
+        #    從 303 字元變成 406)。同一個比例套在不同長度的字串上,
+        #    整段的時間軸就整體偏掉 —— 獨立驗證量到最大 1.5 秒。
+        #    位置要在**被唸的那一份**上算:把 cue 之前那一段做同樣的
+        #    數字轉換,它的長度就是 spoken 空間裡的位置。
+        _spk_all = max(1, len(spoken_text(turn_txt)))
+
+        def _spk_pos(k):
+            return len(spoken_text(turn_txt[:k])) if k >= 0 else -1
+
         # 早 0.35 秒讓字先站定,再被唸到 —— 晚到會看起來像沒跟上。
         ats, prev = [], 0.0
         for k in pos:
-            a = (0.3 if k < 0 else
-                 max(0.3, k / max(1, len(turn_txt)) * dur - 0.35))
+            sk = _spk_pos(k)
+            a = (0.3 if sk < 0 else
+                 max(0.3, sk / _spk_all * dur - 0.35))
             a = max(a, prev)          # 單調:列不會倒著出現
             ats.append(a); prev = a
 
@@ -351,7 +364,8 @@ def render_scene(name, t_now, dur, ctx):
         _sent = [(k, t) for k, t in _sent if t]
         if not _sent:
             _sent = [(0, turn_txt)]
-        _bounds = [(k / max(1, len(turn_txt))) * dur for k, _ in _sent]
+        # 句界同理:在 spoken 空間算,否則字幕跟聲音對不上。
+        _bounds = [(_spk_pos(k) / _spk_all) * dur for k, _ in _sent]
         _cur = None
         for _j, (_st, _tx) in enumerate(_sent):
             _a = _bounds[_j]
