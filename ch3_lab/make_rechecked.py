@@ -684,12 +684,35 @@ def display_quote(E, full):
     """
     d = (E.get("verdict_display") or "").strip()
     if not d:
-        return full
+        return full, full
+    # 🔴 原本只比對 `test.verdict_quote` 一個欄位 —— **對的東西被擋掉了**。
+    #    dunning_kruger 的顯示句是從同一篇論文的 `honesty_quote` 逐字抄的
+    #    (「mostly the result of statistical artefacts, rather than entirely
+    #    so」—— 那個 mostly 正是這一集不能丟的分寸),而閘門看不到那個欄位,
+    #    於是整支長片渲不出來。
+    #    放寬的是**看哪裡**,不是**要不要逐字**:仍然必須在某一段原文裡
+    #    一字不差地找到,找不到照樣中止。
     if d not in full:
-        raise SystemExit(
-            f"⛔ {E['slug']} 的 verdict_display 在原文裡逐字找不到 —— "
-            f"那就不是引用了:\n   顯示「{d[:70]}」")
-    return d if d.rstrip().endswith((".", "!", "?")) else d + " …"
+        found = None
+        stack = [E]
+        while stack:
+            o = stack.pop()
+            if isinstance(o, dict):
+                for k, v in o.items():
+                    if isinstance(v, str) and "quote" in k.lower() and d in v:
+                        found = v
+                        break
+                    stack.append(v)
+            elif isinstance(o, list):
+                stack.extend(o)
+            if found:
+                break
+        if not found:
+            raise SystemExit(
+                f"⛔ {E['slug']} 的 verdict_display 在**任何一段原文**裡都"
+                f"逐字找不到 —— 那就不是引用了:\n   顯示「{d[:70]}」")
+        full = found
+    return (d if d.rstrip().endswith((".", "!", "?")) else d + " …"), full
 
 
 def render_scene(name, t_now, dur, ctx):
@@ -814,7 +837,7 @@ def render_scene(name, t_now, dur, ctx):
             q, by = r["quotes"][0], f"— {r['who'].split('(')[0].strip()}, {r['year']}"
             bycol = ACCENT
         else:
-            q = display_quote(E, T["verdict_quote"])
+            q, _src = display_quote(E, T["verdict_quote"])
             by, bycol = "— the authors, in the paper", DIM
         lines = _quote_lines(plt, q)
         fs = fit_w(plt, max(lines, key=len), 44, 0.84, "normal")

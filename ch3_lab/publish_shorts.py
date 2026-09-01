@@ -657,12 +657,29 @@ def build_meta():
                    "expectancy_study": "The expectancy experiment",
                    "bbc_study": "Run again, independently",
                    "uk_trial": "A trial in England"}
+            # 🔴 上面那段註解寫著「掃過所有帶 doi 的區塊,一個都不漏」,
+            #    **而底下是一個寫死的字典 —— 它列舉,它沒有掃。**
+            #    獨立稽核實測:14 集裡 8 集有 DOI 區塊落在名單外。最尖銳的是
+            #    moral_licensing 旁白講的 -0.38(xiao_2024_table3,
+            #    doi 10.5334/irsp.945)—— 整集的轉折點,而兩份說明欄都查不到。
+            #    註解描述的是應該做的事,程式做的是另一件。現在真的去掃。
+            def _label(k):
+                return LAB.get(k) or k.replace("_", " ").capitalize()
+            # 順序仍然照片子講的順序:LAB 裡有的照 LAB 排,其餘接在後面。
+            _order = [k for k in LAB if k in E] +                      [k for k in E if k not in LAB]
             cites = []
-            for _k, _lab in LAB.items():
+            for _k in _order:
                 b = E.get(_k) or {}
+                _lab = _label(_k)
                 if isinstance(b, dict) and b.get("doi"):
                     cites.append(f"{_lab}: {b.get('title', '')} "
                                  f"({b.get('year', '')}){nl}  doi:{b['doi']}")
+            # 有原文、有年份,但**沒有 DOI** 的來源(例如 EEF 評估報告不是
+            # 期刊論文)。片子唸了它就要查得到 —— 不給 DOI 不等於不用給名字。
+            for _k in _order:
+                b = E.get(_k) or {}
+                if isinstance(b, dict) and not b.get("doi")                         and b.get("source_name"):
+                    cites.append(f"{_label(_k)}: {b['source_name']}")
             papers = nl.join(cites)
             desc = (
                 f"{r['belief']}{nl}{nl}"

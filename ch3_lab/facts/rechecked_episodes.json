@@ -145,21 +145,21 @@
           "cue": "The players scored plus 4"
         },
         {
-          "label": "corrected",
-          "what": "average difference",
-          "es": 13,
+          "label": "so they are",
+          "what": "ahead of random, not level",
+          "es": 12,
           "es_kind": "percentage_points",
           "hot": true,
-          "cue": "the average difference comes out at plus 13"
+          "cue": "that is 12 points ahead"
         }
       ],
       "popular_name": "The hot hand fallacy",
       "verdict_gloss": "GVT = Gilovich, Vallone and Tversky, the 1985 authors",
       "reel": {
         "belief": "Basketball players get hot streaks.",
-        "weight": "For thirty years psychology said that was an illusion. The 1985 paper is cited more than 1,600 times.",
-        "turn": "In 2018 somebody checked the arithmetic. If you pick out only the shots that follow a run of hits, a perfectly random shooter does not score zero on that measure. He scores minus 8 percentage points. The players scored plus 4. Correct the bias and the average difference comes out at plus 13.",
-        "verdict": "Corrected, the hot hand is plus 13 percentage points. The illusion was in the arithmetic.",
+        "weight": "For thirty-three years psychology said that was an illusion. The 1985 paper is cited more than 1,600 times.",
+        "turn": "In 2018 somebody checked the arithmetic. If you pick out only the shots that follow a run of hits, a perfectly random shooter does not score zero on that measure. He scores minus 8 percentage points. The players scored plus 4. Against a random shooter that is 12 points ahead, not level.",
+        "verdict": "The bias-adjusted difference is plus 13 percentage points. The illusion was in the arithmetic.",
         "ask": "Did you ever believe the hot hand was fake?"
       }
     },
@@ -1991,7 +1991,7 @@
         },
         {
           "label": "on record",
-          "what": "of the 150 hours",
+          "what": "of the 150 hours, at most",
           "es": 15,
           "es_kind": "pct",
           "cue": "less than 15 percent of the 150 hours"
@@ -2004,7 +2004,7 @@
       "reel": {
         "belief": "Give ordinary people a uniform and power, and they turn cruel.",
         "weight": "It is in every textbook, and in every argument about how atrocities happen.",
-        "turn": "In 2019 somebody went into the Stanford archive and listened to the tapes. At the guard briefing the experimenters say what they want produced: boredom, frustration, fear, a sense of powerlessness. On day three the warden takes a guard aside for being too soft and tells him to play the part of the tough guard. And less than 15 percent of the 150 hours was ever recorded.",
+        "turn": "In 2019 somebody went into the Stanford archive and listened to the tapes. At the guard briefing the experimenters say what they want produced: boredom, frustration, fear, a sense of powerlessness. At one point the warden takes a guard aside for being too soft and tells him to play the part of the tough guard. And less than 15 percent of the 150 hours was ever recorded.",
         "verdict": "The paper says the guards got no specific training. Zimbardo's own reply says: central in the training of guards.",
         "ask": "Does it still count if they were told to do it?"
       },
@@ -2352,7 +2352,8 @@
         "doi": null,
         "no_doi_note": "🔴 EEF 評估報告不是期刊論文,**確認沒有 DOI** —— 照fail-closed 閘門它不能當 test,只能進時間軸與口述。",
         "quote": "Pupils in schools that received the intervention did not make any additional progress in literacy nor numeracy - as measured by the national Key Stage 2 tests in reading, grammar, punctuation, and spelling (GPS), and maths - compared to pupils in the control group. This finding has high security.",
-        "trap": "🔴 搜尋摘要會拿 2015 年的**先導試驗**冒充這次的效能試驗,回「two additional months' progress」—— 方向完全相反。"
+        "trap": "🔴 搜尋摘要會拿 2015 年的**先導試驗**冒充這次的效能試驗,回「two additional months' progress」—— 方向完全相反。",
+        "source_name": "Education Endowment Foundation, Changing Mindsets: evaluation report (2019)"
       },
       "timeline": [
         {
@@ -2408,7 +2409,7 @@
       "reel": {
         "belief": "Teach a child that intelligence can grow, and their grades go up.",
         "weight": "It became a school programme, a bestseller, and a poster in a great many classrooms.",
-        "turn": "So they ran it properly: 65 schools, 12,490 students, randomised individually, analysis plan registered in advance. And they found it. Lower-achieving students gained a tenth of a grade point — an effect size of 0.11. Now the other half of the sample. Higher-achieving students: 0.01, p equals 0.634. And a trial in England with 5,018 pupils found nothing at all.",
+        "turn": "So they ran it properly: 65 schools, 12,490 students, analysis plan registered in advance. And they found it. Lower-achieving students gained a tenth of a grade point - an effect size of 0.11. Now the other half of the sample. Higher-achieving students: 0.01, p equals 0.634. And a trial in England with 5,018 pupils found no additional progress in reading, in grammar, or in maths.",
         "verdict": "It works. For the students who were already behind, by a tenth of a grade point.",
         "ask": "Is a tenth of a grade point worth an assembly?"
       },

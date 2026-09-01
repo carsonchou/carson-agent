@@ -893,12 +893,24 @@ def main():
 
             # 論文清單:原始 → 重測 →(可能的)第二個質疑方 → 原作者回應。
             # 每一篇都要有 DOI,而且**順序就是片子講的順序**。
-            papers = [("The original", O), ("The retest", T)]
-            if E.get("test2"):
-                papers.append(("A second challenge", E["test2"]))
-            if E.get("author_recantation"):
-                papers.append(("The original author, later",
-                               E["author_recantation"]))
+            # 🔴 這裡原本寫死四個 key。獨立稽核實測:14 集裡 8 集有帶 DOI
+            #    的區塊落在這四個之外(many_smiles_2022 / coles_2019_trap /
+            #    xiao_2024_table3 / bias_correction / noise_paper /
+            #    recoding_paper / bbc_study / expectancy_study /
+            #    original_authors_reply)。說明欄結尾卻寫著「兩篇論文的 DOI
+            #    都在這裡」—— 而片子講的那個數字查不到。
+            #    列舉會漏,掃描不會。
+            _LAB = {"original": "The original", "test": "The retest",
+                    "test2": "A second challenge",
+                    "author_recantation": "The original author, later",
+                    "original_authors_reply": "The original author replies"}
+            _order = [k for k in _LAB if k in E] +                      [k for k in E if k not in _LAB]
+            papers = []
+            for _k in _order:
+                _b = E.get(_k)
+                if isinstance(_b, dict) and _b.get("doi"):
+                    papers.append((_LAB.get(_k)
+                                   or _k.replace("_", " ").capitalize(), _b))
             # 🔴 樣本那一行有兩個坑,兩個都會製造一個假的第二組人:
             #    ① `n_word` 不是每一集都是 participants —— hot hand 是
             #       26 名**球員**、hungry judges 是 1,112 筆**裁決**
