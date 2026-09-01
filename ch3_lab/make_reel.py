@@ -330,14 +330,44 @@ def render_scene(name, t_now, dur, ctx):
                         color=ACCENT if hot else FG, weight="bold", alpha=b)
 
     elif name == "verdict":
-        ax.add_patch(plt.Rectangle((0.04, 0.34), SAFE_X - 0.04, 0.30,
-                                   color=HOT, zorder=1))
+        # 🔴 這一塊出過一個**看不見的**錯:色塊高度寫死 0.30、行距寫死
+        #    0.064,而文字顏色 #0E1116 剛好等於背景色 BG。行數 >= 6 時
+        #    整塊文字高 0.384 > 0.30,首尾兩行落到色塊外 —— **黑底黑字,
+        #    直接消失**。實測 grit 的判決卡少了主詞「Grit matches」和那句
+        #    防過度宣稱的但書「It still predicts things.」,而畫面上留下的
+        #    殘句沒有主詞。判決卡停 7.8 秒,是全片最後被記住的一張。
+        #
+        #    三道守門全綠:安全區逐元素驗四個邊(溢出的行都在 0.24~0.91
+        #    之內)、重疊守門驗兩兩相交(行與行不重疊)。**沒有任何一道在驗
+        #    「文字有沒有在它自己的底色塊裡」。** 每個元素單獨都合法,
+        #    錯的是它們合起來的樣子 —— 又一次。
+        #
+        #    改法:色塊跟著行數長,而且**斷言每一行都在色塊裡**,放不下就中止。
         lines = balanced(r["verdict"], 24)
-        fs = fit(plt, max(lines, key=len), 62, SAFE_X - 0.12)
+        # 最長的一行不一定是最寬的 —— 每一行都量(第三個現場了)
+        fs = min(fit(plt, ln, 62, SAFE_X - 0.12) for ln in lines if ln.strip())
+        lh = fs * 1.30 / 1382.0
+        pad = 0.035
+        half = (len(lines) - 1) * lh / 2 + pad
+        mid = 0.49
+        y0, y1 = mid - half, mid + half
+        if y0 < SAFE_LO or y1 > SAFE_HI:
+            raise SystemExit(
+                f"⛔ {E['slug']} 的判決卡 {len(lines)} 行放不進安全區"
+                f"(色塊 {y0:.3f}~{y1:.3f},界線 {SAFE_LO}~{SAFE_HI})。\n"
+                f"   要縮的是事實庫裡的 verdict,不是字級 —— 溢出的行會變成"
+                f"黑底黑字,看不見。原文:{r['verdict'][:70]}")
+        ax.add_patch(plt.Rectangle((0.04, y0), SAFE_X - 0.04, y1 - y0,
+                                   color=HOT, zorder=1))
         for i, ln in enumerate(lines):
-            ax.text((0.04 + SAFE_X) / 2, 0.49 + (len(lines) - 1) * 0.032
-                    - i * 0.064, ln, ha="center", va="center", fontsize=fs,
-                    color="#0E1116", weight="bold", zorder=2)
+            y = mid + (len(lines) - 1) * lh / 2 - i * lh
+            if not (y0 + lh * 0.4 <= y <= y1 - lh * 0.4):
+                raise SystemExit(
+                    f"⛔ {E['slug']} 判決卡第 {i + 1} 行掉出色塊"
+                    f"(y={y:.3f},色塊 {y0:.3f}~{y1:.3f})—— 那一行會是"
+                    f"黑底黑字。不出片。")
+            ax.text((0.04 + SAFE_X) / 2, y, ln, ha="center", va="center",
+                    fontsize=fs, color="#0E1116", weight="bold", zorder=2)
 
     else:                                            # ask
         _, bot = block(r["ask"], 0.64, 92, 16)
