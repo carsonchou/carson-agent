@@ -97,6 +97,48 @@ def _load():
     return st
 
 
+#: 🔴 **配額是按 Google Cloud 專案算的,不是按頻道。**
+#:    2026-09-01 隔壁 session 來對帳,說主頻道當天已用 24,578、要我把
+#:    兩本帳相加,而我差點就照做了 —— 那會平白停掉 ch3 一整天。
+#:    查憑證才發現前提是錯的:
+#:      ch3   `yt_ch2/token_manage.json`  → 專案 881902283633
+#:      主頻道 `youtube_channel/token*.json` → 專案 524513894332
+#:    兩個不同專案 = 兩份獨立額度,彼此不相干。本檔上面那段註解其實
+#:    早就寫著這件事(「memory 那個 ≥18,000 量的是主頻道的專案,
+#:    而 ch3 跑在 881902283633」),我讀了卻沒有在對帳的時候想起來。
+#:
+#:    **所以這裡不加總。** 但要防的是另一個方向:哪天有人把 token 換成
+#:    主頻道那個專案的,共用額度就會突然變成事實,而這本帳不會知道。
+#:    → 開工先驗專案編號,不一致就中止。
+EXPECT_PROJECT = "881902283633"
+TOKEN = pathlib.Path(r"D:\carson-agent\yt_ch2\token_manage.json")
+
+
+def project_of_token():
+    """這本帳在管的是哪個專案的額度。讀不到回 None。"""
+    try:
+        cid = json.loads(TOKEN.read_text(encoding="utf-8")).get("client_id", "")
+        return cid.split("-")[0] or None
+    except Exception:                                        # noqa: BLE001
+        return None
+
+
+def assert_project():
+    """憑證還在原來那個專案上嗎。**換了專案就等於換了一本額度**,
+    而這本帳的每一個數字都是照 881902283633 量出來的。"""
+    got = project_of_token()
+    if got is None:
+        raise SystemExit(f"⛔ 讀不到 {TOKEN} 的 client_id —— 無法確認這本帳"
+                         f"管的是哪個專案的額度。不猜。")
+    if got != EXPECT_PROJECT:
+        raise SystemExit(
+            f"⛔ 憑證的專案變成 {got},而這本帳是照 {EXPECT_PROJECT} 量的"
+            f"(DAILY={DAILY} 是那個專案的實測下界)。\n"
+            f"   換專案等於換一本額度,舊的觀測值全部不適用。"
+            f"要改請連 DAILY 一起重量。")
+    return got
+
+
 def remaining():
     return DAILY - RESERVE - _load()["spent"]
 
