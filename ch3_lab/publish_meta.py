@@ -139,17 +139,33 @@ def api_safe(text, where=""):
     return s
 
 
-def footer_for(n_papers):
-    """頁尾要跟說明裡**實際有幾篇論文**一致。
+#: FOOTER 尾巴那行資料來源。**只有 FReD 那批能掛。**
+_FRED_LINE = "\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd"
+
+
+def footer_for(n_papers, fred=True):
+    """頁尾要跟說明裡**實際有幾篇論文**一致,而且資料來源要是真的。
 
     🔴 頁尾寫死「both papers are cited above」,但 pooled 的集數
     (sleep_memory、implicit_bias_test)說明裡只有一篇。這正是 is_doi 的
     docstring 自己點名的那個問題:DOI 那半修好了、「both」這半沒有。
+
+    🔴 **`fred` 這個參數是後來補的,而在補之前這行假來源已經上線六支。**
+       FOOTER 尾巴寫死「Replication data: FORRT Replication Database」,
+       而 famous / lineup / domains / trailer 這幾種集型**不是**從 FReD 來的
+       —— `make_short.py` 的註解自己寫著「名案不是從 FReD 來的,FReD 裡
+       根本沒有這些列」。短片那份修了,長片說明欄這份沒修(同一件事兩份
+       實作,只修走到的那一份 —— 今天第六次)。
+       中招的已上線片:ep0(預告片)、ego_depletion、romantic_red、
+       bystander_effect、sleep_memory、implicit_bias_test。
+       **其中 ep0 正是要設成頻道預告片的那一支** —— 每個非訂閱者
+       進頻道第一眼看到的片,說明欄寫著錯的資料來源。
     """
+    f = FOOTER if fred else FOOTER.replace(_FRED_LINE, "")
     if n_papers == 2:
-        return FOOTER
-    return FOOTER.replace("and both papers are cited above with their DOIs",
-                          "and the paper is cited above with its DOI")
+        return f
+    return f.replace("and both papers are cited above with their DOIs",
+                     "and the paper is cited above with its DOI")
 
 
 # 來源資料庫有拼字錯。旁白端已修(make_episode.speakable),但標題也會吃到——
@@ -444,7 +460,7 @@ def famous_meta(E):
                         f"{t['ci_second'][1]:.2f}]" if t.get("ci_second") else ""))
         allowed |= {es_fmt(t["es_second"])}
     allowed.add("95")
-    return title, "\n".join(lines) + FOOTER, allowed
+    return title, "\n".join(lines) + footer_for(2, fred=False), allowed
 
 
 def check(label, title, desc, allowed):
@@ -635,7 +651,7 @@ def main():
                 f"{L['n_sig']} of the {L['n_p']} replications that report a "
                 f"p-value reached p < 0.05.{nl}{nl}"
                 f"Every row on screen:{nl}{items}{nl}{nl}"
-                f"Source: {L['source']}") + footer_for(2)
+                f"Source: {L['source']}") + footer_for(2, fred=False)
             out.append({
                 "kind": "lineup", "slug": fam, "dir": key,
                 "video": f"{key}/{fam}.mp4",
@@ -674,7 +690,7 @@ def main():
             f"{T['survived']} held up, {T['stronger']} of them larger than "
             f"the original.{nl}{nl}"
             f"Every episode, with the replication effect size and sample:{nl}"
-            + nl.join(lines) + footer_for(2))
+            + nl.join(lines) + footer_for(2, fred=False))
         # 🔴 **插在最前面。** upload.py 照 meta 的順序取待發清單,append 的話
         #    預告會排在 14 集後面 —— 明天 16:25 的 cron 會發 ep007,而預告
         #    是整條線上最強的訂閱轉化器,晚兩週才出等於白做。
@@ -803,7 +819,7 @@ def main():
                        f'"{T["verdict_quote"]}"{nl}'
                        if T.get("verdict_quote") else "")
                     + (f'{nl}On statistical power:{nl}"{T["power_quote"]}"'
-                       if T.get("power_quote") else "")) + footer_for(2)
+                       if T.get("power_quote") else "")) + footer_for(2, fred=False)
                 out.append({
                     "kind": "domains", "slug": d.name, "dir": key,
                     "video": f"{key}/{d.name}.mp4",
@@ -846,7 +862,7 @@ def main():
                 f"times (OpenAlex).{nl}"
                 f"Note: this meta-analysis reports variance explained, not "
                 f"an effect size in d or r, so no d or r is shown anywhere "
-                f"in this video." + footer_for(2))
+                f"in this video." + footer_for(2, fred=False))
             out.append({
                 "kind": "domains", "slug": d.name, "dir": key,
                 "video": f"{key}/{d.name}.mp4",
@@ -956,6 +972,27 @@ def main():
                 t, y = p.get("title"), p.get("year")
                 head = (f"{lab}: {t}" if t else lab) + (f" ({y})" if y else "")
                 return head + nl + f"  doi:{p['doi']}" + _people(p)
+            # 🔴 掃描只走頂層 dict,走不進 list —— **短片那份修了,這份沒修**
+            #    (同一件事兩份實作,只修走到的那一份;今天第七次)。
+            #    實測 moral_licensing 的長片說明欄漏掉三篇,而那三篇的數字
+            #    就印在同一份說明欄的時間軸上:2014 三個重測、2016 的
+            #    3,134 人、2019 的偏誤校正 —— 說明欄自己列了三個數字,
+            #    然後在頁尾說「論文都在上面」,而三篇一個都查不到。
+            _have = {q["doi"] for _l, q in papers if q.get("doi")}
+            for _k, _v in E.items():
+                if not isinstance(_v, list):
+                    continue
+                for _x in _v:
+                    if not (isinstance(_x, dict) and _x.get("doi")):
+                        continue
+                    if _x["doi"] in _have:
+                        continue
+                    _have.add(_x["doi"])
+                    _yy, _ww = _x.get("year"), _x.get("what") or _x.get("name")
+                    papers.append(
+                        (f"{_yy}: {_ww}" if _yy and _ww
+                         else (str(_yy) if _yy else (_ww or "Also cited")),
+                         _x))
             plist = nl.join(_cite(lab, p) for lab, p in papers if p.get("doi"))
 
             # 時間軸:畫面上出現過的每一列,連單位一起寫進說明欄。

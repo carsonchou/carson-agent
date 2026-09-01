@@ -135,14 +135,40 @@ def wrap(s, n):
 #: 「the original / the replication」等於宣稱有那麼一篇研究。
 #: ⚠️ 旁白那份(build_script)先改了,畫面這份漏掉 —— 同一個錯的第二個
 #:    表面,而畫面那份是觀眾真的會盯著看的那個。
-LBL_O = "the original — {n_o:,} people"
-LBL_R = "the replication — {n_r:,} people"
+#: 🔴 **`n_is_floor` 在四支檔案裡都有,`make_short.py` 一次都沒有。**
+#:    事實庫記著「原文寫的是 over 7,700」,而已上線的 Short
+#:    (bystander_effect, LjFyZRTOkU0)唸的是「7,700 people in total」——
+#:    **把下界講成確數**。同一支片的長片說明欄寫的是「over 7,700」:
+#:    同一個數字兩個表面,短片那份把限定詞弄丟了。
+#:    偏誤方向是往「樣本更精確」走,也就是往看起來更可信的方向走。
+def n_say(D, key):
+    """旁白裡的樣本數。**只有重測那一側能帶 over** —— 理由見 _lbl。"""
+    n = D.get(key)
+    pre = "over " if (key == "n_r" and D.get("n_is_floor")) else ""
+    return pre + f"{n:,}"
+
+
+LBL_O = "the original — {n_o} people"
+LBL_R = "the replication — {n_r} people"
 LBL_O_FAM = "typical original — {k_distinct} setups"
-LBL_R_FAM = "typical replication — {k} runs, {n_r:,} people"
+LBL_R_FAM = "typical replication — {k} runs, {n_r} people"
 
 
 def _lbl(D):
-    """(上標籤, 下標籤)。有 k_distinct 就是家族集,用複數那套。"""
+    """(上標籤, 下標籤)。有 k_distinct 就是家族集,用複數那套。
+
+    🔴 畫面標籤跟旁白一樣會把下界講成確數。旁白那半修好了(n_say),
+       畫面這半原本沒修 —— 而畫面是觀眾拿去跟論文對照的那一份。
+    """
+    # 🔴 `n_is_floor` 掛在**重測**那一側(實測全庫只有 bystander_effect
+    #    一處,test.n_is_floor)。套到原始研究的 n 上等於憑空加一個原文
+    #    沒有的限定詞 —— 修一個過度精確的宣稱時做出另一個不精確的宣稱,
+    #    方向相反但一樣是無中生有。只套 n_r。
+    D = dict(D)
+    if isinstance(D.get("n_o"), int):
+        D["n_o"] = f"{D['n_o']:,}"
+    if isinstance(D.get("n_r"), int):
+        D["n_r"] = ("over " if D.get("n_is_floor") else "") + f"{D['n_r']:,}"
     if D.get("k_distinct"):
         return LBL_O_FAM.format(**D), LBL_R_FAM.format(**D)
     return LBL_O.format(**D), LBL_R.format(**D)
@@ -233,12 +259,12 @@ def build_script(D):
         agent_like = any(x in kw for x in ("laborator", "experiment", "lab",
                                            "team", "studies", "replication"))
         if not D.get("k"):
-            scale = f"It was tested again, on {D['n_r']:,} people. "
+            scale = f"It was tested again, on {n_say(D, 'n_r')} people. "
         elif agent_like:
-            scale = f"{D['k']} {kw} tested it, on {D['n_r']:,} people. "
+            scale = f"{D['k']} {kw} tested it, on {n_say(D, 'n_r')} people. "
         else:
             scale = (f"It was pooled across {D['k']} {kw}, "
-                     f"{D['n_r']:,} people in total. ")
+                     f"{n_say(D, 'n_r')} people in total. ")
         return [
             ("q", f"{D['question']}"),
             ("nums", scale + f"The effect came back {D['say_r']}."),
@@ -251,7 +277,7 @@ def build_script(D):
         return [
             ("q", f"{D['question']}"),
             ("nums", f"{D['k_distinct']} different setups. {D['k']} "
-                     f"replications, on {D['n_r']:,} people. "
+                     f"replications, on {n_say(D, 'n_r')} people. "
                      f"The typical original measured {D['say_o']}. "
                      f"The typical replication measured {D['say_r']}."),
             ("end", end_line(D, "every paper")),
@@ -259,8 +285,9 @@ def build_script(D):
     return [
         ("q", f"{D['question']}"),
         ("nums", f"The original study measured {D['say_o']} on "
-                 f"{D['n_o']:,} people. "
-                 f"The replication measured {D['say_r']} on {D['n_r']:,}."),
+                 f"{n_say(D, 'n_o')} people. "
+                 f"The replication measured {D['say_r']} on "
+                 f"{n_say(D, 'n_r')}."),
         ("end", end_line(D, "both papers")),
     ]
 
