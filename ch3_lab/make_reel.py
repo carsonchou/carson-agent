@@ -182,6 +182,15 @@ def audit(E, segs):
     print(f"  數字溯源 ✓（{len(ok)} 個結構化可用值）  輸出語言 ✓")
 
 
+#: 🔴 副標的字級寫死,而主標是**量出來**的變數 —— 兩者無關,所以只要主標
+#:    被一行長句壓下來,主從關係就反過來。實測 hot_hand 的 weight 卡主標
+#:    47pt、副標 46pt,而副標還是 bold + 琥珀色、主標是 normal + 暗灰:
+#:    看起來副標才是重點。守門只驗「主標有沒有比副標小」,47 > 46 所以不叫。
+#:    副標一律跟著主標走,取上限與比例的較小者。
+def sub_fs(title_fs, cap):
+    return max(22, min(cap, int(title_fs * 0.72)))
+
+
 def render_scene(name, t_now, dur, ctx):
     plt, E, rows = ctx["plt"], ctx["E"], ctx["rows"]
     r = E["reel"]
@@ -217,20 +226,21 @@ def render_scene(name, t_now, dur, ctx):
             ax.text(0.5 - (UI_RIGHT / 2), top - i * lh, ln, ha="center",
                     va="center", fontsize=fs, color=col, weight=weight,
                     alpha=alpha)
-        return top + lh / 2, top - (len(lines) - 1) * lh - lh / 2
+        return top + lh / 2, top - (len(lines) - 1) * lh - lh / 2, fs
 
     if name == "belief":
         # 🔴 **第 0 幀就要是完整的一句話。** alpha 從 1 開始,不淡入。
-        _, bot = block(r["belief"], 0.62, 104, 16)
+        _, bot, tfs = block(r["belief"], 0.62, 104, 16)
         ax.text(0.5 - (UI_RIGHT / 2), bot - 0.055, "you have heard this one",
-                ha="center", va="center", fontsize=40, color=DIM,
-                weight="normal")
+                ha="center", va="center", fontsize=sub_fs(tfs, 40),
+                color=DIM, weight="normal")
 
     elif name == "weight":
-        _, bot = block(r["weight"], 0.62, 72, 22, DIM, "normal")
+        _, bot, tfs = block(r["weight"], 0.62, 72, 22, DIM, "normal")
         ax.text(0.5 - (UI_RIGHT / 2), bot - 0.06, "so somebody checked",
-                ha="center", va="center", fontsize=46, color=ACCENT,
-                weight="bold", alpha=ease((t_now - 1.0) / 0.8))
+                ha="center", va="center", fontsize=sub_fs(tfs, 46),
+                color=ACCENT, weight="bold",
+                alpha=ease((t_now - 1.0) / 0.8))
 
     elif name == "turn":
         # 數字逐個出現 —— 這一段最長(約 14 秒),畫面不能不動。
@@ -309,6 +319,18 @@ def render_scene(name, t_now, dur, ctx):
                  max(0.3, k / max(1, len(turn_txt)) * dur - 0.35))
             a = max(a, prev)          # 單調:列不會倒著出現
             ats.append(a); prev = a
+
+        # 🔴 第一列的 cue 落在旁白中段時,**畫面在那之前是空的**。實測
+        #    hot_hand 的 turn 段前 11.67 秒只有右上角一行標題 —— 44.6 秒的
+        #    Short 有 26% 是空畫面,而且空在中段。這個格式整個改版的理由
+        #    就是觀看時間,而空畫面是最直接的滑走理由。
+        #    hungry_judges 45%、growth_mindset 32% 同型。
+        #    補的東西不是新內容,是**旁白自己正在唸的那幾句** —— 它不會
+        #    多講任何一件事,只是讓看的人跟得上聽的。
+        lead = turn_txt[:pos[0]].strip() if pos and pos[0] > 0 else ""
+        if lead and t_now < ats[0]:
+            fade = min(1.0, (ats[0] - t_now) / 0.5)
+            block(lead, 0.56, 64, 26, DIM, "normal", fade)
         for i, x in enumerate(rows):
             at = ats[i]
             if t_now < at:
@@ -370,10 +392,10 @@ def render_scene(name, t_now, dur, ctx):
                     fontsize=fs, color="#0E1116", weight="bold", zorder=2)
 
     else:                                            # ask
-        _, bot = block(r["ask"], 0.64, 92, 16)
+        _, bot, tfs = block(r["ask"], 0.64, 92, 16)
         ax.text(0.5 - (UI_RIGHT / 2), bot - 0.06, "tell me below",
-                ha="center", va="center", fontsize=50, color=ACCENT,
-                weight="bold")
+                ha="center", va="center", fontsize=sub_fs(tfs, 50),
+                color=ACCENT, weight="bold")
         ax.text(0.5 - (UI_RIGHT / 2), SAFE_LO + 0.02, "THEY RAN IT AGAIN",
                 ha="center", va="center", fontsize=30, color=DIM,
                 weight="bold")
