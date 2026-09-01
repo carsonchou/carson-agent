@@ -3287,6 +3287,29 @@ def _long_chinese_chars(voice_text):
     return len(_r.findall(r"[一-鿿]", voice_text or ""))
 
 
+def _long_too_few_segments(d):
+    """段數 < 3 = 分段深寫整個被跳過的殘骸,回不合格原因;正常回空字串。
+
+    🔴 2026-09-01:`_densify_long` 第一行就是
+        if len(segs) < 3: return d  # 段數太少撐不出長片密度,交給 make_one 的重生機制
+    它把責任交給 make_one,而 **make_one 沒有任何一道閘門在看段數** ——
+    長度/密度/洩漏都驗,就是沒驗這個。兩邊都以為對方會接,結果是:
+    LLM 沒回 segments → 深寫階段整個跳過 → build_md 用「### 段落 1:重點」的單段後備
+    → 只要字數過得了 1,800 就出貨。
+
+    實測本機 .md:段數<3 的長片 **17 支,其中 13 支已發布**。
+    昨天抓到的光寶科 2301(299 字、影片只有 1.0 分鐘)就是其中之一。
+
+    判準用「段數」這個結構事實,不用字數 —— 聯詠 3034 那支 2,050 字**過得了字數門檻**,
+    但它只有 1 段,深寫從來沒發生過。
+    """
+    _segs = d.get("segments") if isinstance(d, dict) else None
+    n = len(_segs) if isinstance(_segs, list) else 0
+    if n and n < 3:
+        return f"段落數不足({n} 段;分段深寫需要 >=3 段,少於此代表深寫階段被跳過)"
+    return ""
+
+
 def _long_underlength(voice_text):
     """A4 長度 gate：字數 <LONG_MIN_CHARS(2000) 或 估計時長(以 5字/秒換算) <LONG_MIN_EST_MIN(8) 分＝不達標。
     任一項不達標就算 True，供 make_one 觸發重生/補寫/fail-closed 不輸出。"""
@@ -5334,6 +5357,12 @@ def make_one(kind, no_render=False, topic_override=None, script_override=None):
             """長片四道 gate(任一不過就重生)：①長度 ②資訊密度(灌水重複) ③主題鎖定(後段跑題)
             ④開場碎句(2026-08-11 新增,見下)。回傳不合格原因字串，合格回空字串。"""
             _v = _d.get("voice_text", "")
+            # 🔴 2026-09-01 段數:_densify_long 對 <3 段直接 return,說「交給 make_one 重生」,
+            # 而這裡從來沒接。實測本機段數<3 的長片 17 支、已發布 13 支。放在最前面是因為
+            # 它代表「深寫階段整個沒發生」,比字數/密度更根本。
+            _fs = _long_too_few_segments(_d)
+            if _fs:
+                return _fs
             if _long_underlength(_v):
                 return "長度不足"
             if _long_content_padding(_v):
@@ -5508,6 +5537,11 @@ def make_one(kind, no_render=False, topic_override=None, script_override=None):
             # 仍刻意**不**引用 _long_bad closure——它定義在 not topic_override 分支,
             # 跨分支引用會 NameError(本檔已因這類跨作用域坑吃過五次虧),這裡只呼叫
             # module-level 函式。
+            # 🔴 2026-09-01 段數:與另一條路吃同一份 module-level 實作,不再分岔。
+            # (體檢片走的是這一條,而 13 支已發布的殘骸正是從這裡出去的。)
+            _fs2 = _long_too_few_segments(_d)
+            if _fs2:
+                return _fs2
             if _long_underlength(_v):
                 return "長度不足(撐不出真 8-10 分鐘)"
             if _long_content_padding(_v):
