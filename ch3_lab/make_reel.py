@@ -377,8 +377,13 @@ def one(slug, script_only=False):
                               ctx={"plt": _plt(), "E": E, "rows": rows})
     # 🔴 片長是這次改版的**處置本身**。渲完要量實際值,不能拿字數估算
     #    當完成 —— 「改了設定 ≠ 改了東西」這條在這條線上剛剛才踩過。
-    if not (30 <= dur <= 50):
-        print(f"  ⚠️ 實測 {dur:.0f} 秒,不在 30~45 秒的目標帶")
+    if not (35 <= dur <= 50):
+        # 🔴 這裡原本印 ⚠️。批次跑的時候我 grep 的是「完成|⛔」,
+        #    所以 moral_licensing 55s、grit 54s 的警告**印出來了而我沒看到**。
+        #    看不到的警告等於沒有警告 —— 改成 ⛔ 並回非零。
+        print(f"  ⛔ {slug} 片長 {dur:.0f} 秒,不在 35~50 秒的設計帶(要改稿重渲)")
+        print(f"完成 → {mp4}  ({dur:.0f}s)")
+        return 1
     print(f"完成 → {mp4}  ({dur:.0f}s)")
     return 0
 

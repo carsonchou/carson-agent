@@ -805,8 +805,12 @@ def reel_gate(batch):
         if hpx <= wpx:
             out.append((key, f"不是直式({wpx}x{hpx})—— 進不了 Shorts feed"))
             continue
-        if not (30 <= vd <= 60):
-            out.append((key, f"片長 {vd:.0f} 秒,不在 30~60 秒"))
+        # 🔴 原本寫 30~60。**但這次改版宣稱的處置是 35~45 秒**(2026 演算法
+        #    用觀看時間排序),閘門卻放到 60 —— 等於「改了設定當成改了東西」,
+        #    而這正是這個函式自己的 docstring 警告的那件事。
+        #    實測 moral_licensing 55.0s / grit 54.3s 兩支就這樣過關。
+        if not (35 <= vd <= 50):
+            out.append((key, f"片長 {vd:.0f} 秒,不在 35~50 秒的設計帶"))
             continue
         if abs(vd - ad) > 1.0:
             out.append((key, f"影像 {vd:.1f}s 對不上音軌 {ad:.1f}s"))

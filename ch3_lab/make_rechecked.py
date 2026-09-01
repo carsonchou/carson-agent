@@ -725,13 +725,22 @@ def render_scene(name, t_now, dur, ctx):
         for i, ln in enumerate(cl):
             txt(0.50 - i * 0.085, ln, fs, FG, "normal")
         if t_now > 2.2 and o.get("n"):
-            txt(0.20, f"{say_int(o['n'])} {o.get('n_word', 'people')}",
-                56, ACCENT, "bold", ease((t_now - 2.2) / 0.7))
+            # 🔴 這行原本也是單行硬畫 56pt。dunning_kruger 的 n_word 是
+            #    「Cornell undergraduates in the first study」,整行變成
+            #    「sixty-five Cornell undergraduates in the first study」,
+            #    左緣 -0.005 —— 越界守門擋下,而它擋對了。
+            #    **修法 20 行以下的 `test` 場景早就寫好了**(斷行 + 量字級)。
+            #    我卻在這裡重新寫了一個會爆的版本 —— 同一個函式裡的兩段。
+            nl = wrap(f"{say_int(o['n'])} {o.get('n_word', 'people')}", 30)[:2]
+            nfs = fit_w(plt, max(nl, key=len), 56, 0.84, "bold")
+            for i, ln in enumerate(nl):
+                txt(0.20 - i * 0.075, ln, nfs, ACCENT, "bold",
+                    ease((t_now - 2.2) / 0.7))
 
     elif name == "spread":
         if o.get("cited_by_approx"):
-            txt(0.66, f"cited more than {say_int(o['cited_by_approx'])} times",
-                62, ACCENT)
+            _c = f"cited more than {say_int(o['cited_by_approx'])} times"
+            txt(0.66, _c, fit_w(plt, _c, 62, 0.86, "normal"), ACCENT)
         sp = wrap(E.get("say_spread", ""), 48)[:4]
         if sp:
             fs = fit_w(plt, max(sp, key=len), 44, 0.86, "normal")
@@ -752,7 +761,8 @@ def render_scene(name, t_now, dur, ctx):
             txt(0.50 - i * 0.085, ln, lfs, FG, "normal")
         if t_now > 1.8 and T.get("n"):
             floor = "more than " if T.get("n_is_floor") else ""
-            txt(0.28, f"{floor}{say_int(T['n'])} people", 62, ACCENT,
+            _np = f"{floor}{say_int(T['n'])} people"
+            txt(0.28, _np, fit_w(plt, _np, 62, 0.86, "bold"), ACCENT,
                 "bold", ease((t_now - 1.8) / 0.7))
 
     elif name in ("timeline", "twist"):
