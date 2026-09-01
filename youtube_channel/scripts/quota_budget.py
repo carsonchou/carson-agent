@@ -50,7 +50,18 @@ CRONTAB = ROOT / "deploy" / "crontab.txt"
 #     24,324 units 時 videos.insert(2,150) 仍成功
 #     24,374 units 時 comments.insert(50)  被拒 403 quotaExceeded
 # 通則:上限這種數字只有**被拒絕**才量得到,沒被拒過的最高值永遠是下界不是上界。
-DAILY_LIMIT = 24374
+# ⚠️ 2026-09-01 二次修正:24,374 也是低估的 —— 那是我自己加總 by_op 算的,
+# 漏了約 1,615(一支 videos.insert)。帳本的 `spent` 才是權威值:**25,989**,
+# 而 25,989 ÷ 2,150 = 12.1 支/天,正好對上申請書宣告的「12 uploads per day」。
+# 這裡不寫死:改讀 quota_meter.effective_limit(),它會從帳本自我校準
+# (2026-09-01 已修好它「學不會配額被調高」的 min() bug)。
+try:
+    import sys as _s, pathlib as _p
+    _s.path.insert(0, str(_p.Path(__file__).resolve().parent))
+    from quota_meter import effective_limit as _eff
+    DAILY_LIMIT = _eff()
+except Exception:
+    DAILY_LIMIT = 25989   # 帳本讀不到時的實測後備
 
 # YouTube Data API v3 官方單價(units/次)
 COST = {

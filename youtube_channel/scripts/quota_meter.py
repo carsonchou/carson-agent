@@ -285,6 +285,7 @@ def observed():
     通則(這個 session 第四次):**拿一個數字去做決策之前,先確認它是量出來的還是猜的。**"""
     d = _load()
     floor = ceil = None
+    _ceil_day = None   # 上界取自哪一天(要挑最近的那天,見下方說明)
     for day, b in (d.get("days") or {}).items():
         # 標記不可信的日子不能拿來校準:2026-08-25 是在「被拒的呼叫也算進 spent」
         # 那版計量下記的 18,914,把它當下界會讓天花板比真值高一倍。
@@ -295,8 +296,16 @@ def observed():
         if sp and (floor is None or sp > floor):
             floor = sp
         # 那天有被拒 → 撞牆點大約就是當天的成功花費(被拒的不算消耗)
+        #
+        # 🔴 2026-09-01 從 min(跨所有日子) 改成 **取最近一次撞牆那天**。
+        # 原本取最小值,前提是「配額是固定的」——而它會變:08-27 在 19,645 撞牆、
+        # 09-01 在 24,374 撞牆(Carson 的提額申請在這中間通過)。取 min 的結果是
+        # **一道已經不存在的舊牆永久壓住估計值**,自我校準看起來在跑,實際上學不會調高。
+        # 撞牆日的成功花費**依定義**就是當天的牆,所以最近那天最有代表性;
+        # 用「最近」而不是「最大」,是因為配額也可能被調降,那時要跟著降下來。
         if int(b.get("rejected_calls", 0) or 0) and sp:
-            ceil = sp if ceil is None else min(ceil, sp)
+            if ceil is None or str(day) >= str(_ceil_day or ""):
+                ceil, _ceil_day = sp, day
     return floor, ceil
 
 
