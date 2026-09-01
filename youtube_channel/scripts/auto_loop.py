@@ -221,7 +221,30 @@ def _collect_winners() -> list[dict]:
                 winners[slug] = {"slug": slug, "title": _clean_title(x.get("title") or slug),
                                  "pct": float(ret), "views": views}
 
-    out = sorted(winners.values(), key=lambda w: w["pct"], reverse=True)
+    # 🔴 2026-09-01 名額**按格式分配**,不是辦一場比賽讓某個格式結構上必勝。
+    #
+    # 這支的用途是「決定要多做什麼」,而發布配比是 **5:1 長短片**(memory
+    # yt-shorts-not-converting:Shorts 佔 39% 名額卻只回饋 2% 訂閱、3.7% 時數,
+    # 且不計入 YPP 的 4000 小時)。所以名額該照那個配比分。
+    #
+    # 試過兩版都不夠:
+    # ①原本 sorted(key=pct) 跨格式比原始完播率 → Shorts 40~100% vs 長片 18~51%,
+    #   3 個名額永遠被 Shorts 佔滿(實測 15:30 那輪 3/3 都是 S_)。
+    # ②改成比「超出自己門檻幾倍」→ Shorts 100% = 1.82 倍,最好的長片 50.8% = 1.75 倍,
+    #   還是輸。Shorts 短到可以完播 100%,天花板結構上就比較高,normalize 也追不上。
+    # 所以不比了:長片保障 2 席、短片 1 席,某一邊不足才由另一邊遞補。
+    _by_fmt: dict = {"long": [], "short": []}
+    for w in winners.values():
+        _by_fmt[_fmt_of(w["slug"])].append(w)
+    for k in _by_fmt:
+        # 格式內部仍照「超出自己門檻幾倍」排,同格式比才有意義
+        _by_fmt[k].sort(key=lambda w: w["pct"] / max(_win_pct(w["slug"]), 1e-9), reverse=True)
+    _quota = {"long": max(1, WIN_MAX - 1), "short": WIN_MAX - max(1, WIN_MAX - 1)}
+    out = _by_fmt["long"][:_quota["long"]] + _by_fmt["short"][:_quota["short"]]
+    if len(out) < WIN_MAX:      # 某一邊不足 → 另一邊遞補,不浪費名額
+        _rest = [w for k in ("long", "short") for w in _by_fmt[k] if w not in out]
+        _rest.sort(key=lambda w: w["pct"] / max(_win_pct(w["slug"]), 1e-9), reverse=True)
+        out += _rest[:WIN_MAX - len(out)]
     return out[:WIN_MAX]
 
 

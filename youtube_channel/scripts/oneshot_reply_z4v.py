@@ -82,7 +82,7 @@ def main() -> int:
         return 1
     print("✅ 已補發,id:", res.get("id"))
     try:
-        from studio_common import log_ops
+        from ops import log_ops
         log_ops("留言部門", "已補發 08-31 被配額擋下的回覆(@憂鬱-z4v / 雙鴻3324)")
     except Exception:  # noqa: BLE001
         pass
