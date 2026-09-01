@@ -681,11 +681,18 @@ def build_meta():
                 if isinstance(b, dict) and not b.get("doi")                         and b.get("source_name"):
                     cites.append(f"{_label(_k)}: {b['source_name']}")
             papers = nl.join(cites)
+            # 🔴 短片說明欄**根本沒有這個區塊**,而長片有 —— 同一個承諾
+            #    兩份表面,只做了一份。已上線的短片裡有三支的 missing_public
+            #    非空,觀眾一個字都看不到。
+            miss = E.get("missing_public") or []
+            mtxt = ("" if not miss else
+                    nl + "What we could not check first-hand:" + nl
+                    + nl.join(f"  - {m}" for m in miss) + nl)
             desc = (
                 f"{r['belief']}{nl}{nl}"
                 f"{r['verdict']}{nl}{nl}"
                 f"{r['ask']}{nl}{nl}"
-                f"{papers}{nl}{nl}"
+                f"{papers}{nl}{mtxt}{nl}"
                 # 🔴 這句原本是「每一個數字都讀自論文本身,而且存著它的原句」。
                 #    溯源閘門只要求數字出現在結構化欄位裡 —— 沒有 quote 的
                 #    欄位照樣過關(facial_feedback 的 0.49 就是),所以

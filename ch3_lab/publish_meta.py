@@ -975,7 +975,18 @@ def main():
             #    說明欄。commit 9e4afcb8 修的是**旁白**路徑的 CJK,說明欄
             #    這份沒修 —— 同一句話兩份,只修了會出聲的那份。
             #    改成只吐 `missing_public`(英文,逐集手寫);沒有就不吐。
+            # 🔴 這裡讀的是**渲染快照**,而 missing_public 是事實庫後來補的,
+            #    快照裡是 None —— 於是主檔明明寫了,說明欄還是一個字都不吐
+            #    (實測 false_memory 與 hungry_judges 就是這樣)。
+            #    跟 popular_name 一樣回主檔查:它不影響任何一格畫面。
             miss = E.get("missing_public") or []
+            if not miss:
+                _s2 = json.loads(
+                    (ROOT / "facts" / "rechecked_episodes.json")
+                    .read_text(encoding="utf-8"))
+                _m2 = next((x for x in _s2["episodes"]
+                            if x["slug"] == d.name), None)
+                miss = (_m2 or {}).get("missing_public") or []
             mtxt = ("" if not miss else
                     nl + "What we could not verify first-hand:" + nl
                     + nl.join(f"  - {m}" for m in miss) + nl)
