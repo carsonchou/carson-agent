@@ -1,106 +1,96 @@
 {
- "day": "2026-08-30",
- "spent": 19598,
+ "day": "2026-09-01",
+ "spent": 5031,
  "items": [
   {
-   "at": "16:25",
-   "cost": 1663,
-   "what": "MuCFl66-dbc"
-  },
-  {
-   "at": "16:26",
-   "cost": 1606,
-   "what": "social_priming"
-  },
-  {
-   "at": "16:26",
-   "cost": 1606,
-   "what": "ep013"
-  },
-  {
-   "at": "16:38",
-   "cost": 1663,
-   "what": "m14CWlRhpvA"
-  },
-  {
-   "at": "16:39",
-   "cost": 1606,
-   "what": "ep0"
-  },
-  {
-   "at": "16:40",
-   "cost": 1606,
-   "what": "learning_styles"
-  },
-  {
-   "at": "16:40",
-   "cost": 1606,
-   "what": "ep014"
-  },
-  {
-   "at": "16:41",
-   "cost": 1606,
-   "what": "ep015"
-  },
-  {
-   "at": "16:41",
-   "cost": 1606,
-   "what": "ep016"
-  },
-  {
-   "at": "16:42",
-   "cost": 1606,
-   "what": "ep017"
-  },
-  {
-   "at": "16:43",
+   "at": "18:14",
    "cost": 1,
-   "what": "fix_meta public_only"
+   "what": "channel read"
   },
   {
-   "at": "16:43",
+   "at": "18:14",
    "cost": 1,
-   "what": "fix_meta channels.list"
+   "what": "trailer check"
   },
   {
-   "at": "16:43",
+   "at": "18:25",
    "cost": 1,
-   "what": "fix_meta list (before)"
+   "what": "privacy check"
   },
   {
-   "at": "16:43",
+   "at": "19:12",
+   "cost": 2,
+   "what": "audit publishedAt"
+  },
+  {
+   "at": "19:12",
+   "cost": 2,
+   "what": "audit ceiling"
+  },
+  {
+   "at": "20:25",
+   "cost": 1606,
+   "what": "cognitive_dissonance"
+  },
+  {
+   "at": "21:44",
+   "cost": 1,
+   "what": "long-form status audit"
+  },
+  {
+   "at": "21:58",
    "cost": 50,
-   "what": "fix_meta ep007"
+   "what": "thumb CJSsNfOux4M"
   },
   {
-   "at": "16:43",
-   "cost": 50,
-   "what": "fix_meta power_posing"
-  },
-  {
-   "at": "16:43",
-   "cost": 50,
-   "what": "fix_meta learning_styles"
-  },
-  {
-   "at": "16:43",
-   "cost": 1,
-   "what": "fix_meta list (readback 1)"
-  },
-  {
-   "at": "16:43",
-   "cost": 1,
-   "what": "fix_meta list (readback 2)"
-  },
-  {
-   "at": "17:25",
-   "cost": 1663,
-   "what": "MyJiJWfGex4"
-  },
-  {
-   "at": "17:26",
+   "at": "21:58",
    "cost": 1606,
-   "what": "ep018"
+   "what": "reel_hot_hand"
+  },
+  {
+   "at": "21:59",
+   "cost": 50,
+   "what": "thumb 70WSNrTxkwE"
+  },
+  {
+   "at": "21:59",
+   "cost": 1606,
+   "what": "reel_marshmallow_test"
+  },
+  {
+   "at": "21:59",
+   "cost": 1,
+   "what": "privacy check"
+  },
+  {
+   "at": "21:59",
+   "cost": 50,
+   "what": "comment reel_false_memory"
+  },
+  {
+   "at": "21:59",
+   "cost": 1,
+   "what": "comment readback"
+  },
+  {
+   "at": "21:59",
+   "cost": 50,
+   "what": "comment reel_hungry_judges"
+  },
+  {
+   "at": "21:59",
+   "cost": 1,
+   "what": "comment readback"
+  },
+  {
+   "at": "22:00",
+   "cost": 1,
+   "what": "comment recheck"
+  },
+  {
+   "at": "22:00",
+   "cost": 1,
+   "what": "comment recheck"
   }
  ],
  "history": []

@@ -35,6 +35,7 @@ import argparse
 import json
 import pathlib
 import sys
+import time
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 ROOT = pathlib.Path(__file__).resolve().parent
@@ -131,8 +132,12 @@ def main():
         r = y.commentThreads().insert(part="snippet", body=body).execute()
         quota.spend(COST, f"comment {key}")
         cid = r["snippet"]["topLevelComment"]["id"]
-        # 🔴 回讀 —— 這條線今天已經抓到一個「回 200 但沒改」的 API,
-        #    而且回讀是本專案的合約,不是選配。
+        # 🔴 回讀前**一定要等**。memory `yt-readback-stale-cache`:
+        #    videos.list 緊接著寫入會拿到快取。實測 2026-09-01:兩則留言
+        #    都真的貼上去了,而立刻回讀兩則都找不到 → 判成失敗 → 不記帳
+        #    → 下次會**重貼一次**。回讀太快的假陰性比不回讀更糟:
+        #    它會製造重複,而重複在公開留言區是看得見的。
+        time.sleep(25)
         back = y.commentThreads().list(part="snippet", videoId=vid,
                                        maxResults=100).execute()
         quota.spend(1, "comment readback")
