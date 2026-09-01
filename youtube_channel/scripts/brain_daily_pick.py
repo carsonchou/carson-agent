@@ -28,6 +28,7 @@ self-correlation 是**平台實測值**，離線算不出來。而它是遞減�
 """
 from __future__ import annotations
 
+import json
 import re
 import sys
 from collections import defaultdict
@@ -47,6 +48,49 @@ N_PICK = 2           # 建議提交數（一天 2 條的推理見 submit_alpha.p
 def et_today() -> str:
     """平台計分日（ET）。台北中午 12:00 前算前一天。"""
     return (datetime.now(timezone.utc) - timedelta(hours=4)).strftime("%Y-%m-%d")
+
+
+def _decorrelate(s, ok, n_want):
+    """從 ok 依序挑 n_want 條，**彼此之間**也要不相關。
+
+    🔴 為什麼（2026-08-31 事故）：那天挑出的兩條對「已提交的全部」self-corr
+    分別是 0.51 / 0.48（都很安全），但**彼此**實測 0.8999 —— 兩條一起交，
+    第二條會被平台的 SELF_CORRELATION 擋下，白白浪費當天一個名額。
+
+    原本的去重是比**分子字串**：不同字串就當成不同因子。而
+    `unrecognized_tax_benefits_affecting_tax_rate` 和
+    `unrecognized_tax_benefit_increase_current_period` 是兩個字串、
+    同一個會計概念 —— 字串比不出相關性，PnL 可以。
+
+    平台的 self-corr 只告訴你「對已提交的池子」相關多少，
+    **問不到兩條未提交的之間**。所以這裡自己用日 PnL 差分算 Pearson
+    （對照平台回報值校準過，誤差 ≤0.01）。
+    """
+    import runway as R
+    cache = R.load_cache()
+    chosen, series = [], []
+    try:
+        for x in ok:
+            if len(chosen) >= n_want:
+                break
+            d = R.fetch_pnl(s, x["aid"], cache)
+            if d is None:                       # 取不到 PnL → 不賭，跳過
+                print(f"  {x['aid']} 取不到 PnL，跳過（不敢賭它跟誰撞）")
+                continue
+            worst = max((abs(R.corr(d, e) or 1) for e in series), default=0.0)
+            if worst >= SAFE:
+                print(f"  {x['num'][:30]:<32} 與已選的相關 {worst:.3f} ≥ {SAFE}，剔除")
+                continue
+            x["pair"] = worst
+            chosen.append(x); series.append(d)
+    finally:
+        try:
+            R.CACHE.write_text(json.dumps(cache), encoding="utf-8")
+        except Exception:  # noqa: BLE001
+            pass
+    # 一條都選不出來時退回最高分那條：**單獨一條不可能跟自己撞**，
+    # 而「今天不交」的成本是那 2,000 分永遠拿不回來。
+    return chosen or ok[:1]
 
 
 def main() -> int:
@@ -139,7 +183,8 @@ def main() -> int:
     # 而 ok[:-1] 不是空清單、是「除了最後一個以外全部」—— 會安靜地推出一堆
     # 不該交的候選。正式路徑有上面的守門碰不到，但負索引切片是會給錯答案
     # 而不報錯的寫法，不留。
-    take = ok[:max(0, N_PICK - done_today)] or ok[:1]
+    n_want = max(0, N_PICK - done_today) or 1
+    take = _decorrelate(s, ok, n_want)
     lines = [f"ET {today}（台北今天）可以交了。已交 {done_today} 條。", ""]
     for i, x in enumerate(take, 1):
         lines.append(f"{i}. {x['num'][:40]}")
@@ -147,6 +192,9 @@ def main() -> int:
         # 且**完全無聲**。那正是 memory verification-that-cannot-fail 記的病。
         lines.append(f"   Sharpe {(x['sh'] or 0):.2f} · fitness {(x['fit'] or 0):.2f} · "
                      f"self-corr {(x['sc'] or 0):.3f} · 最後一年 {(x['ly'] or 0):.2f}")
+        # 兩條之間的相關也要看得見：平台只查得到「對已提交池」，查不到彼此。
+        if x.get("pair"):
+            lines.append(f"   與上一條的相關 {x['pair']:.3f}（門檻 {SAFE}）")
         lines.append(f"   {ALPHA_URL.format(x['aid'])}")
         lines.append("")
     lines.append("進頁面按 Submit。全綠才會過；被擋的話回報我，")

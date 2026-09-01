@@ -156,9 +156,20 @@ def main() -> int:
     if not target.exists():
         print(f"[cron] 找不到 {target}", file=sys.stderr)
         return 1
+
+    # 🔴 2026-09-01：鎖要搶在**這裡**，不是在各階段裡面。
+    # 原本只有 brain_auto.cmd_run 有鎖，而一階走的是 field_miner（沒有鎖）——
+    # 兩份實作、閘門只裝在沒人走的那一份（同 memory `yt-duplicate-impl-gate-bypass`）。
+    # 裝在這個唯一入口，三個階段一次全蓋到，也不會有下一支新階段忘了加。
+    import brain_auto as B
+    if not B.claim_lock():
+        return 0
     print(f"[cron] {phase} → {target.name} --run {n}")
     sys.argv = [str(target), "--run", n]
-    runpy.run_path(str(target), run_name="__main__")
+    try:
+        runpy.run_path(str(target), run_name="__main__")
+    finally:
+        B.release_lock()
     return 0
 
 

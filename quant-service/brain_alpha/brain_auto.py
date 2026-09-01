@@ -773,6 +773,13 @@ def flatten(detail):
 # 而不是「鎖檔超過 N 分鐘就算過期」——長批本來就會跑很久,純看時間會把活的判死。
 LOCKFILE = ROOT / "miner.lock"
 
+# 🔴 2026-09-01：挖礦程序的指令列特徵。**這份是唯一真相**，
+# brain_miner_watchdog.py 直接 import 這個常數（原本兩邊各抄一份，
+# 而 `brain_alpha_cron` 兩邊都漏了 —— 見下方事故記錄）。
+# 新增挖礦階段時只改這裡。
+MINER_PATTERNS = ("field_miner", "second_order", "brain_auto",
+                  "universe_sweep", "hybrid_miner", "brain_alpha_cron")
+
 
 def _pid_alive_miner(pid: int) -> bool:
     """那個 PID 還活著、而且真的是挖礦程序嗎？
@@ -786,7 +793,7 @@ def _pid_alive_miner(pid: int) -> bool:
             capture_output=True, text=True, timeout=30).stdout
     except Exception:  # noqa: BLE001
         return True          # 查不出來就當它活著,寧可少跑一批也不要兩個互撞
-    return any(k in out for k in ("field_miner", "second_order", "brain_auto", "universe_sweep", "hybrid_miner"))
+    return any(k in out for k in MINER_PATTERNS)
 
 
 def claim_lock() -> bool:
@@ -794,6 +801,12 @@ def claim_lock() -> bool:
     try:
         if LOCKFILE.exists():
             old = LOCKFILE.read_text(encoding="utf-8").strip().split(",")[0]
+            # 同一個 PID 再要一次要給它 —— brain_alpha_cron 先搶鎖，
+            # 再用 runpy 在**同一個程序**裡跑 field_miner/brain_auto，
+            # 那支又會呼叫一次 claim_lock。不做這個判斷會自己鎖死自己
+            # （而且是安靜地什麼都不跑，只印一行「正在挖礦」）。
+            if old == str(os.getpid()):
+                return True
             if old.isdigit() and _pid_alive_miner(int(old)):
                 print(f"[lock] PID {old} 正在挖礦（併發上限 2 是帳號層級，"
                       f"再開一個只會互相 429）→ 這一輪不跑。")

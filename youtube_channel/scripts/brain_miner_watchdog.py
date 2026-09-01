@@ -27,10 +27,15 @@ from pathlib import Path
 
 BRAIN = (Path(__file__).resolve().parent.parent.parent
          / "quant-service" / "brain_alpha")
-# ⚠️ 新增挖礦階段時**這裡一定要跟著加**（2026-08-29 差點漏掉 universe_sweep）：
-# 守門認不出來就會判定「沒在跑」→ 再拉一個起來 → 兩個程序互搶那 2 個併發槽。
-# 同一份名單在 brain_auto._pid_alive_miner 也有一份（鎖的活性判斷用），要一起改。
-PATTERN = ("field_miner", "second_order", "brain_auto", "universe_sweep", "hybrid_miner")
+sys.path.insert(0, str(BRAIN))
+# 🔴 2026-09-01 事故：這份名單漏了 `brain_alpha_cron` —— 而那正是**本檔自己拉起來的**
+# 那支 wrapper。它用 runpy 在同一個程序裡跑 field_miner，所以指令列上只看得到
+# `brain_alpha_cron.py --run 400`，比對不到任何一個 pattern → 每 20 分鐘判定
+# 「沒在跑」再拉一個 → 實測疊到 **9 個**同時活著（最舊的活了 23 小時），
+# 全部搶那 2 個帳號層級的併發槽、互相 429。
+# 「miner 又停了」查了好幾天，根因就是這一行。
+# → 名單改成從 brain_auto import（單一真相），兩邊不可能再不一致。
+from brain_auto import MINER_PATTERNS as PATTERN  # noqa: E402
 
 
 def miner_running() -> bool:
