@@ -32,8 +32,19 @@ def dur(p):
 
 
 def main():
-    code = max((R / n).stat().st_mtime for n in
-               ("make_reel.py", "render_pipeline.py", "make_rechecked.py"))
+    # 🔴 原本拿三支檔的 max 當**兩種片型共用**的新舊判準,而
+    #    `make_reel.py` 跟長片渲染完全無關 —— 我改一次短片的渲染碼,
+    #    板子就把 14 支長片全部標成「舊」,而它們一個字都沒變。
+    #    督導照這個板子下指令要我重渲 14 支長片(約 11 分鐘 + 三小時的
+    #    CPU),而那 11 分鐘會是純粹白燒。
+    #    **判準要跟著相依關係走**:短片看 make_reel + render_pipeline +
+    #    make_rechecked(它匯入前兩者);長片只看後兩者。
+    code_reel = max((R / n).stat().st_mtime for n in
+                    ("make_reel.py", "render_pipeline.py",
+                     "make_rechecked.py"))
+    code_long = max((R / n).stat().st_mtime for n in
+                    ("render_pipeline.py", "make_rechecked.py"))
+    code = code_reel
     led_s = json.loads((R / "uploaded_shorts.json").read_text("utf-8"))
     led_l = json.loads((R / "uploaded.json").read_text("utf-8"))
 
@@ -79,7 +90,7 @@ def main():
 
     nf = sum(1 for d in (R / "eps_rechecked").iterdir()
              if d.is_dir() and (d / f"{d.name}.mp4").exists()
-             and (d / f"{d.name}.mp4").stat().st_mtime >= code)
+             and (d / f"{d.name}.mp4").stat().st_mtime >= code_long)
     print()
     print(f"  短片:{fresh_n}/14 最新碼   {ok_band}/14 在帶內   "
           f"{verified}/14 已驗證")
