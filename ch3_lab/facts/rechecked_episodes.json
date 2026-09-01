@@ -833,14 +833,14 @@
           "es": -0.38,
           "es_kind": "d",
           "hot": true,
-          "cue": "And in 2024 a registered replication"
+          "cue": "In 2024 a registered replication"
         }
       ],
       "popular_name": "Moral licensing",
       "reel": {
-        "belief": "One good deed buys you permission to do a bad one.",
+        "belief": "One good deed buys permission to do a bad one.",
         "weight": "The standard explanation for why good people do shabby things. Cited over 1,000 times.",
-        "turn": "Pooled, the effect is 0.31. Published studies 0.43, unpublished 0.11. A 2016 replication on 3,134 people still found it, much smaller. Correct for publication bias one way: minus 0.05. And in 2024 a registered replication came back at minus 0.38 on one scenario, 0.08 on the other.",
+        "turn": "Pooled, the effect is 0.31. Published studies 0.43, unpublished 0.11. A 2016 replication on 3,134 people still found it, much smaller. Correct for publication bias one way: minus 0.05. In 2024 a registered replication: minus 0.38 on one scenario, 0.08 on the other.",
         "verdict": "Every retest was bigger and every retest smaller. The last changed sign.",
         "ask": "Do you catch yourself doing this?"
       },
@@ -1747,9 +1747,9 @@
       "verdict_display": "grit as it is currently measured does not appear to be particularly predictive of success and performance and also does not appear to be all that different to conscientiousness.",
       "reel": {
         "belief": "Grit beats talent.",
-        "weight": "It became a book, a TED talk, and a school curriculum. Cited more than 6,900 times.",
+        "weight": "A book, a TED talk, a school curriculum. Cited over 6,900 times.",
         "turn": "In 2017 someone pooled 88 samples - 66,807 people. Grit predicts academic performance at 0.18. Its overlap with plain conscientiousness, corrected for measurement error: 0.84. Two conscientiousness questionnaires only agree with each other at 0.63. The 2007 paper had reported that overlap itself: 0.77.",
-        "verdict": "Grit matches conscientiousness more closely than conscientiousness matches itself. It still predicts things.",
+        "verdict": "Grit matches conscientiousness more closely than conscientiousness matches itself. It still predicts.",
         "ask": "Is grit a real thing, or a new name for an old one?"
       },
       "missing": [],
@@ -2477,7 +2477,7 @@
       "say_verdict": "So this is not a debunking, and the people who say growth mindset is dead have not read the biggest test of it. What the evidence supports is much narrower than the poster: a tenth of a grade point, for the students who were already behind, in schools where their classmates made it safe to try something hard.",
       "reel": {
         "belief": "Teach a child that intelligence can grow, and their grades go up.",
-        "weight": "It became a school programme, a bestseller, and a poster in a lot of classrooms.",
+        "weight": "It became a school programme, a bestseller, a classroom poster.",
         "turn": "So they ran it properly: 65 schools, 12,490 students, analysis plan registered in advance. And they found it. Lower-achieving students gained a tenth of a grade point - an effect size of 0.11. The other half: Higher-achieving students: 0.01, p equals 0.634. And a trial in England with 5,018 pupils found no additional progress in reading or maths.",
         "verdict": "It works, for the students who were already behind. A tenth of a grade point.",
         "ask": "Is a tenth of a grade point worth an assembly?"
