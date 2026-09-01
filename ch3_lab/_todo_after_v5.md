@@ -52,3 +52,34 @@
 2. 稿子長度要真的到 4~5 分鐘 —— 現在每集七段的字數撐不到
 3. `make_compilation` 併成 15 分鐘那條路徑重新啟用並實測
 4. 在那之前**不要再發 2~3 分鐘的 16:9**
+
+## 🔴 stanford_prison 的 es_is_max 在三條路上各自掉一次(渲染碼,凍結中)
+
+原文是 **less than 15%**,而三個表面印成裸的 `15%`、兩個表面印對:
+
+| 表面 | 顯示 | 根因 |
+|---|---|---|
+| 時間軸卡 | `15%` ❌ | `make_rechecked.py:257-264` `timeline_rows()` 重建 dict 時只複製五個 key,`es_is_max` 掉了 |
+| 旁白 | 「15 percent」 ❌ | `make_rechecked.py:153` `say_es()` **根本沒有 `is_max` 參數** —— 畫面那道補了,出聲那份沒補 |
+| 說明欄 | `15%` ❌ | `publish_meta.py` 沒往下傳 |
+| 轉折卡 | `<15%` ✅ | `twist_rows()` 原封轉發,所以同一支片兩種結果 |
+| 判決卡 | `less than 15%` ✅ | 走逐字引文 |
+
+**說明欄那兩處已修(2026-09-01,不影響成片)。渲染那兩處凍結中,下一批修。**
+在修好之前 **stanford_prison 長片不發**。
+
+順帶:`publish_meta.py` 的「The retest」寫死有**兩處**,我修第一處之後第二處
+還在(引文區塊標題)。已一起修成跟著 `test.kind` 走 —— stanford_prison 的
+kind 是 `archival reinvestigation`,而旁白明說「Not a retest」。
+
+## 🔴 四條 insert 路徑,配比閘門只裝在一條(督導指派,出貨後做)
+
+`publish_shorts.py:840` / `publish_comp.py:314` / `upload.py:363`,
+加上排程的 `ch3_publish.py`,而 `DAILY_LONG=1` **只寫在最後那支裡**。
+今天我差點手動發 11 支長片走的就是沒閘那條。
+
+改法:新增 `ch3_lab/publish_gate.py` 的 `assert_may_publish(kind)`,
+上限只從 `ch3_publish.py` import(不複製數字)、日界用 `quota._pacific_date`
+(不另寫一份)、fail-closed、三個 insert 站點各自呼叫。
+驗收要派 agent **試圖繞過它**發第 2 支,四條路各自回報被擋在哪一行 ——
+任何一條沒被擋就是沒做完。用 dry-run,不准真的多發一支上去測。

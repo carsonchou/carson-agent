@@ -932,7 +932,18 @@ def main():
             #    original_authors_reply)。說明欄結尾卻寫著「兩篇論文的 DOI
             #    都在這裡」—— 而片子講的那個數字查不到。
             #    列舉會漏,掃描不會。
-            _LAB = {"original": "The original", "test": "The retest",
+            # 🔴 `test` 的標籤寫死「The retest」,不看 `test.kind`。
+            #    stanford_prison 的 kind 是 `archival reinvestigation`,
+            #    旁白明說「**Not a retest.** Somebody went into the archive」,
+            #    而說明欄寫「The retest: Debunking the Stanford Prison
+            #    Experiment (2019)」—— 配上那個標題,讀者會得到
+            #    「有人重做了一次並且推翻了它」,正是這一集的誠實邊界
+            #    明文禁止的結論。旁白守住了,說明欄沒有。
+            #    用這一集**自己的 kind**,不要替它換一個名字。
+            _kind = str((E.get("test") or {}).get("kind") or "").strip()
+            _test_lab = ("The retest" if not _kind
+                         else _kind[0].upper() + _kind[1:])
+            _LAB = {"original": "The original", "test": _test_lab,
                     "test2": "A second challenge",
                     "author_recantation": "The original author, later",
                     "original_authors_reply": "The original author replies"}
@@ -1005,13 +1016,21 @@ def main():
             from make_rechecked import val_str as _vs
             tl = nl.join(
                 f"  {r['year']}  {r['what']}"
-                + (f"   {_vs(r['es_kind'], r['es'])}"
+                # 🔴 `es_is_max` 沒往下傳。說明欄印出裸的 `15%`,而**同一份
+                #    說明欄往下兩行**就是逐字引文「less than 15% have been
+                #    recorded」—— 觀眾拿去對照,兩行自己對不起來。
+                #    上一行的註解剛好寫著「符號從 val_str 來,不要在這裡
+                #    再寫一份」:函式重用了,承載上限的那個參數掉了。
+                + (f"   {_vs(r['es_kind'], r['es'], r.get('es_is_max', False))}"
                    if r.get("es") is not None and r.get("es_kind") else "")
                 for r in (E.get("timeline") or []))
 
             # 逐字原句 —— 這是說明欄存在的主要理由。
             quotes = [("The original study", O.get("quote")),
-                      ("The retest", T.get("verdict_quote"))]
+                      # 🔴 「The retest」在這份說明欄裡有**兩處**,我剛才
+                      #    只修了論文清單那一處。同一個字面、同一個錯,
+                      #    第二個現場 —— 今天第 N 次。共用同一個 _test_lab。
+                      (_test_lab, T.get("verdict_quote"))]
             if E.get("author_recantation"):
                 quotes.append(("The original author, later",
                                E["author_recantation"]["quotes"][1]))
