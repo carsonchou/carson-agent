@@ -509,6 +509,22 @@ def _key(expr, settings):
     return hashlib.sha1((expr + json.dumps(settings, sort_keys=True)).encode()).hexdigest()[:16]
 
 
+def _is_infra(rec) -> bool:
+    """這筆是「基礎設施沒讓它跑」，不是「跑了、結果不行」。
+
+    🔴 2026-09-01：帳本 26,261 條裡有 **17,401 條（66.3%）**是
+    `無有效 Location` —— 那是 15 次 429 退避後放棄，模擬**從來沒送出去過**。
+    而它們照樣被寫進帳本，於是 `unscanned_fields()` 把那 1,808 個欄位算成
+    「掃過了」，永遠不會重試。憑空丟掉 1,808 個欄位的搜尋結果。
+
+    同型事故第二次：memory `yt-quota-partial-failure-silent-bad-data`
+    記的是「配額耗盡 → 靜默壞資料落檔」，這次是「併發滿 → 沒跑過的當跑過」。
+    共同點都是**失敗被當成有效結果存起來**。
+    """
+    e = str((rec or {}).get("error") or "")
+    return e.startswith("INFRA:") or "無有效 Location" in e
+
+
 def load_ledger():
     if not LEDGER.exists():
         return {}
@@ -518,13 +534,21 @@ def load_ledger():
         if not line:
             continue
         try:
-            r = json.loads(line); out[r["key"]] = r
+            r = json.loads(line)
         except Exception:  # noqa: BLE001
             continue
+        # 舊檔裡已經寫進去的 INFRA 失敗直接忽略 → 那些欄位自動變回「未掃」。
+        # 不改寫 10MB 的歷史檔（append-only 是這個檔的價值），只是讀的時候不採信。
+        if _is_infra(r):
+            continue
+        out[r["key"]] = r
     return out
 
 
 def append(rec):
+    # 唯一的寫入口。基礎設施失敗**不落檔** —— 落了就等於把那個欄位標記成掃過。
+    if _is_infra(rec):
+        return
     with LEDGER.open("a", encoding="utf-8") as f:
         f.write(json.dumps(rec, ensure_ascii=False) + "\n")
 
