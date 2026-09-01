@@ -327,10 +327,64 @@ def render_scene(name, t_now, dur, ctx):
         #    hungry_judges 45%、growth_mindset 32% 同型。
         #    補的東西不是新內容,是**旁白自己正在唸的那幾句** —— 它不會
         #    多講任何一件事,只是讓看的人跟得上聽的。
-        lead = turn_txt[:pos[0]].strip() if pos and pos[0] > 0 else ""
-        if lead and t_now < ats[0]:
-            fade = min(1.0, (ats[0] - t_now) / 0.5)
-            block(lead, 0.56, 64, 26, DIM, "normal", fade)
+        # 🔴 導言只填了「第一列之前」那一段,而死時間有三種:第一列之前、
+        #    **列與列之間**、以及**最後一列之後**。實測 14 支裡 8 支中招:
+        #    facial_feedback 列間 14.1 秒、sugar_hyperactivity 16.3 秒、
+        #    grit 尾段 12.5 秒、stanford_prison 第一列之前 18.4 秒。
+        #    我上一版只修了自己手上那個病例(hot_hand 的第一種)。
+        #
+        #    改成整段都有:**把旁白正在唸的那一句顯示在表格下方**。
+        #    它逐字取自旁白,不多講任何一件事;它把每一個空檔都填掉;
+        #    而且 Shorts 有大量觀看是靜音的,字幕本身就是留存工具。
+        import re as _re
+        _sent, _i = [], 0
+        for _m in _re.finditer(r"[^.!?]+[.!?]+\s*", turn_txt):
+            _sent.append((_m.start(), _m.group().strip()))
+        if not _sent:
+            _sent = [(0, turn_txt)]
+        _bounds = [(k / max(1, len(turn_txt))) * dur for k, _ in _sent]
+        _cur = None
+        for _j, (_st, _tx) in enumerate(_sent):
+            _a = _bounds[_j]
+            _b = _bounds[_j + 1] if _j + 1 < len(_bounds) else dur
+            if _a <= t_now < _b:
+                _cur = _tx
+                break
+        if _cur:
+            # 放在**最後一列下面**的空白。沒有列顯示時就用整個下半部。
+            _shown = [i for i, a in enumerate(ats) if t_now >= a]
+            _low = (top - max(_shown) * gap - gap * 0.85) if _shown \
+                else SAFE_HI - 0.16
+            _mid = (max(SAFE_LO, _low - 0.16) + _low) / 2
+            _top_edge, _bot_edge = block(_cur, _mid, 46, 30, DIM, "normal")[:2]
+            # 🔴 字幕不准壓到表格,也不准掉出安全區 —— 兩個都是斷言,
+            #    不是「應該不會」。版面守門對「每個元素各自合法但合起來
+            #    相撞」是盲的,這條線今天已經證明了三次。
+            if _shown and _top_edge > _low + 0.005:
+                raise SystemExit(
+                    f"⛔ {E['slug']} 的字幕壓到表格"
+                    f"(字幕上緣 {_top_edge:.3f} > 可用上緣 {_low:.3f})。"
+                    f"表格 {len(_shown)} 列,句子:{_cur[:50]}")
+            if _bot_edge < SAFE_LO:
+                raise SystemExit(
+                    f"⛔ {E['slug']} 的字幕掉出安全區下緣"
+                    f"({_bot_edge:.3f} < {SAFE_LO})。句子:{_cur[:50]}")
+
+        # 🔴 **靜止時間才是那個量。** 我原本的判準是「畫面上有沒有東西」,
+        #    而 stanford_prison 通過了那個判準(有一列)卻靜止 17.7 秒。
+        #    獨立驗證用的尺比我的好,所以把它寫成閘門。
+        #    現在畫面每一句都會換,所以要驗的變成:**有沒有哪一句短到
+        #    看不完**(閃一下就過去,比不動更糟)。
+        _short = [(t[:40], round(b - a, 2))
+                  for (t, a, b) in
+                  ((_sent[j][1], _bounds[j],
+                    _bounds[j + 1] if j + 1 < len(_bounds) else dur)
+                   for j in range(len(_sent)))
+                  if b - a < 0.9]
+        if _short:
+            raise SystemExit(
+                f"⛔ {E['slug']} 有字幕句停留不到 0.9 秒:{_short}\n"
+                f"   一閃而過的字比不動的畫面更糟 —— 把那一句併進前後句。")
         for i, x in enumerate(rows):
             at = ats[i]
             if t_now < at:
