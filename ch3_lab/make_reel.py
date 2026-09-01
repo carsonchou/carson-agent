@@ -337,9 +337,18 @@ def render_scene(name, t_now, dur, ctx):
         #    它逐字取自旁白,不多講任何一件事;它把每一個空檔都填掉;
         #    而且 Shorts 有大量觀看是靜音的,字幕本身就是留存工具。
         import re as _re
-        _sent, _i = [], 0
-        for _m in _re.finditer(r"[^.!?]+[.!?]+\s*", turn_txt):
-            _sent.append((_m.start(), _m.group().strip()))
+        # 🔴 第一版寫 `[^.!?]+[.!?]+` —— 它把**小數點當成句號**。
+        #    growth_mindset 的「p equals 0.634.」被切出一個叫「634.」的
+        #    句子,停留 0.44 秒。是我自己剛加的「句子不准短於 0.9 秒」
+        #    那道斷言把它擋下來的 —— 斷言擋的是我自己的 bug。
+        #    句號要**後面接空白再接大寫**才算句尾;小數點兩側都是數字。
+        _cuts = [0] + [m.end() for m in
+                       _re.finditer(r'(?<=[.!?])\s+(?=["“(]?[A-Z])',
+                                    turn_txt)]
+        _sent = [(c, turn_txt[c:(_cuts[i + 1] if i + 1 < len(_cuts)
+                                 else len(turn_txt))].strip())
+                 for i, c in enumerate(_cuts)]
+        _sent = [(k, t) for k, t in _sent if t]
         if not _sent:
             _sent = [(0, turn_txt)]
         _bounds = [(k / max(1, len(turn_txt))) * dur for k, _ in _sent]
