@@ -607,6 +607,27 @@ def build_meta():
             fj = d / "facts.json"
             if not (mp4.exists() and fj.exists()):
                 continue
+            # 🔴 **排程會發 `reels/` 裡的任何東西,不管我驗沒驗過。**
+            #    2026-09-01 實測:我砍掉一批渲染,有幾支殘留程序在砍完之後
+            #    才把 mp4 寫出來;08:25 的排程把其中一支發了出去 ——
+            #    那支早於「爆點列位置」的修正,帶著表格破洞。
+            #    我加的 `--only` 只保護手動執行,排程走的是另一條路。
+            #    → 每一支要進候選池必須有一個 `VERIFIED` 標記,而標記裡要記
+            #      當時的成片 mtime:**成片重渲過就自動失效**,不會出現
+            #      「驗過舊版、發出新版」或反過來。
+            vf = d / "VERIFIED"
+            if not vf.exists():
+                print(f"  ⛔ {d.name}:沒有 VERIFIED 標記 —— 沒驗過的不進"
+                      f"候選池(`python mark_verified.py {d.name}`)")
+                continue
+            try:
+                stamp = float(vf.read_text(encoding="utf-8").split()[0])
+            except Exception:                                # noqa: BLE001
+                stamp = -1.0
+            if abs(mp4.stat().st_mtime - stamp) > 2:
+                print(f"  ⛔ {d.name}:VERIFIED 標記對不上現在的成片"
+                      f"(驗的是另一個檔)—— 重驗再發")
+                continue
             E = json.loads(fj.read_text(encoding="utf-8"))
             r = E.get("reel") or {}
             if not r.get("belief") or not r.get("ask"):
