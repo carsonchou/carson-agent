@@ -82,6 +82,28 @@ _PCT_BY_FORMAT = {
     "short": {"win": 55.0, "lose": 32.0},   # 全量實測 n=405:P75=55 / P25=32(中位 42)
 }
 
+# 🔴 2026-09-01 改用「每次觀看秒數」而不是完播率。
+# **完播率跟片長是分母關係**:同樣看 141 秒,9 分鐘片算 26%、13 分鐘片算 18%。
+# 而片長會變 —— 09-01 事實密度修好之後,新片從 8.9 分漲到 13.3 分(n=7 實測),
+# 於是同一批門檻(長片輸家<18%)突然把新片全判在及格線上,而它們的觀看秒數其實沒變差。
+# 這是本 session 第四次踩同一個形狀:**規則沒跟著輸入變**。
+# 秒數不受片長影響、跨格式可比,而且**它就是 YPP 要算的觀看時數本身**,不是替身指標。
+# 全量實測(filters=video== 批次,>=20 觀看):
+#     長片 n=146  中位 114s  P25  87s  P75 135s
+#     短片 n=386  中位  18s  P25  13s  P75  24s
+_SEC_BY_FORMAT = {
+    "long":  {"win": 135.0, "lose": 87.0},
+    "short": {"win": 24.0, "lose": 13.0},
+}
+
+
+def _win_sec(slug: str) -> float:
+    return _SEC_BY_FORMAT[_fmt_of(slug)]["win"]
+
+
+def _lose_sec(slug: str) -> float:
+    return _SEC_BY_FORMAT[_fmt_of(slug)]["lose"]
+
 
 def _fmt_of(slug: str) -> str:
     """從 slug 前綴判格式。認不出來當 short —— 那是舊行為,不會因為認錯而放寬。"""
@@ -394,6 +416,15 @@ def _collect_losers() -> list[dict]:
             continue
         ret, views = x.get("retention"), x.get("views")
         _slug = str(x.get("slug") or "")
+        # 🔴 2026-09-01 優先用「每次觀看秒數」判(見 _SEC_BY_FORMAT 說明:完播率會隨片長浮動)。
+        # 舊資料沒有 avg_dur 欄位時才退回完播率 —— 不因為換指標就讓整條迴圈空手。
+        _sec = x.get("avg_dur")
+        if _num(_sec) and _sec > 0:
+            if _sec < _lose_sec(_slug) and _num(views) and views >= LOSE_MIN_VIEWS:
+                losers.append({"slug": _slug,
+                               "title": _clean_title(x.get("title") or x.get("slug") or ""),
+                               "ret": float(_sec), "views": int(views)})
+            continue
         # retention 需 >0(=0 多為無數據,別誤殺);< 門檻且觀看夠樣本才算輸家。
         # 🔴 2026-09-01 門檻改成**該格式自己的** P25:舊的單一 40% 把 80 支長片中的 77 支
         # 判成輸家(長片完播中位只有 22%,結構上不可能到 40%),等於每天把核心產品寫進

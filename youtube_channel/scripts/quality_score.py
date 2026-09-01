@@ -419,6 +419,12 @@ def scan(rescore_ai=False):
         st = stats.get(p["videoId"])
         if st:
             p["views"] = st.get("views")
+            # 🔴 2026-09-01 補 avg_dur(每次觀看秒數)。video_stats 本來就回這個欄位,
+            # 只是這裡沒複製 → auto_loop 只拿得到 retention(完播率),而**完播率跟片長是
+            # 分母關係**:同樣看 141 秒,9 分鐘片是 26%、13 分鐘片是 18%。
+            # 片長一變(09-01 事實密度修好後從 8.9 分漲到 13.3 分),用完播率訂的門檻就自動失準。
+            # 秒數在不同片長之間直接可比,而且它就是 YPP 要算的觀看時數本身。
+            p["avg_dur"] = st.get("avg_dur")
             _ret = st.get("retention")
             p["retention"] = min(100.0, round(_ret, 1)) if _ret is not None else None  # loop重播Shorts原生會>100%,夾回合理上限
             p["avg_dur"] = round(st.get("avg_dur")) if st.get("avg_dur") is not None else None
