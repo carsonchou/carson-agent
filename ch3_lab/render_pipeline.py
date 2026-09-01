@@ -18,6 +18,7 @@
 不負責:畫面長什麼樣、稿子寫什麼、事實從哪來 —— 那些是各集型自己的事。
 """
 import pathlib
+import re
 import subprocess
 import wave
 
@@ -128,6 +129,74 @@ def _claim(out):
     return lk
 
 
+_ONES = ("zero one two three four five six seven eight nine ten eleven twelve "
+         "thirteen fourteen fifteen sixteen seventeen eighteen nineteen").split()
+_TENS = "_ _ twenty thirty forty fifty sixty seventy eighty ninety".split()
+
+
+def _int_words(n):
+    """整數唸法。三位一組,跟英語一致。"""
+    if n < 20:
+        return _ONES[n]
+    if n < 100:
+        t, r = divmod(n, 10)
+        return _TENS[t] + (f"-{_ONES[r]}" if r else "")
+    if n < 1000:
+        h, r = divmod(n, 100)
+        return _ONES[h] + " hundred" + (f" and {_int_words(r)}" if r else "")
+    for div, name in ((10 ** 9, "billion"), (10 ** 6, "million"),
+                      (1000, "thousand")):
+        if n >= div:
+            q, r = divmod(n, div)
+            return (_int_words(q) + " " + name
+                    + (f" {_int_words(r)}" if r else ""))
+    return str(n)
+
+
+# 🔴 第一版寫 `\d[\d,]*` —— 它把「In 2016, 17 laboratories」吃成一個
+#    數字,變成「two thousand sixteen 17」,連句子的逗號都被吞掉。
+#    **逗號後面接數字不一定是千分位。** 千分位是三位一組而且不帶空格,
+#    句子的逗號後面有空格 —— 用這個分。
+_NUMTOK = re.compile(r"\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+\.\d+")
+
+
+def spoken_text(t):
+    """把稿子裡的數字換成**唸得出來**的字。
+
+    🔴 這是今天量到最貴的一個缺陷,而且它已經上線了:Kokoro **唸不出
+       小數點與千分位**。獨立驗證實測它把 `1,400` 唸成「one, four hundred」
+       (掉了 thousand)、`0.08` 唸成「zero, zero eight」—— 該有 "point"
+       的位置是 0.46 秒**純靜音**(RMS 量到的,不是聽感)。
+       畫面照樣印正確數字,所以又是「畫面說 A、聲音說 B」,只是這次
+       錯在音軌那一側。14 支 reel 有 12 支中招。
+
+       根因是同一件事兩份路徑:長片的旁白是**生成**的,走
+       `make_episode.say_num`,小數早就拼成字了;短片的 `reel` 文案是
+       **手寫**的,裡面就是原始數字,而在它進 TTS 之前沒有任何一段程式碼
+       處理過。修在 TTS 的入口 —— 一個地方蓋住所有路徑。
+
+       畫面與說明欄仍然用數字(那才是給人拿去跟論文對照的形式),
+       只有**送去發聲的那一份**被換掉,寫成 `spoken_*.txt`。
+       所以 `narr_*.txt` 保持原樣,漂移比對照常成立。
+
+       純整數不動 —— Kokoro 唸得對,而且「17」比「seventeen」在稿子裡
+       更好比對。只換含 `.` 或 `,` 的。
+    """
+    def rep(m):
+        raw = m.group(0)
+        if "." in raw:
+            whole, frac = raw.split(".", 1)
+            whole = whole.replace(",", "")
+            head = _int_words(int(whole)) if whole.isdigit() else whole
+            return head + " point " + " ".join(
+                _ONES[int(c)] if c.isdigit() else c for c in frac)
+        if "," in raw:
+            n = raw.replace(",", "")
+            return _int_words(int(n)) if n.isdigit() else raw
+        return raw
+    return _NUMTOK.sub(rep, t)
+
+
 def tts(out, segs, voice="am_michael", speed=0.98):
     """用 Kokoro(3.11 獨立 venv)把每段旁白轉成 seg_<name>.wav。
 
@@ -146,11 +215,17 @@ def tts(out, segs, voice="am_michael", speed=0.98):
         # 段落名從 segs 推導,不寫死:先前加了新段卻沒同步,整條線到混音
         # 階段才炸(seg_xxx.wav 不存在)。
         f"for n in {tuple(n for n, _ in segs)!r}:\n"
-        "    t = (out / f'narr_{n}.txt').read_text(encoding='utf-8').strip()\n"
+        "    t = (out / f'spoken_{n}.txt').read_text(encoding='utf-8').strip()\n"
         f"    s, sr = k.create(t, voice='{voice}', speed={speed}, lang='en-us')\n"
         "    sf.write(out / f'seg_{n}.wav', s, sr)\n"
         "    print(f'  {n:<12}{len(s)/sr:6.1f}s', flush=True)\n",
         encoding="utf-8")
+    # 送去發聲的那一份:數字換成唸得出來的字。narr_*.txt 保持原樣,
+    # 因為那是給人看、也是漂移比對用的形式。
+    for _n, _t in segs:
+        raw = (out / f"narr_{_n}.txt").read_text(encoding="utf-8")
+        (out / f"spoken_{_n}.txt").write_text(spoken_text(raw),
+                                              encoding="utf-8")
     subprocess.run([str(repo / "_ttslab311" / "Scripts" / "python.exe"),
                     str(script)], check=True, cwd=str(repo))
 
