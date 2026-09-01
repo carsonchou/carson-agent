@@ -802,3 +802,11 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 0 22 * * * /root/yt/run.sh scripts/brain_submit_watch.py >> /root/yt/logs/cron.log 2>&1
 0 9 * * * /root/yt/run.sh scripts/brain_submit_watch.py >> /root/yt/logs/cron.log 2>&1
 0 11 * * * /root/yt/run.sh scripts/brain_submit_watch.py >> /root/yt/logs/cron.log 2>&1
+
+# 🔴 一次性:補發 08-31 被配額 403 擋掉的那則觀眾回覆(@憂鬱-z4v / 雙鴻3324)。
+#   當天已花 25,999 units 撞牆,回覆沒送出去 —— 而從觀眾那邊看就是「他批評完我就沒聲音」。
+#   配額台北 15:00 重置,這支排 15:20(留 20 分鐘緩衝)。腳本自己冪等:
+#   發之前先讀該討論串,已存在就跳過;讀不到就中止不硬發(寧可下次再試也不重複)。
+#   ⚠️ 刻意**不**用 ONESHOT:只跑一次的話,15:20 那次若又撞配額就永遠不發,而且沒人知道。
+#   腳本本身冪等(發之前先讀該串,已存在就跳過),所以每天跑是安全的;發成功之後刪掉這行。
+20 15 * * * YT_QUOTA_RESERVE=23650 /root/yt/run.sh scripts/oneshot_reply_z4v.py >> /root/yt/logs/cron.log 2>&1
