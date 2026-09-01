@@ -327,45 +327,56 @@ def spent(day=None):
     return int(_load().get("days", {}).get(day or _pacific_date(), {}).get("spent", 0))
 
 
-# 🔴 2026-09-01 第三頻道(ch3)吃的是**同一份 Google 每日配額**,但它另外記一本帳
-# (`ch3_lab/quota.json`,由 ch3_lab/quota.py 維護),本檔的 patch 攔不到它的呼叫。
-# 後果:`remaining()` 會高估 —— ch3 花掉的那些 units 在我這邊看不見,
-# 而 ENFORCE 拿這個高估值去放行,就會在真正撞牆之前都以為還有額度。
-# (協調背景:兩個 session 分別做主頻道與 ch3,同一個 Cloud project 同一份額度。)
+# 🔴 2026-09-01 **撤銷**同日稍早把 ch3 支出扣進 remaining() 的改動(commit 0d0e37a0)。
+# 那個改動建立在一個錯的前提上:「兩個頻道共用同一份配額」。
 #
-# 只讀不寫:讀不到、格式不合、或不是今天的帳 → 回 0,退回原本行為。
-# **守門自己壞掉絕不可以害停產**,這條沿用本檔既有的 fail-open 原則。
-# ⚠️ ch3_lab 在 **ROOT 的上一層**(ROOT = D:\carson-agent\youtube_channel,
-# ch3_lab = D:\carson-agent\ch3_lab)。第一版寫成 ROOT/"ch3_lab" → 檔案不存在 →
-# fail-open 回 0 → 這道防護等於沒裝,而且**完全不會報錯**(自檢時應該回 3 卻回 0 才抓到)。
-_CH3_LEDGER = ROOT.parent / "ch3_lab" / "quota.json"
+# 真相:**YouTube Data API 的每日配額是按 Google Cloud 專案算的**,不是按頻道也不是按帳號。
+# 實查憑證的 client_id 前綴(= project number):
+#     youtube_channel/  → claude-morning-report-498407(524513894332)  ← 本檔量的是這個
+#     yt_ch2/           → quiet-hour-yt              (881902283633)
+# 兩個不同專案 = 兩份互不相干的額度。扣掉對方的支出只會讓自己白白少發片。
+#
+# (是 ch3 那個 session 指出來的,而且它自己也照我的錯數字改過一版,remaining() 直接變 −4,081、
+#  當天一支都發不了,已各自撤回。兩邊都在修一個不存在的問題。)
+#
+# ⚠️ 但這件事**曾經是真的**:`yt_ch2/client_secrets.old-project.json` 的 project 就是
+# 524513894332 —— ch2/ch3 以前跟主頻道共用同一個專案,後來才遷出去。
+# 設定會變,而變了之後這裡的假設就會**無聲地錯**。所以留下一道身分斷言:
+# 量到的專案不是預期的那個就大聲說,不要默默用錯的帳本推論。
+_EXPECT_PROJECT = "524513894332"
 
 
-def ch3_spent(day=None):
-    """ch3 今天花掉的 units。它的帳本只存當天({day, spent, items}),沒有歷史。"""
+def measured_project():
+    """本檔的帳實際上在量哪個 Cloud 專案(從 client_secrets 的 client_id 前綴讀)。
+
+    配額是**按專案**算的,所以「這本帳屬於哪個專案」是它唯一的意義來源。
+    讀不到回 None —— 呼叫端據此跳過檢查,不因為讀不到就擋人。"""
     try:
-        d = json.loads(_CH3_LEDGER.read_text(encoding="utf-8"))
+        d = json.loads((ROOT / "client_secrets.json").read_text(encoding="utf-8"))
+        for k in ("installed", "web"):
+            if k in d:
+                return str(d[k].get("client_id", "")).split("-")[0] or None
     except Exception:  # noqa: BLE001
-        return 0
-    if not isinstance(d, dict):
-        return 0
-    # ch3 記的是台北日期,本檔記太平洋日期 —— 只在兩者指向同一天時才採信。
-    # 對不上就回 0(寧可高估剩餘,也不要用錯的日子把配額算成已用光)。
-    if str(d.get("day") or "") != str(day or _tw_date()):
-        return 0
-    try:
-        return max(0, int(d.get("spent", 0)))
-    except Exception:  # noqa: BLE001
-        return 0
+        pass
+    return None
 
 
-def _tw_date():
-    import datetime as _dt
-    return (_dt.datetime.utcnow() + _dt.timedelta(hours=8)).strftime("%Y-%m-%d")
+def assert_project():
+    """專案身分變了就回警告字串(呼叫端負責印/推播);一致或讀不到回空字串。
+
+    為什麼需要:ch2/ch3 曾與主頻道**共用**專案 524513894332(見 old-project.json),
+    後來遷到 881902283633。哪天有人換回來,兩邊就真的共用一份額度了,
+    而這本帳仍會以為整份都是自己的 → 兩邊一起撞牆而互相看不見。"""
+    p = measured_project()
+    if p and p != _EXPECT_PROJECT:
+        return (f"⚠️ 配額帳本量的專案變了:預期 {_EXPECT_PROJECT}、實際 {p}。"
+                f"配額按專案算,換專案等於換一份額度 —— 天花板與歷史帳都要重新校準,"
+                f"而且要確認有沒有別的頻道跟你共用這個專案。")
+    return ""
 
 
 def remaining(day=None):
-    return max(0, effective_limit() - spent(day) - ch3_spent())
+    return max(0, effective_limit() - spent(day))
 
 
 _warned = {"sent": False}
