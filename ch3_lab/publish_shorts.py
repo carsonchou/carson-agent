@@ -849,7 +849,24 @@ def insert_one(yt, o, path):
     resp = None
     while resp is None:
         _, resp = req.next_chunk()
-    return resp["id"]
+    vid = resp["id"]
+    # 🔴 短片原本**完全沒有自訂縮圖** —— 頻道頁與搜尋結果裡 YouTube 會
+    #    自己挑一幀,而它挑的通常是中段(可能是表格的某個瞬間,對還沒點
+    #    進來的人毫無意義)。這個格式的開場卡是刻意做成「第 0 幀就是完整
+    #    的一句話」的:那句話正是要讓人停下來的東西,它就該是縮圖。
+    #    成本 50 配額。設不成功不影響片子本身,所以不中止,但要講出來。
+    th = pathlib.Path(str(path)).parent / "thumb.jpg"
+    if th.exists():
+        try:
+            yt.thumbnails().set(videoId=vid,
+                                media_body=str(th)).execute()
+            quota.spend(quota.THUMB, f"thumb {vid}")
+            print(f"    縮圖已設({th.name})")
+        except Exception as e:                               # noqa: BLE001
+            print(f"    ⚠️ 縮圖沒設成:{str(e)[:70]}(片子本身沒事)")
+    else:
+        print(f"    ⚠️ 沒有 {th} —— 這支會用 YouTube 自己挑的一幀")
+    return vid
 
 
 def reel_gate(batch):

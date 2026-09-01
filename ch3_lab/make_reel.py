@@ -534,6 +534,18 @@ def one(slug, script_only=False):
         print(f"  ⛔ {slug} 片長 {dur:.0f} 秒,不在 35~50 秒的設計帶(要改稿重渲)")
         print(f"完成 → {mp4}  ({dur:.0f}s)")
         return 1
+    # 🔴 縮圖 = **開場卡**。這個格式刻意做成「第 0 幀就是完整的一句話」,
+    #    而那句話正是要讓人停下來的東西 —— 它就該是頻道頁與搜尋結果裡
+    #    看到的那一張。不抽中段:中段是表格,對還沒點進來的人沒有意義。
+    #    抽 0.5 秒(避開第 0 幀可能的編碼暖機)。
+    import subprocess as _sp
+    th = out / "thumb.jpg"
+    r = _sp.run(["ffmpeg", "-y", "-v", "error", "-ss", "0.5", "-i", str(mp4),
+                 "-frames:v", "1", "-q:v", "2", str(th)],
+                capture_output=True, text=True)
+    if r.returncode != 0 or not th.exists():
+        raise SystemExit(f"⛔ {slug} 縮圖抽不出來:{r.stderr[:120]}")
+    print(f"  縮圖 → {th.name}")
     print(f"完成 → {mp4}  ({dur:.0f}s)")
     return 0
 
