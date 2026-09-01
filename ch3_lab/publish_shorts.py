@@ -686,8 +686,12 @@ def build_meta():
                 f"{r['verdict']}{nl}{nl}"
                 f"{r['ask']}{nl}{nl}"
                 f"{papers}{nl}{nl}"
-                f"Every number here was read out of the paper itself and is "
-                f"stored with the sentence it came from.{nl}#Shorts")
+                # 🔴 這句原本是「每一個數字都讀自論文本身,而且存著它的原句」。
+                #    溯源閘門只要求數字出現在結構化欄位裡 —— 沒有 quote 的
+                #    欄位照樣過關(facial_feedback 的 0.49 就是),所以
+                #    「每一個」這個保證撐不住。改成照現況為真的講法。
+                f"Both papers are linked above. The numbers are read from "
+                f"them directly, not from a summary.{nl}#Shorts")
             out.append({"key": f"reel_{d.name}",
                         "video": str(mp4.relative_to(ROOT)),
                         "title": title, "description": desc, "tags": TAGS,

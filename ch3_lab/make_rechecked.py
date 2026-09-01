@@ -201,10 +201,16 @@ def _ordinal(n):
     return f"{n}{suf}"
 
 
-def val_str(kind, v):
-    """畫面上的效果量:符號跟著論文、精度跟著存的值。"""
+def val_str(kind, v, is_max=False):
+    """畫面上的效果量:符號跟著論文、精度跟著存的值。
+
+    🔴 `is_max`:原文寫的是**上限**而不是值。stanford_prison 的原句是
+       「less than 15% have been recorded」,而畫面印 `15%` —— 把上限
+       當成值報,偏誤方向剛好是往「更嚴重」走,也就是往我想要的方向走。
+       那是最該擋的一種。
+    """
     if kind == "pct":
-        return f"{v:g}%"
+        return f"{'<' if is_max else ''}{v:g}%"
     if kind == "percentile":
         return _ordinal(int(v))
     if kind == "eta2":
@@ -732,8 +738,18 @@ def render_scene(name, t_now, dur, ctx):
                 weight=w, alpha=a if al is None else al)
 
     if name == "hook":
-        lines = wrap(E["hook"], 34)[:4]
-        fs = fit_w(plt, max(lines, key=len), 74, 0.86)
+        # 🔴 原本是 `wrap(...)[:4]` —— **溢出的那一行被靜默丟掉**。
+        #    實測 sugar_hyperactivity 斷成 5 行,第 5 行「behaved themselves.」
+        #    整行消失:配音唸完整句,畫面停在「and changed how they」。
+        #    截斷從來不是選項,放不下就中止。
+        lines = wrap(E["hook"], 34)
+        if len(lines) > 4:
+            raise SystemExit(
+                f"⛔ {E['slug']} 的 hook 斷成 {len(lines)} 行,開場卡只放得下 4 行。"
+                f"截掉第 5 行 = 配音唸完整句而畫面停在半句。\n"
+                f"   要縮的是事實庫裡的 hook,不是畫面上的行數:{E['hook'][:70]}")
+        # 最長的一行不一定是最寬的那一行 —— 每一行都量,取最小字級。
+        fs = min(fit_w(plt, ln, 74, 0.86) for ln in lines if ln.strip())
         for i, ln in enumerate(lines):
             txt(0.66 - i * 0.115, ln, fs)
         if t_now > 2.2:
@@ -826,7 +842,7 @@ def render_scene(name, t_now, dur, ctx):
                     fontsize=nf, color=FG if hot else DIM,
                     weight="normal", alpha=b)
             if r.get("es") is not None and r.get("es_kind"):
-                ax.text(0.94, y, val_str(r["es_kind"], r["es"]),
+                ax.text(0.94, y, val_str(r["es_kind"], r["es"], r.get("es_is_max", False)),
                         ha="right", va="center", fontsize=46,
                         color=ACCENT if hot else FG, weight="bold", alpha=b)
 
@@ -877,7 +893,7 @@ def render_scene(name, t_now, dur, ctx):
         for r in checked:
             if r["es"] is None or not r.get("es_kind"):
                 continue
-            v = val_str(r["es_kind"], r["es"])
+            v = val_str(r["es_kind"], r["es"], r.get("es_is_max", False))
             if v in shown and r["what"] not in shown:
                 raise SystemExit(
                     f"⛔ {name}:{r['year']} 的數字畫上去了但**說明沒有** "

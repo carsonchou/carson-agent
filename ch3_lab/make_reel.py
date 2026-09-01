@@ -295,7 +295,8 @@ def render_scene(name, t_now, dur, ctx):
         # 🔴 欄寬要從**數值欄實際佔多寬**倒推,不要各挑一個看起來夠用的
         #    數字:守門實測抓到「everything measured at t」×「β = 0.05」
         #    重疊 22×10 畫素 —— 兩欄各自都「差不多塞得下」,合起來就撞。
-        vals = [val_str(x["es_kind"], x["es"]) for x in rows
+        vals = [val_str(x["es_kind"], x["es"], x.get("es_is_max", False))
+                for x in rows
                 if x.get("es") is not None and x.get("es_kind")] or ["x"]
         vw = max(measure_w(plt, v, 46) for v in vals)
         left_max = max(0.24, SAFE_X - vw - 0.04)   # 0.04 是欄間淨空
@@ -322,7 +323,9 @@ def render_scene(name, t_now, dur, ctx):
                     fontsize=nf, color=FG if hot else DIM,
                     weight="normal", alpha=b)
             if x.get("es") is not None and x.get("es_kind"):
-                ax.text(SAFE_X, y, val_str(x["es_kind"], x["es"]),
+                ax.text(SAFE_X, y,
+                        val_str(x["es_kind"], x["es"],
+                                x.get("es_is_max", False)),
                         ha="right", va="center", fontsize=46,
                         color=ACCENT if hot else FG, weight="bold", alpha=b)
 

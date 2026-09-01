@@ -972,7 +972,7 @@
       "verdict_display": "However, neither the Author Advised nor In House protocols successfully replicated the original finding.",
       "reel": {
         "belief": "Reminding people of death makes them defend their beliefs harder.",
-        "weight": "A whole research programme about fear, politics and prejudice is built on it. The 1994 study reported an effect size of 1.34.",
+        "weight": "A whole research programme about fear, politics and prejudice is built on it. The replication team put the original effect at 1.34.",
         "turn": "The usual defence when a result does not come back is that the replicators did it wrong. So this time 7 of the labs ran a protocol the original authors advised on. Those labs got 0.08. The labs left to themselves differed by 0.01, which is not a difference.",
         "verdict": "They let the original authors help design it, and it still did not come back.",
         "ask": "Does being reminded of death change how you argue?"
@@ -1972,7 +1972,8 @@
           "year": 2019,
           "what": "of the experiment was ever recorded",
           "es": 15,
-          "es_kind": "pct"
+          "es_kind": "pct",
+          "es_is_max": true
         }
       ],
       "twist_rows": [
@@ -1994,7 +1995,8 @@
           "what": "of the 150 hours, at most",
           "es": 15,
           "es_kind": "pct",
-          "cue": "less than 15 percent of the 150 hours"
+          "cue": "less than 15 percent of the 150 hours",
+          "es_is_max": true
         }
       ],
       "say_spread": "It became the standard proof that ordinary people turn cruel when you give them a uniform — in textbooks, in films, and in arguments about every atrocity since.",
@@ -2021,7 +2023,7 @@
       "story_type_short": "what changed was the parent",
       "story_type_note": "🔴 統合分析結論句末的兩個但書(小效果、次群體不能排除)**照唸不准砍**,砍了就是過度宣稱。",
       "claim": "sugar makes children hyperactive",
-      "hook": "Every child got the placebo. The mothers who were told it was sugar rated their sons as more hyperactive — and changed how they behaved themselves.",
+      "hook": "Every child got the placebo. The mothers told it was sugar rated their sons as more hyperactive - and changed how they behaved.",
       "original": {
         "year": 1980,
         "title": "Dietary correlates of hyperactive behavior in children",

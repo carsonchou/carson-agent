@@ -55,10 +55,20 @@ FOOTER = (
 #:    觀眾會拿「又一個倒了」的框架去讀一支不是那個意思的片。
 RECHECKED_FOOTER = (
     "\n\nHow this channel works\n"
-    "Every number here was read out of the paper itself, and each one is "
-    "stored with the sentence it came from. Nothing is estimated, rounded "
-    "for effect, or carried over from a summary. Where we could not get the "
-    "original document, that is said above rather than filled in.\n\n"
+    # 🔴 這段原本講了三件不成立的事,而它是**寫給觀眾看的保證**:
+    #    ① 「每一個數字都存著它的原句」—— 溯源閘門只要求數字出現在結構化
+    #       欄位裡,沒有 quote 的欄位照樣過關;而長片這條路徑根本沒跑閘門。
+    #    ② 「不做任何四捨五入」—— 引用數無條件捨去到百位(1,700 印 1,600)。
+    #    ③ 「查不到的會在上面寫出來」—— 14 集裡 9 集的 missing_public 是空的,
+    #       實測 9 筆 rechecked 說明欄 0 筆出現過那個區塊。
+    #    數字守門抓得到沒憑據的數字,抓不到這種**關於流程的句子** ——
+    #    而觀眾能不能信這個頻道,靠的正是這種句子。改成照現況為真的版本。
+    "The papers are read directly, and the sentence a number came from is "
+    "quoted above wherever it is shown. Citation counts and some sample "
+    "sizes are rounded down and always said as \"more than\", so the figure "
+    "on screen is never larger than the real one. Where the original "
+    "document could not be obtained, the number is left out rather than "
+    "carried over from somebody's summary of it.\n\n"
     "Not every episode is a debunking. Some of these findings held up, some "
     "turned out to be a problem with the original analysis rather than the "
     "result, and at least one is still an open argument.")
