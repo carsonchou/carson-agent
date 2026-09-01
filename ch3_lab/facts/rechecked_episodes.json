@@ -603,10 +603,10 @@
       "popular_name": "The facial feedback hypothesis",
       "reel": {
         "belief": "Holding a pen in your teeth makes things funnier.",
-        "weight": "The idea is that your face feeds back into how you feel. It is the textbook demonstration, cited more than 1,800 times.",
+        "weight": "The idea is that your face feeds back into how you feel. The textbook demonstration, cited more than 1,800 times.",
         "turn": "In 2016, 17 laboratories ran it on 1,894 people. The difference was 0.03 points on a ten point scale, and 0 of the 17 pointed the right way. Six years later a bigger group tried three ways of making people smile. Copying a smiling face worked. Posing it yourself worked. The pen still did nothing.",
-        "verdict": "The pen died. The idea behind it did not — and the original author co-signed the paper that showed it.",
-        "ask": "The pen, or copying somebody else's smile - which would you have bet on?"
+        "verdict": "The pen died. The idea did not - and the original author co-signed the paper that showed it.",
+        "ask": "The pen, or copying someone's smile - which would you have bet on?"
       }
     },
     {
@@ -835,9 +835,9 @@
       "popular_name": "Moral licensing",
       "reel": {
         "belief": "Doing one good thing gives you permission to do a bad one.",
-        "weight": "It is the standard explanation for why good people do shabby things. Cited more than 1,000 times.",
-        "turn": "Pooled, the effect is 0.31. Published studies 0.43, unpublished 0.11. A 2016 replication on 3,134 people still found it, at a ninth of the size. Corrected for that publication bias: minus 0.05. And in 2024 a registered replication came back at minus 0.38 on one scenario, 0.08 on the other.",
-        "verdict": "Every retest was bigger, and every retest was smaller. The last one changed sign.",
+        "weight": "The standard explanation for why good people do shabby things. Cited more than 1,000 times.",
+        "turn": "Pooled, the effect is 0.31. Published studies 0.43, unpublished 0.11. A 2016 replication on 3,134 people still found it, a ninth of the size. Corrected for that publication bias: minus 0.05. And in 2024 a registered replication came back at minus 0.38 on one scenario, 0.08 on the other.",
+        "verdict": "Every retest was bigger, and every retest was smaller. The last changed sign.",
         "ask": "Do you catch yourself doing this?"
       },
       "bias_correction": {
@@ -1892,7 +1892,7 @@
       "verdict_display": "the Dunning-Kruger effects reported in the literature are mostly the result of statistical artefacts, rather than entirely so.",
       "reel": {
         "belief": "The least competent people are the most confident.",
-        "weight": "It has a name, a graph everyone has seen, and the 1999 paper is cited more than 7,000 times.",
+        "weight": "It has a name, a graph everyone has seen, and more than 7,000 citations.",
         "turn": "In 2020 a team took 929 people and analysed them twice. Sorted into quartiles the way the original did it, the effect was right there. Using a test built for this kind of data, the correlation was minus 0.05. Same people, same answers, opposite conclusion. And ranked against how they actually did, self-ratings still track performance, at 0.28.",
         "verdict": "Mostly a statistical artefact. Mostly is the authors' own word, not entirely.",
         "ask": "Have you ever used this one to explain somebody you disagree with?"
@@ -2448,9 +2448,9 @@
       "say_verdict": "So this is not a debunking, and the people who say growth mindset is dead have not read the biggest test of it. What the evidence supports is much narrower than the poster: a tenth of a grade point, for the students who were already behind, in schools where their classmates made it safe to try something hard.",
       "reel": {
         "belief": "Teach a child that intelligence can grow, and their grades go up.",
-        "weight": "It became a school programme, a bestseller, and a poster in a great many classrooms.",
-        "turn": "So they ran it properly: 65 schools, 12,490 students, analysis plan registered in advance. And they found it. Lower-achieving students gained a tenth of a grade point - an effect size of 0.11. Now the other half of the sample. Higher-achieving students: 0.01, p equals 0.634. And a trial in England with 5,018 pupils found no additional progress in reading, in grammar, or in maths.",
-        "verdict": "It works. For the students who were already behind, by a tenth of a grade point.",
+        "weight": "It became a school programme, a bestseller, and a poster in a lot of classrooms.",
+        "turn": "So they ran it properly: 65 schools, 12,490 students, analysis plan registered in advance. And they found it. Lower-achieving students gained a tenth of a grade point - an effect size of 0.11. The other half: Higher-achieving students: 0.01, p equals 0.634. And a trial in England with 5,018 pupils found no additional progress in reading or maths.",
+        "verdict": "It works, for the students who were already behind. A tenth of a grade point.",
         "ask": "Is a tenth of a grade point worth an assembly?"
       },
       "missing": [

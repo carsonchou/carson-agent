@@ -662,6 +662,31 @@ def fit_w(plt, text, base, max_frac, weight="bold"):
     return out
 
 
+_MW_CACHE = {}
+
+
+def measure_w(plt, text, fs, weight="bold"):
+    """這段字在這個字級下**實際**佔畫面寬度的幾分之幾。
+
+    🔴 不要拿 `fit_w` 的回傳值去反推寬度:它回的是**字級**,而且字串本來
+       就塞得下時它原封不動回傳 base —— 反推出來的「寬度」永遠等於上限。
+       (make_reel 已經踩過一次,這裡是同一個坑的第二個現場。)
+    """
+    ck = (text, fs, weight)
+    if ck in _MW_CACHE:
+        return _MW_CACHE[ck]
+    fig = plt.figure(figsize=(W / 100, H / 100), dpi=100)
+    ax = fig.add_axes([0, 0, 1, 1]); ax.axis("off")
+    ax.set_xlim(0, 1); ax.set_ylim(0, 1)
+    t = ax.text(0.5, 0.5, text, ha="center", va="center", fontsize=fs,
+                weight=weight)
+    fig.canvas.draw()
+    w = t.get_window_extent(renderer=fig.canvas.get_renderer()).width / W
+    plt.close(fig)
+    _MW_CACHE[ck] = w
+    return w
+
+
 def wrap(s, n):
     out, line = [], ""
     for w in s.split():
@@ -843,7 +868,17 @@ def render_scene(name, t_now, dur, ctx):
         #    28pt,而中欄還是 40pt —— 抽幀看出來像兩種字級硬拼在一起。
         #    欄寬是版面決定的,不是「塞得下就好」。
         lf = min(fit_w(plt, w, 44, 0.20) for w in lefts if w) if any(lefts) else 44
-        nf = min(fit_w(plt, w, 40, 0.42, "normal") for w in whats if w)
+        # 🔴 中欄寬度原本寫死 0.42(0.32→0.74),而數值欄是右對齊收在 0.94、
+        #    字級 46 —— 兩欄各自「差不多塞得下」,合起來就撞。實測
+        #    facial_feedback 的「osing a happy expression」× 「pts/7 = 0.31」
+        #    重疊 24×40 畫素,被重疊守門擋下(它擋對了)。
+        #    欄寬要從**數值欄實際佔多寬**倒推,不是挑一個看起來夠用的數字。
+        _vals = [val_str(r["es_kind"], r["es"], r.get("es_is_max", False))
+                 for r in use
+                 if r.get("es") is not None and r.get("es_kind")] or ["x"]
+        _vw = max(measure_w(plt, v, 46) for v in _vals)
+        _mid_max = max(0.24, 0.94 - _vw - 0.04 - 0.32)   # 0.04 欄間淨空
+        nf = min(fit_w(plt, w, 40, _mid_max, "normal") for w in whats if w)
         for i, r in enumerate(use):
             if t_now < 0.4 + i * step:
                 continue
