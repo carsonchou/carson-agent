@@ -46,12 +46,14 @@ TRAILER_KEY = "ep0"
 
 DESCRIPTION = """Famous studies, tested again - with the numbers.
 
-Every episode takes one claim people repeat as fact, shows what the original study actually measured, and then shows what happened when somebody checked.
+Every episode takes one claim people repeat as fact, shows what the original study measured, and what happened when somebody checked.
 
-How this channel works:
-- Every number is read out of the paper itself and stored with the sentence it came from. Both DOIs are in every description, so you can go and look.
-- Nothing is estimated or rounded for effect. Where a number could not be verified first-hand, the description says so instead of filling it in.
-- "It did not replicate" is not one story. Sometimes the finding was never there. Sometimes it is real and much smaller than the headline. Sometimes the original data were fine and the analysis was not. Sometimes the argument is still running, and that gets said too.
+How it works:
+- Newer episodes are built by reading the two papers directly. Older ones come from the FORRT Replication Database, and say so.
+- Both papers are cited with their DOIs, so you can go and look.
+- Citation counts are rounded down and always said as "more than", so the figure on screen is never larger than the real one.
+- Where a number could not be got out of the original document, the description names which one.
+- "It did not replicate" is not one story. Sometimes the finding was never there. Sometimes it is real but much smaller than the headline. Sometimes the original analysis was the problem, not the result. Sometimes the argument is still running.
 - Findings that survived a larger test get their own episodes.
 - No voice actor, no stock footage. The charts are the data."""
 
@@ -64,6 +66,21 @@ def svc():
 def current(y):
     r = y.channels().list(part="brandingSettings,snippet", mine=True).execute()
     return r["items"][0]
+
+
+#: YouTube 頻道簡介上限。**姊妹工具 `rebrand.py:66` 自己就印過這個數字**,
+#: 而這支從來沒查過 —— 實測寫到 1115 字元,超出 115。切點正好落在
+#: 第五條 bullet 中間:靜默截斷的話簡介會停在半個字、最後兩條消失;
+#: 回 400 的話備份已寫但預告片也沒設。
+#: (memory `read-the-sibling-tool-first`:我新寫的工具的阻斷項,
+#:  解法往往已經寫在同 repo 隔壁那支上過正式機的工具裡。)
+DESC_LIMIT = 1000
+
+if len(DESCRIPTION) > DESC_LIMIT:
+    raise SystemExit(
+        f"⛔ 簡介 {len(DESCRIPTION)} 字元,超過 YouTube 的 {DESC_LIMIT} 上限 "
+        f"{len(DESCRIPTION) - DESC_LIMIT} 字。截斷會停在半句話,"
+        f"而截斷點在第 {DESCRIPTION[:DESC_LIMIT].count(chr(10) + '-') + 1} 條 bullet 上。")
 
 
 def main():
