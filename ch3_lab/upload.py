@@ -159,11 +159,16 @@ def semantic_gate(o):
                     return f"用了地雷 DOI {bad} —— {why[:60]}"
 
         # 3) `_do_not_fill` 點名的數字不准被講出來。
-        for k, why in (src.get("_do_not_fill") or {}).items():
-            if k.startswith(o.get("slug", "") + "."):
-                w = k.split(".")[-1].replace("_", " ")
-                if w in text:
-                    return f"碰到 _do_not_fill 的 {k}:{why[:60]}"
+        # 🔴 同 make_rechecked:舊版拿 key 尾段去找,永遠不匹配(見那邊的註解)。
+        for k, spec in (src.get("_do_not_fill") or {}).items():
+            if not k.startswith(o.get("slug", "") + "."):
+                continue
+            if not isinstance(spec, dict) or "forbid" not in spec:
+                return f"_do_not_fill 的 {k} 沒有 forbid,那不是守門是註解"
+            for bad_s in spec["forbid"]:
+                if bad_s in text:
+                    return (f"講了 _do_not_fill 禁止的「{bad_s}」({k}):"
+                            f"{str(spec.get('why', ''))[:60]}")
 
         # 4) 🔴 **最重要的一道:故事類型不准被講成別的類型。**
         #    hungry judges 的兩個質疑方都沒有重測、也都沒拿到新的原始資料,

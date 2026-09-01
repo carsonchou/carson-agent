@@ -574,13 +574,29 @@ def audit(E, segs):
 
     # `_do_not_fill` 點名的東西,稿子裡不准出現。
     top = json.loads(SRC.read_text(encoding="utf-8"))
-    for k, why in top.get("_do_not_fill", {}).items():
-        if not k.startswith(E["slug"] + "."):
+    # 🔴 這道守門**從來沒有可能叫過**。舊版兩個問題各自就足以讓它全盲:
+    #    ① 兩條的前綴不是 slug(「marshmallow.」對 marshmallow_test、
+    #       「backfire.」對 backfire_effect)—— startswith 恆假。
+    #    ② 其餘六條是拿 key 的尾段拆成「trimfill corrected d」這種字串,
+    #       去**英文旁白**裡找 —— 那種字串不會出現在任何一句人話裡。
+    #    八條沒有一條可能命中。記憶裡 `verification-that-cannot-fail` 的
+    #    第一種:不會叫的守門,而它看起來跟通過一模一樣。
+    #    改成明講「不准出現的是哪幾個字串」,而且**沒登記就中止**。
+    slug_pre = E["slug"] + "."
+    for k, spec in top.get("_do_not_fill", {}).items():
+        if not k.startswith(slug_pre):
             continue
-        raise_if = k.split(".")[-1]
-        for name, txt in segs:
-            if raise_if.lower().replace("_", " ") in txt.lower():
-                raise SystemExit(f"⛔ {name} 碰到 _do_not_fill 的 {k}:{why}")
+        if not isinstance(spec, dict) or "forbid" not in spec:
+            raise SystemExit(
+                f"⛔ _do_not_fill 的 {k} 沒有 `forbid` —— 沒有要找的字串,"
+                f"這條就只是一句註解,不是守門。")
+        why = spec.get("why", "")
+        for bad_s in spec["forbid"]:
+            for name, txt in segs:
+                if bad_s in txt:
+                    raise SystemExit(
+                        f"⛔ {name} 講了 _do_not_fill 禁止的「{bad_s}」"
+                        f"({k}):{why}")
     print(f"  數字溯源 ✓（{len(ok)} 個結構化可用值）")
 
     # 🔴 **這是英文頻道,旁白裡不准有中文。** 聽起來像廢話,但實測發生了:

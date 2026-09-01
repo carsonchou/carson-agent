@@ -2,14 +2,52 @@
   "_note": "第五種集型的事實庫:**故事類型不是「又倒了一個」**。2026-08-30 由三組平行 fact agent 從一手 PDF/XML 抽出,每個數字都附逐字原句與位置。任何數字若不在本檔,寫稿端的 audit 會擋下來。",
   "_why_new_kind": "前四種集型(fred / famous / lineup / domains)講的都是同一個形狀:原始研究說 X,大規模重測說沒有。這八題**每一題的形狀都不一樣** —— 有的是原始分析本身有可證明的偏誤(手感謬誤,修正後結論反過來)、有的是方法倒了但假說活著(咬筆微笑)、有的是原作者親自參與設計仍然沒重現(恐懼管理)、有的是原作者出面說「你們讀錯了」(backfire)、有的是重測做出**更高**的比率然後被重新編碼砍到 4%(假記憶)。這正好是 YPP `inauthentic` 定義裡「模板化、變化極小」的反面,所以敘事多樣性在這裡不是文青堅持,是生存條件。",
   "_do_not_fill": {
-    "terror_management.in_house_pooled_g": "ML4 全文從未單獨報 In House 組的整合 g,只給 (a) Table 3 每站個別值 (b) 調節係數 b=0.01。用 0.07 與 0.08 回推是推估不是原文,不准填。",
-    "facial_feedback.coles_total_n": "Coles 2019 全文沒有報合併總受試人數(只報 98 articles / 138 studies / 286 effect sizes)。網路流傳的『約 11,000 人』驗不到,不准填。",
-    "moral_licensing.trimfill_corrected_d": "Blanken 2015 沒有報 trim-and-fill 校正後的合併 d,只有圖 2 補了 21 個空心點。不准從圖上讀數。",
-    "moral_licensing.kuper_total_n": "Kuper & Bott 2019 沒報總受試人數,只有 k = 76 個效果量。",
-    "marshmallow.behavior_problems_beta": "Watts 2018 正文只給文字描述,數值在表格右半而 pypdf 抽取欄位錯位。不准做位置配對猜測。",
-    "false_memory.lp1995_pagination": "手上是 Loftus 本人放出的作者手稿(自述 close to the final version),頁碼對不上 720-725。不准引頁碼。",
-    "hot_hand.total_shots_2515": "2,515 是 fact agent 自己加的(23 人 × 100 + 90 + 75 + 50),**不是任何論文的原句**。要用必須標成計算值,或只講「26 名球員」。",
-    "backfire.n_10257": "10,257 是五個 study 的 N 加總;論文本身只寫 more than 10,100。閘門要求原文字串時用 10,100。"
+    "terror_management.in_house_pooled_g": {
+      "why": "ML4 全文從未單獨報 In House 組的整合 g,只給 (a) Table 3 每站個別值 (b) 調節係數 b=0.01。用 0.07 與 0.08 回推是推估不是原文,不准填。",
+      "forbid": [
+        "0.07"
+      ]
+    },
+    "facial_feedback.coles_total_n": {
+      "why": "Coles 2019 全文沒有報合併總受試人數(只報 98 articles / 138 studies / 286 effect sizes)。網路流傳的『約 11,000 人』驗不到,不准填。",
+      "forbid": [
+        "11,000",
+        "11000"
+      ]
+    },
+    "moral_licensing.trimfill_corrected_d": {
+      "why": "Blanken 2015 沒有報 trim-and-fill 校正後的合併 d,只有圖 2 補了 21 個空心點。不准從圖上讀數。",
+      "forbid": []
+    },
+    "moral_licensing.kuper_total_n": {
+      "why": "Kuper & Bott 2019 沒報總受試人數,只有 k = 76 個效果量。",
+      "forbid": []
+    },
+    "marshmallow_test.behavior_problems_beta": {
+      "why": "Watts 2018 正文只給文字描述,數值在表格右半而 pypdf 抽取欄位錯位。不准做位置配對猜測。",
+      "forbid": []
+    },
+    "false_memory.lp1995_pagination": {
+      "why": "手上是 Loftus 本人放出的作者手稿(自述 close to the final version),頁碼對不上 720-725。不准引頁碼。",
+      "forbid": [
+        "720",
+        "725"
+      ]
+    },
+    "hot_hand.total_shots_2515": {
+      "why": "2,515 是 fact agent 自己加的(23 人 × 100 + 90 + 75 + 50),**不是任何論文的原句**。要用必須標成計算值,或只講「26 名球員」。",
+      "forbid": [
+        "2,515",
+        "2515"
+      ]
+    },
+    "backfire_effect.n_10257": {
+      "why": "10,257 是五個 study 的 N 加總;論文本身只寫 more than 10,100。閘門要求原文字串時用 10,100。",
+      "forbid": [
+        "10,257",
+        "10257"
+      ]
+    }
   },
   "_doi_traps": {
     "10.1080/09658211.2023.2198263": "🔴 已撤稿(重複刊登)。正版是 10.1080/09658211.2023.2198327。兩者標題一字不差,只能靠 DOI 分辨 —— 引錯整支片就完了。OpenAlex 查前者回 is_retracted: True,已獨立複驗。",
@@ -168,7 +206,7 @@
       "story_type": "原始分析的識別假設被質疑,但沒有被判定死刑",
       "story_type_note": "🔴 這集**不能照 hot hand 的講法拍**。兩個質疑方都沒有重測、也都沒拿到新的原始資料:WM&S 是另一批 227 筆 + 訪談,Glöckner 是電腦模擬(連 Danziger 的資料都沒碰)。原作者在同期 PNAS 逐條反駁,原文至今未撤回。正確說法是『識別假設被質疑』,不是『被推翻』。",
       "claim": "Israeli parole judges grant parole about 65% of the time right after a meal break and almost never right before one",
-      "hook": "A parole board grants about 65% of cases first thing, and almost none of them just before lunch. That is the finding. Whether it is about lunch is another question.",
+      "hook": "A parole board grants about 65% of cases first thing, and almost none just before lunch. Whether it is about lunch is another question.",
       "original": {
         "year": 2011,
         "title": "Extraneous factors in judicial decisions",
@@ -378,7 +416,7 @@
       "story_type": "方法倒了,假說還活著",
       "story_type_note": "🔴 這集的故事不是『表情不影響情緒』,而是『咬筆這個方法倒了』。2022 年模仿表情 0.49、自主擺表情 0.40 都有效,只有咬筆組仍是 0.04。而且原始作者 Fritz Strack 本人是 2022 那篇的共同作者。",
       "claim": "holding a pen in your teeth makes cartoons funnier than holding it in your lips — your face feeds back into how you feel",
-      "hook": "Seventeen labs killed the pen-in-mouth study. Six years later the original author co-signed the paper that saved the idea behind it.",
+      "hook": "Seventeen labs killed the pen-in-mouth study. Six years later its author co-signed the paper that saved the idea.",
       "original": {
         "year": 1988,
         "title": "Inhibiting and facilitating conditions of the human smile: A nonobtrusive test of the facial feedback hypothesis",
@@ -1713,7 +1751,7 @@
       "story_type_short": "mostly a statistical artefact",
       "story_type_note": "🔴 不准講成「完全是假的」。論文標題自己帶括號的 (mostly),Discussion 明講 mostly rather than entirely。而且同一篇量到人**確實**judge得出自己的能力(r = 0.28)—— 只講前半是選擇性呈現。",
       "claim": "the least competent people are the most confident — too incompetent to know how incompetent they are",
-      "hook": "Take the same 929 people. Analyse them one way and the Dunning-Kruger effect is right there. Analyse them properly and it is gone.",
+      "hook": "Take the same 929 people. One analysis shows the Dunning-Kruger effect. A better one shows nothing.",
       "original": {
         "year": 1999,
         "title": "Unskilled and unaware of it: How difficulties in recognizing one's own incompetence lead to inflated self-assessments",
@@ -2421,5 +2459,6 @@
         "英國試驗沒有 DOI"
       ]
     }
-  ]
+  ],
+  "_do_not_fill_note": "🔴 每一條的 `forbid` 是**不准出現在旁白裡的字串**,不是欄位名。舊版拿 key 尾段(「trimfill corrected d」)去英文稿裡找,永遠不匹配 ——八條沒有一條可能命中,那是一道不會叫的守門。`forbid` 空陣列代表「這個數字產線根本算不出來,沒有東西可禁」,留著是為了記住為什麼不准填。"
 }
