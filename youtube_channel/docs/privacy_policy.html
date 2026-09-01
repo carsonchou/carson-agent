@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Privacy Policy — Carson Quant 量化阿森</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { max-width: 46rem; margin: 0 auto; padding: 2rem 1.25rem 4rem;
+         font: 16px/1.75 -apple-system, "Segoe UI", "Noto Sans TC", sans-serif; }
+  h1 { font-size: 1.6rem; margin-bottom: .25rem; }
+  h2 { font-size: 1.15rem; margin-top: 2.25rem; border-bottom: 1px solid #8884; padding-bottom: .3rem; }
+  .sub { opacity: .7; margin-top: 0; font-size: .95rem; }
+  .zh { opacity: .82; font-size: .95rem; border-left: 3px solid #8884; padding-left: .9rem; margin: .5rem 0 0; }
+  code { font-size: .9em; background: #8881; padding: .1em .35em; border-radius: 3px; }
+  ul { padding-left: 1.3rem; }
+</style>
+</head>
+<body>
+
+<h1>Privacy Policy</h1>
+<p class="sub">Carson Quant (量化阿森) — YouTube channel automation<br>
+Last updated: 2026-08-30</p>
+
+<p>This policy describes how the private automation software operated by the owner of the
+YouTube channel <strong>Carson Quant</strong>
+(<code>UCqP5JQXlQR5ZDLtEiBt4kLA</code>) handles data obtained through the
+YouTube API Services.</p>
+<p class="zh">本政策說明「量化阿森 Carson Quant」頻道所使用的自動化程式,
+如何處理透過 YouTube API 取得的資料。</p>
+
+<h2>1. Who we are / 我們是誰</h2>
+<p>This software is a private, internal-use tool operated by an individual creator to manage
+his own YouTube channel. It is <strong>not a public service</strong>: it has no user accounts,
+no sign-up, and it does not act on behalf of any third party. The only Google account that
+authorises it is the channel owner's own account.</p>
+<p class="zh">這是個人創作者管理自有頻道的內部工具,不對外提供服務、沒有使用者註冊,
+唯一授權的 Google 帳號就是頻道擁有者本人。</p>
+
+<h2>2. What data we access / 我們取用哪些資料</h2>
+<ul>
+  <li><strong>Our own channel's content and metadata</strong> — video titles, descriptions,
+      thumbnails, captions, playlists, and upload status. Obtained via
+      <code>videos</code>, <code>captions</code>, <code>thumbnails</code>,
+      <code>playlistItems</code> and <code>channelSections</code> endpoints.</li>
+  <li><strong>Our own channel's analytics</strong> — aggregate view counts, watch time,
+      average view duration, traffic sources and subscriber totals, via the
+      YouTube Analytics API. This data is aggregate and does not identify individual viewers.</li>
+  <li><strong>Public comments left on our own videos</strong> — comment text, comment ID,
+      and the commenter's public display name and channel ID, via
+      <code>commentThreads</code> and <code>comments</code>. This is used solely to read and
+      reply to comments on our own videos.</li>
+  <li><strong>Public metadata of other public YouTube videos</strong> — titles and public view
+      counts, via <code>search</code> and <code>videos</code>, used for our own content
+      planning research.</li>
+</ul>
+<p>We do <strong>not</strong> access any private data belonging to other users, and we do not
+use any method other than the official YouTube API to obtain data (no scraping).</p>
+<p class="zh">我們不取用任何其他使用者的私人資料,也不使用官方 API 以外的任何方式取得資料
+(不做爬蟲)。</p>
+
+<h2>3. What we store, and for how long / 我們儲存什麼、存多久</h2>
+<ul>
+  <li><strong>Third-party data</strong> (public metadata of other creators' videos, and
+      comment records) is stored only on the operator's own computer and is
+      <strong>automatically deleted after 25 days</strong> by a scheduled job, which is within
+      the 30-day limit in section III.E.4.d of the YouTube API Services Developer Policies.</li>
+  <li><strong>Commenter identity is not retained.</strong> Display names and channel IDs are
+      read into memory to decide whether a comment still needs a reply, but the files kept on
+      disk contain only <em>comment IDs and video IDs</em> — no names, no channel IDs,
+      no profile images.</li>
+  <li><strong>Our own channel's data</strong> (our videos and our own aggregate analytics) is
+      our own content and is retained for long-term growth analysis.</li>
+  <li>Nothing is stored on any public server. There is no database accessible from the internet.</li>
+</ul>
+<p class="zh">他人資料只存在操作者自己的電腦,由排程於 <strong>25 天後自動刪除</strong>
+(政策上限為 30 天,留 5 天安全邊際)。留言者的名稱與頻道 ID <strong>不落檔</strong>,
+磁碟上保存的只有留言 ID 與影片 ID。</p>
+
+<h2>4. What we never do / 我們絕不做的事</h2>
+<ul>
+  <li>We never sell, rent, or share any data obtained from the YouTube API with any third party.</li>
+  <li>We never use the API to generate artificial engagement — no automated likes, no
+      artificial views, no subscriber inflation, no automated comments on other creators' videos.</li>
+  <li>We never store or process YouTube user data for advertising or profiling.</li>
+  <li>We never ask any other person to authorise this software with their Google account.</li>
+</ul>
+<p class="zh">我們絕不販售或分享 API 取得的任何資料;絕不用 API 製造虛假互動(刷讚/刷觀看/
+刷訂閱/對他人影片自動留言);絕不將 YouTube 使用者資料用於廣告或側寫。</p>
+
+<h2>5. Third-party services / 第三方服務</h2>
+<p>Video scripts and thumbnails are generated with the help of large-language-model (LLM)
+APIs, and narration is synthesised with text-to-speech. Two of these calls involve viewer
+data, and we describe them precisely:</p>
+<ul>
+  <li><strong>Comment reply drafting and classification.</strong> When we prepare a reply to a
+      comment left on one of our own videos, the <em>text of that comment</em> is sent to an
+      LLM provider so that a draft reply can be written and the comment classified
+      (question / thanks / other). <strong>The commenter's display name, channel ID and
+      profile image are never sent</strong> — only the comment text itself.</li>
+  <li><strong>Everything else</strong> — topic briefs, titles, and Taiwan stock market price
+      data derived from public market sources — contains no YouTube user data at all.</li>
+</ul>
+<p>These providers process the text to return a response and we do not authorise them to use
+it for any other purpose. If you would prefer that your comment is not processed this way,
+delete your comment on YouTube or contact us at the address below.</p>
+<p class="zh">腳本與縮圖會用到大型語言模型 API、旁白使用語音合成。其中有兩處會碰到觀眾資料,
+如實說明:<strong>要對我們自己影片下的留言草擬回覆、或判斷留言類型時,會把「留言文字本身」
+送給 LLM 供應商</strong>;<strong>留言者的顯示名稱、頻道 ID 與頭像一律不送</strong>。
+其餘送出的內容(選題說明、標題、來自公開市場來源的台股行情)完全不含 YouTube 使用者資料。
+若你不希望留言被這樣處理,可以在 YouTube 上刪除留言,或以下方信箱聯絡我們。</p>
+
+<h2>6. Data deletion and access requests / 刪除與查詢</h2>
+<p>Because we do not retain identifying information about viewers, there is normally nothing to
+delete. If you have commented on one of our videos and would like the record of that comment
+removed from our local files, or you have any question about this policy, contact us at the
+address below and we will action it within 30 days. You can also delete your own comment
+directly on YouTube at any time, which removes it from our systems on the next refresh.</p>
+<p class="zh">由於我們不保留觀眾的識別資訊,通常沒有可刪除的內容。
+若你曾在我們的影片留言、希望我們刪除本機的該筆紀錄,或對本政策有任何疑問,
+請以下方信箱聯絡,我們會在 30 天內處理。你也可以隨時在 YouTube 上自行刪除留言。</p>
+
+<h2>7. Governing terms / 適用條款</h2>
+<p>This software uses YouTube API Services. By interacting with our channel you are also
+subject to the
+<a href="https://www.youtube.com/t/terms">YouTube Terms of Service</a> and the
+<a href="https://policies.google.com/privacy">Google Privacy Policy</a>.
+We operate in accordance with the
+<a href="https://developers.google.com/youtube/terms/developer-policies">YouTube API Services
+Developer Policies</a>.</p>
+
+<h2>8. Contact / 聯絡方式</h2>
+<p>Email: <strong>[Carson 請填入要公開的聯絡信箱]</strong><br>
+Channel: <a href="https://www.youtube.com/@carsonquant">youtube.com/@carsonquant</a></p>
+
+<h2>9. Changes / 政策異動</h2>
+<p>If this policy changes, the revised version will be posted at this same URL with an updated
+"Last updated" date.</p>
+
+</body>
+</html>
