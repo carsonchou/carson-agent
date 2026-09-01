@@ -327,8 +327,45 @@ def spent(day=None):
     return int(_load().get("days", {}).get(day or _pacific_date(), {}).get("spent", 0))
 
 
+# 🔴 2026-09-01 第三頻道(ch3)吃的是**同一份 Google 每日配額**,但它另外記一本帳
+# (`ch3_lab/quota.json`,由 ch3_lab/quota.py 維護),本檔的 patch 攔不到它的呼叫。
+# 後果:`remaining()` 會高估 —— ch3 花掉的那些 units 在我這邊看不見,
+# 而 ENFORCE 拿這個高估值去放行,就會在真正撞牆之前都以為還有額度。
+# (協調背景:兩個 session 分別做主頻道與 ch3,同一個 Cloud project 同一份額度。)
+#
+# 只讀不寫:讀不到、格式不合、或不是今天的帳 → 回 0,退回原本行為。
+# **守門自己壞掉絕不可以害停產**,這條沿用本檔既有的 fail-open 原則。
+# ⚠️ ch3_lab 在 **ROOT 的上一層**(ROOT = D:\carson-agent\youtube_channel,
+# ch3_lab = D:\carson-agent\ch3_lab)。第一版寫成 ROOT/"ch3_lab" → 檔案不存在 →
+# fail-open 回 0 → 這道防護等於沒裝,而且**完全不會報錯**(自檢時應該回 3 卻回 0 才抓到)。
+_CH3_LEDGER = ROOT.parent / "ch3_lab" / "quota.json"
+
+
+def ch3_spent(day=None):
+    """ch3 今天花掉的 units。它的帳本只存當天({day, spent, items}),沒有歷史。"""
+    try:
+        d = json.loads(_CH3_LEDGER.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return 0
+    if not isinstance(d, dict):
+        return 0
+    # ch3 記的是台北日期,本檔記太平洋日期 —— 只在兩者指向同一天時才採信。
+    # 對不上就回 0(寧可高估剩餘,也不要用錯的日子把配額算成已用光)。
+    if str(d.get("day") or "") != str(day or _tw_date()):
+        return 0
+    try:
+        return max(0, int(d.get("spent", 0)))
+    except Exception:  # noqa: BLE001
+        return 0
+
+
+def _tw_date():
+    import datetime as _dt
+    return (_dt.datetime.utcnow() + _dt.timedelta(hours=8)).strftime("%Y-%m-%d")
+
+
 def remaining(day=None):
-    return max(0, effective_limit() - spent(day))
+    return max(0, effective_limit() - spent(day) - ch3_spent())
 
 
 _warned = {"sent": False}
