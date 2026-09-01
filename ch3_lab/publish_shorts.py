@@ -701,6 +701,29 @@ def build_meta():
                         #    DOI 本身就是可查的,印它就夠;不編一個標題。
                         _head = f"{_lab}" + (f" ({_y})" if _y else "")
                     cites.append(f"{_head}{nl}  doi:{b['doi']}")
+            # 🔴 上面那個掃描只走**頂層 dict**,走不進 list。獨立驗證抓到:
+            #    moral_licensing 旁白唸的「3,134 people」那篇,DOI 只存在
+            #    `timeline[2]` —— 說明欄查不到,而頁尾寫著論文都在上面。
+            #    我剛把「列舉改掃描」當成修好了,這是同一個洞的下一層。
+            #    以 DOI 去重:同一篇同時出現在頂層與 timeline 是常態。
+            _seen = {b["doi"] for _k in _order
+                     for b in [E.get(_k) or {}]
+                     if isinstance(b, dict) and b.get("doi")}
+            for _k in _order:
+                v = E.get(_k)
+                if not isinstance(v, list):
+                    continue
+                for x in v:
+                    if not (isinstance(x, dict) and x.get("doi")):
+                        continue
+                    if x["doi"] in _seen:
+                        continue
+                    _seen.add(x["doi"])
+                    _y = x.get("year")
+                    _w = x.get("what") or x.get("name") or ""
+                    _head = (f"{_y}: {_w}" if _y and _w
+                             else (str(_y) if _y else (_w or "Also cited")))
+                    cites.append(f"{_head}{nl}  doi:{x['doi']}")
             # 有原文、有年份,但**沒有 DOI** 的來源(例如 EEF 評估報告不是
             # 期刊論文)。片子唸了它就要查得到 —— 不給 DOI 不等於不用給名字。
             for _k in _order:

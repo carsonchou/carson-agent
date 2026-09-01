@@ -720,10 +720,10 @@
         },
         {
           "year": 2016,
-          "what": "3,134 people, the effect is a ninth of the size",
+          "what": "3,134 people, the effect much smaller",
           "n": 3134,
           "es": null,
-          "es_note": "eta-p2 .043 → .005",
+          "es_note": "eta-p2 .043 → .005(⚠️ 這個比值是 partial eta² 上的;換成 d 縮水幅度小得多,所以旁白與畫面都不給倍數)",
           "doi": "10.1016/j.jesp.2015.10.012",
           "quote": "In an aggregate analysis of all replication studies (N = 3134), there was a main effect of moral credentials, F(1, 3130) = 17.01, p<.001, eta-p2 = .005, 95% CI = [.001, .012]) such that participants in the \"most\" condition (M = 4.44, SD = 0.94) favored a man more than participants in the \"some\" condition (M = 4.31, SD = 0.83).",
           "es_kind": null,
@@ -822,10 +822,10 @@
         },
         {
           "label": "2019",
-          "what": "corrected for that bias",
+          "what": "corrected for that bias, one method",
           "es": -0.05,
           "es_kind": "d",
-          "cue": "Corrected for that publication bias"
+          "cue": "Correct for publication bias one way"
         },
         {
           "label": "2024",
@@ -839,9 +839,9 @@
       "popular_name": "Moral licensing",
       "reel": {
         "belief": "One good deed buys you permission to do a bad one.",
-        "weight": "The standard explanation for why good people do shabby things. Cited more than 1,000 times.",
-        "turn": "Pooled, the effect is 0.31. Published studies 0.43, unpublished 0.11. A 2016 replication on 3,134 people still found it, a ninth the size. Corrected for that publication bias: minus 0.05. And in 2024 a registered replication came back at minus 0.38 on one scenario, 0.08 on the other.",
-        "verdict": "Every retest was bigger, and every retest was smaller. The last changed sign.",
+        "weight": "The standard explanation for why good people do shabby things. Cited over 1,000 times.",
+        "turn": "Pooled, the effect is 0.31. Published studies 0.43, unpublished 0.11. A 2016 replication on 3,134 people still found it, much smaller. Correct for publication bias one way: minus 0.05. And in 2024 a registered replication came back at minus 0.38 on one scenario, 0.08 on the other.",
+        "verdict": "Every retest was bigger and every retest smaller. The last changed sign.",
         "ask": "Do you catch yourself doing this?"
       },
       "bias_correction": {
@@ -859,7 +859,8 @@
       "missing_public": [
         "The bias-corrected pooled effect in the 2015 review: the paper shows it only on a chart, never as a number.",
         "The total number of people in the 2019 review: it reports only how many effects it pooled.",
-        "The 2016 multi-lab replication reports a different statistic; the effect size quoted elsewhere for it is second-hand."
+        "The 2016 multi-lab replication reports a different statistic; the effect size quoted elsewhere for it is second-hand.",
+        "The 2019 paper corrects for publication bias more than one way; we could only read the figure for one of them first-hand."
       ]
     },
     {
