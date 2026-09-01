@@ -92,8 +92,12 @@ def render(B, s) -> str:
 
     d = snapshot(B, s)
     score = d.get("score")
-    recs = d.get("records") or []
-    done = sum(int(n) for x, n in recs if x == today)
+    # 🔴 同一個病的第四個表面：`recs` 拿不到時 `sum(...)` 是 0，
+    # 板子就會印「已交 0/2」—— 跟「今天真的一條都沒交」長得**一模一樣**。
+    # 而漏交和重複提交的處置完全相反（重複提交更難收拾），
+    # 所以這裡必須分得出「0 條」和「不知道」。`records` 用 None 當哨兵。
+    recs = d.get("records")
+    done = None if recs is None else sum(int(n) for x, n in recs if x == today)
 
     L = []
     L.append(f"  BRAIN   台北 {now_tpe:%m-%d %H:%M}   ET {now_et:%m-%d %H:%M}")
@@ -110,10 +114,15 @@ def render(B, s) -> str:
             need = (GOLD - score) / 2000
             L.append(f"          還差 {GOLD - score:,.0f} 分 ≈ {need:.1f} 天")
 
-    mark = "✅" if done >= TARGET else ("🚨" if left_h <= 4 else "⚠️")
-    L.append(f"  今天    {mark} ET {today} 已交 {done}/{TARGET}"
-             f"   換日剩 {left_h:.1f}h")
-    L.append("  最近    " + "  ".join(f"{x[5:]}:{n}" for x, n in recs[-5:]))
+    if done is None:
+        L.append(f"  今天    ⚠️ 查不到已交幾條（**不是 0**，是問不到）"
+                 f"   換日剩 {left_h:.1f}h")
+        L.append("  最近    —")
+    else:
+        mark = "✅" if done >= TARGET else ("🚨" if left_h <= 4 else "⚠️")
+        L.append(f"  今天    {mark} ET {today} 已交 {done}/{TARGET}"
+                 f"   換日剩 {left_h:.1f}h")
+        L.append("  最近    " + "  ".join(f"{x[5:]}:{n}" for x, n in recs[-5:]))
 
     # 挖礦：帳本行數當進度計，比去掃程序列表便宜也不會誤判
     try:
