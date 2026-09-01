@@ -946,10 +946,17 @@ def main():
                                         else None) or "participants"
                 return (f"{nl}  the same {p['n']:,} {w}" if same
                         else f"{nl}  {p['n']:,} {w}")
-            plist = nl.join(
-                f"{lab}: {p.get('title', '')} ({p['year']})" + nl
-                + f"  doi:{p['doi']}" + _people(p)
-                for lab, p in papers if p.get("doi"))
+            # 🔴 論文清單改成掃描之後,會掃到沒有 title/year 的區塊
+            #    (xiao_2024_table3 / many_smiles_2022 / coles_2019_trap /
+            #     original_authors_reply / bbc_study)。原本寫 `p['year']`
+            #    直接 KeyError,而寫 `p.get('year','')` 會印出空括號 ——
+            #    「Xiao 2024 table3:  ()」看起來像壞掉。
+            #    沒有標題就只印可查的 DOI,不編一個標題出來。
+            def _cite(lab, p):
+                t, y = p.get("title"), p.get("year")
+                head = (f"{lab}: {t}" if t else lab) + (f" ({y})" if y else "")
+                return head + nl + f"  doi:{p['doi']}" + _people(p)
+            plist = nl.join(_cite(lab, p) for lab, p in papers if p.get("doi"))
 
             # 時間軸:畫面上出現過的每一列,連單位一起寫進說明欄。
             # 🔴 **單位一定要印。** 第一版寫 `{r['es']:+g}`,說明欄印出

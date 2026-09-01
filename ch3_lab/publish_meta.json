@@ -7,7 +7,7 @@
   "thumb": "eps_lineup/ep0/thumb.jpg",
   "tone": "held",
   "title": "25 famous psychology claims, retested on 58,653 people. 8 held up.",
-  "description": "25 claims people repeat as fact. We looked up the study each one came from, then looked up what happened when somebody ran it again.\n\n58,653 people took part in the replications.\n12 of the claims are gone - the retest could not tell them apart from nothing.\n4 came back smaller but still measurable.\n1 went the other way.\n8 held up, 2 of them larger than the original.\n\nEvery episode, with the replication effect size and sample:\n  bystander_effect         -0.35    7,700 people   held up\n  ep003                    -0.23    1,550 people   held up\n  ep007                    -0.87      776 people   held up\n  ep011                    +0.65      743 people   held up\n  ep015                    +0.34      740 people   held up\n  ep017                    +0.36      321 people   held up\n  ep018                    -0.85      240 people   held up\n  sleep_memory             +0.29    2,004 people   held up\n  ego_depletion            +0.04    2,141 people   gone\n  ep000                    +0.01    6,608 people   gone\n  ep001                    -0.07    1,283 people   gone\n  ep002                    +0.08    1,086 people   gone\n  ep004                    +0.13      997 people   gone\n  ep005                    +0.22      823 people   smaller, still there\n  ep006                    +0.40      723 people   smaller, still there\n  ep008                    +0.18      564 people   smaller, still there\n  ep009                    +0.14      556 people   gone\n  ep010                    +0.06      488 people   gone\n  ep012                    +0.03      404 people   gone\n  ep013                    +0.00      331 people   gone\n  ep014                    +0.08      316 people   gone\n  ep016                    +0.07      246 people   gone\n  implicit_bias_test       +0.27   14,900 people   smaller, still there\n  romantic_red             +0.09      242 people   gone\n  social_priming           +0.07   12,871 people   gone\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "description": "25 claims people repeat as fact. We looked up the study each one came from, then looked up what happened when somebody ran it again.\n\n58,653 people took part in the replications.\n12 of the claims are gone - the retest could not tell them apart from nothing.\n4 came back smaller but still measurable.\n1 went the other way.\n8 held up, 2 of them larger than the original.\n\nEvery episode, with the replication effect size and sample:\n  bystander_effect         -0.35    7,700 people   held up\n  ep003                    -0.23    1,550 people   held up\n  ep007                    -0.87      776 people   held up\n  ep011                    +0.65      743 people   held up\n  ep015                    +0.34      740 people   held up\n  ep017                    +0.36      321 people   held up\n  ep018                    -0.85      240 people   held up\n  sleep_memory             +0.29    2,004 people   held up\n  ego_depletion            +0.04    2,141 people   gone\n  ep000                    +0.01    6,608 people   gone\n  ep001                    -0.07    1,283 people   gone\n  ep002                    +0.08    1,086 people   gone\n  ep004                    +0.13      997 people   gone\n  ep005                    +0.22      823 people   smaller, still there\n  ep006                    +0.40      723 people   smaller, still there\n  ep008                    +0.18      564 people   smaller, still there\n  ep009                    +0.14      556 people   gone\n  ep010                    +0.06      488 people   gone\n  ep012                    +0.03      404 people   gone\n  ep013                    +0.00      331 people   gone\n  ep014                    +0.08      316 people   gone\n  ep016                    +0.07      246 people   gone\n  implicit_bias_test       +0.27   14,900 people   smaller, still there\n  romantic_red             +0.09      242 people   gone\n  social_priming           +0.07   12,871 people   gone\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Effect sizes are quoted to two decimal places and citation counts are rounded down, so the figure on screen is never larger than the published one — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
   "tags": [
    "replication crisis",
    "psychology",
@@ -37,7 +37,7 @@
   "video": "eps/ep000/ep000.mp4",
   "tone": "gone",
   "title": "Do reminders of consumerism change whether you think other people should save water?",
-  "description": "Do reminders of consumerism change whether you think other people should save water?\n\nEffects of consumer cues on believing other people should use less water.\n\nOriginal study (2012): Cuing Consumerism\n  77 participants — effect size 0.25 (d)\n  doi:10.1177/0956797611429579\n\nReplication: Many Labs 2: Investigating Variation in Replicability Across Samples and Settings\n  6,608 participants — effect size 0.01\n  doi:10.1177/2515245918810225\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "description": "Do reminders of consumerism change whether you think other people should save water?\n\nEffects of consumer cues on believing other people should use less water.\n\nOriginal study (2012): Cuing Consumerism\n  77 participants — effect size 0.25 (d)\n  doi:10.1177/0956797611429579\n\nReplication: Many Labs 2: Investigating Variation in Replicability Across Samples and Settings\n  6,608 participants — effect size 0.01\n  doi:10.1177/2515245918810225\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Effect sizes are quoted to two decimal places and citation counts are rounded down, so the figure on screen is never larger than the published one — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
   "tags": [
    "replication crisis",
    "psychology",
@@ -66,7 +66,7 @@
   "video": "eps/ep001/ep001.mp4",
   "tone": "gone",
   "title": "Feeling unsure of yourself makes you hold on to the things that define you?",
-  "description": "Feeling unsure of yourself makes you hold on to the things that define you?\n\nConsumers with “low self-concept clarity” should be more motivated to keep their identities stable by retaining products that are relevant to their identities.\n\nOriginal study (2019): The Uncertain Self: How Self-Concept Structure Affects Subscription Choice\n  405 participants — effect size 0.27 (d)\n  doi:10.1093/jcr/ucz022\n\nReplication: [84] Data Replicada #3: Does Self-Concept Uncertainty Influence Magazine Subscription Choice?\n  1,283 participants — effect size -0.07\n  doi:nan\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "description": "Feeling unsure of yourself makes you hold on to the things that define you?\n\nConsumers with “low self-concept clarity” should be more motivated to keep their identities stable by retaining products that are relevant to their identities.\n\nOriginal study (2019): The Uncertain Self: How Self-Concept Structure Affects Subscription Choice\n  405 participants — effect size 0.27 (d)\n  doi:10.1093/jcr/ucz022\n\nReplication: [84] Data Replicada #3: Does Self-Concept Uncertainty Influence Magazine Subscription Choice?\n  1,283 participants — effect size -0.07\n  doi:nan\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Effect sizes are quoted to two decimal places and citation counts are rounded down, so the figure on screen is never larger than the published one — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
   "tags": [
    "replication crisis",
    "psychology",
@@ -95,7 +95,7 @@
   "video": "eps/ep002/ep002.mp4",
   "tone": "gone",
   "title": "Do people who see the big picture also see more minds? A bigger replication couldn't find it.",
-  "description": "Do people who see the big picture also see more minds?\n\nAction identification is positively correlated with mind attribution.\n\nOriginal study (2006): What do i think you're doing? Action identification and mind attribution.\n  50 participants — effect size 0.30 (r)\n  doi:10.1037/0022-3514.90.4.543\n\nReplication: Kozak et al 2006 replication and extension\n  1,086 participants — effect size 0.08\n  doi:10.17605/osf.io/j9mfn\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "description": "Do people who see the big picture also see more minds?\n\nAction identification is positively correlated with mind attribution.\n\nOriginal study (2006): What do i think you're doing? Action identification and mind attribution.\n  50 participants — effect size 0.30 (r)\n  doi:10.1037/0022-3514.90.4.543\n\nReplication: Kozak et al 2006 replication and extension\n  1,086 participants — effect size 0.08\n  doi:10.17605/osf.io/j9mfn\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Effect sizes are quoted to two decimal places and citation counts are rounded down, so the figure on screen is never larger than the published one — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
   "tags": [
    "replication crisis",
    "psychology",
@@ -124,7 +124,7 @@
   "video": "eps/ep003/ep003.mp4",
   "tone": "held",
   "title": "Agreeable people commit fewer crimes? It held up.",
-  "description": "Agreeable people commit fewer crimes?\n\nCriminal behavior is negatively correlated with agreeableness.\n\nOriginal study (2004): Delinquent behavior and the Five-Factor Model: Hiding in the adaptive landscape\n  197 participants — effect size -0.25 (r)\n  doi:10.65030/idr.02004\n\nReplication: How Replicable Are Links Between Personality Traits and Consequential Life Outcomes? The Life Outcomes of Personality Replication Project\n  1,550 participants — effect size -0.23\n  doi:10.1177/0956797619831612\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "description": "Agreeable people commit fewer crimes?\n\nCriminal behavior is negatively correlated with agreeableness.\n\nOriginal study (2004): Delinquent behavior and the Five-Factor Model: Hiding in the adaptive landscape\n  197 participants — effect size -0.25 (r)\n  doi:10.65030/idr.02004\n\nReplication: How Replicable Are Links Between Personality Traits and Consequential Life Outcomes? The Life Outcomes of Personality Replication Project\n  1,550 participants — effect size -0.23\n  doi:10.1177/0956797619831612\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Effect sizes are quoted to two decimal places and citation counts are rounded down, so the figure on screen is never larger than the published one — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
   "tags": [
    "replication crisis",
    "psychology",
@@ -153,7 +153,7 @@
   "video": "eps/ep004/ep004.mp4",
   "tone": "flipped",
   "title": "Being short on money drains your self-control? The replication found the opposite, but only just.",
-  "description": "Being short on money drains your self-control?\n\nScarcity-induced focus leads to cognitive fatigue on subsequent cognitive control task.\n\nOriginal study (2012): Some Consequences of Having Too Little\n  60 participants — effect size -0.54 (d)\n  doi:10.1126/science.1222426\n\nReplication: An exercise in self-replication: Replicating Shah, Mullainathan, and Shafir (2012)\n  997 participants — effect size 0.13\n  doi:10.1016/j.joep.2018.12.001\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "description": "Being short on money drains your self-control?\n\nScarcity-induced focus leads to cognitive fatigue on subsequent cognitive control task.\n\nOriginal study (2012): Some Consequences of Having Too Little\n  60 participants — effect size -0.54 (d)\n  doi:10.1126/science.1222426\n\nReplication: An exercise in self-replication: Replicating Shah, Mullainathan, and Shafir (2012)\n  997 participants — effect size 0.13\n  doi:10.1016/j.joep.2018.12.001\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Effect sizes are quoted to two decimal places and citation counts are rounded down, so the figure on screen is never larger than the published one — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
   "tags": [
    "replication crisis",
    "psychology",
@@ -182,7 +182,7 @@
   "video": "eps/ep005/ep005.mp4",
   "tone": "shrunk_real",
   "title": "Does a deeper-sounding brand name make a product feel thicker?",
-  "description": "Does a deeper-sounding brand name make a product feel thicker?\n\nProducts with brand names containing back vowel sounds, as opposed to front vowel sounds, are perceived as thicker.\n\nOriginal study (2000): Creating Brand Names With Meaning: The Use of Sound Symbolism\n  171 participants — effect size 0.82 (r)\n  doi:10.1023/a:1008184423824\n\nReplication: Evaluating replicability of ten influential research on sensory marketing\n  823 participants — effect size 0.22\n  doi:10.3389/fcomm.2022.1048896\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "description": "Does a deeper-sounding brand name make a product feel thicker?\n\nProducts with brand names containing back vowel sounds, as opposed to front vowel sounds, are perceived as thicker.\n\nOriginal study (2000): Creating Brand Names With Meaning: The Use of Sound Symbolism\n  171 participants — effect size 0.82 (r)\n  doi:10.1023/a:1008184423824\n\nReplication: Evaluating replicability of ten influential research on sensory marketing\n  823 participants — effect size 0.22\n  doi:10.3389/fcomm.2022.1048896\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Effect sizes are quoted to two decimal places and citation counts are rounded down, so the figure on screen is never larger than the published one — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
   "tags": [
    "replication crisis",
    "psychology",
@@ -211,7 +211,7 @@
   "video": "eps/ep006/ep006.mp4",
   "tone": "shrunk_real",
   "title": "We value a life more when fewer lives are at risk?",
-  "description": "We value a life more when fewer lives are at risk?\n\nLife-saving interventions would be valued more highly when the number of lives at risk was small than when the number at risk was large.\n\nOriginal study (1997): Insensitivity to the Value of Human Life: A Study of Psychophysical Numbing\n  54 participants — effect size 0.80 (d)\n  doi:10.1023/a:1007744326393\n\nReplication: Numbing or sensitization? Replications and extensions of Fetherstonhaugh et al. (1997)'s “Insensitivity to the Value of Human Life”\n  723 participants — effect size 0.40\n  doi:10.1016/j.jesp.2021.104222\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "description": "We value a life more when fewer lives are at risk?\n\nLife-saving interventions would be valued more highly when the number of lives at risk was small than when the number at risk was large.\n\nOriginal study (1997): Insensitivity to the Value of Human Life: A Study of Psychophysical Numbing\n  54 participants — effect size 0.80 (d)\n  doi:10.1023/a:1007744326393\n\nReplication: Numbing or sensitization? Replications and extensions of Fetherstonhaugh et al. (1997)'s “Insensitivity to the Value of Human Life”\n  723 participants — effect size 0.40\n  doi:10.1016/j.jesp.2021.104222\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Effect sizes are quoted to two decimal places and citation counts are rounded down, so the figure on screen is never larger than the published one — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
   "tags": [
    "replication crisis",
    "psychology",
@@ -240,7 +240,7 @@
   "video": "eps/ep007/ep007.mp4",
   "tone": "stronger",
   "title": "The more useful something is, the safer it seems? It came back stronger.",
-  "description": "The more useful something is, the safer it seems?\n\nIncreasing benefits leads people to judge its risks as lower.\n\nOriginal study (2000): The affect heuristic in judgments of risks and benefits\n  219 participants — effect size -0.75 (r)\n  doi:10.1002/(sici)1099-0771(200001/03)13:1%3C1::aid-bdm333%3E3.0.co;2-s\n\nReplication: Risky Therefore Not Beneficial: Replication and Extension of Finucane et al.’s (2000) Affect Heuristic Experiment\n  776 participants — effect size -0.87\n  doi:10.1177/19485506211056761\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "description": "The more useful something is, the safer it seems?\n\nIncreasing benefits leads people to judge its risks as lower.\n\nOriginal study (2000): The affect heuristic in judgments of risks and benefits\n  219 participants — effect size -0.75 (r)\n  doi:10.1002/(sici)1099-0771(200001/03)13:1%3C1::aid-bdm333%3E3.0.co;2-s\n\nReplication: Risky Therefore Not Beneficial: Replication and Extension of Finucane et al.’s (2000) Affect Heuristic Experiment\n  776 participants — effect size -0.87\n  doi:10.1177/19485506211056761\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Effect sizes are quoted to two decimal places and citation counts are rounded down, so the figure on screen is never larger than the published one — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
   "tags": [
    "replication crisis",
    "psychology",
@@ -263,13 +263,129 @@
   }
  },
  {
+  "kind": "fred",
+  "row": 8,
+  "dir": "eps/ep008",
+  "video": "eps/ep008/ep008.mp4",
+  "tone": "shrunk_real",
+  "title": "Looking forward to a trip beats looking back on it?",
+  "description": "Looking forward to a trip beats looking back on it?\n\nParticipants reported more intense positive emotion during anticipation of the hypothetical future ski vacation.\n\nOriginal study (2007): Looking forward, looking back: Anticipation is more evocative than retrospection.\n  95 participants — effect size 0.43 (d)\n  doi:10.1037/0096-3445.136.2.289\n\nReplication: Revisiting the past-future emotional asymmetry: Replication and extensions of Van Boven and Ashworth (2007)\n  564 participants — effect size 0.18\n  doi:nan\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Effect sizes are quoted to two decimal places and citation counts are rounded down, so the figure on screen is never larger than the published one — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "tags": [
+   "replication crisis",
+   "psychology",
+   "effect size",
+   "science",
+   "research",
+   "statistics",
+   "meta-analysis",
+   "replication study",
+   "open science",
+   "social psychology"
+  ],
+  "thumb": "eps/ep008/thumb.jpg",
+  "facts": {
+   "es_o": 0.43,
+   "es_r": 0.18,
+   "n_o": 95,
+   "n_r": 564,
+   "es_kind": "d"
+  }
+ },
+ {
+  "kind": "fred",
+  "row": 9,
+  "dir": "eps/ep009",
+  "video": "eps/ep009/ep009.mp4",
+  "tone": "gone",
+  "title": "Reminded of God, do people say they would take more risks? A bigger replication couldn't find it.",
+  "description": "Reminded of God, do people say they would take more risks?\n\nImplicitly priming God using the scrambled-sentence paradigm increases self-reported risk taking.\n\nOriginal study (2015): Anticipating Divine Protection? Reminders of God Can Increase Nonmoral Risk Taking\n  61 participants — effect size 0.57 (d)\n  doi:10.1177/0956797614563108\n\nReplication: Do Religious Primes Increase Risk Taking? Evidence Against “Anticipating Divine Protection” in Two Preregistered Direct Replications of Kupor, Laurin,\n  556 participants — effect size 0.14\n  doi:10.1177/0956797620922477\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Effect sizes are quoted to two decimal places and citation counts are rounded down, so the figure on screen is never larger than the published one — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "tags": [
+   "replication crisis",
+   "psychology",
+   "effect size",
+   "science",
+   "research",
+   "statistics",
+   "meta-analysis",
+   "replication study",
+   "open science",
+   "social psychology"
+  ],
+  "thumb": "eps/ep009/thumb.jpg",
+  "facts": {
+   "es_o": 0.574,
+   "es_r": 0.14,
+   "n_o": 61,
+   "n_r": 556,
+   "es_kind": "d"
+  }
+ },
+ {
+  "kind": "fred",
+  "row": 10,
+  "dir": "eps/ep010",
+  "video": "eps/ep010/ep010.mp4",
+  "tone": "gone",
+  "title": "Think analytically, and belief in conspiracies drops? A bigger replication couldn't find it.",
+  "description": "Think analytically, and belief in conspiracies drops?\n\nPriming analytic thinking using the scrambled sentence task reduces belief in conspiracy theories.\n\nOriginal study (2014): Analytic thinking reduces belief in conspiracy theories\n  140 participants — effect size 0.42 (d)\n  doi:10.1016/j.cognition.2014.08.006\n\nReplication: No evidence that priming analytic thinking reduces belief in conspiracy theories: A Registered Report of high-powered direct replications of Study 2 a\n  488 participants — effect size 0.06\n  doi:10.1016/j.jesp.2023.104549\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Effect sizes are quoted to two decimal places and citation counts are rounded down, so the figure on screen is never larger than the published one — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "tags": [
+   "replication crisis",
+   "psychology",
+   "effect size",
+   "science",
+   "research",
+   "statistics",
+   "meta-analysis",
+   "replication study",
+   "open science",
+   "social psychology"
+  ],
+  "thumb": "eps/ep010/thumb.jpg",
+  "facts": {
+   "es_o": 0.42,
+   "es_r": 0.06,
+   "n_o": 140,
+   "n_r": 488,
+   "es_kind": "d"
+  }
+ },
+ {
+  "kind": "fred",
+  "row": 11,
+  "dir": "eps/ep011",
+  "video": "eps/ep011/ep011.mp4",
+  "tone": "stronger",
+  "title": "What you do reveals more about you than what you own? It came back stronger.",
+  "description": "What you do reveals more about you than what you own?\n\nKnowledge of one’s experiential purchases is perceived as providing greater insight into one’s true self than knowledge of one’s material purchases.\n\nOriginal study (2012): I am what I do, not what I have: The differential centrality of experiential and material purchases to the self.\n  121 participants — effect size 0.37 (d)\n  doi:10.1037/a0027407\n\nReplication: Revisiting the Differential Centrality of Experiential and Material Purchases to the Self: Replication and Extension of Carter and Gilovich (2012)\n  743 participants — effect size 0.65\n  doi:10.1525/collabra.57785\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Effect sizes are quoted to two decimal places and citation counts are rounded down, so the figure on screen is never larger than the published one — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "tags": [
+   "replication crisis",
+   "psychology",
+   "effect size",
+   "science",
+   "research",
+   "statistics",
+   "meta-analysis",
+   "replication study",
+   "open science",
+   "social psychology"
+  ],
+  "thumb": "eps/ep011/thumb.jpg",
+  "facts": {
+   "es_o": 0.371,
+   "es_r": 0.65,
+   "n_o": 121,
+   "n_r": 743,
+   "es_kind": "d"
+  }
+ },
+ {
   "kind": "famous",
   "slug": "ego_depletion",
   "dir": "eps_famous/ego_depletion",
   "video": "eps_famous/ego_depletion/ego_depletion.mp4",
   "tone": "gone",
   "title": "Ego depletion: willpower runs out as you use it? 23 labs, 2,141 people.",
-  "description": "Willpower runs out as you use it?\n\nWillpower is a limited resource that runs out as you use it.\n\nOriginal study (1998): Ego depletion: Is the active self a limited resource?\n  cited more than 4,900 times (OpenAlex, retrieved 2026-08-25)\n  doi:10.1037/0022-3514.74.5.1252\n\nThe test (2016): A Multilab Preregistered Replication of the Ego-Depletion Effect\n  23 laboratories, 2,141 people\n  d = 0.04, 95% CI [-0.07, 0.15]  — the interval includes zero\n  doi:10.1177/1745691616652873\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "description": "Willpower runs out as you use it?\n\nWillpower is a limited resource that runs out as you use it.\n\nOriginal study (1998): Ego depletion: Is the active self a limited resource?\n  cited more than 4,900 times (OpenAlex, retrieved 2026-08-25)\n  doi:10.1037/0022-3514.74.5.1252\n\nThe test (2016): A Multilab Preregistered Replication of the Ego-Depletion Effect\n  23 laboratories, 2,141 people\n  d = 0.04, 95% CI [-0.07, 0.15]  — the interval includes zero\n  doi:10.1177/1745691616652873\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Effect sizes are quoted to two decimal places and citation counts are rounded down, so the figure on screen is never larger than the published one — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
   "tags": [
    "replication crisis",
    "psychology",
@@ -302,7 +418,7 @@
   "video": "eps_famous/romantic_red/romantic_red.mp4",
   "tone": "gone",
   "title": "Red makes a woman look more attractive? Retested on 242 people.",
-  "description": "Red makes a woman look more attractive?\n\nMen find women more attractive when they are wearing red.\n\nOriginal study (2008): Romantic red: Red enhances men's attraction to women.\n  cited more than 400 times (OpenAlex, retrieved 2026-08-25)\n  doi:10.1037/0022-3514.95.5.1150\n\nThe test (2017): Is Red Really Romantic?\n  602 people\n  242 men: d = 0.09, 95% CI [-0.17, 0.34]  — the interval includes zero\n  doi:10.1027/1864-9335/a000296\n  360 women: d = -0.09, 95% CI [-0.30, 0.12]\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "description": "Red makes a woman look more attractive?\n\nMen find women more attractive when they are wearing red.\n\nOriginal study (2008): Romantic red: Red enhances men's attraction to women.\n  cited more than 400 times (OpenAlex, retrieved 2026-08-25)\n  doi:10.1037/0022-3514.95.5.1150\n\nThe test (2017): Is Red Really Romantic?\n  602 people\n  242 men: d = 0.09, 95% CI [-0.17, 0.34]  — the interval includes zero\n  doi:10.1027/1864-9335/a000296\n  360 women: d = -0.09, 95% CI [-0.30, 0.12]\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Effect sizes are quoted to two decimal places and citation counts are rounded down, so the figure on screen is never larger than the published one — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
   "tags": [
    "replication crisis",
    "psychology",
@@ -335,7 +451,7 @@
   "video": "eps_famous/bystander_effect/bystander_effect.mp4",
   "tone": "held",
   "title": "The bystander effect: does a crowd make each person less likely to help? 7,700 people, pooled.",
-  "description": "Does a crowd make each person less likely to help?\n\nThe more people who witness an emergency, the less likely any one of them is to help.\n\nOriginal study (1968): Bystander intervention in emergencies: Diffusion of responsibility.\n  cited more than 3,000 times (OpenAlex, retrieved 2026-08-25)\n  doi:10.1037/h0025589\n\nThe test (2011): The bystander-effect: A meta-analytic review on bystander intervention in dangerous and non-dangerous emergencies\n  105 independent effect sizes, over 7,700 people\n  g = -0.35\n  doi:10.1037/a0023304\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "description": "Does a crowd make each person less likely to help?\n\nThe more people who witness an emergency, the less likely any one of them is to help.\n\nOriginal study (1968): Bystander intervention in emergencies: Diffusion of responsibility.\n  cited more than 3,000 times (OpenAlex, retrieved 2026-08-25)\n  doi:10.1037/h0025589\n\nThe test (2011): The bystander-effect: A meta-analytic review on bystander intervention in dangerous and non-dangerous emergencies\n  105 independent effect sizes, over 7,700 people\n  g = -0.35\n  doi:10.1037/a0023304\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Effect sizes are quoted to two decimal places and citation counts are rounded down, so the figure on screen is never larger than the published one — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
   "tags": [
    "replication crisis",
    "psychology",
@@ -368,7 +484,7 @@
   "video": "eps_famous/sleep_memory/sleep_memory.mp4",
   "tone": "held",
   "title": "Targeted memory reactivation: can a sound strengthen what you learned? 91 experiments, 2,004 people.",
-  "description": "A sound played while you sleep strengthens a memory?\n\nPlaying a sound during sleep can strengthen the memory you learned it with.\n\nThe test (2020): Promoting memory consolidation during sleep: A meta-analysis of targeted memory reactivation.\n  91 experiments, 2,004 people\n  g = 0.29, 95% CI [0.21, 0.38]\n  doi:10.1037/bul0000223\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "description": "A sound played while you sleep strengthens a memory?\n\nPlaying a sound during sleep can strengthen the memory you learned it with.\n\nThe test (2020): Promoting memory consolidation during sleep: A meta-analysis of targeted memory reactivation.\n  91 experiments, 2,004 people\n  g = 0.29, 95% CI [0.21, 0.38]\n  doi:10.1037/bul0000223\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Effect sizes are quoted to two decimal places and citation counts are rounded down, so the figure on screen is never larger than the published one — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
   "tags": [
    "replication crisis",
    "psychology",
@@ -401,7 +517,7 @@
   "video": "eps_famous/implicit_bias_test/implicit_bias_test.mp4",
   "tone": "shrunk_real",
   "title": "The implicit association test: does it predict what you do? 184 samples, 14,900 people.",
-  "description": "Can a reaction-time test reveal your hidden bias?\n\nA reaction-time test can reveal the hidden bias behind how people behave, judge, and react.\n\nThe test (2009): Understanding and using the Implicit Association Test: III. Meta-analysis of predictive validity.\n  184 independent samples, 14,900 people\n  r = 0.27\n  doi:10.1037/a0015575\n  self-report questionnaires: r = 0.36\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "description": "Can a reaction-time test reveal your hidden bias?\n\nA reaction-time test can reveal the hidden bias behind how people behave, judge, and react.\n\nThe test (2009): Understanding and using the Implicit Association Test: III. Meta-analysis of predictive validity.\n  184 independent samples, 14,900 people\n  r = 0.27\n  doi:10.1037/a0015575\n  self-report questionnaires: r = 0.36\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Effect sizes are quoted to two decimal places and citation counts are rounded down, so the figure on screen is never larger than the published one — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
   "tags": [
    "replication crisis",
    "psychology",
@@ -435,7 +551,7 @@
   "thumb": "eps_domain/learning_styles/thumb.jpg",
   "tone": "gone",
   "title": "Learning styles: the one thing the idea needs came back at p = 0.29.",
-  "description": "Do you learn better when you are taught in your own style?\n\nThe claim as stated: Learning Styles: Concepts and Evidence (2009), doi:10.1111/j.1539-6053.2009.01038.x\nThe replication: Providing Instruction Based on Students' Learning Style Preferences Does Not Improve Learning (2020), n = 125, doi:10.3389/fpsyg.2020.00164\n\nWhat the replication found:\n  teaching to their style    F(1, 38) = 1.16   p = 0.290   not significant\n  listening beat reading, for everyone F(1, 110) = 4.92, eta2 = 0.04   p = 0.030   significant\n  visual types scored higher at both F(1, 32) = 12.92, eta2 = 0.29   p = 0.001   significant\n\nQuoted from the replication:\n  \"There was not a significant main effect of instruction (F(1, 32) = 1.15, p = 0.29), nor an instruction by learning styles interaction (F(1, 38) = 1.16; p = 0.29).\"\n  \"A significant main effect for instruction was found (F(1, 110) = 4.92; p = 0.03) with students performing better when listening (M = 36.0, SE = 0.9) than reading (M = 34.4, SE = 0.8). This corresponds to an effect size of eta 2 = 0.04, which is considered small.\"\n  \"There was a significant main effect of learning styles (auditory vs. visual; F (1, 32) = 12.92; p = 0.001) with an effect size of eta 2 = 0.29 ... These results indicate that visual learners were significantly better at both listening and reading comprehension, as compared to auditory learners.\"\n\nThe authors' own summary:\n\"Results failed to find a significant relationship between auditory or visual learning style preference and comprehension. Fifth graders with a visual learning style scored higher than those with an auditory learning style on listening and reading comprehension measures. As such, and counter to current educational beliefs and practices, teachers may actually be doing a disservice to students by using resources to determine their learning style and then tailoring the curriculum to match that learning style. [abstract]\"\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "description": "Do you learn better when you are taught in your own style?\n\nThe claim as stated: Learning Styles: Concepts and Evidence (2009), doi:10.1111/j.1539-6053.2009.01038.x\nThe replication: Providing Instruction Based on Students' Learning Style Preferences Does Not Improve Learning (2020), n = 125, doi:10.3389/fpsyg.2020.00164\n\nWhat the replication found:\n  teaching to their style    F(1, 38) = 1.16   p = 0.290   not significant\n  listening beat reading, for everyone F(1, 110) = 4.92, eta2 = 0.04   p = 0.030   significant\n  visual types scored higher at both F(1, 32) = 12.92, eta2 = 0.29   p = 0.001   significant\n\nQuoted from the replication:\n  \"There was not a significant main effect of instruction (F(1, 32) = 1.15, p = 0.29), nor an instruction by learning styles interaction (F(1, 38) = 1.16; p = 0.29).\"\n  \"A significant main effect for instruction was found (F(1, 110) = 4.92; p = 0.03) with students performing better when listening (M = 36.0, SE = 0.9) than reading (M = 34.4, SE = 0.8). This corresponds to an effect size of eta 2 = 0.04, which is considered small.\"\n  \"There was a significant main effect of learning styles (auditory vs. visual; F (1, 32) = 12.92; p = 0.001) with an effect size of eta 2 = 0.29 ... These results indicate that visual learners were significantly better at both listening and reading comprehension, as compared to auditory learners.\"\n\nThe authors' own summary:\n\"Results failed to find a significant relationship between auditory or visual learning style preference and comprehension. Fifth graders with a visual learning style scored higher than those with an auditory learning style on listening and reading comprehension measures. As such, and counter to current educational beliefs and practices, teachers may actually be doing a disservice to students by using resources to determine their learning style and then tailoring the curriculum to match that learning style. [abstract]\"\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Effect sizes are quoted to two decimal places and citation counts are rounded down, so the figure on screen is never larger than the published one — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
   "tags": [
    "replication crisis",
    "psychology",
@@ -463,13 +579,14 @@
   }
  },
  {
-  "kind": "fred",
-  "row": 8,
-  "dir": "eps/ep008",
-  "video": "eps/ep008/ep008.mp4",
+  "kind": "rechecked",
+  "slug": "backfire_effect",
+  "dir": "eps_rechecked/backfire_effect",
+  "video": "eps_rechecked/backfire_effect/backfire_effect.mp4",
+  "thumb": "eps_rechecked/backfire_effect/thumb.jpg",
   "tone": "shrunk_real",
-  "title": "Looking forward to a trip beats looking back on it?",
-  "description": "Looking forward to a trip beats looking back on it?\n\nParticipants reported more intense positive emotion during anticipation of the hypothetical future ski vacation.\n\nOriginal study (2007): Looking forward, looking back: Anticipation is more evocative than retrospection.\n  95 participants — effect size 0.43 (d)\n  doi:10.1037/0096-3445.136.2.289\n\nReplication: Revisiting the past-future emotional asymmetry: Replication and extensions of Van Boven and Ashworth (2007)\n  564 participants — effect size 0.18\n  doi:nan\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "title": "The backfire effect: the author says you read it wrong.",
+  "description": "Does correcting someone make them believe the wrong thing more?\n\nThe author says you read it wrong.\n\nThe original: When Corrections Fail: The Persistence of Political Misperceptions (2010)\n  doi:10.1007/s11109-010-9112-2\n  327 participants\nThe retest: The Elusive Backfire Effect: Mass Attitudes' Steadfast Factual Adherence (2019)\n  doi:10.1007/s11109-018-9443-y\n  10,100 participants\nThe original author, later: Why the backfire effect does not explain the durability of political misperceptions (2021)\n  doi:10.1073/pnas.1912440117\n\nWhat happened to the number:\n  2010  conservatives in the control group   32%\n  2010  a different group, given the correction   64%\n  2019  issues retested for backfire   52\n  2019  issues that actually backfired   0\n  2021  the original author writes it up again\n\nThe original study:\n\"The experiments we present in this paper were all conducted in an online survey environment with undergraduates at a Catholic university in the Midwest.\"\n\nThe retest:\n\"We find that backfire is stubbornly difficult to induce, and is thus unlikely to be a characteristic of the public's relationship to factual information. Overwhelmingly, when presented with factual information that corrects politicians - even when the politician is an ally - the average subject accedes to the correction and distances himself from the inaccurate claim.\"\n\nThe original author, later:\n\"However, the scientific literature - including subsequent research that Reifler and I have conducted - does not support the interpretation that backfire effects explain the prevalence and durability of misperceptions.\"\n\n\nWhat we could not verify first-hand:\n  - Nothing missing for this episode.\n\n\nHow this channel works\nThe papers are read directly, and the sentence a number came from is quoted above wherever it is shown. Citation counts and some sample sizes are rounded down and always said as \"more than\", so the figure on screen is never larger than the real one. Where the original document could not be obtained, the number is left out rather than carried over from somebody's summary of it.\n\nNot every episode is a debunking. Some of these findings held up, some turned out to be a problem with the original analysis rather than the result, and at least one is still an open argument.",
   "tags": [
    "replication crisis",
    "psychology",
@@ -482,23 +599,58 @@
    "open science",
    "social psychology"
   ],
-  "thumb": "eps/ep008/thumb.jpg",
   "facts": {
-   "es_o": 0.43,
+   "es_o": null,
+   "es_r": null,
+   "n_r": 10100,
+   "es_kind": "d",
+   "is_replication": true,
+   "story_type": "the author says you read it wrong",
+   "year_o": 2010,
+   "year_r": 2019
+  }
+ },
+ {
+  "kind": "rechecked",
+  "slug": "grit",
+  "dir": "eps_rechecked/grit",
+  "video": "eps_rechecked/grit/grit.mp4",
+  "thumb": "eps_rechecked/grit/thumb.jpg",
+  "tone": "shrunk_real",
+  "title": "Grit: a new name for an old thing.",
+  "description": "Does grit matter more than raw talent?\n\nA new name for an old thing.\n\nThe original: Grit: Perseverance and passion for long-term goals (2007)\n  doi:10.1037/0022-3514.92.6.1087\n  138 Ivy League undergraduates\nThe retest: Much ado about grit: A meta-analytic synthesis of the grit literature (2017)\n  doi:10.1037/pspp0000102\n  66,807 participants\n\nWhat happened to the number:\n  2007  grit predicts grades, as observed   r = 0.25\n  2007  the paper's own overlap figure, as observed   r = 0.77\n  2017  88 samples, corrected for measurement error   r = 0.18\n  2017  grit against conscientiousness, corrected   r = 0.84\n\nThe original study:\n\"Gritty students outperformed their less gritty peers: Grit scores were associated with higher GPAs (r = .25, p less than .01), a relationship that was even stronger when SAT scores were held constant (r = .34, p less than .001).\"\n\nThe retest:\n\"Grit as a predictor of performance and success and as a focus of interventions holds much intuitive appeal, but grit as it is currently measured does not appear to be particularly predictive of success and performance and also does not appear to be all that different to conscientiousness.\"\n\n\nWhat we could not verify first-hand:\n  - Nothing missing for this episode.\n\n\nHow this channel works\nThe papers are read directly, and the sentence a number came from is quoted above wherever it is shown. Citation counts and some sample sizes are rounded down and always said as \"more than\", so the figure on screen is never larger than the real one. Where the original document could not be obtained, the number is left out rather than carried over from somebody's summary of it.\n\nNot every episode is a debunking. Some of these findings held up, some turned out to be a problem with the original analysis rather than the result, and at least one is still an open argument.",
+  "tags": [
+   "replication crisis",
+   "psychology",
+   "effect size",
+   "science",
+   "research",
+   "statistics",
+   "meta-analysis",
+   "replication study",
+   "open science",
+   "social psychology"
+  ],
+  "facts": {
+   "es_o": 0.25,
    "es_r": 0.18,
-   "n_o": 95,
-   "n_r": 564,
-   "es_kind": "d"
+   "n_r": 66807,
+   "es_kind": "r",
+   "is_replication": true,
+   "story_type": "a new name for an old thing",
+   "year_o": 2007,
+   "year_r": 2017
   }
  },
  {
-  "kind": "fred",
-  "row": 9,
-  "dir": "eps/ep009",
-  "video": "eps/ep009/ep009.mp4",
-  "tone": "gone",
-  "title": "Reminded of God, do people say they would take more risks? A bigger replication couldn't find it.",
-  "description": "Reminded of God, do people say they would take more risks?\n\nImplicitly priming God using the scrambled-sentence paradigm increases self-reported risk taking.\n\nOriginal study (2015): Anticipating Divine Protection? Reminders of God Can Increase Nonmoral Risk Taking\n  61 participants — effect size 0.57 (d)\n  doi:10.1177/0956797614563108\n\nReplication: Do Religious Primes Increase Risk Taking? Evidence Against “Anticipating Divine Protection” in Two Preregistered Direct Replications of Kupor, Laurin,\n  556 participants — effect size 0.14\n  doi:10.1177/0956797620922477\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "kind": "rechecked",
+  "slug": "terror_management",
+  "dir": "eps_rechecked/terror_management",
+  "video": "eps_rechecked/terror_management/terror_management.mp4",
+  "thumb": "eps_rechecked/terror_management/thumb.jpg",
+  "tone": "shrunk_real",
+  "title": "Terror management theory: the original authors helped, and it still failed.",
+  "description": "Does thinking about your own death harden your beliefs?\n\nThe original authors helped, and it still failed.\n\nThe original: Role of consciousness and accessibility of death-related thoughts in mortality salience effects (1994)\n  doi:10.1037/0022-3514.67.4.627\n  59 participants\nThe retest: Many Labs 4: Failure to Replicate Mortality Salience Effect With and Without Original Author Involvement (2022)\n  doi:10.1525/collabra.35271\n  1,550 participants\n\nWhat happened to the number:\n  1994  the original study, 59 students   d = 1.34\n  2022  ten labs, writing their own protocol\n  2022  seven labs, advised by the original authors   g = 0.08\n  2022  all of them together   g = 0.07\n\nThe original study:\n\"In the original study, a total of 59 introductory psychology students in the United States were randomly assigned between five conditions.\"\n\nThe retest:\n\"With 17 labs contributing usable data from 1,550 participants, we observed little evidence that priming mortality salience increased worldview defense compared to a control condition. We intended to use this paradigm to evaluate whether experts advising on the research protocol would increase effect sizes and overall replication success compared to independent In House replication attempts. However, neither the Author Advised nor In House protocols successfully replicated the original finding.\"\n\n\nWhat we could not verify first-hand:\n  - The In House labs' pooled effect size: the paper never reports one separately, only per-site values and the moderator coefficient.\n\n\nHow this channel works\nThe papers are read directly, and the sentence a number came from is quoted above wherever it is shown. Citation counts and some sample sizes are rounded down and always said as \"more than\", so the figure on screen is never larger than the real one. Where the original document could not be obtained, the number is left out rather than carried over from somebody's summary of it.\n\nNot every episode is a debunking. Some of these findings held up, some turned out to be a problem with the original analysis rather than the result, and at least one is still an open argument.",
   "tags": [
    "replication crisis",
    "psychology",
@@ -511,71 +663,15 @@
    "open science",
    "social psychology"
   ],
-  "thumb": "eps/ep009/thumb.jpg",
   "facts": {
-   "es_o": 0.574,
-   "es_r": 0.14,
-   "n_o": 61,
-   "n_r": 556,
-   "es_kind": "d"
-  }
- },
- {
-  "kind": "fred",
-  "row": 10,
-  "dir": "eps/ep010",
-  "video": "eps/ep010/ep010.mp4",
-  "tone": "gone",
-  "title": "Think analytically, and belief in conspiracies drops? A bigger replication couldn't find it.",
-  "description": "Think analytically, and belief in conspiracies drops?\n\nPriming analytic thinking using the scrambled sentence task reduces belief in conspiracy theories.\n\nOriginal study (2014): Analytic thinking reduces belief in conspiracy theories\n  140 participants — effect size 0.42 (d)\n  doi:10.1016/j.cognition.2014.08.006\n\nReplication: No evidence that priming analytic thinking reduces belief in conspiracy theories: A Registered Report of high-powered direct replications of Study 2 a\n  488 participants — effect size 0.06\n  doi:10.1016/j.jesp.2023.104549\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
-  "tags": [
-   "replication crisis",
-   "psychology",
-   "effect size",
-   "science",
-   "research",
-   "statistics",
-   "meta-analysis",
-   "replication study",
-   "open science",
-   "social psychology"
-  ],
-  "thumb": "eps/ep010/thumb.jpg",
-  "facts": {
-   "es_o": 0.42,
-   "es_r": 0.06,
-   "n_o": 140,
-   "n_r": 488,
-   "es_kind": "d"
-  }
- },
- {
-  "kind": "fred",
-  "row": 11,
-  "dir": "eps/ep011",
-  "video": "eps/ep011/ep011.mp4",
-  "tone": "stronger",
-  "title": "What you do reveals more about you than what you own? It came back stronger.",
-  "description": "What you do reveals more about you than what you own?\n\nKnowledge of one’s experiential purchases is perceived as providing greater insight into one’s true self than knowledge of one’s material purchases.\n\nOriginal study (2012): I am what I do, not what I have: The differential centrality of experiential and material purchases to the self.\n  121 participants — effect size 0.37 (d)\n  doi:10.1037/a0027407\n\nReplication: Revisiting the Differential Centrality of Experiential and Material Purchases to the Self: Replication and Extension of Carter and Gilovich (2012)\n  743 participants — effect size 0.65\n  doi:10.1525/collabra.57785\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
-  "tags": [
-   "replication crisis",
-   "psychology",
-   "effect size",
-   "science",
-   "research",
-   "statistics",
-   "meta-analysis",
-   "replication study",
-   "open science",
-   "social psychology"
-  ],
-  "thumb": "eps/ep011/thumb.jpg",
-  "facts": {
-   "es_o": 0.371,
-   "es_r": 0.65,
-   "n_o": 121,
-   "n_r": 743,
-   "es_kind": "d"
+   "es_o": 1.34,
+   "es_r": 0.07,
+   "n_r": 1550,
+   "es_kind": "g",
+   "is_replication": true,
+   "story_type": "the original authors helped, and it still failed",
+   "year_o": 1994,
+   "year_r": 2022
   }
  },
  {
@@ -585,7 +681,7 @@
   "video": "eps/ep012/ep012.mp4",
   "tone": "gone",
   "title": "Judged on how you decided rather than how it turned out, you stop doubling down?",
-  "description": "Judged on how you decided rather than how it turned out, you stop doubling down?\n\nWhether holding decision makers accountable for the decision process decreases escalating commitment, while accountability for the decision outcomes increases it.\n\nOriginal study (1992): Deescalation strategies: A comparison of techniques for reducing commitment to losing courses of action.\n  60 participants — effect size -0.37 (d)\n  doi:10.1037/0021-9010.77.4.419\n\nReplication: Effects of process and outcome accountability on escalating commitment: A two-study replication.\n  404 participants — effect size 0.03\n  doi:10.1037/xap0000321\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "description": "Judged on how you decided rather than how it turned out, you stop doubling down?\n\nWhether holding decision makers accountable for the decision process decreases escalating commitment, while accountability for the decision outcomes increases it.\n\nOriginal study (1992): Deescalation strategies: A comparison of techniques for reducing commitment to losing courses of action.\n  60 participants — effect size -0.37 (d)\n  doi:10.1037/0021-9010.77.4.419\n\nReplication: Effects of process and outcome accountability on escalating commitment: A two-study replication.\n  404 participants — effect size 0.03\n  doi:10.1037/xap0000321\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Effect sizes are quoted to two decimal places and citation counts are rounded down, so the figure on screen is never larger than the published one — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
   "tags": [
    "replication crisis",
    "psychology",
@@ -614,7 +710,7 @@
   "video": "eps/ep013/ep013.mp4",
   "tone": "gone",
   "title": "Thinking about heat makes you see people as more hostile? A bigger replication couldn't find it.",
-  "description": "Thinking about heat makes you see people as more hostile?\n\nHeat-Priming is associated with increased hostile perceptions.\n\nOriginal study (2009): Hot under the collar in a lukewarm environment: Words associated with hot temperature increase aggressive thoughts and hostile perceptions\n  72 participants — effect size 0.63 (d)\n  doi:10.1016/j.jesp.2009.05.003\n\nReplication: The Effect of \"Heat-Priming\" on Hostile Perceptions\n  331 participants — effect size 0.00\n  doi:10.17605/osf.io/xszk6\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "description": "Thinking about heat makes you see people as more hostile?\n\nHeat-Priming is associated with increased hostile perceptions.\n\nOriginal study (2009): Hot under the collar in a lukewarm environment: Words associated with hot temperature increase aggressive thoughts and hostile perceptions\n  72 participants — effect size 0.63 (d)\n  doi:10.1016/j.jesp.2009.05.003\n\nReplication: The Effect of \"Heat-Priming\" on Hostile Perceptions\n  331 participants — effect size 0.00\n  doi:10.17605/osf.io/xszk6\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Effect sizes are quoted to two decimal places and citation counts are rounded down, so the figure on screen is never larger than the published one — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
   "tags": [
    "replication crisis",
    "psychology",
@@ -643,7 +739,7 @@
   "video": "eps/ep014/ep014.mp4",
   "tone": "gone",
   "title": "More reflective thinkers make colder moral choices? A bigger replication couldn't find it.",
-  "description": "More reflective thinkers make colder moral choices?\n\nIndividuals who reflected more on the CRT made more utilitarian judgments.\n\nOriginal study (2011): Reflection and Reasoning in Moral Judgment\n  92 participants — effect size 0.39 (r)\n  doi:10.1111/j.1551-6709.2011.01210.x\n\nReplication: Estimating the Reproducibility of Experimental Philosophy\n  316 participants — effect size 0.08\n  doi:10.1007/s13164-018-0400-9\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "description": "More reflective thinkers make colder moral choices?\n\nIndividuals who reflected more on the CRT made more utilitarian judgments.\n\nOriginal study (2011): Reflection and Reasoning in Moral Judgment\n  92 participants — effect size 0.39 (r)\n  doi:10.1111/j.1551-6709.2011.01210.x\n\nReplication: Estimating the Reproducibility of Experimental Philosophy\n  316 participants — effect size 0.08\n  doi:10.1007/s13164-018-0400-9\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Effect sizes are quoted to two decimal places and citation counts are rounded down, so the figure on screen is never larger than the published one — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
   "tags": [
    "replication crisis",
    "psychology",
@@ -672,7 +768,7 @@
   "video": "eps/ep015/ep015.mp4",
   "tone": "held",
   "title": "Do we punish criticism harder when it comes from an outsider? It held up.",
-  "description": "Do we punish criticism harder when it comes from an outsider?\n\nGroup members would reject outgroup criticism (as compared to the same criticism from the ingroup) using costly punishment.\n\nOriginal study (2018): Beyond motivated reasoning: Hostile reactions to critical comments from the outgroup.\n  135 participants — effect size 0.35 (d)\n  doi:10.1037/mot0000097\n\nReplication: Disentangling the intergroup sensitivity effect: Defending the ingroup or enforcing general norms?\n  740 participants — effect size 0.34\n  doi:10.1002/ejsp.2748\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "description": "Do we punish criticism harder when it comes from an outsider?\n\nGroup members would reject outgroup criticism (as compared to the same criticism from the ingroup) using costly punishment.\n\nOriginal study (2018): Beyond motivated reasoning: Hostile reactions to critical comments from the outgroup.\n  135 participants — effect size 0.35 (d)\n  doi:10.1037/mot0000097\n\nReplication: Disentangling the intergroup sensitivity effect: Defending the ingroup or enforcing general norms?\n  740 participants — effect size 0.34\n  doi:10.1002/ejsp.2748\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Effect sizes are quoted to two decimal places and citation counts are rounded down, so the figure on screen is never larger than the published one — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
   "tags": [
    "replication crisis",
    "psychology",
@@ -701,7 +797,7 @@
   "video": "eps/ep016/ep016.mp4",
   "tone": "gone",
   "title": "Concrete wording makes a claim seem truer? A bigger replication couldn't find it.",
-  "description": "Concrete wording makes a claim seem truer?\n\nConcretely worded statements are judged to be more likely to be true than abstract equivalents.\n\nOriginal study (2010): Truth From Language and Truth From Fit: The Impact of Linguistic Concreteness and Level of Construal on Subjective Truth\n  46 participants — effect size 0.30 (d)\n  doi:10.1177/0146167210386238\n\nReplication: The Effect of Concrete Wording on Truth Judgements: A Preregistered Replication and Extension of Hansen &amp; Wänke ()\n  246 participants — effect size 0.07\n  doi:10.1525/collabra.192\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "description": "Concrete wording makes a claim seem truer?\n\nConcretely worded statements are judged to be more likely to be true than abstract equivalents.\n\nOriginal study (2010): Truth From Language and Truth From Fit: The Impact of Linguistic Concreteness and Level of Construal on Subjective Truth\n  46 participants — effect size 0.30 (d)\n  doi:10.1177/0146167210386238\n\nReplication: The Effect of Concrete Wording on Truth Judgements: A Preregistered Replication and Extension of Hansen &amp; Wänke ()\n  246 participants — effect size 0.07\n  doi:10.1525/collabra.192\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Effect sizes are quoted to two decimal places and citation counts are rounded down, so the figure on screen is never larger than the published one — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
   "tags": [
    "replication crisis",
    "psychology",
@@ -730,7 +826,7 @@
   "video": "eps/ep017/ep017.mp4",
   "tone": "held",
   "title": "A steeper hierarchy looks more corrupt? It held up.",
-  "description": "A steeper hierarchy looks more corrupt?\n\nPeople expect more corruption to manifest among the employees of relatively more hierarchical organizations.\n\nOriginal study (2018): “If hierarchical, then corrupt”: Exploring people’s tendency to associate hierarchy with corruption in organizations\n  97 participants — effect size 0.48 (d)\n  doi:10.1016/j.obhdp.2018.10.004\n\nReplication: Corruption and Hierarchy: A Replication of Studies 1c and 6 of Fath &amp;amp; Kay 2018\n  321 participants — effect size 0.36\n  doi:10.31234/osf.io/68jft\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "description": "A steeper hierarchy looks more corrupt?\n\nPeople expect more corruption to manifest among the employees of relatively more hierarchical organizations.\n\nOriginal study (2018): “If hierarchical, then corrupt”: Exploring people’s tendency to associate hierarchy with corruption in organizations\n  97 participants — effect size 0.48 (d)\n  doi:10.1016/j.obhdp.2018.10.004\n\nReplication: Corruption and Hierarchy: A Replication of Studies 1c and 6 of Fath &amp;amp; Kay 2018\n  321 participants — effect size 0.36\n  doi:10.31234/osf.io/68jft\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Effect sizes are quoted to two decimal places and citation counts are rounded down, so the figure on screen is never larger than the published one — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
   "tags": [
    "replication crisis",
    "psychology",
@@ -759,7 +855,7 @@
   "video": "eps/ep018/ep018.mp4",
   "tone": "held",
   "title": "At easy things, does everyone think they're above average? It held up.",
-  "description": "At easy things, does everyone think they're above average?\n\nPeople tend to perceive themselves as above average when considering easy abilities.\n\nOriginal study (1999): Lake Wobegon be gone! The \"below-average effect\" and the egocentric nature of comparative ability judgments.\n  37 participants — effect size -0.96 (r)\n  doi:10.1037/0022-3514.77.2.221\n\nReplication: Both better and worse than others depending on difficulty: Replication and extensions of Kruger's (1999) above- and below-average effects\n  240 participants — effect size -0.85\n  doi:10.1017/s1930297500009189\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "description": "At easy things, does everyone think they're above average?\n\nPeople tend to perceive themselves as above average when considering easy abilities.\n\nOriginal study (1999): Lake Wobegon be gone! The \"below-average effect\" and the egocentric nature of comparative ability judgments.\n  37 participants — effect size -0.96 (r)\n  doi:10.1037/0022-3514.77.2.221\n\nReplication: Both better and worse than others depending on difficulty: Replication and extensions of Kruger's (1999) above- and below-average effects\n  240 participants — effect size -0.85\n  doi:10.1017/s1930297500009189\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Effect sizes are quoted to two decimal places and citation counts are rounded down, so the figure on screen is never larger than the published one — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
   "tags": [
    "replication crisis",
    "psychology",
@@ -789,7 +885,7 @@
   "thumb": "eps_lineup/social_priming/thumb.jpg",
   "tone": "gone",
   "title": "Social priming: does reading a word change how you behave? 12 replications, 0 worked.",
-  "description": "Does reading a word change how you behave?\n\nSocial priming: 12 replications drawn from 6 replication papers, 12,871 participants in total against 660 in the originals.\nOriginal effect sizes ran 0.31 to 0.80 (median 0.59); the replications ran 0.00 to 0.14 (median 0.07).\n0 of the 12 replications that report a p-value reached p less than 0.05.\n\nEvery row on screen:\n  money priming increases system justification\n    0.80 on 30 to 0.02 on 6,340  doi:10.1027/1864-9335/a000178\n  Analytic Priming\n    0.60 on 57 to 0.07 on 952  doi:10.1371/journal.pone.0172636\n  Priming “heat” increases belief in global warming\n    0.31 on 300 to 0.03 on 4,204  doi:10.1177/2515245918810225\n  Implicitly priming God using the scrambled-sentence paradigm increases self-reported risk taking\n    0.57 on 61 to 0.14 on 556  doi:10.1177/0956797620922477\n  Heat-Priming is associated with increased hostile perceptions\n    0.63 on 72 to 0.00 on 331  doi:10.17605/osf.io/xszk6\n  Heat-Priming is associated with increased hostile perceptions\n    0.67 on 72 to 0.06 on 326  doi:10.17605/osf.io/xszk6\n  Priming analytic thinking using the scrambled sentence task reduces belief in conspiracy theorie\n    0.42 on 140 to 0.06 on 488  doi:10.1016/j.jesp.2023.104549\n  Priming analytic thinking using the scrambled sentence task reduces belief in conspiracy theorie\n    0.34 on 140 to 0.11 on 488  doi:10.1016/j.jesp.2023.104549\n  Implicitly priming God using the scrambled-sentence paradigm increases self-reported risk taking\n    0.32 on 202 to 0.11 on 548  doi:10.1177/0956797620922477\n  Priming analytic thinking using the scrambled sentence task reduces belief in conspiracy theorie\n    0.46 on 112 to 0.12 on 302  doi:10.1016/j.jesp.2023.104549\n  Heat-Priming is associated with increased hostile perceptions\n    0.67 on 48 to 0.12 on 121  doi:10.17605/osf.io/xszk6\n  Heat-Priming is associated with increased hostile perceptions\n    0.63 on 48 to 0.02 on 120  doi:10.17605/osf.io/xszk6\n\nSource: FORRT Replication Database (FReD), OSF 2tbvd\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "description": "Does reading a word change how you behave?\n\nSocial priming: 12 replications drawn from 6 replication papers, 12,871 participants in total against 660 in the originals.\nOriginal effect sizes ran 0.31 to 0.80 (median 0.59); the replications ran 0.00 to 0.14 (median 0.07).\n0 of the 12 replications that report a p-value reached p less than 0.05.\n\nEvery row on screen:\n  money priming increases system justification\n    0.80 on 30 to 0.02 on 6,340  doi:10.1027/1864-9335/a000178\n  Analytic Priming\n    0.60 on 57 to 0.07 on 952  doi:10.1371/journal.pone.0172636\n  Priming “heat” increases belief in global warming\n    0.31 on 300 to 0.03 on 4,204  doi:10.1177/2515245918810225\n  Implicitly priming God using the scrambled-sentence paradigm increases self-reported risk taking\n    0.57 on 61 to 0.14 on 556  doi:10.1177/0956797620922477\n  Heat-Priming is associated with increased hostile perceptions\n    0.63 on 72 to 0.00 on 331  doi:10.17605/osf.io/xszk6\n  Heat-Priming is associated with increased hostile perceptions\n    0.67 on 72 to 0.06 on 326  doi:10.17605/osf.io/xszk6\n  Priming analytic thinking using the scrambled sentence task reduces belief in conspiracy theorie\n    0.42 on 140 to 0.06 on 488  doi:10.1016/j.jesp.2023.104549\n  Priming analytic thinking using the scrambled sentence task reduces belief in conspiracy theorie\n    0.34 on 140 to 0.11 on 488  doi:10.1016/j.jesp.2023.104549\n  Implicitly priming God using the scrambled-sentence paradigm increases self-reported risk taking\n    0.32 on 202 to 0.11 on 548  doi:10.1177/0956797620922477\n  Priming analytic thinking using the scrambled sentence task reduces belief in conspiracy theorie\n    0.46 on 112 to 0.12 on 302  doi:10.1016/j.jesp.2023.104549\n  Heat-Priming is associated with increased hostile perceptions\n    0.67 on 48 to 0.12 on 121  doi:10.17605/osf.io/xszk6\n  Heat-Priming is associated with increased hostile perceptions\n    0.63 on 48 to 0.02 on 120  doi:10.17605/osf.io/xszk6\n\nSource: FORRT Replication Database (FReD), OSF 2tbvd\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Effect sizes are quoted to two decimal places and citation counts are rounded down, so the figure on screen is never larger than the published one — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
   "tags": [
    "replication crisis",
    "psychology",
@@ -822,7 +918,7 @@
   "thumb": "eps_domain/10000_hour_rule/thumb.jpg",
   "tone": "shrunk_real",
   "title": "The 10,000 hour rule: practice explained 26% in games, 4% in education, under 1% in professions.",
-  "description": "Is how much you practise what separates the best?\n\n2014 meta-analysis, Deliberate practice and performance in music, games, sports, education, and professions: a meta-analysis\ndoi:10.1177/0956797614535810\n\nPercent of the variance in performance explained by deliberate practice:\n  games        26%\n  music        21%\n  sports       18%\n  education    4%\n  professions  less than 1%\n\nQuoted from the abstract:\n\"We found that deliberate practice explained 26% of the variance in performance for games, 21% for music, 18% for sports, 4% for education, and less than 1% for professions. [Macnamara, Hambrick & Oswald 2014, abstract]\"\n\nThe authors' own conclusion:\n\"We conclude that deliberate practice is important, but not as important as has been argued. [same abstract]\"\n\nThe claim being tested comes from The role of deliberate practice in the acquisition of expert performance (1993), doi:10.1037/0033-295X.100.3.363, cited 8,990 times (OpenAlex).\nNote: this meta-analysis reports variance explained, not an effect size in d or r, so no d or r is shown anywhere in this video.\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "description": "Is how much you practise what separates the best?\n\n2014 meta-analysis, Deliberate practice and performance in music, games, sports, education, and professions: a meta-analysis\ndoi:10.1177/0956797614535810\n\nPercent of the variance in performance explained by deliberate practice:\n  games        26%\n  music        21%\n  sports       18%\n  education    4%\n  professions  less than 1%\n\nQuoted from the abstract:\n\"We found that deliberate practice explained 26% of the variance in performance for games, 21% for music, 18% for sports, 4% for education, and less than 1% for professions. [Macnamara, Hambrick & Oswald 2014, abstract]\"\n\nThe authors' own conclusion:\n\"We conclude that deliberate practice is important, but not as important as has been argued. [same abstract]\"\n\nThe claim being tested comes from The role of deliberate practice in the acquisition of expert performance (1993), doi:10.1037/0033-295X.100.3.363, cited 8,990 times (OpenAlex).\nNote: this meta-analysis reports variance explained, not an effect size in d or r, so no d or r is shown anywhere in this video.\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Effect sizes are quoted to two decimal places and citation counts are rounded down, so the figure on screen is never larger than the published one — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
   "tags": [
    "replication crisis",
    "psychology",
@@ -851,13 +947,118 @@
  },
  {
   "kind": "domains",
+  "slug": "anchoring",
+  "dir": "eps_domain/anchoring",
+  "video": "eps_domain/anchoring/anchoring.mp4",
+  "thumb": "eps_domain/anchoring/thumb.jpg",
+  "tone": "held",
+  "title": "The anchoring effect: they measured 4 things on 6,344 people. 4 came back.",
+  "description": "Does showing someone a number first pull their estimate toward it?\n\nThe claim as stated: Measures of Anchoring in Estimation Tasks (1995), doi:10.1177/01461672952111004\nThe replication: Investigating Variation in Replicability: A 'Many Labs' Replication Project (2014), n = 6344, doi:10.1027/1864-9335/a000178\n\nWhat the replication found:\n  babies born each day       d = +2.42   p = 0.001   significant\n  height of Mount Everest    d = +2.23   p = 0.001   significant\n  population of Chicago      d = +1.79   p = 0.001   significant\n  distance to New York       d = +1.17   p = 0.001   significant\n\nQuoted from the replication:\n  \"Anchoring - babies born ... 2.42 2.33, 2.51 0.00 1.00 0.00 t = 90.49 5,607 5,609 less than .001 [Klein et al. 2014, Table 2]\"\n  \"Anchoring - Mt. Everest ... 2.23 2.14, 2.32 0.00 1.00 0.00 t = 83.66 5,625 5,627 less than .001 [Table 2]\"\n  \"Anchoring - Chicago ... 1.79 1.71, 1.87 0.00 1.00 0.00 t = 65.00 5,282 5,284 less than .001 [Table 2]\"\n  \"Anchoring - distance to NYC ... 1.17 1.09, 1.25 0.00 1.00 0.00 t = 42.86 5,360 5,362 less than .001 [Table 2]\"\n\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Effect sizes are quoted to two decimal places and citation counts are rounded down, so the figure on screen is never larger than the published one — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "tags": [
+   "replication crisis",
+   "psychology",
+   "effect size",
+   "science",
+   "research",
+   "statistics",
+   "meta-analysis",
+   "replication study",
+   "open science",
+   "social psychology"
+  ],
+  "facts": {
+   "es_o": null,
+   "es_r": null,
+   "n_r": null,
+   "es_kind": "d",
+   "is_replication": true,
+   "k": 4,
+   "k_word": "outcomes",
+   "n_kept": 4,
+   "arc": "outcomes",
+   "claim_p": null,
+   "claim_sig": true
+  }
+ },
+ {
+  "kind": "domains",
+  "slug": "cognitive_dissonance",
+  "dir": "eps_domain/cognitive_dissonance",
+  "video": "eps_domain/cognitive_dissonance/cognitive_dissonance.mp4",
+  "thumb": "eps_domain/cognitive_dissonance/thumb.jpg",
+  "tone": "gone",
+  "title": "Cognitive dissonance: the one thing the idea needs came back at p = 0.79.",
+  "description": "If you pay someone more to say something they do not believe, do they change their mind less?\n\nThe claim as stated: Cognitive consequences of forced compliance (1959), n = 60, doi:10.1037/h0041593\nThe replication: A Multilab Replication of the Induced-Compliance Paradigm of Cognitive Dissonance (2024), n = 3996, doi:10.1177/25152459231213375\n\nWhat the replication found:\n  choice changed the attitude d = -0.03   p = 0.790   not significant\n  writing it at all changed it d = +0.26   p = 0.001   significant\n\nQuoted from the replication:\n  \"we did not find a significant difference in postessay attitude between the HC-CE condition (M = 2.60, SD = 1.91) and the LC-CE condition (M = 2.66, SD = 1.99), t(2,751.46) = -0.79, p = .79, d = -0.03, 95% CI = [-0.10, 0.04].\"\n  \"we did find a significant difference comparing the postessay attitude between the HC-CE condition and the HC-NE condition, t(2,408.92) = 6.51, p less than .001, d = 0.26, 95% CI = [0.18, 0.34].\"\n\nThe authors' own summary:\n\"Overall, the results call into question whether the induced-compliance paradigm provides robust evidence for cognitive dissonance. [Vaidis et al. 2024]\"\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Effect sizes are quoted to two decimal places and citation counts are rounded down, so the figure on screen is never larger than the published one — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "tags": [
+   "replication crisis",
+   "psychology",
+   "effect size",
+   "science",
+   "research",
+   "statistics",
+   "meta-analysis",
+   "replication study",
+   "open science",
+   "social psychology"
+  ],
+  "facts": {
+   "es_o": null,
+   "es_r": null,
+   "n_r": null,
+   "es_kind": "d",
+   "is_replication": true,
+   "k": 2,
+   "k_word": "outcomes",
+   "n_kept": 1,
+   "arc": "outcomes",
+   "claim_p": 0.79,
+   "claim_sig": false
+  }
+ },
+ {
+  "kind": "domains",
+  "slug": "loss_aversion",
+  "dir": "eps_domain/loss_aversion",
+  "video": "eps_domain/loss_aversion/loss_aversion.mp4",
+  "thumb": "eps_domain/loss_aversion/thumb.jpg",
+  "tone": "shrunk_real",
+  "title": "Loss aversion: the one thing the idea needs came back at λ = 1.125.",
+  "description": "Does losing hurt more than winning the same amount feels good?\n\nThe claim as stated: Prospect Theory: An Analysis of Decision under Risk (1979), doi:10.2307/1914185\nThe replication: Loss aversion is not robust: A re-meta-analysis (2025), n = 149218, doi:10.1016/j.joep.2025.102801\n\nWhat the replication found:\n  losses smaller, items ordered by size d = +2.29   significant\n  same size on average, not ordered by size d = +1.12   not significant\n\nQuoted from the replication:\n  \"Ordered / Lunder G: 2.295 (k=62) [Yechiam & Zeif 2025, Table 1]\"\n  \"for studies with symmetric gains and losses and no ordering of items, the loss aversion parameter was approximately 1.07 and not significantly above 1.0, suggesting similar weighting of gains and losses.\"\n\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Effect sizes are quoted to two decimal places and citation counts are rounded down, so the figure on screen is never larger than the published one — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "tags": [
+   "replication crisis",
+   "psychology",
+   "effect size",
+   "science",
+   "research",
+   "statistics",
+   "meta-analysis",
+   "replication study",
+   "open science",
+   "social psychology"
+  ],
+  "facts": {
+   "es_o": null,
+   "es_r": null,
+   "n_r": null,
+   "es_kind": "d",
+   "is_replication": true,
+   "k": 2,
+   "k_word": "outcomes",
+   "n_kept": 1,
+   "arc": "outcomes",
+   "claim_p": null,
+   "claim_sig": false
+  }
+ },
+ {
+  "kind": "domains",
   "slug": "power_posing",
   "dir": "eps_domain/power_posing",
   "video": "eps_domain/power_posing/power_posing.mp4",
   "thumb": "eps_domain/power_posing/thumb.jpg",
   "tone": "shrunk_real",
   "title": "Power posing: they measured 4 things on 200 people. 1 came back.",
-  "description": "Does standing in a powerful pose make you more powerful?\n\nThe claim as stated: Power Posing: Brief Nonverbal Displays Affect Neuroendocrine Levels and Risk Tolerance (2010), n = 42, doi:10.1177/0956797610383437\nThe replication: Assessing the Robustness of Power Posing: No Effect on Hormones and Risk Tolerance in a Large Sample of Men and Women (2015), n = 200, doi:10.1177/0956797614553946\n\nWhat the replication found:\n  felt more powerful         d = +0.34   p = 0.017   significant\n  testosterone               d = -0.20   p = 0.162   not significant\n  cortisol                   d = -0.16   p = 0.272   not significant\n  risk taking                d = -0.18   p = 0.215   not significant\n\nQuoted from the replication:\n  \"mean difference = 0.245, 95% CI = [0.044, 0.446], t(193) = 2.399, p = .017, Cohen's d = 0.344\"\n  \"mean difference = -4.077, 95% CI = [-9.801, 1.647], t(196) = -1.405, p = .162, Cohen's d = -0.200\"\n  \"mean difference = -0.028, 95% CI = [-0.078, 0.022], t(196) = -1.101, p = .272, Cohen's d = -0.157\"\n  \"mean difference = -0.033, 95% CI = [-0.085, 0.019], t(198) = -1.245, p = .215, Cohen's d = -0.176\"\n  \"Neither of the other two behavioral tasks yielded significant differences by condition. [Ranehill et al. 2015, p.654]\"\n\nThe authors' own summary:\n\"Using a much larger sample size but similar procedures as Carney et al. did, we failed to confirm an effect of power posing on testosterone, cortisol, and financial risk taking. We did find that power posing affected self-reported feelings of power; however, this did not yield behavioral effects. [Ranehill et al. 2015, p.654]\"\n\nOn statistical power:\n\"Our statistical power to detect an effect of the magnitude reported by Carney et al. was more than 95% [Ranehill et al. 2015, p.653]\"\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "description": "Does standing in a powerful pose make you more powerful?\n\nThe claim as stated: Power Posing: Brief Nonverbal Displays Affect Neuroendocrine Levels and Risk Tolerance (2010), n = 42, doi:10.1177/0956797610383437\nThe replication: Assessing the Robustness of Power Posing: No Effect on Hormones and Risk Tolerance in a Large Sample of Men and Women (2015), n = 200, doi:10.1177/0956797614553946\n\nWhat the replication found:\n  felt more powerful         d = +0.34   p = 0.017   significant\n  testosterone               d = -0.20   p = 0.162   not significant\n  cortisol                   d = -0.16   p = 0.272   not significant\n  risk taking                d = -0.18   p = 0.215   not significant\n\nQuoted from the replication:\n  \"mean difference = 0.245, 95% CI = [0.044, 0.446], t(193) = 2.399, p = .017, Cohen's d = 0.344\"\n  \"mean difference = -4.077, 95% CI = [-9.801, 1.647], t(196) = -1.405, p = .162, Cohen's d = -0.200\"\n  \"mean difference = -0.028, 95% CI = [-0.078, 0.022], t(196) = -1.101, p = .272, Cohen's d = -0.157\"\n  \"mean difference = -0.033, 95% CI = [-0.085, 0.019], t(198) = -1.245, p = .215, Cohen's d = -0.176\"\n  \"Neither of the other two behavioral tasks yielded significant differences by condition. [Ranehill et al. 2015, p.654]\"\n\nThe authors' own summary:\n\"Using a much larger sample size but similar procedures as Carney et al. did, we failed to confirm an effect of power posing on testosterone, cortisol, and financial risk taking. We did find that power posing affected self-reported feelings of power; however, this did not yield behavioral effects. [Ranehill et al. 2015, p.654]\"\n\nOn statistical power:\n\"Our statistical power to detect an effect of the magnitude reported by Carney et al. was more than 95% [Ranehill et al. 2015, p.653]\"\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Effect sizes are quoted to two decimal places and citation counts are rounded down, so the figure on screen is never larger than the published one — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
   "tags": [
    "replication crisis",
    "psychology",
@@ -882,6 +1083,393 @@
    "arc": "outcomes",
    "claim_p": null,
    "claim_sig": true
+  }
+ },
+ {
+  "kind": "domains",
+  "slug": "stereotype_threat",
+  "dir": "eps_domain/stereotype_threat",
+  "video": "eps_domain/stereotype_threat/stereotype_threat.mp4",
+  "thumb": "eps_domain/stereotype_threat/thumb.jpg",
+  "tone": "shrunk_real",
+  "title": "Stereotype threat: they measured 2 things on 3,760 people. 1 came back.",
+  "description": "Does being told a test measures your ability make you do worse on it?\n\nThe claim as stated: Stereotype Threat and the Intellectual Test Performance of African Americans (1995), n = 114, doi:10.1037/0022-3514.69.5.797\nThe replication: Does stereotype threat influence performance of girls in stereotyped domains? A meta-analysis (2015), n = 3760, doi:10.1016/j.jsp.2014.10.002\n\nWhat the replication found:\n  as published               d = -0.22   p = 0.001   significant\n  with the missing studies added back d = -0.07   p = 0.270   not significant\n\nQuoted from the replication:\n  \"To estimate the overall effect size, we used a random effects model... we found a small average standardized mean difference, g = -0.22, z = -3.63, p less than .001, CI95 = -0.34; -0.10, indicating that girls who have been exposed to a stereotype threat on average score lower on the MSSS tests compared to girls who have not been exposed to such a threat.\"\n  \"According to the estimations of the trim and fill method... the funnel plot would be symmetric if 11 effect sizes would have been imputed on the right side of the funnel plot. Actual imputation of those missing effect sizes reduced the estimated effect size to g = -0.07, z = -1.10, p = .27, CI95 = -0.21; 0.06.\"\n\nThe authors' own summary:\n\"We conclude that publication bias might seriously distort the literature on the effects of stereotype threat among schoolgirls. We propose a large replication study to provide a less biased effect size estimate. [Flore & Wicherts 2015, abstract]\"\n\n\nHow this channel works\nEvery number in this video comes from the published record, and both papers are cited above with their DOIs. Effect sizes are quoted to two decimal places and citation counts are rounded down, so the figure on screen is never larger than the published one — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.\n\nReplication data: FORRT Replication Database (FReD), osf.io/2tbvd",
+  "tags": [
+   "replication crisis",
+   "psychology",
+   "effect size",
+   "science",
+   "research",
+   "statistics",
+   "meta-analysis",
+   "replication study",
+   "open science",
+   "social psychology"
+  ],
+  "facts": {
+   "es_o": null,
+   "es_r": null,
+   "n_r": null,
+   "es_kind": "d",
+   "is_replication": true,
+   "k": 2,
+   "k_word": "outcomes",
+   "n_kept": 1,
+   "arc": "outcomes",
+   "claim_p": null,
+   "claim_sig": true
+  }
+ },
+ {
+  "kind": "rechecked",
+  "slug": "dunning_kruger",
+  "dir": "eps_rechecked/dunning_kruger",
+  "video": "eps_rechecked/dunning_kruger/dunning_kruger.mp4",
+  "thumb": "eps_rechecked/dunning_kruger/thumb.jpg",
+  "tone": "shrunk_real",
+  "title": "The Dunning-Kruger effect: mostly a statistical artefact.",
+  "description": "Are the least competent people really the most confident?\n\nMostly a statistical artefact.\n\nThe original: Unskilled and unaware of it: How difficulties in recognizing one's own incompetence lead to inflated self-assessments (1999)\n  doi:10.1037/0022-3514.77.6.1121\n  65 Cornell undergraduates in the first study\nThe retest: The Dunning-Kruger effect is (mostly) a statistical artefact: Valid approaches to testing the hypothesis with individual differences data (2020)\n  doi:10.1016/j.intell.2020.101449\n  the same 929 people\nNoise paper: Random Number Simulations Reveal How Random Noise Affects the Measurements and Graphical Portrayals of Self-Assessed Competency (2016)\n  doi:10.5038/1936-4660.9.1.4\n\nWhat happened to the number:\n  1999  the bottom quarter scored   12th\n  1999  and rated themselves   62nd\n  2016  random numbers draw the same graph\n  2020  a test built for the data   r = -0.05\n\nThe original study:\n\"Across 4 studies, the authors found that participants scoring in the bottom quartile on tests of humor, grammar, and logic grossly overestimated their test performance and ability. Although their test scores put them in the 12th percentile, they estimated themselves to be in the 62nd.\"\n\nThe retest:\n\"When such valid statistical analyses are applied to individual differences data, we believe that evidence ostensibly supportive of the Dunning-Kruger hypothesis derived from the mean difference approach employed by Kruger and Dunning (1999) will be found to be substantially overestimated.\"\n\n\nWhat we could not verify first-hand:\n  - One 2008 critique is behind a paywall, so no sentence from it is quoted here.\n\n\nHow this channel works\nThe papers are read directly, and the sentence a number came from is quoted above wherever it is shown. Citation counts and some sample sizes are rounded down and always said as \"more than\", so the figure on screen is never larger than the real one. Where the original document could not be obtained, the number is left out rather than carried over from somebody's summary of it.\n\nNot every episode is a debunking. Some of these findings held up, some turned out to be a problem with the original analysis rather than the result, and at least one is still an open argument.",
+  "tags": [
+   "replication crisis",
+   "psychology",
+   "effect size",
+   "science",
+   "research",
+   "statistics",
+   "meta-analysis",
+   "replication study",
+   "open science",
+   "social psychology"
+  ],
+  "facts": {
+   "es_o": null,
+   "es_r": -0.05,
+   "n_r": 929,
+   "es_kind": "r",
+   "is_replication": true,
+   "story_type": "mostly a statistical artefact",
+   "year_o": 1999,
+   "year_r": 2020
+  }
+ },
+ {
+  "kind": "rechecked",
+  "slug": "facial_feedback",
+  "dir": "eps_rechecked/facial_feedback",
+  "video": "eps_rechecked/facial_feedback/facial_feedback.mp4",
+  "thumb": "eps_rechecked/facial_feedback/thumb.jpg",
+  "tone": "shrunk_real",
+  "title": "The facial feedback hypothesis: the method died, the idea did not.",
+  "description": "Does holding a pen in your teeth actually cheer you up?\n\nThe method died, the idea did not.\n\nThe original: Inhibiting and facilitating conditions of the human smile: A nonobtrusive test of the facial feedback hypothesis (1988)\n  doi:10.1037/0022-3514.54.5.768\n  92 participants\nThe retest: Registered Replication Report: Strack, Martin, & Stepper (1988) (2016)\n  doi:10.1177/1745691616674458\n  1,894 participants\nMany smiles 2022\n  doi:10.1038/s41562-022-01458-9\nColes 2019 trap\n  doi:10.1037/bul0000194\n\nWhat happened to the number:\n  1988  the original study, pen in the teeth   pts/10 = 0.82\n  2016  seventeen labs could not find it   pts/10 = 0.03\n  2019  the wider literature, pooled   d = 0.20\n  2022  posing a happy expression, not the pen   pts/7 = 0.31\n\nThe original study:\n\"Subjects who held the pen with their lips gave the lowest overall ratings (M = 4.32), whereas subjects who held it with their teeth gave the highest ratings (M = 5.14). The ratings for subjects who held the pen in their nondominant hand fell between these two extremes (M = 4.77). The predicted differences were confirmed by a significant linear contrast, t(89) = 1.85, p = .03.\"\n\nThe retest:\n\"This RRR did not replicate the SMS result and failed to do so in a statistically compelling fashion. Nevertheless, it should be stressed that the RRR results do not invalidate the more general facial feedback hypothesis.\"\n\n\nWhat we could not verify first-hand:\n  - The total number of people in the 2019 review: it counts articles, studies and effect sizes, never people.\n  - The 1988 pen study never reported a standardised effect size, only a difference on its own rating scale.\n\n\nHow this channel works\nThe papers are read directly, and the sentence a number came from is quoted above wherever it is shown. Citation counts and some sample sizes are rounded down and always said as \"more than\", so the figure on screen is never larger than the real one. Where the original document could not be obtained, the number is left out rather than carried over from somebody's summary of it.\n\nNot every episode is a debunking. Some of these findings held up, some turned out to be a problem with the original analysis rather than the result, and at least one is still an open argument.",
+  "tags": [
+   "replication crisis",
+   "psychology",
+   "effect size",
+   "science",
+   "research",
+   "statistics",
+   "meta-analysis",
+   "replication study",
+   "open science",
+   "social psychology"
+  ],
+  "facts": {
+   "es_o": 0.82,
+   "es_r": 0.03,
+   "n_r": 1894,
+   "es_kind": "raw_diff_10pt_likert",
+   "is_replication": true,
+   "story_type": "the method died, the idea did not",
+   "year_o": 1988,
+   "year_r": 2016
+  }
+ },
+ {
+  "kind": "rechecked",
+  "slug": "false_memory",
+  "dir": "eps_rechecked/false_memory",
+  "video": "eps_rechecked/false_memory/false_memory.mp4",
+  "thumb": "eps_rechecked/false_memory/thumb.jpg",
+  "tone": "shrunk_real",
+  "title": "The lost in the mall study: it replicated, and then the counting changed.",
+  "description": "Can someone plant a childhood memory in you that never happened?\n\nIt replicated, and then the counting changed.\n\nThe original: The Formation of False Memories (1995)\n  doi:10.3928/0048-5713-19951201-07\n  24 participants\nThe retest: Lost in the mall again: a preregistered replication and extension of Loftus & Pickrell (1995) (2023)\n  doi:10.1080/09658211.2023.2198327\n  123 participants\n\nWhat happened to the number:\n  1995  the original study   25%\n  2023  the replication, as its authors coded it   35%\n  2024  minus those whose childhood could fit   17%\n  2024  minus those with no memory of being lost   11%\n  2024  minus those who never said they remembered   4%\n\nThe original study:\n\"The 24 subjects were asked to remember a total of 72 true events, and succeeded in remembering something about 49 these 72 true events. Put another way, 68% of the true events were remembered. In the booklet, 7 of the 24 subjects \"remembered\" the false event, either fully or partially. The partial memories included remembering parts of the event and speculations about how and when it might have happened. During the first interview, one subject decided she did not remember, leaving 6 of the 24 (25%) claiming to remember, fully or partially. This same percentage held for the second interview.\"\n\nThe retest:\n\"Finally, whether the false memory rate in Murphy et al.'s (2023) data is 4%, or 35%, or somewhere in between, the findings are important.\"\n\n\nWhat we could not verify first-hand:\n  - The published typeset version of the 1995 mall study; we worked from the authors' own manuscript.\n  - The 2023 replication's full text is paywalled; its figures come from the abstract and a later re-analysis.\n\n\nHow this channel works\nThe papers are read directly, and the sentence a number came from is quoted above wherever it is shown. Citation counts and some sample sizes are rounded down and always said as \"more than\", so the figure on screen is never larger than the real one. Where the original document could not be obtained, the number is left out rather than carried over from somebody's summary of it.\n\nNot every episode is a debunking. Some of these findings held up, some turned out to be a problem with the original analysis rather than the result, and at least one is still an open argument.",
+  "tags": [
+   "replication crisis",
+   "psychology",
+   "effect size",
+   "science",
+   "research",
+   "statistics",
+   "meta-analysis",
+   "replication study",
+   "open science",
+   "social psychology"
+  ],
+  "facts": {
+   "es_o": 25,
+   "es_r": 35,
+   "n_r": 123,
+   "es_kind": "pct",
+   "is_replication": true,
+   "story_type": "it replicated, and then the counting changed",
+   "year_o": 1995,
+   "year_r": 2023
+  }
+ },
+ {
+  "kind": "rechecked",
+  "slug": "growth_mindset",
+  "dir": "eps_rechecked/growth_mindset",
+  "video": "eps_rechecked/growth_mindset/growth_mindset.mp4",
+  "thumb": "eps_rechecked/growth_mindset/thumb.jpg",
+  "tone": "shrunk_real",
+  "title": "Growth mindset: real, for half the students.",
+  "description": "Does believing your mind can grow actually raise your grades?\n\nReal, for half the students.\n\nThe original: Implicit Theories of Intelligence Predict Achievement Across an Adolescent Transition: A Longitudinal Study and an Intervention (2007)\n  doi:10.1111/j.1467-8624.2007.00995.x\n  91 students in one school\nThe retest: A national experiment reveals where a growth mindset improves achievement (2019)\n  doi:10.1038/s41586-019-1466-y\n  12,490 ninth-grade students\n\nWhat happened to the number:\n  2007  91 students, one school   β = 0.53\n  2019  5,018 pupils in England, no effect\n  2019  lower-achieving students in the US   d = 0.11\n  2019  higher-achieving students   d = 0.01\n\nThe original study:\n\"However, there was a significant effect of experimental condition on change in grades across the intervention (Time 2 to Time 3; b = .53, t = 2.93, punder .05).\"\n\nThe retest:\n\"The National Study of Learning Mindsets showed that a low-cost treatment, delivered in less than an hour, attained a substantial proportion of the effects on grades of the most effective rigorously evaluated adolescent interventions of any cost or duration in the literature within the pre-registered group of lower-achieving students.\"\n\n\nWhat we could not verify first-hand:\n  - The 2007 study never reported a standardised effect size for its grades result.\n  - The two 2018 meta-analyses are paywalled; figures quoted elsewhere for them are second-hand and disagree between sources.\n  - The UK trial is an evaluation report, not a journal paper, so it has no DOI.\n\n\nHow this channel works\nThe papers are read directly, and the sentence a number came from is quoted above wherever it is shown. Citation counts and some sample sizes are rounded down and always said as \"more than\", so the figure on screen is never larger than the real one. Where the original document could not be obtained, the number is left out rather than carried over from somebody's summary of it.\n\nNot every episode is a debunking. Some of these findings held up, some turned out to be a problem with the original analysis rather than the result, and at least one is still an open argument.",
+  "tags": [
+   "replication crisis",
+   "psychology",
+   "effect size",
+   "science",
+   "research",
+   "statistics",
+   "meta-analysis",
+   "replication study",
+   "open science",
+   "social psychology"
+  ],
+  "facts": {
+   "es_o": 0.53,
+   "es_r": 0.11,
+   "n_r": 12490,
+   "es_kind": "d",
+   "is_replication": true,
+   "story_type": "real, for half the students",
+   "year_o": 2007,
+   "year_r": 2019
+  }
+ },
+ {
+  "kind": "rechecked",
+  "slug": "hot_hand",
+  "dir": "eps_rechecked/hot_hand",
+  "video": "eps_rechecked/hot_hand/hot_hand.mp4",
+  "thumb": "eps_rechecked/hot_hand/thumb.jpg",
+  "tone": "shrunk_real",
+  "title": "The hot hand fallacy: the arithmetic was wrong, not the players.",
+  "description": "Does a basketball player ever really get a hot hand?\n\nThe arithmetic was wrong, not the players.\n\nThe original: The hot hand in basketball: On the misperception of random sequences (1985)\n  doi:10.1016/0010-0285(85)90010-6\n  26 players\nThe retest: Surprised by the Hot Hand Fallacy? A Truth in the Law of Small Numbers (2018)\n  doi:10.3982/ECTA14943\n  the same 26 players\n\nWhat happened to the number:\n  1985  what the players actually did   +4pp\n  1985  read as: no better than random\n  2018  what random actually looks like here   -8pp\n  2018  the same data, bias removed   +13pp\n\nThe original study:\n\"The same conclusions emerged from free-throw records of the Boston Celtics, and from a controlled shooting experiment with the men and women of Cornell's varsity teams. The outcomes of previous shots influenced Cornell players' predictions but not their performance.\"\n\nThe retest:\n\"The results of our reanalysis of GVT's data lead us to a conclusion that is the opposite of theirs: belief in the hot hand is not a cognitive illusion.\"\n\n\n\nHow this channel works\nThe papers are read directly, and the sentence a number came from is quoted above wherever it is shown. Citation counts and some sample sizes are rounded down and always said as \"more than\", so the figure on screen is never larger than the real one. Where the original document could not be obtained, the number is left out rather than carried over from somebody's summary of it.\n\nNot every episode is a debunking. Some of these findings held up, some turned out to be a problem with the original analysis rather than the result, and at least one is still an open argument.",
+  "tags": [
+   "replication crisis",
+   "psychology",
+   "effect size",
+   "science",
+   "research",
+   "statistics",
+   "meta-analysis",
+   "replication study",
+   "open science",
+   "social psychology"
+  ],
+  "facts": {
+   "es_o": null,
+   "es_r": 13,
+   "n_r": 26,
+   "es_kind": "percentage_points",
+   "is_replication": true,
+   "story_type": "the arithmetic was wrong, not the players",
+   "year_o": 1985,
+   "year_r": 2018
+  }
+ },
+ {
+  "kind": "rechecked",
+  "slug": "hungry_judges",
+  "dir": "eps_rechecked/hungry_judges",
+  "video": "eps_rechecked/hungry_judges/hungry_judges.mp4",
+  "thumb": "eps_rechecked/hungry_judges/thumb.jpg",
+  "tone": "shrunk_real",
+  "title": "The hungry judge effect: still an open argument.",
+  "description": "Does a judge go easier on you right after lunch?\n\nStill an open argument.\n\nThe original: Extraneous factors in judicial decisions (2011)\n  doi:10.1073/pnas.1018033108\n  1,112 judicial rulings\nThe retest: Overlooked factors in the analysis of parole decisions (2011)\n  doi:10.1073/pnas.1110910108\n  the same 227 decisions\nA second challenge: The irrational hungry judge effect revisited: Simulations reveal that the magnitude of the effect is overestimated (2016)\n  doi:10.1017/S1930297500004812\n  10,000 simulated randomly ordered cases\nThe original author replies (2011)\n  doi:10.1073/pnas.1112190108\n\nWhat happened to the number:\n  2011  the original finding   65%\n  2011  a different set of hearings, and interviews\n  2011  the original authors reply, and do not withdraw\n  2016  a simulated judge, doing nothing wrong   36%\n\nThe original study:\n\"We find that the percentage of favorable rulings drops gradually from ~65% to nearly zero within each decision session and returns abruptly to ~65% after a break. Our findings suggest that judicial rulings can be swayed by extraneous variables that should have no bearing on legal decisions.\"\n\nThe retest:\n\"The authors' analysis does not support their conclusion that parole decisions are influenced by legally irrelevant factors. The phenomenon of favorable decisions peaking after a meal break is likely an artifact of the order of case presentation. It is not evidence that meal breaks affect the boards' decisions.\"\n\n\nWhat we could not verify first-hand:\n  - Neither challenge paper reports a p value or a confidence interval.\n  - The 2016 paper is a simulation, so it has no test statistic.\n\n\nHow this channel works\nThe papers are read directly, and the sentence a number came from is quoted above wherever it is shown. Citation counts and some sample sizes are rounded down and always said as \"more than\", so the figure on screen is never larger than the real one. Where the original document could not be obtained, the number is left out rather than carried over from somebody's summary of it.\n\nNot every episode is a debunking. Some of these findings held up, some turned out to be a problem with the original analysis rather than the result, and at least one is still an open argument.",
+  "tags": [
+   "replication crisis",
+   "psychology",
+   "effect size",
+   "science",
+   "research",
+   "statistics",
+   "meta-analysis",
+   "replication study",
+   "open science",
+   "social psychology"
+  ],
+  "facts": {
+   "es_o": null,
+   "es_r": null,
+   "n_r": 227,
+   "es_kind": "d",
+   "is_replication": true,
+   "story_type": "still an open argument",
+   "year_o": 2011,
+   "year_r": 2011
+  }
+ },
+ {
+  "kind": "rechecked",
+  "slug": "marshmallow_test",
+  "dir": "eps_rechecked/marshmallow_test",
+  "video": "eps_rechecked/marshmallow_test/marshmallow_test.mp4",
+  "thumb": "eps_rechecked/marshmallow_test/thumb.jpg",
+  "tone": "shrunk_real",
+  "title": "The marshmallow test: real, and mostly your parents.",
+  "description": "Does waiting for a sweet at age four predict how your life goes?\n\nReal, and mostly your parents.\n\nThe original: Predicting Adolescent Cognitive and Self-Regulatory Competencies From Preschool Delay of Gratification: Identifying Diagnostic Conditions (1990)\n  doi:10.1037/0012-1649.26.6.978\n  185 participants\nThe retest: Revisiting the Marshmallow Test: A Conceptual Replication Investigating Links Between Early Delay of Gratification and Later Outcomes (2018)\n  doi:10.1177/0956797618761661\n  918 children\n\nWhat happened to the number:\n  1990  the original study, 185 children   r = 0.57\n  2018  ten times the sample, nothing controlled for   β = 0.24\n  2018  controlling for the family the child came from   β = 0.08\n  2018  and for everything measured at the same time   β = 0.05\n\nThe original study:\n\"a total of 653 children (316 boys, 337 girls) participated in at least one [study] ... a sample of 185 children was now available ... of which the present sample of 185 represents a return rate of 46%. ... Parents of 94 children reported SAT scores.\"\n\nThe retest:\n\"Concentrating on children whose mothers had not completed college, we found that an additional minute waited at age 4 predicted a gain of approximately one tenth of a standard deviation in achievement at age 15. But this bivariate correlation was only half the size of those reported in the original studies and was reduced by two thirds in the presence of controls for family background, early cognitive ability, and the home environment. Most of the variation in adolescent achievement came from being able to wait at least 20 s.\"\n\n\nWhat we could not verify first-hand:\n  - The exact figures for behaviour problems at age 15: they sit in a table we could not read reliably.\n  - We used a university-repository copy of the 2018 paper, whose page numbers differ from the journal's.\n\n\nHow this channel works\nThe papers are read directly, and the sentence a number came from is quoted above wherever it is shown. Citation counts and some sample sizes are rounded down and always said as \"more than\", so the figure on screen is never larger than the real one. Where the original document could not be obtained, the number is left out rather than carried over from somebody's summary of it.\n\nNot every episode is a debunking. Some of these findings held up, some turned out to be a problem with the original analysis rather than the result, and at least one is still an open argument.",
+  "tags": [
+   "replication crisis",
+   "psychology",
+   "effect size",
+   "science",
+   "research",
+   "statistics",
+   "meta-analysis",
+   "replication study",
+   "open science",
+   "social psychology"
+  ],
+  "facts": {
+   "es_o": 0.57,
+   "es_r": 0.08,
+   "n_r": 918,
+   "es_kind": "beta",
+   "is_replication": true,
+   "story_type": "real, and mostly your parents",
+   "year_o": 1990,
+   "year_r": 2018
+  }
+ },
+ {
+  "kind": "rechecked",
+  "slug": "moral_licensing",
+  "dir": "eps_rechecked/moral_licensing",
+  "video": "eps_rechecked/moral_licensing/moral_licensing.mp4",
+  "thumb": "eps_rechecked/moral_licensing/thumb.jpg",
+  "tone": "shrunk_real",
+  "title": "Moral licensing: every retest was bigger, and smaller.",
+  "description": "Does doing one good thing give you permission to do a bad one?\n\nEvery retest was bigger, and smaller.\n\nThe original: Moral credentials and the expression of prejudice (2001)\n  doi:10.1037/0022-3514.81.1.33\n  132 participants\nThe retest: A Meta-Analytic Review of Moral Licensing (2015)\n  doi:10.1177/0146167215572134\n  7,397 participants\nXiao 2024 table3\n  doi:10.5334/irsp.945\n\nWhat happened to the number:\n  2001  the original study   d = 0.44\n  2014  three replications, none of them worked\n  2016  3,134 people, the effect is a ninth of the size\n  2019  corrected for publication bias   d = -0.05\n  2024  a registered replication of the original   d = -0.38\n\nThe original study:\n\"The only significant effect to emerge was the predicted main effect for credentials, F(l, 124) = 6.3, p less than .05, all other Fs ns. As Figure 2 shows, participants were more likely to favor a White man in the credentials condition (M = 4.8) than in the noncredentials condition (M = 4.4).\"\n\nThe retest:\n\"We tested potential moderators and found that published studies tend to have larger moral licensing effects than unpublished studies. We found no empirical evidence for other moderators that were theorized to be of importance. The effect size estimate implies that studies require many more participants to draw solid conclusions about moral licensing and its possible moderators.\"\n\n\nWhat we could not verify first-hand:\n  - The bias-corrected pooled effect in the 2015 review: the paper shows it only on a chart, never as a number.\n  - The total number of people in the 2019 review: it reports only how many effects it pooled.\n  - The 2016 multi-lab replication reports a different statistic; the effect size quoted elsewhere for it is second-hand.\n\n\nHow this channel works\nThe papers are read directly, and the sentence a number came from is quoted above wherever it is shown. Citation counts and some sample sizes are rounded down and always said as \"more than\", so the figure on screen is never larger than the real one. Where the original document could not be obtained, the number is left out rather than carried over from somebody's summary of it.\n\nNot every episode is a debunking. Some of these findings held up, some turned out to be a problem with the original analysis rather than the result, and at least one is still an open argument.",
+  "tags": [
+   "replication crisis",
+   "psychology",
+   "effect size",
+   "science",
+   "research",
+   "statistics",
+   "meta-analysis",
+   "replication study",
+   "open science",
+   "social psychology"
+  ],
+  "facts": {
+   "es_o": null,
+   "es_r": 0.31,
+   "n_r": 7397,
+   "es_kind": "d",
+   "is_replication": true,
+   "story_type": "every retest was bigger, and smaller",
+   "year_o": 2001,
+   "year_r": 2015
+  }
+ },
+ {
+  "kind": "rechecked",
+  "slug": "mozart_effect",
+  "dir": "eps_rechecked/mozart_effect",
+  "video": "eps_rechecked/mozart_effect/mozart_effect.mp4",
+  "thumb": "eps_rechecked/mozart_effect/thumb.jpg",
+  "tone": "shrunk_real",
+  "title": "The Mozart effect: any music does it, for fifteen minutes.",
+  "description": "Does listening to Mozart really make you smarter?\n\nAny music does it, for fifteen minutes.\n\nThe original: Music and spatial task performance (1993)\n  doi:10.1038/365611a0\n  36 college students\nThe retest: Mozart effect-Shmozart effect: A meta-analysis (2010)\n  doi:10.1016/j.intell.2010.03.001\n  3,000 people\n\nWhat happened to the number:\n  1993  Mozart, against silence   +9 IQ\n  1993  and gone within this many minutes   15\n  2010  Mozart against silence, pooled   d = 0.37\n  2010  any other music against silence   d = 0.38\n  2010  Mozart against any other music   d = 0.15\n\nThe original study:\n\"Thus, the IQs of subjects participating in the music condition were 8-9 points above their IQ scores in the other two conditions.\"\n\nThe retest:\n\"On the whole, there is little evidence left for a specific, performance-enhancing Mozart effect.\"\n\n\nWhat we could not verify first-hand:\n  - The exact number of people in the 2010 review: it gives only a lower bound.\n  - The p values for the individual comparisons in that review are not reported.\n  - Which publication-bias test the review used, and what that test returned.\n  - The 1993 Mozart study never reported a standardised effect size.\n\n\nHow this channel works\nThe papers are read directly, and the sentence a number came from is quoted above wherever it is shown. Citation counts and some sample sizes are rounded down and always said as \"more than\", so the figure on screen is never larger than the real one. Where the original document could not be obtained, the number is left out rather than carried over from somebody's summary of it.\n\nNot every episode is a debunking. Some of these findings held up, some turned out to be a problem with the original analysis rather than the result, and at least one is still an open argument.",
+  "tags": [
+   "replication crisis",
+   "psychology",
+   "effect size",
+   "science",
+   "research",
+   "statistics",
+   "meta-analysis",
+   "replication study",
+   "open science",
+   "social psychology"
+  ],
+  "facts": {
+   "es_o": 9,
+   "es_r": 0.37,
+   "n_r": 3000,
+   "es_kind": "d",
+   "is_replication": true,
+   "story_type": "any music does it, for fifteen minutes",
+   "year_o": 1993,
+   "year_r": 2010
+  }
+ },
+ {
+  "kind": "rechecked",
+  "slug": "stanford_prison",
+  "dir": "eps_rechecked/stanford_prison",
+  "video": "eps_rechecked/stanford_prison/stanford_prison.mp4",
+  "thumb": "eps_rechecked/stanford_prison/thumb.jpg",
+  "tone": "shrunk_real",
+  "title": "The Stanford prison experiment: the guards were told what to do.",
+  "description": "Do ordinary people turn cruel when you put them in a uniform?\n\nThe guards were told what to do.\n\nThe original: Interpersonal Dynamics in a Simulated Prison (ONR Technical Report Z-09) (1972)\n  doi:10.21236/AD0751041\n  21 students in the analysis\nThe retest: Debunking the Stanford Prison Experiment (2019)\n  doi:10.1037/amp0000401\nBbc study (2006)\n  doi:10.1348/014466605X48998\n  15 participants\n\nWhat happened to the number:\n  1972  students in the analysis   21\n  1972  the paper: no training given\n  2006  run again, the guards would not play along\n  2019  of the experiment was ever recorded   15%\n\nThe original study:\n\"Neither group received any specific training in these roles.\"\n\nThe retest:\n\"Of the 150 hr of the experiment (including the orientation day), less than 15% have been recorded (6 hr of video and 15 hr of audio).\"\n\n\nWhat we could not verify first-hand:\n  - Neither the 1972 report nor the 2019 investigation gives an effect size; there is none to give.\n  - We used the 1972 technical report; the 1973 journal version is an image scan we could not compare.\n\n\nHow this channel works\nThe papers are read directly, and the sentence a number came from is quoted above wherever it is shown. Citation counts and some sample sizes are rounded down and always said as \"more than\", so the figure on screen is never larger than the real one. Where the original document could not be obtained, the number is left out rather than carried over from somebody's summary of it.\n\nNot every episode is a debunking. Some of these findings held up, some turned out to be a problem with the original analysis rather than the result, and at least one is still an open argument.",
+  "tags": [
+   "replication crisis",
+   "psychology",
+   "effect size",
+   "science",
+   "research",
+   "statistics",
+   "meta-analysis",
+   "replication study",
+   "open science",
+   "social psychology"
+  ],
+  "facts": {
+   "es_o": null,
+   "es_r": null,
+   "n_r": null,
+   "es_kind": "d",
+   "is_replication": true,
+   "story_type": "the guards were told what to do",
+   "year_o": 1972,
+   "year_r": 2019
+  }
+ },
+ {
+  "kind": "rechecked",
+  "slug": "sugar_hyperactivity",
+  "dir": "eps_rechecked/sugar_hyperactivity",
+  "video": "eps_rechecked/sugar_hyperactivity/sugar_hyperactivity.mp4",
+  "thumb": "eps_rechecked/sugar_hyperactivity/thumb.jpg",
+  "tone": "shrunk_real",
+  "title": "Sugar and hyperactive children: what changed was the parent.",
+  "description": "Does sugar actually make children hyperactive?\n\nWhat changed was the parent.\n\nThe original: Dietary correlates of hyperactive behavior in children (1980)\n  doi:10.1037/0022-006X.48.6.760\nThe retest: The effect of sugar on behavior or cognition in children: A meta-analysis (1995)\n  doi:10.1001/jama.1995.03530200053037\nExpectancy study: Effects of sugar ingestion expectancies on mother-child interactions (1994)\n  doi:10.1007/BF02168088\n  35 mother and son pairs\n\nWhat happened to the number:\n  1980  the study people cite is not an experiment\n  1994  mothers told it was sugar, all placebo   35\n  1995  of 14 measures, this many cleared zero   0\n\nThe retest:\n\"The meta-analytic synthesis of the studies to date found that sugar does not affect the behavior or cognitive performance of children. The strong belief of parents may be due to expectancy and common association. However, a small effect of sugar or effects on subsets of children cannot be ruled out.\"\n\n\nWhat we could not verify first-hand:\n  - The 1980 diet study is behind a paywall with no abstract online; we could not read a word of it.\n  - How many children the 1995 meta-analysis covered in total: the abstract does not give a number.\n  - The test statistics from the 1994 study of mothers' expectations: the abstract does not report them.\n\n\nHow this channel works\nThe papers are read directly, and the sentence a number came from is quoted above wherever it is shown. Citation counts and some sample sizes are rounded down and always said as \"more than\", so the figure on screen is never larger than the real one. Where the original document could not be obtained, the number is left out rather than carried over from somebody's summary of it.\n\nNot every episode is a debunking. Some of these findings held up, some turned out to be a problem with the original analysis rather than the result, and at least one is still an open argument.",
+  "tags": [
+   "replication crisis",
+   "psychology",
+   "effect size",
+   "science",
+   "research",
+   "statistics",
+   "meta-analysis",
+   "replication study",
+   "open science",
+   "social psychology"
+  ],
+  "facts": {
+   "es_o": null,
+   "es_r": null,
+   "n_r": null,
+   "es_kind": "d",
+   "is_replication": true,
+   "story_type": "what changed was the parent",
+   "year_o": 1980,
+   "year_r": 1995
   }
  }
 ]

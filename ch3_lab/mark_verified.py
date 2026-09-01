@@ -28,10 +28,39 @@ import time
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 ROOT = pathlib.Path(__file__).resolve().parent
 REELS = ROOT / "reels"
+#: 長片不只 eps_rechecked/ —— 舊的 FReD/famous 那批在 eps/ 與 eps_famous/,
+#: 而排程發的是 publish_meta.json 裡的全部。閘門蓋得到的目錄,標記工具就
+#: 要蓋得到,否則會變成「擋得住但解不開」。
+EPS_DIRS = [ROOT / d for d in
+            ("eps_rechecked", "eps", "eps_famous", "eps_lineup",
+             "eps_domain", "compilations")]
 
 
-def state(d):
-    mp4 = d / f"{d.name}_reel.mp4"
+def _mp4(d, long_form=False):
+    if not long_form:
+        return d / f"{d.name}_reel.mp4"
+    cand = d / f"{d.name}.mp4"
+    if cand.exists():
+        return cand
+    # 合輯那批的檔名不是 <dir>.mp4
+    got = sorted(d.glob("*.mp4"))
+    return got[0] if got else cand
+
+
+def _find(slug):
+    """在所有長片目錄裡找這個 slug —— 找不到或撞名都中止,不猜。"""
+    hits = [d / slug for d in EPS_DIRS if (d / slug).is_dir()]
+    if not hits:
+        raise SystemExit(f"⛔ 找不到長片目錄 {slug}(找過 "
+                         f"{', '.join(d.name for d in EPS_DIRS)})")
+    if len(hits) > 1:
+        raise SystemExit(f"⛔ {slug} 在多個目錄裡都有:"
+                         f"{[str(h) for h in hits]} —— 指明哪一個,不要用猜的")
+    return hits[0]
+
+
+def state(d, long_form=False):
+    mp4 = _mp4(d, long_form)
     vf = d / "VERIFIED"
     if not mp4.exists():
         return "沒有成片"
@@ -51,17 +80,28 @@ def main():
     ap.add_argument("slugs", nargs="*")
     ap.add_argument("--list", action="store_true", dest="show")
     ap.add_argument("--clear", action="store_true")
+    # 🔴 長片那條路一開始沒有閘門 —— 而排程發長片走的正是那一條。
+    ap.add_argument("--long", action="store_true",
+                    help="標的是 eps_rechecked/ 的長片,不是 reels/ 的短片")
     a = ap.parse_args()
 
     if a.show or not a.slugs:
+        print("— 短片 —")
         for d in sorted(REELS.iterdir()) if REELS.exists() else []:
             if d.is_dir():
-                print(f"  {d.name:<24}{state(d)}")
+                print(f"  {d.name:<24}{state(d, False)}")
+        for root in EPS_DIRS:
+            if not root.exists():
+                continue
+            print(f"— 長片 {root.name} —")
+            for d in sorted(root.iterdir()):
+                if d.is_dir():
+                    print(f"  {d.name:<24}{state(d, True)}")
         return 0
 
     for slug in a.slugs:
-        d = REELS / slug
-        mp4 = d / f"{slug}_reel.mp4"
+        d = _find(slug) if a.long else (REELS / slug)
+        mp4 = _mp4(d, a.long)
         if a.clear:
             (d / "VERIFIED").unlink(missing_ok=True)
             print(f"  {slug}:標記已撤銷")

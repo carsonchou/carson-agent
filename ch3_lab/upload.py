@@ -512,6 +512,34 @@ def main():
         print(f"要把 {len(done_items)} 支改成 {a.flip}\n")
         return flip(yt, done_items, a.flip)
 
+    # 🔴 **VERIFIED 閘門加在 publish_shorts.py,而排程發長片走的是這裡。**
+    #    「修在一條路上,而實際走的是另一條」—— 這條線今天已經記過三次,
+    #    這是第四次,而且是我自己在同一天加的閘門只加了一半。
+    #    ch3_publish.py 的 docstring 還寫著「片子與文案是先產好、先驗過才進
+    #    publish_meta.json」—— 那句話沒有任何東西在執行它。
+    #    標記綁**那個成片的 mtime**:重渲過就自動失效,不會出現
+    #    「驗過舊版、發出新版」,也不會反過來。
+    gated = []
+    for o in todo:
+        mp4 = ROOT / o["video"]
+        vf = mp4.parent / "VERIFIED"
+        if not mp4.exists():
+            print(f"  ⛔ {key_of(o)}:成片不在,不發"); continue
+        if not vf.exists():
+            print(f"  ⛔ {key_of(o)}:沒有 VERIFIED 標記 —— 沒驗過的不發"
+                  f"(`python mark_verified.py --long {mp4.parent.name}`)")
+            continue
+        try:
+            stamp = float(vf.read_text(encoding="utf-8").split()[0])
+        except Exception:                                    # noqa: BLE001
+            stamp = -1.0
+        if abs(mp4.stat().st_mtime - stamp) > 2:
+            print(f"  ⛔ {key_of(o)}:VERIFIED 標記對不上現在的成片"
+                  f"(驗的是另一個檔)—— 重驗再發")
+            continue
+        gated.append(o)
+    todo = gated
+
     if a.limit:
         todo = todo[:a.limit]
     if not todo:
