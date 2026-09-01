@@ -3287,6 +3287,87 @@ def _long_chinese_chars(voice_text):
     return len(_r.findall(r"[一-鿿]", voice_text or ""))
 
 
+_CORRUPT_HEDGE = ("假設", "舉例", "例如", "比方", "以為", "想像", "打個比方",
+                  "如果你", "換算", "相當於", "意思是", "也就是說")
+_CORRUPT_APPROX = re.compile(r"(超過|高於|多於|不到|低於|少於|將近|接近|近)\s*百分之")
+
+
+def _long_corrupt_number(d, facts=None):
+    """同一句裡「一部分數字對得上該股事實、一部分對不上」→ 抄事實時抄壞了一個。
+
+    🔴 2026-09-01。動機是 fact_source_guard 已經擋不住編造數字了
+    (memory yt-fact-guard-pool-saturation:全域池 38,231 個數字、pct 在 0~200 區間
+     間距中位 0.0032 而容差 >=0.25,實質連續 → 隨機 400 個百分比通過率 **100%**)。
+
+    這條不查「這個數字存不存在」,查的是**句子內部的自相矛盾**:
+        信昌電 6173 旁白:總報酬 794.7% / 年化 29.2% / 回撤 74%
+                   事實:總報酬 1194.7% / 年化 29.2% / 回撤 -74.0%
+        年化與回撤都抄對了,只有總報酬被改掉。
+    修辭、換算、舉例都不會混在一句**已經抄對兩個數字**的話裡,所以精準度高。
+
+    兩道放行(實測偽陽性全落在這兩類):
+      ·假設/舉例語境整句跳過(「假設你有兩檔股票,A檔年化10%…」「跌50%漲50%不能打平」)
+      ·「超過/不到 + 概數」(事實 -86.3% 講成「腰斬超過八成」是對的)
+
+    實測:未發布 50 支命中 **0 支**(接上去今天不擋任何片)、已發布 132 支命中 3 支,
+    抽驗 2 真 1 偽(元大金 0050 總報酬 718.8% 而事實 711.8% = 數字調位;
+    台光電「組合總報酬 386.5%」對不上該股任何一筆)。
+
+    ⚠️ 精準度不是 100%,所以呼叫端把它歸在**證據等級弱**那一類:
+    觸發重生,但重生用完只剩它時**放行並記警告**(沿用本檔既有的 A1b/A1c/鉤子 模式),
+    不 fail-closed 報廢整支。
+    """
+    if not isinstance(d, dict):
+        return ""
+    fk = str(d.get("fact_key", ""))
+    if not fk.startswith("checkup_"):
+        return ""          # 只對個股體檢生效 —— 其他題型沒有「該股自己的事實」可比
+    code = _checkup_extract_code(fk)
+    if not code:
+        return ""
+    if facts is None:
+        try:
+            facts = json.loads(STOCK_CHECKUP_FACTS.read_text(encoding="utf-8")).get("results") or {}
+        except Exception:  # noqa: BLE001
+            return ""
+    pool = set()
+    for k, v in facts.items():
+        if k.endswith("__" + code) or f"__{code}__" in k:
+            for x in re.findall(r"-?\d+\.?\d*", str(v.get("summary", ""))):
+                try:
+                    pool.add(abs(float(x)))
+                except ValueError:
+                    pass
+    if len(pool) < 5:
+        return ""          # 事實太少不足以判斷,放行(不因為資料缺就擋人)
+
+    def _ok(v, sent):
+        if any(abs(p - v) <= max(0.25, abs(v) * 0.005) for p in pool):
+            return True
+        # 「超過/不到 + 概數」:池裡有值在正確那一側且差距合理 → 算溯源得到
+        for m in _CORRUPT_APPROX.finditer(sent):
+            up = m.group(1) in ("超過", "高於", "多於")
+            if any((p > v if up else p < v) and abs(p - v) <= max(15.0, v * 0.25)
+                   for p in pool):
+                return True
+        return False
+
+    for sent in re.split(r"(?<=[。！？])", d.get("voice_text", "") or ""):
+        if any(h in sent for h in _CORRUPT_HEDGE):
+            continue
+        vals = [x for x in (_cn_num(m.group(1))
+                            for m in re.finditer(r"百分之([零一二三四五六七八九十百千萬兩點]+)", sent))
+                if isinstance(x, (int, float))]
+        if len(vals) < 2:
+            continue
+        good = [v for v in vals if _ok(v, sent)]
+        bad = [v for v in vals if not _ok(v, sent)]
+        if len(good) >= 2 and bad:
+            return (f"同句數字自相矛盾(抄事實抄壞一個):對得上 {good[:3]}、"
+                    f"對不上 {bad[:2]}｜「{sent.strip()[:40]}」")
+    return ""
+
+
 def _long_too_few_segments(d):
     """段數 < 3 = 分段深寫整個被跳過的殘骸,回不合格原因;正常回空字串。
 
@@ -5363,6 +5444,12 @@ def make_one(kind, no_render=False, topic_override=None, script_override=None):
             _fs = _long_too_few_segments(_d)
             if _fs:
                 return _fs
+            # 🔴 2026-09-01 同句數字自相矛盾(證據等級弱,見 _long_corrupt_number)。
+            # 觸發重生,但重生用完只剩它時放行並記警告 —— 精準度不是 100%,
+            # 不值得為它報廢一支已經深寫完的長片(沿用本檔 A1b/A1c/鉤子 的既有模式)。
+            _cn1 = _long_corrupt_number(_d)
+            if _cn1:
+                return _cn1
             if _long_underlength(_v):
                 return "長度不足"
             if _long_content_padding(_v):
@@ -5542,6 +5629,12 @@ def make_one(kind, no_render=False, topic_override=None, script_override=None):
             _fs2 = _long_too_few_segments(_d)
             if _fs2:
                 return _fs2
+            # 🔴 2026-09-01 同句數字自相矛盾(證據等級弱,見 _long_corrupt_number)。
+            # 觸發重生,但重生用完只剩它時放行並記警告 —— 精準度不是 100%,
+            # 不值得為它報廢一支已經深寫完的長片(沿用本檔 A1b/A1c/鉤子 的既有模式)。
+            _cn2 = _long_corrupt_number(_d)
+            if _cn2:
+                return _cn2
             if _long_underlength(_v):
                 return "長度不足(撐不出真 8-10 分鐘)"
             if _long_content_padding(_v):
@@ -5594,7 +5687,8 @@ def make_one(kind, no_render=False, topic_override=None, script_override=None):
         # ——這是本檔既有的「已放行需人工複查」模式(見 A1b/A1c 兩道)。
         # 其他六道(期間偷換/【】/洩漏/分鏡/長度/密度)都是**確定性的事實或合規缺陷**,
         # 維持 fail-closed 不變。
-        if _why2 and _why2.startswith("鉤子後仍在鋪陳"):
+        if _why2 and (_why2.startswith("鉤子後仍在鋪陳")
+                      or _why2.startswith("同句數字自相矛盾")):
             _rest = dict(d)
             _rest["voice_text"] = _rest.get("voice_text", "")
             # 確認拿掉這道之後真的沒有別的問題,才放行(不能把別的缺陷一起放掉)
