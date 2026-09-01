@@ -41,11 +41,17 @@ TAGS = ["replication crisis", "psychology", "effect size", "science",
 
 FOOTER = (
     "\n\nHow this channel works\n"
+    # 🔴 這句原本也是「Nothing is estimated or rounded for effect」,而它同樣
+    #    不成立:make_episode.py:77/83 把效果量 round(...,2)、make_famous.py:99
+    #    用的是捨去到百位的引用數。RECHECKED_FOOTER 那份改掉的時候,**這份
+    #    沒改** —— 同一句假話兩份表面,只修了我當時正在看的那一份,
+    #    而這一份掛在 19 支已上線的片上。
     "Every number in this video comes from the published record, and both "
-    "papers are cited above with their DOIs. Nothing is estimated or rounded "
-    "for effect — the narration is generated from the same data fields you "
-    "see on screen. Not every finding fails: replications that held up get "
-    "their own episodes.\n\n"
+    "papers are cited above with their DOIs. Effect sizes are quoted to two "
+    "decimal places and citation counts are rounded down, so the figure on "
+    "screen is never larger than the published one — the narration is "
+    "generated from the same data fields you see on screen. Not every "
+    "finding fails: replications that held up get their own episodes.\n\n"
     "Replication data: FORRT Replication Database (FReD), osf.io/2tbvd")
 
 #: 🔴 `rechecked` 這批**不是**從 FReD 來的,是逐篇讀原文抽出來的,所以
