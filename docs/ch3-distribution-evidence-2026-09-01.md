@@ -19,3 +19,51 @@ marshmallow、hot_hand、false_memory 第一頁分別被 SciShow、Numberphile�
 ## 承重轉移
 
 整條 ch3 產能是否續投:**改由「那 3 支的搜尋長尾打不打得到」承重,長片格式本身不再是待驗項。**
+
+---
+
+## 驗收:09-02 停排程這件事有沒有生效(任何人都能跑,不需要今晚的脈絡)
+
+**背景**:09-02 把 `youtube_channel/deploy/crontab.txt` 的 732/733/734
+(ch3_publish 的 8:25 / 14:25 / 20:25)註解掉。741 的 `ch3_health` 刻意留著。
+
+**🔴 不要拿 `ch3_health` 的推播當驗收。** 它的設計是「只在有事時才推播」,
+而我們期待的結果**正是沒事**。於是:
+
+| 真實狀況 | 健檢行為 |
+|---|---|
+| 改動成功,沒發 | 不推播 |
+| 健檢自己沒跑 / local_cron 死了 / 整個排程掛了 | **也不推播** |
+
+兩者長得一模一樣 —— 那是 memory `verification-that-cannot-fail` 的第一種:
+**不會叫的警報**。09-01 那整晚在修的就是這個形狀,結果驗收方式自己又是一個。
+
+### 正向檢查(兩條,都有輸出)
+
+**基準(2026-09-02 台北 10:00 實測)**:
+`uploaded_shorts.json` = **37**、`uploaded.json` = **22**、`uploaded_comp.json` = **1**
+
+**① 帳本筆數沒變 → 真的沒發**
+
+```bash
+cd D:/carson-agent/ch3_lab
+python -c "import json,pathlib; print({f: len(json.loads(pathlib.Path(f).read_text('utf-8'))) for f in ('uploaded_shorts.json','uploaded.json','uploaded_comp.json')})"
+# 期待 {'uploaded_shorts.json': 37, 'uploaded.json': 22, 'uploaded_comp.json': 1}
+# 任何一個變大 = 還有第三條觸發路徑,今晚的結論是錯的
+```
+
+**② cron.log 有別的 job、但沒有 ch3_publish → 排程活著且 ch3 真的停了**
+
+```bash
+cd D:/carson-agent
+grep -c ch3_publish youtube_channel/logs/cron.log   # 期待:今日區段 0 筆
+tail -40 youtube_channel/logs/cron.log              # 期待:看得到其他 job 的正常紀錄
+```
+
+第二條是用來**區分「ch3 沒發」和「整個排程死了」**的 —— 後者才是真警報,
+而且它在只看第一條時會偽裝成前者(帳本也不會變)。
+
+### 這件事不需要任何 session 掛著等
+
+上面兩條是兩個指令,誰在都能跑,結果是明確的是/否。
+**不要為了等 23 小時後讀一行日誌而讓 session 活著** —— 記憶體成本高於價值。
