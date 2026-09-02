@@ -226,6 +226,25 @@ def _is_quota_rejected(exc):
     return "quotaExceeded" in t or "exceeded your" in t and "quota" in t
 
 
+def _is_wall(b) -> bool:
+    """這一天算不算「撞到牆」。`_scan()` 取上界、裁帳本決定保護哪一天,**必須共用這一個判準**。
+
+    🔴 2026-09-02 抽出來的理由(基建線驗證員 T6 實測到的可重現 FAIL):
+    原本兩邊各寫一份,裁切端是 `rejected_calls and not unreliable`、
+    取上界端是 `rejected_calls and sp`,**差一個「spent 非零」**。
+    後果是 spent=0 但有被拒的日子——整日停權、resumable 被拒後 `_unrecord` 歸零、
+    或雙機共用同一份配額被另一台吃光(Mac+MSI 是真實配置)——會被裁切端
+    **當成牆保護起來**,而 `_scan()` 根本不採用它:真牆被裁、假牆化石化,
+    天花板無聲從 26,001 回落 19,645。**我要治的病原樣復活,只因為兩份判準差一個條件。**
+    (同型:memory `yt-duplicate-impl-gate-bypass` —— 閘門兩份,產線走沒閘門那份。)
+
+    spent=0 為什麼不算牆:牆的值**就是**當天的成功花費。spent=0 代表那天一 unit 都沒花成,
+    那不是「一道 0 units 的牆」,是根本沒量到牆在哪。"""
+    return bool(int(b.get("rejected_calls", 0) or 0)
+                and int(b.get("spent", 0) or 0)
+                and not b.get("unreliable"))
+
+
 def record(op, units, rejected=False):
     """rejected=True:配額用罄被拒的呼叫 —— 記進獨立的桶,**不計入 spent**。
     帳本要能回答「今天真的花了多少」,而不是「今天發了幾個請求」。"""
@@ -251,9 +270,7 @@ def record(op, units, rejected=False):
     # 天花板無聲回落到**猜的** 19,645,產線恢復那天就少發約 2.9 支長片而且沒有任何錯誤訊號。
     # 這是 08-26「擋人的是我的假天花板」第三次換皮出現。上限仍有界(至多 31 筆)。
     if len(d["days"]) > 30:
-        _wall = max((k for k, v in d["days"].items()
-                     if int(v.get("rejected_calls", 0) or 0) and not v.get("unreliable")),
-                    default=None)
+        _wall = max((k for k, v in d["days"].items() if _is_wall(v)), default=None)
         for k in sorted(d["days"])[:-30]:
             if k != _wall:
                 d["days"].pop(k, None)
@@ -313,7 +330,7 @@ def _scan():
         # **一道已經不存在的舊牆永久壓住估計值**,自我校準看起來在跑,實際上學不會調高。
         # 撞牆日的成功花費**依定義**就是當天的牆,所以最近那天最有代表性;
         # 用「最近」而不是「最大」,是因為配額也可能被調降,那時要跟著降下來。
-        if int(b.get("rejected_calls", 0) or 0) and sp:
+        if _is_wall(b):
             if ceil is None or str(day) >= str(_ceil_day or ""):
                 ceil, _ceil_day = sp, day
     # 撞牆日(含)之後才成功花到的最高值。effective_limit() 要用的是這個而不是全期 floor,
