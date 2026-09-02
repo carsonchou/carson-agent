@@ -83,3 +83,25 @@ kind 是 `archival reinvestigation`,而旁白明說「Not a retest」。
 (不另寫一份)、fail-closed、三個 insert 站點各自呼叫。
 驗收要派 agent **試圖繞過它**發第 2 支,四條路各自回報被擋在哪一行 ——
 任何一條沒被擋就是沒做完。用 dry-run,不准真的多發一支上去測。
+
+## ⬇️ publish_gate.py — 降級為「不急」(2026-09-02 重新判定,不要實作)
+
+原本記成「四條 insert 路徑只有一條有配比閘門」的急件。**獨立驗證之後急迫性降到最低**,
+撿起來的人先讀這段再決定要不要做:
+
+- fresh-context agent 查證:`publish_comp.py:314` / `publish_shorts.py:840` /
+  `upload.py:363` 三個 insert 點**只被 `ch3_publish.py` 以 subprocess 呼叫**
+  (`ch3_publish.py:102/118/132`),全庫沒有第二個呼叫點。
+- 而 `ch3_publish.py` 的三個 cron 時段(732/733/734)已於 09-02 註解掉。
+- `Get-ScheduledTask` 篩過只有 `CarsonQuant_PCRender`(純渲染,不上傳);
+  開機的 `run_studio_bg.vbs` 也不會單獨觸發 ch3_publish。
+
+**所以這道閘門現在防的不是「自動發布繞過配比」——那條路已經停了——而是
+「人工繞過」**,也就是我 09-01 差點做的那件事(手動 `--only` 一次發 11 支長片,
+走的正是沒有 `DAILY_LONG` 限制的那條)。
+
+要做的時機:**ch3 恢復發布之前**。在那之前做等於替一條停著的線裝閘門。
+設計仍照原案:`assert_may_publish(kind)`、上限只從 `ch3_publish.py` import
+(不複製數字)、日界用 `quota._pacific_date`(不另寫一份)、fail-closed、
+三個 insert 站點各自呼叫;驗收要派 agent **試圖繞過它**,四條路各自回報被擋在
+哪一行,用 dry-run 不准真的多發。
