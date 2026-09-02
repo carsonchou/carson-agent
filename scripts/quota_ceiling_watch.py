@@ -27,7 +27,9 @@ sys.path.insert(0, str(REPO / "youtube_channel" / "scripts"))
 # --selftest:演習模式。教訓(2026-09-02):驗證員手改 state 模擬提額,兩行 🎉 落在正式 log,
 # 和真事件一模一樣——假證據落在自己指定的權威來源裡,比沒有守望更糟。
 # 演習從此只准走這裡:每行帶 [DRILL] 前綴、用獨立 state 檔、永不推播。真實路徑永遠不產生 [DRILL]。
-SELFTEST = "--selftest" in sys.argv
+SELFTEST_MODE = next((a.split("=", 1)[1] if "=" in a else "up"
+                      for a in sys.argv if a.startswith("--selftest")), None)  # None|"up"|"down"
+SELFTEST = SELFTEST_MODE is not None
 if SELFTEST:
     STATE = REPO / "docs" / "ops" / "quota-ceiling-watch.state.selftest.json"
 
@@ -92,7 +94,11 @@ def main() -> int:
         except Exception: pass
     base = prev.get("effective")
     if SELFTEST:
-        base = cur - 1234          # 演習固定製造「上移」情境,走完 🎉 路徑但帶 [DRILL] 且不推播
+        if SELFTEST_MODE == "down":     # 演習「下移+days 驟減」:走 ⚠️+帳本遺失標註路徑
+            base = cur + 1234
+            prev = {"days_n": (days_n or 0) + 40}
+        else:                           # 演習「上移」:走 🎉 路徑
+            base = cur - 1234
 
     if base is None:
         verdict = f"基準建立:watch={cur:,}(effective={eff:,}, floor={floor}, ceiling={ceil})"
