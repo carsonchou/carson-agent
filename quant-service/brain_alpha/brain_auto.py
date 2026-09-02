@@ -679,8 +679,13 @@ def track_score(s):
         if c.ok:
             for row in (c.json().get("results") or []):
                 lb = row.get("leaderboard") or {}
+                # `alphas`（已進榜的條數）2026-09-02 補記：判斷「分數是否在 10,000 封頂」
+                # 唯一的區分變數就是它 —— alphas 11→13 而 score 不動 = 封頂；
+                # alphas 沒變 = 結算根本還沒發生，兩者處置完全不同。
+                # 沒有這一欄的話，score 不動會同時符合兩種解釋。
                 rec.setdefault("competitions", []).append(
-                    {"id": row.get("id"), "rank": lb.get("rank"), "score": lb.get("score")})
+                    {"id": row.get("id"), "rank": lb.get("rank"), "score": lb.get("score"),
+                     "alphas": lb.get("alphas"), "level": lb.get("level")})
         else:
             errs.append(f"competitions {c.status_code}")
     except Exception as e:  # noqa: BLE001
