@@ -291,40 +291,48 @@ def main() -> int:
                          "多半是讀到排程 _save() 寫到一半的檔(等一分鐘重跑就會好),"
                          "若持續出現就是檔案真的壞了")
         else:
+            _b = _days.get(_today, {})
+            _spent = int(_b.get("spent", 0) or 0)
+            _rej = int(_b.get("rejected_calls", 0) or 0)
+            _rej_units = int(_b.get("rejected_units", 0) or 0)
+            _lim = _qm.effective_limit()
+
+            # 參考點 = **今天以外、帳本裡最高的一道牆**。三個設計決定,每個都有代價:
+            # ① 不含今天:天花板的定義就是「最近一次撞牆日的成功花費」,含今天則撞牆日
+            #    的比值恆為 100%,判準是循環的(第一版這樣寫,「只花到 35% 就被拒」
+            #    被判成預期內,測試才抓到)。
+            # ② 取**最高**不取最近:取最近的話,配額被砍半後連三天在 12,000 被拒,
+            #    第一天紅字、第二天起新的爛狀態就變成「正常」——參考點跟著爛下去,
+            #    警報自己把自己關掉。取最高則會持續叫,直到舊的高牆被裁掉(≤30 天)
+            #    才自然收斂到新基準,而那時它確實已經是新常態了。
+            # ③ 這只影響**告警**,不影響 effective_limit()/remaining() 的校準路徑——
+            #    校準要跟得下來,告警不該跟著爛狀態走,兩者本來就不該用同一個參考點。
+            _prev = [int(v.get("spent", 0) or 0) for _d, v in _days.items()
+                     if _d != _today and _qm._is_wall(v)]
+            _ref = max(_prev) if _prev else None
+            _base = _ref or _lim
+            _pct = _spent / max(_base, 1) * 100
+
+            # 🔴 分母以前是 effective_limit(),它**涵蓋今天**,所以撞牆日恆印 100%。
+            # 於是「牆變矮到 58%」那則的標題行卻寫 100%,同一段輸出兩行互相打架,
+            # 而 ntfy 上先看到的就是標題行。_ref 解耦了判準,這裡把分母也解耦。
+            lines.append(
+                f"YouTube 配額: {_spent:,}/{_base:,} = {_pct:.0f}%"
+                + ("(分母=帳本裡最高的一道牆,不含今天)" if _ref
+                   else f"(分母=effective_limit {_lim:,};帳本裡還沒有牆可比)")
+                + f"｜配額用罄被拒 {_rej} 次"
+                + (f"、浪費 {_rej_units:,} units" if _rej_units else ""))
+            if not _days:
+                lines.append("   帳本目前沒有任何一天的紀錄(檔案合法,不是壞掉)")
             if _age_h is not None and _age_h > 24:
                 warn.append(f"配額帳本 {_age_h:.0f} 小時沒被寫過")
                 lines.append(f"   🔴 **帳本已經 {_age_h:.0f} 小時沒有被寫入** —— 每次 API 呼叫都會寫它,"
                              "這麼久沒動代表產線根本沒在打 API(而不是「配額用得很省」)")
-            if not _days:
-                lines.append("YouTube 配額: 帳本目前沒有任何一天的紀錄(檔案合法,不是壞掉)")
-            _b = _days.get(_today, {})
-            _spent = int(_b.get("spent", 0) or 0)
-            _rej = int(_b.get("rejected_calls", 0) or 0)
-            _lim = _qm.effective_limit()
-            _pct = _spent / max(_lim, 1) * 100
-            lines.append(f"YouTube 配額: {_spent:,}/{_lim:,} = {_pct:.0f}%"
-                         f"｜配額用罄被拒 {_rej} 次")
-
-            # 🔴 把「預期內」和「真異常」分開,否則這個警報會被養死:這條線刻意跑在配額 95% 上
-            # (11 支 ≈ 24,844 / 25,999),配額用滿是設計預期。真帳本回放 10 天,只修 bug 的版本
-            # 有 5 天紅字而每一則都是真的 —— 看的人兩週內就學會忽略紅字,然後真正那一則
-            # 會被一起忽略。memory verification-that-cannot-fail 的**鏡像**:
-            # 不是警報不會叫,是叫太多所以等於不會叫。
-            #
-            # ⚠️ 分界**不能**拿 spent 和 effective_limit() 比:天花板的定義就是
-            # 「最近一次撞牆日的成功花費」,今天撞牆時今天就是那一天 → 比值恆為 100%,
-            # 判準是循環的(第一版這樣寫,「只花到 35% 就被拒」被判成預期內,測試才抓到)。
-            # 改跟**今天以外**最近一次的牆比,那是獨立於今天的參考點。
-            _prev = [(d, int(v.get("spent", 0) or 0)) for d, v in _days.items()
-                     if d != _today and _qm._is_wall(v)]
-            _ref = max(_prev)[1] if _prev else None
 
             if _rej > 0:
                 # `_is_wall()` 為 False 有三個理由(unreliable / spent=0 / 沒被拒),
                 # 前兩個要**先分辨出來**,否則文案會自相矛盾:spent=26,001 + unreliable
-                # 會印「這不是撞牆(撞牆的前提是先花得掉)」,而它明明花得掉,
-                # 還把人導向停權/assert_project() 這些錯方向。真帳本 2026-08-25 就帶
-                # unreliable,而人會去標這個旗標的日子正好是「當天一堆 403」那種日子。
+                # 會印「這不是撞牆(撞牆的前提是先花得掉)」,而它明明花得掉。
                 if _b.get("unreliable"):
                     warn.append(f"帳本 {_today} 標了 unreliable 又有 {_rej} 次被拒")
                     lines.append(f"   🔴 **當天帳本被標 unreliable,同時有 {_rej} 次被拒** —— "
@@ -336,22 +344,57 @@ def main() -> int:
                                  "(撞牆的前提是先花得掉)。可能是整日停權、憑證/專案有問題,"
                                  "或同一個 Cloud 專案被另一台機器吃光(Mac+MSI 共用時會)。"
                                  "先跑 python scripts/quota_meter.py 對帳,再查 assert_project()")
-                elif _ref is None:
-                    warn.append(f"首次觀測到撞牆({_spent:,})")
-                    lines.append(f"   🔴 **這是帳本裡第一次觀測到撞牆**(花到 {_spent:,} 開始被拒)——"
-                                 "在此之前沒有牆可以比,所以無法判斷這是正常用滿還是天花板變矮。"
-                                 "記下這個值,之後就有參考點了")
-                elif _spent >= _ref * 0.95:
-                    # 預期內:資訊行,**不進 warn、不進 ntfy**。
-                    lines.append(f"   ℹ️ 花到 {_spent:,}(前次的牆 {_ref:,})才開始被拒 = 配額真的用完了,"
-                                 "這是設計預期(11 支/天刻意跑在 95%)。要多做事只有兩條路:"
-                                 "提額,或砍非發布的花費。跑 python scripts/quota_meter.py 看是誰吃掉的")
                 else:
-                    warn.append(f"配額牆變矮({_spent:,},前次 {_ref:,})")
-                    lines.append(f"   🔴 **只花到 {_spent:,} 就有 {_rej} 次被拒,而前次的牆是 {_ref:,}**"
-                                 f"({_spent/_ref*100:.0f}%)—— 天花板比我們以為的矮,"
-                                 "或有別的東西在吃同一個 Cloud 專案。這是本項當初被加進來的理由:"
-                                 "被拒次數比已用量更早示警。跑 quota_meter.py 對帳,並查 assert_project()")
+                    # 先算「有沒有退避」,因為它會改變牆高那行的措辭:
+                    # 「配額用完了,這是設計預期」印在 🔴 沒退避的正上方會自打架 ——
+                    # 用完是預期,撞牆後還白打 935 次不是。ntfy 上先看到的是這幾行,
+                    # 同一段輸出不能一句說預期內、下一句說出事了而不交代兩者的關係。
+                    _no_backoff = _rej > 100 or _rej_units > _base * 0.10
+
+                    # ── 牆的高度 ────────────────────────────────────────────────
+                    # 帶寬 75% 而不是 95%:帳本四個牆值 19,645 → 23,341 → 21,858 → 26,001,
+                    # 相鄰日變動 118.8% / 93.6% / 119.0%,**±19% 是這個序列自己的常態抖動**。
+                    # 5% 的帶寬比抖動窄,會把 08-29(16 次 × 1 unit,全天浪費 0.06%)
+                    # 判成真陽性 —— 我原本就是這樣判的,而且引了一個**不存在的證據**
+                    # (「查過 by_op」:record() 的 rejected 分支在寫 by_op 之前就 return,
+                    # 結構上不可能記下哪個 op 被拒)。腰斬是 46%,離 75% 還很遠。
+                    if _ref is None:
+                        warn.append(f"首次觀測到撞牆({_spent:,})")
+                        lines.append(f"   🔴 **這是帳本裡第一次觀測到撞牆**(花到 {_spent:,} 開始被拒)"
+                                     "—— 在此之前沒有牆可以比,無法判斷是正常用滿還是天花板變矮。"
+                                     "記下這個值,之後就有參考點了")
+                    elif _pct >= 75:
+                        lines.append(f"   ℹ️ 花到 {_spent:,}(帳本最高的牆 {_ref:,})才開始被拒 = "
+                                     "配額真的用完了,牆本身沒變矮"
+                                     + ("(用完是預期,但下面那條不是)" if _no_backoff else
+                                        ",這是設計預期(11 支/天刻意跑在 95%)。"
+                                        "要多做事只有兩條路:提額,或砍非發布的花費"))
+                    else:
+                        warn.append(f"配額牆變矮({_spent:,},帳本最高 {_ref:,} = {_pct:.0f}%)")
+                        lines.append(f"   🔴 **只花到 {_spent:,} 就有 {_rej} 次被拒,而帳本裡最高的牆是"
+                                     f" {_ref:,}({_pct:.0f}%)** —— 天花板比我們以為的矮,或有別的東西"
+                                     "在吃同一個 Cloud 專案。這是本項當初被加進來的理由:"
+                                     "被拒次數比已用量更早示警。跑 quota_meter.py 對帳,查 assert_project()")
+
+                    # ── 撞牆之後有沒有退避 ──────────────────────────────────────
+                    # 和牆高**獨立**判、可同時叫。「配額用完了」和「配額用完了還白打 935 次、
+                    # 浪費 45,491 units」是兩件事:後者代表排程撞牆後沒退避,而那是這個警報
+                    # 唯一真正該叫的情境。08-27 在對照表裡會紅字**只因為它剛好是第一道牆**,
+                    # 從今以後永遠有前牆,同樣的一天就再也不會叫 —— 一個剛修好的警報
+                    # 又變回不會叫,只是換了個理由。
+                    # 門檻:被拒 > 100 次(實測正常撞牆日是 2 / 16 / 31 次,3 倍餘裕)
+                    #       或浪費 > 牆的 10%(08-27 浪費 45,491 = 牆的 232%;
+                    #       正常日 850 / 325 / 16 units = 3.6% / 1.3% / 0.07%)。
+                    # 兩個都收是因為 rejected_units 可能沒被記(今天就是 None)。
+                    if _no_backoff:
+                        warn.append(f"撞牆後沒退避(被拒 {_rej} 次"
+                                    + (f"、浪費 {_rej_units:,} units" if _rej_units else "") + ")")
+                        lines.append(f"   🔴 **撞牆之後還被拒了 {_rej} 次"
+                                     + (f",白打掉 {_rej_units:,} units(牆的 {_rej_units/max(_base,1)*100:.0f}%)"
+                                        if _rej_units else "")
+                                     + "** —— 配額用完不是問題,問題是排程**沒有退避**,"
+                                     "撞牆後還在照跑。查 YT_QUOTA_ENFORCE 是不是關著,"
+                                     "以及哪支腳本沒有接 QuotaExhausted")
             elif _pct >= 95:
                 # 花很多但**零被拒** = 該做的都做成了。舊版在這裡進 warn,
                 # 那是把「刻意跑滿」報成異常,天天紅字。
