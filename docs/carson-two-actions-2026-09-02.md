@@ -11,7 +11,7 @@
 所有欄位答案照抄:`youtube_channel/docs/yt_quota_increase_2026-09.md` §4(justification 整段直接貼)
 
 送出前三勾(缺一不送):
-- [ ] **抄官方核定值**:console.cloud.google.com → 專案 `claude-morning-report-498407` → IAM 與管理 → 配額 → YouTube Data API v3 "Queries per day" → 把 Google 顯示的數字填進表單 "Current daily quota"(不要填我們自己的記帳數)
+- [ ] **抄官方核定值**:console.cloud.google.com → 專案 `claude-morning-report-498407`(專案編號應為 **524513894332**;Console 上兩個都看得到,**兩個都對上**才是主頻道那個專案 —— ch2/ch3 是另一個專案 881902283633,別抄錯)→ IAM 與管理 → 配額 → YouTube Data API v3 "Queries per day" → 把 Google 顯示的數字填進表單 "Current daily quota"(不要填我們自己的記帳數)
 - [ ] **用 Owner 帳號登入**:crayray86@gmail.com
 - [ ] **隱私政策 URL 還活著**:沿用上輪過稽核的那個公開網址,點開確認
 
