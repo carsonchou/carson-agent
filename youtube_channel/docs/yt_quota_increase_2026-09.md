@@ -1,79 +1,113 @@
 # YouTube API 第二次提額申請包(2026-09)—— 待 Carson 送出
 
-> 狀態:**materials-ready,未送出**。本檔由基建線(non.)於 2026-09-02 依督導指令備妥。
-> 紅線:對外動作 —— **只有 Carson 能送**;送出前本檔已過 fresh-context 獨立驗證(見文末驗證紀錄)。
-> 上一輪申請(2026-08,已核准)的完整過程與教訓在 `yt_quota_extension_application.md`,本檔只放這一輪要用的。
+> 狀態:**materials-ready,未送出**。基建線(non.)2026-09-01 深夜備妥;
+> 經一輪 fresh-context 驗證(3F/5R 修正)+ 一次督導攔截改寫(承重點自「成長計畫」換為「現況已綁死」),
+> 待第二位 fresh-context 驗證員通過後交 Carson。
+> 紅線:對外動作 —— **只有 Carson 能送**。上一輪申請(2026-08 核准)全程在 `yt_quota_extension_application.md`。
 
 ## 0. 一句話給 Carson
 
-> 上一輪核到的 ~24,400 units 已經**連續撞死**(09-01 配額歸零時有 79 支成品發不出去),
-> 而時數是 YPP 慢的那道閘門(999/4,000 小時,照現速 103 天)。
-> 這張表要 **40,000 units/day ≈ 18 支/日**,把時數關卡壓到約 58~77 天。
-> 你要做的:確認一個數字(第 2 節)→ 打開表單貼答案(第 3 節)→ 親簽七段聲明。
+> 這張表**不是**申請「衝更多支」的許可 —— 是產線**現在**每天做出 15~20 支成品、
+> 配額只發得出 11 支;最近一次配額歸零時庫存 ~61 支,現已 **79 支且近三天 +11/日**,
+> 維運還跟上傳搶同一份額度(已關帳日最低被餓到只剩 860 units)。
+> 要 **45,000 units/day** 讓上傳能力追上已經存在的產出。
+> 發布量上限照舊(≤12,09-15 發布量實驗驗收前不動)—— **額度是 headroom,不是承諾**。
 
-## 1. 為什麼是現在(全部可查證)
+## 1. 為什麼是現在(全部可查證;僅用已關帳配額日)
 
-- **配額是綁定層**(2026-09-02 診斷,證據:`STUDIO/quota_meter.json`、`STUDIO/ops_log.txt`、`logs/job_stderr.log`):
-  - 近 7 天(08-26~09-01)spent:18,760 / 19,645 / 23,341 / 21,858 / 22,910 / 26,001 / 24,802
-  - 09-01 兩次時事片即時發布被「今日剩 0」擋下(ops_log 10:02 / 11:38);當日 25 次 quotaExceeded 403
-  - **已過閘成品庫存 79 支躺著發不出去**(ops_log 上架部門「剩庫存」46→79,四天累積)——渲染、題庫、良率全都有餘裕,唯獨配額天天貼死
-- **時數是 YPP 慢閘門**:長片 999/4,000 小時(25.0%),日增 ~29 小時 → 缺口 103 天;訂閱 343/1,000 日增 11 → 60 天。多發一支長片直接縮時數天期
-- 上一輪(要 23,700~25,200)是 08 月核的,當時設定 6~8 支/日;現在 11 支/日已是宣告上限 12 的邊緣,**再往上必須重新申報**(Section 7 Accuracy 法律聲明,不可默默調)
+- **配額是綁定層**(2026-09-01 診斷;證據:`STUDIO/quota_meter.json`、`STUDIO/ops_log.txt`、`logs/job_stderr.log`):
+  - 近 6 個**已關帳**配額日(08-26~08-31,太平洋制)client 端記帳 spent:
+    18,760 / 19,645 / 23,341 / 21,858 / 22,910 / 26,001
+    ⚠️ 記帳為**上界**:非配額類失敗(如上傳失敗)也照價目計價,08-28 與 08-31 含此類灌水(08-28 實際約 18,500)。凡引用一律帶上界註記。
+    (08-25 的 18,914 **不採用**:quota_meter 該日條目自標 `unreliable: true` —— 當天被拒呼叫尚未分桶、463 次 403 被計價灌進 spent。)
+  - 08-31 配額日(至台北 09-01 15:00)實際打到 0:兩次時事片被「videos.post 需 1600,今日剩 0」擋下(ops_log 09-01 10:02 / 11:38),同配額日 25+ 次 quotaExceeded 403
+- **產出 > 上傳能力,而且缺口在擴大**(兩個獨立計數器,分開讀):
+  - 庫存計數器(ops_log 上架部門):46→79(08-29 18:35→09-01 18:49,3 天)= **淨增 +11/日**;同期日發布 ~9 支 → 日產成品 ≈ 11+9 = 20 支(上界)
+  - 倉庫評分計數器:pass 63→107(+44/3 天 ≈ 15 支/日過閘,下界)→ 合併:產線日產成品 **15~20 支**
+- **維運跟上傳搶額度**:維運日耗實測(spent 減上傳鏈,僅六個已關帳日 08-26~08-31)= 860 / 7,845 / 6,991 / 7,058 / 1,710 / 4,601,**中位 3,156**(captions 重同步/描述章節修正/留言管理);低值日(860/1,710)是**被上傳先吃光配額餓出來的**,不是需求低——無餓日的需求落在 4,601~7,845;活例:09-01 一項 39 支標題回填估 ≈1,950 units,因配額必須讓給上傳而**取消**——維運已經在為上傳讓路,這類支出上一輪申請書完全沒編列
+- **時數是 YPP 慢閘門**:長片 999/4,000 小時,日增 ~29 → 缺口 103 天;訂閱 343/1,000,近三日均增 8.7 → 約 75 天
 
-## 2. 送出前 Carson 要親手確認的三件
+## 2. 兩個關鍵數字怎麼算出來的(從現況長出來,不含成長假設)
 
-1. **官方核定值**(表單 "Current daily quota" 欄):console.cloud.google.com → 選 `claude-morning-report-498407` → IAM 與管理 → 配額 → 篩 YouTube Data API v3 "Queries per day" → **抄那個數字**。
-   我們的三個錨點對不上(撞牆實測 24,374 / 客戶端記帳最高 26,001,記帳會把被拒呼叫也計價),**表單要填 Google 自己的數,不填我們估的**。
-2. **登入帳號** = 該 project 的 Owner(上輪已確認是 crayray86@gmail.com / 周庭睿)。
-3. **隱私政策 URL**:上一輪通過稽核時用的那個公開 URL 還活著嗎?(上輪送件用什麼這輪就用什麼,不要換。)
+**上傳能力需求 ≈ 18 支/日**:
+- (b) 產線穩態良率:過閘成品 15~20 支/日(4 天實測窗,保守取 **15**)
+- (a) 庫存清償:79 支 ÷ 30 天 ≈ **+2.6 支/日**
+- → 上傳能力要 15 + 2.6 ≈ **17.6,取 18** —— 這是「追上產出+清庫存」的算術,不是發布量目標
 
-## 3. 表單答案(入口:https://support.google.com/youtube/contact/yt_api_form)
+**Requested = 45,000 units/day**:
+- 18 × 2,150 = 38,700(上傳鏈全成本:insert 1,600 + captions 400 + thumbnail 50 + 其餘 ~100)
+- (c) 維運:逐日實測(spent 減上傳鏈,僅六個已關帳日 08-26~08-31)= 860 / 7,845 / 6,991 / 7,058 / 1,710 / 4,601,**中位 3,156**;低值日(860/1,710)是維運被配額餓死的日子,無餓日需求落在 4,601~7,845 → 編列 4,000~6,000 取「整體中位」與「無餓日需求(~7,000)」之間 → 45,000 留 6,300 headroom:蓋得住中位,**蓋不住高峰日(高峰日維運仍會被擠壓,這是刻意保守申請的代價)**
+- → 38,700 + 4,000~6,000 ≈ 42,700~44,700 → **45,000**
 
-不變的欄位(身分/組織/Section 3 貼文/API Client 名稱 `Carson Quant Studio`/Project Number `524513894332`/架構圖 `docs/quota_architecture_diagram.png`)照 `yt_quota_extension_application.md` 第 2026-07-17 節的表格填,以下只列**這一輪改變的**:
+**發布量上限是另一回事**:硬上限 12 已在 daily_publish(2026-08-19 加,依據=單日 ≥21 支的暴發日單支觀看中位 3 vs 平日 37 的斷崖實測);main ch. 正在跑發布量×單支觀看的因果驗收,**09-15 出結論前上限不動**。核准的額度先吃庫存清償與維運,發布量若上調必依驗收結論、且不超過對 Google 的新申報值。
 
-- **Request Type**: request for additional quota(已完成過 compliance audit 的 project 再提額)
-- **Current daily quota**: 第 2 節第 1 項抄來的官方數字
-- **Requested daily quota**: **40,000 units**
-- **Expected upload volume**: **up to 18 videos/day**(新申報值;核准前產線仍守 12)
+## 3. 送出前 Carson 要親手確認的三件
 
-**Justification(貼這段,每個數字都有來源)**:
+1. **官方核定值**(表單 "Current daily quota" 欄):console.cloud.google.com → `claude-morning-report-498407` → IAM 與管理 → 配額 → YouTube Data API v3 "Queries per day" → **抄那個數字**。
+   (我們的錨點對不上:撞牆實測 24,374 / 記帳最高 26,001;記帳把失敗呼叫照價目計價所以是上界。表單填 Google 自己的數。)
+2. **登入帳號** = project Owner(上輪確認 crayray86@gmail.com / 周庭睿)。
+3. **隱私政策 URL**:沿用上一輪通過稽核的那個公開 URL,確認還活著。
 
-> Our previous quota increase (approved 2026-08) is now exhausted on a daily basis.
-> Our own metering (a wrapper recording the documented unit cost of every API call)
-> shows consumption over the last seven full days of 18,760 / 19,645 / 23,341 /
-> 21,858 / 22,910 / 26,001 / 24,802 units, hitting the ceiling repeatedly: on
-> 2026-09-01 alone, 25 calls were rejected with quotaExceeded and two scheduled
-> uploads could not be published because the daily quota had reached zero.
+## 4. 表單答案(入口:https://support.google.com/youtube/contact/yt_api_form)
+
+不變欄位(身分/組織/Section 3 貼文/API Client 名稱 `Carson Quant Studio`/Project Number `524513894332`/架構圖)照 `yt_quota_extension_application.md` 2026-07-17 節,以下是這一輪的:
+
+- **Request Type**: request for additional quota
+- **Current daily quota**: 第 3 節抄來的官方數字
+- **Requested daily quota**: **45,000 units**
+- **Expected API Usage Volume**(Section 5;⚠️ **蓋掉舊表寫的 40,000**,否則表單自相矛盾): **45,000 units/day**
+- **Expected upload volume**: **currently capped at 11/day by our scheduler; requested capacity up to 18/day**(能力申報,非承諾;已關帳六日實發 6~10 支,11 是排程設定值)
+
+**Justification(貼這段;每個數字有來源、無成長假設)**:
+
+> Our previous quota increase (approved 2026-08) is now exhausted on a recurring
+> basis — not because we plan to grow, but because our production already outruns
+> our upload capacity today. Our client-side metering (a wrapper recording the
+> documented unit cost of every API call; it counts failed calls at list price, so
+> figures are upper bounds) shows consumption over the last six closed quota days
+> of 18,760 / 19,645 / 23,341 / 21,858 / 22,910 / 26,001 units. On the most
+> recent of those quota days the quota reached zero before the day's work finished:
+> our pipeline had to block two scheduled uploads (our meter reported 1,600 units
+> required for videos.insert with 0 remaining) and more than 25 API calls were
+> rejected by the API with quotaExceeded errors.
 >
-> Our production pipeline (rendering, script generation, quality gates) now outputs
-> more finished videos than the quota allows us to upload: we currently hold a
-> backlog of 79 finished, quality-checked videos that cannot be published. Each
-> published video costs about 2,150 units (videos.insert 1,600, captions 400,
-> thumbnails.set 50, playlistItems/updates ~100).
+> Concretely: our pipeline (rendering, scripting, quality gates) currently completes
+> 15–20 videos per day, while the quota supports publishing only ~11. We hold a
+> backlog of 79 finished videos awaiting publication, which grew by ~11/day over
+> the last three days. In addition,
+> recurring maintenance on our own back catalogue — caption re-sync, description and
+> chapter corrections, comment moderation — measures up to ~7,800 units/day on days
+> when quota permitted (on other days it was starved to as little as ~900–1,700
+> units because uploads consumed the budget first) and
+> competes with new uploads for the same budget (e.g., a planned title-correction
+> pass across 39 published videos, estimated at ~1,950 units, had to be deferred
+> because the remaining quota was prioritized for uploads).
 >
-> We request 40,000 units/day to support up to 18 uploads/day of our long-form
-> educational series on Taiwan stock-market backtesting (~38,700 units), leaving
-> headroom for recurring maintenance on our own back catalogue (caption re-sync,
-> description/chapter corrections, comment moderation on our own videos). All
-> operations remain on our own channel (UCqP5JQXlQR5ZDLtEiBt4kLA); the client is
-> a private, internal-use pipeline with no third-party users.
+> We request 45,000 units/day, sized from current measurements: publishing capacity
+> to match production and gradually clear the existing backlog (up to 18 uploads/day
+> × ~2,150 units = ~38,700) plus measured maintenance (~4,000–6,000). Our actual
+> publishing cadence is adjusted conservatively based on per-video audience metrics;
+> the requested amount is capacity to publish what is already produced, on our own
+> channel (UCqP5JQXlQR5ZDLtEiBt4kLA). The client remains a private, internal-use
+> pipeline with no third-party users.
 
 - **Section 7 Attestations**:Carson 逐條讀過親勾(特別是 Accuracy of Information)。
 
-## 4. ch2/ch3 專案(`881902283633`)要不要一起補?—— 建議:先不要
+## 5. ch2/ch3 專案(`881902283633`)—— 建議:先不要
 
-- 該 project 從沒申請過,還在預設 10,000 units/day
-- ch3 現行配比 1 長 + 4 短/日 ≈ 5 支 × ~2,150 = ~10,750,**理論上已貼線**,但:
-  - ch3 頻道 09-03 才改名轉型、真實跑道 19 集,量級與續航未證明
-  - 46 訂閱等級的頻道申請提額 = 上一輪教訓裡的「spam 畫像」風險(07-17 修正紀錄第 4 條)
-- **觸發條件寫死**:ch3 連續 7 天實際發布 ≥5 支/日且出現 quotaExceeded,再開它自己的申請(比照本檔流程)。在那之前用 10,000 內的排程過活。
+- 從沒申請過,預設 10,000;ch3 現行 1長4短 ≈ 10,750 理論貼線,但頻道 09-03 才轉型、跑道 19 集未證明;小頻道提額=spam 畫像風險(上輪 07-17 教訓)
+- **觸發條件寫死**:ch3 連續 7 天實際發布 ≥5 支/日且出現 quotaExceeded,再開它自己的申請
 
-## 5. 核准前的紀律(給所有 session 看的)
+## 6. 核准前後的紀律(給所有 session 看的)
 
-- 產線上限維持 **≤12 支/日**(現設 11)。核准信到手、Cloud Console 數字變了,才可以調 `--max`
-- 審核期間(常見 2~4 週)**不開第二個 project 分流** —— Developer Policies III.D.1c circumvention,整組停權
-- 收到補件要求(常見:screen recording)→ 轉存信件,回信附上即可;源碼用 `git archive HEAD`,不給 repo 歷史
+- **發布量上限 ≤12(現設 11)在 09-15 發布量驗收出結論前不動** —— 核准的額度是 headroom 不是承諾;要動上限,先過驗收結論,且不得超過本輪申報的 18
+- 審核期間(2~4 週)**不開第二個 project 分流**(Developer Policies III.D.1c,整組停權)
+- 補件要求(常見 screen recording)→ 轉存信件回附;源碼用 `git archive HEAD`,不給 repo 歷史
 
 ## 驗證紀錄
 
-- [ ] fresh-context 獨立驗證(待跑,通過後在此附結論)
+- ✅ 2026-09-01 第一輪 fresh-context(verify-quota-pack):3 FAIL / 5 RISK 全修(未關帳日冒充 full day、記帳上界當用量、quality-checked 撐不住、時區錯位、40k 餓死維運、灌水成因解釋錯、訂閱缺口 60→75 天、日期)
+- ✅ 2026-09-01 督導攔截:18 支/日的成長前提被發布量×單支觀看實驗(09-15 出結論)動搖 → 承重點改為「產出>上傳能力的現況」,兩個數字改由 (a)庫存清償 (b)穩態良率 (c)維運實測 三項推導;發布上限凍結條款入文
+- ✅ 2026-09-01 舊驗證員收工前補交二輪殘留:B1(08-25 的 18,914 是源頭自標 `unreliable` 的數)→ 序列改 08-26~08-31 六天並註明不採用原因;B2(舊表 Expected API Usage Volume 40,000 會與新要的 45,000 打架)→ 改變清單明確加 45,000 蓋掉;M1(維運下界不實)→ 改逐日實測 694~7,845/中位 4,601,並把「維運被配額餓死」寫成論證;M2(79 支與歸零時點混用)→ 已分開(歸零時 ~61,現 79)
+- ✅ 2026-09-02 第二位 fresh-context 驗證員(verify-quota-pack-v3,找碴視角,全量對源頭重驗):**FAIL(2F/4R/3M)→ 全修**。F1(39 支標題回填已取消卻用過去式宣稱花了 1,950 units——quota_meter 09-01 videos.put 僅 7 次/350 units,可被 Google 證偽)→ 改為 planned-and-deferred,反而更支持論點;F2(「三天不足 1,000」實際已關帳日只有一天 860,文件三處自打架)→ 序列改僅用六個已關帳日、中位 4,601→3,156、餓日改 860/1,710;R1(維運序列混入未關帳 09-01)→ 剔除;R2(+8/日算錯,46→79 是 3 天=+11/日)→ 改 +11;R3(兩個計數器混一句敘事)→ 拆開各自標來源;R4(6,300 headroom「勉強蓋高峰日」不實)→ 明寫蓋不住;M1(計量器訊息偽裝 API 原文)→ 改 our meter reported;M2(~8,000→~7,800);M3(currently 11/day 標明為排程設定值)。骨架與算術經逐日程式驗算全過(六日 spent 與 quota_meter 完全一致、by_op 加總全 MATCH、與舊申請書無未聲明矛盾、無成長假設)
+- [ ] verify-quota-pack-v3 對修正版覆核放行 —— 通過後交 Carson
