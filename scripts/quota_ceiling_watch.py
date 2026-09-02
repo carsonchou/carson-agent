@@ -77,6 +77,10 @@ def main() -> int:
         eff = qm.effective_limit()
         floor, ceil = qm.observed()
         cur = eff                           # 見檔頭:cefa9ba8 後直接信 effective_limit,別再包 max
+        try:                                # 帳本日數:用來把「帳本遺失/重置」從「真調降」裡分出來
+            days_n = len(json.loads(pathlib.Path(qm.STATE).read_text("utf-8")).get("days") or {})
+        except Exception:
+            days_n = None
     except Exception as e:
         record(f"[{now}] 🔴 讀不到 quota_meter:{e!r} —— 這本身是警報,不是「沒事」")
         say(traceback.format_exc())
@@ -99,6 +103,9 @@ def main() -> int:
         changed = True
     elif cur < base:
         verdict = f"⚠️ 天花板下移 {base:,} → {cur:,} —— 配額被調降?查 quota_meter 帳本"
+        days_prev = prev.get("days_n")
+        if days_n is not None and days_prev and days_n < days_prev - 5:
+            verdict += f"(🔴 但 days 筆數 {days_prev}→{days_n} 驟減:更像帳本遺失/重置,不是真調降——先查帳本檔再信這個 ⚠️)"
         changed = True
     else:
         verdict = (f"無變化:watch={cur:,}(effective={eff:,}, floor={floor}, ceiling={ceil});"
@@ -107,7 +114,8 @@ def main() -> int:
 
     record(f"[{now}] {verdict}")
     STATE.write_text(json.dumps({"effective": cur, "raw_effective": eff, "floor": floor,
-                                 "ceiling": ceil, "checked_at": now}, ensure_ascii=False), "utf-8")
+                                 "ceiling": ceil, "days_n": days_n,
+                                 "checked_at": now}, ensure_ascii=False), "utf-8")
     if changed:
         alert("配額天花板變化", verdict)
     return 0
