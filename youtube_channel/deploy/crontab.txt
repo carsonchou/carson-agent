@@ -729,9 +729,9 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 #   決定要不要放大,所以再發一批同樣不會被回應的片,不會改變任何事。
 #   供給從來不是這條線的瓶頸:45 支換到 289 次觀看,再發 45 支就是再換 289 次。
 #   一天 6 支 = 3 短(reels/,35~45 秒的新格式)+ 3 長。
-25 8 * * * /root/yt/run.sh scripts/ch3_publish.py --limit 1 --shorts 1 >> /root/yt/logs/cron.log 2>&1
-25 14 * * * /root/yt/run.sh scripts/ch3_publish.py --limit 1 --shorts 1 >> /root/yt/logs/cron.log 2>&1
-25 20 * * * /root/yt/run.sh scripts/ch3_publish.py --limit 1 --shorts 1 >> /root/yt/logs/cron.log 2>&1
+# [ch3 收線 2026-09-02] 25 8 * * * /root/yt/run.sh scripts/ch3_publish.py --limit 1 --shorts 1 >> /root/yt/logs/cron.log 2>&1
+# [ch3 收線 2026-09-02] 25 14 * * * /root/yt/run.sh scripts/ch3_publish.py --limit 1 --shorts 1 >> /root/yt/logs/cron.log 2>&1
+# [ch3 收線 2026-09-02] 25 20 * * * /root/yt/run.sh scripts/ch3_publish.py --limit 1 --shorts 1 >> /root/yt/logs/cron.log 2>&1
 #
 # 健檢:排在早上,回報的是前一天發得如何。只在**有事**時推播 ——
 # 每天都響的警報等於沒有警報(判準見 ch3_lab/health.py)。
