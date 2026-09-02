@@ -244,10 +244,19 @@ def record(op, units, rejected=False):
     o["units"] += int(units)
     o["calls"] += 1
     b["updated"] = _dt.datetime.now().isoformat(timespec="seconds")
-    # 只留最近 30 個配額日,免得帳本無限長
+    # 只留最近 30 個配額日,免得帳本無限長。
+    # 🔴 2026-09-02 例外:**最近一次撞牆那天不裁**。它是 `effective_limit()` 唯一的
+    # 上界來源,而「被裁掉」不是任何訊號——只是資料掉了。原本會這樣壞:連續 30 天
+    # 沒撞牆且日支出都低於 DAILY_LIMIT(產線停擺或淡季),ceil 老化消失、floor 也不夠高,
+    # 天花板無聲回落到**猜的** 19,645,產線恢復那天就少發約 2.9 支長片而且沒有任何錯誤訊號。
+    # 這是 08-26「擋人的是我的假天花板」第三次換皮出現。上限仍有界(至多 31 筆)。
     if len(d["days"]) > 30:
+        _wall = max((k for k, v in d["days"].items()
+                     if int(v.get("rejected_calls", 0) or 0) and not v.get("unreliable")),
+                    default=None)
         for k in sorted(d["days"])[:-30]:
-            d["days"].pop(k, None)
+            if k != _wall:
+                d["days"].pop(k, None)
     _save(d)
     return b["spent"]
 
