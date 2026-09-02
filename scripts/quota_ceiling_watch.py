@@ -112,6 +112,8 @@ def main() -> int:
         days_prev = prev.get("days_n")
         if days_n is not None and days_prev and days_n < days_prev - 5:
             verdict += f"(🔴 但 days 筆數 {days_prev}→{days_n} 驟減:更像帳本遺失/重置,不是真調降——先查帳本檔再信這個 ⚠️)"
+        elif days_n is None:
+            verdict += "(🔴 days 筆數讀不到:帳本檔可能遺失/壞損——先查帳本檔再信這個 ⚠️)"
         changed = True
     else:
         verdict = (f"無變化:watch={cur:,}(effective={eff:,}, floor={floor}, ceiling={ceil});"
