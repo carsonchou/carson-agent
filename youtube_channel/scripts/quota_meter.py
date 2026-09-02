@@ -270,12 +270,13 @@ def _unrecord(op, units):
     _save(d)
 
 
-def observed():
-    """回 (floor, ceiling):實測推出來的每日上限區間。
+def _scan():
+    """回 (floor, ceiling, floor_since):實測推出來的每日上限區間。
 
-    · floor   = **曾經成功花到的最高值**(下界:至少有這麼多)
-    · ceiling = **第一次被拒時的花費水位**(上界:大約就在這裡撞牆)
-    兩者都可能是 None(還沒觀測到)。
+    · floor       = **曾經成功花到的最高值**(下界:至少有這麼多)
+    · ceiling     = **第一次被拒時的花費水位**(上界:大約就在這裡撞牆)
+    · floor_since = 同 floor,但**只算撞牆日(含)之後**的日子(給 effective_limit 用)
+    三者都可能是 None(還沒觀測到)。
 
     🔴 2026-08-26 為什麼要有這支:`DAILY_LIMIT` 原本寫死 10000,而那個數字是**猜的**
     ——memory 裡兩份紀錄互相矛盾(一份說 10,000、一份說實測 ≥18,000)。
@@ -306,6 +307,22 @@ def observed():
         if int(b.get("rejected_calls", 0) or 0) and sp:
             if ceil is None or str(day) >= str(_ceil_day or ""):
                 ceil, _ceil_day = sp, day
+    # 撞牆日(含)之後才成功花到的最高值。effective_limit() 要用的是這個而不是全期 floor,
+    # 理由見那支的 docstring。
+    floor_since = None
+    for day, b in (d.get("days") or {}).items():
+        if b.get("unreliable") or (_ceil_day and str(day) < str(_ceil_day)):
+            continue
+        sp = int(b.get("spent", 0) or 0)
+        if sp and (floor_since is None or sp > floor_since):
+            floor_since = sp
+    return floor, ceil, floor_since
+
+
+def observed():
+    """回 (floor, ceiling) —— 見 `_scan()`。保留兩元組是因為外部有人在用
+    (repo root 的 `scripts/quota_ceiling_watch.py` 就解成兩個值),不要改成三元組。"""
+    floor, ceil, _ = _scan()
     return floor, ceil
 
 
@@ -314,10 +331,22 @@ def effective_limit():
 
     優先序:①觀測到的撞牆點(最緊的上界) ②曾成功花到的最高值(下界,至少有這麼多)
     ③設定值。**永遠不會低於實測到的下界** —— 用一個比實測還低的天花板去擋人,
-    正是 08-26 那天發生的事。"""
-    floor, ceil = observed()
+    正是 08-26 那天發生的事。
+
+    🔴 2026-09-02 修好一個潛伏的矛盾(基建線的 fresh-context 驗證員先看到,我複驗確認):
+    原本是 `if ceil: return ceil`,**只要 ceil 存在就完全不看 floor**,和上面那句
+    「永遠不會低於實測到的下界」直接打架。發作條件是提額核准之後——某天成功花超舊牆
+    但沒撞到新牆,floor 升而 ceil 不動 → 回一道**已經不存在的舊牆**去擋工作,
+    就是 08-26 那天「擋人的是我的假天花板」同一個病。
+    (09-02 當下 floor == ceil == 26,001,所以這是潛伏不是正在發作。)
+
+    但**不可以**照直覺寫成 `max(ceil, floor)`:配額也可能被**調降**,那時撞牆點會下移,
+    而全期 floor 還留著調降前的舊高水位,會永久頂住估計值——那就是 08-27→09-01
+    「取 min 學不會調高」的鏡像,同一種病換個方向。
+    所以 floor 只採**撞牆日(含)之後**的:提額跟得上、降額也跟得下。"""
+    floor, ceil, floor_since = _scan()
     if ceil:
-        return ceil
+        return max(ceil, floor_since or 0)
     if floor and floor > DAILY_LIMIT:
         return floor
     return DAILY_LIMIT
