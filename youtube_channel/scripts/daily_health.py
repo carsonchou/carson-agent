@@ -240,22 +240,48 @@ def main() -> int:
     # 而撞牆的樣子是「發布靜默少發一支」,不會噴錯:daily_publish 遇到 quotaExceeded 就跳過,
     # 隔天冪等補上。庫存夠的時候完全看不出來,直到某天發現時數不再成長。
     # 「被拒次數」比「已用量」更早示警:額度還沒滿就開始被拒 = 上限比我們以為的低。
+    # 🔴 2026-09-02 這一段修過三個 bug,三個都是「不會叫的警報」:
+    #   ① 分母寫 DAILY_LIMIT(猜的 19,645)不是 effective_limit()(實測 26,001)
+    #      → 剛好花到實測牆會印成 132%。quota_meter._maybe_warn 修過同一個 bug
+    #      (註解寫著「94% 會被印成 125%」)—— **修了那份沒修這份**。
+    #   ② `warns.append(...)` 而 main() 裡的變數叫 `warn`(從本檔 :93 另一個函式複製來的)
+    #      → NameError,被下面的 except 吞掉。**兩個分支三個月來一次都沒叫過。**
+    #   ③ 撞牆判準自己寫一份(只看 rejected_calls)。739e5311 才把 quota_meter 裡的兩份
+    #      統一成 _is_wall(),而第三份留在這裡。
     try:
         import quota_meter as _qm
         _b = (_qm._load().get("days") or {}).get(_qm._pacific_date(), {})
         _spent = int(_b.get("spent", 0))
         _rej = int(_b.get("rejected_calls", 0))
-        _lim = _qm.DAILY_LIMIT
+        _lim = _qm.effective_limit()
         lines.append(f"YouTube 配額: {_spent:,}/{_lim:,} = {_spent/max(_lim,1)*100:.0f}%"
                      f"｜配額用罄被拒 {_rej} 次")
         if _rej > 0:
-            warns.append(f"配額撞牆({_rej}次被拒)")
-            lines.append("   🔴 **有呼叫因配額用罄被拒** = 當天有東西沒做成(多半是發布少發一支,"
-                         "而它不會噴錯、只會靜默跳過)。跑 python scripts/quota_meter.py 看是誰吃掉的")
+            # 「有東西沒做成」和「這天的花費可以當天花板」是**兩個不同的問題**,
+            # 所以這裡沒有直接拿 _is_wall() 當唯一判準:_is_wall() 要求 spent 非零
+            # (它問的是校準:牆的值就是當天的成功花費),而 spent=0 + 被拒
+            # 反而是最糟的一天(整日停權 / 雙機共用配額被另一台吃光 / _unrecord 歸零),
+            # 拿校準判準去擋健檢告警,等於把最嚴重的那天靜音。
+            # 校準面的宣稱一律問 _is_wall(),不在這裡寫第四份判準。
+            if _qm._is_wall(_b):
+                warn.append(f"配額撞牆({_rej}次被拒)")
+                lines.append("   🔴 **有呼叫因配額用罄被拒** = 當天有東西沒做成(多半是發布少發一支,"
+                             "而它不會噴錯、只會靜默跳過)。跑 python scripts/quota_meter.py 看是誰吃掉的")
+            else:
+                warn.append(f"被拒 {_rej} 次但當天 spent={_spent}")
+                lines.append(f"   🔴 **被拒 {_rej} 次而當天成功花費只有 {_spent:,}** —— 這不是撞牆"
+                             "(撞牆的前提是先花得掉)。可能是整日停權、憑證/專案有問題,"
+                             "或同一個 Cloud 專案被另一台機器吃光(Mac+MSI 共用時會)。"
+                             "先跑 python scripts/quota_meter.py 對帳,再查 assert_project()")
         elif _spent > _lim * 0.95:
-            warns.append(f"配額 {_spent/_lim*100:.0f}%")
-    except Exception:  # noqa: BLE001
-        pass
+            warn.append(f"配額 {_spent/_lim*100:.0f}%")
+    except Exception as _e:  # noqa: BLE001
+        # 🔴 這裡原本是 `pass`。一個 NameError 因此靜音了三個月,而健檢**看起來一切正常**——
+        # 那正是 memory verification-that-cannot-fail 的第①種「不會叫的警報」。
+        # 檢查本身壞掉,是比被檢查的東西壞掉更該叫的事:一個不會叫的健檢會讓整條線
+        # 無限期「看起來健康」。所以改成留下痕跡並計入告警,而不是無聲吞。
+        lines.append(f"YouTube 配額: ⚠️ 這項檢查自己壞了({_e!r})—— 不是「配額正常」")
+        warn.append(f"配額檢查壞掉({type(_e).__name__})")
 
     summary = "\n".join(lines)
     verdict = ("🔴 有異常: " + "、".join(warn)) if warn else "✅ 全部正常"
