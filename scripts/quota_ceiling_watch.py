@@ -1,0 +1,103 @@
+# -*- coding: utf-8 -*-
+"""quota_ceiling_watch.py — 配額天花板變化守望(基建線,2026-09-02)
+
+為什麼存在:premises.md 第 3 條寫「核准可自驗:quota_meter 天花板變了就是核准」,
+但沒有任何東西每天去看它——這支就是去看的那個。
+
+設計約束(督導指令 + verify-ceiling-watch 驗證後修正):
+  · 正向輸出:**每次跑都寫一行 log**,天花板沒變的日子也有——「沒輸出」因此永遠是異常。
+  · log 先寫、print 後印(印壞了紀錄還在;cp950 炸點已被驗證員重現過)。
+  · print 全程可失敗(pythonw 下 stdout=None),log 才是主要輸出通道。
+  · assert_project() 回傳警告字串(不 raise),**要接住當警報**,不能默默比錯帳。
+  · 比對用 max(effective_limit, floor):quota_meter 的 effective_limit() 有 ceil 就回 ceil、
+    忽略 floor——提額後花超舊牆但沒撞新牆時它不動;floor 會動,所以本守望自己取 max,
+    不等 quota_meter 修(那是 w9 的檔,已通報)。
+  · 只讀 w9 的模組與帳本,不改它們;變化時推 ntfy(失敗不擋主流程)。
+
+用法:python scripts/quota_ceiling_watch.py   (排程每天台北 15:20,配額日剛關帳後)
+輸出:docs/ops/quota-ceiling-watch.log 追加一行 + 更新 .state.json + stdout(若有)
+"""
+import json, sys, datetime, pathlib, traceback
+
+REPO = pathlib.Path(__file__).resolve().parent.parent
+LOG   = REPO / "docs" / "ops" / "quota-ceiling-watch.log"
+STATE = REPO / "docs" / "ops" / "quota-ceiling-watch.state.json"
+sys.path.insert(0, str(REPO / "youtube_channel" / "scripts"))
+
+try:  # 排程/重導向下編碼不保證 utf-8;stdout 可能是 None(pythonw)
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
+
+
+def say(text: str) -> None:
+    """print 的可失敗版:log 是主通道,stdout 只是順帶。"""
+    try:
+        print(text)
+    except Exception:
+        pass
+
+
+def record(line: str) -> None:
+    LOG.parent.mkdir(parents=True, exist_ok=True)
+    with LOG.open("a", encoding="utf-8") as f:
+        f.write(line + "\n")
+    say(line)
+
+
+def alert(title: str, body: str) -> None:
+    try:
+        from notify import push
+        push(title, body, tag="chart_with_upwards_trend")
+    except Exception as e:
+        say(f"(ntfy 推播失敗,不影響本檢查:{e!r})")
+
+
+def main() -> int:
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    try:
+        import quota_meter as qm
+        warn = qm.assert_project()          # 回傳字串不 raise:非空=帳本可能換了專案
+        if warn:
+            line = f"[{now}] 🔴 專案不一致,拒絕比對(比錯帳比沒比更糟):{warn}"
+            record(line); alert("配額守望:專案不一致", line)
+            return 1
+        eff = qm.effective_limit()
+        floor, ceil = qm.observed()
+        cur = max(eff, floor or 0)          # 見檔頭:floor 會先動,不等撞新牆
+    except Exception as e:
+        record(f"[{now}] 🔴 讀不到 quota_meter:{e!r} —— 這本身是警報,不是「沒事」")
+        say(traceback.format_exc())
+        return 1
+
+    prev = {}
+    if STATE.exists():
+        try: prev = json.loads(STATE.read_text("utf-8"))
+        except Exception: pass
+    base = prev.get("effective")
+
+    if base is None:
+        verdict = f"基準建立:watch={cur:,}(effective={eff:,}, floor={floor}, ceiling={ceil})"
+        changed = False
+    elif cur > base:
+        verdict = (f"🎉 天花板上移 {base:,} → {cur:,} —— 依 premises.md 第 3 條,"
+                   f"這就是提額核准的證據(effective={eff:,}, floor={floor}, ceiling={ceil})")
+        changed = True
+    elif cur < base:
+        verdict = f"⚠️ 天花板下移 {base:,} → {cur:,} —— 配額被調降?查 quota_meter 帳本"
+        changed = True
+    else:
+        verdict = (f"無變化:watch={cur:,}(effective={eff:,}, floor={floor}, ceiling={ceil});"
+                   f"提額若核准,floor 會在產線成功花超舊牆當天上移,本守望直接比 max 不等撞新牆")
+        changed = False
+
+    record(f"[{now}] {verdict}")
+    STATE.write_text(json.dumps({"effective": cur, "raw_effective": eff, "floor": floor,
+                                 "ceiling": ceil, "checked_at": now}, ensure_ascii=False), "utf-8")
+    if changed:
+        alert("配額天花板變化", verdict)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

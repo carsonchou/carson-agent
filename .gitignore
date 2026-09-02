@@ -202,3 +202,7 @@ ch3_lab/eps/*/frames/
 # 編排/校準用的暫存清單,跟 _*.sh 同一類
 ch3_lab/_*.txt
 ch3_lab/*.lock
+
+# quota ceiling watch (daily runtime output, not source)
+docs/ops/quota-ceiling-watch.log
+docs/ops/quota-ceiling-watch.state.json
