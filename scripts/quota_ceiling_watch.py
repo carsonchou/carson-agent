@@ -9,9 +9,9 @@
   · log 先寫、print 後印(印壞了紀錄還在;cp950 炸點已被驗證員重現過)。
   · print 全程可失敗(pythonw 下 stdout=None),log 才是主要輸出通道。
   · assert_project() 回傳警告字串(不 raise),**要接住當警報**,不能默默比錯帳。
-  · 比對用 max(effective_limit, floor):quota_meter 的 effective_limit() 有 ceil 就回 ceil、
-    忽略 floor——提額後花超舊牆但沒撞新牆時它不動;floor 會動,所以本守望自己取 max,
-    不等 quota_meter 修(那是 w9 的檔,已通報)。
+  · 比對直接用 effective_limit():它「忽略 floor」的 bug 已由 w9 修復(cefa9ba8,floor 只採
+    撞牆日後的日子)。**不要在這裡再包 max(eff, 全期 floor)**——配額被調降時,舊高 floor 會把
+    watch 值釘死在舊值,把 ⚠️ 下移遮成「無變化」,正是 cefa9ba8 避開的鏡像病。
   · 只讀 w9 的模組與帳本,不改它們;變化時推 ntfy(失敗不擋主流程)。
 
 用法:python scripts/quota_ceiling_watch.py   (排程每天台北 15:20,配額日剛關帳後)
@@ -76,7 +76,7 @@ def main() -> int:
             return 1
         eff = qm.effective_limit()
         floor, ceil = qm.observed()
-        cur = max(eff, floor or 0)          # 見檔頭:floor 會先動,不等撞新牆
+        cur = eff                           # 見檔頭:cefa9ba8 後直接信 effective_limit,別再包 max
     except Exception as e:
         record(f"[{now}] 🔴 讀不到 quota_meter:{e!r} —— 這本身是警報,不是「沒事」")
         say(traceback.format_exc())
@@ -102,7 +102,7 @@ def main() -> int:
         changed = True
     else:
         verdict = (f"無變化:watch={cur:,}(effective={eff:,}, floor={floor}, ceiling={ceil});"
-                   f"提額若核准,floor 會在產線成功花超舊牆當天上移,本守望直接比 max 不等撞新牆")
+                   f"提額若核准,產線成功花超舊牆當天 effective_limit 會上移(cefa9ba8 後含撞牆日後 floor)")
         changed = False
 
     record(f"[{now}] {verdict}")
