@@ -24,6 +24,13 @@ LOG   = REPO / "docs" / "ops" / "quota-ceiling-watch.log"
 STATE = REPO / "docs" / "ops" / "quota-ceiling-watch.state.json"
 sys.path.insert(0, str(REPO / "youtube_channel" / "scripts"))
 
+# --selftest:演習模式。教訓(2026-09-02):驗證員手改 state 模擬提額,兩行 🎉 落在正式 log,
+# 和真事件一模一樣——假證據落在自己指定的權威來源裡,比沒有守望更糟。
+# 演習從此只准走這裡:每行帶 [DRILL] 前綴、用獨立 state 檔、永不推播。真實路徑永遠不產生 [DRILL]。
+SELFTEST = "--selftest" in sys.argv
+if SELFTEST:
+    STATE = REPO / "docs" / "ops" / "quota-ceiling-watch.state.selftest.json"
+
 try:  # 排程/重導向下編碼不保證 utf-8;stdout 可能是 None(pythonw)
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 except Exception:
@@ -39,6 +46,8 @@ def say(text: str) -> None:
 
 
 def record(line: str) -> None:
+    if SELFTEST:
+        line = "[DRILL] " + line
     LOG.parent.mkdir(parents=True, exist_ok=True)
     with LOG.open("a", encoding="utf-8") as f:
         f.write(line + "\n")
@@ -46,6 +55,9 @@ def record(line: str) -> None:
 
 
 def alert(title: str, body: str) -> None:
+    if SELFTEST:
+        say("[DRILL] 演習不推播")
+        return
     try:
         from notify import push
         push(title, body, tag="chart_with_upwards_trend")
@@ -75,6 +87,8 @@ def main() -> int:
         try: prev = json.loads(STATE.read_text("utf-8"))
         except Exception: pass
     base = prev.get("effective")
+    if SELFTEST:
+        base = cur - 1234          # 演習固定製造「上移」情境,走完 🎉 路徑但帶 [DRILL] 且不推播
 
     if base is None:
         verdict = f"基準建立:watch={cur:,}(effective={eff:,}, floor={floor}, ceiling={ceil})"

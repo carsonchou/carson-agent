@@ -206,3 +206,4 @@ ch3_lab/*.lock
 # quota ceiling watch (daily runtime output, not source)
 docs/ops/quota-ceiling-watch.log
 docs/ops/quota-ceiling-watch.state.json
+docs/ops/quota-ceiling-watch.state.selftest.json
