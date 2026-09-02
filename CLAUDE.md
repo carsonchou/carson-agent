@@ -4,7 +4,7 @@
 - 回應一律**繁體中文**;技術術語、程式碼識別符、參數名保持英文。
 
 ## 環境事實(2026-07-03 驗證)
-- OS:Windows 11;Shell:PowerShell 5.1(主)/ Git Bash(可用)
+- OS:Windows 11;Shell:PowerShell 5.1(Claude Code 工具用)/ Git Bash(可用);PowerShell 7.6+ 已裝(MSIX 版,`pwsh`,2026-08-13 起為 Windows Terminal 預設)
 - 專案目錄:`D:\carson-agent`
 - Claude Code 全域設定:`D:\claude`(`CLAUDE_CONFIG_DIR`)。`C:\Users\User\.claude` 和 `D:\.claude` 是殭屍目錄,**不要**往那裡寫任何東西。
 - 安裝/快取一律導向 D 槽(C 槽易爆滿)。
@@ -17,6 +17,7 @@
 | 工具連環報錯、要動正式產線目錄、要宣稱「已寫入/已部署」之前 | `docs/ops/failsafe.md` — 熔斷/凍結區/寫入證據合約 |
 | 不確定該不該升級模型/算不算完成/該不該問 Carson/是不是方向錯了 | `docs/ops/judgment.md` |
 | 撰寫派工 prompt(搜尋/實作/重構/研究/審查) | `docs/ops/prompts.md`(模板直接填空) |
+| 要拿某個假設當承重點、或發現自己推翻了一個假設 | `docs/ops/premises.md` — 跨線承重假設登記處(≤10 條,一行一條) |
 | 想修改 docs/ops/ 任何檔案、或踩坑後要記教訓 | `docs/ops/maintenance.md` |
 | session 開始覺得缺 context、或發現制度怪怪的 | `docs/ops/letter.md` + `docs/ops/DIAGNOSIS.md` |
 
