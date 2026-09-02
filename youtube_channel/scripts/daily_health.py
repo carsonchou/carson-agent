@@ -250,31 +250,113 @@ def main() -> int:
     #      統一成 _is_wall(),而第三份留在這裡。
     try:
         import quota_meter as _qm
-        _b = (_qm._load().get("days") or {}).get(_qm._pacific_date(), {})
-        _spent = int(_b.get("spent", 0))
-        _rej = int(_b.get("rejected_calls", 0))
-        _lim = _qm.effective_limit()
-        lines.append(f"YouTube 配額: {_spent:,}/{_lim:,} = {_spent/max(_lim,1)*100:.0f}%"
-                     f"｜配額用罄被拒 {_rej} 次")
-        if _rej > 0:
-            # 「有東西沒做成」和「這天的花費可以當天花板」是**兩個不同的問題**,
-            # 所以這裡沒有直接拿 _is_wall() 當唯一判準:_is_wall() 要求 spent 非零
-            # (它問的是校準:牆的值就是當天的成功花費),而 spent=0 + 被拒
-            # 反而是最糟的一天(整日停權 / 雙機共用配額被另一台吃光 / _unrecord 歸零),
-            # 拿校準判準去擋健檢告警,等於把最嚴重的那天靜音。
-            # 校準面的宣稱一律問 _is_wall(),不在這裡寫第四份判準。
-            if _qm._is_wall(_b):
-                warn.append(f"配額撞牆({_rej}次被拒)")
-                lines.append("   🔴 **有呼叫因配額用罄被拒** = 當天有東西沒做成(多半是發布少發一支,"
-                             "而它不會噴錯、只會靜默跳過)。跑 python scripts/quota_meter.py 看是誰吃掉的")
-            else:
-                warn.append(f"被拒 {_rej} 次但當天 spent={_spent}")
-                lines.append(f"   🔴 **被拒 {_rej} 次而當天成功花費只有 {_spent:,}** —— 這不是撞牆"
-                             "(撞牆的前提是先花得掉)。可能是整日停權、憑證/專案有問題,"
-                             "或同一個 Cloud 專案被另一台機器吃光(Mac+MSI 共用時會)。"
-                             "先跑 python scripts/quota_meter.py 對帳,再查 assert_project()")
-        elif _spent > _lim * 0.95:
-            warn.append(f"配額 {_spent/_lim*100:.0f}%")
+        _today = _qm._pacific_date()
+        _raw = _qm._load()
+        _days = _raw.get("days") or {}
+
+        # 🔴 2026-09-02 第三輪:一條**繞過下面那個 except** 的靜默路徑。
+        # `quota_meter._load()` 自己有 try/except,JSON 壞掉或半截(排程正在 _save()
+        # 而健檢同時在讀)它會回 `{"days": {}}` —— 一份**合法的空帳本**。
+        # 於是這裡拿到的不是例外而是「看起來正常的謊」,健檢會印 0/26,001 = 0% 且 ✅ 全部正常。
+        # 例外在下一層就被吞掉了,所以下面那個 `except Exception as _e` 一次都不會被觸發:
+        # 它守的是「這一層爆炸」,守不住「上游遞給我一個合法的空值」。
+        #
+        # 判別點是**「解析不出任何一天,但檔案有內容」**,不是「百分比很低」——
+        # 台北 15:00 換配額日之後 spent 本來就會很低,拿 0% 當壞掉的證據一定誤報。
+        # 判別點是「**這份 JSON 解不解析得開**」,不是檔案大小、更不是百分比高低:
+        #   · `{"days": {}}` 是**合法的空帳本**(12 bytes),不是壞掉 —— 拿大小判會誤報
+        #   · 台北 15:00 換配額日之後 spent 本來就很低,拿 0% 判也一定誤報
+        # 所以在這一層自己解析一次原檔:解得開 = 帳本真的空;解不開 = _load() 把它吞成空的。
+        _exists, _age_h, _parse_err = _qm.STATE.exists(), None, None
+        if _exists:
+            try:
+                _age_h = (time.time() - _qm.STATE.stat().st_mtime) / 3600.0
+            except Exception:  # noqa: BLE001
+                pass
+            try:
+                _disk = json.loads(_qm.STATE.read_text(encoding="utf-8"))
+                if not isinstance(_disk, dict):
+                    _parse_err = f"頂層不是 dict 而是 {type(_disk).__name__}"
+            except Exception as _pe:  # noqa: BLE001
+                _parse_err = repr(_pe)
+        if not _exists:
+            warn.append("配額帳本檔不存在")
+            lines.append(f"YouTube 配額: 🔴 **帳本檔不存在**({_qm.STATE})—— 不是「沒花配額」。"
+                         "計量器沒在記帳,所有配額判斷(含發布前的預留閘門)都建立在空氣上")
+        elif _parse_err:
+            warn.append("配額帳本讀不到(JSON 解析失敗)")
+            lines.append(f"YouTube 配額: 🔴 **帳本讀不到**——{_parse_err}。"
+                         "`quota_meter._load()` 自己的 except 會把這種檔吞成 `{'days': {}}`,"
+                         "於是所有配額判斷都拿到「今天花了 0」。這**不是**「今天沒花配額」。"
+                         "多半是讀到排程 _save() 寫到一半的檔(等一分鐘重跑就會好),"
+                         "若持續出現就是檔案真的壞了")
+        else:
+            if _age_h is not None and _age_h > 24:
+                warn.append(f"配額帳本 {_age_h:.0f} 小時沒被寫過")
+                lines.append(f"   🔴 **帳本已經 {_age_h:.0f} 小時沒有被寫入** —— 每次 API 呼叫都會寫它,"
+                             "這麼久沒動代表產線根本沒在打 API(而不是「配額用得很省」)")
+            if not _days:
+                lines.append("YouTube 配額: 帳本目前沒有任何一天的紀錄(檔案合法,不是壞掉)")
+            _b = _days.get(_today, {})
+            _spent = int(_b.get("spent", 0) or 0)
+            _rej = int(_b.get("rejected_calls", 0) or 0)
+            _lim = _qm.effective_limit()
+            _pct = _spent / max(_lim, 1) * 100
+            lines.append(f"YouTube 配額: {_spent:,}/{_lim:,} = {_pct:.0f}%"
+                         f"｜配額用罄被拒 {_rej} 次")
+
+            # 🔴 把「預期內」和「真異常」分開,否則這個警報會被養死:這條線刻意跑在配額 95% 上
+            # (11 支 ≈ 24,844 / 25,999),配額用滿是設計預期。真帳本回放 10 天,只修 bug 的版本
+            # 有 5 天紅字而每一則都是真的 —— 看的人兩週內就學會忽略紅字,然後真正那一則
+            # 會被一起忽略。memory verification-that-cannot-fail 的**鏡像**:
+            # 不是警報不會叫,是叫太多所以等於不會叫。
+            #
+            # ⚠️ 分界**不能**拿 spent 和 effective_limit() 比:天花板的定義就是
+            # 「最近一次撞牆日的成功花費」,今天撞牆時今天就是那一天 → 比值恆為 100%,
+            # 判準是循環的(第一版這樣寫,「只花到 35% 就被拒」被判成預期內,測試才抓到)。
+            # 改跟**今天以外**最近一次的牆比,那是獨立於今天的參考點。
+            _prev = [(d, int(v.get("spent", 0) or 0)) for d, v in _days.items()
+                     if d != _today and _qm._is_wall(v)]
+            _ref = max(_prev)[1] if _prev else None
+
+            if _rej > 0:
+                # `_is_wall()` 為 False 有三個理由(unreliable / spent=0 / 沒被拒),
+                # 前兩個要**先分辨出來**,否則文案會自相矛盾:spent=26,001 + unreliable
+                # 會印「這不是撞牆(撞牆的前提是先花得掉)」,而它明明花得掉,
+                # 還把人導向停權/assert_project() 這些錯方向。真帳本 2026-08-25 就帶
+                # unreliable,而人會去標這個旗標的日子正好是「當天一堆 403」那種日子。
+                if _b.get("unreliable"):
+                    warn.append(f"帳本 {_today} 標了 unreliable 又有 {_rej} 次被拒")
+                    lines.append(f"   🔴 **當天帳本被標 unreliable,同時有 {_rej} 次被拒** —— "
+                                 "這天的數字不能拿來校準天花板(所以 effective_limit 不採用它),"
+                                 "但被拒是真的。先確認是誰、為什麼標 unreliable,再決定這天算不算撞牆")
+                elif _spent <= 0:
+                    warn.append(f"被拒 {_rej} 次但當天 spent=0")
+                    lines.append(f"   🔴 **被拒 {_rej} 次而當天一 unit 都沒花成** —— 這不是撞牆"
+                                 "(撞牆的前提是先花得掉)。可能是整日停權、憑證/專案有問題,"
+                                 "或同一個 Cloud 專案被另一台機器吃光(Mac+MSI 共用時會)。"
+                                 "先跑 python scripts/quota_meter.py 對帳,再查 assert_project()")
+                elif _ref is None:
+                    warn.append(f"首次觀測到撞牆({_spent:,})")
+                    lines.append(f"   🔴 **這是帳本裡第一次觀測到撞牆**(花到 {_spent:,} 開始被拒)——"
+                                 "在此之前沒有牆可以比,所以無法判斷這是正常用滿還是天花板變矮。"
+                                 "記下這個值,之後就有參考點了")
+                elif _spent >= _ref * 0.95:
+                    # 預期內:資訊行,**不進 warn、不進 ntfy**。
+                    lines.append(f"   ℹ️ 花到 {_spent:,}(前次的牆 {_ref:,})才開始被拒 = 配額真的用完了,"
+                                 "這是設計預期(11 支/天刻意跑在 95%)。要多做事只有兩條路:"
+                                 "提額,或砍非發布的花費。跑 python scripts/quota_meter.py 看是誰吃掉的")
+                else:
+                    warn.append(f"配額牆變矮({_spent:,},前次 {_ref:,})")
+                    lines.append(f"   🔴 **只花到 {_spent:,} 就有 {_rej} 次被拒,而前次的牆是 {_ref:,}**"
+                                 f"({_spent/_ref*100:.0f}%)—— 天花板比我們以為的矮,"
+                                 "或有別的東西在吃同一個 Cloud 專案。這是本項當初被加進來的理由:"
+                                 "被拒次數比已用量更早示警。跑 quota_meter.py 對帳,並查 assert_project()")
+            elif _pct >= 95:
+                # 花很多但**零被拒** = 該做的都做成了。舊版在這裡進 warn,
+                # 那是把「刻意跑滿」報成異常,天天紅字。
+                lines.append(f"   ℹ️ 已用 {_pct:.0f}% 但零被拒 = 全部做成了,不是異常"
+                             "(這條線設計上就跑在 95%)")
     except Exception as _e:  # noqa: BLE001
         # 🔴 這裡原本是 `pass`。一個 NameError 因此靜音了三個月,而健檢**看起來一切正常**——
         # 那正是 memory verification-that-cannot-fail 的第①種「不會叫的警報」。
