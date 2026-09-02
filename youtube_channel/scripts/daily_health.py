@@ -307,10 +307,42 @@ def main() -> int:
             #    才自然收斂到新基準,而那時它確實已經是新常態了。
             # ③ 這只影響**告警**,不影響 effective_limit()/remaining() 的校準路徑——
             #    校準要跟得下來,告警不該跟著爛狀態走,兩者本來就不該用同一個參考點。
-            _prev = [int(v.get("spent", 0) or 0) for _d, v in _days.items()
-                     if _d != _today and _qm._is_wall(v)]
-            _ref = max(_prev) if _prev else None
+            _prev_walls = [int(v.get("spent", 0) or 0) for _d, v in _days.items()
+                           if _d != _today and _qm._is_wall(v)]
+            # 沒有前牆時**不要就此放棄**:某天成功花掉 X 就證明那天的容量 >= X,
+            # 那同樣是一個獨立於今天的參考點(quota_meter 的 floor 就是這個概念)。
+            # 原本沒有這層 fallback,於是「帳本裡只有今天是牆」就走「首次觀測到撞牆」——
+            # 而**平日不撞牆的產線每次撞牆都是這個狀態**,實測連跑 4 天四天都印「第一次」。
+            # 一個月撞一次牆的產線,每次都在 Carson 手機上收到「這是第一次」。
+            _prev_spend = [int(v.get("spent", 0) or 0) for _d, v in _days.items()
+                           if _d != _today and not v.get("unreliable")]
+            _ref = max(_prev_walls) if _prev_walls else (max(_prev_spend) if _prev_spend else None)
+            _ref_kind = "帳本最高的牆" if _prev_walls else "帳本最高的單日成功花費"
             _base = _ref or _lim
+            # 帶寬 65%。理由要說得出來,不能挑好看的數字:
+            #   · 實測牆值 19,645 / 21,858 / 23,341 / 26,001,最低/最高 = **75.55%**
+            #     —— 門檻 75% 距離一道**合法**的低牆只剩 0.55pp(145 units),
+            #     08-27 那道真牆再低 145 units 就會被誤報成「牆變矮」。
+            #   · 那個 75.55% 還跨了一次提額(19,645 是提額前的天花板);
+            #     只看提額後的三道牆是 21,858/26,001 = 84.1%,抖動其實更小。
+            #   · 腰斬 = 50%,砍三分之一 = 66.7%。
+            # 65% 在「合法低牆 75.55%」下方留 10.55pp、在「腰斬 50%」上方留 15pp,
+            # 兩邊都有 buffer 而不是貼著任一邊。
+            # ⚠️ 代價寫明:**砍幅小於三分之一時它叫不出來**,那是不喊狼來了的價格;
+            # 而那種砍幅若真的發生,排程會持續撞牆,由下面「沒退避」那條接住。
+            _BAND = 0.65
+
+            def _streak(pred) -> int:
+                """今天(含)往回連續幾天符合 pred。日期不連續就停 —— 中間斷掉的日子
+                不能當成「連續」,那會把兩段不同時期的事故黏成一段。"""
+                import datetime as _d2
+                n, cur = 0, _d2.date.fromisoformat(_today)
+                while True:
+                    b = _days.get(cur.isoformat())
+                    if not b or not pred(b):
+                        return n
+                    n += 1
+                    cur -= _d2.timedelta(days=1)
             _pct = _spent / max(_base, 1) * 100
 
             # 🔴 分母以前是 effective_limit(),它**涵蓋今天**,所以撞牆日恆印 100%。
@@ -318,8 +350,8 @@ def main() -> int:
             # 而 ntfy 上先看到的就是標題行。_ref 解耦了判準,這裡把分母也解耦。
             lines.append(
                 f"YouTube 配額: {_spent:,}/{_base:,} = {_pct:.0f}%"
-                + ("(分母=帳本裡最高的一道牆,不含今天)" if _ref
-                   else f"(分母=effective_limit {_lim:,};帳本裡還沒有牆可比)")
+                + (f"(分母={_ref_kind},不含今天)" if _ref
+                   else f"(分母=effective_limit {_lim:,};帳本裡沒有任何一天可比)")
                 + f"｜配額用罄被拒 {_rej} 次"
                 + (f"、浪費 {_rej_units:,} units" if _rej_units else ""))
             if not _days:
@@ -359,22 +391,30 @@ def main() -> int:
                     # (「查過 by_op」:record() 的 rejected 分支在寫 by_op 之前就 return,
                     # 結構上不可能記下哪個 op 被拒)。腰斬是 46%,離 75% 還很遠。
                     if _ref is None:
-                        warn.append(f"首次觀測到撞牆({_spent:,})")
-                        lines.append(f"   🔴 **這是帳本裡第一次觀測到撞牆**(花到 {_spent:,} 開始被拒)"
-                                     "—— 在此之前沒有牆可以比,無法判斷是正常用滿還是天花板變矮。"
-                                     "記下這個值,之後就有參考點了")
-                    elif _pct >= 75:
-                        lines.append(f"   ℹ️ 花到 {_spent:,}(帳本最高的牆 {_ref:,})才開始被拒 = "
-                                     "配額真的用完了,牆本身沒變矮"
+                        # 帳本裡**除了今天以外一天都沒有**。這是空帳本/首日,不是「第一次撞牆」——
+                        # 舊文案寫「這是帳本裡第一次觀測到撞牆」,而它每次都會這樣講。
+                        warn.append(f"撞牆於 {_spent:,},但帳本裡沒有任何一天可比")
+                        lines.append(f"   🔴 **花到 {_spent:,} 開始被拒,而帳本裡除了今天沒有別的日子**"
+                                     "—— 沒有參考點,無法判斷這是正常用滿還是天花板變矮。"
+                                     "明天起就有得比了;若這行連續出現,代表帳本一直被清空,那是另一個問題")
+                    elif _pct >= _BAND * 100:
+                        lines.append(f"   ℹ️ 花到 {_spent:,}({_ref_kind} {_ref:,} 的 {_pct:.0f}%)才開始被拒"
+                                     " = 配額真的用完了,牆本身沒變矮"
                                      + ("(用完是預期,但下面那條不是)" if _no_backoff else
                                         ",這是設計預期(11 支/天刻意跑在 95%)。"
                                         "要多做事只有兩條路:提額,或砍非發布的花費"))
                     else:
-                        warn.append(f"配額牆變矮({_spent:,},帳本最高 {_ref:,} = {_pct:.0f}%)")
-                        lines.append(f"   🔴 **只花到 {_spent:,} 就有 {_rej} 次被拒,而帳本裡最高的牆是"
-                                     f" {_ref:,}({_pct:.0f}%)** —— 天花板比我們以為的矮,或有別的東西"
-                                     "在吃同一個 Cloud 專案。這是本項當初被加進來的理由:"
-                                     "被拒次數比已用量更早示警。跑 quota_meter.py 對帳,查 assert_project()")
+                        # 永久調降 = 連續 30 天同一則紅字,而同一句話講 30 遍沒有人會讀到第 3 天。
+                        # 帶上天數讓它從噪音變成趨勢:「已連續 17 天」在第 17 天還看得懂。
+                        _n = _streak(lambda b: _qm._is_wall(b)
+                                     and int(b.get("spent", 0) or 0) < _base * _BAND)
+                        _d = f",已連續 {_n} 天" if _n >= 2 else ""
+                        warn.append(f"配額牆變矮({_spent:,} = {_ref_kind} {_ref:,} 的 {_pct:.0f}%{_d})")
+                        lines.append(f"   🔴 **只花到 {_spent:,} 就有 {_rej} 次被拒,而{_ref_kind}是"
+                                     f" {_ref:,}({_pct:.0f}%){_d}** —— 天花板比我們以為的矮,或有別的"
+                                     "東西在吃同一個 Cloud 專案。這是本項當初被加進來的理由:"
+                                     "被拒次數比已用量更早示警。跑 quota_meter.py 對帳,查 assert_project()"
+                                     + (f"。連續 {_n} 天代表這已經不是單日事故,是新的容量" if _n >= 3 else ""))
 
                     # ── 撞牆之後有沒有退避 ──────────────────────────────────────
                     # 和牆高**獨立**判、可同時叫。「配額用完了」和「配額用完了還白打 935 次、
@@ -387,11 +427,15 @@ def main() -> int:
                     #       正常日 850 / 325 / 16 units = 3.6% / 1.3% / 0.07%)。
                     # 兩個都收是因為 rejected_units 可能沒被記(今天就是 None)。
                     if _no_backoff:
+                        _nb = _streak(lambda b: int(b.get("rejected_calls", 0) or 0) > 100
+                                      or int(b.get("rejected_units", 0) or 0) > _base * 0.10)
+                        _nd = f",已連續 {_nb} 天" if _nb >= 2 else ""
                         warn.append(f"撞牆後沒退避(被拒 {_rej} 次"
-                                    + (f"、浪費 {_rej_units:,} units" if _rej_units else "") + ")")
+                                    + (f"、浪費 {_rej_units:,} units" if _rej_units else "") + _nd + ")")
                         lines.append(f"   🔴 **撞牆之後還被拒了 {_rej} 次"
                                      + (f",白打掉 {_rej_units:,} units(牆的 {_rej_units/max(_base,1)*100:.0f}%)"
                                         if _rej_units else "")
+                                     + _nd
                                      + "** —— 配額用完不是問題,問題是排程**沒有退避**,"
                                      "撞牆後還在照跑。查 YT_QUOTA_ENFORCE 是不是關著,"
                                      "以及哪支腳本沒有接 QuotaExhausted")
