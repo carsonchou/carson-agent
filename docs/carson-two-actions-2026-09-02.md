@@ -5,7 +5,7 @@
 
 ## ① 送配額提額申請 — 約 15 分鐘
 
-**為什麼急**:配額每天先歸零,**79 支做好的片發不出去**,庫存每天再 +11;審核要 2~4 週,晚一天送晚一天生效。
+**為什麼急**:配額每天先歸零,**81 支做好的片發不出去**,庫存近四晚再 +35(均 +9/日);審核要 2~4 週,晚一天送晚一天生效。
 
 表單入口:https://support.google.com/youtube/contact/yt_api_form
 所有欄位答案照抄:`youtube_channel/docs/yt_quota_increase_2026-09.md` §4(justification 整段直接貼)
