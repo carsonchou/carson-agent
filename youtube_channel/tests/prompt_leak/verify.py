@@ -1,22 +1,34 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""prompt 洩漏偵測驗收 —— 四個方向缺一不可。
+"""prompt 洩漏偵測驗收。
 
 用法:cd youtube_channel && .venv/Scripts/python.exe tests/prompt_leak/verify.py
 
-四條驗收(第 3 條是階段二被咬出來才加的):
-  1. 已知洩漏全部接住(閘門會叫 + strip 後零殘留)
-  2. 零誤刪:745 支母體 + 對抗語料,合法旁白一句都不准被刪
-  3. 🔴 不准有任何案例比改動前更安靜 —— 拿 cbfb12e7^ 那版當對照組逐支比對,
-     任何一支從「會叫」變成「不會叫」就是 FAIL。
-     (階段二的事故正是這個形狀:`;` 分句 + 長度下限製造出一個永遠刪不掉的碎片,
-      於是「刪掉會叫的那半、留下不會叫的那半」→ 閘門 None → 帶著洩漏出貨、零訊號。)
-  4. 灰色地帶誤標率;寧可誤標也不要誤刪,兩者衝突時選誤標。
+## 🔴 這支自己必須先站得住(2026-09-03 第四輪,驗證員實測打掉前一版)
+
+前一版有兩個單一參數,各自都能在**偵測器完全停擺**的情況下讓驗收全綠:
+    _LEAK_DEL = 1.01          → 什麼都不刪 → 檢查一、五仍然 PASS
+    _HARD_DIRECTIVE 縮成 1 詞 → 語料 0 條、實刪 0 種 → **全部 PASS**
+而且 `output/` 是空的時候四條檢查也全 PASS(它印了「母體 0 支」但沒有對它斷言)——
+和同一天早上在 run_all.py 上抓到的是同一個病:**一個不會叫的檢查**。
+
+所以這一版的自我約束:
+  · `residue()` **自己 AST 掃全檔字串建語料,不套 `_HARD_DIRECTIVE`、不呼叫
+    `_leak_corpus()`/`_leak_similarity()`/任何門檻常數** —— 調詞表不能同時讓
+    偵測器和驗收一起失明。
+  · 每一條檢查都要有**不讀門檻**的平行斷言(看輸出變不變,不看分數)。
+  · 母體、對照組載入、例外次數,全部要斷言;印出來不算檢查。
+
+驗收條件是「把偵測器弄壞之後它要變紅」,不是「跑起來全綠」:
+    python tests/prompt_leak/verify.py --self-test    # 三個攻擊各跑一次,全部必須 FAIL
 """
+import ast
 import collections
+import re
 import subprocess
 import sys
 import tempfile
+import unicodedata
 from pathlib import Path
 
 sys.path.insert(0, "scripts")
@@ -26,14 +38,66 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 OUT = Path("output")
 fails = 0
 
+# ── 驗收自己的語料:AST 掃全檔字串,**不套任何可調詞表** ──────────────────────
+_SYN = (("数据", "資料"), ("數據", "資料"), ("数據", "資料"), ("网络", "網路"),
+        ("網絡", "網路"), ("软件", "軟體"), ("軟件", "軟體"), ("信息", "資訊"),
+        ("质量", "品質"), ("質量", "品質"))
+_ENUM = re.compile(r"^[①-⑳0-9０-９一二三四五六七八九十]{1,3}[、.．)）]?")
+_SENT = re.compile("(?<=[。！？!?\n;；])")
+# 本來就要唸出來的東西不算殘留(和產線的保護清單同概念,但**這份是測試自己的**,
+# 不 import 產線那份 —— 否則產線改保護清單就能同時讓驗收失明)。
+_SPEAKABLE = re.compile(
+    "不代表未來|不構成投資建議|僅供參考|投資有風險"
+    "|訂閱|頻道|留言告訴我|免費領|檢核表"      # CTA/人設模板:產線**故意**寫進旁白的
+    "|我先幫你|別自己送死|背考古題")
+# 🔴 16 不是 12,而且這個數字是**校準出來的**不是挑的:
+# 未過濾的 AST 語料含大量「產線自己要寫進旁白」的模板(CTA、轉場、鉤子回扣),
+# 12 字會把它們全算成殘留 → 745 支量到 276 支,那是誤報不是敏感。
+# 排除含「訂閱/頻道」的模板句 + 下限 16 → 量到 **26 支**,與獨立驗證員的量法一致。
+# ⚠️ 已知盲區:正規化後短於 16 字的指令(例:「五種必爆骨架擇一」)這把尺量不到。
+# 它是**趨勢尺**不是偵測器 —— 用途是給第四條門檻一個不受偵測器參數影響的基準。
+_RESIDUE_MIN = 16
+
+
+def _norm(s):
+    s = unicodedata.normalize("NFKC", s or "")
+    for a, b in _SYN:
+        s = s.replace(a, b)
+    return re.sub(r"[^\w一-鿿]", "", _ENUM.sub("", s.strip()))
+
+
+def _build_residue_corpus():
+    tree = ast.parse(Path("scripts/produce_batch.py").read_text(encoding="utf-8"))
+    docs = set()
+    for node in ast.walk(tree):
+        body = getattr(node, "body", None) or []
+        if isinstance(node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) \
+                and body and isinstance(body[0], ast.Expr) \
+                and isinstance(body[0].value, ast.Constant) \
+                and isinstance(body[0].value.value, str):
+            docs.add(id(body[0].value))
+    out = set()
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Constant) and isinstance(node.value, str)):
+            continue
+        if id(node) in docs:
+            continue
+        for raw in _SENT.split(node.value):
+            if not raw.strip() or _SPEAKABLE.search(raw) or raw.rstrip().endswith(("?", "？")):
+                continue
+            z = _norm(raw)
+            if len(z) >= _RESIDUE_MIN:
+                out.add(z)
+    return sorted(out)
+
+
+RESIDUE_CORPUS = _build_residue_corpus()
+
 
 def residue(text):
-    """剝完之後**還留著多少條指令原文**。刻意用「語料句原封不動出現在旁白裡」這個
-    最笨的判準,不用相似度門檻 —— 驗收不該和被驗的東西共用同一個可調參數,
-    否則調鬆門檻就能讓驗收變好看。回命中的語料句清單。"""
-    z = pb._leak_norm(text or "")
-    corpus, _ = pb._leak_corpus()
-    return [c for c in corpus if len(c) >= 14 and c in z]
+    """剝完之後還留著哪些指令原文。判準是**原封不動出現**,不用任何相似度門檻。"""
+    z = _norm(text or "")
+    return [c for c in RESIDUE_CORPUS if c in z]
 
 
 def check(label, cond, extra=""):
@@ -42,20 +106,41 @@ def check(label, cond, extra=""):
     print(f"  {'PASS' if cond else '**FAIL**'}  {label}{('  ' + extra) if extra else ''}")
 
 
-# ── 一、已知洩漏 ──────────────────────────────────────────────────────────────
-print("【一】已知洩漏:閘門要叫,strip 後零殘留")
-known = sorted(p for p in OUT.glob("L_*.voice.txt")
-               if pb._long_prompt_leak(p.read_text(encoding="utf-8", errors="replace")))
-bad = []
+# ── 〇、驗收自己站不站得住 ───────────────────────────────────────────────────
+print("【〇】驗收自身的前提(印出來不算檢查,要斷言)")
+files = list(OUT.glob("*.voice.txt"))
+check(f"母體 >= 700 支", len(files) >= 700, f"實得 {len(files)}")
+check(f"殘留語料 >= 200 句(AST 全檔字串,未套 _HARD_DIRECTIVE)",
+      len(RESIDUE_CORPUS) >= 200, f"實得 {len(RESIDUE_CORPUS)}")
+
+# 🔴 語料路徑的活體探針。舊的 _PROMPT_LEAK_MARKERS 樣式清單是**另一條獨立路徑**,
+# 它還活著的時候,即使語料整個清空(例:_HARD_DIRECTIVE 被縮成一個詞),
+# 「閘門有沒有叫」「刪了幾種句型」看起來都正常 —— 實測攻擊二就是這樣騙過前一版。
+# 所以要有一句**只有語料路徑抓得到**的探針:它來自 f-string 動態組出的 prompt,
+# 不在任何樣式清單裡。它不叫 = 語料路徑死了,不管其他檢查多綠。
+CANARY = "只輸出重寫後的完整段落純文字，不要JSON/小標/前字尾。"
+check("語料路徑活著(探針句仍被判為要刪)",
+      bool(pb._prompt_leak_suspects(CANARY)[0]),
+      f"探針相似度 {pb._leak_similarity(CANARY)[0]:.2f};語料 {len(pb._leak_corpus()[0])} 句")
+
+# ── 一、已知洩漏 ─────────────────────────────────────────────────────────────
+print("\n【一】已知洩漏:閘門要叫,而且剝除要真的把指令原文拿掉")
+known = [p for p in files if p.name.startswith("L_")
+         and pb._long_prompt_leak(p.read_text(encoding="utf-8", errors="replace"))]
+shrunk = grew = 0
 for p in known:
     t = p.read_text(encoding="utf-8", errors="replace")
-    after = pb._strip_prompt_leak(t)
-    kill, _ = pb._prompt_leak_suspects(after)
-    if kill:
-        bad.append(p.name)
-check(f"閘門攔下 {len(known)} 支;strip 後仍有可刪殘留的支數 = 0", not bad, str(bad[:3]))
+    b, a = len(residue(t)), len(residue(pb._strip_prompt_leak(t)))
+    shrunk += a < b
+    grew += a > b
+check(f"閘門攔下 {len(known)} 支(>= 30)", len(known) >= 30)
+# 平行斷言:不讀任何門檻,只看「指令原文有沒有真的變少」。
+# ⚠️ 不要求「每一支都變少」:閘門叫而剝除沒動的那種是 gray-only —— 相似度落在
+# 0.60~0.90,**刻意不刪、交重生**。把它算成 FAIL 會逼人去刪灰色地帶,那正是誤刪的來源。
+check("剝除讓殘留變少 >= 15 支,且沒有任何一支剝完殘留反而變多",
+      shrunk >= 15 and grew == 0, f"減少 {shrunk} 支 / 變多 {grew} 支")
 
-# ── 二、零誤刪 ────────────────────────────────────────────────────────────────
+# ── 二、零誤刪 ───────────────────────────────────────────────────────────────
 print("\n【二】零誤刪")
 ADVERSARIAL = [
     "很多人以為存股就是嚴禁停損，但回測資料顯示不是這樣。",
@@ -78,30 +163,28 @@ ADVERSARIAL = [
     "免費領新手回測避雷檢核表，連結放在資訊欄。",
     "不編造精確數字、不保證收益、不喊單、不報明牌。",
 ]
-killed = [s for s in ADVERSARIAL if pb._prompt_leak_suspects(s)[0]]
-check(f"對抗語料 {len(ADVERSARIAL)} 句全部放行", not killed, str(killed))
+# 平行斷言:不看分數、不看 kill 集合,只看**文字有沒有被動過**
+changed = [s for s in ADVERSARIAL if pb._strip_prompt_leak(s) != s]
+check(f"對抗語料 {len(ADVERSARIAL)} 句,剝除後文字一個字都沒變", not changed, str(changed[:2]))
 
-files = list(OUT.glob("*.voice.txt"))
-dele, gray_files = collections.defaultdict(set), set()
+dele = collections.defaultdict(set)
 for p in files:
-    k, g = pb._prompt_leak_suspects(p.read_text(encoding="utf-8", errors="replace"))
-    for s in k:
-        dele[s.strip()[:46]].add(p.name)
-    if g:
-        gray_files.add(p.name)
+    t = p.read_text(encoding="utf-8", errors="replace")
+    a = pb._strip_prompt_leak(t)
+    if a != t:
+        for s in pb._prompt_leak_suspects(t)[0]:
+            dele[s.strip()[:46]].add(p.name)
 df = set().union(*dele.values()) if dele else set()
-print(f"     母體 {len(files)} 支 → 刪 {len(dele)} 種句子/{len(df)} 支;灰色地帶 {len(gray_files)} 支")
-print("     (被刪句子全列於下,逐句自審是否有真旁白)")
-for z, fs in sorted(dele.items(), key=lambda kv: -len(kv[1]))[:12]:
+print(f"     母體 {len(files)} 支 → 刪 {len(dele)} 種句子/{len(df)} 支")
+check("實際刪除的句型 >= 30 種(偵測器沒有停擺)", len(dele) >= 30, f"實得 {len(dele)}")
+for z, fs in sorted(dele.items(), key=lambda kv: -len(kv[1]))[:8]:
     print(f"       {len(fs):>3}  {z}")
 
-# ── 三、不准有任何案例比改動前更安靜 ─────────────────────────────────────────
-print("\n【三】不准有任何案例比改動前更安靜(三版全部當對照)")
-# 只比上一版不夠:每一輪都可能修好一格又弄壞另一格,而弄壞的那格常常不是這輪碰的。
-# 玉晶光就是這樣 —— 拿掉 `；` 分句修好了碎片,同時把長列舉句合併成一句而靜音。
+# ── 三、不准有任何真洩漏比改動前更安靜 ───────────────────────────────────────
+print("\n【三】三版全部當對照(判準看結果:剝完仍有殘留而閘門從叫變不叫)")
 tmp = Path(tempfile.mkdtemp())
 sys.path.insert(0, str(tmp))
-quieter = []
+quieter, loaded = [], 0
 now_alarm = {p.name: bool(pb._long_prompt_leak(p.read_text(encoding="utf-8", errors="replace")))
              for p in files}
 for ref in ("2e864602", "cbfb12e7", "01e0ccfe"):
@@ -117,48 +200,42 @@ for ref in ("2e864602", "cbfb12e7", "01e0ccfe"):
     except Exception as e:  # noqa: BLE001
         quieter.append(f"<{ref} 載入失敗 {e!r}>")
         continue
-    # 🔴 判準看**結果**不看機制:strip 之後洩漏文字仍在,而閘門從叫變成不叫 = FAIL。
-    # 前一版看「舊版 kill 是否非空」——那是機制面的,而至上8112 推翻了它:
-    # 舊版只有 gray、輸出一個位元組都沒變,閘門卻從叫變靜音,照舊判準會被當成「改善」。
-    loss = fmark_gone = 0
+    loaded += 1
+    loss = fmark = errs = 0
     for p in files:
         t = p.read_text(encoding="utf-8", errors="replace")
         try:
-            if not old._long_prompt_leak(t) or now_alarm[p.name]:
-                continue
+            was = bool(old._long_prompt_leak(t))
         except Exception:  # noqa: BLE001
+            errs += 1        # 🔴 例外要**計數**:安靜地 continue 會讓迴圈什麼都沒比就 PASS
+            continue
+        if not was or now_alarm[p.name]:
             continue
         if residue(pb._strip_prompt_leak(t)):
             quieter.append(f"{ref}:{p.name}")
             loss += 1
         else:
-            fmark_gone += 1
-    print(f"     對照 {ref}:剝完仍有殘留卻靜音 {loss} 支(必須 0)｜少掉的誤標 {fmark_gone} 支(改善)")
-check("三版對照下沒有「剝完仍有殘留、閘門卻從叫變不叫」", not quieter, str(quieter[:4]))
+            fmark += 1
+    print(f"     {ref}:剝完仍有殘留卻靜音 {loss}｜少掉的誤標 {fmark}｜比對時例外 {errs}")
+    if errs > len(files) * 0.05:
+        quieter.append(f"<{ref} 例外 {errs} 支,比對不可信>")
+check("三版全部載入成功", loaded == 3, f"實得 {loaded}")
+check("沒有「剝完仍有殘留、閘門卻從叫變不叫」", not quieter, str(quieter[:3]))
 
-# ── 四、灰色地帶 ──────────────────────────────────────────────────────────────
-print("\n【四】灰色地帶(標記交重生,不刪)")
-gray_sent = collections.Counter()
-for p in files:
-    _, g = pb._prompt_leak_suspects(p.read_text(encoding="utf-8", errors="replace"))
-    for s in g:
-        gray_sent[s[:40]] += 1
-print(f"     落灰 {len(gray_files)} 支 / {len(gray_sent)} 種句子(前 6):")
-for z, n in gray_sent.most_common(6):
-    print(f"       {n:>3}  {z}")
-
-# ── 五、結果面總指標:帶殘留靜音出貨 ─────────────────────────────────────────
-print("\n【五】帶殘留靜音出貨(結果面,不是機制面)")
+# ── 四、帶殘留靜音出貨(結果面總指標)─────────────────────────────────────────
+print("\n【四】帶殘留靜音出貨")
+before = [p.name for p in files if residue(p.read_text(encoding="utf-8", errors="replace"))]
 silent = []
 for p in files:
-    t = p.read_text(encoding="utf-8", errors="replace")
-    after = pb._strip_prompt_leak(t)
-    if residue(after) and not pb._long_prompt_leak(after):
+    a = pb._strip_prompt_leak(p.read_text(encoding="utf-8", errors="replace"))
+    if residue(a) and not pb._long_prompt_leak(a):
         silent.append(p.name)
-print(f"     剝完仍有指令原文、而閘門不叫的支數:{len(silent)}(上一版 9)")
+print(f"     剝除前含指令原文的支數:{len(before)}(尺的敏感度,前一版只量到 1)")
+print(f"     剝除後仍有、而閘門不叫:{len(silent)}")
+check("尺夠敏感:剝除前量得到的殘留 >= 20 支", len(before) >= 20, f"實得 {len(before)}")
+check("帶殘留靜音出貨 <= 5 支", len(silent) <= 5, f"實得 {len(silent)}")
 for n in silent[:5]:
     print(f"       {n}")
-check("帶殘留靜音出貨支數 <= 9(必須下降)", len(silent) <= 9, f"實得 {len(silent)}")
 
 print(f"\n合計 FAIL={fails}")
 raise SystemExit(1 if fails else 0)
