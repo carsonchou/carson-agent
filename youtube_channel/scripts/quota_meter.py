@@ -133,20 +133,58 @@ def _pacific_date(now_utc=None):
 
 
 def _load():
+    """回帳本 dict。可能帶兩個底線開頭的旗標(`_save` 會剝掉,不會寫進檔案):
+
+    · `_from_bak`   —— 正本解不開,這份是從 .bak 救回來的(最多舊一次寫入)
+    · `_unreadable` —— 正本和 .bak 都解不開,**這份是空殼不是空帳本**
+
+    🔴 2026-09-03 為什麼要分這兩件事:原本不管什麼錯都回 `{"days": {}}`,
+    於是「檔案寫到一半」和「今天還沒開始花」長得**一模一樣**。而 `remaining()` 讀到
+    空帳本會算出「今天花了 0」= 配額全滿,發布閘門就放行一整批 —— 也就是說
+    帳本壞掉的後果不是停擺,是**超發**,發到一半 403、半批成功卻回報成功
+    (memory `yt-quota-partial-failure-silent-bad-data` 記過這個事故)。
+    一個管花費的閘門,「我不知道」必須等於「先別花」,不能等於「隨便花」。
+
+    檔案不存在是**合法**的空帳本(第一次跑),不標記。"""
+    if not STATE.exists():
+        return {"days": {}}
     try:
         return json.loads(STATE.read_text(encoding="utf-8"))
     except Exception:  # noqa: BLE001
-        return {"days": {}}
+        pass
+    bak = STATE.with_suffix(STATE.suffix + ".bak")   # save_json_atomic 每次覆蓋前留的
+    try:
+        if bak.exists():
+            d = json.loads(bak.read_text(encoding="utf-8"))
+            d["_from_bak"] = True
+            print(f"[quota] ⚠️ 帳本正本解不開,已改用 {bak.name}(可能少最後一次寫入)",
+                  file=sys.stderr)
+            return d
+    except Exception:  # noqa: BLE001
+        pass
+    print("[quota] 🔴 帳本正本與 .bak 都解不開 —— remaining() 會 fail-closed 回 0",
+          file=sys.stderr)
+    return {"days": {}, "_unreadable": True}
 
 
 def _save(d):
+    d = {k: v for k, v in d.items() if not str(k).startswith("_")}   # 旗標不落地
     try:
         import studio_common as sc
         sc.save_json_atomic(STATE, d)
     except Exception:  # noqa: BLE001
         try:
+            # 🔴 2026-09-03 這裡原本是 `STATE.write_text(...)` —— **直接寫最終路徑,非原子**,
+            # 而它正是半截檔唯一的產生途徑。觸發條件不是罕見情況:`save_json_atomic` 在
+            # Windows 上對 `os.replace` 重試 10 次 `PermissionError` 之後就重拋,而那個
+            # PermissionError 的成因**就是目標檔被別的行程佔用** —— 也就是說原子保證
+            # 在爭用時失效,而爭用正是它存在的理由。四條線共用這個 repo,爭用是常態。
+            # 退路不能拿掉(見下面那層的理由),所以**把退路也做成原子的**:
+            # 自帶 tmp + os.replace,不依賴 studio_common 也能保持「讀者永遠看到完整檔」。
             STATE.parent.mkdir(parents=True, exist_ok=True)
-            STATE.write_text(json.dumps(d, ensure_ascii=False, indent=1), encoding="utf-8")
+            tmp = STATE.with_suffix(STATE.suffix + f".tmp2.{os.getpid()}")
+            tmp.write_text(json.dumps(d, ensure_ascii=False, indent=1), encoding="utf-8")
+            os.replace(tmp, STATE)
         except Exception:  # noqa: BLE001
             # 🔴 這一層絕對不能省。`_charge_once` 是在 `_orig_next` **之前**呼叫的,
             # 也就是說寫檔失敗會讓**影片連傳都沒傳出去**;一般呼叫則是在 finally 裡炸,
@@ -269,11 +307,25 @@ def record(op, units, rejected=False):
     # 沒撞牆且日支出都低於 DAILY_LIMIT(產線停擺或淡季),ceil 老化消失、floor 也不夠高,
     # 天花板無聲回落到**猜的** 19,645,產線恢復那天就少發約 2.9 支長片而且沒有任何錯誤訊號。
     # 這是 08-26「擋人的是我的假天花板」第三次換皮出現。上限仍有界(至多 31 筆)。
+    # 🔴 2026-09-03 原本只保護撞牆日,而 `effective_limit()` 自 cefa9ba8 起是
+    # `max(ceil, floor_since)` —— **兩個來源,裁切只保護了第一個**。
+    # 實測後果:36 天帳本、提額後某天成功花到 31,000(那天不是撞牆日,所以不受保護),
+    # 它老化出 30 天窗被裁掉之後 eff 從 31,000 掉回 26,001,少 4,999 units
+    # ≈ 2.3 支長片,而且零錯誤訊號。方向是**多擋人**,和 08-26「擋人的是我的假天花板」
+    # 同科,也正是 32b1c2f3 自己要治的「資料被裁掉不是訊號」—— 治了 ceil,漏了 floor_since。
+    # 保護清單改成向 `_scan()` 問,不在這裡複製判準(上限至多 32 筆)。
     if len(d["days"]) > 30:
-        _wall = max((k for k, v in d["days"].items() if _is_wall(v)), default=None)
+        _keep = {k for k in _scan(d["days"])[3:] if k}
         for k in sorted(d["days"])[:-30]:
-            if k != _wall:
+            if k not in _keep:
                 d["days"].pop(k, None)
+    if d.get("_unreadable"):
+        # 🔴 帳本正本和 .bak 都解不開時,`_load()` 回的是空殼。這時候寫回去等於
+        # 拿一份幾乎空的帳本覆蓋正本,而 save_json_atomic 覆蓋前會先把**現在那份壞檔**
+        # 複製成 .bak —— 最後一份可能還救得回來的備份就被壞檔蓋掉了。
+        # 少記一筆帳,遠比毀掉唯一的復原點便宜。
+        print("[quota] 🔴 帳本讀不到,這一筆不寫回(避免覆蓋掉還能救的 .bak)", file=sys.stderr)
+        return b["spent"]
     _save(d)
     return b["spent"]
 
@@ -296,13 +348,19 @@ def _unrecord(op, units):
     _save(d)
 
 
-def _scan():
-    """回 (floor, ceiling, floor_since):實測推出來的每日上限區間。
+def _scan(days=None):
+    """回 (floor, ceiling, floor_since, ceil_day, since_day):實測推出來的每日上限區間。
 
     · floor       = **曾經成功花到的最高值**(下界:至少有這麼多)
     · ceiling     = **第一次被拒時的花費水位**(上界:大約就在這裡撞牆)
     · floor_since = 同 floor,但**只算撞牆日(含)之後**的日子(給 effective_limit 用)
-    三者都可能是 None(還沒觀測到)。
+    前三者都可能是 None(還沒觀測到);後兩個是「這個上/下界取自哪一天」。
+
+    🔴 2026-09-03 為什麼要回日期:裁帳本時得知道**哪幾天不能裁**,而那個判斷
+    原本在 `record()` 裡各寫一份(只保護撞牆日),漏了 `floor_since` 取自的那天。
+    參數 `days` 讓 `record()` 能拿「即將寫回去的那份」來問,不必再 `_load()` 一次,
+    也就不必在那裡複製一份判準 —— 同一件事兩份實作是這個子系統的慣犯
+    (`_is_wall` 就是為了同一個病被抽出來的)。
 
     🔴 2026-08-26 為什麼要有這支:`DAILY_LIMIT` 原本寫死 10000,而那個數字是**猜的**
     ——memory 裡兩份紀錄互相矛盾(一份說 10,000、一份說實測 ≥18,000)。
@@ -310,10 +368,10 @@ def _scan():
     沒被驗證的常數上。實測結果:08-26 一天花掉 **11,222 units 全部成功、真 403 只有 1 次**,
     而同一天我的預留額度擋下 10 次 —— **擋人的是我的假天花板,不是 YouTube。**
     通則(這個 session 第四次):**拿一個數字去做決策之前,先確認它是量出來的還是猜的。**"""
-    d = _load()
+    _days = days if days is not None else (_load().get("days") or {})
     floor = ceil = None
     _ceil_day = None   # 上界取自哪一天(要挑最近的那天,見下方說明)
-    for day, b in (d.get("days") or {}).items():
+    for day, b in _days.items():
         # 標記不可信的日子不能拿來校準:2026-08-25 是在「被拒的呼叫也算進 spent」
         # 那版計量下記的 18,914,把它當下界會讓天花板比真值高一倍。
         # 自我校準吃到污染資料,比寫死一個猜的常數更危險——它看起來像實測。
@@ -336,19 +394,20 @@ def _scan():
     # 撞牆日(含)之後才成功花到的最高值。effective_limit() 要用的是這個而不是全期 floor,
     # 理由見那支的 docstring。
     floor_since = None
-    for day, b in (d.get("days") or {}).items():
+    _since_day = None
+    for day, b in _days.items():
         if b.get("unreliable") or (_ceil_day and str(day) < str(_ceil_day)):
             continue
         sp = int(b.get("spent", 0) or 0)
         if sp and (floor_since is None or sp > floor_since):
-            floor_since = sp
-    return floor, ceil, floor_since
+            floor_since, _since_day = sp, day
+    return floor, ceil, floor_since, _ceil_day, _since_day
 
 
 def observed():
     """回 (floor, ceiling) —— 見 `_scan()`。保留兩元組是因為外部有人在用
     (repo root 的 `scripts/quota_ceiling_watch.py` 就解成兩個值),不要改成三元組。"""
-    floor, ceil, _ = _scan()
+    floor, ceil, *_ = _scan()
     return floor, ceil
 
 
@@ -370,7 +429,7 @@ def effective_limit():
     而全期 floor 還留著調降前的舊高水位,會永久頂住估計值——那就是 08-27→09-01
     「取 min 學不會調高」的鏡像,同一種病換個方向。
     所以 floor 只採**撞牆日(含)之後**的:提額跟得上、降額也跟得下。"""
-    floor, ceil, floor_since = _scan()
+    floor, ceil, floor_since, *_ = _scan()
     if ceil:
         return max(ceil, floor_since or 0)
     if floor and floor > DAILY_LIMIT:
@@ -431,6 +490,17 @@ def assert_project():
 
 
 def remaining(day=None):
+    """帳本讀不到時回 0(fail-closed)。
+
+    🔴 2026-09-03 這一行是整個修法的重點。`spent()` 讀到空殼會回 0,於是
+    `remaining()` 算出「今天一 unit 都沒花」= 配額全滿,發布閘門放行一整批。
+    也就是說**帳本壞掉的後果不是停擺,是超發** —— 發到一半 403、半批成功卻回報成功。
+    管花費的閘門,「我不知道」必須等於「先別花」。
+    停下來是可回復的(明天再發),超發不是(影片已經上去了、配額已經燒掉了)。
+    這個狀態不會靜音:`_load()` 會往 stderr 印,而 09:00 的 daily_health
+    有「帳本讀不到」那條檢查會叫。"""
+    if _load().get("_unreadable"):
+        return 0
     return max(0, effective_limit() - spent(day))
 
 
