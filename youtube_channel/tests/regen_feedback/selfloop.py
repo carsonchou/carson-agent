@@ -54,15 +54,24 @@ LOG = ROOT / "STUDIO" / "ops_log.txt"
 
 # 六條迴圈各自的 log 前綴。名稱要跟著 produce_batch 的 log 走 ——
 # 少收一種就會像第一版那樣「量到的比實際少一個數量級」而且不會有訊號。
+# (log 前綴, 顯示名)。⚠️ 前綴就是 log 裡逐字的那一段 —— 正規式由它導出,
+# 自檢也拿它比對。第一版把顯示名寫成「鎖題終檢」而 log 是「鎖題長片終檢」,
+# 於是自檢把 296 行**已經正確收到**的資料誤報成「沒收到」。
+# 同一個東西寫兩份就會分岔,這條線今天已經證明過三次 —— 所以只留一份。
 KINDS = (
-    ("A4長片", r"A4長片第(\d+)次重生"),
-    ("鎖題終檢", r"鎖題長片終檢第(\d+)次重生"),
-    ("標題閘門", r"標題閘門第(\d+)次重生"),
-    ("Shorts閘門", r"Shorts閘門第(\d+)次重生"),
-    ("A2捏造績效", r"A2捏造績效第(\d+)次重生"),
+    ("A4長片", "A4長片"),
+    ("鎖題長片終檢", "鎖題終檢"),
+    ("標題閘門", "標題閘門"),
+    ("Shorts閘門", "Shorts閘門"),
+    ("A2捏造績效", "A2捏造績效"),
 )
 LINE = re.compile(r"^\[(\d\d-\d\d) [\d:]+\] 補產·重生｜(.+)$")
 _SINCE = re.compile(r"^\d\d-\d\d$")
+# 🔴 KINDS 漏收一種就會**靜默少算**,而那正是上面那行註解自己警告的形狀:
+# 第一版漏了四種(只收 A4 與鎖題終檢),這一版仍漏了 A1b(6/221 = 2.7%)。
+# 與其每次靠人記得補,不如讓它**自己講**:掃 log 裡所有 `X第N次重生` 的前綴,
+# 不在 KINDS 裡的一律列出來。以後新增迴圈也不會無聲漏收。
+ANY_KIND = re.compile(r"^(.+?)第\d+次重生:")
 
 
 def family(reason):
@@ -104,25 +113,25 @@ def main():
 
     # 依計數器相鄰組 run:同一種迴圈,序號 n → n+1 才配對;看到 n<=前一個就開新 run。
     runs = collections.defaultdict(list)      # (迴圈別, run 序) → [(序號, 理由)]
-    cur = {k: [0, None] for k, _ in KINDS}    # 迴圈別 → [run 序, 上一個序號]
+    cur = {pre: [0, None] for pre, _ in KINDS}   # 迴圈別 → [run 序, 上一個序號]
     for ln in raw[start:]:
         m = LINE.match(ln.strip())
         if not m:
             continue
         rest = m.group(2)
-        for kind, pat in KINDS:
-            mm = re.match(pat + r":(.+?)｜", rest)
+        for pre, name in KINDS:
+            mm = re.match(re.escape(pre) + r"第(\d+)次重生:(.+?)｜", rest)
             if not mm:
                 continue
             n, reason = int(mm.group(1)), mm.group(2).strip()
-            prev = cur[kind][1]
+            prev = cur[pre][1]
             if prev is None or n <= prev:      # 新的一支片(序號歸 1 或倒退)
-                cur[kind][0] += 1
-            cur[kind][1] = n
-            runs[(kind, cur[kind][0])].append((n, reason))
+                cur[pre][0] += 1
+            cur[pre][1] = n
+            runs[(name, cur[pre][0])].append((n, reason))
             break
 
-    pairs = same = 0
+    pairs = same = same_g = 0
     trans = collections.Counter()
     by_kind = collections.Counter()
     for (kind, _r), seq in runs.items():
@@ -132,8 +141,19 @@ def main():
             pairs += 1
             f1, f2 = family(r1), family(r2)
             same += f1 == f2
+            same_g += r1 == r2          # 閘門級:失敗訊息逐字相同
             trans[(f1, f2)] += 1
             by_kind[kind] += 1
+
+    # 自檢:有沒有 KINDS 沒收的迴圈前綴
+    seen, known = collections.Counter(), {pre for pre, _ in KINDS}
+    for ln in raw[start:]:
+        m = LINE.match(ln.strip())
+        if not m:
+            continue
+        mm = ANY_KIND.match(m.group(2))
+        if mm and mm.group(1).strip() not in known:
+            seen[mm.group(1).strip()] += 1
 
     win = f"(--since {a.since},從第 {start + 1} 行起)" if a.since else "(全部)"
     print(f"重生日誌 {win}:{len(runs)} 個 run、連續兩稿 {pairs} 組")
@@ -142,10 +162,23 @@ def main():
         print("⚠️ 沒有可比的連續兩稿 —— 這**不是**「自環率 0」,是沒有資料。")
         print("   改動後要重量,需要新產的稿(每次重生 = 一次 LLM 大呼叫)。")
         return 2
-    print(f"🔴 自環率(連續兩稿同一家族):{same}/{pairs} = {same / pairs * 100:.1f}%")
-    print("   基準:2026-09-03 回饋上線前,依相鄰配對實測 ~54%(n=205)")
-    print("   ⚠️ 不要拿它跟舊版的 57~61% 比 —— 那組數字是依標題配對,偏高 26pp\n")
+    print(f"🔴 自環率(家族級,連續兩稿同一家族):{same}/{pairs} = {same / pairs * 100:.1f}%")
+    print(f"   自環率(閘門級,失敗訊息逐字相同):{same_g}/{pairs} = {same_g / pairs * 100:.1f}%")
+    print("   基準(回饋上線前,同一支工具、同一種配對法):"
+          "**家族級 55.3%(n=215)/ 閘門級 52.1%**")
+    # 🔴 基準**不是** 54.1%:那是驗證員用來**證明偏差**的「標題不同」子集(n=205),
+    # 不是母體。拿它當基準會把改動前估低,讓改動後看起來比實際差 ——
+    # 而那一行正是第二段要拿來對照的數字。
+    print("   ⚠️ 基準不是 54.1% —— 那是用來證明偏差的子集(n=205),不是母體")
+    print("   ⚠️ 也不要跟舊版的 57~61% 比 —— 那組是依標題配對,偏高 26pp\n")
     print("各迴圈的配對數:", dict(by_kind))
+    if seen:
+        tot = sum(seen.values())
+        print(f"\n⚠️ **KINDS 沒收到的迴圈前綴 {len(seen)} 種、{tot} 行**"
+              f"({tot / (tot + sum(by_kind.values())) * 100:.1f}% 的重生沒被算進去):")
+        for k, c2 in seen.most_common():
+            print(f"   {c2:>4}  {k}")
+        print("   → 要嘛加進 KINDS,要嘛在此說明為什麼刻意不收。**不要讓它繼續靜默**。")
     print("\n轉移(前一稿 → 後一稿),前 10:")
     for (f1, f2), c in trans.most_common(10):
         print(f"   {c:>3}  {f1} → {f2}" + ("  ← 自環" if f1 == f2 else ""))
