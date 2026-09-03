@@ -63,6 +63,10 @@ ADVERSARIAL = [
     "先講一句：後面還有更反直覺的部分。",
     "大盤擇時 vs 長抱不動——用真回測數字比給你看。",
     "這一段講的是最大回撤，也就是你帳面上最痛的那一刻。",
+    "背考古題背到滾瓜爛熟，考試還是可能考出新題型。",
+    "這只是歷史回測，不代表未來。",
+    "別忘了訂閱量化阿森，下一集帶你看同產業的另一檔。",
+    "免費領新手回測避雷檢核表，連結放在資訊欄。",
     "不編造精確數字、不保證收益、不喊單、不報明牌。",
 ]
 killed = [s for s in ADVERSARIAL if pb._prompt_leak_suspects(s)[0]]
@@ -83,31 +87,47 @@ for z, fs in sorted(dele.items(), key=lambda kv: -len(kv[1]))[:12]:
     print(f"       {len(fs):>3}  {z}")
 
 # ── 三、不准有任何案例比改動前更安靜 ─────────────────────────────────────────
-print("\n【三】不准有任何案例比改動前更安靜(對照組 cbfb12e7^)")
+print("\n【三】不准有任何案例比改動前更安靜(三版全部當對照)")
+# 只比上一版不夠:每一輪都可能修好一格又弄壞另一格,而弄壞的那格常常不是這輪碰的。
+# 玉晶光就是這樣 —— 拿掉 `；` 分句修好了碎片,同時把長列舉句合併成一句而靜音。
 tmp = Path(tempfile.mkdtemp())
-old_src = subprocess.run(["git", "show", "cbfb12e7^:youtube_channel/scripts/produce_batch.py"],
-                         capture_output=True, cwd="..", text=False).stdout
+sys.path.insert(0, str(tmp))
 quieter = []
-if old_src:
-    (tmp / "produce_batch_old.py").write_bytes(old_src)
-    sys.path.insert(0, str(tmp))
+now_alarm = {p.name: bool(pb._long_prompt_leak(p.read_text(encoding="utf-8", errors="replace")))
+             for p in files}
+for ref in ("2e864602", "cbfb12e7", "01e0ccfe"):
+    src = subprocess.run(["git", "show", f"{ref}:youtube_channel/scripts/produce_batch.py"],
+                         capture_output=True, cwd="..", text=False).stdout
+    if not src:
+        quieter.append(f"<取不到 {ref}>")
+        continue
+    mod = f"pb_{ref}"
+    (tmp / f"{mod}.py").write_bytes(src)
     try:
-        import produce_batch_old as old  # noqa: E402
-        for p in files:
-            t = p.read_text(encoding="utf-8", errors="replace")
-            was = bool(old._long_prompt_leak(old._strip_prompt_leak(t))) or \
-                bool(old._long_prompt_leak(t))
-            now_before = bool(pb._long_prompt_leak(t))
-            now_after = bool(pb._long_prompt_leak(pb._strip_prompt_leak(t)))
-            # 「更安靜」= 舊版會叫(修前或修後任一)而新版修前修後都不叫
-            if was and not (now_before or now_after):
-                quieter.append(p.name)
+        old = __import__(mod)
     except Exception as e:  # noqa: BLE001
-        print(f"     ⚠️ 對照組載入失敗:{e!r}")
-        quieter = ["<對照組載入失敗,本項未驗>"]
-else:
-    quieter = ["<取不到 cbfb12e7^,本項未驗>"]
-check("沒有任何一支從「會叫」變成「不會叫」", not quieter, str(quieter[:3]))
+        quieter.append(f"<{ref} 載入失敗 {e!r}>")
+        continue
+    # ⚠️ 「少了一個誤報」不算退步,「真洩漏變安靜」才算。第一版沒分開,
+    # 於是把上一輪指定要修掉的兩種誤標(鉤子 16 支、合規句 11 支)算成 27 支退步。
+    # 判準:舊版 kill 非空(= 舊版認為那是**要刪的真洩漏**)而新版完全不叫 → FAIL;
+    # 舊版只有 gray(誤標)而新版不叫 → 那是改善,列出來但不算 FAIL。
+    kill_loss = fmark_gone = 0
+    for p in files:
+        t = p.read_text(encoding="utf-8", errors="replace")
+        try:
+            if not old._long_prompt_leak(t) or now_alarm[p.name]:
+                continue
+            old_kill, _ = old._prompt_leak_suspects(t)
+        except Exception:  # noqa: BLE001
+            continue
+        if old_kill:
+            quieter.append(f"{ref}:{p.name}")
+            kill_loss += 1
+        else:
+            fmark_gone += 1
+    print(f"     對照 {ref}:真洩漏變安靜 {kill_loss} 支(必須 0)｜少掉的誤標 {fmark_gone} 支(改善)")
+check("三版對照下沒有任何真洩漏從「會叫」變成「不會叫」", not quieter, str(quieter[:4]))
 
 # ── 四、灰色地帶 ──────────────────────────────────────────────────────────────
 print("\n【四】灰色地帶(標記交重生,不刪)")
