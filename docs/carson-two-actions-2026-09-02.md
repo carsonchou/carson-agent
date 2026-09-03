@@ -1,6 +1,6 @@
-# Carson:卡在你手上的兩個動作(2026-09-02)
+# Carson:卡在你手上的動作(2026-09-02,09-03 增補③)
 
-只有你能做的兩件:**① 送 YouTube API 提額表單(約 15 分鐘)、② 下單一條記憶體(約 5 分鐘)。**
+只有你能做的:**① 送 YouTube API 提額表單(約 15 分鐘)、② 下單一條記憶體(約 5 分鐘)、③ 順手重授權 Google 憑證(約 2 分鐘)。**
 兩份文件都已過 fresh-context 獨立驗證(配額包三輪、RAM 包一輪找碴視角),這頁只有動作,論證在連結裡。
 
 ## ① 送配額提額申請 — 約 15 分鐘
@@ -23,5 +23,10 @@
 
 完整論證與比價:`docs/ram-upgrade-decision-2026-09.md`
 
+## ③ 重授權 Google 憑證 — 約 2 分鐘(你人已在機器前,順手)
+
+`scripts/google_token.json` 的 refresh token 已失效(invalid_grant)——**早晨日報(/morning)的 Gmail+行事曆下次跑必炸**,信箱證據查證路也斷了。
+在專案目錄跑:`python scripts/google_auth_setup.py` → 瀏覽器跳出 → 用 **crayray86@gmail.com** 點同意即可。
+
 ---
-兩件互不相依,順序隨意。做完任一件跟任一個 session 說一聲即可。
+三件互不相依,順序隨意。做完任一件跟任一個 session 說一聲即可。
