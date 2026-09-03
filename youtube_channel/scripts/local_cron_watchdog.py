@@ -137,8 +137,45 @@ def _push(reason: str, title: str, body: str) -> None:
         st = json.loads(PUSH_STATE.read_text(encoding="utf-8")) if PUSH_STATE.exists() else {}
     except Exception:  # noqa: BLE001
         st = {}
-    if time.time() - float(st.get(reason, 0)) < PUSH_COOLDOWN_SEC:
+    rec = st.get(reason, 0)
+    if not isinstance(rec, dict):          # 舊格式是裸 epoch,原地升級不清狀態
+        rec = {"ts": float(rec or 0), "n": 1 if rec else 0, "last": float(rec or 0)}
+    now = time.time()
+    # 🔴 計數要能歸零,而歸零的判準是「**距離上一次事件**多久」,不是「距離視窗開始」。
+    # 只看視窗會把「相隔兩小時各出事一次」算成連續第 2 次(實測 FAIL)——
+    # 那是兩件獨立事故,推成 crash-loop 就是誤報,而誤報會賠掉這則推播的可信度。
+    broken = now - float(rec.get("last", rec.get("ts", 0))) >= PUSH_COOLDOWN_SEC
+    n = 1 if broken else int(rec.get("n", 0)) + 1
+    cooling = (not broken) and now - float(rec.get("ts", 0)) < PUSH_COOLDOWN_SEC
+
+    # 🔴 2026-09-03 crash-loop 靜默降頻(基建線沙箱實測 V2:第二次重啟零通知)。
+    # 舊版在冷卻期內直接 `return`,**連被擋都不記 log**。於是 crash-loop 長這樣:
+    # 每次救援都成功、log 全記錄但沒有人讀、Carson 每小時收到一則不含次數的孤立推播
+    # —— 迴圈完全不可見。「重啟了 1 次」和「這小時重啟了 20 次」是**兩件事**,
+    # 而舊版把它們推成同一則。
+    #
+    # ⚠️ 沒有照「N>=2 就送升級推播」做:排程每 5 分鐘跑一次,持續 crash-loop
+    # 會變成每小時 12 則 —— 那正是今晚一整條線在治的「叫太多所以等於不會叫」
+    # (docs/ops/2026-09-03_quota_alarm_closure.md)。改用**倍增階梯**:
+    # 只在 n = 2/4/8/16/32… 送,每一則都代表「迴圈比上次嚴重一倍」= 真的有新資訊,
+    # 而推播次數只隨 log2 成長(24 次/2 小時 → 6 則,不是 24 則也不是舊版的 2 則)。
+    # 冷卻視窗到期那一次也一定要送,而且**同樣要帶次數**:迴圈跨過整點不代表它結束了,
+    # 舊版在那裡會送出一則不含次數的孤立推播,看起來像剛發生的單一事故。
+    escalate = n >= 2 and ((n & (n - 1)) == 0 or not cooling)
+    if cooling and not escalate:
+        st[reason] = {"ts": rec.get("ts", 0), "n": n, "last": now}   # 次數要累積,否則階梯永遠到不了
+        try:
+            PUSH_STATE.parent.mkdir(parents=True, exist_ok=True)
+            PUSH_STATE.write_text(json.dumps(st), encoding="utf-8")
+        except Exception:  # noqa: BLE001
+            pass
+        # 被擋也要留痕:靜默 return 讓「冷卻中」和「沒發生」在 log 裡長得一模一樣。
+        _log(f"[watchdog] 推播冷卻中,累積第 {n} 次({reason})——下個倍增點才會升級推播")
         return
+    if escalate:
+        title = f"🔴 排程器連續第 {n} 次({reason})"
+        body = (f"這是連續第 {n} 次同因事件,不是單一事故 —— 疑似 crash-loop。\n\n"
+                + body)
     try:
         sys.path.insert(0, str(Path(__file__).resolve().parent))
         from notify import push  # noqa: PLC0415
@@ -149,13 +186,16 @@ def _push(reason: str, title: str, body: str) -> None:
     if not ok:
         _log("[watchdog] 推播沒送出去(後端未設定或回非 2xx)——不記冷卻,下輪重試")
         return                            # 沒送出就不記冷卻,否則等於自己靜音一小時
-    st[reason] = time.time()
+    # 升級推播**不重置 ts**:重置會讓冷卻視窗跟著往後滑,階梯就永遠停在 n=2。
+    # 只有正常(非冷卻期)那次才開新視窗、把次數歸 1。
+    st[reason] = {"ts": rec.get("ts", 0) if (escalate and cooling) else now,
+                  "n": n, "last": now}
     try:
         PUSH_STATE.parent.mkdir(parents=True, exist_ok=True)
         PUSH_STATE.write_text(json.dumps(st), encoding="utf-8")
     except Exception:  # noqa: BLE001
         pass
-    _log(f"[watchdog] 推播已送出({reason})")
+    _log(f"[watchdog] 推播已送出({reason},第 {n} 次{'·升級' if escalate else ''})")
 
 
 def write_alert(payload: dict) -> None:

@@ -214,7 +214,8 @@ A(n=68)期望 3.4 支、C(n=20)期望 1.0 支,**C 觀察到 0 支在統計上不
 ```
 LocalCronWatchdog      MSFT_TaskLogonTrigger(Enabled,每 5 分)+ TimeTrigger
                        上次執行 11:22:58 結果 0(成功),下次 11:27:57  ← 現在就在跑
-啟動資料夾             wscript.exe "D:\carson-agentun_studio_bg.vbs"   ← 第二條路徑
+啟動資料夾             wscript.exe "D:\carson-agent
+un_studio_bg.vbs"   ← 第二條路徑
 執行中                 PID 29416 / 18228 = launcher+worker 配對(正常)
 AutoAdminLogon         🔴 (未設定)
 上次開機               08-29 11:02,已連續運行 5 天
@@ -226,8 +227,18 @@ AutoAdminLogon         🔴 (未設定)
 停電、Windows 更新自動重開、任何無人在場的重啟 → 產線停在登入畫面前,
 而且**不會有任何警報** —— 因為 watchdog / daily_health / ntfy 全部在那個沒被啟動的排程器後面。
 
-修法二選一(都是 Carson 的決定,涉及正式機組態或憑證):
-① 排程觸發改成 **At startup** + 服務帳戶(不需要登入);② 啟用自動登入。
+**🔴 09-03 更新:此條已由基建線升級為「已證偽」並登記進 `premises.md:21`,
+而且它補上了兩件本線沒查到的、都比本線的版本更根本:**
+
+- **`LogonType = InteractiveToken`**(「僅互動登入時執行」)—— 比觸發類型更底層的原因。
+- **天花板守望用同一個 principal** —— 本線只查了 watchdog。所以
+  **「偵測器與被偵測物同故障域」**:重開後無人登入 → 看門狗不跑、cron 不起、**守望同死**。
+- 而且 **ssh 進來看似健康** —— ssh 不需要互動登入,機器是活的,只有產線是死的。
+  這一層本線完全沒想到,它讓遠端檢查也給不出警報。
+
+**修法以那邊的為準,本線先前的「二選一」作廢**(啟用自動登入會引入憑證問題):
+> **改 principal**(紅線、需提權),併進 RAM 安裝那一趟,Carson 只按 UAC;
+> 改前過 fresh 驗證;**改完那次重開機就是驗收**。
 
 順帶:`LocalCronWatchdog_SandboxTest` 仍是 Ready,每 5 分鐘執行一次,目標在一個
 **會被清掉的暫存目錄**裡。已查證它是乾淨隔離的(`TARGET` 指向沙箱自己的 `local_cron_sb.py`,
