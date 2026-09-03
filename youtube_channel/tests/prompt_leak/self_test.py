@@ -10,7 +10,7 @@
 一個「把被測物弄壞也不會變紅」的測試,和沒有測試是同一件事 ——
 這正是同一天在 daily_health 上花五輪修的那個病,只是搬到了測試那一側。
 
-三個攻擊都在**暫存副本**上進行,不會動到 repo 裡的任何檔案。
+正控制組 + 四個攻擊都在**暫存副本**上進行,不會動到 repo 裡的任何檔案。
 """
 import re
 import shutil
@@ -29,8 +29,9 @@ def run_in(sandbox):
     r = subprocess.run([str(PY), "-X", "utf8", "tests/prompt_leak/verify.py"],
                        cwd=sandbox, capture_output=True, text=True,
                        encoding="utf-8", errors="replace")
+    out = (r.stdout or "") + (r.stderr or "")
     tail = [ln for ln in (r.stdout or "").splitlines() if "FAIL" in ln or ln.startswith("合計")]
-    return r.returncode, tail
+    return r.returncode, out, tail
 
 
 def sandbox():
@@ -55,15 +56,27 @@ def sandbox():
     return d
 
 
-def attack(label, mutate, expect_fail=True):
+def attack(label, mutate, expect_fail=True, want=None):
+    """want:期望看到的那一條 FAIL 標籤。
+
+    🔴 只看退出碼不夠 —— 那是同一個病爬到最高一層。驗證員在 produce_batch 最前面塞一個
+    和偵測完全無關的 `raise`,verify 因 SyntaxError 紅了,self_test 就判「攻擊被擋」。
+    **「攻擊沒生效」「防禦有效」「被測物整個崩了」三者在退出碼上長得一模一樣。**
+    所以要斷言**紅在對的那一條**上。
+    """
     global fails
     d = sandbox()
     mutate(d)
-    rc, tail = run_in(d)
+    rc, out, tail = run_in(d)
     ok = (rc != 0) if expect_fail else (rc == 0)
+    if ok and want:
+        ok = any(want in ln and "FAIL" in ln for ln in out.splitlines())
+    if expect_fail and "Traceback" in out:
+        ok = False           # verify 自己崩了不算「攻擊被擋」
     fails += 0 if ok else 1
     print(f"  {'PASS' if ok else '**FAIL**'}  {label}｜verify 退出碼 {rc}"
-          f"(期望 {'非 0' if expect_fail else '0'})")
+          f"(期望 {'非 0' if expect_fail else '0'})"
+          + (f"｜需紅在「{want}」" if want else ""))
     for ln in tail[:3]:
         print(f"        {ln.strip()[:110]}")
     shutil.rmtree(d, ignore_errors=True)
@@ -92,12 +105,22 @@ def gut_hard_directive(d):
 
 
 print("把偵測器弄壞之後,verify.py 必須變紅:\n")
+# 🔴 正控制組:不動任何東西,verify 必須是綠的。沒有它的話,沙箱哪天少複製一個檔,
+# 四個攻擊會**同時假 PASS**,而輸出跟現在一模一樣。`expect_fail=False` 這個參數
+# 上一版就存在,但**從頭到尾沒被呼叫過** —— 一個沒被呼叫的正控制組等於沒有。
+attack("正控制組:什麼都不改(沙箱本身要是健康的)", lambda d: None, expect_fail=False)
 attack("攻擊一:_LEAK_DEL = 1.01(什麼都不刪)",
-       lambda d: patch(d, "_LEAK_DEL = 0.90", "_LEAK_DEL = 1.01"))
+       lambda d: patch(d, "_LEAK_DEL = 0.90", "_LEAK_DEL = 1.01"),
+       want="實際刪除的句型")
 attack("攻擊二:_HARD_DIRECTIVE 縮成 1 個詞(語料幾乎清空)",
-       gut_hard_directive)
+       gut_hard_directive, want="語料路徑活著")
 attack("攻擊三:output/ 清空(母體 0 支)",
-       lambda d: [f.unlink() for f in (d / "output").glob("*.voice.txt")])
+       lambda d: [f.unlink() for f in (d / "output").glob("*.voice.txt")],
+       want="母體 >= 700 支")
+attack("攻擊四:保護清單放寬成 `.`(偵測變差而前一版完全不叫)",
+       lambda d: patch(d, "_LEAK_PROTECTED = re.compile(",
+                       '_LEAK_PROTECTED = re.compile(".")\n_UNUSED = re.compile('),
+       want="保護清單沒有把真指令一起豁免")
 
-print(f"\n合計 FAIL={fails}(三個攻擊都要被擋下來)")
+print(f"\n合計 FAIL={fails}(正控制組要綠、四個攻擊都要被擋下來)")
 raise SystemExit(1 if fails else 0)
