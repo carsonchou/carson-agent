@@ -32,6 +32,14 @@
 | design_system.json topic 讀取 | __file__ 絕對推導,V4 同機制已驗 |
 | 「Log on as a batch job」權限 | 未驗;若缺,Set/Start 當場大聲失敗(非靜默),腳本 ErrorAction=Stop |
 
+## 附:隔離性事後稽核(09-03 16:2x,w9 發現 sitecustomize 注入後回查)
+
+venv 的 `sitecustomize.py` 會把 **prod scripts 與 `getcwd()/scripts` 都插進 sys.path**——沙箱缺哪個模組,Python 就靜默載 prod 那份。執行期探針(venv python、cwd=沙箱根,重現排程條件)結果:
+
+- **判定②:證據未受污染,V1~V5 全部有效。** notify 在兩種時序下(裸啟動/_push 的 insert 後)都解到**沙箱**那份(`__file__` 實印;因 WorkingDirectory=沙箱使 cwd fallback 排在 prod 前,加上 _push 自身 insert(0),兩層獨立保險都驗過);watchdog_sb 五個路徑常數執行期全落沙箱;prod scripts 無 stdlib 遮蔽(以真 stdlib 目錄+陽性對照重驗——第一版用 `sys.stdlib_module_names` 在 3.9 上是空話,自己差點寫出不會叫的檢查)。
+- **唯一載入的 prod 模組:`_llm_shim`**(sitecustomize 自動 import,攔 LLM HTTP 呼叫)——watchdog/假 cron/notify 零 LLM 呼叫,惰性;但「沙箱程序內零 prod 模組」的說法不成立,如實記。
+- 誠實一句:隔離部分靠了 WorkingDirectory=沙箱這個設定——若當初沒設 cwd(排程任務常見預設 System32),裸啟動的 import 會解到 prod notify。兩層保險是設計也有運氣成分。
+
 ## 未驗清單(別把 PASS 讀成全覆蓋)
 
 登入/開機觸發實際行為;睡眠喚醒補跑(StartWhenAvailable 只驗了設定在);逾時終止在 PT15M/正式條件下的重現;機器無自動登入時的開機空窗。
