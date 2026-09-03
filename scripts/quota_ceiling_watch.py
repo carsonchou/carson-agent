@@ -70,8 +70,8 @@ def production_suffix(now: datetime.datetime) -> str:
                             if ln.startswith(f"[{d} ") and "渲染完成" in ln)
         inv = re.findall(r"剩庫存(\d+)", text)
         inv_s = f"{inv[-1]} 支(產線自報)" if inv else "讀不到"
-        return (f"｜日產 昨{cnt(yest)}/今{cnt(today)}支(今日至 {now.strftime('%H:%M')} 截點)"
-                f"/建議上限 {PROD_CAP_HINT}｜庫存 {inv_s}")
+        return (f"｜長片渲染 昨{cnt(yest)}/今{cnt(today)}次(含重渲;今日至 {now.strftime('%H:%M')} 截點,"
+                f"毛產出口徑見 throttle-brief)/建議上限 {PROD_CAP_HINT}｜庫存 {inv_s}")
     except Exception as e:                       # 讀不到也要說(dispatch §6 第零種)
         return f"｜🔴 產量/庫存讀不到:{e!r}"
 
