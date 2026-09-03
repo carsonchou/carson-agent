@@ -2394,15 +2394,19 @@ def _which_gate(checks):
     return "+".join(hit) or "(判斷式已不成立)"
 
 
-def _retry_directive(reason, attempt):
-    """把上一次的失敗原因變成下一次的具體要求。回空字串代表沒有可用的回饋。"""
+def _retry_directive(reason, attempt=0):
+    """把上一次的失敗原因變成下一次的具體要求。回空字串代表沒有可用的回饋。
+
+    `attempt` 給預設值並在下面 `int(attempt or 0)`:目前兩個呼叫端都傳 int,
+    所以 `%d` 炸不到 —— 但那是**不可達的潛伏**,而潛伏的東西會在有人加第三個
+    呼叫端時醒過來。一行的事,不留。"""
     if not reason:
         return ""
     tips = [fix for key, fix in _RETRY_FIX if key in str(reason)]
     if not tips:
         # 認不出來也要講:重擲同一顆骰子比講一句籠統的話更糟。
         tips = [f"上一稿沒通過終檢,原因是「{str(reason)[:60]}」。這次針對那一點改,不要整篇重寫。"]
-    return ("\n【★上一稿被打回,這次一定要修掉(第 %d 次重寫)】\n" % attempt
+    return ("\n【★上一稿被打回,這次一定要修掉(第 %d 次重寫)】\n" % int(attempt or 0)
             + "\n".join("- " + t for t in tips)
             + "\n⚠️ 這一段是寫給你的要求,**不要**出現在旁白裡。\n")
 
