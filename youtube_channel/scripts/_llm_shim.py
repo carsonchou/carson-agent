@@ -11,11 +11,41 @@ Anthropic 沒錢就全部失敗。與其一支支改，這裡 monkeypatch `reque
 """
 from __future__ import annotations
 import os
+import sys
+
+
+class ShimRouteFailed(RuntimeError):
+    """改道 OpenRouter 失敗。**刻意讓它炸出來**,不回退到會計費的 Anthropic 路徑。"""
+
+
+def _loud(msg, to_ops=True):
+    """同時寫 stderr 與 ops log:只 raise 的話,呼叫端若有 blanket except 就又靜音了。
+
+    to_ops=False 用於「每個 process 啟動都會講一次」的訊息(無 key 提示)——
+    ~20 支腳本 × 每天多輪會把 ops_log 洗版,而洗版的警報等於沒有警報。
+    那一類只寫 stderr(排程的 job log 收得到),真正的失敗才進 ops_log。
+    """
+    try:
+        print(f"[_llm_shim] {msg}", file=sys.stderr, flush=True)
+    except Exception:  # noqa: BLE001
+        pass
+    if not to_ops:
+        return
+    try:
+        from ops import log_ops  # noqa: PLC0415
+        log_ops("LLM改道", msg[:180])
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def install():
+    # 🔴 2026-09-03:沒 key 就靜默 return 不接管 —— 那個 process 會**直通 Anthropic**,
+    # 和下面的回退路徑同一個問題(裸排程環境沒有 .env 時就是這樣)。至少要留一行痕跡,
+    # 否則「shim 沒接管」和「shim 接管了而且沒事」在 log 裡長得一模一樣。
     if not os.environ.get("OPENROUTER_API_KEY", "").strip():
-        return  # 沒設 OpenRouter 就不接管，維持原本 Anthropic 行為
+        _loud("⚠️ 未設 OPENROUTER_API_KEY,shim **未接管** —— 本 process 打 Anthropic "
+              "會直通真端點(帳戶有錢就會真的計費)", to_ops=False)
+        return
     try:
         import requests
     except Exception:
@@ -39,30 +69,42 @@ def install():
                     "choices": [{"message": {"content": self._text}}]}
 
     def _patched_post(url, *a, **kw):
+        # 🔴 2026-09-03 這裡原本是 `except Exception: pass` 然後落到 `_orig_post`,
+        # 也就是**真打 api.anthropic.com**。那個設計的安全性由**外部帳戶餘額**決定:
+        #   帳戶空(現在) → 回退撞死端點 → 各 job log 大聲失敗 → 無害
+        #   Carson 哪天隨手儲值 → 同一段碼變成:OpenRouter 一出錯,~20 支腳本
+        #                        **靜默改打真 Anthropic 燒真錢**,
+        #                        而失效訊號正是「不再報錯」—— 大聲失敗變安靜成功
+        # 同一段程式碼安不安全,不該由一個沒人會通知我們的外部狀態決定。
+        # 所以改成:改道失敗就**大聲炸**,絕不偷偷走會計費的路。
+        if not (isinstance(url, str) and "api.anthropic.com/v1/messages" in url):
+            return _orig_post(url, *a, **kw)      # 非 Anthropic 的請求原樣放行
         try:
-            if isinstance(url, str) and "api.anthropic.com/v1/messages" in url:
-                body = kw.get("json") or {}
-                msgs = body.get("messages") or []
-                parts = []
-                if body.get("system"):
-                    parts.append(str(body["system"]))
-                for m in msgs:
-                    c = m.get("content")
-                    if isinstance(c, str):
-                        parts.append(c)
-                    elif isinstance(c, list):  # anthropic content blocks
-                        parts += [b.get("text", "") for b in c if isinstance(b, dict)]
-                prompt = "\n".join(p for p in parts if p)
-                mx = int(body.get("max_tokens") or 1500)
-                # 轉傳 json_mode / temperature(原本被丟棄→JSON任務失去強制JSON多燒重試、評分失去低溫)
-                jm = bool(body.get("response_format")) or ("JSON" in prompt) or ("json" in prompt)
-                tp = body.get("temperature")
-                import llm  # 執行時才 import(此時 scripts/ 已在 sys.path)
-                txt = llm.complete(prompt, mx, json_mode=jm, temperature=tp)
-                return _FakeResp(txt)
-        except Exception:
-            pass  # 出事就退回原本(真打 Anthropic)，不讓 shim 拖垮
-        return _orig_post(url, *a, **kw)
+            body = kw.get("json") or {}
+            msgs = body.get("messages") or []
+            parts = []
+            if body.get("system"):
+                parts.append(str(body["system"]))
+            for m in msgs:
+                c = m.get("content")
+                if isinstance(c, str):
+                    parts.append(c)
+                elif isinstance(c, list):  # anthropic content blocks
+                    parts += [b.get("text", "") for b in c if isinstance(b, dict)]
+            prompt = "\n".join(p for p in parts if p)
+            mx = int(body.get("max_tokens") or 1500)
+            # 轉傳 json_mode / temperature(原本被丟棄→JSON任務失去強制JSON多燒重試、評分失去低溫)
+            jm = bool(body.get("response_format")) or ("JSON" in prompt) or ("json" in prompt)
+            tp = body.get("temperature")
+            import llm  # 執行時才 import(此時 scripts/ 已在 sys.path)
+            txt = llm.complete(prompt, mx, json_mode=jm, temperature=tp)
+            return _FakeResp(txt)
+        except Exception as e:  # noqa: BLE001
+            _loud(f"🔴 改道 OpenRouter 失敗({e!r})——**不回退到 Anthropic**(那會計費)。"
+                  "這一次呼叫直接失敗,請查 OPENROUTER_API_KEY / llm.py / 網路")
+            raise ShimRouteFailed(
+                f"OpenRouter 改道失敗,拒絕回退到會計費的 Anthropic 端點:{e!r}") from e
+        raise ShimRouteFailed("改道路徑沒有回傳結果(不應發生)")   # 防漏底,同樣不回退
 
     requests.post = _patched_post
     requests._llm_shim_installed = True
