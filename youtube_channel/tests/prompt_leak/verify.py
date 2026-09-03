@@ -27,6 +27,15 @@ OUT = Path("output")
 fails = 0
 
 
+def residue(text):
+    """剝完之後**還留著多少條指令原文**。刻意用「語料句原封不動出現在旁白裡」這個
+    最笨的判準,不用相似度門檻 —— 驗收不該和被驗的東西共用同一個可調參數,
+    否則調鬆門檻就能讓驗收變好看。回命中的語料句清單。"""
+    z = pb._leak_norm(text or "")
+    corpus, _ = pb._leak_corpus()
+    return [c for c in corpus if len(c) >= 14 and c in z]
+
+
 def check(label, cond, extra=""):
     global fails
     fails += 0 if cond else 1
@@ -108,26 +117,24 @@ for ref in ("2e864602", "cbfb12e7", "01e0ccfe"):
     except Exception as e:  # noqa: BLE001
         quieter.append(f"<{ref} 載入失敗 {e!r}>")
         continue
-    # ⚠️ 「少了一個誤報」不算退步,「真洩漏變安靜」才算。第一版沒分開,
-    # 於是把上一輪指定要修掉的兩種誤標(鉤子 16 支、合規句 11 支)算成 27 支退步。
-    # 判準:舊版 kill 非空(= 舊版認為那是**要刪的真洩漏**)而新版完全不叫 → FAIL;
-    # 舊版只有 gray(誤標)而新版不叫 → 那是改善,列出來但不算 FAIL。
-    kill_loss = fmark_gone = 0
+    # 🔴 判準看**結果**不看機制:strip 之後洩漏文字仍在,而閘門從叫變成不叫 = FAIL。
+    # 前一版看「舊版 kill 是否非空」——那是機制面的,而至上8112 推翻了它:
+    # 舊版只有 gray、輸出一個位元組都沒變,閘門卻從叫變靜音,照舊判準會被當成「改善」。
+    loss = fmark_gone = 0
     for p in files:
         t = p.read_text(encoding="utf-8", errors="replace")
         try:
             if not old._long_prompt_leak(t) or now_alarm[p.name]:
                 continue
-            old_kill, _ = old._prompt_leak_suspects(t)
         except Exception:  # noqa: BLE001
             continue
-        if old_kill:
+        if residue(pb._strip_prompt_leak(t)):
             quieter.append(f"{ref}:{p.name}")
-            kill_loss += 1
+            loss += 1
         else:
             fmark_gone += 1
-    print(f"     對照 {ref}:真洩漏變安靜 {kill_loss} 支(必須 0)｜少掉的誤標 {fmark_gone} 支(改善)")
-check("三版對照下沒有任何真洩漏從「會叫」變成「不會叫」", not quieter, str(quieter[:4]))
+    print(f"     對照 {ref}:剝完仍有殘留卻靜音 {loss} 支(必須 0)｜少掉的誤標 {fmark_gone} 支(改善)")
+check("三版對照下沒有「剝完仍有殘留、閘門卻從叫變不叫」", not quieter, str(quieter[:4]))
 
 # ── 四、灰色地帶 ──────────────────────────────────────────────────────────────
 print("\n【四】灰色地帶(標記交重生,不刪)")
@@ -139,6 +146,19 @@ for p in files:
 print(f"     落灰 {len(gray_files)} 支 / {len(gray_sent)} 種句子(前 6):")
 for z, n in gray_sent.most_common(6):
     print(f"       {n:>3}  {z}")
+
+# ── 五、結果面總指標:帶殘留靜音出貨 ─────────────────────────────────────────
+print("\n【五】帶殘留靜音出貨(結果面,不是機制面)")
+silent = []
+for p in files:
+    t = p.read_text(encoding="utf-8", errors="replace")
+    after = pb._strip_prompt_leak(t)
+    if residue(after) and not pb._long_prompt_leak(after):
+        silent.append(p.name)
+print(f"     剝完仍有指令原文、而閘門不叫的支數:{len(silent)}(上一版 9)")
+for n in silent[:5]:
+    print(f"       {n}")
+check("帶殘留靜音出貨支數 <= 9(必須下降)", len(silent) <= 9, f"實得 {len(silent)}")
 
 print(f"\n合計 FAIL={fails}")
 raise SystemExit(1 if fails else 0)

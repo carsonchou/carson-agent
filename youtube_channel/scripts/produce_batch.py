@@ -3799,7 +3799,11 @@ def _prompt_leak_suspects(voice_text):
             best = max(best, sc)
             if sc >= _LEAK_DEL and _HARD_DIRECTIVE.search(part):
                 kill.add(part)
-        if best < _LEAK_DEL and best >= _LEAK_MARK and not any(k in sent for k in kill):
+        # 🔴 條件是 `best >= _LEAK_MARK`,**不能**再加 `best < _LEAK_DEL`:
+        # 相似度 >= 0.90 但句子自己不帶硬指令詞的洩漏會兩個分支都不進、完全消失。
+        # 實測至上8112:輸出一個位元組都沒變,只是閘門從叫變成靜音(上一版靠 1.00
+        # 落進 gray 撐著)。少一個 `<` 就能讓一支片從「會叫」變成「不會叫」。
+        if best >= _LEAK_MARK and not any(k in sent for k in kill):
             gray.append(sent.strip()[:40])
     return kill, gray
 
@@ -5705,6 +5709,13 @@ def make_one(kind, no_render=False, topic_override=None, script_override=None):
                    or _long_title_contradicts_facts(_d.get("title", ""), _d.get("title", "")))
             if _pl:
                 return _pl
+            # 🔴 與偵測器**獨立**的一道:產稿後剝除過 prompt 指令 = 這一稿被污染過。
+            # 不重新問偵測器「現在乾不乾淨」——那正是三輪反覆漏掉殘渣的原因
+            # (stripper 和 gate 共用偵測器 → 收斂到「刪到閘門不抱怨為止」)。
+            # 成本實測:745 支裡有刪除的 32 支 = 4.3%,而那 32 支正是真的含洩漏的。
+            if _d.get("_leak_stripped"):
+                return (f"產稿時剝除過 prompt 指令({_d['_leak_stripped']} 字)——"
+                        "刪得掉的那部分不代表刪乾淨了,整稿重生")
             # (⑤開場罐頭錯位 與 ⑥正文散撒 hedging 已併入上面的 _long_opening_bad)
             return ""
         _lk = 0
@@ -5794,6 +5805,14 @@ def make_one(kind, no_render=False, topic_override=None, script_override=None):
             _after = _strip_prompt_leak(_before)
             if _after and _long_chinese_chars(_after) >= _long_chinese_chars(_before) * 0.7:
                 d["voice_text"] = _after      # 剝掉超過 30% 就不對勁,寧可留著讓閘門擋
+                # 🔴 2026-09-03 剝過就標記,**而且這個訊號不再問偵測器**。
+                # 三輪下來「刪掉會叫的那半、留下不會叫的那半」出現三次(100% 存活的尾巴、
+                # 玉晶光、至上8112),那不是三個 bug:**stripper 和 gate 共用同一個偵測器**,
+                # 所以流程必然收斂到「刪到閘門不再抱怨為止」,而終點就是
+                # **偵測不到的殘渣照樣出貨**;在涵蓋率沒同步提升時,把刪除做得更強
+                # 只會機械性地增加靜默出貨的支數(實測 7 → 9 支)。
+                # 判準改成:**只要必須刪掉任何指令文字,這一稿就已經被污染了,不該出貨。**
+                d["_leak_stripped"] = _long_chinese_chars(_before) - _long_chinese_chars(_after)
                 log_ops("補產·清理", f"產稿後剝除 prompt 洩漏｜{d.get('title','')[:22]}")
     # 疊字守門:修 LLM 偶發 stutter(voice_text/title/description/段落小標),一次覆蓋 voice.txt 與 md
     for _k in ("voice_text", "title", "description"):
