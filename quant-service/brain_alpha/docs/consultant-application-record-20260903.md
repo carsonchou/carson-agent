@@ -48,7 +48,8 @@
 | qMj3AjbZ | 1.65 | **2.03** | 2.39% | **18.85%** | 12.77% | **EXCELLENT** |
 
 平台自評分佈：**EXCELLENT 1 / GOOD 3 / AVERAGE 9**。全部 13 條 `stage = OS`。
-全部為 USA / TOP3000 / delay 1，IS 期 2019-01-01 ~ 2023-12-31。
+全部為 **USA / delay 1**，IS 期 2019-01-01 ~ 2023-12-31（`settings.startDate`/`endDate`）。
+**universe 不是單一值**：TOP3000 **10** 條、TOP1000 **2** 條（`wpjQpqJ6`、`pwjv95Lj`）、TOP500 **1** 條（`58lEzemn`）。
 
 ### 平台里程碑（`GET /users/self/achievements`，`achieved` 為平台時戳）
 
@@ -142,7 +143,7 @@ Complete Consultant Tutorial、Osmosis Pioneer、First Python Alpha Submission�
 | 項目 | 為什麼拿不到 |
 |---|---|
 | **任何 OS（out-of-sample）表現** | 13 條全部 `stage=OS`、`os.startDate=2024-01-01`，但 `osISSharpeRatio` 與 `preCloseSharpeRatio` **皆為 null**，4 項 OS 檢查（IS_SHARPE / SELF_CORRELATION / SHARPE / OTHERS）**全部 PENDING**。最早的一條 08-27 才提交。**零 OS 結果。** |
-| **prod correlation** | `GET /alphas/{id}/correlations/prod` → **HTTP 403**（2026-09-03 現查）。與 WorldQuant 正式產品池的相關性**無從得知**。 |
+| **prod correlation 明細** | `GET /alphas/{id}/correlations/prod` → **HTTP 403**（2026-09-03 現查）。純量欄位 `is.prodCorrelation` **查得到**：13 條全為 `0.0`，而未提交的 alpha 全為 `null`（代表平台在提交時確實寫入了值，不是佔位）。但明細不可查、13 條同值，**無法獨立佐證其意義，仍不填**。 |
 | **Challenge 分數與名次** | `GET /competitions/challenge` → **404**；`GET /users/self/competitions` → count=0。榜自 2026-09-02 ET 00:20~03:15 之間起讀不到，至今未回。改用 `level=GOLD`。 |
 | **Challenge 名次** | 我們自有紀錄最後一次讀到是 **rank 18061 / score 10000.0**（`score_history.jsonl`，2026-09-02 12:20 台北，透過 `GET /users/self/competitions`）。此後榜消失，**現在無法重新核對**。要寫只能寫成 *"as of 2026-09-02; no longer retrievable"*，**不可當成現況**。 |
 | **顧問狀態 / 是否已受邀** | `GET /users/self/consultant` → **403**（端點存在但無權限）。站內信箱 8 則全是成就通知與產品公告，**沒有任何邀請訊息**。 |
@@ -160,7 +161,8 @@ Complete Consultant Tutorial、Osmosis Pioneer、First Python Alpha Submission�
 > 2026-08-27, none decommissioned. Platform grades: 1 Excellent, 3 Good, 9 Average.
 > Highest Sharpe among submitted: 2.40 (wpjQpqJ6). Highest fitness: 2.03 with 18.85%
 > in-sample returns (qMj3AjbZ, graded Excellent). All figures are in-sample
-> (USA TOP3000, delay 1, 2019-2023); out-of-sample results are not yet available.
+> (USA, delay 1, 2019-2023; universes TOP3000 / TOP1000 / TOP500);
+> out-of-sample results are not yet available.
 
 🔴 **這段的三個地雷，改字時不要踩回去**：
 1. **不要把不同 alpha 的數字併成一條。** Sharpe 最高的是 `wpjQpqJ6`(2.40)，
@@ -169,5 +171,9 @@ Complete Consultant Tutorial、Osmosis Pioneer、First Python Alpha Submission�
 2. **不要寫達到 Gold 的日期。** 平台的 achievements 裡**沒有** Gold 這一項，
    我們自己 `score_history.jsonl` 記到分數在 2026-09-01 觸及 10,000，
    但那是自有紀錄不是平台時戳 —— 屬第 2 塊，不可寫成平台事實。
+4. **不要把 universe 寫成單一值。** 13 條橫跨 TOP3000(10) / TOP1000(2) / TOP500(1)，
+   而句中點名的 `wpjQpqJ6` 正是 **TOP1000** 的那兩條之一。寫「All figures are USA TOP3000」
+   同時又點名 wpjQpqJ6，對方登入一核對第一個就抓到這格。
+
 3. **最後那句 out-of-sample 不可刪。** 13 條全部 OS PENDING，
    刪掉它整段就會被讀成「已驗證的實績」。
