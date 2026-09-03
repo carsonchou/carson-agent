@@ -19,6 +19,19 @@
 1. **crash-loop 通知靜默降頻(產線缺陷,V2 實測)**:`_push()` 同因推播 3600s 冷卻內**靜默丟棄、連被擋都不記 log**(watchdog:136-141)。crash-loop 形狀=排程器每幾分鐘死一次、每次救援成功、Carson 每小時只收一則不含次數的孤立推播——迴圈不可見,log 有全記錄但無人讀(dispatch §6 第零種)。修法方向(w9 的檔):**次數進推播內文**,N 遞增即新資訊放行。已登記 premises.md。
 2. **正式任務觸發面盤點**:LogonTrigger 存在、Rep=PT5M、RunLevel=Limited、**LogonType=Interactive → 「重開機自動起來」實際依賴有人登入(或自動登入)**,純開機無登入不觸發。形狀=「設定存在、依賴登入、未被觀察」,非「設定錯」。
 
+## 附:principal 修法(S4U)相依項清單(09-03 備妥,待 Carson UAC)
+
+選 S4U、否決 SYSTEM(換身分=整條產線檔案擁有權/HKCU/git 上下文全變)與存密碼(改密即靜默失效+密碼入庫)。變更會動到的相依項:
+
+| 相依項 | 狀態 |
+|---|---|
+| ntfy(對外 HTTPS,S4U 無網路認證憑證) | **需重驗**——fix_task_principals.ps1 內建立即實測(最可能壞的一條) |
+| D:\ 絕對路徑/lock 檔權限 | 同 User 身分 ACL 不變(選 S4U 的核心理由);重開機驗收覆蓋 |
+| venv pythonw 解析 | 絕對路徑無 profile 依賴,沙箱輪同 exe 已驗 |
+| DETACHED_PROCESS 子程序存活 | V3 驗於 InteractiveToken 上下文,**S4U 下未驗**——重開機觀測涵蓋 |
+| design_system.json topic 讀取 | __file__ 絕對推導,V4 同機制已驗 |
+| 「Log on as a batch job」權限 | 未驗;若缺,Set/Start 當場大聲失敗(非靜默),腳本 ErrorAction=Stop |
+
 ## 未驗清單(別把 PASS 讀成全覆蓋)
 
 登入/開機觸發實際行為;睡眠喚醒補跑(StartWhenAvailable 只驗了設定在);逾時終止在 PT15M/正式條件下的重現;機器無自動登入時的開機空窗。

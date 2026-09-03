@@ -23,9 +23,15 @@
 
 完整論證與比價:`docs/ram-upgrade-decision-2026-09.md`
 
-## ④ 裝 RAM 那趟順手:排程任務改「不論登入與否都執行」— 約 2 分鐘(要按一次 UAC)
+## ④ 裝 RAM 那趟順手:兩支排程任務改「不論登入與否都執行」— 約 2 分鐘(按一次 UAC)
 
-實測發現:看門狗與天花板守望兩支排程都設成「僅互動登入時執行」,而本機沒開自動登入——**無人值守重開機(Windows Update/跳電)後,產線不會自己回來,而且不會有任何錯誤訊號**。修法指令由基建線備妥並先過獨立驗證,你到時只要在 UAC 跳出時按同意;改完裝 RAM 的那次重開機正好當驗收。
+實測發現:**看門狗(LocalCronWatchdog)與天花板守望(carson-quota-ceiling-watch)兩支**都設成「僅互動登入時執行」,而本機沒開自動登入——**無人值守重開機(Windows Update/跳電)後,產線不會自己回來、偵測它死掉的守望也一起死,零錯誤訊號**。
+
+做法:系統管理員 PowerShell 跑 `D:\carson-agent\scripts\fix_task_principals.ps1`(已過獨立驗證;改 S4U=不存密碼、維持你的帳號身分)。
+
+**驗收欄(任一 session 讀到都能代執行):**
+- [ ] **立即**:腳本自帶——它會在新上下文實測送一則 ntfy「[驗收] S4U 上下文 ntfy 實測」到你手機,並印 PASS/FAIL(FAIL 就**不要重開機收工**,先回報;這是本修法唯一可能弄壞的東西)
+- [ ] **裝完 RAM 重開機後,先做這個再做別的**:`Get-ScheduledTaskInfo LocalCronWatchdog,carson-quota-ceiling-watch` 兩者 LastRunTime 都在重開機之後 + local_cron 心跳活著(`STUDIO/local_cron.lock` mtime 新鮮)= 真驗收通過,並更新 premises.md 該條為已修
 
 ## ③ 重授權 Google 憑證 — 約 2 分鐘(你人已在機器前,順手)
 
