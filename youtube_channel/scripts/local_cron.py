@@ -68,6 +68,58 @@ def _touch_lock():
     except Exception:  # noqa: BLE001
         pass
 
+
+# 🔴 2026-09-03 單例保護升級:心跳鎖擋不住雙發。
+# 原本只靠 _lock_fresh()(啟動時檢查心跳 60 秒內有沒有被更新),兩個問題:
+#   (1) 它**只在啟動時檢查一次** —— 迴圈卡住 >180 秒被 watchdog 判定死掉、拉起
+#       第二個,舊的之後又自己恢復,就會有兩個迴圈同時活著;
+#   (2) local_cron_watchdog 出手的門檻是心跳 ≥180 秒,而這裡判活是 60 秒,
+#       **兩個門檻零重疊** —— watchdog 每一次出手,這道「保險」必定已經失效。
+# 雙發的代價:daily_publish 的 uploaded_ledger.json 是發布後才寫的檔案台帳、
+# 沒有程序鎖,兩個實例會挑到同一批 slug 各發一次 = 每天發兩次片、燒兩份配額。
+# 改用作業系統層的獨占鎖:第二個實例拿不到鎖當場退出,而持有者不管是正常退出、
+# 崩潰還是被 kill,**OS 都會自動釋放** —— 不需要判斷 pid 死活,也沒有陳舊門檻。
+# 呼應本檔開頭那條教訓:防護要做在腳本自己身上(flock 那種 Linux-only 的防護
+# 搬到本機是靜默失效的)。
+SINGLETON = ROOT / "STUDIO" / "local_cron.singleton"
+_singleton_fh = None          # 必須整個程序生命週期握著,不能關、不能重開
+
+
+def _acquire_singleton() -> bool:
+    """拿到獨占鎖回 True;被另一個實例握著回 False(本實例該退出)。
+
+    ⚠️ 方向是 fail-open:意外(msvcrt 拿不到、權限問題)一律回 True 繼續跑。
+    「沒有排程器」比「短暫雙發」嚴重得多 —— 前者是整條產線靜音停擺,
+    後者還有 watchdog 的 cron_procs 那一層擋。只有明確的「鎖被別人握著」才退出。
+    """
+    global _singleton_fh
+    try:
+        import msvcrt
+    except Exception:  # noqa: BLE001
+        return True
+    # 🔴 開檔和上鎖必須拆成兩個 try(2026-09-03 第二個驗證員打穿):
+    # 擠在同一個 try 時,`except OSError: return False` 會把「檔案根本打不開」
+    # 誤判成「鎖被別人握著」——而 PermissionError / FileExistsError 都是 OSError
+    # 子類。實測四種都中:防毒或備份程式用 share=0 開著、檔案被設唯讀屬性、
+    # 這個路徑變成目錄、STUDIO 變成檔案導致 mkdir 失敗。後果是**每一個實例都退出**,
+    # 而且前三種是持久的 = 每次重啟都退出 = 產線永久停擺,log 還會寫「另一個
+    # local_cron 持有單例鎖」把人送去抓一個不存在的程序。
+    try:
+        SINGLETON.parent.mkdir(parents=True, exist_ok=True)
+        fh = open(SINGLETON, "a+")     # 不可用 write_text:那會重開檔案、鬆開鎖
+    except Exception:  # noqa: BLE001
+        return True                    # 開不了檔 ≠ 別人握著 → fail-open,照樣跑
+    try:
+        fh.seek(0)
+        msvcrt.locking(fh.fileno(), msvcrt.LK_NBLCK, 1)
+    except OSError:
+        fh.close()
+        return False                   # 只有這裡是真的「被別人握著」
+    except Exception:  # noqa: BLE001
+        return True                    # 其他意外:fail-open
+    _singleton_fh = fh                 # 綁在模組上,避免被 GC 關掉而鬆鎖
+    return True
+
 # 雲端專屬、本機不跑的關鍵字（純 shell / 需公網 / 已無意義）。
 # 注意：hybrid_render 保留（本機要渲染）；--cloud 是本機渲染路徑要保留，只在下方濾掉 --pc（SFTP 推雲端）。
 # IG 引流已解封(2026-07-06):ig_backfill/ig_health_check/ig_token_refresh 本機跑
@@ -250,6 +302,9 @@ def main() -> int:
             print(f"  {j[0]} {j[1]} {j[2]} {j[3]} {j[4]}  {' '.join(j[5])}")
         return 0
 
+    if not _acquire_singleton():
+        _log("另一個 local_cron 持有單例鎖,本實例退出避免雙發。")
+        return 0
     if _lock_fresh():
         _log("另一個 local_cron 已在跑(心跳鎖 60s 內),本實例退出避免雙發。")
         return 0
