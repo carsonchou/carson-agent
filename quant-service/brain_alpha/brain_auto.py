@@ -68,6 +68,16 @@ BASE = {
     "language": "FASTEXPR", "visualization": False,
 }
 
+# delay 用環境變數覆寫，**預設維持 1**（不改變既有行為）。
+# 為什麼不直接改上面那行：2026-09-03 實測 delay=1 的搜尋空間已挖穿 ——
+# 平台 /data-sets 對 USA/delay=1 只開 14 個資料集，而帳本 142 個標籤涵蓋全部 14 個，
+# 從沒碰過的是 0 個。要換 delay=0（11 個資料集 / 2,121 欄位）試獨立性。
+# 但把寫死的 1 改成寫死的 0 只是換一個坑 —— 兩邊都要能跑，所以做成參數。
+# 下游全部走 dict(BASE) 複製，所以在這裡覆寫一次就會傳到每一組 settings。
+_d = os.environ.get("BRAIN_DELAY")
+if _d is not None:
+    BASE["delay"] = int(_d)
+
 # Phase 1 找到的最佳骨架：dual_frame 反向、短窗（Sharpe 1.31 已過門檻）
 LEADER = ("v_s = ts_delta(close, {w2}) / close; v_l = ts_delta(close, {w1}) / close; "
           "{inner}")

@@ -98,6 +98,26 @@ VEC_FORMS = {
 SETTINGS = dict(B.BASE)
 SETTINGS.update(decay=0, truncation=0.1, nanHandling="ON", universe="TOP3000")
 
+
+def use_delay(n: int) -> None:
+    """切換到 delay=n 的欄位宇宙（2026-09-03）。
+
+    delay 不只是 settings 裡的一個數字 —— **欄位清單本身就不一樣**：
+        delay=1  14 個資料集 / 4,367 欄位
+        delay=0  11 個資料集 / 2,121 欄位（model16 / model51 / option9 在 delay=0 不存在）
+    所以只改 SETTINGS 不換 FIELDS_FILE 的話，會拿 delay=1 才有的欄位去打 delay=0，
+    得到一堆「欄位不存在」的失敗而誤判成「delay=0 沒訊號」。
+
+    delay=1 時完全不動既有路徑（讀原本的 ALL_FIELDS.json），不破壞正在跑的 miner。
+    """
+    global FIELDS_FILE, TYPES_FILE
+    SETTINGS["delay"] = n
+    if n != 1:
+        FIELDS_FILE = ROOT / f"ALL_FIELDS_D{n}.json"
+        TYPES_FILE = ROOT / f"FIELD_TYPES_D{n}.json"
+        if not FIELDS_FILE.exists():
+            raise SystemExit(f"沒有 {FIELDS_FILE.name} —— 先跑 python fetch_fields.py --delay {n}")
+
 # 覆蓋率太低的欄位不值得掃：資料缺太多會直接掛 CONCENTRATED_WEIGHT
 MIN_COVERAGE = 0.30
 
@@ -300,6 +320,9 @@ def main():
     except Exception:  # noqa: BLE001
         pass
     a = sys.argv[1:]
+    if "--delay" in a:
+        use_delay(int(a[a.index("--delay") + 1]))
+        print(f"delay={SETTINGS['delay']}  欄位來源 {FIELDS_FILE.name}")
     if "--yield" in a:
         cmd_yield()
     elif "--plan" in a:
