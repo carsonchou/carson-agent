@@ -2,6 +2,13 @@
 """第五輪:溫和調降(砍 31%)必須叫,而且要說得出第幾天。"""
 import sys, json, io, pathlib, tempfile, contextlib, datetime as dt
 sys.path.insert(0,'scripts'); import quota_meter as qm, daily_health as dh
+# 🔴 2026-09-03:原本直接讀 STUDIO/quota_meter.json(活的產線帳本)。
+# 獨立驗證員指出那讓套件的預期結果綁在今天的產線資料上 —— ledger_broken 的 E3
+# 甚至是一句「今天的真帳本 → info」的活斷言:產線哪天真的撞牆,daily_health 正確
+# 地回 🔴,E3 就 FAIL,於是任何人驗一個完全無關的修法都會看到紅字。那是
+# verification-that-cannot-fail 的「一定叫」型,和 run_all 那個「不會叫」是同一枚硬幣。
+# 改讀凍結快照(進版控、可 review、跟著程式一起演進);活帳本只留 replay10.py 一個消費者。
+_FIXTURE = pathlib.Path(__file__).resolve().parent / 'fixtures' / 'ledger_snapshot.json'
 tmp = pathlib.Path(tempfile.mkdtemp())/'l.json'; qm.STATE = tmp
 today = qm._pacific_date(); T = dt.date.fromisoformat(today)
 ago = lambda n: (T - dt.timedelta(days=n)).isoformat()
@@ -33,8 +40,8 @@ for rj, ru, cal, tag in [(2,850,334,'08-28 量級'),(16,16,440,'08-29 量級'),
     print()
 
 print("【方向二】今天必須維持綠字")
-real = json.loads(pathlib.Path('STUDIO/quota_meter.json').read_text(encoding='utf-8'))['days']
-run(dict(real), '真帳本原樣(24,573 / 被拒 0)', 'info')
+real = json.loads(_FIXTURE.read_text(encoding='utf-8'))['days']
+run(dict(real), '凍結快照原樣(高水位日、被拒 0)', 'info')
 
 print("\n【方向四】腰斬 12,000 第 2、3 天仍然叫")
 for k in (2,3):

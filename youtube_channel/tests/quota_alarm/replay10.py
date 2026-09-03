@@ -9,7 +9,19 @@ import sys, json, io, pathlib, tempfile, contextlib
 sys.path.insert(0, 'scripts')
 import quota_meter as qm, daily_health as dh
 
-real = json.loads(pathlib.Path('STUDIO/quota_meter.json').read_text(encoding='utf-8'))
+# 🔴 2026-09-03:這是**唯一**還讀活產線帳本的一支,而那是刻意的 ——
+# 它本來就在 run_all 之外、本來就是手動跑,它的全部意義就是「拿產線回放」。
+# 其餘四支已改讀 tests/quota_alarm/fixtures/ledger_snapshot.json(凍結快照)。
+# 這裡失敗時要指名產線,不要讓人以為是測試壞了。
+_LIVE = pathlib.Path('STUDIO/quota_meter.json')
+try:
+    real = json.loads(_LIVE.read_text(encoding='utf-8'))
+except Exception as _e:
+    print("🔴 讀不到/解不開**產線帳本** %s:%r" % (_LIVE, _e))
+    print("   這是**產線問題,不是測試問題** —— replay10 的輸入就是活帳本。")
+    print("   先看 STUDIO/quota_meter.json 與它的 .bak,再回來跑。")
+    print("   (其餘四支用凍結快照,不受影響,可以照跑。)")
+    raise SystemExit(2)
 days = real.get('days') or {}
 tmp = pathlib.Path(tempfile.mkdtemp()) / 'l.json'
 qm.STATE = tmp

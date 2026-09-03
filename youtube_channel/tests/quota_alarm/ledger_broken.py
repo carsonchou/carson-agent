@@ -3,8 +3,15 @@
 import sys, json, io, pathlib, tempfile, contextlib, os, time
 sys.path.insert(0, 'scripts')
 import quota_meter as qm, daily_health as dh
+# 🔴 2026-09-03:原本直接讀 STUDIO/quota_meter.json(活的產線帳本)。
+# 獨立驗證員指出那讓套件的預期結果綁在今天的產線資料上 —— ledger_broken 的 E3
+# 甚至是一句「今天的真帳本 → info」的活斷言:產線哪天真的撞牆,daily_health 正確
+# 地回 🔴,E3 就 FAIL,於是任何人驗一個完全無關的修法都會看到紅字。那是
+# verification-that-cannot-fail 的「一定叫」型,和 run_all 那個「不會叫」是同一枚硬幣。
+# 改讀凍結快照(進版控、可 review、跟著程式一起演進);活帳本只留 replay10.py 一個消費者。
+_FIXTURE = pathlib.Path(__file__).resolve().parent / 'fixtures' / 'ledger_snapshot.json'
 
-real = json.loads(pathlib.Path('STUDIO/quota_meter.json').read_text(encoding='utf-8'))
+real = json.loads(_FIXTURE.read_text(encoding='utf-8'))
 tmpdir = pathlib.Path(tempfile.mkdtemp()); tmp = tmpdir / 'l.json'
 qm.STATE = tmp
 today = qm._pacific_date()
