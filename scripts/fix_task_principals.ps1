@@ -16,6 +16,7 @@ foreach ($t in $tasks) {
 # 立即驗收①:S4U 上下文下 ntfy 真的送得出去(最可能壞的那條,當場驗)
 Write-Host "`n[驗收] 建臨時 S4U 任務實測 ntfy..."
 $a = New-ScheduledTaskAction -Execute "D:\carson-agent\youtube_channel\.venv\Scripts\python.exe" -Argument "D:\carson-agent\scripts\ntfy_s4u_test.py"
+Remove-Item "D:\carson-agent\docs\ops\principal_fix_ntfy_test.txt" -ErrorAction SilentlyContinue  # 防上次殘檔造成假 PASS
 Register-ScheduledTask -TaskName "NtfyS4UTest_temp" -Action $a -Principal $principal | Out-Null
 Start-ScheduledTask -TaskName "NtfyS4UTest_temp"
 Start-Sleep -Seconds 20

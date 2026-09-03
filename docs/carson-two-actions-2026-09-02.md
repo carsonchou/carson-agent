@@ -33,6 +33,12 @@
 - [ ] **立即**:腳本自帶——它會在新上下文實測送一則 ntfy「[驗收] S4U 上下文 ntfy 實測」到你手機,並印 PASS/FAIL(FAIL 就**不要重開機收工**,先回報;這是本修法唯一可能弄壞的東西)
 - [ ] **裝完 RAM 重開機後,先做這個再做別的**:`Get-ScheduledTaskInfo LocalCronWatchdog,carson-quota-ceiling-watch` 兩者 LastRunTime 都在重開機之後 + local_cron 心跳活著(`STUDIO/local_cron.lock` mtime 新鮮)= 真驗收通過,並更新 premises.md 該條為已修
 
+**已知取捨(驗證員第 10 條,接受)**:watchdog 在無人值守狀態救回的 local_cron 會活在 session 0——核心發布/渲染照跑,但 **TikTok 上傳與社群貼文兩個 headed 瀏覽器 job 起不來**,要等有人登入後手動重啟 local_cron 才恢復(救援時必發「⚠️ 排程器被重啟」推播,看到那則就找機會重啟)。無人值守重開機場景從「全死」變「核心活、兩 job 暫停」=嚴格變好;唯一退步是「登入中死掉被救」也會進 session 0。
+
+**回退一行(改壞了用,系統管理員 PowerShell)**:
+`$p = New-ScheduledTaskPrincipal -UserId "信義猛龍\User" -LogonType Interactive -RunLevel Limited; "LocalCronWatchdog","carson-quota-ceiling-watch" | ForEach-Object { Set-ScheduledTask -TaskName $_ -Principal $p }`
+(腳本若中途炸掉留下殘件:`Unregister-ScheduledTask -TaskName NtfyS4UTest_temp -Confirm:$false`)
+
 ## ③ 重授權 Google 憑證 — 約 2 分鐘(你人已在機器前,順手)
 
 `scripts/google_token.json` 的 refresh token 已失效(invalid_grant)——**早晨日報(/morning)的 Gmail+行事曆下次跑必炸**,信箱證據查證路也斷了。
