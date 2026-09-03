@@ -64,14 +64,20 @@ def production_suffix(now: datetime.datetime) -> str:
     (memory yt-autoloop-shorts-death-spiral)——這裡讓行為每天自己說話,沒事也印。
     口徑=ops_log 全日「渲染完成」行數(w9 採納的口徑)+ 上架部門自報「剩庫存」。"""
     try:
-        text = (REPO / "youtube_channel" / "STUDIO" / "ops_log.txt").read_text("utf-8", errors="replace")
+        opslog = REPO / "youtube_channel" / "STUDIO" / "ops_log.txt"
+        text = opslog.read_text("utf-8", errors="replace")
         today, yest = now.strftime("%m-%d"), (now - datetime.timedelta(days=1)).strftime("%m-%d")
         cnt = lambda d: sum(1 for ln in text.splitlines()
                             if ln.startswith(f"[{d} ") and "渲染完成" in ln)
+        # 新鮮度:數字旁沒有它的更新時刻,就分不出「沒變」和「沒在動」(09-03 教訓,
+        # 人工挖了五分鐘才排除計數器凍結)。渲染取最後一行渲染完成的時戳、庫存取最後
+        # 一行上架部門的時戳、log 本身取 mtime——三個來源各自標。
+        last_of = lambda key: next((ln[1:15] for ln in reversed(text.splitlines()) if key in ln), "無")
+        log_mt = datetime.datetime.fromtimestamp(opslog.stat().st_mtime).strftime("%m-%d %H:%M")
         inv = re.findall(r"剩庫存(\d+)", text)
-        inv_s = f"{inv[-1]} 支(產線自報)" if inv else "讀不到"
-        return (f"｜長片渲染 昨{cnt(yest)}/今{cnt(today)}次(含重渲;今日至 {now.strftime('%H:%M')} 截點,"
-                f"毛產出口徑見 throttle-brief)/建議上限 {PROD_CAP_HINT}｜庫存 {inv_s}")
+        inv_s = f"{inv[-1]} 支(產線自報@{last_of('上架部門')})" if inv else "讀不到"
+        return (f"｜長片渲染 昨{cnt(yest)}/今{cnt(today)}次(含重渲;末次@{last_of('渲染完成')},"
+                f"log 活至 {log_mt};毛產出口徑見 throttle-brief)/建議上限 {PROD_CAP_HINT}｜庫存 {inv_s}")
     except Exception as e:                       # 讀不到也要說(dispatch §6 第零種)
         return f"｜🔴 產量/庫存讀不到:{e!r}"
 
