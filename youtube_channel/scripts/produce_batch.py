@@ -2343,7 +2343,55 @@ def _record_bucket_taken(kind, title):
         pass
 
 
-def call_claude(kind, avoid, topic_override=None):
+# ══════════════════════════════════════════════════════════════════════════════
+# 重生回饋:把上一稿的失敗原因餵回去
+# ══════════════════════════════════════════════════════════════════════════════
+# 🔴 2026-09-03 為什麼要有這個:重生迴圈**完全沒有回饋**。
+# 失敗原因算出來了(`_hist.append(...)`)、寫進 log 了,然後**丟掉** ——
+# `call_claude(kind, avoid, topic_override)` 的簽章裡沒有任何參數接得住它,
+# 而 `_ex = existing_titles()` 是迴圈外算一次的去重表,三次呼叫從不更新。
+# 所以三次重生是**三個位元組完全相同的呼叫**,只差 LLM 取樣隨機性。
+# 這不是「重生沒收斂」,是**沒有迴圈** —— 是重擲同一顆骰子。
+#
+# 實測 n=28 組連續兩稿:**57.1% 兩稿失敗理由完全相同**,轉移全是自環
+# (長度→長度 5、期間→期間 4、矛盾→矛盾 3、洩漏→洩漏 3)。最純的一支三稿同一個理由。
+# 而 memory 記著「新稿殘餘率 23.1% ⇒ fail-closed 約 1.2%」—— 0.231³ = 1.23%,
+# **立方關係只在獨立重抽下成立**,而實測是 57% 自相關。
+# 那個獨立性假設從來沒被驗過,整個良率預期建立在它上面。
+#
+# 措辭原則:寫**模型用得上的話**,不是把閘門訊息原文貼過去。
+# 「資訊密度不足(同組數字/片語重複灌水撐時長)」對模型可用;「_long_mixed_period True」不是。
+_RETRY_FIX = (
+    ("長度不足", "字數不夠。這次每一段都要寫滿,不要靠結尾補字 —— 段落內容不足就換一個更有料的切角,"
+                "不要把同一件事換句話說再講一次(那會被下一道閘門判成灌水)。"),
+    ("段數", "段落數不夠。這次正文要寫滿 5-6 段,每段一個獨立面向,不要把兩段併成一段。"),
+    ("資訊密度", "上一稿在**重複同一組數字或片語**撐長度。這次每一段都要引用**不同的**事實面向"
+                "(報酬 / 回撤 / 套牢 / 配息 / 毛利 / 估值…),同一個百分比不要出現第二次。"),
+    ("期間", "上一稿**把不同期間的數字混著講**。這次凡是出現對照數字的句子,**同一句**就要寫出是哪段期間;"
+            "不同期間的數字不要放在同一個比較裡。"),
+    ("矛盾", "上一稿**標題的數字和事實對不上**。這次標題只能用事實區塊裡真的有的那幾個數字,"
+            "不要自己換算、不要四捨五入成另一個數。"),
+    ("洩漏", "上一稿**把寫作指令本身唸進旁白**了。這次只輸出要唸出來的內容;"
+            "任何規則、格式要求、段落編號、方括號標記都不要出現在旁白裡。"),
+    ("碎句", "上一稿開場是碎句。這次開場第一句就要是完整的一句話,直接給數字或反直覺結論。"),
+    ("跑題", "上一稿後段離題了。這次每一段都要扣回主標題問的那件事。"),
+)
+
+
+def _retry_directive(reason, attempt):
+    """把上一次的失敗原因變成下一次的具體要求。回空字串代表沒有可用的回饋。"""
+    if not reason:
+        return ""
+    tips = [fix for key, fix in _RETRY_FIX if key in str(reason)]
+    if not tips:
+        # 認不出來也要講:重擲同一顆骰子比講一句籠統的話更糟。
+        tips = [f"上一稿沒通過終檢,原因是「{str(reason)[:60]}」。這次針對那一點改,不要整篇重寫。"]
+    return ("\n【★上一稿被打回,這次一定要修掉(第 %d 次重寫)】\n" % attempt
+            + "\n".join("- " + t for t in tips)
+            + "\n⚠️ 這一段是寫給你的要求,**不要**出現在旁白裡。\n")
+
+
+def call_claude(kind, avoid, topic_override=None, retry_reason=None, retry_n=0):
     orders = load_orders()
     # 時事優先：有指定題目（金融時事）就用它，否則從題庫抽；題庫空了才「照配額指定題材」自由發揮
     topic = topic_override or pull_topic(kind)
@@ -2452,6 +2500,8 @@ def call_claude(kind, avoid, topic_override=None):
         hook_rules = hook_rules + _extra
     hook_rules = hook_rules + _retention_insight()  # P1:把最新完播診斷結論回灌進 prompt(檔不在則優雅跳過)
     hook_rules = hook_rules + _recent_metaphor_block()  # A1:近期已用比喻清單,禁止再用(治「背考古題用爛22次」)
+    # 重生回饋:上一稿為什麼被打回。沒有它的話,三次重生是三個位元組相同的呼叫。
+    hook_rules = hook_rules + _retry_directive(retry_reason, retry_n)
     # 實測 EP 系列(爆款招牌)：短片且題目屬實測/實驗類 → 追加續集鐵律(前1.5秒錨數字+cliffhanger+留言題+念出HUD數字)
     _epkw = ("EP", "實測", "實驗")
     is_ep = (kind == "short" and not topic_override and topic
@@ -5744,8 +5794,10 @@ def make_one(kind, no_render=False, topic_override=None, script_override=None):
                     d = _fix
                     continue
             _lk += 1
-            log_ops("補產·重生", f"A4長片第{_lk}次重生:{_long_bad(d)}｜{d.get('title','')[:20]}")
-            d = call_claude(kind, _ex, _content_topic)   # 鎖同一題重寫,不再抽下一題燒題庫
+            _why_prev = _long_bad(d)          # 算出來就要**用掉**,不是只寫進 log
+            log_ops("補產·重生", f"A4長片第{_lk}次重生:{_why_prev}｜{d.get('title','')[:20]}")
+            d = call_claude(kind, _ex, _content_topic,
+                            retry_reason=_why_prev, retry_n=_lk)   # 鎖同一題重寫,不再抽下一題燒題庫
             if _content_topic is None:
                 _content_topic = d.get("_pulled_topic")  # 首輪自由生題時沒題可鎖,補鎖這次抽到的
             # 重生出來的**新稿**也要能吃確定性修復:旗標原本在第一次嘗試前就設 True,
@@ -5911,8 +5963,9 @@ def make_one(kind, no_render=False, topic_override=None, script_override=None):
                     continue
             _t2 += 1
             _hist.append(_uncontroversial_bad(d))
-            log_ops("補產·重生", f"鎖題長片終檢第{_t2}次重生:{_uncontroversial_bad(d)}｜{d.get('title','')[:20]}")
-            d = call_claude(kind, _ex, topic_override)
+            log_ops("補產·重生", f"鎖題長片終檢第{_t2}次重生:{_hist[-1]}｜{d.get('title','')[:20]}")
+            d = call_claude(kind, _ex, topic_override,
+                            retry_reason=_hist[-1], retry_n=_t2)
             # 重生出來的**新稿**也要能吃確定性修復:旗標原本在第一次嘗試前就設 True,
             # 之後每一次重生的稿都直接跳過修復 —— 而【】洩漏造成的 14 次重生裡,
             # 發生在第 2、3 次重生上的就還是照燒一次 LLM。放回 False 不會有迴圈風險:
