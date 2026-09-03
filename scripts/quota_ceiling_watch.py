@@ -17,7 +17,7 @@
 用法:python scripts/quota_ceiling_watch.py   (排程每天台北 15:20,配額日剛關帳後)
 輸出:docs/ops/quota-ceiling-watch.log 追加一行 + 更新 .state.json + stdout(若有)
 """
-import json, sys, datetime, pathlib, traceback
+import json, re, sys, datetime, pathlib, traceback
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 LOG   = REPO / "docs" / "ops" / "quota-ceiling-watch.log"
@@ -54,6 +54,26 @@ def record(line: str) -> None:
     with LOG.open("a", encoding="utf-8") as f:
         f.write(line + "\n")
     say(line)
+
+
+PROD_CAP_HINT = 14   # 節流建議上限=可發布量÷良率(docs/inventory-throttle-brief-2026-09-03.md;w9 已同意方向)
+
+
+def production_suffix(now: datetime.datetime) -> str:
+    """當日/昨日產量 + 庫存,追加在守望行尾。節流「同意了」不等於「行為變了」
+    (memory yt-autoloop-shorts-death-spiral)——這裡讓行為每天自己說話,沒事也印。
+    口徑=ops_log 全日「渲染完成」行數(w9 採納的口徑)+ 上架部門自報「剩庫存」。"""
+    try:
+        text = (REPO / "youtube_channel" / "STUDIO" / "ops_log.txt").read_text("utf-8", errors="replace")
+        today, yest = now.strftime("%m-%d"), (now - datetime.timedelta(days=1)).strftime("%m-%d")
+        cnt = lambda d: sum(1 for ln in text.splitlines()
+                            if ln.startswith(f"[{d} ") and "渲染完成" in ln)
+        inv = re.findall(r"剩庫存(\d+)", text)
+        inv_s = f"{inv[-1]} 支(產線自報)" if inv else "讀不到"
+        return (f"｜日產 昨{cnt(yest)}/今{cnt(today)}支(今日至 {now.strftime('%H:%M')} 截點)"
+                f"/建議上限 {PROD_CAP_HINT}｜庫存 {inv_s}")
+    except Exception as e:                       # 讀不到也要說(dispatch §6 第零種)
+        return f"｜🔴 產量/庫存讀不到:{e!r}"
 
 
 def alert(title: str, body: str) -> None:
@@ -120,7 +140,7 @@ def main() -> int:
                    f"提額若核准,產線成功花超舊牆當天 effective_limit 會上移(cefa9ba8 後含撞牆日後 floor)")
         changed = False
 
-    record(f"[{now}] {verdict}")
+    record(f"[{now}] {verdict}{production_suffix(datetime.datetime.now())}")
     STATE.write_text(json.dumps({"effective": cur, "raw_effective": eff, "floor": floor,
                                  "ceiling": ceil, "days_n": days_n,
                                  "checked_at": now}, ensure_ascii=False), "utf-8")
