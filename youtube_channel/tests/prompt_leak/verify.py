@@ -1,49 +1,124 @@
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""驗收:①8 支已知洩漏全被接住(逐支前後對照)②745 支母體零誤刪。"""
-import sys, collections
+"""prompt 洩漏偵測驗收 —— 四個方向缺一不可。
+
+用法:cd youtube_channel && .venv/Scripts/python.exe tests/prompt_leak/verify.py
+
+四條驗收(第 3 條是階段二被咬出來才加的):
+  1. 已知洩漏全部接住(閘門會叫 + strip 後零殘留)
+  2. 零誤刪:745 支母體 + 對抗語料,合法旁白一句都不准被刪
+  3. 🔴 不准有任何案例比改動前更安靜 —— 拿 cbfb12e7^ 那版當對照組逐支比對,
+     任何一支從「會叫」變成「不會叫」就是 FAIL。
+     (階段二的事故正是這個形狀:`;` 分句 + 長度下限製造出一個永遠刪不掉的碎片,
+      於是「刪掉會叫的那半、留下不會叫的那半」→ 閘門 None → 帶著洩漏出貨、零訊號。)
+  4. 灰色地帶誤標率;寧可誤標也不要誤刪,兩者衝突時選誤標。
+"""
+import collections
+import subprocess
+import sys
+import tempfile
 from pathlib import Path
-sys.path.insert(0, 'scripts')
-import produce_batch as pb
-sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
-KNOWN = {'L_資產再平衡真的能多賺我用模擬揭露這個頻率沒抓對十年報':'資產再平衡(未發布,已攔)',
- 'L_個股體檢金居835815年賺24倍但套牢58年腰斬4':'金居(未發布,已攔)',
- 'L_個股體檢宜特3289長期持有報酬248這檔個股腰斬3':'宜特(已發布)',
- 'L_個股體檢矽力-KY641512年賺10倍但最大回撤8':'矽力(已發布)',
- 'L_個股體檢立隆電247220年暴賺32399但847最':'立隆電(已發布)',
- 'L_個股體檢竑騰7751毛利率雪崩式下滑股價竟還飆漲這檔':'竑騰(已發布)',
- 'L_個股體檢至上811218年報酬2114最大回撤-78':'至上(已發布)',
- 'L_個股體檢譜瑞-KY4966長抱譜瑞-KY149年總報':'譜瑞(已發布)',
- 'L_個股體檢盟立246420年暴賺1498這檔冷門股套牢':'盟立(督導判無洩漏)'}
+sys.path.insert(0, "scripts")
+import produce_batch as pb  # noqa: E402
 
-print("【驗收一】8 支已知洩漏 —— 前後對照\n")
-for f, nm in KNOWN.items():
-    t = Path(f'output/{f}.voice.txt').read_text(encoding='utf-8', errors='replace')
-    kill, gray = pb._prompt_leak_suspects(t)
-    gate = pb._long_prompt_leak(t)
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+OUT = Path("output")
+fails = 0
+
+
+def check(label, cond, extra=""):
+    global fails
+    fails += 0 if cond else 1
+    print(f"  {'PASS' if cond else '**FAIL**'}  {label}{('  ' + extra) if extra else ''}")
+
+
+# ── 一、已知洩漏 ──────────────────────────────────────────────────────────────
+print("【一】已知洩漏:閘門要叫,strip 後零殘留")
+known = sorted(p for p in OUT.glob("L_*.voice.txt")
+               if pb._long_prompt_leak(p.read_text(encoding="utf-8", errors="replace")))
+bad = []
+for p in known:
+    t = p.read_text(encoding="utf-8", errors="replace")
     after = pb._strip_prompt_leak(t)
-    resid, _ = pb._prompt_leak_suspects(after)
-    print(f"── {nm}")
-    print(f"   閘門觸發: {'是' if gate else '否'}｜刪 {len(kill)} 句、標記 {len(gray)} 句"
-          f"｜字數 {len(t)} → {len(after)}｜殘留 {len(resid)}")
-    for s in sorted(kill)[:2]:
-        print(f"     刪:{s.strip()[:62]}")
-    for s in gray[:1]:
-        print(f"     標:{s[:62]}")
+    kill, _ = pb._prompt_leak_suspects(after)
+    if kill:
+        bad.append(p.name)
+check(f"閘門攔下 {len(known)} 支;strip 後仍有可刪殘留的支數 = 0", not bad, str(bad[:3]))
 
-print("\n\n【驗收二】745 支母體零誤刪 —— 所有被刪句子的完整清單\n")
-files = list(Path('output').glob('*.voice.txt'))
-dele = collections.defaultdict(set)
-gray_n = set()
+# ── 二、零誤刪 ────────────────────────────────────────────────────────────────
+print("\n【二】零誤刪")
+ADVERSARIAL = [
+    "很多人以為存股就是嚴禁停損，但回測資料顯示不是這樣。",
+    "我先幫你用資料試過，別自己送死。",
+    "你的網格機器人，是設計來盤整賺錢，還是趁你睡覺把本金歸零？",
+    "當沖九成畢業，你以為你是那一成？",
+    "無腦存股，結果套在一萬八千點山頂。",
+    "假設你連虧三次，帳戶可能只剩六成，這只是打個比方。",
+    "這不是喊單頻道，我只做能回測驗證的東西。",
+    "以上都是歷史回測，不代表未來，也不構成投資建議。",
+    "留言告訴我，這集哪個數字最讓你意外。",
+    "訂閱之後，下一集我帶你看同產業的另一檔。",
+    "同樣是定期定額0050，光是扣款日的選擇，十年後竟然可以差到一臺機車的錢。",
+    "先講一句：後面還有更反直覺的部分。",
+    "大盤擇時 vs 長抱不動——用真回測數字比給你看。",
+    "這一段講的是最大回撤，也就是你帳面上最痛的那一刻。",
+    "不編造精確數字、不保證收益、不喊單、不報明牌。",
+]
+killed = [s for s in ADVERSARIAL if pb._prompt_leak_suspects(s)[0]]
+check(f"對抗語料 {len(ADVERSARIAL)} 句全部放行", not killed, str(killed))
+
+files = list(OUT.glob("*.voice.txt"))
+dele, gray_files = collections.defaultdict(set), set()
 for p in files:
-    t = p.read_text(encoding='utf-8', errors='replace')
-    k, g = pb._prompt_leak_suspects(t)
-    stem = p.name[:-len('.voice.txt')]
+    k, g = pb._prompt_leak_suspects(p.read_text(encoding="utf-8", errors="replace"))
     for s in k:
-        dele[s.strip()[:46]].add(stem)
+        dele[s.strip()[:46]].add(p.name)
     if g:
-        gray_n.add(stem)
+        gray_files.add(p.name)
 df = set().union(*dele.values()) if dele else set()
-print(f"母體 {len(files)} 支 → 會刪 {len(dele)} 種句子、涉及 {len(df)} 支;另 {len(gray_n)} 支進灰色地帶(標記不刪)\n")
-for z, fs in sorted(dele.items(), key=lambda kv: -len(kv[1])):
-    print(f"  {len(fs):>3} 支  {z}")
+print(f"     母體 {len(files)} 支 → 刪 {len(dele)} 種句子/{len(df)} 支;灰色地帶 {len(gray_files)} 支")
+print("     (被刪句子全列於下,逐句自審是否有真旁白)")
+for z, fs in sorted(dele.items(), key=lambda kv: -len(kv[1]))[:12]:
+    print(f"       {len(fs):>3}  {z}")
+
+# ── 三、不准有任何案例比改動前更安靜 ─────────────────────────────────────────
+print("\n【三】不准有任何案例比改動前更安靜(對照組 cbfb12e7^)")
+tmp = Path(tempfile.mkdtemp())
+old_src = subprocess.run(["git", "show", "cbfb12e7^:youtube_channel/scripts/produce_batch.py"],
+                         capture_output=True, cwd="..", text=False).stdout
+quieter = []
+if old_src:
+    (tmp / "produce_batch_old.py").write_bytes(old_src)
+    sys.path.insert(0, str(tmp))
+    try:
+        import produce_batch_old as old  # noqa: E402
+        for p in files:
+            t = p.read_text(encoding="utf-8", errors="replace")
+            was = bool(old._long_prompt_leak(old._strip_prompt_leak(t))) or \
+                bool(old._long_prompt_leak(t))
+            now_before = bool(pb._long_prompt_leak(t))
+            now_after = bool(pb._long_prompt_leak(pb._strip_prompt_leak(t)))
+            # 「更安靜」= 舊版會叫(修前或修後任一)而新版修前修後都不叫
+            if was and not (now_before or now_after):
+                quieter.append(p.name)
+    except Exception as e:  # noqa: BLE001
+        print(f"     ⚠️ 對照組載入失敗:{e!r}")
+        quieter = ["<對照組載入失敗,本項未驗>"]
+else:
+    quieter = ["<取不到 cbfb12e7^,本項未驗>"]
+check("沒有任何一支從「會叫」變成「不會叫」", not quieter, str(quieter[:3]))
+
+# ── 四、灰色地帶 ──────────────────────────────────────────────────────────────
+print("\n【四】灰色地帶(標記交重生,不刪)")
+gray_sent = collections.Counter()
+for p in files:
+    _, g = pb._prompt_leak_suspects(p.read_text(encoding="utf-8", errors="replace"))
+    for s in g:
+        gray_sent[s[:40]] += 1
+print(f"     落灰 {len(gray_files)} 支 / {len(gray_sent)} 種句子(前 6):")
+for z, n in gray_sent.most_common(6):
+    print(f"       {n:>3}  {z}")
+
+print(f"\n合計 FAIL={fails}")
+raise SystemExit(1 if fails else 0)

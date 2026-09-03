@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import difflib
 import functools
 import hashlib
@@ -3620,26 +3621,34 @@ def _long_title_contradicts_facts(title, slug=""):
 #      那段正是要唸的(「收尾定調:『我先幫你用資料試過…』」的引號內容)
 #   ③ 旁白句**自己也要帶硬指令詞**才刪;只有相似度高但自己不帶的,一律標記交重生
 # 745 支母體實測:刪 36 種/32 支、標記 33 種/34 支,36 種逐句看過**沒有一句是真旁白**。
-_LEAK_SRC_NAMES = (
-    "_AMOUNT_DISCIPLINE", "QUANT_STANDARD", "_DEFAULT_PLAYBOOK", "HOOK_RULES", "LONG_RULES",
-    "EP_RULES", "DEBUNK_RULES", "CURRICULUM_RULES", "TW_STOCK_RULES", "TW_STOCK_CHECKUP_RULES",
-    "TW_LAB_RULES", "TW_LAB_LONG_RULES", "NO_FACTS_INTEGRITY_RULES", "TW_NO_FACTS_OVERRIDE",
-    "AI_SAVINGS_RULES", "AI_COMPANY_RULES", "TITLE_FORMULA", "WINNING_FORMAT",
-    "_LONG_DATA_DISCIPLINE", "_AB_B_RULES",
-)
 _HARD_DIRECTIVE = re.compile(
-    "嚴禁|禁止|不准|不得|一律|必須|請勿|骨架|擇一|疊加|字數|旁白|本段|每段|各段"
+    "嚴禁|禁止|不准|不得|不要|請勿|一律|必須|骨架|擇一|疊加|字數|旁白|本段|每段|各段"
     "|上面實證|區塊給的|口語念法|不要寫成|勾住陌生人|壓後面|三刀拆|陷阱揭露|命脈|捏造史實"
-    "|收尾定調|開場前|自我介紹|情緒先行|反直覺對比")
+    "|收尾定調|開場前|自我介紹|情緒先行|反直覺對比|只輸出|純文字|前字尾|小標|直接輸出")
 # 引號內容與「範例:」之後 = 要唸的範本,剝掉不進語料
 _LEAK_EXAMPLE = re.compile(r"[「『\"“”][^」』\"“”]{4,}[」』\"“”]"
                            r"|(?:範例|例如|例)[:：].*$")
-# OpenCC 簡轉繁安全網造成的同義替換(「數據」→「資料」就是這次漏掉 7 支的原因)
-_LEAK_SYNONYM = (("數據", "資料"), ("網絡", "網路"), ("軟件", "軟體"),
-                 ("信息", "資訊"), ("質量", "品質"))
+# 語料句開頭的【區塊標題】要剝掉:洩漏版通常不帶它,而它會讓最長連續段被前綴切斷
+# —— 實測「【數據誠信·鐵律務必遵守】①你唯一能…」對上沒有前綴的洩漏版只拿到 0.79,
+# 永遠摸不到 0.90(督導階段二實測的三種變體有兩種栽在這裡)。
+_LEAK_HEADING = re.compile(r"^\s*【[^】]{0,30}】\s*")
+# 🔴 簡繁同義要**雙向**:第一版只做繁→繁(數據→資料),而簡體「数据」原封不動 → 0.00 放行。
+# 這裡把三種寫法一起收斂到同一個 token,任何一邊出現任何一種都對得上。
+_LEAK_SYNONYM = (("数据", "資料"), ("數據", "資料"), ("数據", "資料"),
+                 ("网络", "網路"), ("網絡", "網路"),
+                 ("软件", "軟體"), ("軟件", "軟體"),
+                 ("信息", "資訊"), ("质量", "品質"), ("質量", "品質"))
 _LEAK_ENUM = re.compile(r"^[①-⑳0-9０-９一二三四五六七八九十]{1,3}[、.．)）]?")
-_LEAK_SENT = re.compile("(?<=[。！？!?\n;；])")
+# 🔴 **不切 `;；`**。第一版切了,而 prompt 常數自己就在分號處斷句:
+#     「①你唯一能當成事實講的精確數字…(總報酬、年化、最大回撤);」← 在這裡被切開
+#     「沒給的一律不准自己生。」                        ← 正規化後只剩 10 字
+# 而 `_leak_similarity` 的 `len(z) < 12` 讓後半**永遠評 0 分、永遠刪不掉**。
+# 實測 745 支裡 28 支含後半句,strip 之後 28 支全部仍含 —— 存活率 100%,
+# 而且閘門從「會叫」變成「不會叫」(刪掉會叫的那半、留下不會叫的那半)。
+# **任何一次改動都不准讓某個案例比改動前更安靜**,那比不修更糟。
+_LEAK_SENT = re.compile("(?<=[。！？!?\n])")
 _LEAK_NGRAM = 10          # 最長連續段 >= 10 才算「抄的」;預篩也用這個長度
+_LEAK_BLOCK = 8           # 併計片段時的最小長度(4 會讓碎片拼貼把任意句子湊到 1.00)
 _LEAK_DEL = 0.90          # 這麼像就是抄的 → 整句刪
 _LEAK_MARK = 0.60         # 灰色地帶 → 不刪,標記交重生
 
@@ -3654,18 +3663,46 @@ def _leak_norm(s):
 
 @functools.lru_cache(maxsize=1)
 def _leak_corpus():
-    """(硬指令句正規化清單, 供預篩的 n-gram 集合)。lru_cache:每個 process 只建一次。"""
+    """(硬指令句正規化清單, 供預篩的 n-gram 集合)。lru_cache:每個 process 只建一次。
+
+    🔴 2026-09-03 從「手寫 20 個常數名 + globals()」改成 **ast 掃本檔所有字串字面值**。
+    手寫清單只做到一半的單一真相來源:誰改那 20 個常數偵測器跟得上,但**誰在 f-string
+    裡加一句新指令,偵測器永遠不知道,而且不知道的時候沒有訊號** —— 那正是這支要治的病
+    換了個位置復發。實測漏掉的就是動態組出來的 prompt(「只輸出重寫後的完整段落純文字」
+    「反直覺的現象——講一個反直覺轉折」「聯盟軟推＋風險聲明」)。
+    ast 連 f-string 的 JoinedStr 片段一起收,排除 docstring(那是寫給人看的,不會進 prompt)。
+    """
     out = []
-    for name in _LEAK_SRC_NAMES:
-        v = globals().get(name, "")
-        if not isinstance(v, str):
-            v = "".join(v or ())
-        for raw in _LEAK_SENT.split(v):
+    try:
+        tree = ast.parse(Path(__file__).read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return (), set()
+    docstrings = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            body = getattr(node, "body", None) or []
+            if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant) \
+                    and isinstance(body[0].value.value, str):
+                docstrings.add(id(body[0].value))
+    pieces = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Constant) and isinstance(node.value, str) \
+                and id(node) not in docstrings:
+            pieces.append(node.value)
+    for raw_text in pieces:
+        for raw in _LEAK_SENT.split(raw_text):
             if not raw.strip() or not _HARD_DIRECTIVE.search(raw):
                 continue
-            z = _leak_norm(_LEAK_EXAMPLE.sub("", raw))
+            # 問句排除:prompt 裡的指令幾乎不用問句,而**鉤子範本常常是問句**
+            # (「你的網格機器人,是設計來盤整賺錢,還是趁你睡覺把本金歸零?」——
+            # 它在 prompt 裡沒有被引號包住、收斂措施②接不到,而它是影片開場第一句,
+            # 讀起來完全是旁白。落灰 34 支裡 19 支誤標主要就是它)。
+            if raw.rstrip().endswith(("?", "？")):
+                continue
+            z = _leak_norm(_LEAK_EXAMPLE.sub("", _LEAK_HEADING.sub("", raw)))
             if len(z) >= 10:
                 out.append(z)
+    out = sorted(set(out))
     grams = set()
     for c in out:
         for i in range(len(c) - _LEAK_NGRAM + 1):
@@ -3676,11 +3713,18 @@ def _leak_corpus():
 def _leak_similarity(sent):
     """這句旁白有多少比例的字元,是某一條硬指令裡的**同一段連續文字**。
 
-    用「最長那一段連續相同 / 句長」而不是「所有相同片段加總 / 句長」:
-    長指令句裡有大量 4~6 字碎片,拼貼起來可以把**任意**一句話湊到 1.00
+    兩個度量取大的:
+      ① 最長連續段 / 句長 —— 「這句話整段是抄的」
+      ② 長度 >= 8 的片段**加總** / 句長 —— 「抄的句子中間被插了東西」
+         (實測:指令欄位裡插入本片真數字「閎康 1995.4% / 17.8%」會把連續段切成兩半,
+          只看①只剩 0.52 → 直接放行。)
+    片段下限用 8 不用 4:4 會讓長指令句裡的碎片拼貼把**任意**一句話湊到 1.00
     (第一版就是這樣寫的,實測把正常旁白也判成 1.00)。"""
     z = _leak_norm(sent)
-    if len(z) < 12:
+    # 下限 10 不是 12:「沒給的一律不准自己生」正規化後正好 10 字,而 12 讓它
+    # **永遠評 0 分、永遠刪不掉**(745 支裡 28 支含它,存活率 100%)。
+    # 10 字的中文完全比中還要求句子自己帶硬指令詞才會刪,誤刪風險已由 745 支母體驗過。
+    if len(z) < 10:
         return 0.0, z
     corpus, grams = _leak_corpus()
     if not any(z[i:i + _LEAK_NGRAM] in grams
@@ -3689,7 +3733,9 @@ def _leak_similarity(sent):
     best = 0.0
     for c in corpus:
         blocks = difflib.SequenceMatcher(None, z, c, autojunk=False).get_matching_blocks()
-        r = (max((b.size for b in blocks), default=0)) / len(z)
+        longest = max((b.size for b in blocks), default=0)
+        joined = sum(b.size for b in blocks if b.size >= _LEAK_BLOCK)
+        r = max(longest, joined) / len(z)
         if r > best:
             best = r
             if best >= 0.999:
