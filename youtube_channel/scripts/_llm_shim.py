@@ -98,6 +98,11 @@ def install():
             tp = body.get("temperature")
             import llm  # 執行時才 import(此時 scripts/ 已在 sys.path)
             txt = llm.complete(prompt, mx, json_mode=jm, temperature=tp)
+            if not txt:
+                # 空回應包成 status 200 的假 Response,呼叫端會在 r.json()["content"][0]["text"]
+                # 拿到 None,然後死在一個**看起來和 LLM 無關**的 TypeError 上。
+                # 觸發面窄(llm.py 空回應本來就會 raise),但誤導成本高 → 在這裡就講清楚。
+                raise ShimRouteFailed("llm.complete 回空值(None/空字串)")
             return _FakeResp(txt)
         except Exception as e:  # noqa: BLE001
             _loud(f"🔴 改道 OpenRouter 失敗({e!r})——**不回退到 Anthropic**(那會計費)。"

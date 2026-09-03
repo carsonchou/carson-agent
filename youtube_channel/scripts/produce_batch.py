@@ -2378,6 +2378,22 @@ _RETRY_FIX = (
 )
 
 
+# 🔴 2026-09-03 觀測用。六條重生迴圈裡有三條**連失敗原因都沒算、一行 log 都不寫**
+# (標題閘門 / Shorts 鉤子密度 / A2 捏造績效)。447 行日誌裡完全看不到它們,
+# 而它們在燒 LLM 呼叫、燒題庫 —— **沒有任何人知道燒了多少**。
+# 在不知道多久觸發一次之前替它們加回饋,是在改一個看不見的東西;所以先觀測。
+def _which_gate(checks):
+    """(名稱, 判斷式) 清單 → 命中的名稱字串。只讀,不改任何行為。"""
+    hit = []
+    for name, fn in checks:
+        try:
+            if fn():
+                hit.append(name)
+        except Exception:  # noqa: BLE001
+            hit.append(name + "?")     # 判斷式自己壞掉也要留痕,不要靜音
+    return "+".join(hit) or "(判斷式已不成立)"
+
+
 def _retry_directive(reason, attempt):
     """把上一次的失敗原因變成下一次的具體要求。回空字串代表沒有可用的回饋。"""
     if not reason:
@@ -5653,6 +5669,12 @@ def make_one(kind, no_render=False, topic_override=None, script_override=None):
                or sc.skeleton_dup_any(d.get("title", ""), _ex)
                or sc.check_skeleton_frequency(d.get("title", ""))) and _tries < 3:
             _tries += 1
+            log_ops("補產·重生", f"標題閘門第{_tries}次重生:" + _which_gate((
+                ("近似重複", lambda: _too_similar(d.get("title", ""), _ex)),
+                ("標題不達公式", lambda: _title_weak(d.get("title", ""))),
+                ("骨架重複", lambda: sc.skeleton_dup_any(d.get("title", ""), _ex)),
+                ("骨架本週已達上限", lambda: sc.check_skeleton_frequency(d.get("title", ""))),
+            )) + f"｜{d.get('title','')[:20]}")
             d = call_claude(kind, _ex, topic_override)
         if _too_similar(d.get("title", ""), _ex) or sc.skeleton_dup_any(d.get("title", ""), _ex):
             log_ops("補產部門", f"\u26a0\ufe0f 近似重複連3次,跳過:{d.get('title','')[:28]}")
@@ -5698,6 +5720,18 @@ def make_one(kind, no_render=False, topic_override=None, script_override=None):
                or _self_repeated_metaphor(d.get("voice_text", ""))   # 片內同一比喻講兩次=灌水
                or _notorious_metaphor_hit(d.get("voice_text", ""))) and _hk < 2:
             _hk += 1
+            log_ops("補產·重生", f"Shorts閘門第{_hk}次重生:" + _which_gate((
+                ("鉤子弱", lambda: _weak_hook(d.get("voice_text", ""))),
+                ("資訊密度", lambda: _impact_density(d.get("voice_text", ""))),
+                ("中段鉤子弱", lambda: _weak_mid_hook(d.get("voice_text", ""))),
+                ("提早揭曉", lambda: _reveals_too_early(d.get("voice_text", ""))),
+                ("結尾雷同", lambda: (not topic_override)
+                 and _ending_too_similar(d.get("voice_text", ""), _recent_ends)),
+                ("正文雷同", lambda: (not topic_override)
+                 and _body_too_similar(d.get("voice_text", ""), _recent_bodies)),
+                ("片內比喻重複", lambda: _self_repeated_metaphor(d.get("voice_text", ""))),
+                ("爛大街比喻", lambda: _notorious_metaphor_hit(d.get("voice_text", ""))),
+            )) + f"｜{d.get('title','')[:20]}")
             d = call_claude(kind, _ex, topic_override)
         if not topic_override and (_ending_too_similar(d.get("voice_text", ""), _recent_ends)
                                     or _body_too_similar(d.get("voice_text", ""), _recent_bodies)):
@@ -5840,6 +5874,8 @@ def make_one(kind, no_render=False, topic_override=None, script_override=None):
         _fk = 0
         while _fabricated_perf_claim_d(d) and _fk < 2:
             _fk += 1
+            log_ops("補產·重生", f"A2捏造績效第{_fk}次重生:疑似捏造績效數字"
+                                f"｜{d.get('title','')[:24]}")
             d = call_claude(kind, _ex, topic_override)
         if _fabricated_perf_claim_d(d):
             log_ops("補產部門", f"⚠️ A2疑似捏造績效數字·重生2次仍命中,已放行需人工複查:{d.get('title','')[:26]}")
