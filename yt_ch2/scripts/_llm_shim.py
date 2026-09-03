@@ -78,10 +78,23 @@ def install():
                 tp = body.get("temperature")
                 import llm  # 執行時才 import(此時 scripts/ 已在 sys.path)
                 txt = llm.complete(prompt, mx, json_mode=jm, temperature=tp)
+                # 🔴 空回應不准包成假 200。`_FakeResp(None)` 的 raise_for_status
+                #    回 None、status_code 是 200 —— 呼叫端會以為成功,拿到 None
+                #    再往下走,錯在別的地方才爆。空就是失敗,當場說。
+                if not txt:
+                    raise RuntimeError("llm.complete 回空值")
                 return _FakeResp(txt)
         except Exception as e:
             # 改道失敗 → **中止**。不回退、函式底部也不留任何落到
             # `_orig_post` 的縫 —— 少一個 return 就等於少一條靜默燒錢的路。
+            #
+            # 🔴 但只 raise 不夠:呼叫端有 `except Exception: action = None`
+            #    這種寫法(control_center.py:819-827),會把這個例外整個吞掉,
+            #    於是改道失敗在那條路徑上是**隱形**的。raise 是給程式看的,
+            #    stderr 是給人看的,兩個都要。
+            import sys as _s
+            print(f"⛔ _llm_shim 改道失敗,已中止(不回退打 Anthropic):{e}",
+                  file=_s.stderr, flush=True)
             raise RuntimeError(
                 f"⛔ LLM 改道失敗,而且**不回退打 Anthropic**:{e}\n"
                 f"   回退等於在 Carson 儲值之後靜默燒真錢,而失效訊號是"
