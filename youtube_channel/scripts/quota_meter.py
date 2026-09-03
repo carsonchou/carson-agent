@@ -145,7 +145,15 @@ def _load():
     (memory `yt-quota-partial-failure-silent-bad-data` 記過這個事故)。
     一個管花費的閘門,「我不知道」必須等於「先別花」,不能等於「隨便花」。
 
-    檔案不存在是**合法**的空帳本(第一次跑),不標記。"""
+    檔案不存在是**合法**的空帳本(第一次跑),不標記。
+
+    ⚠️ 隔壁有 `studio_common.load_json_safe`(主檔壞 → 退 .bak → 回 default),
+    做的是同一件事的前半段,而且它的 docstring 就寫著要斷開「讀到殘檔→回空→存回小檔
+    洗掉整檔」這條鏈。這裡**沒有**直接用它,理由只有一個:它回 `default` 時,
+    「檔案根本不存在」和「兩份都壞掉」給出**一模一樣**的回傳值 —— 而這支的整個 fail-closed
+    就建立在這兩者必須分得開。不要「順手」把這段整理成 `load_json_safe`,那會無聲拿掉
+    `remaining()` 的 fail-closed。(要整理的話,該做的是升級 `load_json_safe` 讓它回報
+    來源,那支有 22 個檔案在用,是另一件事、另一個爆炸半徑。)"""
     if not STATE.exists():
         return {"days": {}}
     try:
@@ -283,6 +291,33 @@ def _is_wall(b) -> bool:
                 and not b.get("unreliable"))
 
 
+def _load_bearing_days(days) -> set:
+    """裁帳本時**不能裁掉**的日子 —— 所有估計式承重點的聯集。
+
+    這支存在的理由是:承重點不只一個,而且會增加。`32b1c2f3` 只保護了「日期最近的牆」,
+    而 `cefa9ba8` 早它 3 分鐘就讓 `floor_since` 變成第二個承重點 ——
+    **同一段裁切迴圈,兩個承重點只保護了一個**,結果 eff 無聲掉 4,999 units。
+    所以保護清單不再散落在 `record()` 裡,集中到這裡;之後誰再加一個承重點,
+    只要沒有把它加進這個聯集,就會重演同一件事。
+
+    目前三個消費者:
+      · `_scan()` 的 ceil        → 日期**最近**的牆(校準要跟得上調降)
+      · `_scan()` 的 floor_since → 該牆之後 spent 最高的那天
+      · `daily_health` 的 `_ref` → 數值**最高**的牆(告警不該跟著爛狀態滑下去)
+
+    最後那個選擇器和第一個**刻意不同**,兩邊都有寫下來的理由(取最近會讓舊牆永久壓住
+    估計值;取最高會讓配額砍半後第二天起新的爛狀態變成正常、警報自己關掉自己)。
+    共用的是**謂詞** `_is_wall`(「這天算不算牆」只有一個事實);**選擇器**因消費者而異
+    是合法的。這裡要做的不是統一選擇器,是讓保留策略認得**每一個**選擇器要的那天。"""
+    keep = set()
+    _, _, _, ceil_day, since_day = _scan(days)
+    keep.update(k for k in (ceil_day, since_day) if k)
+    walls = [(int(v.get("spent", 0) or 0), k) for k, v in days.items() if _is_wall(v)]
+    if walls:
+        keep.add(max(walls)[1])          # 數值最高的牆(給 daily_health._ref)
+    return keep
+
+
 def record(op, units, rejected=False):
     """rejected=True:配額用罄被拒的呼叫 —— 記進獨立的桶,**不計入 spent**。
     帳本要能回答「今天真的花了多少」,而不是「今天發了幾個請求」。"""
@@ -313,9 +348,9 @@ def record(op, units, rejected=False):
     # 它老化出 30 天窗被裁掉之後 eff 從 31,000 掉回 26,001,少 4,999 units
     # ≈ 2.3 支長片,而且零錯誤訊號。方向是**多擋人**,和 08-26「擋人的是我的假天花板」
     # 同科,也正是 32b1c2f3 自己要治的「資料被裁掉不是訊號」—— 治了 ceil,漏了 floor_since。
-    # 保護清單改成向 `_scan()` 問,不在這裡複製判準(上限至多 32 筆)。
+    # 保護清單改成向 `_load_bearing_days()` 問,不在這裡複製判準(上限至多 33 筆)。
     if len(d["days"]) > 30:
-        _keep = {k for k in _scan(d["days"])[3:] if k}
+        _keep = _load_bearing_days(d["days"])
         for k in sorted(d["days"])[:-30]:
             if k not in _keep:
                 d["days"].pop(k, None)
