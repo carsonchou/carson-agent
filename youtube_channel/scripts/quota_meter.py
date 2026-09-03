@@ -38,6 +38,7 @@ import datetime as _dt
 import json
 import os
 import sys
+import threading
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -145,7 +146,14 @@ def _load():
     (memory `yt-quota-partial-failure-silent-bad-data` 記過這個事故)。
     一個管花費的閘門,「我不知道」必須等於「先別花」,不能等於「隨便花」。
 
-    檔案不存在是**合法**的空帳本(第一次跑),不標記。
+    「檔案不存在」**不再**直接回空帳本。🔴 2026-09-03 獨立驗證抓到:
+    原本 `if not STATE.exists(): return {"days": {}}` 排在 `.bak` 退路**前面**,
+    於是「正本被刪掉但 .bak 還在」會回一份空帳本 → `remaining()` 算出 19,645
+    → 閘門授權 9 支長片、超發 18,287 units。**一個為了 fail-closed 而寫的函式,
+    自己留了一條 fail-open 的分支。**
+    分辨方法就在旁邊沒被用:**第一次跑不會有 .bak**,所以 `.bak` 存不存在
+    正好把「第一次跑」和「正本掉了」分得開。順序改成:
+    正本 → .bak → 兩個都沒有才是第一次跑 → 兩個都在但都壞才是 _unreadable。
 
     ⚠️ 隔壁有 `studio_common.load_json_safe`(主檔壞 → 退 .bak → 回 default),
     做的是同一件事的前半段,而且它的 docstring 就寫著要斷開「讀到殘檔→回空→存回小檔
@@ -154,23 +162,25 @@ def _load():
     就建立在這兩者必須分得開。不要「順手」把這段整理成 `load_json_safe`,那會無聲拿掉
     `remaining()` 的 fail-closed。(要整理的話,該做的是升級 `load_json_safe` 讓它回報
     來源,那支有 22 個檔案在用,是另一件事、另一個爆炸半徑。)"""
-    if not STATE.exists():
-        return {"days": {}}
-    try:
-        return json.loads(STATE.read_text(encoding="utf-8"))
-    except Exception:  # noqa: BLE001
-        pass
+    if STATE.exists():
+        try:
+            return json.loads(STATE.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001
+            pass
     bak = STATE.with_suffix(STATE.suffix + ".bak")   # save_json_atomic 每次覆蓋前留的
-    try:
-        if bak.exists():
+    if bak.exists():
+        try:
             d = json.loads(bak.read_text(encoding="utf-8"))
             d["_from_bak"] = True
-            print(f"[quota] ⚠️ 帳本正本解不開,已改用 {bak.name}(可能少最後一次寫入)",
+            print("[quota] ⚠️ 帳本正本%s,已改用 %s(可能少最後一次寫入)"
+                  % ("不存在" if not STATE.exists() else "解不開", bak.name),
                   file=sys.stderr)
             return d
-    except Exception:  # noqa: BLE001
-        pass
-    print("[quota] 🔴 帳本正本與 .bak 都解不開 —— remaining() 會 fail-closed 回 0",
+        except Exception:  # noqa: BLE001
+            pass
+    if not STATE.exists() and not bak.exists():
+        return {"days": {}}          # 正本與 .bak 都沒有 = 第一次跑,合法的空帳本
+    print("[quota] 🔴 帳本正本與 .bak 都用不了 —— remaining() 會 fail-closed 回 0",
           file=sys.stderr)
     return {"days": {}, "_unreadable": True}
 
@@ -190,9 +200,18 @@ def _save(d):
             # 退路不能拿掉(見下面那層的理由),所以**把退路也做成原子的**:
             # 自帶 tmp + os.replace,不依賴 studio_common 也能保持「讀者永遠看到完整檔」。
             STATE.parent.mkdir(parents=True, exist_ok=True)
-            tmp = STATE.with_suffix(STATE.suffix + f".tmp2.{os.getpid()}")
-            tmp.write_text(json.dumps(d, ensure_ascii=False, indent=1), encoding="utf-8")
-            os.replace(tmp, STATE)
+            # 檔名帶 pid+thread:跨行程靠 pid、同行程雙執行緒靠 thread id
+            # (studio_common 的 _path_lock 在這條退路外面,保護不到)。
+            tmp = STATE.with_suffix(STATE.suffix + f".tmp2.{os.getpid()}.{threading.get_ident()}")
+            try:
+                tmp.write_text(json.dumps(d, ensure_ascii=False, indent=1), encoding="utf-8")
+                os.replace(tmp, STATE)
+            except Exception:
+                try:
+                    tmp.unlink()          # 別留垃圾
+                except Exception:  # noqa: BLE001
+                    pass
+                raise
         except Exception:  # noqa: BLE001
             # 🔴 這一層絕對不能省。`_charge_once` 是在 `_orig_next` **之前**呼叫的,
             # 也就是說寫檔失敗會讓**影片連傳都沒傳出去**;一般呼叫則是在 finally 裡炸,
@@ -328,6 +347,16 @@ def record(op, units, rejected=False):
         b["rejected_units"] = int(b.get("rejected_units", 0)) + int(units)
         b["rejected_calls"] = int(b.get("rejected_calls", 0)) + 1
         b["updated"] = _dt.datetime.now().isoformat(timespec="seconds")
+        if d.get("_unreadable"):
+            # 🔴 2026-09-03 獨立驗證抓到:守衛原本只加在下面那條 _save 上,
+            # 而這個函式有**兩條** —— rejected 分支在這裡就 return 了,整個繞過保護。
+            # 實測後果與下面那段一字不差:空殼被寫回正本,而 save_json_atomic 覆蓋前
+            # 會把現在那份壞檔複製成 .bak,唯一還能救的備份被蓋掉。
+            # 「同一件事兩份實作,只修了其中一份」—— 這個 commit 的前一版在訊息裡
+            # 講的正是這個病,然後在同一個函式裡犯了它。
+            print("[quota] 🔴 帳本讀不到,這筆被拒紀錄不寫回(避免覆蓋掉還能救的 .bak)",
+                  file=sys.stderr)
+            return int(b.get("spent", 0))
         _save(d)
         return int(b.get("spent", 0))
     b["spent"] = int(b.get("spent", 0)) + int(units)
