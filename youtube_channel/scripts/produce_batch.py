@@ -10,6 +10,8 @@
 from __future__ import annotations
 
 import argparse
+import difflib
+import functools
 import hashlib
 import json
 import os
@@ -18,6 +20,7 @@ import signal
 import subprocess
 import sys
 import time
+import unicodedata
 from pathlib import Path
 
 try:
@@ -3590,6 +3593,128 @@ def _long_title_contradicts_facts(title, slug=""):
     return None
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# prompt 洩漏偵測:拿旁白去比對 **prompt 常數本身**,不比對人腦想出來的樣式
+# ══════════════════════════════════════════════════════════════════════════════
+# 🔴 2026-09-03 為什麼要換掉樣式清單:獨立驗證員拿現行 _strip_prompt_leak 重跑 9 支
+# 已知洩漏,**7 支跑完仍有殘留**。殘留的幾乎是同一句,只差標點與編號 ——
+# 而洩漏版寫「實證**資料**區塊」、原文是「實證**數據**區塊」:OpenCC 簡轉繁安全網
+# 把「數據」換成了「資料」。再加上 ① 編號時有時無、全形/半形括號、`;` vs `;`,
+# **手寫樣式清單永遠追不上這些變體**,而且追不上的時候沒有訊號。
+#
+# 這是基建線那句「凡是靠 LLM 自律的規則都會在某個百分比上靜默失效」的鏡像:
+# **靠人列舉的規則也會,而且失效同樣是靜默的。**
+#
+# 解法:洩漏出來的就是我們自己送進去的字,而那份字是 repo 裡的常數 → 拿常數當
+# **單一真相來源**建語料。之後誰改了 prompt,偵測器自動跟著改,不必有人記得同步。
+# (同 `_is_wall()` 抽出來要解決的那件事。)
+#
+# ⚠️ 語料**不能整包拿來比**,實測會誤刪:prompt 裡混著「本來就要唸出來」的東西 ——
+# 頻道台詞「我先幫你用資料試過,別自己送死」(745 支母體裡 23 支在講)、
+# hook 範本「你的網格機器人,是設計來盤整賺錢,還是趁你睡覺把本金歸零?」(14 支)。
+# 把它們刪掉是**靜默刪真內容**,比洩漏更難發現 —— 洩漏至少唸得出來,
+# 被刪掉的句子沒有人會知道它本來在。所以有三道收斂:
+#   ① 只收**硬指令句**(含「嚴禁/骨架/字數/上面實證/勾住陌生人…」這類**在講給觀眾聽的
+#      旁白裡沒有合法用法**的詞 —— 它們在描述「這支片要怎麼寫」)
+#   ② 指令句裡被引號或「範例:」包住的那段先**剝掉**再進語料 ——
+#      那段正是要唸的(「收尾定調:『我先幫你用資料試過…』」的引號內容)
+#   ③ 旁白句**自己也要帶硬指令詞**才刪;只有相似度高但自己不帶的,一律標記交重生
+# 745 支母體實測:刪 36 種/32 支、標記 33 種/34 支,36 種逐句看過**沒有一句是真旁白**。
+_LEAK_SRC_NAMES = (
+    "_AMOUNT_DISCIPLINE", "QUANT_STANDARD", "_DEFAULT_PLAYBOOK", "HOOK_RULES", "LONG_RULES",
+    "EP_RULES", "DEBUNK_RULES", "CURRICULUM_RULES", "TW_STOCK_RULES", "TW_STOCK_CHECKUP_RULES",
+    "TW_LAB_RULES", "TW_LAB_LONG_RULES", "NO_FACTS_INTEGRITY_RULES", "TW_NO_FACTS_OVERRIDE",
+    "AI_SAVINGS_RULES", "AI_COMPANY_RULES", "TITLE_FORMULA", "WINNING_FORMAT",
+    "_LONG_DATA_DISCIPLINE", "_AB_B_RULES",
+)
+_HARD_DIRECTIVE = re.compile(
+    "嚴禁|禁止|不准|不得|一律|必須|請勿|骨架|擇一|疊加|字數|旁白|本段|每段|各段"
+    "|上面實證|區塊給的|口語念法|不要寫成|勾住陌生人|壓後面|三刀拆|陷阱揭露|命脈|捏造史實"
+    "|收尾定調|開場前|自我介紹|情緒先行|反直覺對比")
+# 引號內容與「範例:」之後 = 要唸的範本,剝掉不進語料
+_LEAK_EXAMPLE = re.compile(r"[「『\"“”][^」』\"“”]{4,}[」』\"“”]"
+                           r"|(?:範例|例如|例)[:：].*$")
+# OpenCC 簡轉繁安全網造成的同義替換(「數據」→「資料」就是這次漏掉 7 支的原因)
+_LEAK_SYNONYM = (("數據", "資料"), ("網絡", "網路"), ("軟件", "軟體"),
+                 ("信息", "資訊"), ("質量", "品質"))
+_LEAK_ENUM = re.compile(r"^[①-⑳0-9０-９一二三四五六七八九十]{1,3}[、.．)）]?")
+_LEAK_SENT = re.compile("(?<=[。！？!?\n;；])")
+_LEAK_NGRAM = 10          # 最長連續段 >= 10 才算「抄的」;預篩也用這個長度
+_LEAK_DEL = 0.90          # 這麼像就是抄的 → 整句刪
+_LEAK_MARK = 0.60         # 灰色地帶 → 不刪,標記交重生
+
+
+def _leak_norm(s):
+    """正規化到「只剩內容」:全半形、標點、空白、編號、簡繁同義字全部抹平。"""
+    s = unicodedata.normalize("NFKC", s or "")
+    for a, b in _LEAK_SYNONYM:
+        s = s.replace(a, b)
+    return re.sub("[^\w\u4e00-\u9fff]", "", _LEAK_ENUM.sub("", s.strip()))
+
+
+@functools.lru_cache(maxsize=1)
+def _leak_corpus():
+    """(硬指令句正規化清單, 供預篩的 n-gram 集合)。lru_cache:每個 process 只建一次。"""
+    out = []
+    for name in _LEAK_SRC_NAMES:
+        v = globals().get(name, "")
+        if not isinstance(v, str):
+            v = "".join(v or ())
+        for raw in _LEAK_SENT.split(v):
+            if not raw.strip() or not _HARD_DIRECTIVE.search(raw):
+                continue
+            z = _leak_norm(_LEAK_EXAMPLE.sub("", raw))
+            if len(z) >= 10:
+                out.append(z)
+    grams = set()
+    for c in out:
+        for i in range(len(c) - _LEAK_NGRAM + 1):
+            grams.add(c[i:i + _LEAK_NGRAM])
+    return tuple(out), grams
+
+
+def _leak_similarity(sent):
+    """這句旁白有多少比例的字元,是某一條硬指令裡的**同一段連續文字**。
+
+    用「最長那一段連續相同 / 句長」而不是「所有相同片段加總 / 句長」:
+    長指令句裡有大量 4~6 字碎片,拼貼起來可以把**任意**一句話湊到 1.00
+    (第一版就是這樣寫的,實測把正常旁白也判成 1.00)。"""
+    z = _leak_norm(sent)
+    if len(z) < 12:
+        return 0.0, z
+    corpus, grams = _leak_corpus()
+    if not any(z[i:i + _LEAK_NGRAM] in grams
+               for i in range(len(z) - _LEAK_NGRAM + 1)):
+        return 0.0, z          # 連一個 10-gram 都沒共享 → 不可能達標,省下 O(語料) 比對
+    best = 0.0
+    for c in corpus:
+        blocks = difflib.SequenceMatcher(None, z, c, autojunk=False).get_matching_blocks()
+        r = (max((b.size for b in blocks), default=0)) / len(z)
+        if r > best:
+            best = r
+            if best >= 0.999:
+                break
+    return best, z
+
+
+def _prompt_leak_suspects(voice_text):
+    """回 (要刪的句子集合, 灰色地帶的句子清單)。
+
+    灰色地帶**不刪**:相似度中等的句子往往是「旁白正常講到規則裡也有的概念」,
+    刪字會讓句子半通不通、刪整句會賠掉真數字 —— 沿用本檔對「示意」的同一個判斷,
+    交給重生。"""
+    kill, gray = set(), []
+    for sent in _LEAK_SENT.split(voice_text or ""):
+        if not sent.strip():
+            continue
+        score, _ = _leak_similarity(sent)
+        if score >= _LEAK_DEL and _HARD_DIRECTIVE.search(sent):
+            kill.add(sent)
+        elif score >= _LEAK_MARK:
+            gray.append(sent.strip()[:40])
+    return kill, gray
+
+
 def _long_prompt_leak(voice_text):
     """旁白裡有沒有 prompt 指令原文/佔位符(會被 TTS 唸出來)。回原因字串或 None。
 
@@ -3603,6 +3728,13 @@ def _long_prompt_leak(voice_text):
     n = t.count("示意")
     if n >= _PROMPT_LEAK_SYIY:
         return f"prompt 佔位符「示意」洩漏 {n} 次(會被TTS唸出來)"
+    # 語料比對:樣式清單接不住的變體(標點/編號/簡繁替換)由這道接。
+    kill, gray = _prompt_leak_suspects(t)
+    if kill:
+        return ("prompt 指令原文洩漏(與 prompt 常數逐字相同,會被TTS唸出來):"
+                f"「{sorted(kill)[0].strip()[:40]}」")
+    if gray:
+        return f"疑似 prompt 指令洩漏(相似度 {_LEAK_MARK:.0%}~{_LEAK_DEL:.0%},交重生):「{gray[0]}」"
     return None
 
 
@@ -3634,6 +3766,11 @@ def _strip_prompt_leak(voice_text):
     # 接元/年是情境假設(「假設0050從一百元跌到六十元」,合法)。
     # 569 支已發布旁白實測:接 % 的 39 處全是缺陷、接元/年的 12 處全是合法,零重疊。
     voice_text = _PLACEHOLDER_PCT_RE.sub("", voice_text or "")
+    # 語料比對刪除:**只刪** kill 集合(相似度 >= 0.90 **且**句子自己帶硬指令詞)。
+    # 灰色地帶刻意不在這裡刪 —— 它由 _long_prompt_leak 回報,走重生。
+    _kill, _ = _prompt_leak_suspects(voice_text)
+    for _s in _kill:
+        voice_text = voice_text.replace(_s, "")
     out = []
     for sent in re.split(r"(?<=[。！？!?\n])", voice_text or ""):
         if _BULLET_LINE_RE.match(sent):   # prompt 事實清單被整塊抄進來的行
