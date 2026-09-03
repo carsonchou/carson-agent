@@ -30,7 +30,7 @@
 做法:系統管理員 PowerShell 跑 `D:\carson-agent\scripts\fix_task_principals.ps1`(已過獨立驗證;改 S4U=不存密碼、維持你的帳號身分)。
 
 **驗收欄(任一 session 讀到都能代執行):**
-- [ ] **立即**:腳本自帶——它會在新上下文實測送一則 ntfy「[驗收] S4U 上下文 ntfy 實測」到你手機,並印 PASS/FAIL(FAIL 就**不要重開機收工**,先回報;這是本修法唯一可能弄壞的東西)
+- [ ] **立即**:腳本自帶——它會在新上下文實測送一則 ntfy「[驗收] S4U 上下文 ntfy 實測」到你手機,並印 PASS/FAIL(FAIL 就**不要重開機收工**,先回報;這是本修法唯一可能弄壞的東西)。結果檔的 `cron_procs_visible` 讀法:≥2=跨 session 可見性證實;**0 只有在產線 local_cron 當下活著時才是警訊**,它剛好死著時 0 是正常
 - [ ] **裝完 RAM 重開機後,先做這個再做別的**:`Get-ScheduledTaskInfo LocalCronWatchdog,carson-quota-ceiling-watch` 兩者 LastRunTime 都在重開機之後 + local_cron 心跳活著(`STUDIO/local_cron.lock` mtime 新鮮)= 真驗收通過,並更新 premises.md 該條為已修
 
 **已知取捨(驗證員第 10 條,接受)**:watchdog 在無人值守狀態救回的 local_cron 會活在 session 0——核心發布/渲染照跑,但 **TikTok 上傳與社群貼文兩個 headed 瀏覽器 job 起不來**,要等有人登入後手動重啟 local_cron 才恢復(救援時必發「⚠️ 排程器被重啟」推播,看到那則就找機會重啟)。無人值守重開機場景從「全死」變「核心活、兩 job 暫停」=嚴格變好;唯一退步是「登入中死掉被救」也會進 session 0。
