@@ -162,7 +162,13 @@ def main():
         print("⚠️ 沒有可比的連續兩稿 —— 這**不是**「自環率 0」,是沒有資料。")
         print("   改動後要重量,需要新產的稿(每次重生 = 一次 LLM 大呼叫)。")
         return 2
-    print(f"🔴 自環率(家族級,連續兩稿同一家族):{same}/{pairs} = {same / pairs * 100:.1f}%")
+    # 🔴 2026-09-03 督導更正:自環率**不是**驗收指標,它單獨看不出改善。
+    # 獨立驗證員量到:長度 k 的 run 貢獻 k-1 組配對,所以「重生一次就成功」的 run
+    # 貢獻 0 組 —— 208/215 組(97%)來自撞上限的 run,自環率幾乎只在量「救不回來的那些」。
+    # 敏感度模擬:25%/50%/75% 的 run 提早成功時,分母 215→148→90→50(崩 77%),
+    # 而率只在 52.7~56.0% 之間**非單調**地晃 —— 那是雜訊不是訊號。
+    # **修法成功的訊號在分母與 run 長度分佈,不在率。** 看下面那四行,不要看這一行。
+    print(f"   (參考,非驗收指標)自環率家族級:{same}/{pairs} = {same / pairs * 100:.1f}%")
     print(f"   自環率(閘門級,失敗訊息逐字相同):{same_g}/{pairs} = {same_g / pairs * 100:.1f}%")
     print("   基準(回饋上線前,同一支工具、同一種配對法):"
           "**家族級 55.3%(n=215)/ 閘門級 52.1%**")
@@ -172,6 +178,22 @@ def main():
     print("   ⚠️ 基準不是 54.1% —— 那是用來證明偏差的子集(n=205),不是母體")
     print("   ⚠️ 也不要跟舊版的 57~61% 比 —— 那組是依標題配對,偏高 26pp\n")
     print("各迴圈的配對數:", dict(by_kind))
+    print()
+    print("🔴 驗收看這三行(自環率單獨看不出改善,見上方註解):")
+    print(f"   ① 配對數(分母):{pairs}          基準 215 —— **變小才是好事**")
+    _len_by_kind = collections.defaultdict(collections.Counter)
+    for (kind, _r), seq in runs.items():
+        _len_by_kind[kind][len(seq)] += 1
+    for kind in sorted(_len_by_kind):
+        dist = dict(sorted(_len_by_kind[kind].items()))
+        tot = sum(dist.values())
+        one = dist.get(1, 0)
+        print(f"   ② {kind} run 長度分佈:{dist}"
+              f"   長度1佔 {one}/{tot} = {one / max(tot, 1) * 100:.1f}%")
+    print("      基準 A4長片 {1:5, 2:5, 3:1, 4:30}(長度1佔 12.2%)、"
+          "鎖題終檢 {1:60, 2:118}(長度1佔 33.7%)")
+    print("      **質量往長度 1 移 = 重生一次就成功 = 修法有效**")
+    print("   ③ fail-closed 率另外從 ops_log 的 ⛔ 行數算,基準 A4長片 78.0%、鎖題終檢 61.2%")
     if seen:
         tot = sum(seen.values())
         print(f"\n⚠️ **KINDS 沒收到的迴圈前綴 {len(seen)} 種、{tot} 行**"
