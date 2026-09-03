@@ -68,7 +68,9 @@ Complete Consultant Tutorial、Osmosis Pioneer、First Python Alpha Submission�
 
 ---
 
-## 資格門檻 — 官方明文（現查，非推測）
+## 受邀條件 — 官方明文（現查，非推測）
+
+**寫法：「符合官方公告的受邀條件」，不是「達標即獲資格」。**
 
 **`GET /tutorial-pages/read-first-starter-pack`**（lastModified 2026-08-23，抓取 2026-09-03 11:1x 台北）逐字：
 
@@ -107,6 +109,26 @@ Complete Consultant Tutorial、Osmosis Pioneer、First Python Alpha Submission�
 | 最高 IS Sharpe（含未提交） | **5.66** | 帳本 `result.sharpe` 最大值 |
 | 真正的模擬錯誤 | 1,396 | 帳本無 `alpha_id` 且非 429 放棄 |
 
+### 已提交 13 條的兩兩去相關程度（自有計算）
+
+來源：`GET /alphas/{id}/correlations/self` 對 13 條各打一次，2026-09-03 11:2x 台北。
+
+| 事實 | 值 |
+|---|---|
+| 相關度 **≥ 0.7** 的配對 | **0 對** |
+| 平台列出的配對數 | **41 / 78**（其餘 37 對低於端點列示門檻，平台不回傳確切值）|
+| 已列出配對中的最高相關 | **0.6680**（`xAjVdMLb` × `xAjl5o9N`）|
+| 已列出配對中 ≥0.5 者 | 20 對 |
+
+英文寫法（**必須保留 "as reported by" 這種措辭**，因為分母不是 78）：
+> "No pair of the 13 submitted alphas exceeds 0.7 self-correlation; the highest pairwise
+> correlation reported by the platform is 0.668 (41 of 78 pairs are returned; the remaining
+> pairs fall below the endpoint's reporting threshold and are not disclosed)."
+
+🔴 **不要寫「independent bets: N」。** 那個數字是貪婪演算法的產物，**換一個排序就變**
+（依提交順序算 r<0.5 得 7/13）。它不是平台事實也不是穩定的統計量，寫進求職表單驗不了。
+🔴 **不要寫「78 對中最高相關 X」。** 端點只回 41 對，78 對的最大值我們**沒有**。
+
 🔴 **兩個絕對不要寫進表單的數字**：
 - 帳本總列數 **28,198** —— 其中 **17,403 列是「無有效 Location」**，`brain_auto.py:526` 註解寫明
   那是「15 次 429 退避後放棄，**模擬從來沒送出去過**」。寫成「跑了 28,198 次模擬」是**假的**。
@@ -122,13 +144,17 @@ Complete Consultant Tutorial、Osmosis Pioneer、First Python Alpha Submission�
 | **任何 OS（out-of-sample）表現** | 13 條全部 `stage=OS`、`os.startDate=2024-01-01`，但 `osISSharpeRatio` 與 `preCloseSharpeRatio` **皆為 null**，4 項 OS 檢查（IS_SHARPE / SELF_CORRELATION / SHARPE / OTHERS）**全部 PENDING**。最早的一條 08-27 才提交。**零 OS 結果。** |
 | **prod correlation** | `GET /alphas/{id}/correlations/prod` → **HTTP 403**（2026-09-03 現查）。與 WorldQuant 正式產品池的相關性**無從得知**。 |
 | **Challenge 分數與名次** | `GET /competitions/challenge` → **404**；`GET /users/self/competitions` → count=0。榜自 2026-09-02 ET 00:20~03:15 之間起讀不到，至今未回。改用 `level=GOLD`。 |
+| **Challenge 名次** | 我們自有紀錄最後一次讀到是 **rank 18061 / score 10000.0**（`score_history.jsonl`，2026-09-02 12:20 台北，透過 `GET /users/self/competitions`）。此後榜消失，**現在無法重新核對**。要寫只能寫成 *"as of 2026-09-02; no longer retrievable"*，**不可當成現況**。 |
 | **顧問狀態 / 是否已受邀** | `GET /users/self/consultant` → **403**（端點存在但無權限）。站內信箱 8 則全是成就通知與產品公告，**沒有任何邀請訊息**。 |
 | 「贏過多少用戶」「全球排名」 | 平台未提供可查端點。`achievements.ratio` 定義不明，不可當排名用。 |
 | 收益 / 報酬金額 | 無任何端點提供。 |
 
 ---
 
-## 一句話版本（若表單只給一格）
+## 中性英文摘要（供 Carson 自行取用）
+
+⚠️ **我們沒有看過 Workday 表單，不知道它問什麼。** 以下不是對任何題目的答案，
+只是一段每個數字都指得回來源的中性敘述。**不要拿它去套一個沒看過的題目。**
 
 > Gold level on WorldQuant BRAIN (user CT30034). 13 alphas submitted and accepted since
 > 2026-08-27, none decommissioned. Platform grades: 1 Excellent, 3 Good, 9 Average.
