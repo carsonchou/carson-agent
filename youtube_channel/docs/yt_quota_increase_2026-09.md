@@ -72,12 +72,12 @@
 > basis — not because we plan to grow, but because our production already outruns
 > our upload capacity today. Our client-side metering (a wrapper recording the
 > documented unit cost of every API call; it counts failed calls at list price, so
-> figures are upper bounds) shows consumption over the last six closed quota days
-> of 18,760 / 19,645 / 23,341 / 21,858 / 22,910 / 26,001 units. On the most
-> recent of those quota days the quota reached zero before the day's work finished:
-> our pipeline had to block two scheduled uploads (our meter reported 1,600 units
-> required for videos.insert with 0 remaining) and more than 25 API calls were
-> rejected by the API with quotaExceeded errors.
+> figures are upper bounds) shows consumption on the six closed quota days from
+> 2026-08-26 to 2026-08-31 (Pacific) of 18,760 / 19,645 / 23,341 / 21,858 /
+> 22,910 / 26,001 units. On 2026-08-31 the quota was exhausted before the day's
+> work finished: our pipeline had to block two scheduled uploads (our meter
+> reported 1,600 units required for videos.insert with 0 remaining) and the API
+> rejected 31 further calls with quotaExceeded errors.
 >
 > Concretely: our pipeline (rendering, scripting, quality gates) currently completes
 > 15–20 videos per day on average (daily output varies, 13–29), while the quota
