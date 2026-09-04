@@ -3333,7 +3333,16 @@ def _reveals_too_early(voice_text, frac=0.30):
 #   ⚠️ 要改回去只需要動這兩個常數(2000/8.0),prompt 端一直要求 2,750 字以上沒有動過。
 LONG_MIN_CHARS = 1800      # 中文字數硬底線(≈6 分鐘;仍遠高於 Shorts,YPP 觀看時數照算)
 LONG_TARGET_CHARS = 2600   # 目標字數(對應 8-10 分鐘，供生成/補寫時參考)
-# 🔴 2026-08-30 從 8.0 降到 7.0。**prompt 仍然要求 5 段 × 550 字 ≈ 9.2 分鐘**,
+# 🔴 2026-08-30 從 8.0 降到 7.0(**同日稍後再降到 6.0,bd4935b2 —— 下面這段沒跟著更新過,
+#    現值一律以檔案上方 LONG_MIN_CHARS / LONG_MIN_EST_MIN 的定義為準**)。
+#
+# 🔴 2026-09-04 獨立複驗:下面那組相關係數**被另一次量測獨立重現**(不同母體、不同方法)——
+#    片齡≥7 天、n=78:r(片長, 每支觀看分鐘) = **+0.065**、r(觀看數, 每支觀看分鐘) = **+0.908**;
+#    變異拆解 log(觀看數) 解釋 100%、log(每次觀看秒) 只有 16%。
+#    決策邊際(6-8 分 vs 8-10.5 分,n=18 vs 45)中位 +139 分、平均 −363 分 —— **方向相反 = 純雜訊**。
+#    ⚠️ 完播率 vs 片長 r=−0.643,那只是「1/片長」的影子,**不可以拿它當長片較差的證據**。
+#    效果也已兌現:長度報廢 08-29 九支、08-30 十三支,**08-31 起連續四天 0**。
+# **prompt 仍然要求 5 段 × 550 字 ≈ 9.2 分鐘**,
 # 這裡只是不再把「差一點」的稿整支摧毀。
 #
 # 為什麼敢降(近兩月 71 支長片實測,片長>3分、觀看>=30):
@@ -3466,8 +3475,13 @@ def _long_too_few_segments(d):
 
 
 def _long_underlength(voice_text):
-    """A4 長度 gate：字數 <LONG_MIN_CHARS(2000) 或 估計時長(以 5字/秒換算) <LONG_MIN_EST_MIN(8) 分＝不達標。
-    任一項不達標就算 True，供 make_one 觸發重生/補寫/fail-closed 不輸出。"""
+    """A4 長度 gate:字數 < LONG_MIN_CHARS 或 估計時長(5 字/秒換算) < LONG_MIN_EST_MIN 分＝不達標。
+    任一項不達標就算 True,供 make_one 觸發重生/補寫/fail-closed 不輸出。
+
+    🔴 2026-09-04:這裡原本把常數值抄進散文寫成「(2000)」「(8)」,而現值是 1800 / 6.0 ——
+    抄過來的那一刻就開始漂,而且漂了不會有任何訊號。**不要再把常數值寫進文字**,
+    要看現值就看上面的定義。同一天在這支檔案上抓到三處同病(本 docstring、
+    LONG_MIN_EST_MIN 上方註解、`_long_bad` 的錯誤訊息「撐不出真 8-10 分鐘」)。"""
     n = _long_chinese_chars(voice_text)
     if n < LONG_MIN_CHARS:
         return True
@@ -5973,7 +5987,10 @@ def make_one(kind, no_render=False, topic_override=None, script_override=None):
             if _cn2:
                 return _cn2
             if _long_underlength(_v):
-                return "長度不足(撐不出真 8-10 分鐘)"
+                # 訊息從常數推導,不要再抄值(原本寫死「撐不出真 8-10 分鐘」,而門檻早已是 6.0)。
+                # 下游兩個消費者都用子字串「長度不足」比對,括號內容可安全變動:
+                #   `_RETRY_FIX` 的 `key in str(reason)`、`tests/regen_feedback/selfloop.py:79` 的 family()
+                return f"長度不足(未達 {LONG_MIN_CHARS} 字 / {LONG_MIN_EST_MIN} 分鐘)"
             if _long_content_padding(_v):
                 return "資訊密度不足(同組數字/片語重複灌水撐時長)"
             # 🔴 2026-08-30 補上開場品質五道(主題跑題/開場碎句/鉤子後鋪陳/散撒hedging/
