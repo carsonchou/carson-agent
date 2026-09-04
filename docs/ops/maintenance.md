@@ -44,6 +44,8 @@
 
 | 日期 | 一句話教訓 | 寫進了哪裡 | 來源 |
 |------|-----------|-----------|------|
+| 2026-09-04 | 比率型驗收指標的分母不可以是處置的目標 —— 修好→分母縮水→率反而上升,偏誤與效果反相關,愈有效愈像無效 | dispatch.md 第 6 節 | memory `verification-that-cannot-fail` 第八種 |
+| 2026-09-04 | 閘門執行完全正確,仍可能問錯問題 —— 先寫失敗形態再挑閘門,現成閘門最誘人也最容易對不上 | dispatch.md 第 6 節 | memory `verification-that-cannot-fail` 第七種 |
 | 2026-09-02 | 門檻寫百分比會跟著 context 視窗放大 —— 1M 視窗上「剩 35%」= 已用 650K,警報叫得太晚等於不會叫 | dispatch.md 第 1 節 context 預算段 | memory `claude-context-budget-2026-09` |
 | 2026-07-03 | (示範)測試通過≠完成,要確認測試攔在正確的層 | judgment.md 第 2 節反例 | memory `web-center-test-prod-misfire` |
 
