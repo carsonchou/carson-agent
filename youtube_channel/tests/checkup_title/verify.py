@@ -1,0 +1,131 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""代號去重改寫的驗收:敵意輸入要被擋,真實資料一筆都不准被誤擋。
+
+用法:cd youtube_channel && .venv/Scripts/python.exe tests/checkup_title/verify.py
+
+背景:`c7a9c8e6`(09-01)加的三行 `re.sub` 少了 `import re`,**寫了三天跑了零次**
+(每次 NameError,09-02/09-03 種題全掛),`eed3ca25` 才補上 —— 明天 05:50 是它第一次真的執行。
+而改寫之後**沒有任何閘門**:`is_banned_skeleton` / `exact_dup` / `skeleton_dup` /
+`numbers_sourced_to_fact` 全部在改寫之前跑完,改寫後的版本沒有任何東西看過就進題庫。
+
+⚠️ 誤擋比誤放貴:誤放是一支怪標題的片,誤擋是**種題再次歸零** —— 那正是剛修好的東西。
+所以第二項(零誤擋)比第一項重要。
+"""
+import json
+import re
+import sys
+from pathlib import Path
+
+sys.path.insert(0, "scripts")
+import collections  # noqa: E402
+import stock_checkup_daily as scd  # noqa: E402  借它的 _UNIT_AFTER,不另寫一份
+
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+STUDIO = Path("STUDIO")
+fails = 0
+
+
+def check(label, cond, extra=""):
+    global fails
+    fails += 0 if cond else 1
+    print(f"  {'PASS' if cond else '**FAIL**'}  {label}{('  ' + extra) if extra else ''}")
+
+
+U = scd._UNIT_AFTER
+
+
+def rewrite(hook, code, name):
+    """跟產線種題路徑同一套改寫 + 同一道網。回 (改寫前標題, 最終標題, 是否被擋下)。"""
+    h = hook
+    for lead in (name, code):
+        if lead and h.startswith(lead) and not (
+                lead == code and h[len(lead):len(lead) + 1] in U):
+            h = h[len(lead):].lstrip("：:，,、 ")
+    pre = h
+    if code:
+        h = re.sub(r"\s*[（(]\s*" + re.escape(code) + r"\s*[)）]\s*", "", h)
+        h = re.sub(r"(?<![\d.])" + re.escape(code) + r"(?![\d.%])(?![" + U + r"])\s*",
+                   "", h, count=1)
+        h = re.sub(r"\s{2,}", " ", h).lstrip("：:，,、 ").strip()
+    mk = (lambda x: (f"個股體檢{name}{code}：{x}" if name else f"個股體檢{code}：{x}"))
+    blocked, would_be = False, None
+    if code and h != pre:
+        would_be = h
+        a = collections.Counter(re.findall(r"\d+(?:\.\d+)?", pre))
+        b = collections.Counter(re.findall(r"\d+(?:\.\d+)?", h))
+        d = re.match(r"^(?:vs|VS|對決|對比)[\s，,、]", h)
+        if (b - a) or (set(a - b) - {code}) or d:
+            blocked, h = True, pre
+    return mk(pre), mk(h), (blocked and would_be)
+
+
+# ── 一、四種敵意輸入必須被擋 ─────────────────────────────────────────────────
+print("【一】敵意輸入:改寫會弄壞數字,新閘門必須擋下並退回未改寫版")
+facts = json.loads((STUDIO / "stock_checkup_facts.json").read_text(encoding="utf-8"))["results"]
+# 挑一組真事實當溯源母體(用它自己的代號當敵意值,才construct 得出「代號=統計數字」)
+CASES = [
+    ("2330", "台積電", "抱20年報酬2330%", "代號=真統計數字 → 數字被刪、留懸空的 %"),
+    ("2330", "台積電", "報酬2330.5%不到你想的", "代號=小數整數部 → (?!\\d) 擋不住小數點"),
+    ("2303", "聯電", "2303 vs 2303 對決十年誰贏", "代號出現兩次 → count=1 沒限制住"),
+    ("2024", "億光", "2024年大跌40%你敢接嗎", "代號=年份 → 年份被吃掉"),
+]
+for code, name, hook, why in CASES:
+    before, final, blocked = rewrite(hook, code, name)
+    safe = (final == before)      # 最終標題等於未改寫版 = 那個真數字保住了
+    print(f"\n   {why}")
+    print(f"     改寫前:{before}")
+    print(f"     最終  :{final}"
+          + ("   ← 收斂器擋下,退回未改寫版" if blocked else
+             "   ← 正規式本身就沒動它" if safe else "   ← 已改寫"))
+    check(f"{why[:14]}… 真數字保住", safe)
+
+# ── 二、407 筆真實已種題:零誤擋 ─────────────────────────────────────────────
+print("\n【二】真實已種題:被改寫的那些必須全部通過新閘門(誤擋比誤放貴)")
+bank = json.loads((STUDIO / "topic_bank.json").read_text(encoding="utf-8"))
+rows = bank if isinstance(bank, list) else bank.get("topics", bank.get("items", []))
+seeded = [t for t in rows if str(t.get("source", "")) == "stock_checkup_daily"
+          and str(t.get("fact_key", "")).startswith("checkup_")]
+bl = json.loads((STUDIO / "stock_checkup_backlog.json").read_text(encoding="utf-8"))
+uni = {str(r["code"]): r.get("name", "") for r in (bl if isinstance(bl, list) else bl.get("items", []))
+       if isinstance(r, dict) and r.get("code")}
+
+n_rw = n_block = 0
+blocked_rows = []
+for t in seeded:
+    title, fk = str(t.get("title", "")), str(t.get("fact_key", ""))
+    m = re.search(r"__(\d{4})", fk)
+    if not m:
+        continue
+    code = m.group(1)
+    name = uni.get(code, "")
+    hook = title
+    for pre in (f"個股體檢{name}{code}：", f"個股體檢{code}："):
+        if hook.startswith(pre):
+            hook = hook[len(pre):]
+            break
+    before, final, blocked = rewrite(hook, code, name)
+    if before == final and not blocked:
+        continue
+    n_rw += 1
+    if blocked:
+        n_block += 1
+        blocked_rows.append((title, blocked))   # blocked 裡放的是「本來會改成什麼」
+
+print(f"     已種題 {len(seeded)} 筆;會被改寫 {n_rw} 筆;收斂器擋下 {n_block} 筆")
+DANGLE = re.compile(r"^(?:vs|VS|對決|對比)[\s，,、]")   # 與產線 _dangling 同一份判準
+for a, b in blocked_rows:
+    print(f"       擋:{a[:52]}")
+    print(f"          本來會改成 …：{b[:44]}"
+          + ("   ← 句首懸空,擋對了" if DANGLE.match(b) else "   ← 🔴 沒有理由,這是誤擋"))
+check("會被改寫的筆數 >= 60(改寫確實在動,不是空跑)", n_rw >= 60, f"實得 {n_rw}")
+# 🔴 判準是「零**誤**擋」而不是「零擋下」。驗證員乾跑的 77 筆是拿**舊碼**跑的,
+# 而舊碼沒有「句首懸空」這一道 —— 拿它當「必須全部通過」的基準,
+# 會逼我把一個真陽性拿掉。菱生 2369 就是那一筆:`(2369) vs 0050十年對決` 去掉代號
+# 會變成標題以「：vs 0050」開頭。退回只多印 7 個字元,不退回是一個讀起來壞掉的標題。
+check("被擋下的每一筆都說得出理由(改寫後句首懸空)",
+      all(DANGLE.match(b) for _a, b in blocked_rows),
+      f"擋下 {n_block} 筆,全部可解釋" if blocked_rows else "沒有擋下任何一筆")
+
+print(f"\n合計 FAIL={fails}")
+raise SystemExit(1 if fails else 0)

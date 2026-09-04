@@ -41,6 +41,7 @@ quota/rate 紀律(2026-07-17 實測校準)：FinMind 免費層的限制是 **300
 from __future__ import annotations
 
 import argparse
+import collections
 import datetime as _dt
 import json
 import os
@@ -76,6 +77,10 @@ MAX_FAILS = 5      # 本次執行容許幾檔「資料不足」;超過就收工(
 # 內容(實測 2317 多出 2 支無編號雜題)。候選在本函式內已過完守門才寫入,不存在「唯一候選被擋
 # 整檔卡死」——被擋會在寫入前就換下一個 LLM 候選。
 MAX_TOPICS_PER_CODE = 1
+
+# 代號後面接這些字元就不是「代號引用」而是統計數字的一部分,不准剝也不准刪。
+# 來源是敵意輸入實測:「抱20年報酬2330%」「2024年大跌40%」「報酬2330.5%」。
+_UNIT_AFTER = "%％倍年元點萬億股天月季"
 
 
 def _load_env():
@@ -215,7 +220,8 @@ def seed_topics_for_code(code: str, name: str = "", dry_run: bool = False) -> in
     existing_norms = {tb._norm(t.get("title", "")) for t in bank} | {tb._norm(t) for t in tb.existing_titles()}
     existing_titles_list = [t.get("title", "") for t in bank]
     new_recs = []
-    rejected = {"exact_dup": 0, "skeleton_dup": 0, "unsourced": 0, "banned": 0, "bad_fact_key": 0}
+    rejected = {"exact_dup": 0, "skeleton_dup": 0, "unsourced": 0, "banned": 0, "bad_fact_key": 0,
+                "rewrite_broke_number": 0}
     import hashlib
     # 🔴 2026-08-20 候選排序:每檔只取 1 題(MAX_TOPICS_PER_CODE),所以**排序決定一切**。
     # 實測今天產出的 7 支:旁白 6/6 都講了 0050 同期對照(誠信面 100% 落地),
@@ -260,7 +266,11 @@ def seed_topics_for_code(code: str, name: str = "", dry_run: bool = False) -> in
         # 永不跳」。LLM 標題若以股名/代號開頭先剝掉,避免「個股體檢南亞科2408：南亞科…」疊字。
         hook = title
         for lead in (name, code):
-            if lead and hook.startswith(lead):
+            # 🔴 2026-09-04:代號後面**接著單位**就不是代號引用,是統計數字。
+            # 敵意輸入「2024年大跌40%」被這一圈吃掉年份變成「年大跌40%」——
+            # 那不是 c7a9c8e6 造成的,是 2026-07-19 這圈剝前綴的既有行為。
+            if lead and hook.startswith(lead) and not (
+                    lead == code and hook[len(lead):len(lead) + 1] in _UNIT_AFTER):
                 hook = hook[len(lead):].lstrip("：:，,、 ")
         # 🔴 2026-09-01 上面那圈只擋「hook **開頭**就是股名/代號」,而實際的重複多半是
         # 帶括號或落在句中,擋不到。實測 63 支標題把代號印兩次(已發布 39 支):
@@ -269,12 +279,65 @@ def seed_topics_for_code(code: str, name: str = "", dry_run: bool = False) -> in
         # 標題是**搜尋的曝光面**(搜尋佔 47.1% 觀看分鐘)而 YouTube 在搜尋結果會截斷,
         # 重複的代號等於白白吃掉約 7 個字元。
         # 前綴已經帶了代號,hook 裡再出現一次就是冗餘 —— 整段(含括號與前後空白)刪掉。
+        _hook_pre = hook          # 改寫前的版本,閘門擋下時退回這個
         if code:
             hook = re.sub(r"\s*[（(]\s*" + re.escape(code) + r"\s*[)）]\s*", "", hook)
-            # 裸代號:前後不是數字才刪(避免咬到「20493」這種更長的數字)
-            hook = re.sub(r"(?<!\d)" + re.escape(code) + r"(?!\d)\s*", "", hook, count=1)
+            # 裸代號:前後不是數字才刪(避免咬到「20493」這種更長的數字)。
+            # 🔴 2026-09-04 再加兩個條件,兩個都是敵意輸入實際打出來的:
+            #   後面接單位(% 倍 年 元 點 萬 億…)→ 那是統計數字不是代號引用
+            #     「抱20年報酬2330%」→ 舊碼刪成「抱20年報酬%」,**真數字被靜默刪、留懸空的 %**
+            #   後面接小數點 → `(?!\d)` 擋不住,「報酬2330.5%」→「報酬.5%」
+            # 曝險是真的:**51%(210/407)的真實 hook 含有非代號的四位數**,
+            # 而報酬率常態 1000~4000%、台股代號多在 1101~9962,**兩個區間重疊**。
+            hook = re.sub(r"(?<![\d.])" + re.escape(code) + r"(?![\d.%])(?![" + _UNIT_AFTER + r"])\s*",
+                          "", hook, count=1)
             hook = re.sub(r"\s{2,}", " ", hook).lstrip("：:，,、 ").strip()
-        title = f"個股體檢{name}{code}：{hook}" if name else f"個股體檢{code}：{hook}"
+        _mk = (lambda h: (f"個股體檢{name}{code}：{h}" if name else f"個股體檢{code}：{h}"))
+        title = _mk(hook)
+        # 🔴 2026-09-04 改寫之後**沒有任何閘門**。is_banned_skeleton / exact_dup /
+        # skeleton_dup / numbers_sourced_to_fact 全部在上面那幾行 re.sub **之前**跑完,
+        # 改寫到 new_recs.append 之間唯一的動作是重算 `_norm` 指紋 ——
+        # **溯源驗過的是改寫前的標題,改寫後的版本沒有任何東西看過就進了題庫。**
+        #
+        # 敵意輸入打出三個真缺陷,共同點都是「改寫後冒出一個溯源不到的數字形狀」:
+        #     代號=真統計數字  抱20年報酬2330%  → 抱20年報酬%   真數字被靜默刪、留懸空的 %
+        #     代號=小數整數部  報酬2330.5%      → 報酬.5%       (?!\d) 擋不住小數點
+        #     代號出現兩次     2303 vs 2303 對決 → vs 對決       count=1 沒限制住
+        #     代號=年份        2024年大跌40%    → 年大跌40%
+        # 曝險是真的:**51%(210/407)的真實 hook 含有非代號的四位數**,而這個語料的
+        # 報酬率常態落在 1000~4000%、台股代號多在 1101~9962,**兩個區間重疊**。
+        # 407 筆真實資料經驗命中 0,但空間在 —— 而它明天 05:50 是第一次真的執行
+        # (c7a9c8e6 寫了三天跑零次,`re` 從來沒被 import,直到 eed3ca25 才補上)。
+        #
+        # 擋下之後**退回未改寫版,不丟題**:代號印兩次只是浪費約 7 個字元,
+        # 而丟掉一題是少一支片 —— 誤擋比誤放貴。種題歸零正是我們剛修好的東西。
+        # ⚠️ 這道網刻意**不是**重跑 `numbers_sourced_to_fact` —— 那是我第一版的選擇,
+        # 實測擋不住 4 種敵意輸入裡的 3 種,而且在 407 筆真實資料上誤擋 1 筆。
+        # 根因:溯源閘門問的是「有沒有冒出溯源不到的數字」,而這裡的失敗形態是
+        # **一個真數字被靜默刪掉** —— 刪掉之後標題裡沒有可疑數字,溯源當然放行。
+        # **拿一道問錯問題的閘門去守,比沒有守更糟:它會給出「驗過了」的錯覺。**
+        # 對症的判準是數字的**多重集合**:改寫只准拿掉代號本身,不准動到別的數字、
+        # 也不准新增。「2303 vs 2303」被 count=1 刪掉一個 → 個數 2→1 → 擋下。
+        if code and title != _mk(_hook_pre):
+            _n_pre = collections.Counter(re.findall(r"\d+(?:\.\d+)?", _hook_pre))
+            _n_post = collections.Counter(re.findall(r"\d+(?:\.\d+)?", hook))
+            _lost = _n_pre - _n_post
+            _gained = _n_post - _n_pre
+            # 「2303 vs 2303 對決」這種:被刪掉的**就是代號本身**,值上跟真代號引用
+            # 無法區分,所以上面的數字網**依設計抓不到它**。它剩下的傷害不是錯數字
+            # 而是**斷句**(變成「vs 對決十年誰贏」),所以用句首的懸空連接詞接。
+            # ⚠️ 不要寫 `\b?` —— 零寬斷言不能加量詞,Python re 直接丟
+            # `re.error: nothing to repeat`,而它只在**這條路徑真的被走到**時才炸
+            # (第一版就是這樣寫的,測試才抓到)。
+            # 也刻意**不收單字「和/與/跟」**:「和碩的十年」會被誤擋,
+            # 而誤擋的代價是種題少一題,比多印 7 個字元貴。
+            _dangling = re.match(r"^(?:vs|VS|對決|對比)[\s，,、]", hook)
+            if _gained or set(_lost) - {code} or _dangling:
+                rejected["rewrite_broke_number"] += 1
+                print(f"  ↩ 代號去重動壞了標題,退回未改寫版:{title}"
+                      f"  少了={dict(_lost)} 多了={dict(_gained)}"
+                      + ("  句首懸空連接詞" if _dangling else ""))
+                hook, title = _hook_pre, _mk(_hook_pre)
         n = tb._norm(title)  # 前綴改變了標題,去重指紋要跟著重算
         angle = str(c.get("angle") or "").strip()
         category = str(c.get("category") or "").strip()
