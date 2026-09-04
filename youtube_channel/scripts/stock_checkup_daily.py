@@ -347,7 +347,6 @@ def seed_topics_for_code(code: str, name: str = "", dry_run: bool = False) -> in
             # 也刻意**不收單字「和/與/跟」**:「和碩的十年」會被誤擋,
             # 而誤擋的代價是種題少一題,比多印 7 個字元貴。
             _dangling = re.match(r"^(?:vs|VS|對決|對比)[\s，,、]", hook)
-            _would_be = hook          # 供測試讀「本來會改成什麼」,不影響行為
             if _gained or set(_lost) - {code} or _dangling:
                 rejected["rewrite_broke_number"] += 1
                 print(f"  ↩ 代號去重動壞了標題,退回未改寫版:{title}"

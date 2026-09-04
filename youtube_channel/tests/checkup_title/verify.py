@@ -47,15 +47,23 @@ print(f"(測試執行的是產線原文 {_SRC[:_A].count(chr(10)) + 1}~{_SRC[:_B
 
 
 def rewrite(hook_title, code, name):
-    """跑**產線原文**。回 (改寫前標題, 最終標題, 被擋下時本來會改成什麼)。"""
+    """跑**產線原文**。回 (改寫前標題, 最終標題, 被擋下時產線印出來的理由)。
+
+    ⚠️ 不要為了讓測試好寫,就請產線多留一個變數(第一版就是這樣加了 `_would_be`,
+    pyflakes 立刻從綠變紅:`assigned to but never used`)。**產線不該為測試而存在。**
+    而且不需要 —— 產線那行 print 裡的 `title` 就是「本來會改成什麼」,
+    後面還接著 `少了=/多了=/句首懸空連接詞`。收集 print 就有全部資訊。
+    (一把從上線第一天就在說謊的 lint,下次真的有 undefined name 時沒有人會看它。)
+    """
+    said = []
     ns = {"re": re, "collections": collections, "_UNIT_AFTER": scd._UNIT_AFTER,
           "title": hook_title, "name": name, "code": code,
-          "rejected": collections.Counter(), "print": lambda *a, **k: None}
+          "rejected": collections.Counter(),
+          "print": lambda *a, **k: said.append(" ".join(str(x) for x in a))}
     exec(BLOCK, ns, ns)                      # noqa: S102  刻意執行產線原文
     pre = ns["_mk"](ns["_hook_pre"])
-    final = ns["title"]
     blocked = ns["rejected"].get("rewrite_broke_number", 0) > 0
-    return pre, final, (ns.get("_would_be") if blocked else None)
+    return pre, ns["title"], (said[0] if (blocked and said) else None)
 
 
 # ── 一、四種敵意輸入必須被擋 ─────────────────────────────────────────────────
@@ -111,19 +119,30 @@ for t in seeded:
         blocked_rows.append((title, blocked))   # blocked 裡放的是「本來會改成什麼」
 
 print(f"     已種題 {len(seeded)} 筆;會被改寫 {n_rw} 筆;收斂器擋下 {n_block} 筆")
-DANGLE = re.compile(r"^(?:vs|VS|對決|對比)[\s，,、]")   # 與產線 _dangling 同一份判準
 for a, b in blocked_rows:
     print(f"       擋:{a[:52]}")
-    print(f"          本來會改成 …：{b[:44]}"
-          + ("   ← 句首懸空,擋對了" if DANGLE.match(b) else "   ← 🔴 沒有理由,這是誤擋"))
+    print(f"          產線給的理由:{b.strip()[:96]}")
 check("會被改寫的筆數 >= 60(改寫確實在動,不是空跑)", n_rw >= 60, f"實得 {n_rw}")
 # 🔴 判準是「零**誤**擋」而不是「零擋下」。驗證員乾跑的 77 筆是拿**舊碼**跑的,
 # 而舊碼沒有「句首懸空」這一道 —— 拿它當「必須全部通過」的基準,
 # 會逼我把一個真陽性拿掉。菱生 2369 就是那一筆:`(2369) vs 0050十年對決` 去掉代號
 # 會變成標題以「：vs 0050」開頭。退回只多印 7 個字元,不退回是一個讀起來壞掉的標題。
-check("被擋下的每一筆都說得出理由(改寫後句首懸空)",
-      all(DANGLE.match(b) for _a, b in blocked_rows),
+# 判準改成「產線自己說得出理由」:訊息裡要嘛列出少了/多了哪些數字,要嘛標明句首懸空。
+# 這樣測試不必**再實作一次**判準 —— 第一版在這裡放了一份 DANGLE 正規式,
+# 那是第三份實作(產線一份、rewrite() 一份、這裡一份)。
+check("被擋下的每一筆,產線都說得出理由",
+      all(("句首懸空" in b) or ("少了={}" not in b) for _a, b in blocked_rows),
       f"擋下 {n_block} 筆,全部可解釋" if blocked_rows else "沒有擋下任何一筆")
+
+# ── 三、切塊邊界:_norm 到 append 之間不准再動 title ─────────────────────────
+print("\n【三】切塊邊界(現在缺口 0,但那是約定不是保證)")
+import ast as _ast
+_tree = _ast.parse(_SRC)
+_seg = _SRC[_B:_SRC.index("        new_recs.append(rec)")]
+_stores = [n.id for n in _ast.walk(_ast.parse(textwrap.dedent(_seg)))
+           if isinstance(n, _ast.Name) and isinstance(n.ctx, _ast.Store) and n.id == "title"]
+check("`n = tb._norm(title)` 到 `new_recs.append` 之間沒有對 title 的 Store",
+      not _stores, f"發現 {len(_stores)} 處")
 
 print(f"\n合計 FAIL={fails}")
 raise SystemExit(1 if fails else 0)
