@@ -24,6 +24,27 @@
 ⇒ **11 × 2,100 = 23,100 = 天花板 26,001 的 88.8%**(用產線常數 2,150 算是 23,650 = 91.0%,兩個都對,差在有沒有留餘裕)
 (這正是好幾支排程掛 `YT_QUOTA_RESERVE=23650` 的由來 —— 那個數字不是隨手挑的。)
 
+## 帳本實測單價(units/call,`by_op` 全期彙總)
+
+估配額不要查官方文件再乘,**這個專案的帳本自己記著實際單價**:
+
+| op | units | calls | 單價 |
+|---|---|---|---|
+| `videos.post` | 145,600 | 91 | **1600** |
+| `captions.post` | 29,200 | 73 | **400** |
+| `captions.put` | 13,950 | 31 | 450 |
+| `search.get` | 1,400 | 14 | **100** |
+| `videos.put` / `thumbnails/set.post` / `playlistItems.post` / `commentThreads.post` | — | — | 各 **50** |
+| `videos.get` / `channels.get` / `playlistItems.get` / `commentThreads.get` | — | — | **1** |
+
+三件從這張表直接讀得出來、而用猜的會猜錯的:
+1. **讀取幾乎免費**(1 unit),`videos.list(part=status)` 批次 50 個 id **一次呼叫 = 1 unit**。
+   所以「確認 34 支現在是否還公開」的成本是 **1 unit**,不是我先前寫的 2~3。
+2. **`search.get` 是 100** —— 讀取裡的異類,比其他讀取貴 100 倍。任何「搜尋看看排名」的想法要先看這格。
+3. **Analytics 在這張表裡一筆都沒有** —— `youtubeAnalytics.reports.query` 走**另一個配額池**,
+   不吃這 26,001。所以「逐支取 estimatedMinutesWatched」對本文件的飽和問題**零影響**。
+   ⚠️ 反過來說:**Analytics 有它自己的上限**,只是不在這本帳裡,別以為它無限。
+
 ## 近六個配額日(太平洋日)
 
 | 日 | spent | 發片 calls | videos.post | 備註 |

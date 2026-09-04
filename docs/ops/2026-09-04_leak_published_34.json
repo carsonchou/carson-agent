@@ -8,8 +8,8 @@
   "paren_stage": "誰都抓不到 —— 閘門把括號當豁免區;tests/paren_stage/known_gap.py 現在故意 FAIL"
  },
  "todo_after_1500": [
-  "逐支取 estimatedMinutesWatched —— 不要用觀看次數外推(會高估 4~5 倍)",
-  "併批 videos.list(part=status) 確認是否仍 public(uploaded_ledger 是 append-only,本機證不出來)",
+  "逐支取 estimatedMinutesWatched —— 不要用觀看次數外推(會高估 4~5 倍)。⚠️ Analytics 走**另一個配額池**,帳本 by_op 裡一筆 Analytics 都沒有 —— 不吃 Data API 的 26,001。",
+  "videos.list(part=status) 確認是否仍 public(uploaded_ledger 是 append-only,本機證不出來)。🔴 成本是 **1 unit**(帳本實測 videos.get 單價 = 1.0,1239 calls/1239 units),批次 50 個 id 一次呼叫。我先前寫的「2~3 units」是錯的,而且不必掛 YT_QUOTA_RESERVE —— 加沒必要的約束會讓下一個人以為這批很貴。",
   "⚠️ 名單裡有 Shorts,觀看時數口徑與長片不同,分開報不要加總"
  ],
  "items": [
@@ -218,5 +218,6 @@
    "fmt": "long"
   }
  ],
- "canonical_path": "docs/ops/2026-09-04_leak_published_34.json(**刻意不放 STUDIO/ —— 那整個目錄被 gitignore,而這是決策輸入不是產線資料**)"
+ "canonical_path": "docs/ops/2026-09-04_leak_published_34.json(**刻意不放 STUDIO/ —— 那整個目錄被 gitignore,而這是決策輸入不是產線資料**)",
+ "quota_note": "帳本實測單價(units/call):videos.get 1 · channels.get 1 · playlistItems.get 1 · commentThreads.get 1 · search.get 100 · videos.post 1600 · captions.post 400 · videos.put/thumbnails/playlistItems.post 各 50。配額飽和分析見 docs/ops/2026-09-04_quota_saturation.md。"
 }
