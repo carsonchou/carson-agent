@@ -15,6 +15,7 @@
 import json
 import re
 import sys
+import textwrap
 from pathlib import Path
 
 sys.path.insert(0, "scripts")
@@ -32,32 +33,29 @@ def check(label, cond, extra=""):
     print(f"  {'PASS' if cond else '**FAIL**'}  {label}{('  ' + extra) if extra else ''}")
 
 
-U = scd._UNIT_AFTER
+# 🔴 2026-09-04:**不要在這裡再寫一份改寫演算法。**
+# 第一版是自己複製一份、只從產線借 `_UNIT_AFTER` 常數 —— 那樣有人改了產線正規式,
+# 這支測試仍然會對著自己那份通過,而那正是 memory `yt-duplicate-impl-gate-bypass`
+# (同一件事兩份實作,產線走沒閘門那份),也是這兩天反覆踩到的同一個坑。
+# 改成**把產線原文抽出來 exec**:測的就是明天 05:50 會跑的那些位元組。
+_SRC = Path("scripts/stock_checkup_daily.py").read_text(encoding="utf-8")
+_A = _SRC.index("        hook = title\n")
+_B = _SRC.index("        n = tb._norm(title)  #")
+BLOCK = compile(textwrap.dedent(_SRC[_A:_B]), "<produce-path>", "exec")
+print(f"(測試執行的是產線原文 {_SRC[:_A].count(chr(10)) + 1}~{_SRC[:_B].count(chr(10))} 行,"
+      f"{_B - _A} 個位元組)")
 
 
-def rewrite(hook, code, name):
-    """跟產線種題路徑同一套改寫 + 同一道網。回 (改寫前標題, 最終標題, 是否被擋下)。"""
-    h = hook
-    for lead in (name, code):
-        if lead and h.startswith(lead) and not (
-                lead == code and h[len(lead):len(lead) + 1] in U):
-            h = h[len(lead):].lstrip("：:，,、 ")
-    pre = h
-    if code:
-        h = re.sub(r"\s*[（(]\s*" + re.escape(code) + r"\s*[)）]\s*", "", h)
-        h = re.sub(r"(?<![\d.])" + re.escape(code) + r"(?![\d.%])(?![" + U + r"])\s*",
-                   "", h, count=1)
-        h = re.sub(r"\s{2,}", " ", h).lstrip("：:，,、 ").strip()
-    mk = (lambda x: (f"個股體檢{name}{code}：{x}" if name else f"個股體檢{code}：{x}"))
-    blocked, would_be = False, None
-    if code and h != pre:
-        would_be = h
-        a = collections.Counter(re.findall(r"\d+(?:\.\d+)?", pre))
-        b = collections.Counter(re.findall(r"\d+(?:\.\d+)?", h))
-        d = re.match(r"^(?:vs|VS|對決|對比)[\s，,、]", h)
-        if (b - a) or (set(a - b) - {code}) or d:
-            blocked, h = True, pre
-    return mk(pre), mk(h), (blocked and would_be)
+def rewrite(hook_title, code, name):
+    """跑**產線原文**。回 (改寫前標題, 最終標題, 被擋下時本來會改成什麼)。"""
+    ns = {"re": re, "collections": collections, "_UNIT_AFTER": scd._UNIT_AFTER,
+          "title": hook_title, "name": name, "code": code,
+          "rejected": collections.Counter(), "print": lambda *a, **k: None}
+    exec(BLOCK, ns, ns)                      # noqa: S102  刻意執行產線原文
+    pre = ns["_mk"](ns["_hook_pre"])
+    final = ns["title"]
+    blocked = ns["rejected"].get("rewrite_broke_number", 0) > 0
+    return pre, final, (ns.get("_would_be") if blocked else None)
 
 
 # ── 一、四種敵意輸入必須被擋 ─────────────────────────────────────────────────
