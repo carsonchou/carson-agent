@@ -174,6 +174,42 @@ def measure() -> dict:
     if err:
         errors.append(err)
 
+    # 🔴 2026-09-04:`video_count` 是 channels.list 的**單點快照,會瞬時凹陷**。
+    # 實例:09-03 讀到 832,而 09-04 用 ledger 逐支 videos.list part=status 實查
+    # public=873、channels.list 當下也回 873;09-02 的 854 + 兩日發布 ≈ 873 也吻合
+    # —— 09-03 那筆是 **−22 的凹陷後回彈**,不是有片被下架。
+    #
+    # 它已經製造過一次**高擬真假警報**:−22 恰好等於當時查到的洩漏片支數,
+    # 於是「22 支被無聲下架」看起來像因果。實查:那 22 支全 public、零人動過。
+    # **巧合和因果在一個數字上長得一模一樣**,而這個數字每天只取一次。
+    #
+    # ⚠️ 修法刻意**不壓掉負值**:真的下架也是負的,一律當雜訊就是今天修了一整天的
+    # 「不會叫的警報」。改成:掉超過門檻就**再讀一次**(1 unit),兩讀都掉才可能是真的,
+    # 並且無論如何都標記出來 —— 原值不動,讓下游自己判,而不是替它決定。
+    _DIP = -3          # 1~2 支的減少可能是真的刪片;超過就不像人手動作
+    try:
+        _prev = None
+        if LEDGER.exists():
+            for _ln in LEDGER.read_text(encoding="utf-8").splitlines():
+                if not _ln.strip():
+                    continue
+                _v = json.loads(_ln).get("video_count")
+                if _v is not None:
+                    _prev = _v
+        if _prev is not None and vids is not None and (vids - _prev) <= _DIP:
+            _s2, _v2, _e2 = _subscribers()          # 二讀,1 unit
+            rec["video_count_recheck"] = _v2
+            rec["video_count_prev"] = _prev
+            rec["video_count_suspect"] = (
+                f"video_count 由 {_prev} 掉到 {vids}(Δ{vids - _prev});二讀 {_v2}。"
+                "channels.list 是單點快照會瞬時凹陷 —— **先當統計波動,不要當事件**。"
+                "要確認請跑 ledger 逐支 videos.list part=status(約 22 units)再下結論。"
+            )
+            errors.append(rec["video_count_suspect"])
+    except Exception as _e:  # noqa: BLE001
+        # 這一段只是加註記,壞掉不該影響主計量;但也**不要靜默** —— 留進 errors。
+        errors.append(f"video_count 凹陷檢查自己壞了:{_e!r}")
+
     rec["errors"] = errors
     # fail-closed 標記：任何一個閘門欄位缺失就標 partial，下游看到 partial 必須拒用
     rec["partial"] = any(
