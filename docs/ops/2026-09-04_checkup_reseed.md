@@ -91,3 +91,109 @@ grep -n "^===== \[.*stock_checkup_daily" logs/job_stderr.log | tail -2
 - 修法:`eed3ca25`(`import re`);同段的三道標題閘門另見 `d2020bae` / `7a17bcc7`
 - 相關 memory:`verification-that-cannot-fail`(第零種:規則沒變成檢查)、
   `verification-claims-in-commit-messages`(把兩件事併成一個因果鏈)
+
+---
+
+# 更正(2026-09-04 13:4x,主頻道線實證)
+
+## 🔴 一、「補種自動、不需手動」**推翻了**
+
+依據不是推論,是原始碼順序:
+
+```
+stock_checkup_daily.py:449   cand["done"] = True
+                      :450   cand["done_at"] = today
+                      :451   _save_backlog(bl)                       ← done 已經落盤
+                      :452   n_new_topics = seed_topics_for_code(…)  ← 崩點 :270 在這裡面
+```
+
+**標 done 在種題之前,而且中間存過檔。** 所以崩掉的股票已經被標成 done,
+backlog 的 `not done and not skip` 佇列**永遠不會再挑到它們**。
+
+實證(不是推論):
+
+```
+backlog done = 584    有事實 = 585    topic_bank 有題 = 417
+🔴 已標 done + 有事實 + 完全沒有任何題目 = 172 檔
+```
+
+名單:`STUDIO/_reseed_orphans.json`(5880 合庫金、2328 廣宇、3693 營邦、8155 博智…)。
+
+`skip = 32` 那組清白:理由是「價格資料抓取失敗或上市未滿最短年限」31 檔 +
+「算不出任何事實」1 檔,**沒有一檔是崩在種題**。原本擔心的那件事沒發生,
+但真正的洞在另一邊。
+
+## 🔴 二、172 和 48 是**兩件不同的事**,不准合併成一個數字
+
+| | 數字 | 成因 | 性質 |
+|---|---|---|---|
+| 48 | `--count 16 × 3 天` | `import re` 缺失(09-02/03)+ DNS 斷線(09-04) | **一次性事件**,已修(`eed3ca25`) |
+| **172** | `_reseed_orphans.json` 實測 | **「先標 done 再種題」這個結構** | **持續失血**,未修 |
+
+**就算 `import re` 從來沒發生過,這個結構照樣會持續產生孤兒** ——
+172 − 48 ≈ 124 檔是更早累積的,而那些日子沒有 NameError。
+
+寫成「172 檔因為 `import re` 而遺失」就是今天一直在犯的那個錯:**兩個獨立原因併成一個因果鏈**。
+(同型:09-04 那天就算有 `import re` 也一樣種不成,因為 DNS 掛了 ——
+而第二個原因把「第一個修好沒」這件事**遮住了**;網路正常的話今天就知道答案了。)
+
+## 三、結構修法:今晚不動,代價寫明
+
+**不動的理由**:`stock_checkup_daily.py` 明天 05:50 要跑,而且是 `d2020bae`/`7a17bcc7`
+三道閘門第一次帶真實資料執行。今晚再動同一支檔 = 把兩個變數混進同一次觀測。
+
+**不動的代價(要的是數字不是感覺)**:明天 `--count 16`,每失敗一檔就再永久掉一檔。
+歷史失敗率估法:584 done 裡 172 沒種成 = **29.5%**,但那個分母混了 `import re` 那三天;
+扣掉那 48 檔後是 `124 / 536 = 23.1%`。→ **明天預期新增孤兒 16 × 23% ≈ 3.7 檔**。
+可用 orphans 名單救回(facts 已存在,不必重抓),所以我判**代價可接受,同意不動**。
+
+**兩種修法,留給後面的人選(今晚不實作)**:
+- (a) 把 `cand["done"] = True` 移到 `seed_topics_for_code` 回傳成功之後
+  —— 風險:種題中途崩掉會讓那檔永遠重試,要確認 `MAX_FAILS` 接得住
+- (b) 種題失敗(例外或回傳 0)時回滾 `done`
+  —— 風險較低,但要定義「失敗」:回傳 0 到底是「沒新題」還是「種不進去」
+
+督導偏好 (b)。屬產線結構改動,要獨立驗證。
+
+## 四、172 檔補種:可做,但 **dry-run 不是零成本**
+
+走 `topics_from_facts.py` / `seed_topics_for_code()`,**不是**排程那支的主流程,
+事實都已在 `stock_checkup_facts.json`,不必重抓 FinMind/yfinance,也碰不到明天的觀測。
+
+⚠️ 但 `--dry-run` 只是**不寫檔**,LLM 照打(`seed_topics_for_code` 亦同,
+`dry_run` 參數不影響 `sc.has_llm_key()` 之後那段)。
+所以 **dry-run 的 LLM 成本 == apply 的成本**,「先 dry-run 看幾題」在這裡買不到資訊。
+
+可analytically 給的數字:`MAX_TOPICS_PER_CODE = 1` → **上限 172 題,一檔一題**;
+成本 = **172 次 LLM 呼叫**。建議直接 apply 並分批(例如一次 30 檔),
+每批之後看 `topic_bank` 實增數;要 dry-run 的話只對前 5 檔做,確認品質就好。
+
+`topics_from_facts.py` 目前**沒有「只處理這些代號」的參數**(只有 `--limit-facts N` 取前 N 組),
+所以要嘛加一個 filter,要嘛寫一支小 driver 逐檔呼叫 `seed_topics_for_code(code, name)`
+—— 後者是新檔案,不動排程那支。
+
+## 五、明天早上的驗收表:再找出一個同形格子
+
+已知並已配對第二訊號的:
+- `history` 沒增加 → 同時代表「修法失敗」與「整支根本沒跑」→ 配 `job_stderr` 有無新表頭
+
+**本次新增(第二個同形格子)**:
+🔴 **`backlog` 待處理數減少 → 同時代表「種題成功」與「標了 done 但種題崩了」**
+—— 因為 done 在種題之前就落盤。09-02/03 那兩天待處理數**照樣在掉**,而那兩天種了 0 題。
+→ 正確訊號:**看 `topic_bank.json` 有沒有多出對應 `fact_key` 的題**,不要看 backlog。
+
+**第三個(本次再找到的)**:
+🔴 **`seed_topics_for_code` 回傳 0 → 同時代表「LLM 生的題全被閘門擋下」與「根本沒呼叫 LLM」**
+(`:158` 無 LLM key 時直接 `return 0`,而那條路徑只 print 不記 ops_log)。
+→ 明天要看的不是回傳值,是 ops_log 有沒有
+`[09-05 05:5x] …` 的種題成功行 **與** `topic_bank` 的實際增量,兩者都要。
+
+### 明天 05:50 之後具體要看什麼
+
+| 看哪裡 | 預期看到 | 看不到代表什麼 |
+|---|---|---|
+| `logs/job_stderr.log` 找 `[2026-09-05 05:5x] scripts/stock_checkup_daily.py` | **有表頭** | 沒表頭 = 排程沒觸發(不是修法失敗) |
+| 同上,往下 20 行 | **沒有** `NameError: name 're'` | 還有 = `eed3ca25` 沒生效 |
+| `stock_checkup_daily_state.json` 的 `history` | 多出 09-05 的筆數 | 沒多 = 整支沒跑完 |
+| **`topic_bank.json` 中 `source=stock_checkup_daily` 的筆數** | 從 **407** 往上增 | 沒增 = 種題仍然失敗(這是唯一能單獨判定的訊號) |
+| `STUDIO/stock_checkup_backlog.json` 待處理數 | 從 **1309** 往下掉 | ⚠️ **掉了也不代表成功**,見上面第二個同形格子 |
