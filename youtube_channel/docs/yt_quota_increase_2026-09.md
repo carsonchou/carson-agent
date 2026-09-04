@@ -33,22 +33,22 @@
 
 ## 2. 兩個關鍵數字怎麼算出來的(從現況長出來,不含成長假設)
 
-**上傳能力需求 ≈ 18 支/日**:
-- (b) 產線穩態良率:4 天毛產出實測 13~29、均值 ~19(08-30~09-02 逐日 19/14/29/13),保守取 **15**(低於均值與中位)
-- (a) 庫存清償:81 支 ÷ 30 天 ≈ **+2.7 支/日**
-- → 上傳能力要 15 + 2.7 ≈ **17.7,取 18** —— 這是「追上產出+清庫存」的算術,不是發布量目標
+**上傳能力需求 ≈ 17 支/日**:
+- (b) 產線穩態良率:七日毛產出實測 9~29、中位 14、均值 16.4(2026-08-29~09-04 逐日 18/19/14/29/13/9/13),取 **14**(等於中位、低於均值;均值靠 09-01 的 29 撐,拿掉它其餘六日均 14.3)
+- (a) 庫存清償:81 支(2026-09-04 晚間快照;近日在 79~81 震盪,是快照不是穩定值)÷ 30 天 ≈ **+2.7 支/日**
+- → 上傳能力要 14 + 2.7 ≈ **16.7,取 17** —— 這是「追上產出+清庫存」的算術,不是發布量目標
 
 **Requested = 45,000 units/day**:
-- 18 × 2,150 = 38,700(上傳鏈全成本:insert 1,600 + captions 400 + thumbnail 50 + 其餘 ~100)
-- (c) 維運:逐日實測(spent 減上傳鏈,僅六個已關帳日 08-26~08-31)= 860 / 7,845 / 6,991 / 7,058 / 1,710 / 4,601,**中位 5,796**;低值日(860/1,710)是維運被配額餓死的日子,無餓日需求落在 4,601~7,845(其中位 ~7,025)→ 編列 4,000~6,000:低於無餓日需求,**刻意保守**;45,000 總額留 6,300 headroom,蓋得住整體中位(5,796),**蓋不住高峰日(無餓日裡有三天超過 6,300,高峰日維運仍會被擠壓,這是保守申請的代價)**
-- → 38,700 + 4,000~6,000 ≈ 42,700~44,700 → **45,000**
+- 17 × 2,150 = 36,550(上傳鏈全成本:videos.insert 1,600 + captions.insert 400 + thumbnails.set 50 + playlistItems.insert 50 + commentThreads.insert 50。這五項就是 `daily_publish.py` 每發一支實際呼叫的端點:`:941` / `:975` / `:1018` / `:1272` / `:1273`)
+- (c) 維運:逐日實測(spent 減上傳鏈,僅六個已關帳日 08-26~08-31)= 860 / 7,845 / 6,991 / 7,058 / 1,710 / 4,601,**中位 5,796**;低值日(860/1,710)是維運被配額餓死的日子,無餓日需求落在 4,601~7,845(其中位 ~7,025)→ 編列 4,000~6,000:低於無餓日需求,**刻意保守**;45,000 總額留 **8,450** headroom(45,000 − 36,550),蓋得住整體中位 5,796,**也蓋得住無餓日最高的 7,845** —— 這是良率由 15 降為 14 的副效果:上傳編列少了 2,150,維運緩衝相應變大,前版「蓋不住高峰日」的讓步不再需要
+- → 36,550 + 4,000~6,000 ≈ 40,550~42,550 → **申報 45,000**。⚠️ 明講:算術指向 **43,000**,45,000 是**刻意上調至最近的 5,000 整數位**,多出的 2,450~4,450 是給無餓日高峰(7,845 > 編列上界 6,000)的緩衝。不是算術結果,是取捨
 
 **發布量上限是另一回事**:硬上限 12 已在 daily_publish(2026-08-19 加,依據=單日 ≥21 支的暴發日單支觀看中位 3 vs 平日 37 的斷崖實測);main ch. 正在跑發布量×單支觀看的因果驗收,**09-15 出結論前上限不動**。核准的額度先吃庫存清償與維運,發布量若上調必依驗收結論、且不超過對 Google 的新申報值。
 
 ## 3. 送出前 Carson 要親手確認的三件
 
 1. **官方核定值**(表單 "Current daily quota" 欄):console.cloud.google.com → `claude-morning-report-498407` → IAM 與管理 → 配額 → YouTube Data API v3 "Queries per day" → **抄那個數字**。
-   (我們的錨點對不上:撞牆實測 24,374 / 記帳最高 26,001;記帳把失敗呼叫照價目計價所以是上界。表單填 Google 自己的數。)
+   (24,374 與 26,001 是**同一個太平洋配額日 08-31 的兩次撞牆觀測** —— 前者記於台北 09-01 00:41 = 太平洋 08-31 09:41;26,001 是那天成功花掉的量,同日 Google 另拒了 31 次(`quota_meter.json` 的 `rejected_calls: 31`,被拒的不計入 spent),所以真上限落在 [26,001, ~26,050]。⚠️ 為何 24,374 被拒之後同日仍能花到 26,001,未解。表單仍填 Google 自己的數。)
 2. **登入帳號** = project Owner(上輪確認 crayray86@gmail.com / 周庭睿)。
 3. **隱私政策 URL**:沿用上一輪通過稽核的那個公開 URL,確認還活著。
 
@@ -60,10 +60,14 @@
 - **Current daily quota**: 第 3 節抄來的官方數字
 - **Requested daily quota**: **45,000 units**
 - **Expected API Usage Volume**(Section 5;⚠️ **蓋掉舊表寫的 40,000**,否則表單自相矛盾): **45,000 units/day**
-- **Expected upload volume**: **currently capped at 11/day by our scheduler; requested capacity up to 18/day**(能力申報,非承諾;已關帳六日 videos.post 呼叫 6~10 次(含失敗重試)、實發 5~10 支,11 是排程設定值)
+- **Expected upload volume**: **currently capped at 11/day by our scheduler; requested capacity up to 17/day**(能力申報,非承諾;2026-08-26~08-31 六個已關帳日 videos.post 呼叫 6~10 次、實發 5~10 支;2026-09-01~09-04 為每日 11 次。11 是排程設定值)
 
 **Justification(貼這段;每個數字有來源、無成長假設)**:
 
+> All figures below are measurements taken as of 2026-09-04 and are given with
+> explicit date ranges rather than relative wording, so that each number remains
+> checkable against a fixed window.
+>
 > Our previous quota increase (approved 2026-08) is now exhausted on a recurring
 > basis — not because we plan to grow, but because our production already outruns
 > our upload capacity today. Our client-side metering (a wrapper recording the
