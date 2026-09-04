@@ -44,6 +44,9 @@ import argparse
 import datetime as _dt
 import json
 import os
+import re                       # 🔴 2026-09-04 補:c7a9c8e6(09-01)的標題去重用了 re.sub
+                               # 卻沒 import,seed_topics_for_code 每次都 NameError
+                               # → 題庫餵料端從 09-02 起天天掛,09-04 產線產出 0 支
 import sys
 from pathlib import Path
 
