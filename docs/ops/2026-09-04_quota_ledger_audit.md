@@ -21,6 +21,26 @@
 
 ### 判別法(不必控併發、不燒 unit)
 
+> 🔴 **2026-09-04 22:0x 更正(獨立驗證員打掉,main ch. 自認)——上面那句全稱句是假的。**
+> 我寫「`_unrecord()` 兩邊一起減」,**它沒有**(`quota_meter.py:404-409`):
+> `:404-405` 無條件扣 `spent`/`calls`,`:406-407` 的 `if o:` **只守 `by_op` 那一邊**,
+> 且兩個 `max(0,…)` 各自 clamp。⇒ op 桶不存在、或 `o["units"] < units` 時**單邊扣**。
+> 可觸發路徑不需惡意輸入:`:399` 重算 `_pacific_date()`,而收費是在 `_charge_once` 當下記的,
+> **resumable 上傳跨太平洋換日(台北 15:00~16:00,正是 15:25 補件 cron 的時段)就會扣到別天的 bucket**;
+> 另有 `record()` 的 `_unreadable` 提前 return 與 `_save()` 的 `except: pass` 讓收費沒落地、
+> 而 `_unrecord` 照扣。三種都讓 `spent < sum(by_op)`,**方向就是申請書低報**。
+>
+> ⇒ **正確的說法:「這 12 天沒量到低報」,不是「併發破壞不了它」。**
+> 實證結論不變(12/12 差 0、無 `unknown:` op、無外部單邊寫入者),
+> 但**帳本沒有結構上防止低報的保證**,那條恆等式是經驗事實不是定理。
+> 我犯的形狀正是 memory `verification-claims-in-commit-messages` 記的那個:
+> **把「`record()` 這一段成立」講成「整條恆等式必成立」。**
+> 待辦(明早後,產線碼要獨立驗證才動):`_unrecord()` 缺 `record()` 兩條分支都有的
+> `_unreadable` 守衛,目前靠 `:401-403` 巧合擋住,但 `_from_bak` 那條路徑沒擋 ——
+> 會在舊快照上改再 `_save` 整檔,抹掉中間所有行程的寫入。09-03「rejected 分支繞過保護」
+> 同一個病的第三處換皮,三個寫入點裡唯一沒被那次修補掃到的。
+
+
 `record()` 非 rejected 路徑(`quota_meter.py:363-366`):
 
 ```python
@@ -28,7 +48,7 @@ b["spent"]  = int(b.get("spent", 0)) + int(units)
 o["units"] += int(units)
 ```
 
-同一個 `units`、同一段、無條件成對;`_unrecord()` 兩邊一起減;`rejected` 分支兩邊都不碰;
+同一個 `units`、同一段、無條件成對;~~`_unrecord()` 兩邊一起減~~(**錯,見上**);`rejected` 分支兩邊都不碰;
 日期裁切砍整個 day bucket。⇒ **`sum(by_op[*].units) == spent` 在任何交錯順序下都必須成立**
 (lost update 掉的是整次 `_save`,兩個計數器一起掉)。**併發破壞不了它,只有真 bug 破壞得了。**
 
