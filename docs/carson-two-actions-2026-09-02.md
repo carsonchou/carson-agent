@@ -45,4 +45,4 @@
 在專案目錄跑:`python scripts/google_auth_setup.py` → 瀏覽器跳出 → 用 **crayray86@gmail.com** 點同意即可。
 
 ---
-三件互不相依,順序隨意。做完任一件跟任一個 session 說一聲即可。
+四件互不相依,順序隨意(②④同一趟做最省:裝 RAM 要重開機,④的真驗收正好靠那次重開機)。做完任一件跟任一個 session 說一聲即可。
