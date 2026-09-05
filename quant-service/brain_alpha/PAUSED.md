@@ -48,3 +48,140 @@ score/level/submitted/榜在不在走 edge 偵測(base = 上一次宣告成功�
 **恢復生產時的第一順位仍然不是提交名單**,是 `brain_auto.py:66` 寫死的 `"delay": 1` ——
 `USA/delay=1` 的 14 個資料集**全部挖過、零個沒碰**,而 `delay=0` 有 11 個整片沒碰。
 跑道剩 1 條、驗證員抽 22 條全 FAIL、新選的兩條是全帳最冗餘的,是同一個原因。
+
+---
+
+## 2026-09-05 晚間補記(督導 wF:p4,第二段)
+
+> 提交仍暫停(Carson 09-03 裁決),等 Carson 的五件事仍未變。本段只講**產線程式碼**。
+
+### 這次動了什麼:`/check` 的輪詢與提交閘門
+
+起點是基建線那支 `scripts/scan_ambiguous_zero.py`(判準:一個表示「沒事」的值,
+若有超過一種路徑產生它、而下游只讀值不讀路徑)。拿它掃 `quant-service/brain_alpha/`,
+6 個 COLLIDE 裡有 3 個是真的,其中兩個在**提交路徑**上。
+
+**根因(執行期實測,不是讀碼推的)**:三份 `poll_check` 實作都沒有檢查 `r.ok`。
+一個 401 的 DRF body(`{"detail": "..."}`)→ `r.text` 非空 → `r.json()` 成功
+→ 回一個 dict → 呼叫端的 `if not data` 不觸發 → `checks` 折成 `[]` → 「沒有 FAIL」
+→ 印「全綠,送出提交」。獨立驗證員在 `--submit` 路徑實測:**真的走到 `POST /submit`**,
+與餵真全綠 body 的結果逐項相同。
+
+**更前面一層**:輪詢的終止條件是「body 非空」而不是「檢查解析完」。而
+`SELF_CORRELATION` 要到 Check Submission 才算、在此之前恆為 PENDING
+(`docs/ledger-platform-gap-20260905.md:120`;`OFFICIAL_RULES.md:225` 把它的機制
+列在「教材未提及清單」)。所以拿到 PENDING 是**我們自己沒等完**,不是平台的判斷。
+
+**處置**:合併成 `brain_auto.py` 裡的單一實作 —— `parse_checks` / `non_pass` /
+`poll_check` / `check_verdict` / `log_check_body`,`pick_next` 與 `submit_alpha`
+只留別名,`brain_daily_pick` 改用同一套。回歸測試 `test_poll_check.py`(12 節)。
+
+### 🔴 這次最該記住的不是那個 bug,是修它的過程
+
+**修這一族的過程本身,會產生這一族的缺陷。** 四輪獨立驗證,每一輪都打掉我的東西:
+
+| 輪 | 我做錯的 | 形狀 |
+|---|---|---|
+| 1 | 只在 `brain_alpha/*.py` 裡 grep `poll_check`,漏掉 `youtube_channel/scripts/brain_daily_pick.py:215` | 改了簽章沒改呼叫端 ⇒ tuple 恆為 truthy ⇒ **成功與失敗路徑都 AttributeError**,會打死每天 12:20 的 cron,而它掛掉之後連自己的警訊都發不出來 |
+| 2 | 為了修 `c["name"]` 的 KeyError,把缺 name 收成 `"?"` | **後蓋前**:`[FAIL, PASS]` 兩個無名 check 只留 PASS ⇒ `ok=True` ⇒ 實測再次走到 `POST /submit`。原本 KeyError 吵但 fail-closed,被我換成靜默 fail-open |
+| 2 | 宣稱要消滅三套判定規則,只消滅一半 | `pick_next.py` 仍是 `== "FAIL"`,會把 PENDING 當成 OK 印進「→ 交這兩條」,旁邊標「⚠️相關偏高」——**錯的理由** |
+| 3 | 自己寫的 deadline | sleep 夾成「剩餘時間」⇒ elapsed **漸近逼近 deadline 但不超過** ⇒ `> deadline` 永遠不成立 ⇒ deadline 等於沒生效,而且外表完全正常(照樣從 tries 用完那條出去,只是訊息講錯原因)。這個是自己的回歸測試抓到的 |
+| 3 | 為了避免「deadline 寫死」而加的 `BRAIN_CHECK_DEADLINE` | `float(os.environ.get(...))` 在**模組載入期**執行 ⇒ `=abc` 讓**所有 import `brain_auto` 的東西**死在 import(含 12:20 的 cron);`=0` 則每天全空且零訊號。**為了防一個猜出來的常數,造了一個新的單點故障**,而同一個檔的 `_retry_after` 為完全同一類髒值寫了三行防護 |
+| 3 | 宣稱「落檔會把 deadline 這個未知變成資料」 | `log_check_body` 只記 `ts/alpha_id/why/body`,**沒有 elapsed** ⇒ 那份記錄回答得了「body 長什麼樣」,回答不了「180 秒夠不夠」。不是宣稱做了沒做的事,是**宣稱一個觀測能回答它結構上回答不了的問題** |
+| 4 | 分桶判準 `if n_pend and not n_fail` | 沒看 `n_other` ⇒ PENDING+WARNING 被講成「純 PENDING,去放寬 deadline」,而放寬對 WARNING 無效 ——**把未知狀態講成已知狀態並導向錯的處置**,正是這批在修的病 |
+
+**另一條可以直接進 `docs/ops/` 的通則:「把 fail-closed 換成 fail-open」最常見的偽裝,
+是「順手修掉一個崩潰」。** KeyError 換成預設值、例外換成 `or 1`、`else <原值>`。
+崩潰很吵所以看起來像缺陷,但它站在安全那一側;換掉它時預設值必須落在「不通過」那一側,
+否則就是拿一個**會叫**的錯,換一個**不會叫**的錯。
+
+⇒ **`docs/ops/dispatch.md` §6「寫的人不驗自己的產出」今天是付了學費才成立的。**
+每一輪我都認為已經好了,而且每一輪的測試都是綠的。
+⇒ **改簽章時 grep 一定要對整個 repo**,不要只在自己那個目錄
+(第 1 輪就是只在 `brain_alpha/*.py` 裡 grep 才漏掉那個呼叫端)。
+
+### 尚未做完的三件(下一棒直接接,規格已備妥)
+
+**1. `runway.py` 的 fail-open —— 證據齊全,修法已定案,還沒動**
+
+`runway.py:138` 建「已提交池子」時 `p = fetch_pnl(...); if p: pool.append(...)`,
+而 `fetch_pnl` 有 **5 條路徑**回 `None`(重試用完 / 非 2xx / 非 JSON / `len(recs)<100` / 429 耗盡),
+只有一條是真實資料條件。任一條已提交 alpha 抓失敗 → 它從池子消失 → 候選的最大相關度被低估。
+
+執行期實測(scratchpad `probe_runway.py`,stub、不連網):
+
+| 觸發 | 池子 | 最大相關度 | 分類 |
+|---|---|---|---|
+| 正常 | 2/2 | **0.9988** | rejected |
+| 401 / 500 / 502 / 429 | 1/2 | **0.0707** | **accepted** |
+
+同一個候選、同一份真實資料,單一次 5xx 就把「和已提交的幾乎一模一樣」翻成「不相關,收下」。
+**5xx 是現實中最可能的觸發**:`fetch_pnl` 對它不重試(不是 429、不是 401、body 非空 → `break`
+→ `if not r.ok: return None`),一次就掉。
+
+修法(**不要動 `fetch_pnl` 的簽章** —— `brain_daily_pick.py` 有三個呼叫端靠 `d is None` / `if d`,
+改成二元組會讓 tuple 恆為 truthy、相關度全部歸零、**全部 accepted**,比現況嚴重得多):
+  - `runway.main()` 的 `if v is not None and abs(v) > mx` → 比照隔壁 `brain_daily_pick`
+    既有的 `abs(R.corr(d, e) or 1)` 約定,算不出來就當**最大相關**
+  - 池子不完整就中止,不要產出偏誤的 accept/reject。`runway.py:141/144` 已經印了
+    「已提交 N 條」與「取得 M 條的 PnL」兩個數字,**但沒有任何斷言在比對它們** ——
+    訊息在畫面上,不在判斷裡
+
+**2. `pick_next.submitted_ids()` 失敗回空 set**
+
+有檢查 `r.ok`,但失敗時 `return out` 是空集合 → `pick_next.main()` 讀成「一條都還沒交」
+→ 已提交的重新變成候選、`done_nums` 空 ⇒ **分子去重整個失效**。
+修法:加 `strict=True` 參數,`pick_next` 用嚴格版(失敗就中止),
+`brain_daily_pick` 保持預設(它那邊空集合是安全方向:`sub` 空 ⇒ `w=0` ⇒ 不預篩 ⇒ 全送平台判)。
+
+**3. 回報給基建線:掃描器的一個盲區形狀**
+
+`scripts/scan_ambiguous_zero.py` 只看**字面**空值的 `return`,抓不到
+「累加器初始化為空 → 只在成功路徑填 → 無條件 `return out`」——
+`submitted_ids` 正是這型,而它和被掃到的那些是同一族。值得加進第二層。
+(該工具的 `ROOT` / 輸出路徑原本寫死,而輸出路徑指向基建線那個 session 的 scratchpad,
+換一條線掃就會蓋掉他們的報告。已改成吃 argv,預設值不動。)
+
+(pre-existing 的兩項見下面「獨立驗證員的交接清單」第 4、5 項 —— 只列一次,
+免得兩份清單日後各自漂移。)
+
+### ⚠️ 一個明說的未知(不要當成已解決)
+
+`/check` 回應裡**會不會有永久 PENDING 的項目**,repo 內沒有任何一份真實 body 可查。
+現在的處置是 fail-closed(非 PASS 一律擋)+ `deadline` 預設 **180 秒,這個數字是猜的**。
+
+**如果真實 `/check` 需要超過 180 秒才解析完,`brain_daily_pick` 會每天挑不出任何東西**
+—— 那就是把閘門從「不會叫」修成「一定叫」,同樣是壞的。緩解:
+  - `BRAIN_CHECK_DEADLINE` 環境變數可覆蓋,不必改碼
+  - 非全 PASS 的 body 會落到 `check_bodies.jsonl`(已 gitignore),**排程路徑也會落**
+  - 「沒有安全候選」的推播已改成分三種歸因,PENDING 那種會明寫
+    「代表輪詢沒等到平台算完,**不是候選不好**」
+
+錨:`pick_next.py:108` 註解寫著 `/check`「每個約 30~60 秒」(`brain_auto.py:658` 的
+「約 60 秒」是**模擬**,不同端點,不要混用)。所以 180 秒 = 上緣的 3 倍,不是純猜;
+下限 30 秒也是照這個錨設的。
+
+⇒ **恢復生產前先看 `check_bodies.jsonl` 累積了什麼**(現在有 `elapsed_sec` 與
+`deadline_sec` 兩欄,回答得了「夠不夠」),用真實耗時把 180 秒校準掉。
+
+### 獨立驗證員的交接清單(四輪,原文轉錄,非阻斷)
+
+四輪驗證的探針都在該 session 的 scratchpad(`probe2_matrix.py` / `probe4.py` /
+`r4_V0`~ 還原變體),下一棒要重跑可以直接拿。
+
+1. **`CHECK_DEADLINE = _env_deadline()` 這一行沒有測試覆蓋** —— 已補(第 12 節用子行程帶髒
+   env import 一次)。**但這條教訓要留著**:當時第 12 節斷言的是 helper,
+   而會殺掉 cron 的是**模組層那一行**;把 binding 改回裸 `float()` 測試仍然全過。
+   **測 helper 不等於測那一行。**
+2. **`brain_daily_pick` 的 401 abort 無測試**。`probe4.py` 的 `daily()` 是全 stub 的,
+   縮成 `test_daily_pick.py` 就有覆蓋。目前那支檔的行為**完全沒有回歸測試** ——
+   而它正是這次差點被打死的那一支。
+3. **`pick_next.py` 不落 `check_bodies.jsonl`**(只有 `submit_alpha` 與 `brain_daily_pick` 落)。
+   它是手動工具、每次跑 8 條,是目前**最大的一批 `/check` 觀測樣本卻沒有進資料集**。加一行就有。
+4. **`brain_daily_pick.py:189` `max(len(v) for v in order)`**:ledger 空時拋 `ValueError`,
+   而且發生在 `if not picks:` 守門**之前** ⇒「庫存真的空」這個情況走不到它自己的推播,
+   是 crash + 零推播。pre-existing,這批沒放大。
+5. **`brain_auto.evaluate` 與 `brain_search.evaluate` 的 `all_pass` 分歧**:
+   前者 `(not failed) and (not pending)`、後者 `(not failed)` 忽略 pending。
+   兩者讀的是 `GET /alphas/{aid}` 的模擬結果不是 `/check`,所以不歸 `non_pass` 管,
+   但兩支彼此不一致。pre-existing。

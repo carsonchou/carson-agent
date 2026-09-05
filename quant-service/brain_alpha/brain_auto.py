@@ -904,6 +904,256 @@ def track_score(s, src="unknown", sentinel=True):
     return rec
 
 
+CHECK_LOG = ROOT / "check_bodies.jsonl"
+
+
+def _retry_after(r, default):
+    """Retry-After 可能是 'abc'、HTTP-date、負數。任何一種都不該讓輪詢爆掉。"""
+    try:
+        v = float((getattr(r, "headers", None) or {}).get("Retry-After") or default)
+    except (TypeError, ValueError):
+        return float(default)
+    if v != v or v < 0:                       # NaN 或負數
+        return float(default)
+    return min(v, 60.0)
+
+
+def parse_checks(data):
+    """把 `/check` 的 body 折成 `{key: check_dict}`;**拿不到就回 None**。
+
+    🔴 空的 / 取不到的 checks 不是「沒有任何 FAIL」,是「沒有可判讀的檢查」。
+       這兩件事下游的處置相反(放行 vs 擋下),不可以共用一個 `{}`。
+       每一層都檢查型別:body 可能是 list / str / None(平台錯誤頁、代理層),
+       而 `.get()` 對那些型別會直接 AttributeError,靠 traceback 擋不算擋。
+
+    🔴 2026-09-05 第二輪:上一版寫 `out[c.get("name") or "?"] = c`,**後蓋前**。
+       實測 `checks=[{"result":"FAIL"},{"result":"PASS"}]`(兩個都沒 name)
+       → 只留下 PASS → `check_verdict` ok=True → **走到 `POST /submit`**。
+       缺 name 原本會 KeyError(吵,但 fail-closed),我為了修那個 KeyError
+       把它換成了靜默 fail-open —— 方向選錯,牴觸下面 `check_verdict` 自己寫的
+       「預設值一律落在不通過那一側」。
+       ⇒ 現在**一項都不丟**:缺名字/重名的用位置合成唯一 key,
+         不是 dict 的項目收成一個 `result=None` 的佔位(必然非 PASS ⇒ 擋下)。
+    """
+    if not isinstance(data, dict):
+        return None
+    is_ = data.get("is")
+    if not isinstance(is_, dict):
+        return None
+    checks = is_.get("checks")
+    if not isinstance(checks, list) or not checks:
+        return None
+    out = {}
+    for i, c in enumerate(checks):
+        if not isinstance(c, dict):
+            out["?%d" % i] = {"name": None, "result": None, "raw": c}
+            continue
+        nm = c.get("name")
+        key = nm if (isinstance(nm, str) and nm) else "?%d" % i
+        if key in out:                       # 同名重複:保留兩份,不可以蓋掉
+            key = "%s#%d" % (key, i)
+        out[key] = c
+    return out or None
+
+
+def _result_of(c):
+    """容許兩種形狀:`check_dict` 或 `(result, value)` 二元組。"""
+    if isinstance(c, dict):
+        return c.get("result")
+    if isinstance(c, (tuple, list)) and c:
+        return c[0]
+    return None
+
+
+def non_pass(ck):
+    """**`/check` 判定的唯一規則**:回所有 `result != "PASS"` 的 key(已排序)。
+
+    🔴 傳 `None` 會 **raise**,不會回 `[]`。`parse_checks` 用 `None` 表示「讀不到」,
+       而「讀不到」翻譯成空清單就等於「全部通過」—— 那正是這整批要消滅的形狀
+       (一個表示「沒事」的值有第二條產生路徑)。現有三個呼叫端都先擋了
+       `ck is None`,所以現在咬不到;raise 是為了讓**下一個**呼叫端大聲失敗,
+       而不是安靜放行。(措辭:同 repo 還有兩支讀 result 的地方不走這裡 ——
+       `brain_auto.evaluate` 與 `brain_search.evaluate` 讀的是模擬結果不是 /check。)
+
+    🔴 2026-09-05 第二輪:這條規則原本有三套實作 ——
+       `pick_next` 用 `== "FAIL"`、`brain_daily_pick` 用 `!= "PASS"`、
+       `check_verdict` 又一套。實測四類輸入(全 PENDING / 一 PASS 一 PENDING /
+       WARNING / result=null)三者判定不一致,而 `pick_next` 正是「挑今天交哪幾條」
+       那支,它會把 PENDING 的條目當成 OK 印進「→ 交這兩條」,
+       旁邊還標「⚠️相關偏高」—— **錯的理由**。
+       規則只能有一份。任何新的呼叫端一律用這支,不要自己再寫一次比較。
+    """
+    if ck is None:
+        raise ValueError("non_pass(None):『讀不到 checks』不可以當成『全部通過』,"
+                         "呼叫端要先擋掉 parse_checks 回 None 的情況")
+    if not isinstance(ck, dict):
+        raise TypeError("non_pass 需要 dict,收到 %s" % type(ck).__name__)
+    return sorted(k for k, c in ck.items() if _result_of(c) != "PASS")
+
+
+def results_of(ck, keys=None):
+    """回 `{key: result}`。A'(a):分辨「PENDING / FAIL / 未知」需要 result 本身,
+    而 `non_pass` 只回 key —— 告警若只拿得到名字,三種原因會推出一字不差的訊息。"""
+    if not isinstance(ck, dict):
+        return {}
+    ks = list(ck) if keys is None else list(keys)
+    return {k: _result_of(ck.get(k)) for k in ks}
+
+
+def _env_deadline(default=180.0):
+    """`BRAIN_CHECK_DEADLINE` 的髒值**不可以**讓 import 失敗。
+
+    🔴 2026-09-05 第三輪:上一版寫 `float(os.environ.get(...) or 180.0)` 在模組
+       載入期執行 —— `=abc` 會讓**每一個 import brain_auto 的東西**死在 import,
+       包含每天 12:20 的 cron;`=0` / `=-5` 則讓 poll_check 第一圈就放棄、
+       0 次 GET、每天全空而且零錯誤訊號。
+       我加這個環境變數是為了防「猜出來的常數寫死」,結果自己造了一個新的單點故障。
+       同一個檔的 `_retry_after` 為了同一類髒值寫了三行防護,這裡當時沒寫。
+    """
+    raw = os.environ.get("BRAIN_CHECK_DEADLINE")
+    if not raw:
+        return default
+    try:
+        v = float(raw)
+    except (TypeError, ValueError):
+        print("[warn] BRAIN_CHECK_DEADLINE=%r 不是數字,改用預設 %s 秒" % (raw, default),
+              file=sys.stderr)
+        return default
+    # 下限 30 秒:`/check` 的既有錨是「每個約 30~60 秒」(pick_next.py:108)。
+    # 沒有下限的話 `=0.5` 會被接受,挑片器天天全空,而它推的是「放寬 deadline」
+    # —— 訊息剛好對,但沒有任何東西會說「你設的值本身不合理」。
+    if v != v or v < 30.0:
+        print("[warn] BRAIN_CHECK_DEADLINE=%r 不合理(需 >=30 秒),改用預設 %s 秒"
+              % (raw, default), file=sys.stderr)
+        return default
+    return v
+
+
+CHECK_DEADLINE = _env_deadline()
+
+
+def poll_check(s, aid, tries=35, default_wait=4, deadline=None):
+    """跑 Check Submission 並等到**檢查真的解析完**。回 `(data, reason)`。
+
+    **契約**(`reason` 恆為 `str`):
+      · `data is None`                 ⇒ `reason` 非空 —— 沒拿到,原因就是它
+      · `data` 非 None 且 `reason == ""` ⇒ 拿到了,而且每一項都已解析完
+      · `data` 非 None 且 `reason` 非空  ⇒ 拿到了,但**輪詢在我們自己的上限內沒等完**
+
+    🔴 第三種是後加的。原本這種情況回 `(dict, None)`,與「平台真的算完了」
+       **完全同型**,呼叫端分不出「解析完」和「我們放棄」——
+       而加了 `deadline` 之後這種情況從罕見變成常見。
+       「沒等完」是我們自己的限制造成的,不是平台的判斷,兩者的下一步不同
+       (調 deadline / 改式子),所以必須分得出來。
+
+    🔴 2026-09-05,兩個獨立缺陷:
+
+    ① 原本三份實作**都沒有檢查 `r.ok`**。餵一個 401 的 DRF body 進來,
+       `r.text` 非空 → `r.json()` 成功 → 回一個 dict → 呼叫端的 `if not d`
+       不觸發 → checks 折成空 → 「沒有 FAIL」→ 提交閘門印「全綠,送出提交」。
+       獨立驗證員在 `--submit` 路徑實測:**真的走到 `POST /submit`**,
+       與餵真全綠 body 的結果逐項相同。
+
+    ② 更前面一層:**輪詢的終止條件是「body 非空」,不是「檢查解析完」**。
+       而 `SELF_CORRELATION` 要到 Check Submission 才算,在此之前恆為 PENDING
+       (`docs/ledger-platform-gap-20260905.md:120`;`OFFICIAL_RULES.md:225`
+       把它的機制列在「教材未提及清單」)。所以 body 一非空就收工,拿到的
+       PENDING 是**我們自己沒等完**,不是平台的判斷。
+
+    ⚠️ 已知未解:`/check` 回應裡**會不會有永久 PENDING 的項目**,repo 內沒有
+       任何一份真實 body 可查。這裡選 fail-closed 那一側(見 `check_verdict`),
+       並且把非全 PASS 的 body 落到 `check_bodies.jsonl`。
+
+    🔴 `deadline`(秒,牆鐘)是必要的:等 PENDING 的代價由平台的 `Retry-After`
+       決定,不由我們決定。獨立驗證員實測上界 —— body 永遠 PENDING 時每條固定
+       打滿 `tries` 次 GET,`Retry-After=120`(60 秒上限生效)⇒ 35×60=2100 秒/條,
+       加上每次 `timeout=60` 理論上界 70 分/條 ⇒ 6 條 **7.0 小時**、8 條 9.3 小時。
+       而 `brain_daily_pick` 12:20 開跑、15:00 結算,只有 2.6 小時。
+       **次數上限擋不住時間成本,因為每次的等待長度是對方給的。**
+    """
+    if deadline is None:
+        deadline = CHECK_DEADLINE
+    last = None
+    t0 = time.monotonic()
+    for _ in range(tries):
+        # 🔴 用 `>=` 不是 `>`：下面的 sleep 夾成「剩餘時間」,於是 elapsed 會
+        #    **漸近逼近 deadline 但不超過**,`>` 因此可能永遠不成立 ——
+        #    deadline 等於沒生效,而外表看起來一切正常(它照樣會從 tries 用完
+        #    那條路出去,只是訊息講錯原因)。這個是自己的回歸測試抓到的。
+        if time.monotonic() - t0 >= deadline:
+            if last is not None:
+                return last, ("輪詢在 %.0f 秒 deadline 內未解析完(是我們放棄,不是平台的判斷;"
+                              "要放寬設 BRAIN_CHECK_DEADLINE)" % deadline)
+            return None, "逾時(%.0f 秒內沒拿到 body)" % deadline
+        try:
+            r = s.get(f"{API}/alphas/{aid}/check", timeout=60)
+        except Exception as e:  # noqa: BLE001
+            return None, "連線失敗: %s" % e
+        if not r.ok:
+            return None, "HTTP %s: %s" % (r.status_code, (r.text or "")[:60])
+        if (r.text or "").strip():
+            try:
+                d = r.json()
+            except Exception as e:  # noqa: BLE001
+                return None, "回傳不是 JSON: %s (%s)" % (r.text[:60], e)
+            if not isinstance(d, dict):
+                return None, "回傳不是 dict(型別 %s): %s" % (type(d).__name__, str(d)[:60])
+            last = d
+            ck = parse_checks(d)
+            if ck is not None and not any(c.get("result") == "PENDING" for c in ck.values()):
+                return d, ""                  # 有 checks,而且沒有一項還在評估中
+        time.sleep(min(_retry_after(r, default_wait),
+                       max(0.0, deadline - (time.monotonic() - t0))))
+    if last is not None:
+        # 拿到 body 了,只是輪詢用完仍有 PENDING。交給 check_verdict 判,
+        # 不在這裡二度攔截 —— 「拿不拿得到」和「可不可以交」是兩個問題。
+        return last, "輪詢 %d 次用完仍有項目未解析(是我們放棄,不是平台的判斷)" % tries
+    return None, "逾時(輪詢 %d 次仍無 body)" % tries
+
+
+def check_verdict(data):
+    """`(ok, why, ck)`。**`ok=True` 僅當「看得到 checks,而且每一項都是 PASS」。**
+
+    🔴 放行條件是「看到了,而且沒有非 PASS」,不是「沒看到 FAIL」。
+       預設值一律落在不通過那一側:FAIL / PENDING / 未知狀態全部擋,
+       而且各自說得出是哪一種 —— 它們的下一步不一樣
+       (改式子 / 再等一下 / 找人看),折在一起會把操作者導向錯的處置。
+    """
+    ck = parse_checks(data)
+    if ck is None:
+        return False, "沒有可判讀的 checks(不是全綠,是沒拿到):%s" % (str(data)[:120],), None
+    bad = sorted(k for k, c in ck.items() if c.get("result") == "FAIL")
+    if bad:
+        return False, "有 %d 項未通過:%s" % (len(bad), ", ".join(bad)), ck
+    pend = sorted(k for k, c in ck.items() if c.get("result") == "PENDING")
+    if pend:
+        return False, "有 %d 項仍是 PENDING(沒評估完,不等於通過):%s" % (len(pend), ", ".join(pend)), ck
+    unk = non_pass(ck)
+    if unk:
+        return False, "有 %d 項是非 PASS 的未知狀態:%s" % (
+            len(unk), ", ".join("%s=%s" % (k, ck[k].get("result")) for k in unk)), ck
+    return True, "", ck
+
+
+def log_check_body(aid, data, why="", elapsed=None):
+    """非全 PASS 的 body 落檔。用來回答「/check 裡的 PENDING 會不會是永久的」。
+
+    正向輸出型的觀測(不是「有事才響」):每次擋下都留一筆,累積幾天就有答案。
+    """
+    from datetime import datetime, timezone, timedelta
+    try:
+        # 🔴 `elapsed` 不是裝飾:沒有它,這個檔累積再久也只能回答「非全 PASS 的
+        #    body 長什麼樣」,**回答不了「deadline 180 秒夠不夠」** —— 而後者才是
+        #    我加這個落檔的理由。獨立驗證員指出我這個宣稱不成立,是對的。
+        rec = {"ts": datetime.now(timezone(timedelta(hours=8))).isoformat(timespec="seconds"),
+               "alpha_id": aid, "why": why, "elapsed_sec": elapsed,
+               "deadline_sec": CHECK_DEADLINE, "body": data}
+        with CHECK_LOG.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    except Exception as e:  # noqa: BLE001
+        print("[check_log 失敗] %s" % e, file=sys.stderr)
+
+
 def fetch_yearly(s, aid, tries=20):
     """取逐年統計。回傳 [{year, sharpe, fitness, turnover, returns}] 或 None。
 

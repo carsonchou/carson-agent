@@ -31,7 +31,8 @@ from __future__ import annotations
 import json
 import re
 import sys
-from collections import defaultdict
+import time
+from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -210,22 +211,58 @@ def main() -> int:
         return 0
 
     rows = []
+    skipped = []          # (aid, 原因) —— 「沒問到」和「問到了不合格」必須分得出來
     for r in picks:
         aid = r["alpha_id"]
-        d = P.poll_check(s, aid)
-        if not d:
-            print(f"  {aid} check 逾時，跳過")
+        # 🔴 2026-09-05:poll_check 改回 (data, reason) 二元組。這個呼叫端當時
+        #    漏改,實測**成功與失敗路徑都** AttributeError(tuple 恆為 truthy,
+        #    `if not d` 不觸發、`d.get` 不存在)—— 會打死每天 12:20 的排程,
+        #    連它自己「沒有候選」的推播警訊都發不出來。由獨立驗證員抓到。
+        _t0 = time.monotonic()
+        d, why = P.poll_check(s, aid)
+        _elapsed = round(time.monotonic() - _t0, 1)
+        if d is None:
+            print(f"  {aid} 沒拿到 check 結果：{why}，跳過")
+            # 🔴 認證死掉的話後面每條都會同樣死,而**全部跳過之後的推播原本寫的是
+            #    「獨立分子快用完了」** —— 歸因完全相反,且訊息裡「跑了 0 條 check」
+            #    這個矛盾沒有人會去讀。認證問題要自己講自己的名字。
+            if why.startswith("HTTP 401") or why.startswith("HTTP 403"):
+                B.notify("🔴 BRAIN 挑片中止：認證失效",
+                         f"ET {today} {why}\n\n"
+                         f"**這不是庫存問題** —— 一條 check 都沒跑成。\n"
+                         f"請更新 token 後重跑 brain_daily_pick。")
+                print("認證失效,中止本輪(不是沒有候選,是沒問到)。")
+                return 2
+            skipped.append((aid, why))
             continue
-        ck = {c["name"]: (c.get("result"), c.get("value"))
-              for c in ((d.get("is") or {}).get("checks") or [])}
+        if why:
+            print(f"  {aid} ⚠️ {why}")
+        ck = P.checks_of(d)
+        if ck is None:
+            B.log_check_body(aid, d, "沒有可判讀的 checks", elapsed=_elapsed)
+            print(f"  {aid} 回 200 但沒有可判讀的 checks（不是全過），跳過")
+            skipped.append((aid, "沒有可判讀的 checks"))
+            continue
         sc = ck.get("SELF_CORRELATION", ("?", None))[1]
-        bad = [k for k, v in ck.items() if v[0] == "FAIL"]
+        # 唯一規則(brain_auto.non_pass):非 PASS 一律不合格 —— PENDING(沒評估完)
+        # 與未知狀態都不是通過。
+        bad = B.non_pass(ck)
+        # 🔴 只留 key 的話,「全是 PENDING」和「全是真 FAIL」推出的告警會一字不差
+        #    —— 而這兩者的下一步完全相反(再等一下 vs 挖新資料集)。
+        #    分辨用的資訊(result)手邊就有,不要在這一行丟掉。
+        bad_res = B.results_of(ck, bad)
+        if bad:
+            # 排程路徑也要落檔。原本只有手動跑的 submit_alpha 會落,而真正每天
+            # 撞到 PENDING 的是這支 —— 不落檔的話那個未知永遠不會變成資料。
+            B.log_check_body(aid, d, "非 PASS: " + ",".join(
+                "%s=%s" % (k, bad_res.get(k)) for k in bad), elapsed=_elapsed)
         y = (r.get("year_quality") or {}).get("last_year_sharpe")
         rows.append(dict(sc=sc if sc is not None else 9, num=P.numerator(r["expr"]),
                          aid=aid, sh=r["result"].get("sharpe"),
-                         fit=r["result"].get("fitness"), ly=y, bad=bad))
+                         fit=r["result"].get("fitness"), ly=y, bad=bad,
+                         bad_res=bad_res, elapsed=_elapsed))
         print(f"  {P.numerator(r['expr'])[:30]:<32} {aid}  self_corr={sc}  "
-              f"{'FAIL:' + ','.join(bad) if bad else 'OK'}")
+              f"{'非PASS:' + ','.join(bad) if bad else 'OK'}")
 
     ok = [x for x in rows if not x["bad"] and x["sc"] < SAFE]
     # SAFE=0.60 是**離線估計**時代留的緩衝（我的方法誤差 ±0.01，但池子會隨提交變動）。
@@ -240,10 +277,40 @@ def main() -> int:
     ok.sort(key=lambda x: -((x["fit"] or 0) + (x["ly"] or 0) * 0.5))
 
     if not ok and not near:
-        B.notify("⚠️ BRAIN 今天沒有安全的候選",
-                 f"ET {today} 跑了 {len(rows)} 條 check，沒有一條同時通過"
-                 f"（無 FAIL + self-corr < {SAFE}）。\n"
-                 f"獨立分子快用完了，一階掃描需要挖到新的資料集。")
+        # 🔴 原本無論什麼原因都推同一句「獨立分子快用完了」。實測三種完全不同的
+        #    原因(全 PENDING / 全真 FAIL / 認證死)推同一則同一句歸因,而 401 那則
+        #    寫「跑了 0 條 check」卻仍歸因庫存耗盡。歸因錯的告警比沒有告警更糟,
+        #    因為它會把讀的人導去挖新資料集,而真正要做的是換 token 或再等一下。
+        if not rows:
+            detail = ("一條 check 都沒有跑成（%d 條全部跳過）。\n"
+                      "**這不是庫存問題。** 原因：\n  · %s"
+                      % (len(skipped), "\n  · ".join("%s：%s" % x for x in skipped[:6])))
+        else:
+            n_bad = sum(1 for x in rows if x["bad"])
+            tally = Counter(v for x in rows for v in (x.get("bad_res") or {}).values())
+            n_pend = tally.get("PENDING", 0)
+            n_fail = tally.get("FAIL", 0)
+            n_other = sum(v for k, v in tally.items() if k not in ("PENDING", "FAIL"))
+            slow = max([x.get("elapsed") or 0 for x in rows] or [0])
+            # not n_other 不可以省:PENDING+WARNING 若判成「純 PENDING」,會叫人
+            # 去放寬 deadline,而放寬對 WARNING 無效 —— 把未知狀態講成已知狀態,
+            # 正是這批在修的那類病。
+            if n_pend and not n_fail and not n_other:
+                head = ("**原因是 PENDING,不是候選不好。** %d 項仍在評估中,"
+                        "代表輪詢沒等到平台算完(最慢一條 %.0f 秒,deadline %.0f 秒)。\n"
+                        "→ 放寬 BRAIN_CHECK_DEADLINE 再跑一次,不要去挖新資料集。"
+                        % (n_pend, slow, B.CHECK_DEADLINE))
+            elif n_fail and not n_pend:
+                head = ("**%d 項是平台判定的真 FAIL。** 這一種才代表候選本身不行 ——"
+                        "「獨立分子快用完了、需要挖新資料集」在這一種情況下成立。" % n_fail)
+            else:
+                head = ("非 PASS 的組成:PENDING %d、FAIL %d、其他 %d"
+                        "(最慢一條 %.0f 秒,deadline %.0f 秒)。\n"
+                        "→ 混合情況,先看 check_bodies.jsonl 再決定要不要挖新資料集。"
+                        % (n_pend, n_fail, n_other, slow, B.CHECK_DEADLINE))
+            detail = ("跑了 %d 條 check：%d 條有非 PASS 項目、%d 條 self-corr ≥ %s。\n%s"
+                      % (len(rows), n_bad, len(rows) - n_bad, SAFE, head))
+        B.notify("⚠️ BRAIN 今天沒有安全的候選", f"ET {today} {detail}")
         print("沒有安全候選，已推播。")
         return 0
 

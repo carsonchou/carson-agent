@@ -56,16 +56,19 @@ def submitted_ids(s):
     return out
 
 
-def poll_check(s, aid, tries=35):
-    for _ in range(tries):
-        r = s.get(f"{B.API}/alphas/{aid}/check", timeout=60)
-        if r.text.strip():
-            try:
-                return r.json()
-            except Exception:  # noqa: BLE001
-                return None
-        time.sleep(float(r.headers.get("Retry-After") or 4))
-    return None
+# poll_check / checks_of 已合併進 brain_auto —— 這裡只留別名。
+# 🔴 2026-09-05:原本這支、submit_alpha、brain_daily_pick 各有一份 /check 的
+#    輪詢與判讀,三份各壞各的(而修好其中兩份的那一版,正是靠沒同步改第三份
+#    造成一次 cron 全掛的迴歸)。同一條規則只能有一份實作。
+poll_check = B.poll_check
+
+
+def checks_of(data):
+    """`{name: (result, value)}`,拿不到 checks 回 None。薄包裝,判讀在 brain_auto。"""
+    ck = B.parse_checks(data)
+    if ck is None:
+        return None
+    return {k: (c.get("result"), c.get("value")) for k, c in ck.items()}
 
 
 def main() -> int:
@@ -106,13 +109,24 @@ def main() -> int:
     rows = []
     for r in picks:
         aid = r["alpha_id"]
-        d = poll_check(s, aid)
-        if not d:
-            print(f"  {numerator(r['expr'])[:26]:<28} {aid}  逾時")
+        d, why = poll_check(s, aid)
+        if d is None:
+            print(f"  {numerator(r['expr'])[:26]:<28} {aid}  ✗ {why}")
+            # 認證死掉的話後面每一條都會同樣死。不 abort 的話這一輪會印出一整排
+            # 失敗、最後給一張空的建議表 —— 而「沒有候選」和「沒問到」
+            # 在那張表上長得一樣。
+            if why.startswith("HTTP 401") or why.startswith("HTTP 403"):
+                print("\n✗ 認證失效，中止本輪(不是沒有候選，是沒問到)。請重新取得 token。")
+                return 2
             continue
-        ck = {c["name"]: (c.get("result"), c.get("value")) for c in ((d.get("is") or {}).get("checks") or [])}
+        if why:
+            print(f"  {numerator(r['expr'])[:26]:<28} {aid}  ⚠️ {why}")
+        ck = checks_of(d)
+        if ck is None:
+            print(f"  {numerator(r['expr'])[:26]:<28} {aid}  ✗ 回 200 但沒有可判讀的 checks（不是全過）")
+            continue
         sc = ck.get("SELF_CORRELATION", ("?", None))
-        bad = [k for k, v in ck.items() if v[0] == "FAIL"]
+        bad = B.non_pass(ck)      # 唯一規則。原本是 == "FAIL",會放行 PENDING/WARNING
         y = (r.get("year_quality") or {}).get("last_year_sharpe")
         rows.append((sc[1] if sc[1] is not None else 9, numerator(r["expr"]), aid,
                      r["result"].get("sharpe"), r["result"].get("fitness"), y, bad))

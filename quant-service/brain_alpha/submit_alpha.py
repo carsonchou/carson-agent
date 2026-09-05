@@ -63,32 +63,31 @@ sys.path.insert(0, str(ROOT))
 import brain_auto as B  # noqa: E402
 
 
-def poll_check(s, aid, tries=40):
-    """Check Submission 是非同步的：回 200 但 body 可能是空的，要輪詢。"""
-    for _ in range(tries):
-        r = s.get(f"{B.API}/alphas/{aid}/check", timeout=60)
-        if r.text.strip():
-            try:
-                return r.json()
-            except Exception:  # noqa: BLE001
-                pass
-        time.sleep(float(r.headers.get("Retry-After") or 5))
-    return None
+# 輪詢與判讀已合併進 brain_auto(見那邊的 poll_check / check_verdict)。
+poll_check = B.poll_check
 
 
 def show(data):
-    checks = (data.get("is") or {}).get("checks") or []
+    """印出每一項檢查。**走 `B.parse_checks`,不自己重讀 body。**
+
+    🔴 2026-09-05 第三輪:原本這裡自己做 `(data.get("is") or {}).get("checks")`
+       然後 `c.get("result")`。`checks` 裡混進一個非 dict 的項目(例如平台/代理層
+       塞進來的字串)就 `AttributeError` 崩掉 —— 是 fail-closed(不會 POST),
+       但它是「一份實作」宣稱之外**殘留的第二個 body 讀取器**,
+       而這整批修的就是「同一件事有好幾份實作」。
+    """
+    ck = B.parse_checks(data) or {}
     bad, pend = [], []
-    for c in checks:
+    for name, c in ck.items():
         res = c.get("result")
         mark = {"PASS": "OK  ", "FAIL": "FAIL", "PENDING": "PEND"}.get(res, str(res))
         v, l = c.get("value"), c.get("limit")
         extra = f"   值={v} 限={l}" if v is not None else ""
-        print(f"   [{mark}] {c.get('name')}{extra}")
+        print(f"   [{mark}] {name}{extra}")
         if res == "FAIL":
-            bad.append(c.get("name"))
+            bad.append(name)
         elif res == "PENDING":
-            pend.append(c.get("name"))
+            pend.append(name)
     return bad, pend
 
 
@@ -107,17 +106,27 @@ def main() -> int:
 
     s = B.auth()
     print(f"Check Submission：{aid}（非同步，可能要等一會）")
-    data = poll_check(s, aid)
-    if not data:
-        print("✗ 檢查逾時，稍後再試")
-        return 1
-    bad, pend = show(data)
-    if bad:
-        print(f"\n✗ 有 {len(bad)} 項未通過：{', '.join(bad)} —— 不提交")
-        return 1
-    if pend:
-        print(f"\n⚠️ 仍有未評估項目：{', '.join(pend)}")
-
+    # tries=40 / wait=5 是這支原本的值;改成 B.poll_check 別名時要明寫,
+    # 否則會靜默套用 brain_auto 的預設 35/4(獨立驗證員抓到的沒宣告行為改變)。
+    _t0 = time.monotonic()
+    data, why = poll_check(s, aid, tries=40, default_wait=5)
+    _elapsed = round(time.monotonic() - _t0, 1)
+    if data is None:
+        print(f"✗ 沒拿到檢查結果：{why} —— 不提交")
+        return 3
+    if why:
+        # 拿到 body 但沒等完。下面 check_verdict 會因為 PENDING 擋下,
+        # 但擋下的**理由**要說對:是我們沒等完,不是平台判它不合格。
+        print(f"⚠️ {why}")
+    ok, why2, ck = B.check_verdict(data)
+    if ck is not None:
+        show(data)
+    if not ok:
+        B.log_check_body(aid, data, why2, elapsed=_elapsed)
+        print(f"\n✗ {why2} —— 不提交")
+        # 1 = 平台判定不合格(要改式子);3 = 沒觀測到/沒評估完(要再等或找人看)。
+        # 兩者的下一步不同,所以 exit code 也要分得出來。
+        return 1 if "未通過" in why2 else 3
     if mode != "--submit":
         print("\n（--check 模式，未提交。要提交請加 --submit）")
         return 0
