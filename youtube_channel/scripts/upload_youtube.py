@@ -929,6 +929,11 @@ def run(args) -> int:
     # 上傳（檔名 SEO：送關鍵字檔名而非內部 slug;失敗降級回原檔,絕不擋上傳）。
     _snip = body.get("snippet", {})
     _seo = seo_asset_name(_snip.get("title", ""), _snip.get("tags"), "mp4", video_path.stem)
+    # 🔴 捏造閘門(2026-09-06 補)。這條是**人工 CLI 路徑**,連 find_candidates 都不經過,
+    # 原本零保護。被漏掉的第三條路(前兩條:daily_publish.upload_one、schedule_publish)。
+    import per_stock_fact_gate as _psfg
+    _psfg.gate_or_raise(video_path.stem)
+
     _p, _cleanup = link_as(video_path, _seo)
     try:
         video_id = resumable_upload(youtube, body, _p)

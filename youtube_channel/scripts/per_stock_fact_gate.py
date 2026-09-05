@@ -194,6 +194,25 @@ def _weak_exempt(sent: str) -> str:
 _CLAUSE_SPLIT = re.compile(r"[,，、;；:：()（）\[\]「」【】——–—/]")
 
 
+def _clauses(sent: str) -> list:
+    """把句子切成子句 [(start, end, text), ...]。"""
+    out, left = [], 0
+    for m in _CLAUSE_SPLIT.finditer(sent):
+        if m.start() > left:
+            out.append((left, m.start(), sent[left:m.start()]))
+        left = m.end()
+    if left < len(sent):
+        out.append((left, len(sent), sent[left:]))
+    return out or [(0, len(sent), sent)]
+
+
+def _clause_index(clauses: list, pos: int) -> int:
+    for i, (a, bb, _t) in enumerate(clauses):
+        if a <= pos < bb:
+            return i
+    return 0
+
+
 def _clause_of(sent: str, pos: int) -> str:
     """取 pos 這個位置所在的**子句**(以逗號/括號/破折號切)。
 
@@ -224,10 +243,35 @@ def _cn_to_float(raw: str):
         return None
 
 
-def own_numbers(code: str, results: dict) -> set:
-    """這一檔**自己**所有 fact 裡出現過的數字(白名單)。
-    刻意不收其他個股的數字 —— 那正是全域池的病根。"""
-    s = set()
+# 單位 → 量綱類別。白名單比對必須同類別,否則「元」會替「%」背書。
+_UNIT_TOKENS = (("百分位", "pctile"), ("分位", "pctile"), ("百分之", "pct"), ("%", "pct"),
+                ("萬元", "money"), ("億", "money"), ("倍", "x"), ("元", "yuan"),
+                ("塊", "yuan"), ("毛", "yuan"), ("年", "dur"), ("天", "dur"),
+                ("次", "count"), ("成", "pct"))
+
+
+def unit_class(window: str) -> str:
+    """從數字後面那一小段字認出量綱。取**最靠左**的單位符號(不是清單順序),
+    因為「2326.3%(年化…」裡 % 在前、年在後,照清單順序會認成 dur。"""
+    best, bestpos = "", len(window) + 1
+    for tok, cls in _UNIT_TOKENS:
+        i = window.find(tok)
+        if 0 <= i < bestpos or (i == bestpos and len(tok) > 1):
+            best, bestpos = cls, i
+    return best
+
+
+def own_numbers(code: str, results: dict) -> dict:
+    """這一檔**自己**所有 fact 裡出現過的數字 → 它的量綱類別集合(白名單)。
+
+    刻意不收其他個股的數字 —— 那正是全域池的病根。
+    🔴 而**只收數字不收量綱同樣不夠**:對抗式驗證員實測,per-stock 池雖然比全域池
+    窄 56 倍,但中位數仍有 112 個數字,隨機整數 1~60 有 **38.3%** 落在池裡而被放行;
+    184 支已發布片上有 46 個「類別缺 + 單位對」的數字純因此放行、7 支整支通過。
+    最小重現:台玻 1802 真句把「毛利率30%」改成「31%」(31 在它自己池裡)就從擋變放行。
+    ⇒ 比對加上量綱,至少讓「元」不能替「%」背書(日電貿 3090 就是死在這個交叉污染)。
+    ⚠️ 這**沒有**解決同量綱不同語意的情況(報酬率的 % 替毛利率的 % 背書),那條仍是洞。"""
+    out: dict = {}
     for k, v in results.items():
         if not (k.endswith("__" + code) or f"__{code}__" in k):
             continue
@@ -237,13 +281,15 @@ def own_numbers(code: str, results: dict) -> set:
                 fv = abs(float(m.group(0).replace(",", "")))
             except ValueError:
                 continue
-            s.add(round(fv, 2))
-            if 0 < fv <= 100:                 # 百分位補數:「第62百分位」→「38%的時間比現在高」
-                s.add(round(100 - fv, 2))
-    return s
+            cls = unit_class(blob[m.end():m.end() + 4])
+            out.setdefault(round(fv, 2), set()).add(cls)
+            if 0 < fv <= 100 and cls in ("pct", "pctile"):
+                # 百分位補數:「第62百分位」→「38%的時間比現在高」
+                out.setdefault(round(100 - fv, 2), set()).add(cls)
+    return out
 
 
-def _in_whitelist(val: float, white: set) -> bool:
+def _in_whitelist(val: float, white: dict, cls: str = "") -> bool:
     """白名單比對帶容差 —— **旁白四捨五入引用事實不是捏造**。
     實例(2026-09-06):環球晶 6488 事實寫「總報酬 2326.3%」,旁白唸
     「百分之二千三百二十六」= 2326.0,精確比對會把它報成捏造。
@@ -260,9 +306,12 @@ def _in_whitelist(val: float, white: set) -> bool:
     這裡的池是**每檔 78~97 個數字**,0.5% 容差覆蓋不到相鄰值之間的空隙。
     改動這個常數之前先量一次:池子變大時,同一個容差會從「合理」變成「放行一切」。"""
     v = abs(val)
-    for w in white:
-        if abs(v - w) <= max(0.01, w * 0.005):
-            return True
+    for w, classes in white.items():
+        if abs(v - w) > max(0.01, w * 0.005):
+            continue
+        if cls and classes and cls not in classes:
+            continue          # 值對得上但量綱不同 ⇒ 不算有憑據
+        return True
     return False
 
 
@@ -296,6 +345,7 @@ def scan(text: str, code: str, results: dict, strict_unparsed: bool = True) -> l
         # 原本強豁免是整句無條件放行,而獨立驗證員 2026-09-06 用它漏掉的 3 支證明那太寬 ——
         # 「假設你在2007年買進,當時本益比衝到23倍」的假設對象是你的動作,不是那個數字。
         exempt_why = _exempt(sent) or _weak_exempt(sent)
+        clauses = _clauses(sent)
         for cat, (kws, units) in CATEGORY_RULES.items():
             if cat in have or not any(k in sent for k in kws):
                 continue
@@ -313,10 +363,23 @@ def scan(text: str, code: str, results: dict, strict_unparsed: bool = True) -> l
                 #    —— 結論對而證據是巧合,那種命中隨時會消失。
                 pref = sent[max(0, m.start() - 3):m.start()]
                 unit_ok = any(u in tail or u in raw for u in units)
-                if not unit_ok and "百分之" in units and pref.endswith("百分之"):
+                is_pct_prefix = "百分之" in units and pref.endswith("百分之")
+                if not unit_ok and is_pct_prefix:
                     unit_ok = True
                 if not unit_ok:
                     continue
+                # 🔴 類別關鍵字必須和這個數字**在同一子句或緊鄰的前一子句**。
+                # 原本是整句判定,結果:「環球晶這11年累積報酬…,這還不包括**股息**再投入」
+                # 裡的「11」+單位「年」被算成一次股利宣稱;威剛 3260 是片尾 CTA 的
+                # 「高**股息**ETF的填息迷思」把前面一句「暴跌超過百分之二十」拖下水。
+                # 同族還有台光電 2383:句中提到「本益比」,於是「漲了120倍」的 120 被
+                # 當成本益比宣稱 —— **結論對而證據是別的東西**。
+                ci = _clause_index(clauses, m.start())
+                near = clauses[max(0, ci - 1):ci + 1]
+                if not any(k in t for k in kws for (_a, _b, t) in near):
+                    continue
+                # 這個數字自己的量綱(前綴的「百分之」優先於後面的尾巴)
+                num_cls = "pct" if is_pct_prefix else unit_class(raw[-2:] + tail)
                 # 豁免只在「這個數字所在的子句沒有事實斷言標記」時放行
                 if exempt_why and not _YEAR_RE.search(_clause_of(sent, m.start())):
                     continue
@@ -339,7 +402,7 @@ def scan(text: str, code: str, results: dict, strict_unparsed: bool = True) -> l
                     continue
                 if val == 0:
                     continue
-                if _in_whitelist(val, white):       # 是這檔自己別條事實的數字 → 放行
+                if _in_whitelist(val, white, num_cls):   # 這檔自己**同量綱**的事實數字 → 放行
                     continue
                 hits.append({"cat": cat.replace("checkup_", ""), "raw": raw,
                              "sent": sent[:110], "why": f"該檔無 {cat},且數字不在自身事實池"})
@@ -404,6 +467,9 @@ _FIX_NEG = (
     #    (連續配息 N 年的單位)。那是**真實存在的偽陽性來源**——希華 2484 也是被
     #    「近五年」的「年」撞中的,結論對而證據是巧合。這裡把它拆掉只是為了讓這則
     #    fixture 只鎖容差一件事;那個偽陽性來源本身仍在,記在 docstring 的已知洞裡。
+    # 🔴 迴歸鎖(環球晶 6488 / 威剛 3260):數字與類別關鍵字**隔了兩個子句以上**不算宣稱。
+    #    「這11年…」的「11」+單位「年」曾被句尾的「不包括股息再投入」拖成一次股利命中。
+    ("數字與關鍵字隔太遠", "9998", "這11年累積報酬很高，這還不包括股息再投入。"),
     # 🔴 迴歸鎖(川湖 2059 第二句):條件句起頭是**破折號**不是逗號 ——
     #    錨定字元表少了破折號,整句就沒有任何豁免而被誤擋(實測發生過)。
     ("破折號起頭的條件句",
@@ -432,13 +498,34 @@ def self_check() -> tuple:
 
 
 # ── 對外介面 ────────────────────────────────────────────────────────
+# 資料側健全性下限。低於這個數就當成「資料壞了」而不是「今天剛好比較少」。
+# 實測值(2026-09-06):results 7,462 條、universe 1,926 檔。門檻取實測的約 1/4。
+_MIN_RESULTS = 2000
+_MIN_UNIVERSE = 500
+
+
 def _load_facts():
+    """🔴 對 `uni` 與 `results` 加下限斷言,而這不是防禦性程式碼潔癖 ——
+    對抗式驗證員實測重現過:`stock_checkup_backlog.json` 退化成空 / 掉了 `code` 欄
+    ⇒ `uni={}` ⇒ `code_of` 永遠回 None ⇒ `_looks_like_per_stock` 永遠 False
+    ⇒ **每一支片都被判成「非個股體檢片,本閘門不適用」而放行**,
+    而 `self_check()` 因為 fixture 刻意不讀磁碟,**照樣 PASS**。
+    也就是說:閘門完全失效、三個表面全部正常、零訊號。
+
+    這是 memory `verification-that-cannot-fail` 的「一定不叫」那一種:
+    自檢守的是**程式**壞掉,守不了**資料**壞掉。下限斷言是資料側那半。
+    例外會被 check() 接住 → blocked=True(fail-closed),不是靜默放行。"""
     d = json.loads((STUDIO / "stock_checkup_facts.json").read_text(encoding="utf-8"))
     bl = json.loads((STUDIO / "stock_checkup_backlog.json").read_text(encoding="utf-8"))
     rows = bl if isinstance(bl, list) else bl.get("items", [])
     uni = {str(r["code"]): r.get("name", "") for r in rows
            if isinstance(r, dict) and r.get("code")}
-    return d["results"], uni
+    results = d["results"]
+    if len(results) < _MIN_RESULTS:
+        raise RuntimeError(f"事實庫只有 {len(results)} 條(下限 {_MIN_RESULTS}),資料側疑似壞了")
+    if len(uni) < _MIN_UNIVERSE:
+        raise RuntimeError(f"universe 只有 {len(uni)} 檔(下限 {_MIN_UNIVERSE}),資料側疑似壞了")
+    return results, uni
 
 
 def _norm(s: str) -> str:

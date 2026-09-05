@@ -81,6 +81,13 @@ def upload_scheduled(yt, slug: str, publish_at_utc: datetime) -> str:
             "selfDeclaredMadeForKids": False, "embeddable": True,
         },
     }
+    # 🔴 捏造閘門(2026-09-06 補)。本檔自己呼叫 videos().insert,**不經過**
+    # daily_publish.upload_one —— 也就是說 upload_one 那道閘門對這條路完全無效。
+    # 我原本在 3ffcdccb 的 commit 訊息寫「upload_one 是全頻道長片上傳的唯一必經處」,
+    # 那句話是錯的,由對抗式驗證員打掉。這裡是被漏掉的第二條路。
+    import per_stock_fact_gate as _psfg
+    _psfg.gate_or_raise(slug)
+
     media = MediaFileUpload(str(dp.OUTPUT / f"{slug}.mp4"), resumable=True, chunksize=4 * 1024 * 1024)
     req = yt.videos().insert(part="snippet,status", body=body, media_body=media, notifySubscribers=False)
     resp = None

@@ -67,20 +67,32 @@ def main() -> int:
         if not ok:
             print(f"① EP0 未過 audit,不發布:{reasons}")
         else:
-            vid = dp.upload_one(yt, EP0_SLUG, "public")
-            led[EP0_SLUG] = vid
-            dp.save_ledger(led)
-            # 每日硬上限計數器要誠實(daily_publish 的護欄靠它)
+            # 🔴 upload_one 現在會因捏造閘門丟例外,而本呼叫原本**沒包 try** ——
+            # 一次被擋就整支 script 崩,步驟②③④(trailer/貨架/橫幅)全不執行。
+            # 本檔 :88 註解記載過他們修過一次同款 bug。crontab 16:05 每天跑。
             try:
-                from datetime import datetime
-                cf = STUDIO / "publish_daily_count.json"
-                c = json.loads(cf.read_text(encoding="utf-8")) if cf.exists() else {}
-                k = datetime.now().strftime("%Y-%m-%d")
-                c[k] = int(c.get(k, 0)) + 1
-                save_json_atomic(cf, c)
-            except Exception:  # noqa: BLE001
-                pass
-            print(f"① EP0 已發布:https://youtu.be/{vid}")
+                vid = dp.upload_one(yt, EP0_SLUG, "public")
+            except Exception as _e:  # noqa: BLE001
+                print(f"① EP0 未發布({type(_e).__name__}):{str(_e)[:160]}")
+                vid = None
+            if not vid:
+                # ⚠️ 沒發成就**什麼都不要記**:計數器與「已發布」那行原本在這條路上照跑,
+                # 會謊報一次發布、還吃掉 daily_publish 每日硬上限的一格額度。
+                print("① EP0 這輪未發布,不記帳、不計數(後面步驟照跑)")
+            else:
+                led[EP0_SLUG] = vid
+                dp.save_ledger(led)
+                # 每日硬上限計數器要誠實(daily_publish 的護欄靠它)
+                try:
+                    from datetime import datetime
+                    cf = STUDIO / "publish_daily_count.json"
+                    c = json.loads(cf.read_text(encoding="utf-8")) if cf.exists() else {}
+                    k = datetime.now().strftime("%Y-%m-%d")
+                    c[k] = int(c.get(k, 0)) + 1
+                    save_json_atomic(cf, c)
+                except Exception:  # noqa: BLE001
+                    pass
+                print(f"① EP0 已發布:https://youtu.be/{vid}")
 
     # 🔴 2026-08-22 獨立審核:本步原本沒有 try——08-21 15:05 cron 在 channels.list
     # 撞 403 quotaExceeded,main 直接炸,③貨架④橫幅**從未執行**(banner done_mark
