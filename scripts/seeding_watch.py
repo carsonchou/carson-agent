@@ -1,0 +1,156 @@
+# -*- coding: utf-8 -*-
+"""seeding_watch.py — 種題守望(主頻道線,2026-09-05)
+
+## 為什麼存在
+`stock_checkup_daily.py` 的 `history[].n_new_topics` 在 09-05 之後有三種值,
+而**沒有任何自動化讀取者** —— -1 只有人看得到,而昨晚已經證明過「沒人拿著的哨等於沒有哨」
+(兩支 session-local monitor 隨 session 一起撞 429 死掉,零訊號)。
+本檔是那個讀取者,跑在**排程層**,和任何 Claude session 的生死無關。
+
+## 判準:兩條,少任一條都會在它最該叫的場景不叫
+| 值 | 意思 | 動作 |
+|---|---|---|
+| ≥1 | 健康 | — |
+| 0 | 種題跑完但沒有新題(候選全撞重複) | 單獨一個 0 正常;**連續 K 個才叫** |
+| **-1** | **種題丟例外**(同列有 seed_error) | 立刻叫 |
+
+🔴 **為什麼一定要看「連續 K 個 0」而不只看 -1**:
+09-05 之前「LLM 全滅」被 `seed_topics_for_code` 自己 catch 成 `return 0`,
+所以歷史上真正打死產線的那次失效,長相是 **0 不是 -1**
+(08-06/08-09/08-12/08-15/08-18/08-25/08-28 都是 16/16 全 0,08-29 是 30/30)。
+只接 -1 的哨,會在它最該叫的那個場景**完全不叫**。
+K=5 的校準:08-30 regime 翻轉之後最長連續 0 是 **0 檔**,所以 K=5 一次都不會誤中;
+而它會在 08-21/23/24/25/26/28/29 全部響。
+
+## 正向輸出
+**每次跑都寫一行 log,健康的日子也寫** —— 「沒輸出」因此永遠是異常,而不是「沒事」。
+
+## 演習
+`--selftest` 走獨立 state、每行帶 `[DRILL]` 前綴、**永不推播**。
+教訓來自 `quota_ceiling_watch`(2026-09-02):驗證員手改 state 模擬事件,
+兩行 🎉 落進正式 log,和真事件一模一樣 —— **假證據落在自己指定的權威來源裡,比沒有守望更糟。**
+
+用法:
+  python scripts/seeding_watch.py              # 正式(排程每天台北 07:00,05:50 那輪跑完之後)
+  python scripts/seeding_watch.py --selftest   # 演習:用預期會叫的輸入引它一次
+"""
+import sys, json, pathlib, datetime, collections
+
+REPO = pathlib.Path(__file__).resolve().parent.parent
+STATE = REPO / "youtube_channel" / "STUDIO" / "stock_checkup_daily_state.json"
+LOG = REPO / "docs" / "ops" / "seeding-watch.log"
+sys.path.insert(0, str(REPO / "youtube_channel" / "scripts"))
+
+# 演習模式:err|zero|all。**每一條判準各要有自己的引爆輸入** ——
+# 第一版只有一種 fixture,它引爆了 -1 那條而「連續 0」那條完全沒被走到,
+# 而後者才是覆蓋歷史真實失效(08 月那一個月)的那條。
+# 「哨叫了」不等於「每一條判準都會叫」。
+SELFTEST_MODE = next((a.split("=", 1)[1] if "=" in a else "all"
+                      for a in sys.argv if a.startswith("--selftest")), None)
+SELFTEST = SELFTEST_MODE is not None
+K_ZERO = 5          # 連續幾個 0 才算異常(校準見檔頭)
+
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
+
+
+def say(t):
+    try:
+        print(t)
+    except Exception:
+        pass
+
+
+def record(line):
+    if SELFTEST:
+        line = "[DRILL] " + line
+    LOG.parent.mkdir(parents=True, exist_ok=True)
+    with LOG.open("a", encoding="utf-8") as f:
+        f.write(line + "\n")
+    say(line)
+
+
+def alert(title, body):
+    if SELFTEST:
+        say("[DRILL] 演習不推播")
+        return
+    try:
+        from notify import push
+        push(title, body, tag="seedling")
+    except Exception as e:
+        say(f"(ntfy 推播失敗,不影響本檢查:{e!r})")
+
+
+def load_history():
+    if SELFTEST:
+        # 演習用**真實發生過的資料**:08-25 那天 16/16 全 0,當時零告警。
+        zero = [{"date": "2026-08-25", "code": "T9%d" % i, "n_new_topics": 0} for i in range(16)]
+        err = [{"date": "2026-08-25", "code": "TX", "n_new_topics": -1,
+                "seed_error": "NameError: name 're' is not defined"}]
+        healthy = [{"date": "2026-08-30", "code": "H%d" % i, "n_new_topics": 1} for i in range(16)]
+        if SELFTEST_MODE == "err":
+            return healthy + err            # 只引爆 -1 那條
+        if SELFTEST_MODE == "zero":
+            return healthy + zero           # 只引爆「連續 0」那條(-1 為 0 筆)
+        # 順序刻意是 err 在前、zero 在後:連續 0 是從**最後一筆往回數**的,
+        # 把 err 放最後會把 run0 打斷成 0 —— 第一版就是這樣,"all" 其實只引爆了一條。
+        return healthy + err + zero         # 兩條都引爆
+    return json.loads(STATE.read_text(encoding="utf-8")).get("history") or []
+
+
+def main():
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    try:
+        hist = load_history()
+    except Exception as e:
+        line = f"[{now}] 🔴 讀不到 state,無法判斷(這不是「沒事」):{e!r}"
+        record(line); alert("種題守望:讀不到帳本", line)
+        return 1
+
+    if not hist:
+        line = f"[{now}] 🔴 history 是空的 —— 讀得到檔但沒有任何一輪紀錄"
+        record(line); alert("種題守望:history 空的", line)
+        return 1
+
+    tail = hist[-40:]
+    vals = [r.get("n_new_topics") for r in tail]
+    errs = [r for r in tail if r.get("n_new_topics") == -1]
+
+    # 連續 0:從最後一筆往回數
+    run0 = 0
+    for v in reversed(vals):
+        if v == 0:
+            run0 += 1
+        else:
+            break
+
+    last_day = tail[-1].get("date", "?")
+    today_rows = [r for r in tail if r.get("date") == last_day]
+    ok_today = sum(1 for r in today_rows if (r.get("n_new_topics") or 0) >= 1)
+
+    stat = (f"最後一輪 {last_day}:{ok_today}/{len(today_rows)} 種到題"
+            f"｜近 {len(tail)} 筆 連續 0={run0}(門檻 {K_ZERO})｜例外(-1)={len(errs)}")
+
+    problems = []
+    if errs:
+        e0 = errs[-1]
+        problems.append(f"🔴 種題丟例外 {len(errs)} 筆,最近一筆 {e0.get('code')}:"
+                        f"{str(e0.get('seed_error'))[:90]} → 跑 seed_checkup_backfill.py 補種,**不要清 done**")
+    if run0 >= K_ZERO:
+        problems.append(f"🔴 連續 {run0} 檔種出 0 題(門檻 {K_ZERO})—— 09-05 之前這正是"
+                        f"「LLM 全滅被 catch 成 return 0」的長相,那次靜默了一整個月")
+
+    if problems:
+        line = f"[{now}] {stat}｜" + "｜".join(problems)
+        record(line)
+        alert("種題守望:異常", line)
+        return 1
+
+    record(f"[{now}] ✅ 正常｜{stat}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
