@@ -322,6 +322,25 @@ def _quota_reject_kind(exc) -> str:
     return ""
 
 
+def daily_rejects(b):
+    """這一天有幾次 / 多少 units 是**每日總量用罄**被拒的。回 (calls, units)。
+
+    舊資料沒有分類欄位 → 退回總數(行為與分類上線前完全相同)。
+
+    🔴 **這個 fallback 判準只有這一份** —— `_is_wall()` 與 `daily_health` 的告警共用它。
+    這個子系統的慣犯正是「同一件事兩份實作」:`739e5311` 兩份撞牆日判準差一個
+    「spent 非零」、`fe7d3329` 兩份預留判準抽成一支。`_is_wall()` 自己就是為了那個病
+    被抽出來的,不要再讓第二份 fallback 長在別的檔案裡。
+
+    ⚠️ 「存在但為 0」和「不存在」是兩件事:前者是新資料且當天沒有每日總量拒絕,
+    後者是分類上線前的舊資料。寫入端一律 +(0 或值)就是為了讓這兩者分得開。
+    """
+    c = b.get("rejected_daily_calls")
+    u = b.get("rejected_daily_units")
+    return (int((b.get("rejected_calls", 0) if c is None else c) or 0),
+            int((b.get("rejected_units", 0) if u is None else u) or 0))
+
+
 def _is_wall(b) -> bool:
     """這一天算不算「撞到牆」。`_scan()` 取上界、裁帳本決定保護哪一天,**必須共用這一個判準**。
 
@@ -341,10 +360,8 @@ def _is_wall(b) -> bool:
     # ceil 消失、effective_limit 掉到 floor。
     # (tests/quota_alarm/ 下五支手造的 day dict 也只帶 rejected_calls,
     #  有真實檔案在依賴這條 fallback,不只是理論上成立。)
-    _rj = b.get("rejected_daily_calls")
-    if _rj is None:
-        _rj = b.get("rejected_calls", 0)
-    return bool(int(_rj or 0)
+    _rj, _ = daily_rejects(b)
+    return bool(_rj
                 and int(b.get("spent", 0) or 0)
                 and not b.get("unreliable"))
 
@@ -391,6 +408,7 @@ def record(op, units, rejected=False, kind="daily"):
         # 誤判成「舊資料、無分類」而退回舊判準,那正好把要防的 bug 放回來。
         # **「存在但為 0」和「不存在」是兩件事。**
         b["rejected_daily_calls"] = int(b.get("rejected_daily_calls", 0)) + (1 if kind == "daily" else 0)
+        b["rejected_daily_units"] = int(b.get("rejected_daily_units", 0)) + (int(units) if kind == "daily" else 0)
         # 🔴 2026-09-05 加：被拒的呼叫原本只記兩個純量，op 被丟掉。
         # 後果不是「沒人去查」，是**帳本結構上記不下答案**——
         # 08-27~08-31 四個撞牆日的被拒單價是 48.7 / 425.0 / 1.0 / 10.5，
@@ -467,6 +485,7 @@ def _unrecord(op, units, kind="daily"):
     b["rejected_units"] = int(b.get("rejected_units", 0)) + int(units)
     b["rejected_calls"] = int(b.get("rejected_calls", 0)) + 1
     b["rejected_daily_calls"] = int(b.get("rejected_daily_calls", 0)) + (1 if kind == "daily" else 0)
+    b["rejected_daily_units"] = int(b.get("rejected_daily_units", 0)) + (int(units) if kind == "daily" else 0)
     # 與 record() 的 rejected 分支對稱 —— 漏掉這裡會讓 resumable 上傳
     # （videos.insert 1,600 units，全排程最大宗）**系統性缺席**於分桶，
     # 而缺席的方向剛好會讓「被拒的都是小額呼叫」看起來被證實。

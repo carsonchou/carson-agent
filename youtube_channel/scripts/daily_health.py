@@ -295,6 +295,10 @@ def main() -> int:
             _spent = int(_b.get("spent", 0) or 0)
             _rej = int(_b.get("rejected_calls", 0) or 0)
             _rej_units = int(_b.get("rejected_units", 0) or 0)
+            # 只有「每日總量用罄」那一種 —— 牆高與退避判斷都是在問每日總量牆的事。
+            # 判準在 quota_meter.daily_rejects() 唯一一份，不在這裡複製
+            # (739e5311 / fe7d3329 都是「同一件事兩份實作」翻車的實例)。
+            _rej_d, _rej_d_units = _qm.daily_rejects(_b)
             _lim = _qm.effective_limit()
 
             # 參考點 = **今天以外、帳本裡最高的一道牆**。三個設計決定,每個都有代價:
@@ -353,6 +357,8 @@ def main() -> int:
                 + (f"(分母={_ref_kind},不含今天)" if _ref
                    else f"(分母=effective_limit {_lim:,};帳本裡沒有任何一天可比)")
                 + f"｜配額用罄被拒 {_rej} 次"
+                + (f"（其中每日總量 {_rej_d} 次、端點專屬配額 {_rej - _rej_d} 次）"
+                   if _rej != _rej_d else "")
                 + (f"、浪費 {_rej_units:,} units" if _rej_units else ""))
             if not _days:
                 lines.append("   帳本目前沒有任何一天的紀錄(檔案合法,不是壞掉)")
@@ -376,6 +382,22 @@ def main() -> int:
                                  "(撞牆的前提是先花得掉)。可能是整日停權、憑證/專案有問題,"
                                  "或同一個 Cloud 專案被另一台機器吃光(Mac+MSI 共用時會)。"
                                  "先跑 python scripts/quota_meter.py 對帳,再查 assert_project()")
+                elif _rej_d <= 0:
+                    # 2026-09-05:這天被拒了，但**沒有一次是「每日總量用罄」**。
+                    # 下面那一大段(牆高 / 有沒有退避)全部是在問「每日總量牆」的事，
+                    # 對這種日子是**問錯了問題** —— 它會拿 spent/_base 的水位去講
+                    # 「牆變矮了」，而那 N 次跟牆無關；也會跟上面那行實事求是的
+                    # 「其中每日總量 0 次」在同一份輸出裡打架。
+                    # 入口門刻意仍看總數:端點專屬配額用罄是真問題，不該被藏起來。
+                    # 舊資料(無分類欄位)會 fallback 成 _rej_d == _rej > 0，
+                    # 所以**結構上走不到這條分支**，舊帳本行為必然不變。
+                    warn.append(f"被拒 {_rej} 次，但沒有一次是每日總量用罄")
+                    lines.append(f"   ⚠️ **被拒 {_rej} 次（{_rej_units:,} units），而每日總量用罄是 0 次** —— "
+                                 "這些是**某個端點自己的配額計量**"
+                                 "（實測過的是 rateLimitExceeded / Search Queries per day），"
+                                 "和每日總量是不同的計量對象。"
+                                 "**天花板沒有變矮，不要拿這天去校準 effective_limit。** "
+                                 "要查的是那個端點的專屬配額，不是我們的每日總額")
                 else:
                     # 先算「有沒有退避」,因為它會改變牆高那行的措辭:
                     # 「配額用完了,這是設計預期」印在 🔴 沒退避的正上方會自打架 ——
@@ -392,9 +414,9 @@ def main() -> int:
                     #      拿個位數 calls 去算比例是雜訊不是訊號(合成測試常是 calls=1)。
                     #   ③ 浪費 units 佔牆的 10% —— 08-27 是 232%,正常日 3.6/1.3/0.07%。
                     _cal = int(_b.get("calls", 0) or 0)
-                    _no_backoff = (_rej > 100
-                                   or (_cal >= 50 and _rej > _cal * 0.50)
-                                   or _rej_units > _base * 0.10)
+                    _no_backoff = (_rej_d > 100
+                                   or (_cal >= 50 and _rej_d > _cal * 0.50)
+                                   or _rej_d_units > _base * 0.10)
 
                     # ── 牆的高度 ────────────────────────────────────────────────
                     # 帶寬 75% 而不是 95%:帳本四個牆值 19,645 → 23,341 → 21,858 → 26,001,
@@ -449,7 +471,7 @@ def main() -> int:
                                      and int(b.get("spent", 0) or 0) < _base * _BAND)
                         _d = f",已連續 {_n} 天" if _n >= 2 else ""
                         warn.append(f"配額牆變矮({_spent:,} = {_ref_kind} {_ref:,} 的 {_pct:.0f}%{_d})")
-                        lines.append(f"   🔴 **只花到 {_spent:,} 就有 {_rej} 次被拒,而{_ref_kind}是"
+                        lines.append(f"   🔴 **只花到 {_spent:,} 就有 {_rej_d} 次每日總量被拒,而{_ref_kind}是"
                                      f" {_ref:,}({_pct:.0f}%){_d}** —— 天花板比我們以為的矮,或有別的"
                                      "東西在吃同一個 Cloud 專案。這是本項當初被加進來的理由:"
                                      "被拒次數比已用量更早示警。跑 quota_meter.py 對帳,查 assert_project()"
@@ -466,12 +488,15 @@ def main() -> int:
                     #       正常日 850 / 325 / 16 units = 3.6% / 1.3% / 0.07%)。
                     # 兩個都收是因為 rejected_units 可能沒被記(今天就是 None)。
                     if _no_backoff:
-                        _nb = _streak(lambda b: int(b.get("rejected_calls", 0) or 0) > 100
-                                      or int(b.get("rejected_units", 0) or 0) > _base * 0.10)
+                        def _nb_pred(b):
+                            # 具名函式而非巢狀 lambda:原版要在腦中展開兩層才讀得懂。
+                            _c, _u = _qm.daily_rejects(b)
+                            return _c > 100 or _u > _base * 0.10
+                        _nb = _streak(_nb_pred)
                         _nd = f",已連續 {_nb} 天" if _nb >= 2 else ""
-                        warn.append(f"撞牆後沒退避(被拒 {_rej} 次"
+                        warn.append(f"撞牆後沒退避(每日總量被拒 {_rej_d} 次"
                                     + (f"、浪費 {_rej_units:,} units" if _rej_units else "") + _nd + ")")
-                        lines.append(f"   🔴 **撞牆之後還被拒了 {_rej} 次"
+                        lines.append(f"   🔴 **撞牆之後還被拒了 {_rej_d} 次"
                                      + (f",白打掉 {_rej_units:,} units(牆的 {_rej_units/max(_base,1)*100:.0f}%)"
                                         if _rej_units else "")
                                      + _nd
