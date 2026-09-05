@@ -68,6 +68,13 @@ STATE_FILE = STUDIO / "stock_checkup_daily_state.json"
 # (--count 8 會回報「完成 5/8」),加量無效且無聲。改成只計失敗:最壞嘗試 count + MAX_FAILS 檔
 # (8+5=13 檔 × 4 個 FinMind call = 52 call,仍遠低於免費層 300/hr,見下方 quota 註解)。
 MAX_FAILS = 5      # 本次執行容許幾檔「資料不足」;超過就收工(防止一路撞到都是新股，整天卡死)
+MAX_SEED_FAILS = 3  # 🔴 2026-09-05 新增:連續幾檔「種題丟例外」就中止本輪。
+                    # 為什麼要有:09-02/09-03 的 NameError 是「每一檔都會炸」那一類,
+                    # 而當時沒有 try/except,第一檔就把整支帶走 → --count 16 的 15 個名額蒸發。
+                    # 包了 try/except 之後失效模式會反過來:16 檔全部照跑、每檔都白付一次
+                    # FinMind、種出 0 題。熔斷把系統性錯誤的損失壓在 3 檔。
+                    # 為什麼算「連續」不算「累計」:偶發的 LLM 逾時不該中止整輪,
+                    # 只有「連著炸」才是系統性的。成功一檔就歸零。
 # Carson拍板：一檔股票=一集10分鐘長片(公司是誰→基本面→價格體檢→估值位置→結尾，見
 # TW_STOCK_CHECKUP_RULES)，不是短片系列。LLM 用通用 prompt 生題時偶爾會判成 short(2026-07-15
 # 實測：13組事實生出15題只有short，因為 topics_from_facts.build_prompt 是共用邏輯不知道這系列
@@ -421,6 +428,8 @@ def main() -> int:
     done_this_run = 0
     attempts = 0
     fails = 0
+    seed_fails = 0   # 連續種題失敗數(成功一檔就歸零)
+    seeded_ok = 0    # 種題**沒有丟例外**的檔數(n_new_topics=0 也算成功:那是合法的「沒有新題」)
     idx = 0
     items = bl.get("items") or []
 
@@ -449,21 +458,67 @@ def main() -> int:
         cand["done"] = True
         cand["done_at"] = today
         _save_backlog(bl)
-        n_new_topics = seed_topics_for_code(code, name=name, dry_run=False)
-        state.setdefault("history", []).append({
-            "date": today, "code": code, "name": name, "reason": reason, "n_new_topics": n_new_topics,
-        })
-        done_this_run += 1
+        # 🔴 2026-09-05:種題**必須**包 try/except,而且 history 那一列必須無論如何都寫下去。
+        # 原本這裡是裸呼叫,09-02/09-03 的 NameError 直接把整個 main() 帶走,後果有兩層:
+        #   (a) 這一檔 done 已落盤但 history 沒有它、題庫也沒有題 → 從此不再入列(孤兒);
+        #   (b) 當天剩下的名額全部蒸發(--count 16 只做了 1 檔)。三天共 48 個名額。
+        # ⚠️ 失敗時**不回滾 done**,這是刻意的:
+        #   FinMind 已經付過、事實已經 merge_and_write 落盤。回滾 → 明天重跑 →
+        #   merge_and_write 會先 pop 掉該 code 全部舊 key 再灌新的(stock_checkup_facts.py:581-584)、
+        #   build_checkup 沒有「已算過就跳過」的分支且 as_of 取當天(:462)。
+        #   而 seed_topics_for_code 是 tb.save_bank() 先、fact_source_guard 覆核後 ——
+        #   若 save_bank 已成功、例外丟在覆核階段,**題已經在題庫裡了**,
+        #   這時回滾 done 會讓明天的重跑把事實換掉、而標題裡的數字是綁在舊事實上的。
+        #   (09-05 早上否決「清掉 8215/5464 的 done」正是這個理由。)
+        # ⇒ 正確的復原路徑是 seed_checkup_backfill.py(補「有事實但題庫沒題」的 code,
+        #   不打 FinMind、只花 LLM),它的判準跟這裡留下的痕跡對得上。
+        try:
+            n_new_topics = seed_topics_for_code(code, name=name, dry_run=False)
+            seed_err = ""
+            seed_fails = 0
+        except Exception as exc:  # noqa: BLE001
+            n_new_topics = -1     # 哨兵值:和 0(合法的「沒有新題」)必須分得開,
+                                  # 而且要出現在**已經有人在讀的那個欄位**上(history[].n_new_topics),
+                                  # 否則失敗只寫進沒人讀的 log = 靜默。
+            seed_err = f"{type(exc).__name__}: {str(exc)[:200]}"
+            seed_fails += 1
+            print(f"[stock_checkup_daily] 🔴 {code}（{name}）種題失敗:{seed_err}"
+                  f"(連續第 {seed_fails}/{MAX_SEED_FAILS} 次)——事實已落盤,"
+                  f"用 seed_checkup_backfill.py 補種即可,不要清 done。", file=sys.stderr)
+        _h = {"date": today, "code": code, "name": name, "reason": reason, "n_new_topics": n_new_topics}
+        if seed_err:
+            _h["seed_error"] = seed_err
+        state.setdefault("history", []).append(_h)
+        _save_state(state)   # 每檔就存,不要等迴圈結束 —— 原本 _save_state 只在迴圈後,
+                             # 任何未捕捉的例外都會讓整輪的 history 一起消失(09-02 就是這樣)。
+        if n_new_topics >= 0:
+            seeded_ok += 1
+        done_this_run += 1   # 種題失敗仍計入:FinMind 已付、事實已落盤。
+                             # 不計入的話,系統性錯誤會把整個 backlog 一路重抓下去。
+        if seed_fails >= MAX_SEED_FAILS:
+            print(f"[stock_checkup_daily] 🔴 連續 {seed_fails} 檔種題失敗,中止本輪"
+                  f"(已處理 {done_this_run} 檔)。這是系統性錯誤,先修再跑。", file=sys.stderr)
+            break
 
     if not args.dry_run:
         # 只有真的產出至少一檔才記「今天跑過」——若5檔連續因資料不足被skip(0產出)也標已跑，
         # 會白白停擺一天(驗證agent 2026-07-15抓到的邊角)。不寫marker讓當天手動重跑還能接著
         # 隊伍更後面試；被skip的檔已標skip=true不會重複打FinMind，cron一天也只觸發一次。
-        if done_this_run > 0:
+        # 🔴 2026-09-05:條件由 done_this_run > 0 改成 seeded_ok > 0。
+        # 原註解的用意是「0 產出不要標已跑,免得白白停擺一天」,而種題全炸正是 0 產出 ——
+        # 舊條件會把「16 檔全部種題失敗」標成今天跑過,當天就再也接不下去了。
+        # 已 done 的檔不會被重抓(done=True),所以同日重跑只會往隊伍後面走,不浪費 FinMind。
+        if seeded_ok > 0:
             state["last_run_date"] = today
         _save_state(state)
 
-    print(f"[stock_checkup_daily] 本次完成 {done_this_run}/{args.count} 檔(共嘗試 {attempts} 檔)。")
+    _seed_bad = done_this_run - seeded_ok
+    print(f"[stock_checkup_daily] 本次完成 {done_this_run}/{args.count} 檔(共嘗試 {attempts} 檔"
+          f"，其中種題失敗 {_seed_bad} 檔)。")
+    if _seed_bad:
+        print(f"[stock_checkup_daily] 🔴 有 {_seed_bad} 檔事實已落盤但沒種到題 —— "
+              f"跑 seed_checkup_backfill.py 補種(不打 FinMind)。history 裡 n_new_topics=-1 的就是。",
+              file=sys.stderr)
     return 0
 
 
