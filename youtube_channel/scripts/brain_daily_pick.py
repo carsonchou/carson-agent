@@ -142,7 +142,7 @@ def main() -> int:
     force = "--force" in sys.argv
     dry = "--dry" in sys.argv
     if dry:
-        B.notify = lambda t, b: (print(f"[dry] 不推播：{t}"), True)[1]
+        B.notify = lambda t, b: (print(f"[dry] 不推播：{t}"), "dry")[1]
     # 🔴 上面那個 stub 回 True,而 track_score 的哨兵會把「推成功」寫進**正式檔**
     #    的單向閂裡 ⇒ 一則都沒發卻永久標記已通知。改用顯式開關,不要靠換掉 notify。
 

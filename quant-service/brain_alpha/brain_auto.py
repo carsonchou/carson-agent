@@ -115,37 +115,59 @@ def _tg_creds():
         return None, None, "none"
 
 
-def _telegram(text: str) -> bool:
+def _telegram(text: str) -> str:
+    """回**送達的管道名**("brain_bot" / "stock_monitor_bot"),失敗回 ""。
+
+    🔴 2026-09-05:原本回 bool。但 _tg_creds() 有**兩組憑證** —— BRAIN 專屬的
+       @carson_brain_bot,拿不到才退回 009816 盯盤那組(不同 bot、不同 chat_id)。
+       而 _tg_creds 自己的 docstring 就寫著開專屬 bot 的理由是「跟 009816 盯盤
+       訊號混在同一個對話**會看不到**」。所以「telegram 回 True」不等於
+       「送到 Carson 看得到的那個對話」。src 一直算好了卻被丟掉,現在把它交出去。
+    """
     try:
         tok, chat, src = _tg_creds()
         if not (tok and chat):
-            print("[tg] 找不到 token/chat_id", file=sys.stderr); return False
+            print("[tg] 找不到 token/chat_id", file=sys.stderr); return ""
         r = requests.post(f"https://api.telegram.org/bot{tok}/sendMessage",
                           data={"chat_id": chat, "text": text}, timeout=20)
         if r.status_code != 200:
             print(f"[tg] HTTP {r.status_code}: {r.text[:200]}", file=sys.stderr)
-            return False
-        return True
+            return ""
+        return src
     except Exception as e:  # noqa: BLE001
         print(f"[tg] 例外：{e}", file=sys.stderr)
-        return False
+        return ""
 
 
-def _ntfy(title: str, body: str) -> bool:
+def _ntfy(title: str, body: str) -> str:
+    """回 "fallback" 或 ""。
+
+    ⚠️ 刻意不叫 "ntfy":scripts/notify.py 的 push() 依序試
+       ntfy topic → NOTIFY_WEBHOOK → Gmail SMTP,回傳是三者的 OR。
+       叫它 "ntfy" 會在記錄裡留下一個假的管道名。要精確就得讓 push() 回後端名。
+    """
     try:
         sys.path.insert(0, str(REPO / "youtube_channel" / "scripts"))
         import notify as _n
-        return bool(_n.push(title, body, "moneybag"))
+        return "fallback" if _n.push(title, body, "moneybag") else ""
     except Exception as e:  # noqa: BLE001
         print(f"[ntfy 失敗] {e}", file=sys.stderr)
-        return False
+        return ""
 
 
-def notify(title: str, body: str) -> bool:
-    """主管道 Telegram，ntfy 當備援。兩個都失敗才算失敗（並印出來，不靜默）。"""
-    ok_tg = _telegram(f"{title}\n\n{body}")
-    if ok_tg:
-        return True
+def notify(title: str, body: str) -> str:
+    """主管道 Telegram，ntfy 當備援。回**送達的管道名**，兩個都失敗回 ""。
+
+    回傳值:"brain_bot" / "stock_monitor_bot" / "fallback" / ""。
+    真值判斷與舊的 bool 相容(`if ok:`)，既有呼叫點不必改。
+
+    ⚠️ 天花板:任何回傳值都證不到「有人看到」。Telegram 回 200 只代表 Bot API
+       收下了;ntfy topic 零訂閱者一樣回 200。所以記錄裡不要把「回 brain_bot」
+       寫成「Carson 已收到」——它只是「送進了那個對話」。
+    """
+    via = _telegram(f"{title}\n\n{body}")
+    if via:
+        return via
     print("[notify] Telegram 失敗,改試 ntfy", file=sys.stderr)
     return _ntfy(title, body)
 
@@ -705,10 +727,14 @@ def _sentinel(rec, errs):
             "申請任務(邀請確實已發生)而此端點仍回 403。所以它量的是 onboarding\n"
             "完成後的權限,不是邀請有沒有發出。",
         )
-        if ok:
-            rec["consultant_notified"] = True   # 只有推成功才扣閂
+        rec["consultant_via"] = ok or ""
+        # 🔴 只在 brain_bot 成功時才扣閂。退到 stock_monitor_bot 或 fallback 都不扣,
+        #    因為那兩條 Carson 未必看得到,而閂是單向的:扣上就再也不會重開。
+        #    寧可下一輪重推(方向安全),也不要把一則沒人看到的通知當成已通知。
+        if ok == "brain_bot":
+            rec["consultant_notified"] = True
         else:
-            errs.append("consultant latch notify failed")
+            errs.append(f"consultant latch 未扣(via={ok or '全失敗'})")
 
     # ---- D3:score / level / submitted_total 的 edge 偵測 ----
     # base 不能取「帶著新值但沒宣告成功」的記錄,否則變動會被靜默吃掉。
@@ -744,6 +770,7 @@ def _sentinel(rec, errs):
         f"門檻：Bronze>1,000　Silver>5,000　Gold>10,000（Gold=顧問資格）\n"
         f"每日上限 2,000 分。",
     )
+    rec["notified_via"] = ok or ""
     if ok:
         rec["notified"] = True
     else:
