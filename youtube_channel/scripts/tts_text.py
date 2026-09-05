@@ -88,15 +88,38 @@ def normalize(text: str) -> str:
     t = re.sub(r"，(。)", r"\1", t)
     t = re.sub(r"。{2,}", "。", t)
     # 超長句補停頓：連續 >38 字沒有句末標點，找最後一個逗號斷不到就硬插
+    #
+    # 🔴 2026-09-05:原本是「數到 42 就在當下位置插」,而它**不看數字界也不看詞界**。
+    # 實測後果(主頻道旁白):
+    #     「代價是最深回撤百分之五，十六點一」  ← 56.1% 被唸成「5」和「16.1」
+    #     「最長套，牢二點六年」                ← 切在詞中間
+    # 沒有錯誤、沒有例外、內部指標全綠 —— **只有聽的人會發現數字被唸錯**
+    # (同 memory yt-internal-metrics-blind-to-viewer 那一族)。
+    # ⚠️ 分號**不在**重置字元裡,所以用分號串起來的長句特別容易中招。
+    #
+    # 改法:要插的時候先往回找一個安全點(不在數字/中文數字之間)。找不到就**不插** ——
+    # 唸得長一點的代價,遠小於把一個數字唸成兩個數字。
+    _NUMISH = set("0123456789．.零一二三四五六七八九十百千萬億點分之負正％%")
     out, run = [], 0
     for ch in t:
         out.append(ch)
-        if ch in "。！？!?":
+        if ch in "。！？!?，；;":          # 分號也算停頓,不再累積(原本漏了)
             run = 0
-        elif ch == "，":
-            run = 0
+            continue
+        run += 1
+        if run < 42:
+            continue
+        # 往回最多 12 個字找一個「前後都不是數字類」的位置
+        for back in range(0, min(12, len(out) - 1)):
+            i = len(out) - back
+            if i <= 0:
+                break
+            prev_c = out[i - 1]
+            if prev_c in _NUMISH:
+                continue
+            out.insert(i, "，")
+            run = back
+            break
         else:
-            run += 1
-            if run >= 42:
-                out.append("，"); run = 0
+            run = 0                       # 找不到安全點就不插,但重新計數避免連續嘗試
     return "".join(out).strip("，")
