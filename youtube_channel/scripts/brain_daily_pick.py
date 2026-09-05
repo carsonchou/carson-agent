@@ -143,11 +143,13 @@ def main() -> int:
     dry = "--dry" in sys.argv
     if dry:
         B.notify = lambda t, b: (print(f"[dry] 不推播：{t}"), True)[1]
+    # 🔴 上面那個 stub 回 True,而 track_score 的哨兵會把「推成功」寫進**正式檔**
+    #    的單向閂裡 ⇒ 一則都沒發卻永久標記已通知。改用顯式開關,不要靠換掉 notify。
 
     s = B.auth()
 
     # 今天（ET）已經交過就不要再吵 —— 每日上限 2,000，交滿了第三條拿不到分
-    snap = B.track_score(s, src="daily_pick")
+    snap = B.track_score(s, src="daily_pick", sentinel=not dry)
     today = et_today()
     done_today = dict(snap.get("submitted_records") or []).get(today, 0)
     if done_today >= N_PICK and not force:

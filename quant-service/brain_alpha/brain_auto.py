@@ -684,11 +684,12 @@ def _score_of(rec):
 
 def _sentinel(rec, errs):
     """D3+D4 哨兵。就地在 rec 上蓋 notified / consultant_notified 標記。"""
-    last = None
+    last_clean = None
     last_notified = None
     latched = False
     for r in _iter_history():
-        last = r
+        if not r.get("notify_failed"):
+            last_clean = r
         if r.get("notified"):
             last_notified = r
         if r.get("consultant_notified"):
@@ -710,7 +711,9 @@ def _sentinel(rec, errs):
             errs.append("consultant latch notify failed")
 
     # ---- D3:score / level / submitted_total 的 edge 偵測 ----
-    base = last_notified if last_notified is not None else last
+    # base 不能取「帶著新值但沒宣告成功」的記錄,否則變動會被靜默吃掉。
+    # 優先取最後一筆宣告成功的;沒有的話取最後一筆**沒有失敗標記**的(靜默 seed)。
+    base = last_notified if last_notified is not None else last_clean
     ps, pr = _score_of(base)
     cs, cr = _score_of(rec)
     changed = (cs != ps) \
@@ -736,12 +739,15 @@ def _sentinel(rec, errs):
         f"每日上限 2,000 分。",
     )
     if ok:
-        rec["notified"] = True      # 推失敗就不標記 → 下次重送,絕不靜默推進狀態
+        rec["notified"] = True
     else:
+        # 只由 score 分支設。顧問分支有 latched 當自己的狀態,共用會讓
+        # 「顧問那則推失敗」連帶把 score 的 base 停住 ⇒ score 每輪重推,方向安全但很吵。
+        rec["notify_failed"] = True
         errs.append("score notify failed")
 
 
-def track_score(s, src="unknown"):
+def track_score(s, src="unknown", sentinel=True):
     """每次跑都記一筆積分快照 → `score_history.jsonl`。
 
     為什麼要自己記：平台不顯示「這條 alpha 給了幾分」，只給一個累計 score，
@@ -816,9 +822,16 @@ def track_score(s, src="unknown"):
     #    D4:顧問旗標改**單向閂**。它是一次性、單向、黏著的狀態,拿 edge-triggered
     #        (比對前後差異)去偵測 level 性質的事件,本來就是錯的工具——正確性
     #        依賴「沒漏掉任何觀測」且「沒弄丟前一個值」,而這兩件在本線上各自都壞過。
-    #        閂只能 0→1:檔案被刪/損毀/回捲、notify 失敗、別人先觀測到 —— 每一種
-    #        失效方向都被翻成「重複推播」,一個都不是「漏掉」。上限 2 則(同一分鐘
-    #        最多兩個寫入者:*/20 守門和 0 */2 排程在整點會撞,08-30 實資料有撞過)。
+    #        閂只能 0→1:檔案被刪/損毀/回捲、notify 失敗、別人先觀測到 —— 這幾種
+    #        失效方向都被翻成「重複推播」而不是「漏掉」。上限 2 則。
+    #    ⚠️ 但**不是每一種**。第二輪驗證員找到兩條仍會漏的路徑,已知未修:
+    #      (a) notify() 的 Telegram 失敗會退 ntfy 並回 True ⇒ 閂照樣扣上,
+    #          而 Carson 未必訂閱 ntfy(ntfy_topic 在 design_system.json 確實有設)。
+    #          要修得讓 notify() 回傳管道名,閂只在 telegram 成功時才扣。
+    #      (b) 「每個寫入者都是哨兵」被 claim_lock() 擋掉一半:搶不到鎖的 alpha_cron
+    #          在 track_score 之前就 return。實測每日寫入 4~9 筆、最大間隔 9.3 小時,
+    #          不是 */20。所以採樣是 3/天 → 4~9/天。
+    #    不要把上面那段讀成「保證不會漏」——它不是。
     #
     #    預設值的準則:**該欄位漏掉之後還會不會再有機會**。
     #      顧問旗標一次性 → 找不到閂就當 0 → 倒向推播(端點仍 403 時完全靜默,
@@ -830,10 +843,21 @@ def track_score(s, src="unknown"):
     #
     #    整段包在 try/except 裡:本函式在每批挖礦開頭被呼叫,推播失敗絕不能讓
     #    挖礦線掛掉,也絕不能阻止這筆記錄落盤。
-    try:
-        _sentinel(rec, errs)
-    except Exception as e:  # noqa: BLE001
-        errs.append(f"sentinel {e}")
+    # 🔴 sentinel=False 是給 --dry 這類「不真的推播」的呼叫端用的。
+    #    61c69a13 的地雷:brain_daily_pick --dry 把 B.notify 換成回傳 True 的 stub,
+    #    而 _sentinel 裡的 notify() 是裸的全域查找 ⇒ monkeypatch 生效 ⇒
+    #    ok 為 True ⇒ 閂被假扣上並寫進**正式的** score_history.jsonl,
+    #    而一則推播都沒發生。閂是單向的,寫進去就再也不會重開 ⇒
+    #    顧問端點翻 200 那天只要有人跑過一次 --dry,那則通知永久消失。
+    #    ⇒ 不推播的呼叫端一律傳 sentinel=False,不要靠換掉 notify 來「不推播」。
+    if sentinel:
+        try:
+            _sentinel(rec, errs)
+        except Exception as e:  # noqa: BLE001
+            errs.append(f"sentinel {e}")
+            # 🔴 例外時這筆記錄**不可以**成為下一輪的 base:它帶著新值卻沒宣告過。
+            #    少了這一行,一次例外 = 一次真實變動永久消失(驗證員沙箱 C5 實測)。
+            rec["notify_failed"] = True
     with SCORE_LOG.open("a", encoding="utf-8") as f:
         f.write(json.dumps(rec, ensure_ascii=False) + "\n")
     return rec
