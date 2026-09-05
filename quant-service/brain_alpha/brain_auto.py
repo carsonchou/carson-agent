@@ -710,6 +710,19 @@ def track_score(s):
             errs.append(f"submissions {a.status_code}")
     except Exception as e:  # noqa: BLE001
         errs.append(f"submissions {e}")
+    # 顧問資格端點。403 = 尚未開通;200 = onboarding 完成、顧問權限已開。
+    # 🔴 這**不是邀請訊號**——2026-09-03 實證推翻:Carson 當天已收到 Workday 顧問
+    #    申請任務(邀請確實已發生),而這支端點仍然回 403。所以它量的是
+    #    **onboarding 完成後的權限**,不是邀請有沒有發出。把它當邀請哨的話,
+    #    那個警報永遠不會叫(memory verification-that-cannot-fail 的「不會叫」型)。
+    # fail-closed:拿不到就寫 None + 錯誤原因,不要折成任何一個看起來正常的碼
+    #    ——403 和「連不上」意義完全不同,前者是狀態後者是沒觀測到。
+    try:
+        cs_ = s.get(f"{API}/users/self/consultant", timeout=30)
+        rec["consultant_http"] = cs_.status_code
+    except Exception as e:  # noqa: BLE001
+        rec["consultant_http"] = None
+        errs.append(f"consultant {e}")
     rec["errors"] = errs
     rec["partial"] = bool(errs)
     with SCORE_LOG.open("a", encoding="utf-8") as f:
