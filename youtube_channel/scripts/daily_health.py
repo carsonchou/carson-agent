@@ -390,7 +390,12 @@ def main() -> int:
                     # 「其中每日總量 0 次」在同一份輸出裡打架。
                     # 入口門刻意仍看總數:端點專屬配額用罄是真問題，不該被藏起來。
                     # 舊資料(無分類欄位)會 fallback 成 _rej_d == _rej > 0，
-                    # 所以**結構上走不到這條分支**，舊帳本行為必然不變。
+                    # 所以**今天的真帳本走不到這條分支**(13 天逐天驗過)。
+                    # ⚠️ 但那不是結構保證,是「還沒發生過」:部署當天若在部署**前**
+                    #    已有舊格式被拒(無分類欄位)、部署**後**同一天又有一次帶 kind 的
+                    #    record(),新欄位會從 0 開始累加,把部署前那幾次靜默算成
+                    #    「非每日總量」。09-05 部署前 rejected_calls=0 所以沒發生,
+                    #    但「結構上不可能」是假的 —— 補驗員用 sandbox 構造出反例。
                     warn.append(f"被拒 {_rej} 次，但沒有一次是每日總量用罄")
                     lines.append(f"   ⚠️ **被拒 {_rej} 次（{_rej_units:,} units），而每日總量用罄是 0 次** —— "
                                  "這些是**某個端點自己的配額計量**"
@@ -492,13 +497,18 @@ def main() -> int:
                             # 具名函式而非巢狀 lambda:原版要在腦中展開兩層才讀得懂。
                             _c, _u = _qm.daily_rejects(b)
                             return _c > 100 or _u > _base * 0.10
+                        # 2026-09-05 補:這一段的 units 原本還在用總數 _rej_units,而次數已經改成
+                        # _rej_d —— 混合日(daily 與 other 同日都有)會印出「白打掉 X units(牆的 N%)」
+                        # 而 X 含端點專屬配額的浪費。補驗實測:daily 2,000 / other 18,000 的一天會印
+                        # 77% 而正解是 8%,差一個數量級。**我在設計文件裡寫過不要留下「calls 分得出、
+                        # units 分不出」的半吊子,然後實作時自己留了一個。**
                         _nb = _streak(_nb_pred)
                         _nd = f",已連續 {_nb} 天" if _nb >= 2 else ""
                         warn.append(f"撞牆後沒退避(每日總量被拒 {_rej_d} 次"
-                                    + (f"、浪費 {_rej_units:,} units" if _rej_units else "") + _nd + ")")
+                                    + (f"、浪費 {_rej_d_units:,} units" if _rej_d_units else "") + _nd + ")")
                         lines.append(f"   🔴 **撞牆之後還被拒了 {_rej_d} 次"
-                                     + (f",白打掉 {_rej_units:,} units(牆的 {_rej_units/max(_base,1)*100:.0f}%)"
-                                        if _rej_units else "")
+                                     + (f",白打掉 {_rej_d_units:,} units(牆的 {_rej_d_units/max(_base,1)*100:.0f}%)"
+                                        if _rej_d_units else "")
                                      + _nd
                                      + "** —— 配額用完不是問題,問題是排程**沒有退避**,"
                                      "撞牆後還在照跑。查 YT_QUOTA_ENFORCE 是不是關著,"
