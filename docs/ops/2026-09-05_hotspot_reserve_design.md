@@ -83,6 +83,29 @@ RESERVE_UNITS = int(os.environ.get("YT_QUOTA_RESERVE_UNITS", str(DEFAULT_RESERVE
 | 要改的行數 | 29 | **3~4** |
 | 失效方向 | fail-open | **fail-safe** |
 
+## 兩個洞,我自己補的(未經驗證,待第三輪)
+
+**洞 1:預設保護會把 1-unit 的讀取也擋掉。**
+`videos.get` / `playlistItems.get` / `commentThreads.get` 都是 1 unit,
+而它們是幾乎每支腳本判斷狀態的前提。擋住一個 1-unit 讀取,
+收益是保住 1 unit,代價是那支腳本整件事做不了 ——
+這正是既有 `_reserve_guard` 註解裡「剩 106 / RESERVE 2200 → 放行」
+處理過的同一種不對稱(原文:「1 unit 的抓留言是知道觀眾想看什麼的唯一管道」)。
+
+⇒ 加一道小額豁免。門檻取 **units >= 50**:
+本專案所有讀取類都是 1 unit,所有寫入類最小是 50(thumbnails.set / commentThreads.insert
+/ playlistItems.insert / comments.post),**50 這個切點正好把讀寫分開**,不是湊出來的。
+代價:09-04 全部 1-unit 讀取合計 **159 units**(videos.get 95 + playlistItems.get 45
++ commentThreads.get 10 + channels.get 6 + playlists.get 2 + channelSections.get 1)。
+用 159 units/日 換所有狀態判斷正常運作。
+
+**洞 2:預留 1,650 只夠一支,而時事部每日上限是 3 支。**
+`crontab.txt:58` 註解寫明「每日上限 3 支」。3 × 1,650 = 4,950,
+而 26,001 − 23,100(發布)= 2,901 —— **放不下**。
+⇒ 這個修法把時事從「結構性歸零」變成「每天一支」,**不是變成「三支」**。
+不可以宣稱它讓時事部恢復正常運作;它讓時事部從 0 變成 1。
+另外兩支仍會撞線,但那時是**有意的資源分配**,不是無聲的結構性失效。
+
 ## 已知代價(不是未知數,是選擇)
 
 1. **維運腳本會被擋得比現在多。** 池子 2,901 → 1,251。被擋時是純本地端 raise
