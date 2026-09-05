@@ -661,7 +661,87 @@ def simulate(s, expr, settings, timeout_s=600):
 SCORE_LOG = ROOT / "score_history.jsonl"
 
 
-def track_score(s):
+def _iter_history():
+    """逐行讀 score_history。壞行跳過(半截檔不能讓哨兵整個炸掉)。"""
+    if not SCORE_LOG.exists():
+        return
+    with SCORE_LOG.open(encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                yield json.loads(line)
+            except Exception:  # noqa: BLE001
+                continue
+
+
+def _score_of(rec):
+    c = (rec or {}).get("competitions") or [{}]
+    c0 = c[0] or {}
+    return c0.get("score"), c0.get("rank")
+
+
+def _sentinel(rec, errs):
+    """D3+D4 哨兵。就地在 rec 上蓋 notified / consultant_notified 標記。"""
+    last = None
+    last_notified = None
+    latched = False
+    for r in _iter_history():
+        last = r
+        if r.get("notified"):
+            last_notified = r
+        if r.get("consultant_notified"):
+            latched = True
+
+    # ---- D4:顧問單向閂 ----
+    if rec.get("consultant_http") == 200 and not latched:
+        ok = notify(
+            "🎉 BRAIN 顧問權限已開",
+            "/users/self/consultant 回 200 —— onboarding 完成、顧問權限已開。\n"
+            f"等級 {rec.get('level')}　已提交 {rec.get('submitted_total')}\n\n"
+            "注意:這**不是**邀請訊號。2026-09-03 實證:Carson 已收到 Workday 顧問\n"
+            "申請任務(邀請確實已發生)而此端點仍回 403。所以它量的是 onboarding\n"
+            "完成後的權限,不是邀請有沒有發出。",
+        )
+        if ok:
+            rec["consultant_notified"] = True   # 只有推成功才扣閂
+        else:
+            errs.append("consultant latch notify failed")
+
+    # ---- D3:score / level / submitted_total 的 edge 偵測 ----
+    base = last_notified if last_notified is not None else last
+    ps, pr = _score_of(base)
+    cs, cr = _score_of(rec)
+    changed = (cs != ps) \
+        or (rec.get("level") != (base or {}).get("level")) \
+        or (rec.get("submitted_total") != (base or {}).get("submitted_total"))
+    if base is None or not changed:
+        return
+
+    def _n(v):
+        return f"{v:,}" if isinstance(v, (int, float)) else str(v)
+
+    delta = ""
+    if isinstance(ps, (int, float)) and isinstance(cs, (int, float)):
+        delta = f"（+{cs - ps:,.0f}）"
+    ok = notify(
+        "📊 BRAIN 分數更新",
+        f"分數 {_n(ps)} → {_n(cs)} {delta}\n"
+        f"排名 {_n(pr)} → {_n(cr)}\n"
+        f"等級 {(base or {}).get('level')} → {rec.get('level')}\n"
+        f"已提交 {rec.get('submitted_records')}\n"
+        f"顧問端點 {rec.get('consultant_http')}\n\n"
+        f"門檻：Bronze>1,000　Silver>5,000　Gold>10,000（Gold=顧問資格）\n"
+        f"每日上限 2,000 分。",
+    )
+    if ok:
+        rec["notified"] = True      # 推失敗就不標記 → 下次重送,絕不靜默推進狀態
+    else:
+        errs.append("score notify failed")
+
+
+def track_score(s, src="unknown"):
     """每次跑都記一筆積分快照 → `score_history.jsonl`。
 
     為什麼要自己記：平台不顯示「這條 alpha 給了幾分」，只給一個累計 score，
@@ -725,6 +805,35 @@ def track_score(s):
         errs.append(f"consultant {e}")
     rec["errors"] = errs
     rec["partial"] = bool(errs)
+    rec["src"] = src
+    # 🔴 D3+D4（2026-09-05）。獨立驗證員實測:舊做法 15 次真實變動裡盯哨只第一個
+    #    看到 4 次(submitted_total 六次全滅),因為 `prev` 取的是**檔案最後一行**,
+    #    而這個檔有三個寫入者(本函式被 brain_alpha_cron / miner_watchdog /
+    #    daily_pick / score_watch 四路呼叫),誰先落盤誰就把變動吃掉,且吃掉的那兩支
+    #    完全不會叫。漏報的形狀是「回報無變動」——一切看起來正常。
+    #
+    #    D3:偵測下放到這裡,所以**每個寫入者都是哨兵**,採樣從 3 次/天變成每次寫入。
+    #    D4:顧問旗標改**單向閂**。它是一次性、單向、黏著的狀態,拿 edge-triggered
+    #        (比對前後差異)去偵測 level 性質的事件,本來就是錯的工具——正確性
+    #        依賴「沒漏掉任何觀測」且「沒弄丟前一個值」,而這兩件在本線上各自都壞過。
+    #        閂只能 0→1:檔案被刪/損毀/回捲、notify 失敗、別人先觀測到 —— 每一種
+    #        失效方向都被翻成「重複推播」,一個都不是「漏掉」。上限 2 則(同一分鐘
+    #        最多兩個寫入者:*/20 守門和 0 */2 排程在整點會撞,08-30 實資料有撞過)。
+    #
+    #    預設值的準則:**該欄位漏掉之後還會不會再有機會**。
+    #      顧問旗標一次性 → 找不到閂就當 0 → 倒向推播(端點仍 403 時完全靜默,
+    #        因為條件是 cc == 200 而不是 cc != pc)。
+    #      score/level/submitted 週期性,天天結算 → 找不到 notified 就取最後一行
+    #        (靜默 seed),倒向安靜。發假警報等於訓練人忽略這個管道。
+    #    這兩條是**每次都走的常駐 fallback,不是一次性 migration** —— 一次性的
+    #    fallback 在正常運作下永遠不會被執行 = 永遠沒被測過,而它偏偏只在出事那天上場。
+    #
+    #    整段包在 try/except 裡:本函式在每批挖礦開頭被呼叫,推播失敗絕不能讓
+    #    挖礦線掛掉,也絕不能阻止這筆記錄落盤。
+    try:
+        _sentinel(rec, errs)
+    except Exception as e:  # noqa: BLE001
+        errs.append(f"sentinel {e}")
     with SCORE_LOG.open("a", encoding="utf-8") as f:
         f.write(json.dumps(rec, ensure_ascii=False) + "\n")
     return rec
@@ -903,7 +1012,7 @@ def cmd_run(n, workers=2):
         print("候選都跑完了。"); release_lock(); return
     print(f"待跑 {len(todo)} 條（{workers} 個 worker 併發，平台硬上限 2）")
     s = auth()
-    sc = track_score(s)          # 每批開頭記一筆積分快照,用斜率反推一條值幾分
+    sc = track_score(s, src="alpha_cron")  # 每批開頭記一筆積分快照,用斜率反推一條值幾分
     print(f"積分快照：level={sc.get('level')} 已提交={sc.get('submitted_total')} "
           f"comp={sc.get('competitions')}")
     winners = []

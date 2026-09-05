@@ -147,7 +147,7 @@ def main() -> int:
     s = B.auth()
 
     # 今天（ET）已經交過就不要再吵 —— 每日上限 2,000，交滿了第三條拿不到分
-    snap = B.track_score(s)
+    snap = B.track_score(s, src="daily_pick")
     today = et_today()
     done_today = dict(snap.get("submitted_records") or []).get(today, 0)
     if done_today >= N_PICK and not force:
