@@ -930,6 +930,16 @@ def upload_one(yt, slug: str, privacy: str) -> str:
         # 不是兒童內容(保留留言/廣告/推薦) + 允許嵌入(站外流量是演算法加分訊號)
         "status": {"privacyStatus": privacy, "selfDeclaredMadeForKids": False, "embeddable": True},
     }
+    # 🔴 捏造閘門(2026-09-06 事故後補):旁白講的財務數字,對應得到**這一檔**的哪一條 fact?
+    # 放在這裡而不是 find_candidates,是因為這是**全頻道長片上傳的唯一必經處**——
+    # produce_batch._publish_now(:6410) 直接呼叫本函式、繞過 find_candidates 的所有閘門,
+    # 插在候選階段對那條旁路無效。
+    # 刻意不包 try/except:閘門自己壞掉時要擋人,不是靜默放行(對照 _factguard_gate:578
+    # 的 import 失敗即整批放行)。兩個呼叫端(:1257 / produce_batch:6410)都是 per-slug
+    # except,所以這支被擋不影響同批其他片。
+    import per_stock_fact_gate as _psfg
+    _psfg.gate_or_raise(slug)
+
     # 檔名 SEO：送給 YouTube 的檔名用關鍵字名(非內部 slug)。零成本弱訊號優化;失敗降級回原檔,絕不擋上傳。
     _seo_mp4 = up.seo_asset_name(meta.get("title", slug), meta.get("tags"), "mp4", slug)
     _up_path, _cleanup_mp4 = up.link_as(OUTPUT / f"{slug}.mp4", _seo_mp4)
