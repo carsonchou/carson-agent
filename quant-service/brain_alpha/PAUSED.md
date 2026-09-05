@@ -146,41 +146,25 @@ score/level/submitted/榜在不在走 edge 偵測(base = 上一次宣告成功�
 ⇒ **改簽章時 grep 一定要對整個 repo**,不要只在自己那個目錄
 (第 1 輪就是只在 `brain_alpha/*.py` 裡 grep 才漏掉那個呼叫端)。
 
-### 尚未做完的三件(下一棒直接接,規格已備妥)
+### 尚未做完的兩件(下一棒直接接,規格已備妥)
 
-**1. `runway.py` 的 fail-open —— 證據齊全,修法已定案,還沒動**
+**~~1. `runway.py` 的 fail-open~~ —— 已完成,commit `a31ade85`(2026-09-05 夜)**
 
-`runway.py:138` 建「已提交池子」時 `p = fetch_pnl(...); if p: pool.append(...)`,
-而 `fetch_pnl` 有 **5 條路徑**回 `None`(重試用完 / 非 2xx / 非 JSON / `len(recs)<100` / 429 耗盡),
-只有一條是真實資料條件。任一條已提交 alpha 抓失敗 → 它從池子消失 → 候選的最大相關度被低估。
+不要再排它。四輪獨立驗證、`test_runway.py` 98 格。原缺陷:建池子時
+`p = fetch_pnl(...); if p: pool.append(...)`,而 `fetch_pnl` 有 5 條路徑回 `None`
+—— 實測單一次 5xx 讓最大相關 **0.9988 → 0.0078、rejected → accepted**。
+現在的規則是「任何無法納入相關度計算的池成員都讓池子不完整」(理由分得出來,
+處置只有一種),`--allow-incomplete-pool` 是唯一逃生門且輸出被標記。
+🔴 `FETCH_DEADLINE = 90` **未經量測**,見下面「一個明說的未知」。
 
-執行期實測(scratchpad `probe_runway.py`,stub、不連網):
-
-| 觸發 | 池子 | 最大相關度 | 分類 |
-|---|---|---|---|
-| 正常 | 2/2 | **0.9988** | rejected |
-| 401 / 500 / 502 / 429 | 1/2 | **0.0707** | **accepted** |
-
-同一個候選、同一份真實資料,單一次 5xx 就把「和已提交的幾乎一模一樣」翻成「不相關,收下」。
-**5xx 是現實中最可能的觸發**:`fetch_pnl` 對它不重試(不是 429、不是 401、body 非空 → `break`
-→ `if not r.ok: return None`),一次就掉。
-
-修法(**不要動 `fetch_pnl` 的簽章** —— `brain_daily_pick.py` 有三個呼叫端靠 `d is None` / `if d`,
-改成二元組會讓 tuple 恆為 truthy、相關度全部歸零、**全部 accepted**,比現況嚴重得多):
-  - `runway.main()` 的 `if v is not None and abs(v) > mx` → 比照隔壁 `brain_daily_pick`
-    既有的 `abs(R.corr(d, e) or 1)` 約定,算不出來就當**最大相關**
-  - 池子不完整就中止,不要產出偏誤的 accept/reject。`runway.py:141/144` 已經印了
-    「已提交 N 條」與「取得 M 條的 PnL」兩個數字,**但沒有任何斷言在比對它們** ——
-    訊息在畫面上,不在判斷裡
-
-**2. `pick_next.submitted_ids()` 失敗回空 set**
+**① `pick_next.submitted_ids()` 失敗回空 set(未完成)**
 
 有檢查 `r.ok`,但失敗時 `return out` 是空集合 → `pick_next.main()` 讀成「一條都還沒交」
 → 已提交的重新變成候選、`done_nums` 空 ⇒ **分子去重整個失效**。
 修法:加 `strict=True` 參數,`pick_next` 用嚴格版(失敗就中止),
 `brain_daily_pick` 保持預設(它那邊空集合是安全方向:`sub` 空 ⇒ `w=0` ⇒ 不預篩 ⇒ 全送平台判)。
 
-**3. 回報給基建線:掃描器的一個盲區形狀**
+**② 回報給基建線:掃描器的一個盲區形狀(未完成 → 已於同日送出,見下)**
 
 `scripts/scan_ambiguous_zero.py` 只看**字面**空值的 `return`,抓不到
 「累加器初始化為空 → 只在成功路徑填 → 無條件 `return out`」——
