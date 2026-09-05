@@ -716,9 +716,14 @@ def _sentinel(rec, errs):
     base = last_notified if last_notified is not None else last_clean
     ps, pr = _score_of(base)
     cs, cr = _score_of(rec)
+    # 榜在不在本身就是要盯的事件(Challenge 榜 09-02 從帳號上消失,至今未回)。
+    # 用 bool() 比較,舊記錄沒有這個鍵時是 False,和「查過但空」同值 —— 不會誤報。
+    board_now = bool(rec.get("competitions"))
+    board_was = bool((base or {}).get("competitions"))
     changed = (cs != ps) \
         or (rec.get("level") != (base or {}).get("level")) \
-        or (rec.get("submitted_total") != (base or {}).get("submitted_total"))
+        or (rec.get("submitted_total") != (base or {}).get("submitted_total")) \
+        or (board_now != board_was)
     if base is None or not changed:
         return
 
@@ -734,7 +739,8 @@ def _sentinel(rec, errs):
         f"排名 {_n(pr)} → {_n(cr)}\n"
         f"等級 {(base or {}).get('level')} → {rec.get('level')}\n"
         f"已提交 {rec.get('submitted_records')}\n"
-        f"顧問端點 {rec.get('consultant_http')}\n\n"
+        f"顧問端點 {rec.get('consultant_http')}\n"
+        f"Challenge 榜 {'在' if board_was else '不在'} → {'在' if board_now else '不在'}\n\n"
         f"門檻：Bronze>1,000　Silver>5,000　Gold>10,000（Gold=顧問資格）\n"
         f"每日上限 2,000 分。",
     )
@@ -773,13 +779,21 @@ def track_score(s, src="unknown", sentinel=True):
     try:
         c = s.get(f"{API}/users/self/competitions", timeout=30)
         if c.ok:
+            # 🔴 2026-09-05:這一行在迴圈**外面**是刻意的。
+            #    原本只有迴圈裡的 setdefault,所以 results 為空時這個鍵**整個不存在**,
+            #    而 c.ok 為真 ⇒ errors 也是空的。後果:「查了、榜不在」和「根本沒查」
+            #    在下游長得一模一樣。自 09-02 15:15 榜消失起連續 24 筆都是這樣,
+            #    _score_of() 恆回 (None, None),score 這一維結構上叫不出來且零訊號。
+            #    改成無條件建鍵:空 list = 查過了、真的沒有榜(一個真實觀測);
+            #    鍵不存在 = 這一輪根本沒問到(例外或非 200)。兩者必須可分辨。
+            rec["competitions"] = []
             for row in (c.json().get("results") or []):
                 lb = row.get("leaderboard") or {}
                 # `alphas`（已進榜的條數）2026-09-02 補記：判斷「分數是否在 10,000 封頂」
                 # 唯一的區分變數就是它 —— alphas 11→13 而 score 不動 = 封頂；
                 # alphas 沒變 = 結算根本還沒發生，兩者處置完全不同。
                 # 沒有這一欄的話，score 不動會同時符合兩種解釋。
-                rec.setdefault("competitions", []).append(
+                rec["competitions"].append(
                     {"id": row.get("id"), "rank": lb.get("rank"), "score": lb.get("score"),
                      "alphas": lb.get("alphas"), "level": lb.get("level")})
         else:
