@@ -74,6 +74,12 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 #   但綁定約束是 YPP 的 4,000 小時(現在 430),幣別是**分鐘**不是觀看,而匯率差 9.6 倍
 #   (YT_SEARCH 1.52 分鐘/觀看 vs SHORTS 0.16)。同樣 1,600 units 換一支長片值 4~7 觀看小時,
 #   換一支時事 Short 值 0。
+#   🔴 這裡不要用「時事片表現差」當理由,那個說法已被推翻(news_dept.py:56 有全文):
+#     時事片其實是全頻道**最好**的 Shorts —— 進 Analytics Top-200 的機率 26.8% vs
+#     其他 Shorts 10.1%(2.65 倍),已逼近長片 35.7%。
+#     真正的理由是**它贏在觸及、不贏在分鐘**:進榜者每支觀看分鐘中位 105.9 vs 108.0
+#     (幾乎相同),因為 Shorts 的 avg_dur 被格式鎖死在 18~19 秒而長片是 118 秒。
+#     ⇒ **時事片是好 Shorts,而好 Shorts 換不到 YPP 分鐘。**
 #   🔴 但**不要**把這讀成「省下 1,600 units/天」——那句話我原本寫錯了,已就地更正:
 #     時事部的 videos.post 近四天(09-02~09-05)是 **0**,它早就被自家配額閘全數擋下,
 #     一個 unit 都沒花(帳本 by_op 的 videos.post 四天恆為 11 calls = daily_publish 的 11 支)。
@@ -407,7 +413,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # 2026-07-16 配額預算輪值制:每天→週四一次
 0 22 * * 4 YT_QUOTA_RESERVE=23650 /root/yt/run.sh scripts/build_playlists.py --max 10 >> /root/yt/logs/cron.log 2>&1
 # 台股盤中盯盤即時撃(交易日多掃幾次財經新聞)
-# [2026-09-05 停產·時事部] 理由見檔案上方 :73 附近那則完整說明
+# [2026-09-05 停產·時事部] 理由見本檔上方(搜字串 `停產·時事部`)與 scripts/news_dept.py:56
 # [2026-09-05 停產·時事部] 35 9,11,13 * * 1-5 /root/yt/run.sh scripts/news_dept.py >> /root/yt/logs/cron.log 2>&1
 # 2026-08-24 配額時區錯配修正:YouTube 配額日在**太平洋午夜重置=台北 15:00~16:00**,
 # 但排程表照台北日曆日設計(早上分析/晚上發布)→每天早上跑的都是「昨天配額日的殘渣」。
