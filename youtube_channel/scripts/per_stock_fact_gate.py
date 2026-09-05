@@ -458,6 +458,19 @@ def _log(slug: str, res: dict) -> None:
             fh.write(json.dumps(row, ensure_ascii=False) + "\n")
     except Exception:  # noqa: BLE001
         pass          # 留痕失敗不可以影響擋人的判定
+    if not res.get("blocked"):
+        return
+    # 🔴 擋下來也要有人看得到。只寫 jsonl 等於「有紀錄但沒有讀取者」——
+    # 那是 memory `verification-that-cannot-fail` 第十一種的形狀:
+    # 一支片被靜默擋掉,當天發布數少一支,而少的那支長得跟「今天沒片可發」一樣。
+    # ops_log 是產線既有的、有人在讀的那本。
+    try:
+        from ops import log_ops
+        h = res.get("hits") or [{}]
+        log_ops("上架部門", f"🔴捏造閘門擋下 {slug}：{res.get('reason', '')[:80]}"
+                            f"｜{h[0].get('raw', '')}「{h[0].get('sent', '')[:40]}」")
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def gate_or_raise(slug: str) -> None:

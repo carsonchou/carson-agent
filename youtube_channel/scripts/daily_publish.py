@@ -634,6 +634,38 @@ def find_candidates(ledger: dict) -> list:
     shorts, _b1 = _factguard_gate(shorts)
     longs, _b2 = _factguard_gate(longs)
 
+    # 🔴 捏造閘門也擺在候選階段(2026-09-06)。upload_one 裡那道才是安全收口——
+    # 這一道是為了**可用性**:todo 在上傳之前就已按 --max 挑滿,所以
+    # `--series checkup --max 1` 挑到一支被擋的片 = 當天零發布,而乾淨的片還排在後面。
+    # 在這裡先剔掉,讓它挑得到乾淨的下一支;真正擋人的仍是 upload_one(旁路也經過那裡)。
+    # 這一道刻意 fail-open(除外即略過):它只是排序輔助,漏掉的由 upload_one 兜住。
+    def _psfg_filter(slugs: list) -> list:
+        try:
+            import per_stock_fact_gate as _psfg
+        except Exception as _e:  # noqa: BLE001
+            print(f"[warn] 捏造閘門候選階段略過（upload_one 仍會擋）：{_e}", file=sys.stderr)
+            return slugs
+        keep, dropped = [], []
+        for _s in slugs:
+            try:
+                _r = _psfg.check(_s)
+                if _r["blocked"]:
+                    dropped.append((_s, _r.get("reason", "")))
+                    continue
+            except Exception:  # noqa: BLE001
+                pass          # 這裡判不出來就先留著,交給 upload_one 那道 fail-closed
+            keep.append(_s)
+        if dropped:
+            # 🔴 靜默剔除 = 沒有人知道有片被擋(當天少發一支,長得跟「沒片可發」一樣)。
+            # 這一行是那件事唯一的訊號,因為被剔掉的片再也走不到 upload_one 的 log_ops。
+            for _s, _why in dropped[:5]:
+                print(f"[捏造閘門] 候選剔除 {_s}：{_why[:90]}", file=sys.stderr)
+            log_ops("上架部門", f"🔴捏造閘門候選剔除 {len(dropped)} 支："
+                                + "、".join(s for s, _ in dropped[:4]))
+        return keep
+
+    longs = _psfg_filter(longs)
+
     # 系列連載完整性:同系列強制照集數順序發(擋跳號/撞號)。只暫緩、不丟棄,見 _series_order_gate。
     shorts, _h1 = _series_order_gate(shorts, ledger, qmap, qmin)
     longs, _h2 = _series_order_gate(longs, ledger, qmap, qmin)
