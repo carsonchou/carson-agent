@@ -88,3 +88,40 @@ python scripts\narration_compliance_watch.py --selftest=summary|biz|both
 🔴 教訓:第一版 `seeding_watch` 只有一種 fixture,它引爆了 `-1` 那條而
 「連續 0」那條**完全沒被走到** —— 而後者才是覆蓋歷史真實失效的那條。
 **「哨叫了」不等於「每一條判準都會叫」。**
+
+## 端到端推播驗證(2026-09-06 02:12)
+
+獨立驗證員指出:排程那兩次跑的都是**健康分支**,所以
+「`notify.push` 在 pythonw + Limited principal 下能不能真的送出」**零證據**。
+若它在那個環境失敗,`alert()` 會靜靜地 `say(...)` 掉(而 `say` 在 pythonw 下無聲)
+⇒ **log 有紅字而手機沒響** —— 正是昨晚那個病的變體。
+
+已補測:臨時排程工作跑 `push_e2e_test.py`(同 pythonw、同 principal、同 WorkingDirectory):
+```
+[2026-09-06 02:12:57] push() 回傳 True  (✅ 有後端送出)
+```
+`notify.push` 只在後端真的回 2xx 時才回 True(08-30 修過:原本 403/404/5xx 全被當成功),
+所以這是「真的送出」不是「沒丟例外」。臨時任務跑完即註銷。
+
+## 🔴 兩件已知但**還沒被證明**的,不要算進「已完成」
+
+1. **`narration_compliance_watch` 的判定路徑一次都沒被真資料走到。**
+   `RULE_DATE=2026-09-06` 而 09-06 目前產出 0 支 ⇒ 它每天只會吐 `⏳ 樣本不足`,
+   **要等 ≥8 支 09-06 之後的片落地才有第一個真訊號。**
+   **「它跑起來了」≠「它現在會叫」。**
+2. **機器登出時的行為沒驗。** 三支都是 `LogonType=Interactive` / `RunLevel=Limited`
+   ⇒ 推測只在 User 登入時才跑。和既有的 quota 哨一致(不是新風險),
+   但**若哪天登出或切使用者,三個哨會一起靜默**。
+
+## 為什麼不把這三支放進 `deploy/crontab.txt`(驗證員查出的硬理由)
+
+`local_cron.py:227` 的抽取正則是 `(scripts/[A-Za-z0-9_]+\.py)`,而 `run_job` 用
+`cwd=ROOT`,其中 `ROOT = D:\carson-agent\youtube_channel`(`:38`)。
+⇒ crontab 裡寫 `scripts/seeding_watch.py` 會被解析成 **`youtube_channel\scripts\seeding_watch.py`**,
+而這三支在 **repo 根的 `scripts\`** —— 那個路徑下沒有它們。
+結果會是 **註冊成功、每天到點、每天靜默失敗**(stderr 進沒人讀的 `logs/job_stderr.log`)。
+
+第二個理由更重要:**這三支是最後一道哨。**
+走 crontab 等於把它們掛在 `LocalCronWatchdog → local_cron → crontab` 這條鏈下面,
+而 **local_cron 死掉正是它們該偵測的那類事**。
+**哨要和被監視的東西平行,不是它的下游。**
