@@ -1676,6 +1676,21 @@ def _checkup_progress():
     return (done, total)
 
 
+_PCT_ZH = "零一二三四五六七八九"
+
+
+def _pct_zh(n: int) -> str:
+    """0~100 轉中文。🔴 tts_text 的三條百分比 regex 只認 %/百分之/趴/百分點,
+    **「百分位」全不匹配** ⇒ 阿拉伯數字會原樣送進 TTS,唸法不可預測。所以自己轉。"""
+    n = max(0, min(100, int(n)))
+    if n == 100:
+        return "一百"
+    if n < 10:
+        return _PCT_ZH[n]
+    t, o = divmod(n, 10)
+    return ("十" if t == 1 else _PCT_ZH[t] + "十") + (_PCT_ZH[o] if o else "")
+
+
 def _checkup_summary_line(result) -> str:
     """個股體檢的**收束句**:把整支片收成一句判斷。確定性組裝,不呼叫 LLM。
 
@@ -1728,14 +1743,21 @@ def _checkup_summary_line(result) -> str:
         if sector:
             bits.append(f"它屬於{sector.group(1)}")
         bits.append(f"過去約{yrs.group(1)}年含息總報酬{tot.group(1)}%")
-        cost = f"最深回撤{dd.group(1)}%"
+        cost = f"最深回撤{abs(float(dd.group(1))):.1f}%"   # 🔴 取 abs:原本保留負號會唸成「代價是最深回撤負百分之…」,語意反了
         if wait:
             cost += f"、最長套牢{wait.group(1)}年"
         bits.append(f"代價是{cost}")
-        bits.append(f"而以它自己近十年的本益比區間看,現在落在第{pct.group(1)}百分位")
-        # 用分號斷句而不是全部頓號:一句話塞四段會唸成一長串,那正是本次要修的
-        # 「朗讀數字表 ≠ 講解」。斷開之後 TTS 有停頓,聽的人才留得住。
-        return "一句話收束今天的體檢:" + ";".join(bits) + "。這三件事要一起看——報酬、代價、位置,少看哪一個都會誤判。"
+        bits.append(f"而以它自己近十年的本益比區間看,現在落在第{_pct_zh(int(pct.group(1)))}百分位")
+        # 🔴 尾巴那句「這三件事要一起看——報酬、代價、位置,少看哪一個都會誤判。」已移除。
+        # 獨立驗證實測:`_ending_too_similar`(:5966,比最後 100 字 / 門檻 0.72 / 對近 15 支長片)
+        # 現況就有 8/20 會觸發長片重生,加上收束句變 **12/20(+50%)**,而重生會吃題庫。
+        # 根因是那 30 個字在每支片裡**一模一樣**,直接佔滿相似度視窗。
+        # 帶資料的前半段每支都不同,留著;純樣板的收尾拿掉。
+        # 🔴 分隔用「，」不用「;」:tts_text:99-101 在連續 42 字沒有句末標點時會**硬插一個逗號**,
+        # 而它的重置字元只有 。！？!? 和 ，—— **分號不重置**。所以用分號串起來的長句會被
+        # 從中間切開,實測吐出「百分之五,十六點一」(56.1 被切成 5 和 16.1)、「最長套,牢」。
+        # 用全形逗號分隔就永遠不會累積到 42。(tts_text 那個硬插的 bug 本身另案處理。)
+        return "一句話收束今天的體檢，" + "，".join(bits) + "。"
     except (NameError, AttributeError, TypeError) as exc:
         # 🔴 這三種是**程式壞了**,不是「資料不足」。第一版一律 `except Exception: return ""`,
         # 而它把一個 `NameError: STUDIO` 吞成「20 支全部資料不足」——
