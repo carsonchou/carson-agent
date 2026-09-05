@@ -155,7 +155,9 @@ def classify(plat: dict, rows: list) -> dict:
         hits = kmap.get((_norm(p["code"]), p["decay"], p["nz"]), [])
         kinds: collections.Counter = collections.Counter()
         if not hits:
-            why = "帳本完全沒有這條（本帳本以外的工具產生）"
+            # 中性描述。**不要在這裡寫成因**：`WjPmVLpQ`（09-04 建立、產線時期）
+            # 也會落進這一桶，貼「本帳本以外的工具產生」是未經驗證的推論。
+            why = "帳本無同鍵列"
         elif any(h.get("ok") for h in hits):
             why = "帳本有同鍵的成功列但 alpha_id 不同（同一式子跑了兩次）"
         else:
