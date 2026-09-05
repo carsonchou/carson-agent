@@ -74,7 +74,10 @@ MAX_SEED_FAILS = 3  # 🔴 2026-09-05 新增:連續幾檔「種題丟例外」�
                     # 包了 try/except 之後失效模式會反過來:16 檔全部照跑、每檔都白付一次
                     # FinMind、種出 0 題。熔斷把系統性錯誤的損失壓在 3 檔。
                     # 為什麼算「連續」不算「累計」:偶發的 LLM 逾時不該中止整輪,
-                    # 只有「連著炸」才是系統性的。成功一檔就歸零。
+                    # 只有「連著炸」才是系統性的。**只有種題成功才歸零** ——
+                    # process_one 失敗走 skip 的那條路**不重置**,那是刻意的:
+                    # skip 不是一次種題事件,它沒有提供「種題現在正常」的證據。
+                    # 所以「炸、skip、炸、skip、炸」會熔斷,這是對的。
 # Carson拍板：一檔股票=一集10分鐘長片(公司是誰→基本面→價格體檢→估值位置→結尾，見
 # TW_STOCK_CHECKUP_RULES)，不是短片系列。LLM 用通用 prompt 生題時偶爾會判成 short(2026-07-15
 # 實測：13組事實生出15題只有short，因為 topics_from_facts.build_prompt 是共用邏輯不知道這系列
@@ -221,8 +224,18 @@ def seed_topics_for_code(code: str, name: str = "", dry_run: bool = False) -> in
     try:
         cands = tff.gen_topics_for_batch(batch)
     except Exception as exc:  # noqa: BLE001
-        print(f"[stock_checkup_daily] LLM 生題失敗：{str(exc)[:160]}")
-        return 0
+        # 🔴 2026-09-05:這裡原本是 `return 0`,而那讓「LLM 全滅」和「沒有新題」
+        # 在唯一的回傳值上**完全無法分辨** —— 兩者都是 0,而 0 不會觸發任何告警。
+        # 實測後果:08-21~08-29 連續九天(08-25、08-28 各 16/16 為 0,08-29 是 30/30)
+        # 種出 0 題、零告警、last_run_date 照設,沒有任何人看得出來。
+        # 上面那段註解自己就寫著這條路徑會讓「整條長片產線停擺」,而它被自己 catch 掉了。
+        #
+        # 現在改成往上丟。**這在今天之前是不安全的**(main() 沒有 try/except,
+        # 丟上去會帶走整輪 —— 那多半正是當初寫成 return 0 的原因),
+        # 但 main() 已經接得住了:會記成 n_new_topics=-1 + seed_error、
+        # 計入熔斷、且不設 last_run_date。吞掉它現在是嚴格更差的選擇。
+        print(f"[stock_checkup_daily] LLM 生題失敗：{str(exc)[:160]}", file=sys.stderr)
+        raise
     finally:
         for _k, _v in (("LLM_RESERVE_FALLBACK", _prev_reserve),
                        ("LLM_BIG_FOR_SMALL", _prev_bigsmall)):
@@ -512,7 +525,10 @@ def main() -> int:
             state["last_run_date"] = today
         _save_state(state)
 
-    _seed_bad = done_this_run - seeded_ok
+    # --dry-run 一個檔都沒碰,seeded_ok 恆為 0 而 done_this_run 照加,
+    # 不排除的話 `--count 5 --dry-run` 會假報「種題失敗 5 檔」並喊人去跑 backfill(會花 LLM)。
+    # 新裝的告警管道的第一發不能是假的,否則之後沒人會信它。
+    _seed_bad = 0 if args.dry_run else done_this_run - seeded_ok
     print(f"[stock_checkup_daily] 本次完成 {done_this_run}/{args.count} 檔(共嘗試 {attempts} 檔"
           f"，其中種題失敗 {_seed_bad} 檔)。")
     if _seed_bad:
