@@ -346,6 +346,18 @@ def record(op, units, rejected=False):
     if rejected:
         b["rejected_units"] = int(b.get("rejected_units", 0)) + int(units)
         b["rejected_calls"] = int(b.get("rejected_calls", 0)) + 1
+        # 🔴 2026-09-05 加：被拒的呼叫原本只記兩個純量，op 被丟掉。
+        # 後果不是「沒人去查」，是**帳本結構上記不下答案**——
+        # 08-27~08-31 四個撞牆日的被拒單價是 48.7 / 425.0 / 1.0 / 10.5，
+        # 差三個數量級，而那正是「這四道牆是不是同一道」的關鍵證據；
+        # 沒有 op 分桶，那個問題永遠問不出答案
+        # （docs/ops/2026-09-05_four_walls_explained.md）。
+        # ⚠️ 刻意用獨立的 key：`by_op` 是 spent 的分解（實際消耗），
+        # 被拒的不計入 spent，混進去會讓 by_op 加總與 spent 對不起來，
+        # 而那個一致性是拆解上傳鏈成本的依據。
+        _ro = b.setdefault("rejected_by_op", {}).setdefault(op, {"units": 0, "calls": 0})
+        _ro["units"] += int(units)
+        _ro["calls"] += 1
         b["updated"] = _dt.datetime.now().isoformat(timespec="seconds")
         if d.get("_unreadable"):
             # 🔴 2026-09-03 獨立驗證抓到:守衛原本只加在下面那條 _save 上,
@@ -409,6 +421,12 @@ def _unrecord(op, units):
         o["calls"] = max(0, o.get("calls", 0) - 1)
     b["rejected_units"] = int(b.get("rejected_units", 0)) + int(units)
     b["rejected_calls"] = int(b.get("rejected_calls", 0)) + 1
+    # 與 record() 的 rejected 分支對稱 —— 漏掉這裡會讓 resumable 上傳
+    # （videos.insert 1,600 units，全排程最大宗）**系統性缺席**於分桶，
+    # 而缺席的方向剛好會讓「被拒的都是小額呼叫」看起來被證實。
+    _ro = b.setdefault("rejected_by_op", {}).setdefault(op, {"units": 0, "calls": 0})
+    _ro["units"] += int(units)
+    _ro["calls"] += 1
     _save(d)
 
 
