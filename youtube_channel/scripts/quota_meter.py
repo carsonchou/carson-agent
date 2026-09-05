@@ -291,6 +291,37 @@ def _is_quota_rejected(exc):
     return "quotaExceeded" in t or "exceeded your" in t and "quota" in t
 
 
+def _quota_reject_kind(exc) -> str:
+    """這次失敗是哪一種配額拒絕?回 "" / "daily" / "other"。
+
+    "daily" = 每日總量用罄 —— **唯一**該拿來校準天花板的那種。
+    "other" = 某個端點自己的配額計量(和每日總量是不同的計量對象)。
+
+    真實樣本(`logs/job_stderr.log`,2026-09-05 兩位 fresh-context 驗證員
+    各自實抓並獨立重數,**非杜撰、非 stub**):
+      · 1,425 行 `403` `'domain': 'youtube.quota', 'reason': 'quotaExceeded'`
+        (playlistItems 900 / videos 397 / commentThreads 55 / comments 34 /
+         thumbnails.set 33 / playlists 5 / channels 1,加總吻合)→ "daily"
+      · 2 行 `429` `'domain': 'global', 'reason': 'rateLimitExceeded'`(:11730-11731)
+        訊息「Quota exceeded for quota metric 'Search Queries' and limit
+        'Search Queries per day'」→ Search 端點專屬 → "other"
+      · `insufficientPermissions` 4 行 / `videoNotFound` 2 行 → ""
+      · `dailyLimitExceeded` / `uploadLimitExceeded` 全 repo **0 命中** ——
+        ⚠️ 這只代表「現存這份 log 沒看到」,**沒查過 log 是否曾輪替,
+        不能推論從未發生**。它們落到 "",行為與現狀相同。
+
+    ⚠️ 判定順序:先判 "other"。現有樣本中沒有任何一行會同時命中兩者
+    (那 2 行既不含字面 `quotaExceeded`、也不是「exceeded your … quota」),
+    順序是防將來訊息改版的預防設計,**不是在修一個現存的碰撞**。
+    """
+    t = str(exc)
+    if "rateLimitExceeded" in t:
+        return "other"
+    if "quotaExceeded" in t or ("exceeded your" in t and "quota" in t):
+        return "daily"
+    return ""
+
+
 def _is_wall(b) -> bool:
     """這一天算不算「撞到牆」。`_scan()` 取上界、裁帳本決定保護哪一天,**必須共用這一個判準**。
 
@@ -305,7 +336,15 @@ def _is_wall(b) -> bool:
 
     spent=0 為什麼不算牆:牆的值**就是**當天的成功花費。spent=0 代表那天一 unit 都沒花成,
     那不是「一道 0 units 的牆」,是根本沒量到牆在哪。"""
-    return bool(int(b.get("rejected_calls", 0) or 0)
+    # 🔴 2026-09-05:只有「每日總量用罄」算牆。舊資料沒有分類欄位,
+    # **缺席時退回舊判準**,否則 08-27/28/29/31 四個撞牆日全部失去 wall 身分、
+    # ceil 消失、effective_limit 掉到 floor。
+    # (tests/quota_alarm/ 下五支手造的 day dict 也只帶 rejected_calls,
+    #  有真實檔案在依賴這條 fallback,不只是理論上成立。)
+    _rj = b.get("rejected_daily_calls")
+    if _rj is None:
+        _rj = b.get("rejected_calls", 0)
+    return bool(int(_rj or 0)
                 and int(b.get("spent", 0) or 0)
                 and not b.get("unreliable"))
 
@@ -337,7 +376,7 @@ def _load_bearing_days(days) -> set:
     return keep
 
 
-def record(op, units, rejected=False):
+def record(op, units, rejected=False, kind="daily"):
     """rejected=True:配額用罄被拒的呼叫 —— 記進獨立的桶,**不計入 spent**。
     帳本要能回答「今天真的花了多少」,而不是「今天發了幾個請求」。"""
     day = _pacific_date()
@@ -346,6 +385,12 @@ def record(op, units, rejected=False):
     if rejected:
         b["rejected_units"] = int(b.get("rejected_units", 0)) + int(units)
         b["rejected_calls"] = int(b.get("rejected_calls", 0)) + 1
+        # 🔴 2026-09-05:只有「每日總量用罄」才該拿來校準天花板。
+        # 一律 +(0 或 1)而不是「只在 daily 時才寫這個 key」——
+        # 否則 `_is_wall()` 的舊資料 fallback 會把「新資料、只有非總量拒絕」
+        # 誤判成「舊資料、無分類」而退回舊判準,那正好把要防的 bug 放回來。
+        # **「存在但為 0」和「不存在」是兩件事。**
+        b["rejected_daily_calls"] = int(b.get("rejected_daily_calls", 0)) + (1 if kind == "daily" else 0)
         # 🔴 2026-09-05 加：被拒的呼叫原本只記兩個純量，op 被丟掉。
         # 後果不是「沒人去查」，是**帳本結構上記不下答案**——
         # 08-27~08-31 四個撞牆日的被拒單價是 48.7 / 425.0 / 1.0 / 10.5，
@@ -406,7 +451,7 @@ def record(op, units, rejected=False):
     return b["spent"]
 
 
-def _unrecord(op, units):
+def _unrecord(op, units, kind="daily"):
     """把一筆已記進 spent 的搬到 rejected 桶(分段上傳只能先收費後才知道結果)。"""
     day = _pacific_date()
     d = _load()
@@ -421,6 +466,7 @@ def _unrecord(op, units):
         o["calls"] = max(0, o.get("calls", 0) - 1)
     b["rejected_units"] = int(b.get("rejected_units", 0)) + int(units)
     b["rejected_calls"] = int(b.get("rejected_calls", 0)) + 1
+    b["rejected_daily_calls"] = int(b.get("rejected_daily_calls", 0)) + (1 if kind == "daily" else 0)
     # 與 record() 的 rejected 分支對稱 —— 漏掉這裡會讓 resumable 上傳
     # （videos.insert 1,600 units，全排程最大宗）**系統性缺席**於分桶，
     # 而缺席的方向剛好會讓「被拒的都是小額呼叫」看起來被證實。
@@ -684,7 +730,8 @@ def install(service=None):
             # 一般失敗(500/逾時/權限)配額照樣被扣 → 記進 spent;
             # 但 quotaExceeded 是「配額已經沒了所以拒收」,不會再扣 → 記進 rejected 桶。
             if units:
-                _maybe_warn(record(op, units, rejected=_is_quota_rejected(exc)))
+                _k = _quota_reject_kind(exc)
+                _maybe_warn(record(op, units, rejected=bool(_k), kind=_k))
             raise
         if units:
             _maybe_warn(record(op, units))
@@ -724,10 +771,11 @@ def install(service=None):
         try:
             return _orig_next(self, *a, **kw)
         except Exception as exc:                      # noqa: BLE001
-            if _is_quota_rejected(exc):
+            _k = _quota_reject_kind(exc)          # 只呼叫一次,存起來再用
+            if _k:
                 op, units = cost_of(getattr(self, "uri", ""), getattr(self, "method", "GET"))
                 if units:
-                    _unrecord(op, units)
+                    _unrecord(op, units, kind=_k)
             raise
 
     HttpRequest.next_chunk = _next_chunk
