@@ -1676,6 +1676,77 @@ def _checkup_progress():
     return (done, total)
 
 
+def _checkup_summary_line(result) -> str:
+    """個股體檢的**收束句**:把整支片收成一句判斷。確定性組裝,不呼叫 LLM。
+
+    ## 為什麼要有(2026-09-05,Carson:「影片做的觀念不清楚」)
+    先量再改:最近 10 支的事實利用率是 **基本面 38/42(90%)**、價格回測 29/35 ——
+    **基本面用得比回測還多**,所以「加基本面」是錯的處方,再加只會讓片更長更難懂。
+    n=20 找出來真正系統性的缺陷是這個:**18/20 支旁白沒有任何收束句**,
+    最後兩句是「訂閱頻道才不會錯過」「私訊領檢核表」——
+    **觀眾聽完 10 分鐘、11 條事實,最後留在腦裡的是 CTA,不是任何關於這家公司的判斷。**
+    那直接解釋了留言區的「完全沒內容,不推薦」與「亂七八糟講些什麼聽不懂」。
+
+    ## 判準:兩句話說得出「這家公司做什麼、現在該不該買」
+    所以這句話固定回答三件事,缺一不可:
+      ① 它是做什麼的(產業/業務)      ② 過去的報酬與**代價**   ③ 現在的估值**位置**
+    ③ 刻意講「第 P 百分位」而不是「貴/便宜」——**陳述位置不是給建議**,
+    既合規又有資訊量;而原本的旁白把這半句寫成純免責,等於把唯一有資訊的那半句吃掉。
+
+    ## fail-open
+    任何一項資料缺就**回空字串**(寧可沒有收束句,也不要半句)。
+    這句話的價值來自「三件事一起看」,少一件就不成立。
+    """
+    import re as _re
+    try:
+        # 🔴 代號**不能**從 voice_text 抽:旁白為了 TTS 把數字全寫成中文(「六六五八」),
+        # 第一版用 `\d{4}` 去撈,結果 20 支真實旁白**全部**抓不到、100% 靜默 fail-open。
+        # (執行期測試當場抓到——這正是「讀程式碼算的 ≠ 跑起來的行為」。)
+        # title/slug 保留阿拉伯數字,從那裡拿。
+        src = " ".join(str(result.get(k) or "") for k in ("title", "slug", "_pulled_topic"))
+        m = _re.search(r"(?<!\d)(\d{4})(?!\d)", src)
+        code = m.group(1) if m else ""
+        if not code:
+            return ""
+        import json as _json
+        res = _json.loads(STOCK_CHECKUP_FACTS.read_text(encoding="utf-8")).get("results") or {}
+        def claim(cat):
+            v = res.get(f"{cat}__{code}")
+            return str((v or {}).get("claim") or "")
+        lh, val, uw, ind = claim("checkup_long_horizon"), claim("checkup_valuation_position"),                            claim("checkup_underwater"), claim("checkup_industry_rank")
+        if not (lh and val):
+            return ""                       # 缺任一支柱就不補(見 docstring 的 fail-open)
+        yrs = _re.search(r"約?([\d.]+)\s*年", lh)
+        tot = _re.search(r"總報酬\s*(-?[\d.]+)%", lh)
+        dd  = _re.search(r"最大回撤\s*(-?[\d.]+)%", lh)
+        pct = _re.search(r"第\s*(\d+)\s*百分位", val)
+        if not (yrs and tot and dd and pct):
+            return ""
+        wait = _re.search(r"整整等了\s*([\d.]+)\s*年", uw)
+        sector = _re.search(r"「([^」]{2,12})」股票", ind)
+        bits = []
+        if sector:
+            bits.append(f"它屬於{sector.group(1)}")
+        bits.append(f"過去約{yrs.group(1)}年含息總報酬{tot.group(1)}%")
+        cost = f"最深回撤{dd.group(1)}%"
+        if wait:
+            cost += f"、最長套牢{wait.group(1)}年"
+        bits.append(f"代價是{cost}")
+        bits.append(f"而以它自己近十年的本益比區間看,現在落在第{pct.group(1)}百分位")
+        # 用分號斷句而不是全部頓號:一句話塞四段會唸成一長串,那正是本次要修的
+        # 「朗讀數字表 ≠ 講解」。斷開之後 TTS 有停頓,聽的人才留得住。
+        return "一句話收束今天的體檢:" + ";".join(bits) + "。這三件事要一起看——報酬、代價、位置,少看哪一個都會誤判。"
+    except (NameError, AttributeError, TypeError) as exc:
+        # 🔴 這三種是**程式壞了**,不是「資料不足」。第一版一律 `except Exception: return ""`,
+        # 而它把一個 `NameError: STUDIO` 吞成「20 支全部資料不足」——
+        # 100% 靜默失敗,還附一個看起來合理的理由。修這個病的過程中現造了一個同款。
+        # 資料缺 → 上面各處 return "";程式壞 → 這裡出聲。兩者不可以回同一個值。
+        print(f"[checkup] 🔴 收束句組裝壞了(不是資料不足):{exc!r}", file=sys.stderr)
+        return ""
+    except Exception:  # noqa: BLE001
+        return ""                            # 其餘(讀檔/編碼)不擋產出
+
+
 def _checkup_finalize(result, next_name):
     """個股體檢片產出後的確定性補強(同 _ai_savings_desc_block 的「確定性附加，保證不被 LLM 吞」
     慣例)——2026-07-15 實跑 EP2 抓到：模板雖注入，LLM 仍把片尾下集點名寫成自由發揮的
@@ -1701,6 +1772,13 @@ def _checkup_finalize(result, next_name):
                 continue  # 假下集預告,拆掉(正確的下面會補)
             kept.append(sent)
         v = "".join(kept).rstrip()
+    # 🔴 2026-09-05:收束句補在 CTA **之前**。
+    # 18/20 支旁白從最後一段資料直接跳到「訂閱頻道才不會錯過」,
+    # 觀眾聽完拿不走任何關於這家公司的判斷。只在缺的時候補,LLM 已寫好的不重複。
+    if not any(k in v[-260:] for k in ("一句話收束", "總結", "整體而言", "綜合來看", "結論是")):
+        _sum = _checkup_summary_line(result)
+        if _sum:
+            v = v.rstrip() + _sum
     tail_bits = []
     if "留言" not in v:
         tail_bits.append("留言告訴我，這集哪個數字最讓你意外。")
