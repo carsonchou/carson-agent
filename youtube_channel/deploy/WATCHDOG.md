@@ -45,3 +45,46 @@ Start-ScheduledTask -TaskName LocalCronWatchdog                          # 立�
 .venv\Scripts\python.exe scripts\local_cron_watchdog.py --status   # 只印現況,不動手
 ```
 產出:`logs/local_cron_watchdog.log`(只在有動作時寫)、`logs/local_cron_boot.log`(被拉起來那個實例的 stderr)、`STUDIO/local_cron_watchdog_alert.json`(現在有問題)、`STUDIO/local_cron_watchdog_push.json`(推播冷卻)。
+
+---
+
+# 主頻道守望排程(2026-09-06 建;Windows 排程工作不受版控,重灌照這裡重建)
+
+昨晚(09-04→05)兩支 session-local monitor **隨 session 撞 429 一起死掉,全盲七小時**。
+⇒ **哨必須在排程層,不能靠 session。** 這三支都是那個教訓的產物。
+
+| 名稱 | 腳本 | 時間 | 它在防什麼 |
+|---|---|---|---|
+| `carson-quota-ceiling-watch` | `scripts\quota_ceiling_watch.py` | 每天 15:20 | 配額天花板變化(基建線 09-02 建) |
+| **`carson-seeding-watch`** | `scripts\seeding_watch.py` | **每天 07:00** | 種題例外(-1)、連續 K≥5 個 0、**上游基本面斷料** |
+| **`carson-narration-compliance-watch`** | `scripts\narration_compliance_watch.py` | **每天 07:10** | 收束句與業務介紹兩條模板規則的**遵守率** |
+
+共同設定:`youtube_channel\.venv\Scripts\pythonw.exe`、`WorkingDirectory=D:\carson-agent`、
+`MultipleInstances=IgnoreNew`、`StartWhenAvailable`、電池上照跑、`ExecutionTimeLimit=15 分鐘`。
+
+## 註冊當下的驗收(2026-09-06 02:10)
+
+**「State=Ready」和「LastTaskResult=0」都不是證據。** 真正的證據是 **log 長出新行**:
+
+```
+Start-ScheduledTask 兩支 → 等 25 秒
+  seeding-watch.log             9 行 → 10 行   [02:10] ✅ 正常｜…｜上游 09-03 缺0%、09-05 缺0%
+  narration-compliance-watch.log 5 行 →  6 行   [02:10] ⏳ 樣本不足只報不判(n=0 < 8)
+  NextRunTime  07:00 / 07:10 —— **不是空的**
+```
+
+⚠️ `NextRunTime` 為空是本檔上面記過的坑(只掛「登入時」觸發 ⇒ 註冊成功但永遠不會跑)。
+這兩支用 `-Daily -At`,是時間觸發,已確認非空。
+
+⚠️ 用 `pythonw` 表示 **stdout 是 None**。三支腳本都把 log 當主通道、print 包在可失敗的
+`say()` 裡 —— 這個模式已由排程實跑證明可行(log 真的長出來了)。
+
+## 演習
+三支都有 `--selftest`,而且**每一條判準各自要有引爆輸入**:
+```
+python scripts\seeding_watch.py --selftest=err|zero|upstream|all
+python scripts\narration_compliance_watch.py --selftest=summary|biz|both
+```
+🔴 教訓:第一版 `seeding_watch` 只有一種 fixture,它引爆了 `-1` 那條而
+「連續 0」那條**完全沒被走到** —— 而後者才是覆蓋歷史真實失效的那條。
+**「哨叫了」不等於「每一條判準都會叫」。**
