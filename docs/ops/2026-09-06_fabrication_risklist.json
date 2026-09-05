@@ -1,0 +1,859 @@
+{
+ "note": "FinMind 斷料窗(2026-07-18~08-05)期間算事實、缺基本面、且已公開的個股體檢片。這是逐支人工複核的清單,不是已確認捏造的清單。",
+ "n": 59,
+ "rows": [
+  {
+   "code": "1802",
+   "name": "台玻",
+   "computed_at": "2026-07-21",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 8,
+   "videoId": "o_W_gtKNY9U",
+   "slug": "L_個股體檢台玻1802臺玻1802存20年賺340長期"
+  },
+  {
+   "code": "2059",
+   "name": "川湖",
+   "computed_at": "2026-07-24",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 8,
+   "videoId": "vXVkzpk4FZ4",
+   "slug": "L_個股體檢川湖2059存18年暴賺7774但604暴跌"
+  },
+  {
+   "code": "2345",
+   "name": "智邦",
+   "computed_at": "2026-07-19",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 8,
+   "videoId": "BymPJQbC9cU",
+   "slug": "L_個股體檢智邦2345存20年暴漲345倍年化34背後"
+  },
+  {
+   "code": "2353",
+   "name": "宏碁",
+   "computed_at": "2026-08-03",
+   "missing": [
+    "checkup_dividend_history"
+   ],
+   "n_facts": 12,
+   "videoId": "A4teTDc4sVg",
+   "slug": "L_個股體檢宏碁23532353抱20年只賺449最大回"
+  },
+  {
+   "code": "2356",
+   "name": "英業達",
+   "computed_at": "2026-07-22",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 8,
+   "videoId": "u-2PyNoTOQk",
+   "slug": "L_個股體檢英業達2356存20年賺1086但暴跌65你"
+  },
+  {
+   "code": "2357",
+   "name": "華碩",
+   "computed_at": "2026-07-23",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 8,
+   "videoId": "I-dZzhEhAAA",
+   "slug": "L_個股體檢華碩2357存20年賺1079但最大回撤64"
+  },
+  {
+   "code": "2360",
+   "name": "致茂",
+   "computed_at": "2026-07-21",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 8,
+   "videoId": "p_KCREwmyds",
+   "slug": "L_個股體檢致茂2360存20年狂漲129倍但765暴跌"
+  },
+  {
+   "code": "2368",
+   "name": "金像電",
+   "computed_at": "2026-07-19",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 8,
+   "videoId": "J5pDfPc9w7A",
+   "slug": "L_個股體檢金像電2368存20年暴漲6100但826暴"
+  },
+  {
+   "code": "2375",
+   "name": "凱美",
+   "computed_at": "2026-07-27",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 7,
+   "videoId": "_GgxPgLzsKQ",
+   "slug": "L_個股體檢凱美2375存15年賺289年化91背後的7"
+  },
+  {
+   "code": "2376",
+   "name": "技嘉",
+   "computed_at": "2026-07-23",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 8,
+   "videoId": "8NCqx8Zzwu0",
+   "slug": "L_個股體檢技嘉2376存20年賺5491但暴跌665你"
+  },
+  {
+   "code": "2377",
+   "name": "微星",
+   "computed_at": "2026-07-24",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 8,
+   "videoId": "D-IZXExuPmw",
+   "slug": "L_個股體檢微星2377存20年暴賺2625但暴跌65你"
+  },
+  {
+   "code": "2379",
+   "name": "瑞昱",
+   "computed_at": "2026-07-23",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 8,
+   "videoId": "A6NMKUlmqPQ",
+   "slug": "L_個股體檢瑞昱2379存20年暴漲3127但84暴跌你"
+  },
+  {
+   "code": "2383",
+   "name": "台光電",
+   "computed_at": "2026-07-18",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 8,
+   "videoId": "Nhc7XjmcTLY",
+   "slug": "L_個股體檢台光電2383臺光電2383存20年暴漲95"
+  },
+  {
+   "code": "2404",
+   "name": "漢唐",
+   "computed_at": "2026-07-22",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 8,
+   "videoId": "gng4qPT1DS0",
+   "slug": "L_個股體檢漢唐2404十年回測打臉最大回撤645你還敢"
+  },
+  {
+   "code": "2409",
+   "name": "友達",
+   "computed_at": "2026-07-18",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 8,
+   "videoId": "OhrPgVP_CR8",
+   "slug": "L_個股體檢友達2409存20年含息報酬僅73你還敢存股"
+  },
+  {
+   "code": "2455",
+   "name": "全新",
+   "computed_at": "2026-07-28",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 8,
+   "videoId": "RUZLI4k8OU8",
+   "slug": "L_個股體檢全新2455245520年暴賺1890但這-"
+  },
+  {
+   "code": "2481",
+   "name": "強茂",
+   "computed_at": "2026-07-21",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 8,
+   "videoId": "WNrS46cXiQ8",
+   "slug": "L_個股體檢強茂2481存20年賺1580但暴跌82你敢"
+  },
+  {
+   "code": "2484",
+   "name": "希華",
+   "computed_at": "2026-07-28",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 8,
+   "videoId": "OtwYzI6XE8Y",
+   "slug": "L_個股體檢希華2484存20年暴賺902但10年套牢與"
+  },
+  {
+   "code": "2492",
+   "name": "華新科",
+   "computed_at": "2026-07-23",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 8,
+   "videoId": "EFQGvPDDTRQ",
+   "slug": "L_個股體檢華新科2492存20年賺1778但暴跌836"
+  },
+  {
+   "code": "2883",
+   "name": "凱基金",
+   "computed_at": "2026-08-03",
+   "missing": [
+    "checkup_gross_margin"
+   ],
+   "n_facts": 12,
+   "videoId": "eHkI8ooVgss",
+   "slug": "L_個股體檢凱基金288320年報酬569但你確定能忍腰"
+  },
+  {
+   "code": "2884",
+   "name": "玉山金",
+   "computed_at": "2026-08-05",
+   "missing": [
+    "checkup_gross_margin"
+   ],
+   "n_facts": 12,
+   "videoId": "mvNh7IjgRLY",
+   "slug": "L_個股體檢玉山金2884存20年年化119報酬小心你可"
+  },
+  {
+   "code": "2887",
+   "name": "台新新光金",
+   "computed_at": "2026-07-26",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 8,
+   "videoId": "FYpVo6KawFE",
+   "slug": "L_個股體檢台新新光金2887臺新新光金288720年報"
+  },
+  {
+   "code": "2890",
+   "name": "永豐金",
+   "computed_at": "2026-08-05",
+   "missing": [
+    "checkup_gross_margin"
+   ],
+   "n_facts": 12,
+   "videoId": "Hgf5C6P0fN4",
+   "slug": "L_個股體檢永豐金289020年報酬686卻讓你套牢18"
+  },
+  {
+   "code": "2891",
+   "name": "中信金",
+   "computed_at": "2026-07-24",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 8,
+   "videoId": "0EPASuhQti0",
+   "slug": "L_個股體檢中信金289120年暴賺964但暴跌72你敢"
+  },
+  {
+   "code": "3017",
+   "name": "奇鋐",
+   "computed_at": "2026-07-18",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 8,
+   "videoId": "7ixOvHW5aM8",
+   "slug": "L_個股體檢奇鋐3017存20年暴漲336倍但套牢6年你"
+  },
+  {
+   "code": "3026",
+   "name": "禾伸堂",
+   "computed_at": "2026-07-24",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 8,
+   "videoId": "PTyaAdZ_8O4",
+   "slug": "L_個股體檢禾伸堂3026存20年暴漲2944但719暴"
+  },
+  {
+   "code": "3034",
+   "name": "聯詠",
+   "computed_at": "2026-07-27",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 8,
+   "videoId": "Oy7dux0cBHs",
+   "slug": "L_個股體檢聯詠3034存20年暴賺1145但暴跌84你"
+  },
+  {
+   "code": "3034",
+   "name": "聯詠",
+   "computed_at": "2026-07-27",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 8,
+   "videoId": "j8_FcHDgw20",
+   "slug": "L_個股體檢聯詠30343034抱20年賺1145卻套牢"
+  },
+  {
+   "code": "3036",
+   "name": "文曄",
+   "computed_at": "2026-07-28",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 8,
+   "videoId": "zF6FeFYYx6A",
+   "slug": "L_個股體檢文曄3036回測報酬45422但有個你必須知"
+  },
+  {
+   "code": "3081",
+   "name": "聯亞",
+   "computed_at": "2026-07-21",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 7,
+   "videoId": "5xlZ-GgkLoE",
+   "slug": "L_個股體檢聯亞3081存12年賺13倍年化247背後的"
+  },
+  {
+   "code": "3090",
+   "name": "日電貿",
+   "computed_at": "2026-08-03",
+   "missing": [
+    "checkup_dividend_history"
+   ],
+   "n_facts": 12,
+   "videoId": "u0gWQe1RbNA",
+   "slug": "L_個股體檢日電貿3090報酬2195超誘人但你敢賭53"
+  },
+  {
+   "code": "3149",
+   "name": "正達",
+   "computed_at": "2026-08-05",
+   "missing": [
+    "checkup_valuation_position"
+   ],
+   "n_facts": 11,
+   "videoId": "l36tPQliBSc",
+   "slug": "L_個股體檢正達31493149長期投資真相抱14年總報"
+  },
+  {
+   "code": "3211",
+   "name": "順達",
+   "computed_at": "2026-07-24",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 8,
+   "videoId": "jsIt1qA1aj8",
+   "slug": "L_個股體檢順達3211存18年報酬1523但暴跌728"
+  },
+  {
+   "code": "3260",
+   "name": "威剛",
+   "computed_at": "2026-07-21",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 8,
+   "videoId": "otTPyfbKfJ0",
+   "slug": "L_個股體檢威剛32603260存18年賺1075但暴跌"
+  },
+  {
+   "code": "3443",
+   "name": "創意",
+   "computed_at": "2026-07-18",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 8,
+   "videoId": "N0XlP_2ALLM",
+   "slug": "L_個股體檢創意3443存19年賺116倍但834暴跌風"
+  },
+  {
+   "code": "3450",
+   "name": "聯鈞",
+   "computed_at": "2026-07-22",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 8,
+   "videoId": "B1VfToi_HdY",
+   "slug": "L_個股體檢聯鈞3450二十年賺4322超高報酬背後的巨"
+  },
+  {
+   "code": "3491",
+   "name": "昇達科",
+   "computed_at": "2026-07-27",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 8,
+   "videoId": "UY0DdkuZrHo",
+   "slug": "L_個股體檢昇達科3491存18年暴漲4821但70暴跌"
+  },
+  {
+   "code": "3653",
+   "name": "健策",
+   "computed_at": "2026-07-22",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 7,
+   "videoId": "ULkaLj4d_tA",
+   "slug": "L_個股體檢健策3653存16年賺56倍但暴跌78你敢抱"
+  },
+  {
+   "code": "3661",
+   "name": "世芯-KY",
+   "computed_at": "2026-07-19",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 7,
+   "videoId": "rizhPQWp3Sk",
+   "slug": "L_個股體檢世芯-KY36613661上市13年暴漲10"
+  },
+  {
+   "code": "3665",
+   "name": "貿聯-KY",
+   "computed_at": "2026-07-21",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 7,
+   "videoId": "9Ly1duaPucw",
+   "slug": "L_個股體檢貿聯-KY366515年暴漲56倍但64暴跌"
+  },
+  {
+   "code": "4919",
+   "name": "新唐",
+   "computed_at": "2026-07-26",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 7,
+   "videoId": "DQqWOKBFDs8",
+   "slug": "L_個股體檢新唐4919存15年暴賺363但年化10真的"
+  },
+  {
+   "code": "5347",
+   "name": "世界",
+   "computed_at": "2026-07-20",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 8,
+   "videoId": "Qk-o2-ZaV-c",
+   "slug": "L_個股體檢世界5347存18年賺1515但暴跌73你敢"
+  },
+  {
+   "code": "5425",
+   "name": "台半",
+   "computed_at": "2026-07-27",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 8,
+   "videoId": "0Gy7jec6Agc",
+   "slug": "L_個股體檢台半5425臺半5425存18年賺270但暴"
+  },
+  {
+   "code": "6139",
+   "name": "亞翔",
+   "computed_at": "2026-07-23",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 8,
+   "videoId": "gv_LsCVxSOw",
+   "slug": "L_個股體檢亞翔6139存20年暴漲66倍但688暴跌風"
+  },
+  {
+   "code": "6147",
+   "name": "頎邦",
+   "computed_at": "2026-07-18",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 8,
+   "videoId": "Vd3pOcDFhFQ",
+   "slug": "L_個股體檢頎邦6147存18年賺14倍但799暴跌風險"
+  },
+  {
+   "code": "6213",
+   "name": "聯茂",
+   "computed_at": "2026-07-20",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 8,
+   "videoId": "PjBxIco2FIo",
+   "slug": "L_個股體檢聯茂6213存18年賺3123但674暴跌風"
+  },
+  {
+   "code": "6239",
+   "name": "力成",
+   "computed_at": "2026-07-18",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 8,
+   "videoId": "H3Sk1AfUVT0",
+   "slug": "L_個股體檢力成6239存20年賺1417但685暴跌風"
+  },
+  {
+   "code": "6271",
+   "name": "同欣電",
+   "computed_at": "2026-07-28",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 8,
+   "videoId": "BiGdBpEvI6Q",
+   "slug": "L_個股體檢同欣電6271抱18年賺347卻慘輸0050"
+  },
+  {
+   "code": "6278",
+   "name": "台表科",
+   "computed_at": "2026-08-03",
+   "missing": [
+    "checkup_dividend_history"
+   ],
+   "n_facts": 12,
+   "videoId": "-dyes0qFE9U",
+   "slug": "L_個股體檢台表科6278臺表科18年賺917但曾套牢7"
+  },
+  {
+   "code": "6282",
+   "name": "康舒",
+   "computed_at": "2026-07-27",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 8,
+   "videoId": "m1pqccjG5s8",
+   "slug": "L_個股體檢康舒6282存20年賺10倍1036報酬背後"
+  },
+  {
+   "code": "6285",
+   "name": "啟碁",
+   "computed_at": "2026-07-22",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 8,
+   "videoId": "IjgIEJo5w7E",
+   "slug": "L_個股體檢啟碁6285存20年賺1384但暴跌745你"
+  },
+  {
+   "code": "6442",
+   "name": "光聖",
+   "computed_at": "2026-07-22",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 7,
+   "videoId": "wcqE7dVwkP4",
+   "slug": "L_個股體檢光聖6442存12年暴漲47倍年化37背後的"
+  },
+  {
+   "code": "6446",
+   "name": "藥華藥",
+   "computed_at": "2026-07-26",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 7,
+   "videoId": "-_aUs0oj1o0",
+   "slug": "L_個股體檢藥華藥6446存12年暴賺5889但暴跌76"
+  },
+  {
+   "code": "6488",
+   "name": "環球晶",
+   "computed_at": "2026-07-21",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 7,
+   "videoId": "ZzYz7JrDBK0",
+   "slug": "L_個股體檢環球晶6488存11年賺2326但暴跌68你"
+  },
+  {
+   "code": "6515",
+   "name": "穎崴",
+   "computed_at": "2026-07-26",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 7,
+   "videoId": "N_quHN5BBRE",
+   "slug": "L_個股體檢穎崴6515暴漲1221但69暴跌你敢抱嗎三"
+  },
+  {
+   "code": "6669",
+   "name": "緯穎",
+   "computed_at": "2026-07-19",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 7,
+   "videoId": "TBMTuaUTd8A",
+   "slug": "L_個股體檢緯穎6669暴漲54倍年化588背後的代價6"
+  },
+  {
+   "code": "6669",
+   "name": "緯穎",
+   "computed_at": "2026-07-19",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 7,
+   "videoId": "iomP9B0NomM",
+   "slug": "L_個股體檢緯穎66696669上市87年狂賺5408最"
+  },
+  {
+   "code": "6805",
+   "name": "富世達",
+   "computed_at": "2026-07-28",
+   "missing": [
+    "checkup_dividend_history",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_revenue_trend",
+    "checkup_valuation_position"
+   ],
+   "n_facts": 6,
+   "videoId": "Qzi-6x9iGj4",
+   "slug": "L_個股體檢富世達680557年報酬1758的真相小心這"
+  },
+  {
+   "code": "8028",
+   "name": "昇陽半導體",
+   "computed_at": "2026-08-03",
+   "missing": [
+    "checkup_dividend_history"
+   ],
+   "n_facts": 11,
+   "videoId": "e9Wn7n6MvgY",
+   "slug": "L_個股體檢昇陽半導體802811年報酬930竟有48年"
+  }
+ ]
+}
