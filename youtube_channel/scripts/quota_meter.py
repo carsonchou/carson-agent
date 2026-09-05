@@ -680,6 +680,56 @@ def _maybe_warn(total):
 PUBLISH_UNIT_COST = 2150
 
 
+
+def record_self_refusal(op, units, why="") -> None:
+    """記一筆「**我們自己**擋下的」呼叫。永不丟例外。
+
+    🔴 為什麼要和 `rejected_*` 嚴格分桶(獨立驗證員實測,2026-09-05):
+    `rejected_daily_*` → `daily_rejects()` → `_is_wall()` → `_scan()` 取**日期最近**的牆
+    → `effective_limit()` 回 `max(ceil, floor_since)`,而 `floor_since` 只算 ceil 日之後
+    ⇒ **一旦今天被標成牆,eff 就等於今天的 spent。**
+    拿真帳本實測:把 09-05 那 3 次自我拒絕寫進 `rejected_*`,eff 從 **26,001 掉到 2,974**;
+    模擬 `_reserve_guard` 在 spent=16,000 擋一次,eff = **16,000**。
+    而 `_reserve_guard` **依設計就在離真牆很遠的水位開火**(RESERVE 9600),
+    它產生的假牆是任意低的,再被 `_load_bearing_days()` 保護起來不裁 = 化石化。
+    ⇒ 混桶不是精度問題,是**一天之內把天花板砍掉一個數量級**,而且那個假牆會自我強化:
+      自我拒絕的觸發條件本來就是「spent 接近 effective_limit()」。
+
+    ⇒ 這個桶**只做觀測,不參與任何校準**。`_is_wall` / `observed` / `effective_limit`
+      一律不得讀 `self_refused_*`。要改那三支之前先讀這一段。
+
+    為什麼需要它:`rejected_*` 只記 Google 的真 403。三個 `raise QuotaExhausted`
+    (`_reserve_guard` / `_execute` / `_charge_once`)在此之前**一筆都沒記** ⇒
+    我們自己擋掉的東西在帳本上完全不存在。09-03 spent 剛好撞到 26,001 卻沒有
+    `rejected_units` 欄位,看起來像「什麼都沒被擋」,而同日 ops_log 有 3 次
+    `quota exhausted:videos.post 需 1600`。**兩本帳量的是不同的東西,而只有一本有欄位。**
+    """
+    try:
+        day = _pacific_date()          # 拒絕當下算,三個呼叫點都在送出前,無跨日問題
+        d = _load()
+        b = d.setdefault("days", {}).setdefault(day, {"spent": 0, "calls": 0, "by_op": {}})
+        b["self_refused_units"] = int(b.get("self_refused_units", 0)) + int(units or 0)
+        b["self_refused_calls"] = int(b.get("self_refused_calls", 0)) + 1
+        _so = b.setdefault("self_refused_by_op", {}).setdefault(op, {"units": 0, "calls": 0})
+        _so["units"] += int(units or 0)
+        _so["calls"] += 1
+        if why:
+            b.setdefault("self_refused_why", {})
+            b["self_refused_why"][why] = int(b["self_refused_why"].get(why, 0)) + 1
+        b["updated"] = _dt.datetime.now().isoformat(timespec="seconds")
+        if d.get("_unreadable"):
+            # 與 record() 的兩條 return 路徑同一個守衛。09-03 抓到過「同一件事兩份實作、
+            # 只修了其中一份」,這是第三條分支,守衛必須自己再帶一次。
+            print("[quota] 🔴 帳本讀不到,自我拒絕這一筆不寫回", file=sys.stderr)
+            return
+        _save(d)
+    except Exception:  # noqa: BLE001
+        # 記帳失敗絕不能把 QuotaExhausted 換成別的例外 —— 呼叫端靠「訊息含 quota」
+        # 來判斷要不要乾淨收工(見 _execute 上方註解),換掉例外會讓 25 支腳本
+        # 從「停在額度線上」變成「以未預期例外中止」。
+        pass
+
+
 def _reserve_guard(op, units):
     """預留額度守門。**兩個呼叫端(_execute / _charge_once)共用這一份**——
     原本兩處各寫一份一模一樣的判斷式,而 2026-08-31 這一天已經踩了三次
@@ -708,6 +758,7 @@ def _reserve_guard(op, units):
     after_n = max(0, r - units) // PUBLISH_UNIT_COST  # 花下去之後還發得出幾支
     want_n = RESERVE // PUBLISH_UNIT_COST      # reserve 想保住幾支
     if after_n < min(now_n, want_n):
+        record_self_refusal(op, units, why="reserve")
         raise QuotaExhausted(
             f"quota reserve:{op} 需 {units} units,今日剩 {r},"
             f"花下去只剩 {after_n} 支發布額度(要保住 {min(now_n, want_n)} 支)"
@@ -739,6 +790,7 @@ def install(service=None):
         #   23:00 的補件 → YT_QUOTA_RESERVE=1600(當天發布已完成,只需留隔天那 1 支)
         _reserve_guard(op, units)
         if units and ENFORCE and units > remaining():
+            record_self_refusal(op, units, why="enforce")
             raise QuotaExhausted(f"quota exhausted:{op} 需 {units},今日剩 {remaining()}")
         if getattr(self, "_quota_charged", False):
             return _orig(self, *a, **kw)      # 同一個 request 已由 next_chunk 收過費
@@ -778,6 +830,7 @@ def install(service=None):
         # ENFORCE 這道原本只寫在 `_execute` 裡 —— 而 resumable 上傳走的是這條路徑,
         # 等於「先觀測後執法」真的打開執法時,漏掉的正好是最大的那一筆。
         if units and ENFORCE and units > remaining():
+            record_self_refusal(op, units, why="enforce")
             raise QuotaExhausted(f"quota exhausted:{op} 需 {units},今日剩 {remaining()}")
         self._quota_charged = True
         if units:
