@@ -286,3 +286,85 @@ crontab 三行加環境變數(**只加,不改既有的 `YT_QUOTA_RESERVE=23650`*
   `channel_facelift` / `ypp_meter` / `analytics_weekly` / `cover_backfill` / `ab_title` / `ab_thumbnail` /
   `early_cta_report` / `gen_media_kit` / `ypp_tracker` / `intel_dept` / `outlier_scan` / `decision_dept` /
   `winner_amplifier` / `reconcile_ledger` —— **這 16 支不算已驗證**,不可據此宣稱「全部會乾淨停下」。
+
+
+---
+
+# 第四輪:PASS,但它自己查到的第 4 項我不接受它的解法 → 定案第四版
+
+第 1 項驗證員代入算過:`remaining=24,700` 時 news_dept 的 `videos.insert`(1,600)
+`24700-1600=23100`,`23100<23100` False ⇒ **通過,精確停在 23,100**;
+接著的 `thumbnails.set`(50)`23050<23100` True ⇒ 擋下(片子仍算發布成功,進 `pending_thumbs`)。
+**三層階梯確實堵住了第三輪的洞。**
+
+## 但第 4 項是一個真缺口,而「寫進文件提醒」不是解法
+
+三層階梯只保護**透過 `local_cron.py` 排程觸發**的路徑。
+手動執行 `python scripts/daily_publish.py --max 10` 拿不到 crontab 那行的 `=0`,
+會 fallback 到 `DEFAULT_RESERVE_UNITS=24,750` ⇒ **發布腳本被自己的新預設值卡住**。
+`produce_batch.py --topic ... --publish`(`_publish_now` 的真正入口)同理。
+而手動補發正是產線出事時的救命路徑(本專案有 `produce_catchup --target N` 手動介入的先例)。
+
+驗證員的建議是「寫進落地文件,手動執行時記得比照 crontab 加同樣的環境變數」。
+**不採用。** 判準:規則沒被遵守時會不會產生輸出?不會 —— 忘了加就靜默落到層 3,
+只印一句 warning。那是**期望不是規則**(`verification-that-cannot-fail` 第零種)。
+
+## 定案(第四版):層級由程式宣告,不由呼叫方式決定
+
+```python
+# quota_meter.py
+DEFAULT_RESERVE_UNITS = 24750
+_reserve_units = None          # 程式宣告優先;None 才看 env,env 沒有才用預設
+
+def set_reserve_units(n):
+    """呼叫端宣告自己屬於哪一層。放在進入點,不要放模組層級。"""
+    global _reserve_units
+    _reserve_units = int(n)
+```
+
+| 層 | 誰 | 宣告位置 | 值 |
+|---|---|---|---|
+| 1 | `daily_publish` | `main()`(`:1112`)**內** | `set_reserve_units(0)` |
+| 2 | 時事發布 | `produce_batch._publish_now`(`:6243`) | `set_reserve_units(23100)` |
+| 3 | 其餘全部 | 不宣告 | `DEFAULT_RESERVE_UNITS = 24750` |
+
+🔴 **宣告必須放在 `main()` 內,不能放模組層級** ——
+`_publish_now` 是 `import daily_publish as dp`(`:6246`),模組層級的程式碼會被執行、
+`main()` 不會。放模組層級會讓時事片誤升到層 1,把整個保護反轉過來。
+
+## 這一版比環境變數版好在哪
+
+| | 環境變數版(第三版) | 程式宣告版(定案) |
+|---|---|---|
+| crontab 要改幾行 | 4 | **0** |
+| 手動執行 | **靜默落到層 3、發布被自己卡住** | 與排程一致 |
+| 落地順序風險 | 順序弄反 → 當晚發布全滅 | **消失**(沒有「先改 cron」這一步) |
+| 忘記宣告的後果 | 靜默 | 不可能忘(在程式裡) |
+| 要改的檔 | quota_meter + crontab | quota_meter + daily_publish 1 行 + produce_batch 1 行 |
+
+env 仍保留為覆蓋層(給臨時調整用),優先序:**程式宣告 > env > 預設**。
+
+## 第四輪其餘結論(不阻擋,記一筆)
+
+- **層 1 內部**(18:00 `--max 1` 與 18:30 `--max 10`)彼此不協調 —— 但**改版前完全一樣**,
+  本來就只靠 `--max` 與 ENFORCE 硬頂兜底,不是本次引入的風險。
+- **不會「清空明天」**:配額日 15:00 重置,每天都是新的 26,001。
+  若 daily_publish 超支,層 2/層 3 的門檻高於它的目標值,會自動更早卡住,不存在無保護狀態。
+- **落地驗證法(零配額、不必等 18:00)**:實際排程器是 `local_cron.py`,
+  它**每 60 秒重讀 `deploy/crontab.txt`**(`:338-349`),改檔免重啟;
+  `run_job()`(`:259-262`)是 `env = {**env, **jenv}`,jenv 後蓋,`.env` 蓋不掉它
+  (且 `.env` 內只有 `YT_QUOTA_ENFORCE=1`,沒有任何 `YT_QUOTA_RESERVE*`)。
+  ⚠️ `local_cron.py --list`(`:300-302`)**只印時間欄與腳本,不印 jenv**,驗不了環境變數;
+  要驗得直接呼叫 `parse_jobs()` 印 `j[7]`。
+  ⇒ **定案第四版不靠 env,所以這一段驗證法用不到了**,但留著,因為它同時證明了
+  「`crontab.txt` 是活的、`local_cron.py` 是唯一權威讀者」——這件事本身值得記。
+
+## 仍未查完的(不阻擋套用,但不可宣稱已驗)
+
+- `quota_meter.install()` 只掛 `googleapiclient.http.HttpRequest.execute`。
+  **若有腳本繞過 googleapiclient、直接用 `requests`/`urllib` 打 YouTube REST API,
+  quota_meter 完全看不到也擋不了。** 29+ 支腳本未逐一核對是否全走 `build()`。
+  ⚠️ 這個缺口在**任何**方案下都存在,不是本次改動引入的。
+- 第三輪列的 16 支「未逐行核實收尾」仍未核實。
+- herdr 上其他 session 直接手動跑這些腳本 —— 在定案第四版下已不再是問題
+  (層級跟程式走),但繞過 googleapiclient 那一條仍在。
