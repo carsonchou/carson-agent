@@ -135,6 +135,8 @@ per-stock 白名單不適用那個反對意見。
 
 流程照第一批六支的規格:①先 `videos.list` 取回下架前狀態(**9/9 都是 public**)
 ②`videos.update` 設 private ③**等 30 秒**(memory `yt-readback-stale-cache`)
+🔴 **注意:光是這樣不足。** 兩個讀取路徑都會吐過期副本 —— 最終確認是用
+**未登入網頁探針 + 陰性對照**做的(dispatch.md 第 6 節)。
 ④再 `videos.list` 回讀 → **9/9 = private**。逐支結果在
 `docs/ops/2026-09-06_takedown_batch2.json`。**設 private 不刪除,可逆。**
 
