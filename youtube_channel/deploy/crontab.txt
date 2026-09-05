@@ -2,13 +2,17 @@
 #   2026-09-05 修正：這行原本寫 2,200，而它跟下面自己的數字就對不起來 --
 #   現行 YT_QUOTA_RESERVE=23650 不是 2,200 的倍數（23650/2200=10.75），它是 11 x 2,150。
 #   下面那句「改發布支數就要同步改這個數字」是對的，但乘數要用 2,150。
-#   [!] 而 2,150 本身也不是實測值：實測是 **2,100**
-#   （videos.insert 1600 + captions.insert 400 + thumbnails.set 50 + commentThreads.insert 50）。
-#   quota_meter.py:597 的 PUBLISH_UNIT_COST=2150 多算了一筆 playlistItems.insert 50，
-#   而 `grep playlistItem daily_publish.py` 零命中，且 08-30~09-04 六天的 playlistItems.post
-#   calls 只有 09-01 一天恰巧等於發布支數（8/9/11/12/38/20）。
-#   -> 2,150 是刻意保守的上界（高估 50/支），不是量出來的；
-#     要改 PUBLISH_UNIT_COST 得先驗 -- 它變小會讓 _reserve_guard 變寬鬆。
+#   [撤回 2026-09-05] 上一版這裡寫過「實測是 2,100、PUBLISH_UNIT_COST=2150
+#   多算了一筆 playlistItems」—— **那是錯的，2,150 是對的，不要把它改小**。
+#   每支長片確實有一筆 playlistItems.insert 50：daily_publish.py:1273-1276 呼叫
+#   `playlist_engine.add_to_playlists()`，真正的 insert 在 playlist_engine.py:498。
+#   我錯在兩個地方，兩個疊起來看起來像兩條獨立證據：
+#     (1) grep 打的是 `playlistItem`，而 :1276 寫的是 `_ple.add_to_playlists` ——
+#         一個字都不含。**呼叫在中間被截斷不是證據，是「還沒看」**。
+#     (2) 對照組用錯分母：videos.post calls **含 Shorts**，
+#         playlistItems 只有長片，兩者本來就不該相等。
+#   反證（乾淨對照）：Pacific 08-30 發 8 支長片、當天沒有任何 playlist 排程，
+#   playlistItems.post = **8 calls**，一支一筆。
 #   2026-08-30:發布量從 6 支/天(09:15 max1 + 18:30 max5)改成 **7 支**(18:30 max6),
 #   所以保留額度 13,200 → **15,400**。**改發布支數就要同步改這個數字**,
 #   否則最後一支會撞到額度線(補件先把配額吃掉,發布反而發不出去——
