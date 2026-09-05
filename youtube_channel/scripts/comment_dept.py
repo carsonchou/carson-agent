@@ -30,6 +30,7 @@ import llm                          # 共用 LLM 路由
 STUDIO = ROOT / "STUDIO"; REPORTS = STUDIO / "REPORTS"
 REPLIED_LOG = STUDIO / "comment_replied.json"
 CHANNEL_ID = "UCqP5JQXlQR5ZDLtEiBt4kLA"
+PENDING = REPORTS / "觀眾問題待審.tsv"  # 人工挑選用;刻意不自動進題庫,理由見 draft_mode docstring
 try:
     from ops import log_ops
 except Exception:
@@ -426,18 +427,47 @@ def auto_reply_safe(yt, max_replies: int = 10, dry_run: bool = False, use_haiku:
 
 # ── 原有草稿模式（預設行為）─────────────────────────────────────────────────
 
-def draft_mode(yt) -> int:
+def draft_mode(yt, candidates=None) -> int:
+    """整理觀眾留言成一份人看的草稿。
+
+    🔴 2026-09-05 兩處修正,兩處都必須,少一處會比不修更糟:
+
+    ① **排除自家留言。** 本函式原本連 `authorChannelId` 都沒讀,而全頻道 490 則留言裡
+       **457 則是我們自己的 CTA**。而 CTA 本體就是問句(「你的網格參數都怎麼設?」
+       「你手上有這檔嗎?」),下方 `:450` 的入選判準只看有沒有問號 ⇒ 實測 490 則命中 430,
+       其中 **425 則(99%)是自家**。接通而不加這道過濾 = 系統把我們問觀眾的話
+       當成觀眾的問題,再做成影片。(`auto_reply_safe:362` 早就有這道判定,同一份 `part="snippet"`
+       就拿得到 `authorChannelId`,不必多花配額 —— 那條路徑做對了,這條沒有。)
+
+    ② **不再寫進 topic_bank。** 原本是 `add_topics(source="comment", front=True)`,
+       而那條路徑的另一端**也沒接上**:`add_topics` 寫死 `format="short"`,
+       而所有排程產線都帶 `--shorts 0`(crontab:211、:218)⇒ 沒有任何 cron 會抽短片題。
+       接通只會在題庫裡堆下沒有東西會消費的紀錄。
+       更關鍵的是量:33 則觀眾留言 / 8 週,**真正可用的選題三個月累計 1~2 則**,
+       而 `front=True` 是插隊優先製作 —— **一則進錯的代價是一支已渲染的片。**
+       ⇒ 風險夠高而量夠小時,正確答案是**不要自動化**:改寫成一份待審清單給人看。
+
+    `candidates`:`auto_reply_safe` 已經抓過 50 則且濾掉自家與已回覆的,
+    傳進來就零額外配額、順帶白撿那道過濾。
+    """
     comments = []
-    try:
-        r = yt.commentThreads().list(part="snippet", allThreadsRelatedToChannelId=CHANNEL_ID,
-                                     maxResults=20, order="time").execute()
-        for it in r.get("items", []):
-            sn = it["snippet"]["topLevelComment"]["snippet"]
-            comments.append({"author": sn.get("authorDisplayName", "")[:20],
-                             "text": sn.get("textDisplay", "")[:300],
-                             "likes": sn.get("likeCount", 0)})
-    except Exception as e:
-        print(f"[warn] 取留言失敗（可能尚無留言或權限）：{e}", file=sys.stderr)
+    if candidates:
+        comments = [{"author": c.get("author", "")[:20], "text": c.get("text", "")[:300],
+                     "likes": 0} for c in candidates]
+    else:
+        try:
+            r = yt.commentThreads().list(part="snippet", allThreadsRelatedToChannelId=CHANNEL_ID,
+                                         maxResults=50, order="time").execute()
+            for it in r.get("items", []):
+                top = it["snippet"]["topLevelComment"]
+                sn = top["snippet"]
+                if (sn.get("authorChannelId") or {}).get("value", "") == CHANNEL_ID:
+                    continue          # 自家 CTA —— 不排除的話它佔 93%
+                comments.append({"author": sn.get("authorDisplayName", "")[:20],
+                                 "text": sn.get("textDisplay", "")[:300],
+                                 "likes": sn.get("likeCount", 0)})
+        except Exception as e:
+            print(f"[warn] 取留言失敗（可能尚無留言或權限）：{e}", file=sys.stderr)
 
     date = tw_today(); REPORTS.mkdir(parents=True, exist_ok=True)
     L = [f"# ⑧ 留言回覆草稿｜{date}", "",
@@ -452,19 +482,21 @@ def draft_mode(yt) -> int:
             questions.append(c["text"][:60])
     added = 0
     if questions:
-        L += ["## 🎯 可變成內容的觀眾問題（餵 ③靈感）", *[f"- {q}" for q in questions]]
-        # ── 斷鏈修復：真的把觀眾好問題寫進題庫（真實小白疑問＝最貼定位的選題來源）──
-        # 之前只寫進 md、沒進 topic_bank，靈感部永遠讀不到 → 這裡補上 add_topics。
+        L += ["## 🎯 可變成內容的觀眾問題（**待人工挑選**，不自動進題庫）",
+              *[f"- [ ] {q}" for q in questions],
+              "",
+              "> 🔴 2026-09-05 起**不再自動寫進 topic_bank**（原本是 `add_topics(source=\"comment\", front=True)`）。",
+              "> 三個理由,任一個都足以停掉自動化:",
+              "> ① 下游沒接:`add_topics` 寫死 `format=\"short\"`,而排程產線都帶 `--shorts 0` ⇒ 沒有 cron 會抽它。",
+              "> ② 量太小:33 則觀眾留言 / 8 週,真正可用的選題三個月累計 1~2 則 —— 人看一遍 2 分鐘。",
+              "> ③ 風險不對稱:`front=True` 是插隊優先製作,一則進錯的代價是一支已渲染的片。",
+              "> ⇒ 要用哪一則,把它貼進 topic_bank 或直接開稿。**這份清單的價值是讓人看見,不是自動化。**"]
         try:
-            from topic_bank import add_topics
-            items = [{"title": q, "angle": "直接回答觀眾實際提問，走小白避雷角度（先幫你試、別自己送死）",
-                      "category": "觀眾問題", "format": "short", "priority": "comment"}
-                     for q in questions]
-            added = add_topics(items, source="comment", front=True)
-            L += ["", f"> ✅ 已將 {added} 個觀眾問題寫入題庫（source=comment，插隊優先製作）。"]
+            PENDING.parent.mkdir(parents=True, exist_ok=True)
+            _sep = chr(10)   # 刻意用 chr(10) 不用跳脫字元
+            PENDING.write_text(_sep.join(f"{date}" + chr(9) + q for q in questions) + _sep, encoding="utf-8")
         except Exception as e:  # noqa: BLE001
-            print(f"[warn] 觀眾問題寫入題庫失敗：{e}", file=sys.stderr)
-            L += ["", f"> ⚠️ 觀眾問題寫入題庫失敗：{e}"]
+            print(f"[warn] 待審清單寫入失敗：{e}", file=sys.stderr)
     (REPORTS / f"{date}_留言回覆草稿.md").write_text("\n".join(L), encoding="utf-8")
     log_ops("社群留言", f"草擬 {len(comments)} 則回覆，挑出 {len(questions)} 個問題，{added} 個寫入題庫")
     print(f"[ok] 留言回覆草稿完成：{len(comments)} 則、{len(questions)} 個問題、{added} 個已進題庫。")
@@ -602,6 +634,12 @@ def main() -> int:
             print("[dry-run] 預覽完畢，未實際發送。")
         else:
             print(f"[ok] 安全模板自動回完畢，本輪回覆 {n} 則。")
+        # 🔴 2026-09-05:原本這裡 `return 0`,而 crontab:445 跑的正是 --auto-reply-safe
+        # ⇒ 下面那行 `return draft_mode(yt)` **永遠到不了**。實證:topic_bank 6,189 題裡
+        # source=comment 共 **0 題**,八週、每天 12 次、零訊號 —— 而它 exit 0,
+        # local_cron.py:251 記「✓ 完成」。失敗路徑和正常路徑回同一個值的那一族。
+        # (同一個函式可以有多條路徑產生同一個空值:這條是「早退」型,不是「例外被吞」型。)
+        draft_mode(yt)
         return 0
 
     return draft_mode(yt)
