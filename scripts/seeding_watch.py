@@ -83,6 +83,49 @@ def alert(title, body):
         say(f"(ntfy 推播失敗,不影響本檢查:{e!r})")
 
 
+
+# ── 上游斷料偵測(2026-09-06 加)────────────────────────────────────────────
+# 🔴 為什麼:FinMind 自 2026-07-18 起**連續 16 天、108 檔基本面全滅**,
+# 而產線**完全沒有察覺,照常出片**(`fundamentals_yf.py:13` 自己記著「且零告警」)。
+# 後果不是「片子少講一段」,是 TW_STOCK_CHECKUP_RULES 點名命令旁白依序講
+# 營收→EPS→毛利→股利,而四項裡只有股利有「沒有就說沒有」的出口
+# ⇒ **模型遵守規則就會用捏造去填**。6 支已公開片因此下架(2026-09-06)。
+#
+# 這是「外部資料源死了而下游沒有訊號」——和本檔原本在防的那一族同形,只是空值來自外部。
+# ⚠️ 恢復也沒有訊號:缺項比例 07月 76% → 08月 8% → 09月 3%,沒有任何一次被記錄。
+#
+# 判準:**當天新算的股票裡,基本面缺項的比例**。不看絕對數(每天只算 16 檔,n 太小),
+# 看比例並要求連續兩天,避開單日抖動。
+FUND_KEYS = {"checkup_revenue_trend", "checkup_eps_trend", "checkup_gross_margin",
+             "checkup_dividend_history", "checkup_valuation_position"}
+FACTS = REPO / "youtube_channel" / "STUDIO" / "stock_checkup_facts.json"
+UPSTREAM_FLOOR = 0.50     # 當天新算的股票中,基本面缺項比例超過這個就叫
+UPSTREAM_MIN_N = 5        # 少於這個數不判(單日樣本太小)
+
+
+def upstream_status():
+    """回 (最近兩個有資料的日期各自的 (日期, 缺項比例, n))。讀不到回 []。"""
+    import json as _json
+    import collections as _c
+    try:
+        bc = _json.loads(FACTS.read_text(encoding="utf-8")).get("by_code") or {}
+    except Exception:  # noqa: BLE001
+        return []
+    per = _c.defaultdict(lambda: [0, 0])
+    for v in bc.values():
+        d = (v.get("computed_at") or "")[:10]
+        if not d:
+            continue
+        sk = {str(x.get("key", "")).split("__")[0] for x in (v.get("skipped") or [])}
+        per[d][0] += 1
+        per[d][1] += bool(FUND_KEYS & sk)
+    out = []
+    for d in sorted(per)[-2:]:
+        n, miss = per[d]
+        out.append((d, miss / n if n else 0.0, n))
+    return out
+
+
 def load_history():
     if SELFTEST:
         # 演習用**真實發生過的資料**:08-25 那天 16/16 全 0,當時零告警。
@@ -141,6 +184,20 @@ def main():
     if run0 >= K_ZERO:
         problems.append(f"🔴 連續 {run0} 檔種出 0 題(門檻 {K_ZERO})—— 09-05 之前這正是"
                         f"「LLM 全滅被 catch 成 return 0」的長相,那次靜默了一整個月")
+
+    # 上游斷料:連續兩天缺項比例超標才叫
+    up = [] if SELFTEST and SELFTEST_MODE not in ("upstream", "all") else upstream_status()
+    if SELFTEST and SELFTEST_MODE in ("upstream", "all"):
+        up = [("2026-07-18", 0.93, 14), ("2026-07-19", 1.00, 13)]   # 真實斷料窗的長相
+    if up:
+        stat += "｜上游 " + "、".join(f"{d} 缺{r:.0%}(n={n})" for d, r, n in up)
+        bad_days = [x for x in up if x[2] >= UPSTREAM_MIN_N and x[1] > UPSTREAM_FLOOR]
+        if len(bad_days) >= 2:
+            problems.append(
+                f"🔴 上游基本面斷料:連續兩天缺項比例 "
+                f"{'、'.join(f'{d}={r:.0%}' for d, r, _ in bad_days)}(門檻 {UPSTREAM_FLOOR:.0%})"
+                f" —— 2026-07-18 那次連續 16 天零告警,產線照常出片而模板命令旁白講不存在的數字,"
+                f"結果是 6 支已公開片捏造財務數字。**先確認 FinMind/yfinance 是否可用,不要讓它繼續產。**")
 
     if problems:
         line = f"[{now}] {stat}｜" + "｜".join(problems)
