@@ -918,6 +918,89 @@ def _retry_after(r, default):
     return min(v, 60.0)
 
 
+def _get_json(s, url, timeout=40):
+    """回 `(ok, json, reason)`。把「沒問到」的每一種各自帶原因交出去。"""
+    try:
+        r = s.get(url, timeout=timeout)
+    except Exception as e:  # noqa: BLE001
+        return False, None, "連線失敗: %s" % e
+    if not r.ok:
+        return False, None, "HTTP %s: %s" % (r.status_code, (r.text or "")[:60])
+    if not (r.text or "").strip():
+        return False, None, "回應 body 是空的"
+    try:
+        j = r.json()
+    except Exception as e:  # noqa: BLE001
+        return False, None, "回傳不是 JSON: %s (%s)" % ((r.text or "")[:60], e)
+    if not isinstance(j, dict):
+        return False, None, "回傳不是 dict(型別 %s)" % type(j).__name__
+    return True, j, ""
+
+
+def active_alpha_ids(s, status="ACTIVE", page=100, hard_cap=1000):
+    """已提交的 alpha id 集合。回 `(ids, reason)`;`ids is None` ⟺ `reason` 非空。
+
+    🔴 2026-09-05:原本兩個地方各有一份實作(`pick_next.submitted_ids` 與
+       `runway.main()` 內嵌),而 `pick_next` 自己的註解就寫著「同一條規則只能有
+       一份實作」。兩份**行為不一致**:對 `{"id": 7}` 與重複 id 的判定相反。
+
+    🔴 判準用 `count` 不用 `len(results)`。**`count` 是權威筆數,`len(results)`
+       只是代理訊號** —— 用「剛好回滿 100 筆」猜截斷,在 `{"count":250,
+       "results":[50 筆]}` 這種形狀下會靜默放行一份偏小的清單(獨立驗證員實測)。
+       而清單偏小 ⇒ 已提交的被當成沒交過 ⇒ 建議重複提交,就是要修的那個 fail-open。
+       `count` 同 repo 已經在讀兩處:`settlement_probe.py:69`、`reconcile.py:70`。
+
+    分頁契約來源 `reconcile.py:18` 與 `:67-79`(不是猜的):
+    `/users/self/alphas` 單一 query **最多回前 1,000 條**(超過回 HTTP 400),
+    要用 `dateCreated` 區間切片;分頁是 `limit=100&offset=`。
+
+    ⚠️ **「查到了、而且真的是 0 條」必須放行**(開站第一天就是這樣)。
+       空集合本身不是錯誤,錯誤是「沒問到」——把前者當錯誤就從 fail-open
+       翻成「一定叫」,同樣是壞的。
+    """
+    base = f"{API}/users/self/alphas?status={status}"
+    ok, j, why = _get_json(s, base + "&limit=1")
+    if not ok:
+        return None, why
+    count = j.get("count")
+    if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+        return None, "count 不是非負整數(型別 %s,值 %r)" % (type(count).__name__, count)
+    if count == 0:
+        return set(), ""
+    if count > hard_cap:
+        return None, ("count=%d 超過單 query 上限 %d(平台會回 400)—— 要照 "
+                      "reconcile.py:67 用 dateCreated 區間切片,本支未實作" % (count, hard_cap))
+    out, off, pages = set(), 0, 0
+    while off < count:
+        pages += 1
+        if pages > count + 2:
+            # 🔴 額度用 `count` 不用 `count // page` —— 伺服器**誠實回短頁**是允許的
+            #    (它不保證每頁剛好給滿我們要的 limit),用「我們要的 limit」算額度
+            #    會把完整而正確的回應擋掉(獨立驗證員實測:count=100/每頁 25 需 4 頁
+            #    而額度只有 3)。非空頁每輪至少推進 1 筆,所以 count+2 仍保證終止。
+            #    ⚠️ 這道守衛和下面的「空頁」守衛**互為備援**:單獨拿掉任一道都還好,
+            #    兩道都拿掉才會無窮迴圈。不要因為「看起來多餘」就刪。
+            return None, "分頁次數異常(%d 頁仍未取滿 count=%d)" % (pages, count)
+        ok, j, why = _get_json(s, base + "&limit=%d&offset=%d" % (page, off))
+        if not ok:
+            return None, "offset=%d 這一頁:%s" % (off, why)
+        res = j.get("results")
+        if not isinstance(res, list):
+            return None, ("offset=%d 這一頁沒有 results 陣列(型別 %s)"
+                          % (off, type(res).__name__))
+        if not res:
+            return None, "offset=%d 這一頁是空的,但 count=%d —— 分頁對不上" % (off, count)
+        for a in res:
+            if not (isinstance(a, dict) and isinstance(a.get("id"), str) and a.get("id")):
+                return None, "offset=%d 有項目抽不出 id(%r)" % (off, a)
+            out.add(a["id"])
+        off += len(res)
+    if len(out) != count:
+        # 少掉的東西一定要被數出來(重複 id 也會落在這裡)。
+        return None, "count=%d 但只收集到 %d 個不重複 id —— 清單對不上" % (count, len(out))
+    return out, ""
+
+
 def parse_checks(data):
     """把 `/check` 的 body 折成 `{key: check_dict}`;**拿不到就回 None**。
 

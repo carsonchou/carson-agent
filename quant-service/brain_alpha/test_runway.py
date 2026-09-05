@@ -119,9 +119,17 @@ class Sess:
 
     def get(self, url, **k):
         if "/users/self/alphas" in url:
+            # 平台契約(reconcile.py:18、:67-79):`?limit=1` 拿權威的 count,
+            # 再用 `limit=100&offset=` 分頁。2026-09-05 起 runway 走
+            # brain_auto.active_alpha_ids,所以 stub 也要照這個契約回。
             if self.list_payload is not None:
                 return Resp(self.list_code, self.list_payload)
-            return Resp(self.list_code, {"results": [{"id": a} for a in self.active]})
+            if "limit=1&" in url or url.endswith("limit=1"):
+                return Resp(self.list_code, {"count": len(self.active)})
+            off = int(url.split("offset=")[1].split("&")[0]) if "offset=" in url else 0
+            return Resp(self.list_code, {
+                "count": len(self.active),
+                "results": [{"id": a} for a in self.active[off:off + 100]]})
         aid = url.split("/alphas/")[1].split("/")[0]
         self.hits[aid] = self.hits.get(aid, 0) + 1
         if aid in self.broken:
@@ -319,23 +327,27 @@ def _main() -> int:
     #    ⇒ 池子空 ⇒ 每個候選最大相關 0 ⇒ **全部 accepted**。
     for label, payload, code in [
             ("HTTP 500", {"detail": "x"}, 500),
-            ("results 為 null", {"results": None}, 200),
-            ("沒有 results 鍵", {"other": 1}, 200),
+            ("results 為 null", {"count": 2, "results": None}, 200),
+            ("沒有 results 鍵", {"count": 2, "other": 1}, 200),
             ("回傳不是 dict", "[]", 200)]:
         rc, out = run([], ["C_TWIN"], list_payload=payload, list_code=code)
         check("清單 %-14s → 中止 rc=2" % label, rc == 2, "rc=%s" % rc)
-    rc, out = run(["A_HIGH"] * 100, ["C_TWIN"], list_payload={
-        "results": [{"id": "A_HIGH"}] * 100})
-    check("清單回滿 100 筆(limit=100 無分頁)→ 中止,不拿被截斷的池子算",
-          rc == 2 and "截斷" in out, "rc=%s" % rc)
+    # 🔴 2026-09-05:判準從「回滿 100 筆」這個代理訊號改成權威的 count。
+    #    代理訊號在 {"count":250,"results":[50 筆]} 下會靜默放行一份偏小的池子,
+    #    而池子偏小正是這支要修的 fail-open。
+    rc, out = run([], ["C_TWIN"], list_payload={"count": 250, "results": [{"id": "A_HIGH"}] * 50})
+    check("count=250 但只回 50 筆 → 中止(代理訊號會放行)", rc == 2, "rc=%s" % rc)
+    rc, out = run([], ["C_TWIN"], list_payload={"count": 1001, "results": []})
+    check("count 超過單 query 上限 1000 → 中止並指向 reconcile.py 的切片作法",
+          rc == 2 and "reconcile.py" in out, "rc=%s" % rc)
 
-    rc, out = run([], ["C_TWIN"], list_payload={"results": ["A_HIGH", "A_LOW"]})
+    rc, out = run([], ["C_TWIN"], list_payload={"count": 2, "results": ["A_HIGH", "A_LOW"]})
     check("results 是 list 但每筆抽不出 id → 中止(不可以變成空池子)",
-          rc == 2 and "只抽得出 0 個 id" in out, "rc=%s" % rc)
+          rc == 2 and "抽不出 id" in out, "rc=%s" % rc)
     rc, out = run([], ["C_TWIN"], list_payload={
-        "results": [{"id": "A_HIGH"}, {"noid": 1}, {"noid": 2}]})
+        "count": 3, "results": [{"id": "A_HIGH"}, {"noid": 1}, {"noid": 2}]})
     check("部分項目抽不出 id → 一樣中止(少掉的要被數出來)",
-          rc == 2 and "只抽得出 1 個 id" in out, "rc=%s" % rc)
+          rc == 2 and "抽不出 id" in out, "rc=%s" % rc)
 
     print()
     print("=" * 76)
@@ -516,7 +528,7 @@ def _main() -> int:
     print("=" * 76)
     print("12. 空池子 / 跑道數字被誤讀 / 走 continue 也要存快取")
     print("=" * 76)
-    rc, out = run([], ["C_TWIN", "C_INDEP"], list_payload={"results": []})
+    rc, out = run([], ["C_TWIN", "C_INDEP"], list_payload={"count": 0, "results": []})
     check("平台誠實回報零提交 → **不中止**(那時全部安全就是正確答案)", rc == 0, "rc=%s" % rc)
     check("但要明說這個結果沒有判別力", "沒有判別力" in out)
     b = _sum_buckets(out)

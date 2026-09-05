@@ -157,7 +157,19 @@ def main() -> int:
         print(f"ET {today} 已交 {done_today} 條，達標，不推播。")
         return 0
 
-    done = P.submitted_ids(s)
+    done, why_done = P.submitted_ids_ex(s)
+    if done is None:
+        # 🔴 這裡和 pick_next.main() 用法完全相同(cand 排除已提交 +
+        #    done_nums 排除已交分子),所以空集合在**這條 cron 路徑上也是**
+        #    fail-open ⇒ 會挑出已經交過的、並推播叫人去交。
+        #    (我先前寫的規格說「這支保持預設,空集合是安全方向」——
+        #     那是只看了 :68 的 _prefilter 就推廣,錯的。)
+        B.notify("🔴 BRAIN 挑片中止:取不到已提交清單",
+                 f"ET {today} {why_done}\n\n"
+                 f"**這不是「一條都還沒交」,是沒問到。** 照舊跑會把已經交過的\n"
+                 f"重新挑出來、而且分子去重會整個失效。請確認 token 後重跑。")
+        print(f"取不到已提交清單:{why_done} —— 中止(不是沒有候選,是沒問到)。")
+        return 2
     led = B.load_ledger()
     cand = [r for r in led.values()
             if r.get("ok") and (r.get("result") or {}).get("evaluable_pass")

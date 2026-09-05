@@ -12,6 +12,7 @@ miner_*.log
 miner_*.err
 watchdog_restart.log
 *.bak-*
+*.bak2-*
 miner.lock
 pnl_cache.json
 hybrid.log

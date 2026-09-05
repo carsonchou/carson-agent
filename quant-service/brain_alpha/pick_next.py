@@ -46,14 +46,30 @@ def numerator(expr: str) -> str:
     return m[0].split("/")[0].strip() if m else "?"
 
 
+def submitted_ids_ex(s):
+    """已提交的 alpha id。回 `(ids, reason)`。**判讀在 `brain_auto.active_alpha_ids`。**
+
+    🔴 2026-09-05:原本這裡有一份、`runway.main()` 內嵌另一份,兩份行為不一致
+       (對 `{"id": 7}` 與重複 id 的判定相反),而本檔下面就寫著
+       「同一條規則只能有一份實作」。合併了。
+    """
+    return B.active_alpha_ids(s)
+
+
 def submitted_ids(s):
-    """已提交的 alpha id（status != UNSUBMITTED）。"""
-    out = set()
-    r = s.get(f"{B.API}/users/self/alphas?limit=100&status=ACTIVE", timeout=40)
-    if r.ok and r.text.strip():
-        for a in (r.json().get("results") or []):
-            out.add(a.get("id"))
-    return out
+    """已提交的 alpha id 集合。**簽章不動**(`brain_daily_pick.py:68` 靠它)。
+
+    ⚠️ 拿不到時回**空集合**並在 stderr 警告 —— 保持原行為是為了不打壞
+       `_prefilter`(那裡空集合只會少省一點額度,判斷仍由平台的 `/check` 做)。
+       **但空集合會被「排除已提交」這類用法讀成「一條都還沒交」,那是 fail-open。**
+       任何拿它來做排除/去重的呼叫端,一律改用 `submitted_ids_ex` 並自己擋。
+    """
+    ids, why = submitted_ids_ex(s)
+    if ids is None:
+        print("[warn] 取不到已提交清單:%s —— 當成空集合(呼叫端若拿它做排除"
+              "就是 fail-open,請改用 submitted_ids_ex)" % why, file=sys.stderr)
+        return set()
+    return ids
 
 
 # poll_check / checks_of 已合併進 brain_auto —— 這裡只留別名。
@@ -83,7 +99,13 @@ def main() -> int:
             n = int(sys.argv[i + 1])
 
     s = B.auth()
-    done = submitted_ids(s)
+    done, why_done = submitted_ids_ex(s)
+    if done is None:
+        # 🔴 空集合會被下面兩行讀成「一條都還沒交」:`cand` 不排除任何已提交的、
+        #    `done_nums` 空 ⇒ 分子去重失效 ⇒ **建議重複提交**。一個名額換不回來。
+        print(f"✗ 取不到已提交清單:{why_done}")
+        print("  這不是「一條都還沒交」,是沒問到 —— 照舊跑會建議重複提交。中止。")
+        return 2
     led = B.load_ledger()
     cand = [r for r in led.values()
             if r.get("ok") and r.get("result", {}).get("evaluable_pass")

@@ -313,43 +313,21 @@ def main() -> int:
     cache = load_cache()
 
     # 已提交的（池子）
-    r = s.get(f"{B.API}/users/self/alphas?limit=100&status=ACTIVE", timeout=60)
-    if not r.ok:
-        print(f"✗ 取不到已提交清單：HTTP {r.status_code} {(r.text or '')[:80]}")
+    # 🔴 2026-09-05:原本這裡內嵌六道守衛,而 pick_next 有另一份 —— 兩份對
+    #    `{"id": 7}` 與重複 id 的判定相反。合併進 brain_auto.active_alpha_ids,
+    #    並改用權威的 `count` 而不是「剛好回滿 100 筆」這個代理訊號
+    #    (`{"count":250,"results":[50 筆]}` 會讓代理訊號靜默放行一份偏小的清單)。
+    active_set, why_active = B.active_alpha_ids(s)
+    if active_set is None:
+        print(f"✗ 取不到已提交清單:{why_active}")
         print("  池子是所有判斷的基準，拿不到就不能算 —— 中止。")
+        print("  (空池子和『問不到』在下游長得一樣:前者讓每個候選最大相關都是 0。)")
         return 2
-    try:
-        j = r.json()
-    except Exception as e:  # noqa: BLE001
-        print(f"✗ 已提交清單不是 JSON：{e} —— 中止。")
-        return 2
-    results = (j or {}).get("results") if isinstance(j, dict) else None
-    if not isinstance(results, list):
-        # 🔴 原本是 `(r.json().get("results") or [])` —— `results` 為 null / 缺鍵時
-        #    靜默變成空清單 ⇒ 池子是空的 ⇒ 每個候選最大相關 0 ⇒ **全部 accepted**。
-        #    「一條都沒交」和「問不到」在下游長得一模一樣。
-        print(f"✗ 已提交清單沒有 results 陣列（型別 {type(results).__name__}）—— 中止。")
-        return 2
-    active = [a.get("id") for a in results if isinstance(a, dict) and a.get("id")]
-    if len(active) != len(results):
-        # 🔴 原本這行**靜默丟掉**抽不出 id 的項目。實測 `{"results": ["X","Y"]}`
-        #    (id 直接是字串)→ 已提交 0 條 → 池子空 → 候選**全部 accepted**、
-        #    rc=0、零 ✗ 零 ⚠️。而它發生在池子迴圈**之前**,所以
-        #    「任何無法納入的池成員都讓池子不完整」那條規則根本看不到它。
-        #    同一個形狀在這支檔案上這是第三次了 —— 少掉的東西一定要被數出來。
-        print(f"✗ 已提交清單有 {len(results)} 筆，但只抽得出 {len(active)} 個 id"
-              f" —— 形狀不符預期，中止(池子偏小會讓相關度被低估)。")
-        return 2
-    if len(results) >= 100:
-        # limit=100 且沒有分頁:剛好滿 100 代表可能被截斷,而截斷的池子偏小 ⇒ 誤收。
-        print(f"✗ 已提交清單回滿 {len(results)} 筆（limit=100，本支未實作分頁）—— "
-              f"池子可能被截斷，中止。要繼續請先幫這支加分頁。")
-        return 2
+    active = sorted(active_set)
     if not active:
         # 🔴 **不中止**:平台誠實回報零提交時,「候選全部安全」就是正確答案
-        #    (開站第一天就是這樣)。但這個結果**沒有判別力**,而它長得跟
+        #    (開站第一天)。但這個結果**沒有判別力**,而它長得跟
         #    「池子很大、候選真的都不撞」一模一樣 —— 讀的人要分得出來。
-        #    唯一的假陽性是 `status=ACTIVE` 這個查詢本身失效,而那個查不出來。
         print("⚠️ 已提交 0 條 —— 池子是空的，以下每個候選的最大相關都會是 0，"
               "**這個結果沒有判別力**（不是「都不撞」，是沒有東西可以撞）。")
     print(f"已提交 {len(active)} 條，抓 PnL…")
