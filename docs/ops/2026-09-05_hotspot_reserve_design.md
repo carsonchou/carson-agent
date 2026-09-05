@@ -216,3 +216,73 @@ crontab 三行加環境變數(**只加,不改既有的 `YT_QUOTA_RESERVE=23650`*
   若它們的後續呼叫(字幕/縮圖)也要付費,1,600 只夠 videos.post 那一筆,
   後面幾筆仍會撞線 —— **這一項未知,不能據此宣稱「時事會恢復」**,
   只能宣稱「videos.post 那一筆拿得到額度」。
+
+
+---
+
+# 第三輪驗證:C 項 FAIL —— 洞是我反轉之後自己捅出來的
+
+`_reserve_guard` 讀的是**全域共用**的 `remaining()`。把 `daily_publish` 和 `news_dept`
+**都**設成 `RESERVE_UNITS=0`,等於宣告這兩支互不相讓 —— 而 `news_dept` 是
+`0 */2 * * *`(全天每 2 小時),它會在白天啃掉當晚 `daily_publish` 要用的 23,100。
+**這是 08 月「補件先跑把發布餓死」的同一種病換了病原體**,而且舊版 opt-in 設計沒有它。
+
+根因是我把它想成**二元**的 opt-in / opt-out。它不是二元,是**優先序階梯**。
+
+## 定案(第三版):三層階梯,預設落在最保守的那層
+
+| 層 | 誰 | `YT_QUOTA_RESERVE_UNITS` | 讓出給誰 |
+|---|---|---|---|
+| 1 | `daily_publish`(18:00 `--series checkup --max 1`、18:30 `--max 10`) | **0** | 不讓任何人(最高優先) |
+| 2 | `news_dept`(00:00 每 2 小時、平日 09:35/11:35/13:35) | **23,100** | 讓出發布 11 支的量 |
+| 3 | **其餘全部(預設)** | **24,750** | 讓出發布 + 時事一支 |
+
+- 第 3 層是 `DEFAULT_RESERVE_UNITS`,**不需要任何 cron 宣告** ⇒ 那 26 支一行不用改,
+  新增的 cron 自動落在最保守層。
+- 只改 **4 行**:`crontab.txt:349`、`:367` 加 `=0`;`:59`、`:374` 加 `=23100`。
+- 加 `units >= 50` 小額豁免(1-unit 讀取不受限)。
+
+## 🔴 落地順序(弄反會讓當晚發布全滅)
+
+`:349` / `:367` / `:59` / `:374` **現在四行都沒有任何 RESERVE 設定**(現值等於 0)。
+反轉後預設變 24,750 ⇒ **`daily_publish` 自己會先被擋死**。
+
+⇒ 必須:**① 先改 crontab 四行 → ② 驗證四行都生效 → ③ 才改 `quota_meter.py` 的預設值。**
+順序弄反、或任何一行沒生效,當晚 11 支發布全滅 —— 那比現在嚴重得多。
+這是 opt-out 設計的固有代價:它把「漏掉=靜默失效」換成「漏掉=保守停下」,
+但**對被保護的對象本身,漏掉 = 完全停擺**。
+
+## 第三輪其餘更正
+
+**① `units >= 50` 的結論對,但我的論證是錯的。**
+價目表(`quota_meter.py:65-101`)全部值只有 `{1, 50, 100, 400, 450, 1600}`,
+2~49 之間確實一個都沒有 ⇒ **切點數值上安全**。
+但「所有讀取類都是 1 unit」有兩個反例:`("captions","GET")=50`、`("search","GET")=100`。
+⇒ 50 不是「讀寫分界」,是「這張價目表剛好沒人填 2~49」—— **巧合,不是結構**。
+結論成立、論證不成立,**兩者要分開講**;而且它是巧合就代表**價目表哪天新增一個
+20 units 的科目,這個切點就悄悄變成誤傷**。落地時要在常數旁註明這件事。
+
+**② `hotspot_dept.py` 根本不打 YouTube API。**
+它的資料來源是 Google News RSS,docstring 自己寫明「不即時發(避免和 news_dept 撞車洗版)」,
+全檔沒有任何 `.execute()`,只寫本機 `topic_bank.json` / `hotspot_seen.json`。
+⇒ `quota_meter` 量不到它,把它列進 opt-out 清單是**無效動作**(不是有害)。
+我第一輪寫「news_dept / hotspot_dept 兩支」,第二輪自己已證實只有 `news_dept` 走 `_publish_now`,
+**但沒有回頭更新那句話** —— 推翻了的東西沒有跟著改,又是 F1 形狀。
+
+**③ 一個獨立的真 bug(不是配額問題,但要記):**
+`news_dept._today_count()`(`:139`)用**台北日曆日**算 `MAX_PER_DAY=3`,
+而配額日在**台北 15:00** 重置 ⇒ 一個配額日橫跨兩個台北日曆日,
+同一配額日內理論上能產出 **6 支**(15:00~23:59 算 3、次日 00:00~14:59 再算 3)。
+在三層階梯下這個 bug 的配額後果會被第 2 層的 23,100 預留線吸收
+(它最多吃到 remaining 跌到 23,100),**所以它不再是配額問題,但語意仍是錯的**,單獨列管。
+
+**④ 收尾分類(驗證員實查):**
+- 有 quota-break、乾淨停下 **9 支**:`thumb_backfill` / `refresh_search_thumbs` /
+  `fix_audio_language`(:104)/ `fix_period_disclaimer`(:182)/ `comment_dept`(:416)/
+  `desc_backfill`(:270)/ `zombie_sweep`(:249)/ `build_playlists`(:197)/ `playlist_engine`(:387)
+- 只有 `continue`、沒有 break **3 支**:`organize_dept`(:113-121)/ `thumbnail_dept`(全檔)/
+  **`industry_playlists`(:249-252)** ← 新查到的,而且它排**週五 16:50**,正好卡在保護視窗中間
+- **未逐行核實 16 支**(粗篩只數 `.execute()` 與 `except` 次數):`quality_score` / `comment_watchdog` /
+  `channel_facelift` / `ypp_meter` / `analytics_weekly` / `cover_backfill` / `ab_title` / `ab_thumbnail` /
+  `early_cta_report` / `gen_media_kit` / `ypp_tracker` / `intel_dept` / `outlier_scan` / `decision_dept` /
+  `winner_amplifier` / `reconcile_ledger` —— **這 16 支不算已驗證**,不可據此宣稱「全部會乾淨停下」。
