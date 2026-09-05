@@ -504,6 +504,24 @@ _MIN_RESULTS = 2000
 _MIN_UNIVERSE = 500
 
 
+def data_health() -> tuple:
+    """讀**真實磁碟**的健全性檢查。
+
+    `self_check()` 的 fixture 刻意不讀磁碟(事實庫變動弄不壞它),所以它守得住
+    **程式**壞掉、守不住**資料**壞掉 —— 而那正是本閘門身上和 FinMind 斷料同形的
+    失效路徑:`backlog.json` 退化 ⇒ `uni={}` ⇒ 每支都判「不適用」而放行,
+    **自檢照樣 PASS、三個表面全部正常、零訊號**。這一支是那一半。
+
+    `--selftest` 會把它印出來。不要讓資料側健康只活在 `check()` 的例外路徑裡 ——
+    只在出事時才看得到的訊號,等於沒有人拿著的哨。"""
+    try:
+        results, uni = _load_facts()
+    except Exception as exc:  # noqa: BLE001
+        return False, f"{exc}"
+    return True, (f"事實庫 {len(results)} 條(下限 {_MIN_RESULTS})、"
+                  f"universe {len(uni)} 檔(下限 {_MIN_UNIVERSE})")
+
+
 def _load_facts():
     """🔴 對 `uni` 與 `results` 加下限斷言,而這不是防禦性程式碼潔癖 ——
     對抗式驗證員實測重現過:`stock_checkup_backlog.json` 退化成空 / 掉了 `code` 欄
@@ -678,7 +696,10 @@ def _cli() -> int:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
     ok, msg = self_check()
-    print(f"自檢:{'✅ 通過' if ok else '🔴 失敗'} — {msg}")
+    print(f"自檢(程式側):{'✅ 通過' if ok else '🔴 失敗'} — {msg}")
+    dok, dmsg = data_health()
+    print(f"自檢(資料側):{'✅ 通過' if dok else '🔴 失敗'} — {dmsg}")
+    ok = ok and dok
     if args.selftest:
         return 0 if ok else 1
     if not ok:
