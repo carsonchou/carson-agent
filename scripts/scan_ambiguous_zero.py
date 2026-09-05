@@ -18,6 +18,10 @@
 """
 import ast, io, sys, os, json
 
+# 掃描根目錄與輸出路徑可由 argv 覆蓋(預設值維持原樣,不影響既有呼叫):
+#     python scan_ambiguous_zero.py [ROOT] [OUT_JSON]
+# 2026-09-05 BRAIN 線加:原本兩者都寫死,而 OUT 指向另一個 session 的 scratchpad,
+# 換一條線掃就會蓋掉別人的報告。
 ROOT = "D:/carson-agent/youtube_channel/scripts"
 
 EMPTYISH = {"0", "[]", "{}", "''", '""', "None", "False", "0.0", "()", "set()"}
@@ -118,6 +122,9 @@ def scan_file(path):
 
 
 def main():
+    global ROOT
+    if len(sys.argv) > 1:
+        ROOT = sys.argv[1]
     rows, errs = [], []
     for dirpath, dirnames, filenames in os.walk(ROOT):
         dirnames[:] = [d for d in dirnames if d not in (".venv", "__pycache__", "node_modules")]
@@ -154,7 +161,7 @@ def main():
         print("  %s:%d  %s()  回 %s   except行=%s"
               % (r["file"], r["line"], r["fn"], ",".join(r["value"]), r["handler_lines"]))
 
-    out = "C:/Users/User/AppData/Local/Temp/claude/D--carson-agent/5089f42d-4a3b-43bc-9c90-74fe95ea3c3c/scratchpad/ambiguous_zero_report.json"
+    out = sys.argv[2] if len(sys.argv) > 2 else         "C:/Users/User/AppData/Local/Temp/claude/D--carson-agent/5089f42d-4a3b-43bc-9c90-74fe95ea3c3c/scratchpad/ambiguous_zero_report.json"
     io.open(out, "w", encoding="utf-8").write(json.dumps(rows, ensure_ascii=False, indent=1))
     print()
     print("完整清單 →", out)
