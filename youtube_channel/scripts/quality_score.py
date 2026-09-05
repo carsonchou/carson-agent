@@ -487,14 +487,64 @@ def _free_topic(title):
 REMAKE_ANGLE = "重做版：同主題換更強的開場鉤子與 But/Therefore 結構，內容更紮實，守誠實鐵則"
 
 
-def _quarantine(slug):
-    """把某 slug 的檔案移到 _rejected（不釋放題目，純隔離較差的重做嘗試）。"""
-    REJECT_DIR.mkdir(parents=True, exist_ok=True)
+# 🔴 2026-09-06:已發布的片,旁白稿是**唯一的稽核憑據**。
+# 隔離 mp4 沒問題(線上那支還在,本機留著也沒用);搬走旁白不行——
+# 片子出事時能不能查清楚,取決於旁白還在不在,而它是純文字、幾 KB。
+# 實據:47 支已發布長片因為旁白不在,**結構上永遠查不了**(見 scripts/auditability_coverage.py)。
+# 那 47 支的成因是 07-05 droplet 沒了,不是這裡;但這裡是**現在還開著的**同型入口:
+# `reject()`/`_quarantine()` 的 glob 是 `{slug}.*`,.voice.txt 一起中,
+# 而 reject() 明明偵測到「已發布」還是照搬(只印一行 warn)。
+# ⚠️ 只保 .voice.txt,不保 .mp4/.jpg/.srt —— 隔離的用意要留著,這裡只挖回稽核憑據那一項。
+_AUDIT_KEEP_SUFFIX = ".voice.txt"
+
+
+def _is_published(slug) -> bool:
+    """slug 在 uploaded_ledger 裡 = 已上架。**帳本讀不到時回 True**(保守側:寧可多留一個幾 KB 的文字檔)。
+
+    🔴 不可以用 `_load(LEDGER, {})`:它把例外吞掉回預設 `{}`,於是
+    「帳本壞了」和「這支沒發布」**回同一個值**,而兩者的正確處置相反。
+    2026-09-06 我第一版就是這樣寫的,陽性對照 [C] 當場打掉它
+    (帳本故意寫壞 → 應保留旁白,實得全部搬走)。
+    這正是本 repo 今天在盤點的那一族,見 docs/ops/2026-09-05_four_states_of_observation.md。
+    """
+    try:
+        raw = LEDGER.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return True          # 沒有帳本 = 不知道發布了沒 → 保守側
+    except Exception:  # noqa: BLE001
+        return True          # 讀不到 = 不知道 → 保守側
+    try:
+        data = json.loads(raw)
+    except Exception:  # noqa: BLE001
+        return True          # 🔴 帳本壞掉 ≠ 這支沒發布
+    if not isinstance(data, dict):
+        return True
+    return slug in data
+
+
+def _move_slug_files(slug, dest):
+    """把 slug 的檔案搬到 dest,回 (搬走幾個, 保留幾個)。已發布的片保留旁白稿。"""
+    dest.mkdir(parents=True, exist_ok=True)
+    keep_audit = _is_published(slug)
+    moved = kept = 0
     for f in OUT.glob(f"{slug}.*"):
+        if keep_audit and f.name.endswith(_AUDIT_KEEP_SUFFIX):
+            kept += 1
+            continue
         try:
-            shutil.move(str(f), str(REJECT_DIR / f.name))
-        except Exception:  # noqa: BLE001
-            pass
+            shutil.move(str(f), str(dest / f.name))
+            moved += 1
+        except Exception as e:  # noqa: BLE001
+            print(f"[warn] 移動 {f.name} 失敗：{e}")
+    if kept:
+        print(f"[keep] {slug} 已發布 → 保留 {kept} 個旁白稿在 output/(稽核憑據,不隨隔離搬走)")
+    return moved, kept
+
+
+def _quarantine(slug):
+    """把某 slug 的檔案移到 _rejected（不釋放題目，純隔離較差的重做嘗試）。
+    已發布的片保留 .voice.txt（見 _AUDIT_KEEP_SUFFIX 上方註解）。"""
+    _move_slug_files(slug, REJECT_DIR)
 
 
 def produce_until_pass(title, angle=REMAKE_ANGLE, tries=3):
@@ -543,15 +593,8 @@ def reject(slug, manual=True, remake=False):
     remake=True → 立刻重產一支同主題新片；否則釋放題目、下輪 produce_batch 自動補產。"""
     if slug in _load(LEDGER, {}):
         print(f"[warn] {slug} 已發布，退件只隔離本機檔案、不會動線上影片（要下架請用 set_public.py）。")
-    REJECT_DIR.mkdir(parents=True, exist_ok=True)
-    moved = 0
     title = title_of(slug)
-    for f in OUT.glob(f"{slug}.*"):
-        try:
-            shutil.move(str(f), str(REJECT_DIR / f.name))
-            moved += 1
-        except Exception as e:  # noqa: BLE001
-            print(f"[warn] 移動 {f.name} 失敗：{e}")
+    moved, _kept = _move_slug_files(slug, REJECT_DIR)
     if remake:
         log_ops("倉庫評分", f"退件＋立即重做：{title[:24]}（隔離 {moved} 檔，重產中…）")
         print(f"[ok] 已退件：{slug}（隔離 {moved} 檔），立即重產同主題新片…")

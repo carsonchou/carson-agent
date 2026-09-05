@@ -9,30 +9,51 @@
 
 基建線追根因,**結論和原本的假設不同**:
 
-- 那 47 支的發布日有一條**乾淨的分界線**:2026-07-06 以前全缺、07-07 以後全在。
+- 那 47 支的發布日有一條斷點:**07-07 以後零缺漏;07-06 以前 49 支只活下來 2 支**。
+  ⚠️ 初稿寫「07-06 以前**全**缺」,有 **2 個反例**(pubdate 06-30 與 07-05 各一支旁白還在),已更正。
+  **乾淨的只有 07-07 那一側。**
 - 滾動式清理會有**移動中的前緣**;固定日期的斷點是**一次性事件**。
 - 那個日期對得上 memory `yt-studio-local-migration-2026-07`:
   **2026-07-05 雲端 droplet 因欠費 $9.07 被停權,沒繳、改本機跑。**
-  那 47 支的 output/ 產物是**跟著 droplet 一起消失的**。
+  那 47 支的 output/ 產物**在本機從來沒有過**。
+  ⚠️ 初稿寫「跟著 droplet 一起消失」,那句**超出證據**:memory 只證得了日期,
+  它列舉本機已有的東西(程式碼 + STUDIO + uploaded_ledger + token)時 **`output/` 不在那份清單裡**。
+  「被毀掉」和「從來沒被複製過來」對處置沒差,但只有前者蘊含「曾經有東西被毀掉」——**我沒有證據說那件事**。
 
-⇒ **沒有「把旁白一起清掉」的腳本**(scripts/ 裡 grep unlink/remove/rmtree 也找不到這種路徑)。
-⇒ **遷移後 234/234 = 100.0%,缺口沒有在長大。**
+🔴 **〔本檔初稿寫「沒有『把旁白一起清掉』的腳本」—— 那是假的,已更正。〕**
+獨立驗證員一次就找到:**`scripts/quality_score.py` 的 `reject()` / `_quarantine()`**
+`for f in OUT.glob(f"{slug}.*"): shutil.move(...)` —— **`.voice.txt` 一起中**,
+而 `reject()` 明明偵測到「已發布」還是照搬(只印一行 warn)。
+我 grep 漏掉是因為**動詞是 `shutil.move` 不在我查的 unlink/remove/rmtree 三個詞裡**
+(同族 memory `static-reading-vs-runtime-behaviour`)。
+⚠️ **那句話最壞的地方是它的功能:它會叫下一個人不要去查。**
+✅ 已於同日修掉:已發布的片保留 `.voice.txt`(`quality_score.py` 的 `_AUDIT_KEEP_SUFFIX`)。
+
+⇒ **但「缺口沒有在長大」仍然成立**,而且理由和上面那句無關:
+那條路徑**不在任何排程上**(cron 跑的是不帶旗標的 `quality_score.py`,只走 `scan()`),
+入口是手動 `--reject` / `ntfy_command` / `web_center` 按鈕。
+⇒ **遷移後 234/234 = 100.0%。**
 
 🔴 **而「一次性遺失」和「滾動式清理」在分界線上長得一樣,所以那條分界線本身證不了什麼**:
 今天(09-06)減 60 天 = 07-08,**幾乎正好落在觀測到的斷點上**。
 ⇒ 只看斷點,我沒辦法分辨「07-05 droplet 沒了」和「有一支 60 天滾動清理」。
 
 **分辨它的是這個反證(承重點在這裡,不在分界線)**:
-`output/` 現存 776 支 `.voice.txt` 裡,**有 60 支活過 60 天,最舊 72 天(2026-06-25)**。
-**若存在任何門檻 ≤72 天的滾動清理,那 60 支必須已經不在。它們在。**
+`output/` 現存 776 支 `.voice.txt` 裡,**有 68 支活過 60 天,最舊 72.6 天(2026-06-25)**。
+**若存在任何門檻 ≤72 天的滾動清理,那 68 支必須已經不在。它們在。**
+⚠️ 初稿寫「60 支」,那是 `S_` 的數(60)被寫成總數;**正確是 68(S_ 60 + L_ 8)**,已更正。
+⚠️ 另補一句初稿沒說的:**`output/` 裡最舊的檔就是 72.6 天** ——
+所以這個反證只排除得掉「門檻 ≤72 天」的清理,**排除不掉門檻更大的**。
+(對本案夠用:七月的片才 60 天出頭,若有 ~90 天門檻的清理,它還沒輪到七月。
+ ⇒ **這個反證有射程,不要把它讀成「絕對沒有任何清理」。**)
 
 而我自己想到三個會讓這個反證垮掉的可能,逐一查過:
 
 | 可能的洞 | 查了 | 結果 |
 |---|---|---|
-| 清理只清 `L_` 不清 `S_`?(活最久那幾支看起來都是 `S_`) | 那 60 支的前綴分佈 | **8 支是 `L_`**,最舊的已發布長片旁白活了 **71 天** ⇒ 洞不成立 |
-| 清理只清已發布的、未發布的不清? | 那 60 支的發布狀態 | **60 支全部是已發布** ⇒ 洞不成立 |
-| mtime 被別的東西更新過,所以「71 天」是假的? | 想清楚方向 | 被更新只會讓檔案看起來**更年輕** ⇒ 71 天是真實年齡的**下界**,反證只會更強 |
+| 清理只清 `L_` 不清 `S_`?(活最久那幾支看起來都是 `S_`) | 那 68 支的前綴分佈 | **8 支是 `L_`**,最舊的已發布長片旁白活了 **72.0 天** ⇒ 洞不成立 |
+| 清理只清已發布的、未發布的不清? | 那 68 支的發布狀態 | **68 支全部是已發布** ⇒ 洞不成立 |
+| mtime 被別的東西更新過,所以「72 天」是假的? | 想清楚方向 | 被更新只會讓檔案看起來**更年輕** ⇒ 72.6 天是真實年齡的**下界**,反證只會更強 |
 
 (另外 2026-06 還活著 20 支 —— 六月不是被整月掃掉,是遷移時只帶回來一部分,
 那和「按日期清」也不相容。)
@@ -57,7 +78,9 @@
 - **只看長片(`L_` 前綴)**。Shorts 的旁白保存狀況我沒查。
 - **只看 `.voice.txt` 存不存在**,不看內容對不對、不看是不是那支片真正用的那一版
   (稿子被改寫後音檔沒重配這種事,這支看不出來)。
-- **不回填**。那 47 支已經找過 output_recover_bak / _archive / STUDIO,真的沒有。
+- **不回填**。那 47 支的旁白**找不回來**:獨立驗證員掃了 14 個備份/隔離目錄,**0 支命中**。
+  ⚠️ 初稿寫「已經找過 output_recover_bak / `_archive` / STUDIO」,而 **`output/_archive` 根本不存在**
+  —— 列一個不存在的目錄當作找過的證據,會讓下一個人以為涵蓋範圍比實際大。已更正。
 
 用法:
   python scripts/auditability_coverage.py           # 印報告,遷移後不是 100% 就 exit 1
@@ -79,7 +102,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 STUDIO, OUT = ROOT / "STUDIO", ROOT / "output"
 
-# 2026-07-05 droplet 停權,07-06 之前產出的 output/ 產物隨機器消失。
+# 2026-07-05 droplet 停權;07-06 之前那批的 output/ 產物在本機沒有(見檔頭,不宣稱「被毀掉」)。
 # 07-07 起是本機產出,那一群的旁白保存率**應該是 100%**,所以告警只看它。
 # ⚠️ 這個日期是**已查證的事實**不是猜的:47 支缺檔的發布日 100% 落在 07-06 以前,
 #    07-07 以後 234 支零缺漏;memory yt-studio-local-migration-2026-07 記著同一天。
@@ -90,8 +113,14 @@ CUTOFF = "2026-07-07"
 # 被覆寫、被換成別的頻道的,涵蓋率都會變成漂亮的 100%,而且沒有任何東西不一樣。
 # (同族見 docs/ops/dispatch.md §6「比率型驗收指標:分母不可以是處置的目標」)
 # 這個值只會往上,不會往下:已發布的片不會變成沒發布。所以分母變小 = 帳本壞了。
-# 2026-09-06 實測遷移後母體 = 234;留 10 支餘裕給「我當時數錯了」。
-POST_FLOOR = 224
+#
+# 🔴 **第一版寫 `POST_FLOOR = 224`(實測 234,留 10 支餘裕給「我當時數錯了」),
+#    而獨立驗證員一測就翻:從 ledger 拿掉 1~10 支,涵蓋率立刻回到 100.0% 全綠、rc=0。**
+#    **那 10 支餘裕本身就是洞** —— 而「一支片的 ledger entry 和 output 檔一起被搬走」
+#    正是最可能的真實形狀(`reject()` 一次只動一支)。
+# ⇒ 改成**落盤的單調高水位**,零餘裕:第一次跑把實測值寫進檔案,之後只准往上。
+#    要防「我當時數錯了」就讓它自己量,不要用常數猜。
+HWM_FILE = STUDIO / "auditability_hwm.json"
 
 
 def _load(p: Path, default):
@@ -99,6 +128,31 @@ def _load(p: Path, default):
         return json.loads(p.read_text(encoding="utf-8"))
     except Exception:  # noqa: BLE001
         return default
+
+
+def _high_water(post_t: int):
+    """回 (地板, 有沒有更新過)。單調高水位:只准往上。
+
+    讀不到/壞掉時回 (post_t, False) —— 即「這次的值就是地板」,不會誤報,
+    但也**不會保護這一次**;下一次就有基準了。這是刻意的:
+    地板檔壞掉不該讓整支哨變成永遠紅,那樣它就沒人看了。
+    """
+    prev = None
+    try:
+        prev = int((_load(HWM_FILE, {}) or {}).get("post_total"))
+    except Exception:  # noqa: BLE001
+        prev = None
+    floor = post_t if prev is None else max(prev, post_t)
+    if prev is None or post_t > prev:
+        try:
+            HWM_FILE.write_text(
+                json.dumps({"post_total": floor,
+                            "note": "已發布長片(遷移後)的歷史最大值。只准往上;變小=帳本壞了。"},
+                           ensure_ascii=False),
+                encoding="utf-8")
+        except Exception:  # noqa: BLE001
+            pass
+    return floor, (prev is None)
 
 
 def measure():
@@ -143,13 +197,26 @@ def main() -> int:
 
     tot_t, tot_ok = post_t + pre_t, post_ok + pre_ok
     pct = lambda ok, t: (100.0 * ok / t) if t else float("nan")
-    floor_ok = (post_t >= POST_FLOOR)
-    ok = (post_ok == post_t) and floor_ok
+    floor, first_run = _high_water(post_t)
+    floor_ok = (post_t >= floor)
+    gap_ok = (post_ok == post_t)
+    ok = gap_ok and floor_ok
+
+    # 🔴 兩個原因要分開講,不可以塞進同一個布林。
+    # 驗證員實測第一版:帳本被截短時印出「100.0% + 🔴 有新缺口 + 去查 output/ 是不是被刪了」
+    # —— 三句互相矛盾,而且**把值班的人指到一個沒事的目錄**。
+    # 而 --quiet(排程/通知最可能用的那個)裡分母警告**完全不存在**。
+    if not floor_ok:
+        verdict = f"🔴 帳本縮水(母體 {post_t} < 歷史高水位 {floor})—— 百分比無意義"
+    elif not gap_ok:
+        verdict = f"🔴 有新缺口({post_t - post_ok} 支已發布長片沒有旁白)"
+    else:
+        verdict = "✅ 正常"
 
     if a.quiet:
         print(f"稽核涵蓋率 遷移後 {post_ok}/{post_t} ({pct(post_ok, post_t):.1f}%)"
               f" | 全歷史 {tot_ok}/{tot_t} ({pct(tot_ok, tot_t):.1f}%)"
-              f" | {'✅ 正常' if ok else '🔴 有新缺口'}")
+              f" | {verdict}")
         return 0 if ok else 1
 
     print("## 已發布長片的可稽核涵蓋率(有沒有留下旁白稿)")
@@ -159,9 +226,15 @@ def main() -> int:
     print(f"  全歷史                    {tot_ok:4d} / {tot_t:4d} = {pct(tot_ok, tot_t):5.1f}%   ← 只供對外說明,不要拿它當告警值")
     print()
     if not floor_ok:
-        print(f"🔴 **分母縮水**:遷移後母體只剩 {post_t} 支,低於地板 {POST_FLOOR}。")
+        print(f"🔴 **帳本縮水**:遷移後母體只剩 {post_t} 支,低於歷史高水位 {floor}。")
         print("   已發布的片不會變成沒發布 ⇒ **這代表 uploaded_ledger.json 壞了或被換掉了**,")
-        print("   不是內容變少。⚠️ **這時候上面那個涵蓋率百分比沒有意義,不要引用它。**")
+        print("   不是內容變少。")
+        print("   ⚠️ **這時候上面那個涵蓋率百分比沒有意義,不要引用它,也不要去翻 output/** ——")
+        print("      要查的是帳本,不是旁白檔。")
+        print()
+    elif first_run:
+        print(f"ℹ️ 首次執行:已把遷移後母體 {post_t} 記成高水位基準({HWM_FILE.name})。")
+        print("   ⚠️ **這一次沒有分母保護** —— 下一次起才擋得住帳本縮水。")
         print()
 
     if ok:

@@ -845,3 +845,11 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 0 22 * * * /root/yt/run.sh scripts/brain_submit_watch.py >> /root/yt/logs/cron.log 2>&1
 0 9 * * * /root/yt/run.sh scripts/brain_submit_watch.py >> /root/yt/logs/cron.log 2>&1
 0 11 * * * /root/yt/run.sh scripts/brain_submit_watch.py >> /root/yt/logs/cron.log 2>&1
+
+# 稽核涵蓋率(每天 19:10,發布兩輪之後):量「已發布長片還留著旁白稿的比例」。
+#   為什麼要有:2026-09-06 翻出 47 支已發布長片因為旁白不在而**結構上永遠查不了**。
+#   根因是 07-05 droplet 欠費停權那批一起沒了(不是腳本刪的),缺口沒在長大;
+#   但**沒有任何人在量這個數字** —— 哪天開始掉,現在不會有任何東西不一樣。
+#   判準只看「遷移後」那一群(應為 100%);全歷史 83.4% 含已知不可回復的 droplet 遺失,
+#   拿它當告警值會永遠紅、然後沒人看。零 API 配額,純讀本機檔。見 scripts/auditability_coverage.py
+10 19 * * * /root/yt/run.sh scripts/auditability_coverage.py >> /root/yt/logs/cron.log 2>&1
