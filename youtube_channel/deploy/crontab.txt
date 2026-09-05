@@ -69,8 +69,20 @@
 #   同理:片尾畫面(memory yt-endscreen-ui-automation)實測 0 分鐘,那條線不要再投入。
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+# ── [2026-09-05 停產·時事部] 督導代 Carson 裁示,理由與復原方式寫在下面 ──────────────
+#   為什麼停:時事片是 Short,videos.post 一樣要 **1,600 units**(和一支長片的 insert 同價),
+#   但綁定約束是 YPP 的 4,000 小時(現在 430),幣別是**分鐘**不是觀看,而匯率差 9.6 倍
+#   (YT_SEARCH 1.52 分鐘/觀看 vs SHORTS 0.16)。同樣 1,600 units 換一支長片值 4~7 觀看小時,
+#   換一支時事 Short 值 0。⇒ 那 1,600 回到長片。
+#   為什麼不改成長片化:時事內容會衰減,而本頻道的成長引擎是個股搜尋佔位 ——
+#   常青內容會累積搜尋位置,時事不會。長片化的時事片仍然輸給多一支個股體檢。
+#   ⚠️ 這不是「因為它發不出去所以停」。它發不出去是症狀(近三天連續配額不足);
+#   停它的理由是**就算發得出去也不該發**。釋出的額度**先補現況超載**,不要立刻加發布量:
+#   11 支 × 2,150 + 非發布安全值 2,400 = 26,050 > 天花板 26,001,現況本身就沒有餘裕。
+#   復原:把下面兩行前面的 `# [2026-09-05 停產·時事部] ` 拿掉即可(local_cron 每分鐘重讀,
+#   約 60 秒生效,不必重啟)。復原前請先確認 YPP 幣別的結論有沒有改變。
 # 金融時事優先：每 3 小時掃即時財經/加密新聞，有大事立刻產片（繞過排程，每日上限 3 支）
-0 */2 * * * /root/yt/run.sh scripts/news_dept.py >> /root/yt/logs/cron.log 2>&1
+# [2026-09-05 停產·時事部] 0 */2 * * * /root/yt/run.sh scripts/news_dept.py >> /root/yt/logs/cron.log 2>&1
 # 05:30 情報 → 05:37 決策 → 06:07 製作(渲染) → 09:07 發布 → 09:3x~09:5x 後處理各部門
 # 2026-07-17 合規清理:競品「深度學習」(下載他人字幕/音訊轉錄)已整段移除,違反 YouTube ToS。
 # 本機 QuantArsen_IntelLearn 排程已 Disabled、intel_sync.py 已 no-op。這支只走官方 Data API
@@ -385,7 +397,8 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # 2026-07-16 配額預算輪值制:每天→週四一次
 0 22 * * 4 YT_QUOTA_RESERVE=23650 /root/yt/run.sh scripts/build_playlists.py --max 10 >> /root/yt/logs/cron.log 2>&1
 # 台股盤中盯盤即時撃(交易日多掃幾次財經新聞)
-35 9,11,13 * * 1-5 /root/yt/run.sh scripts/news_dept.py >> /root/yt/logs/cron.log 2>&1
+# [2026-09-05 停產·時事部] 理由見檔案上方 :73 附近那則完整說明
+# [2026-09-05 停產·時事部] 35 9,11,13 * * 1-5 /root/yt/run.sh scripts/news_dept.py >> /root/yt/logs/cron.log 2>&1
 # 2026-08-24 配額時區錯配修正:YouTube 配額日在**太平洋午夜重置=台北 15:00~16:00**,
 # 但排程表照台北日曆日設計(早上分析/晚上發布)→每天早上跑的都是「昨天配額日的殘渣」。
 # job_stderr.log 實測 403 分布:09:00 179 次(全天最高)、05:00 98 次,而 15:00 後幾乎為 0。
