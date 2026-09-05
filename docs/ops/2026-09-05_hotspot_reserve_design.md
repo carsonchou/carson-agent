@@ -48,6 +48,53 @@ thumbnails.set 50(:1018);commentThreads **走不到**。
 ⚠️ 還要確認:08-27 撞牆後重試 935 次(45,491 units 被拒)的是哪一支腳本。
 若它在清單裡,把預留線拉高等於**每天**把它推進那個重試迴圈 —— 那會比現在更糟。
 
+## 🔴 第二輪驗證:scope 缺口是 **26 行**,而它推翻的是設計方向本身
+
+crontab 帶 `YT_QUOTA_RESERVE=23650` 的共 **29 行**,我的 patch 清單只涵蓋 **3 行**。
+漏掉的包含 `organize_dept.py`(週五 09:45,09-04 實花 15 次 playlistItems.insert = 750 units)、
+`industry_playlists.py`、`playlist_engine.py`、`build_playlists.py`、`comment_dept.py`
+(**每 2 小時一次、全天**,跟時事部同頻率搶同一口井)、`quality_score.py`(15:30 與 06:40 兩班)
+等 26 支。**只要其中任何一支在 23,650~24,750 這段還在跑,新留的 1,650 就被吃光。**
+
+⇒ **這不是「補上 26 行」的問題。** 逐行 opt-in 就是根因:
+`RESERVE = int(os.environ.get("YT_QUOTA_RESERVE", "0"))`(`:63`)**預設 0 = 不保護**,
+靠每支 cron 自己記得加。漏一支是靜默的,而且下一支新增的 cron 還會漏。
+判準(`verification-that-cannot-fail` 第零種):**規則沒被遵守時會不會產生輸出?**
+opt-in 的漏網不產生任何輸出 —— 那支腳本只是照常把額度吃掉。
+
+## 定案改為:把 opt-in 翻成 opt-out
+
+```python
+# 預設就保護。要動用被保護的額度,必須明確宣告自己是被保護的那個部門。
+RESERVE_UNITS = int(os.environ.get("YT_QUOTA_RESERVE_UNITS", str(DEFAULT_RESERVE_UNITS)))
+```
+
+- `DEFAULT_RESERVE_UNITS = 24,750` = 23,100(發布 11 支 × 2,100)+ 1,650(時事一支 Short)
+- **只有發布路徑 opt-out**:`daily_publish` 的兩行(18:00 / 18:30)與時事的
+  `news_dept` / `hotspot_dept` 帶 `YT_QUOTA_RESERVE_UNITS=0`
+- **其餘 26 支維運腳本一行都不用改**,自動被擋在 1,251 的維運池內
+
+為什麼這比補 26 行好:
+
+| | 逐行 opt-in(原設計) | 預設 opt-out(定案) |
+|---|---|---|
+| 漏掉一支的後果 | 它把預留吃光,**修法靜默失效** | 它被保護,**保守停下**(冪等,下個配額日接著跑) |
+| 新增 cron | 要記得加,不加就漏 | 不用做任何事 |
+| 要改的行數 | 29 | **3~4** |
+| 失效方向 | fail-open | **fail-safe** |
+
+## 已知代價(不是未知數,是選擇)
+
+1. **維運腳本會被擋得比現在多。** 池子 2,901 → 1,251。被擋時是純本地端 raise
+   (`_orig` 呼叫**之前**),零 units、零網路成本,不會製造真 403。
+2. **噪音**:`organize_dept.py:113-121` 與 `thumbnail_dept.py` 被擋時是
+   `except Exception: print(警告); continue`(**沒有 break**),會對整份 ledger 逐一撞牆
+   ⇒ ledger 幾百支就印幾百行警告。**燒的是 log 不是配額**,但這是實打實的噪音。
+   ⚠️ 另外 24 支是否有 quota-break 收尾**未逐一核對**。
+3. `DEFAULT_RESERVE_UNITS = 24,750` 綁死「11 支長片 + 1 支時事 Short」這個現況。
+   **發布量一改它就過期**,而過期的方向是「保護不足」。
+   ⇒ 落地時這個常數的定義處要寫明它從哪裡算出來,並在 `premises.md` 掛一條隨發布量失效。
+
 **⑤ 09-04 的 `spent` 我寫 25,009、驗證員讀到 25,032~25,033** —— 配額日還在跑,
 兩者都是快照。本文所有 09-04 數字的快照時點:**台北 2026-09-05 02:4x**。
 
