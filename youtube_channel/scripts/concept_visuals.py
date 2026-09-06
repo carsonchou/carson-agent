@@ -176,6 +176,15 @@ def _year_ticks(ax, dates, n_max=6):
     ax.set_xticks(keep_p)
     ax.set_xticklabels(keep_l)
     ax.tick_params(axis="x", colors=MUTED, labelsize=16, length=0)
+    # 🔴 2026-08-30:年份標籤會被**價格線與回撤陰影**蓋掉。實抽加高 8182 的成片:
+    # 「2009」被低點密集震盪的白線壓過去只剩「09」、「2013」被紅色回撤區塊與端點蓋住。
+    # 兩者各自都在畫布內,所以版面守門全綠(memory layout-guard-blind-to-overlap:
+    # 守門驗逐項,而錯的是它們合起來)。
+    # 不移位置的理由:碰撞位置取決於該檔股票的價格形狀,每支片都不同,移到哪都可能撞別的。
+    # 給半透明底色 + 拉高 zorder,底下是什麼都讀得到,且完全不影響版面配置。
+    for _lbl in ax.get_xticklabels():
+        _lbl.set_bbox(dict(facecolor=BG, edgecolor="none", alpha=0.78, pad=2.0))
+        _lbl.set_zorder(20)
 
 
 def classify(text: str) -> Optional[str]:
@@ -360,8 +369,15 @@ def _drawdown(ax, ctx):
     # 標註**一律放谷底上方**:谷底依定義是這段的最低點,上方必然有空間(而且正是回撤陰影區,
     # 配深色描邊很好讀);往下放則會壓到年份刻度——第一版依相對高度決定上下,實測仍有兩張中招
     # (視窗不同時谷底相對位置會變),索性拿掉這個判斷,永遠往上,行為可預測。
-    ax.annotate(f"{dd[trough]*100:.1f}%", xy=(trough, eq[trough]), xytext=(0, 52),
-                textcoords="offset points", ha="center", va="bottom", color=RED,
+    # 🔴 2026-08-30 水平對齊也要看位置。實抽南亞科 2408:谷底落在序列尾端,
+    # ha="center" 讓「-95.3%」以谷底為中心展開,**右半個字被畫布切掉**。
+    # 那個數字是這張圖的主角(上面放大到 34px 就是為了讓它一眼可讀),裁掉等於白做。
+    # 同上面垂直方向的精神:依位置選,行為可預測,不靠 autoscale 幫忙。
+    _fx = trough / max(len(eq) - 1, 1)
+    _ha = "right" if _fx > 0.88 else ("left" if _fx < 0.12 else "center")
+    _dx = -6 if _ha == "right" else (6 if _ha == "left" else 0)
+    ax.annotate(f"{dd[trough]*100:.1f}%", xy=(trough, eq[trough]), xytext=(_dx, 52),
+                textcoords="offset points", ha=_ha, va="bottom", color=RED,
                 fontsize=34, fontweight="bold",
                 path_effects=[_pe.withStroke(linewidth=4, foreground=BG)], zorder=6)
     ax.set_xlim(0, len(eq) - 1)
@@ -689,7 +705,86 @@ def _valuation(ax, ctx):
     return f"{code} 本益比 vs 自身近{yrs}年區間（只陳述位置）", None
 
 
+def _crosssec(ax, ctx):
+    """橫斷面分佈圖:把 598 檔標的的「代價」攤成一張分佈,而不是畫某一檔的走勢。
+
+    2026-09-06 新增,給旗艦片《抱得住嗎》。現有 10 種圖**全部是逐檔時間序列**,
+    畫不出「全市場長什麼樣」——那正是旗艦片的主張,所以缺這一種等於沒有視覺。
+
+    誠信約束(照本檔既有原則):
+    · **零 rng**。每一根長條都是真實檔數,不是模擬。
+    · **不碰 `ctx.real`**:它畫的是全體分佈,沒有「這一檔」可言。
+    · 資料來自 `flagship_xsec.compute()` 的 `_dd_values` / `_uw_values`,
+      而那支只讀事實庫的結構化欄位。拿不到就回 None(不畫,不假裝)。
+    · caption 裡的數字會被上層抽進 `.meta.json`,所以它必須是真的。
+    """
+    t = (ctx.text or "")
+    if "套牢" in t or "年" in t and "回撤" not in t and "腰斬" not in t:
+        kind = "uw"
+    elif "回撤" in t or "腰斬" in t or "跌" in t:
+        kind = "dd"
+    else:
+        return None
+    try:
+        import sys as _s
+        from pathlib import Path as _P
+        _sc = str(_P(__file__).resolve().parent)
+        if _sc not in _s.path:
+            _s.path.insert(0, _sc)
+        import flagship_xsec
+        x = flagship_xsec.compute()
+    except Exception:
+        return None
+    vals = x["_dd_values"] if kind == "dd" else x["_uw_values"]
+    if len(vals) < 100:
+        return None
+    import numpy as _np
+    arr = _np.asarray(vals, dtype=float)
+    if kind == "dd":
+        edges = _np.arange(0, 101, 10.0)
+        line, lab = 50.0, "腰斬線"
+        cap = (f"{len(arr)} 檔最大回撤分佈：中位 {float(_np.median(arr)):.1f}%，"
+               f"{100*float((arr>=50).mean()):.1f}% 曾經腰斬以上")
+        xlabel = "最大回撤（%）"
+    else:
+        top = max(5.0, float(_np.ceil(arr.max() / 5.0) * 5.0))
+        edges = _np.arange(0, top + 2.5, 2.5)
+        line, lab = 10.0, "十年"
+        cap = (f"{len(arr)} 檔最長套牢期分佈：中位 {float(_np.median(arr)):.2f} 年，"
+               f"{100*float((arr>=10).mean()):.1f}% 曾達十年以上")
+        xlabel = "最長套牢期（年）"
+    cnt, _e = _np.histogram(arr, bins=edges)
+    centers = (edges[:-1] + edges[1:]) / 2.0
+    width = (edges[1] - edges[0]) * 0.82
+    colors = [RED if c >= line else FG for c in centers]
+    ax.bar(centers, cnt, width=width, color=colors, alpha=0.85,
+           edgecolor="white", linewidth=0.6, zorder=3)
+    ax.axvline(line, color=RED, lw=1.6, ls="--", alpha=0.9, zorder=4)
+    ax.annotate(lab, xy=(line, cnt.max() * 0.96), xytext=(4, 0),
+                textcoords="offset points", color=RED, fontsize=11, va="top")
+    med = float(_np.median(arr))
+    # 🔴 中位數的小數位要和 caption 一致。第一版圖上寫「中位 7.2」而 caption 寫「7.15」,
+    # 同一張圖裡兩個數字打架 —— 而 7.2 正是那個「偶數 n、平手往上進位」的值。
+    _fmt = f"{med:.1f}" if kind == "dd" else f"{med:.2f}"
+    ax.axvline(med, color=FG, lw=1.4, alpha=0.55, zorder=4)
+    ax.annotate(f"中位 {_fmt}", xy=(med, cnt.max() * 0.80), xytext=(5, 0),
+                textcoords="offset points", color=FG, fontsize=12, va="top")
+    ax.set_xlim(float(edges[0]), float(edges[-1]))
+    ax.set_ylim(0, cnt.max() * 1.18)
+    # 橫軸刻度:沒有刻度的分佈圖等於沒有資訊 —— 讀者看不出「往右是什麼」。
+    _step = 2 if len(edges) > 12 else 1
+    _ticks = [float(e) for e in edges[::_step]]
+    ax.set_xticks(_ticks)
+    ax.set_xticklabels([(f"{t:.0f}%" if kind == "dd" else f"{t:.0f}年") for t in _ticks],
+                       fontsize=11, color=FG)
+    ax.tick_params(axis="x", colors=FG, length=4, pad=3)
+    ax.tick_params(axis="y", left=False, labelleft=False)
+    return cap, None
+
+
 _DISPATCH = {
+    # 橫斷面分佈圖(2026-09-06,旗艦片《抱得住嗎》):全體分佈,不是逐檔走勢。零 rng。
+    "crosssec": _crosssec,
     # 真資料圖(拿不到真 CSV → drawer 回 None → 不畫):
     "dca": _dca, "drawdown": _drawdown, "trend": _trend, "candle": _candles,
     # 個股體檢真財報圖(只能 force 指定,沒有 classify 關鍵字——見上方說明):

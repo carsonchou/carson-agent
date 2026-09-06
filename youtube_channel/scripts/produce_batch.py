@@ -6451,6 +6451,8 @@ def main() -> int:
                      help="立刻產 1 支「台股真相實驗室」系列正片（由 tw_lab_engine 依序派下一組真回測事實，繞過題庫）")
     ap.add_argument("--ep0", default=None, metavar="SERIES",
                      help="立刻產 1 支系列開播預告 EP.0（確定性模板,不走 LLM;系列代號見 ep0_engine.py --list）")
+    ap.add_argument("--flagship-xsec", action="store_true", dest="flagship_xsec",
+                    help="旗艦《抱得住嗎》橫斷面長片:確定性組稿,產 1 支長片")
     ap.add_argument("--belief", default=None, metavar="ID",
                      help="立刻產「台股流言終結者」迷思終結片（確定性模板,不走 LLM;ID 見 belief_buster_engine.py --list;"
                           "填 all 產全部 3 支）")
@@ -6514,6 +6516,46 @@ def main() -> int:
     # script_override 路徑(配音/渲染共用同一條既有產線,不另造產線)。存量/事實缺失時
     # build_script 會 fail-closed 回 None → 該支跳過。刻意**不接 --publish**：本 franchise 首批
     # 一律人眼驗過畫面(渲染期假數字/渐进揭露)再由 Carson 定奪發布,不自動上架。
+    if getattr(args, "flagship_xsec", False):
+        # 旗艦《抱得住嗎》。稿子由 flagship_engine 確定性組好(不走 LLM,故不需 LLM 金鑰)。
+        #
+        # 🔴 絆線:make_one:6105 的鎖題終檢對手寫稿逐條生效,命中後會呼叫 call_claude()
+        # 重寫(那條路裡有 _densify_long,會用 LLM 整篇改寫旁白)。
+        # 也就是說「確定性組稿」**過不了那道閘就當場失效,而且沒有任何訊號**。
+        # 這裡把 call_claude 換成會丟例外的版本:確定性從「預期」變成**結構上保證** ——
+        # 一旦它被走到,整支片失敗並印出原因,而不是安靜地降級成一支普通 LLM 稿。
+        import flagship_engine as fge
+        _dfl = fge.build_script()
+        if not _dfl:
+            return 2  # 理由已由 flagship_engine 印到 stderr(資料不足 / 稿子自檢未過)
+        _tfl = fge.build_topic()
+
+        class _DeterminismBroken(RuntimeError):
+            pass
+
+        _orig_call = call_claude
+
+        def _tripwire(*_a, **_k):
+            raise _DeterminismBroken(
+                "🔴 旗艦片被鎖題終檢退回並試圖用 LLM 重寫 —— 那會讓這支片不再是確定性組稿。"
+                "停下來查組稿邏輯(多半是 _long_underlength/_long_opening_bad),不要放它過。")
+
+        globals()["call_claude"] = _tripwire
+        try:
+            slug_made = make_one("long", no_render=args.no_render,
+                                 topic_override=_tfl, script_override=_dfl)
+        except _DeterminismBroken as exc:
+            print(str(exc), file=sys.stderr)
+            log_ops("旗艦製作", "⚠️ 確定性被破壞:鎖題終檢退回並試圖 LLM 重寫,已中止")
+            return 4
+        finally:
+            globals()["call_claude"] = _orig_call
+        log_ops("旗艦製作",
+                f"{'已產出' if slug_made else '⚠️ 失敗'}:抱得住嗎"
+                f"{'｜' + str(slug_made)[:44] if slug_made else ''}")
+        print(f"[{'ok' if slug_made else 'FAIL'}] 旗艦橫斷面長片:{slug_made or '未產出'}")
+        return 0 if slug_made else 1
+
     if getattr(args, "belief", None):
         import belief_buster_engine as bbe
         _bids = bbe.BELIEF_ORDER if args.belief == "all" else [args.belief]

@@ -1065,6 +1065,9 @@ def render_candle_card(width: int, height: int, *, big_text: str, watermark: str
 
 
 _SEG_KEY_RULES = (
+    # 橫斷面分佈(2026-09-06,旗艦片《抱得住嗎》):走 heading 而不是 classify(),
+    # 因為 classify() 是全頻道共用的,加關鍵字會影響每一支片;heading 只影響指定的段。
+    ("crosssec",     ("分佈", "橫斷面", "全市場攤開", "一支一支比")),
     # (概念圖 key, 段落標題裡出現任一詞就採用)。順序＝優先序,越專一越前面。
     ("valuation",    ("估值", "本益比", "貴還是便宜", "評價")),
     ("fundamentals", ("基本面", "財報", "營收", "eps", "獲利", "毛利", "配息", "股利")),
