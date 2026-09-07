@@ -4051,7 +4051,41 @@ def _prompt_leak_suspects(voice_text):
     return kill, gray
 
 
-def _long_prompt_leak(voice_text):
+_LEAK_REGRESSION = None
+
+
+def prompt_leak_selfcheck():
+    """🔴 拿**真實發生過的洩漏句**證明這道閘門還抓得到。回 (ok, 說明)。
+
+    為什麼需要這一支(2026-09-08,付了 31 支的學費才有):
+    這道閘門 2026-08-25 就上線了(`3b400146`),而洩漏從 9 支長到 31 支
+    **發生在它上線之後那三週** —— 因為第一版判準是**樣式清單**,
+    而被監控的東西(prompt 原文)會被改寫:簡繁替換、標點換全形、編號重排。
+    **清單追不上,而落後時它不會報錯**:照跑、照回 None、log 一片乾淨。
+    「沒有命中」和「認不出來了」在觀測上一模一樣,所以瞎了三週沒人知道。
+    09-03 `cbfb12e7` 把語料換成 prompt 常數才真的擋住。
+
+    ⇒ **一道閘門上線之後,要有東西定期證明它還抓得到已知案例。**
+    語料是 `STUDIO/promptleak_regression.json`,裡面是**真實成品裡抽出來的句子**,
+    不是合成 fixture —— 合成的只測得到「你想像中的失效」,測不到「實際發生過的那種」。
+    memory `gate-blind-while-target-evolves`。"""
+    global _LEAK_REGRESSION
+    if _LEAK_REGRESSION is None:
+        try:
+            _LEAK_REGRESSION = json.loads(
+                (ROOT / "STUDIO" / "promptleak_regression.json").read_text(encoding="utf-8"))
+        except Exception as exc:  # noqa: BLE001
+            return False, f"回歸語料讀不到:{str(exc)[:80]}"
+    if len(_LEAK_REGRESSION) < 8:
+        return False, f"回歸語料只有 {len(_LEAK_REGRESSION)} 句(下限 8),不足以證明閘門還活著"
+    miss = [c for c in _LEAK_REGRESSION if not _long_prompt_leak_raw(c.get("sent", ""))]
+    if miss:
+        return False, (f"🔴 {len(miss)}/{len(_LEAK_REGRESSION)} 句已知洩漏抓不到 —— "
+                       f"閘門的判準已經跟不上被監控物,第一句:「{miss[0].get('sent','')[:40]}」")
+    return True, f"{len(_LEAK_REGRESSION)}/{len(_LEAK_REGRESSION)} 句已知洩漏都抓得到"
+
+
+def _long_prompt_leak_raw(voice_text):
     """旁白裡有沒有 prompt 指令原文/佔位符(會被 TTS 唸出來)。回原因字串或 None。
 
     這道原本是靠密度 gate **偶然**咬到的(那段指令重複度高),而那是巧合不是把關:
@@ -4072,6 +4106,15 @@ def _long_prompt_leak(voice_text):
     if gray:
         return f"疑似 prompt 指令洩漏(相似度 {_LEAK_MARK:.0%}~{_LEAK_DEL:.0%},交重生):「{gray[0]}」"
     return None
+
+
+def _long_prompt_leak(voice_text):
+    """對外的洩漏偵測。**先自檢再判**:自檢失敗時一律回「閘門故障」,不可以回 None ——
+    回 None 會讓一道瞎掉的閘門看起來跟一道有效的閘門一模一樣(那正是 08-25~09-03 發生的事)。"""
+    ok, msg = prompt_leak_selfcheck()
+    if not ok:
+        return f"🔴 洩漏閘門自檢失敗,fail-closed 擋下:{msg}"
+    return _long_prompt_leak_raw(voice_text)
 
 
 def _strip_prompt_leak(voice_text):
