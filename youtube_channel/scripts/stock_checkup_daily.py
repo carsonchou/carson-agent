@@ -68,6 +68,8 @@ STATE_FILE = STUDIO / "stock_checkup_daily_state.json"
 # (--count 8 會回報「完成 5/8」),加量無效且無聲。改成只計失敗:最壞嘗試 count + MAX_FAILS 檔
 # (8+5=13 檔 × 4 個 FinMind call = 52 call,仍遠低於免費層 300/hr,見下方 quota 註解)。
 MAX_FAILS = 5      # 本次執行容許幾檔「資料不足」;超過就收工(防止一路撞到都是新股，整天卡死)
+FETCH_FAIL_LIMIT = 3   # 🔴 同一檔連續抓取失敗幾次才**永久**排除。1 次不算 ——
+                       # 2026-09-07:一次 yfinance 抖動誤殺 36 檔(重測 36/36 都抓得到)
 MAX_SEED_FAILS = 3  # 🔴 2026-09-05 新增:連續幾檔「種題丟例外」就中止本輪。
                     # 為什麼要有:09-02/09-03 的 NameError 是「每一檔都會炸」那一類,
                     # 而當時沒有 try/except,第一檔就把整支帶走 → --count 16 的 15 個名額蒸發。
@@ -409,19 +411,35 @@ def seed_topics_for_code(code: str, name: str = "", dry_run: bool = False) -> in
     return len(new_recs)
 
 
+# 失敗種類:決定呼叫端要不要把這一檔**永久**踢出 backlog。
+FAIL_TRANSIENT = "transient"   # 上游抓取失敗 —— 可能只是這一次,不可以永久排除
+FAIL_PERMANENT = "permanent"   # 這一檔結構上做不出來 —— 可以排除
+
+
 def process_one(code: str, name: str) -> tuple:
-    """算一檔的完整體檢(價格+基本面)。回傳 (ok: bool, reason: str)。"""
+    """算一檔的完整體檢(價格+基本面)。回傳 (ok: bool, reason: str, kind: str)。
+
+    🔴 2026-09-07:第三個回傳值是新加的,因為呼叫端**必須**分得出暫時性與永久性。
+    原本兩種失敗共用一條路,呼叫端一律 `skip=True` ⇒ 一次 yfinance 抖動就把一檔
+    上市二十年的公司**永久**踢出體檢名單。實測代價:36 檔被誤殺,
+    重測 36/36 全部抓得到,裡面有彰銀 2801、台肥 1722、和碩 4938、王品 2727。
+
+    🔴 而原本那個理由字串「價格資料抓取失敗**或上市未滿最短年限**」後半段是**假的**:
+    `build_checkup` 只在 `fetch_series` 回 None 時回 `(None, [])`,那就是純粹的抓取失敗;
+    「年限不足」走的是另一條路(回 facts + skipped 明細,ok=True)。
+    **是那半句不存在的原因,讓「永久排除」看起來合理。**
+    """
     print(f"[stock_checkup_daily] 處理 {code}（{name}）...")
     try:
         facts, skipped = scf.build_checkup(code, name_override=name)
     except Exception as exc:  # noqa: BLE001
-        return False, f"build_checkup 例外：{str(exc)[:160]}"
+        return False, f"build_checkup 例外：{str(exc)[:160]}", FAIL_TRANSIENT
     if facts is None:
-        return False, "價格資料抓取失敗或上市未滿最短年限"
+        return False, "價格資料抓取失敗(上游暫時性失敗也走這條)", FAIL_TRANSIENT
     if not facts.get("results"):
-        return False, "抓到公司但算不出任何事實(價格+基本面皆資料不足)"
+        return False, "抓到公司但算不出任何事實(價格+基本面皆資料不足)", FAIL_PERMANENT
     scf.merge_and_write(facts, dry=False)
-    return True, f"算出 {len(facts['results'])} 組事實({len(skipped)} 組略過)"
+    return True, f"算出 {len(facts['results'])} 組事實({len(skipped)} 組略過)", ""
 
 
 def main() -> int:
@@ -460,13 +478,30 @@ def main() -> int:
             print(f"[dry-run] 會選中：{code}（{name}），rank={cand.get('rank')}")
             done_this_run += 1
             continue
-        ok, reason = process_one(code, name)
+        ok, reason, fail_kind = process_one(code, name)
         if not ok:
             fails += 1
-            cand["skip"] = True
-            cand["skip_reason"] = reason
+            if fail_kind == FAIL_TRANSIENT:
+                # 🔴 暫時性失敗**不寫 skip**,只累計次數。連續 FETCH_FAIL_LIMIT 次
+                # (跨不同輪)才判定為真的抓不到 —— 一次 yfinance 抖動不可以讓一檔
+                # 上市二十年的公司永久消失。2026-09-07 實測:36 檔被這樣誤殺,重測 36/36 都抓得到。
+                n = int(cand.get("fetch_fail") or 0) + 1
+                cand["fetch_fail"] = n
+                if n >= FETCH_FAIL_LIMIT:
+                    cand["skip"] = True
+                    cand["skip_reason"] = f"價格連續 {n} 次抓取失敗(疑似已下市/代號無效):{reason}"
+                    print(f"[stock_checkup_daily] 🔴 {code}（{name}）連續 {n} 次抓不到,"
+                          f"永久排除。若是誤判,把 skip/fetch_fail 清掉即可回收。", file=sys.stderr)
+                else:
+                    print(f"[stock_checkup_daily] ⚠️ {code}（{name}）抓取失敗第 {n}/{FETCH_FAIL_LIMIT} 次"
+                          f"(**不排除**,下輪再試):{reason}", file=sys.stderr)
+            else:
+                cand["skip"] = True
+                cand["skip_reason"] = reason
+                print(f"[stock_checkup_daily] {code}（{name}）永久略過：{reason}", file=sys.stderr)
             _save_backlog(bl)
-            print(f"[stock_checkup_daily] {code}（{name}）略過：{reason}（第 {fails}/{MAX_FAILS} 次），試下一檔...")
+            print(f"[stock_checkup_daily] {code}（{name}）本輪跳過（第 {fails}/{MAX_FAILS} 次），試下一檔...",
+                  file=sys.stderr)
             continue
         cand["done"] = True
         cand["done_at"] = today

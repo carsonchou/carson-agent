@@ -137,6 +137,13 @@ def load_history():
             return healthy + err            # 只引爆 -1 那條
         if SELFTEST_MODE == "zero":
             return healthy + zero           # 只引爆「連續 0」那條(-1 為 0 筆)
+        if SELFTEST_MODE == "stale":
+            # 🔴 2026-09-07 真實發生過的形狀:**今天零列**(不是全 0)。
+            # 種題 05:50 因連續 5 次抓取失敗而中止,一列都沒寫,exit 0、log 記「✓ 完成」。
+            # 舊判準看「最後一列」,而最後一列還是昨天那筆 16/16 ⇒ 判「✅ 正常」。
+            # 零列和全 0 是兩件事,舊判準只涵蓋後者。
+            old = (datetime.date.today() - datetime.timedelta(days=2)).isoformat()
+            return [{"date": old, "code": "S%d" % i, "n_new_topics": 1} for i in range(16)]
         # 順序刻意是 err 在前、zero 在後:連續 0 是從**最後一筆往回數**的,
         # 把 err 放最後會把 run0 打斷成 0 —— 第一版就是這樣,"all" 其實只引爆了一條。
         return healthy + err + zero         # 兩條都引爆
@@ -170,13 +177,34 @@ def main():
             break
 
     last_day = tail[-1].get("date", "?")
+    # 🔴 新鮮度:history 的最後一列是不是今天的。
+    # 2026-09-07 實據:種題 05:50 中止、**一列都沒寫**,本哨 07:00 讀「最後一列」讀到昨天那筆
+    # 16/16,於是判「✅ 正常」。**零列在舊判準下結構上不可見。**
+    # ⚠️ 這條和「連續 0」問的是兩件事:那條問「有跑但種不出來嗎」,這條問「今天到底有沒有跑」。
+    stale_days = None
+    try:
+        _ld = datetime.date.fromisoformat(str(last_day))
+        stale_days = (datetime.date.today() - _ld).days
+    except Exception:  # noqa: BLE001
+        stale_days = None
     today_rows = [r for r in tail if r.get("date") == last_day]
     ok_today = sum(1 for r in today_rows if (r.get("n_new_topics") or 0) >= 1)
 
-    stat = (f"最後一輪 {last_day}:{ok_today}/{len(today_rows)} 種到題"
+    stat = (f"最後一輪 {last_day}"
+            + (f"(距今 {stale_days} 天)" if stale_days else "")
+            + f":{ok_today}/{len(today_rows)} 種到題"
             f"｜近 {len(tail)} 筆 連續 0={run0}(門檻 {K_ZERO})｜例外(-1)={len(errs)}")
 
     problems = []
+    if stale_days is None:
+        problems.append(f"🔴 最後一列的日期解析不出來({last_day!r})—— 判不了新鮮度,當成有問題")
+    elif stale_days >= 1:
+        problems.append(
+            f"🔴 **今天(含)以來 history 一列都沒有**:最後一列停在 {last_day}(距今 {stale_days} 天)。"
+            f"這不是「種出 0 題」,是**那一輪根本沒寫任何一列** —— 2026-09-07 的長相:"
+            f"連續 5 次價格抓取失敗 → fails 達 MAX_FAILS → 中止整輪 → seeded_ok=0 → "
+            f"last_run_date 不寫 → exit 0、local_cron 記「✓ 完成」,診斷訊息全印在 stdout 被丟掉。"
+            f"**先看 logs/job_stderr.log 那支腳本那段,再看 STUDIO/stock_checkup_backlog.json 的 mtime。**")
     if errs:
         e0 = errs[-1]
         problems.append(f"🔴 種題丟例外 {len(errs)} 筆,最近一筆 {e0.get('code')}:"
