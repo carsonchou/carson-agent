@@ -25,7 +25,23 @@
 
 ## ④ 裝 RAM 那趟順手:兩支排程任務改「不論登入與否都執行」— 約 2 分鐘(按一次 UAC)
 
-實測發現:**看門狗(LocalCronWatchdog)與天花板守望(carson-quota-ceiling-watch)兩支**都設成「僅互動登入時執行」,而本機沒開自動登入——**無人值守重開機(Windows Update/跳電)後,產線不會自己回來、偵測它死掉的守望也一起死,零錯誤訊號**。
+實測發現:設成「僅互動登入時執行」的**不只兩支** —— 🔴 **2026-09-08 重量:全機每一支排程工作都是 `Interactive`**
+(`LocalCronWatchdog`、`carson-quota-ceiling-watch`、`carson-seeding-watch`、`carson-narration-compliance-watch`、
+`CarsonQuant_PCRender`、`DataHunter-EOD`、`Stock009816Monitor`…),
+而且**排程器 `local_cron` 本身**是靠「啟動資料夾」捷徑起的,**也只在互動登入後才跑**;
+`HKLM\…\Winlogon\AutoAdminLogon` 與 `DefaultUserName` 都**未設定** ⇒ 本機沒有自動登入。
+⇒ **無人值守重開機(Windows Update/跳電)後,產線一個元件都不會起來,包括會發現這件事的那個,零錯誤訊號。**
+
+⚠️ 本項的修法**刻意只改兩支**(看門狗 + 天花板守望),那是最小有效集合:
+看門狗活著就會把 `local_cron` 拉起來,113 個 job 隨之回來。
+**但要知道剩下的仍然是死的** —— `carson-seeding-watch` 與 `carson-narration-compliance-watch`
+在無人值守情境下不會跑,那兩道哨的空窗要另外處理(不阻塞本項)。
+
+🔴 **2026-09-08 新增的理由(讓本項比原本更急)**:那條「看門狗把排程器拉回來」的路徑
+**在今天以前是壞的** —— 它會成功拉起一個**開跑就死**的排程器,並推播一則 restarted 成功通知
+(根因:watchdog 用 `Popen(stdout=<檔>)` 啟動,該 handle 預設 cp950,排程器印 `▶` 就 UnicodeEncodeError;
+已修並端到端驗過,見 `6750ed73` / `d4cf1aa2`)。
+⇒ **救援路徑今天才真的能用,而它本身仍鎖在互動登入後面。修好的救援 ≠ 救援會發生。**
 
 做法:系統管理員 PowerShell 跑 `D:\carson-agent\scripts\fix_task_principals.ps1`(已過獨立驗證;改 S4U=不存密碼、維持你的帳號身分)。
 
@@ -46,3 +62,60 @@
 
 ---
 四件互不相依,順序隨意(②④同一趟做最省:裝 RAM 要重開機,④的真驗收正好靠那次重開機)。做完任一件跟任一個 session 說一聲即可。
+
+---
+
+## ⑤ 環境變數與 OmniRoute 現況 — **不是待辦,是一張分格的清單**(2026-09-08 實測)
+
+> ⚠️ **這一節刻意分三格,不要合併成一個「殘留清單」。**
+> 上一輪就是沒分格,差一點把①(一把**活的**金鑰)送進「待清」——
+> 而 Jarvis 壞掉的訊號要等到有人去用才會出現。
+
+### 🟢 格一:**不要清**(清了會弄壞東西)
+
+**`ANTHROPIC_API_KEY`(使用者層持久化)—— 不是殘留,Jarvis 在用。**
+
+呼叫點(逐一開檔驗過,不是轉述):
+
+| 檔案:行號 | 內容 |
+|---|---|
+| `jarvis/jarvis.py:254` | `key = os.environ.get("ANTHROPIC_API_KEY", "").strip()` |
+| `jarvis/web/server.py:732` | 同上 |
+| `jarvis/web/server.py:1031` | 同上 |
+| `jarvis/self_improve/optimizer.py:241` | 同上 |
+| `jarvis/computer.py:351` | 同上 |
+
+缺了它 `jarvis/jarvis.py:256` 直接 `raise RuntimeError("無 ANTHROPIC_API_KEY")`,web 端回「缺少 ANTHROPIC_API_KEY」。
+
+⚠️ 另一面也要知道(所以它是「不要清」不是「沒事」):照 memory `anthropic-billing-api-vs-oauth`,
+**獨立 API key 是額外計費的路徑**(OAuth 才吃訂閱額度)。
+⇒ 它該不該存在是**成本決策**(碰「動錢」紅線,基建線不動),
+但**在 Jarvis 改掉取用方式之前,刪掉它就是弄壞 Jarvis**。這兩件不要混。
+
+### 🟡 格二:**只記錄,先不動**
+
+**`CLAUDE_CODE_AUTO_COMPACT_WINDOW=200000`(使用者層持久化)** —— auto-switch 那套的遺留,
+漏在持久層沒清掉。值本身**無害**且與 memory `claude-context-budget-2026-09` 的 200K 交棒線一致。
+⇒ 記著它的出身即可,不必為了整潔去動一個正在幫忙的值。
+
+**`OMNIROUTE_API_KEY`(使用者層持久化)** —— gateway 憑證。
+**它只是憑證,不會造成路由**(路由要 `ANTHROPIC_BASE_URL`/`AUTH_TOKEN`/`MODEL`,那三個**都不在**任何持久層)。
+⇒ 只要 OmniRoute 還在服役(見格三),留著它是合理的;要退役再一起清。
+
+### 🔵 格三:原本列「待查」,**今天查完了,結論如下**
+
+| 查的東西 | 結果 |
+|---|---|
+| `D:\omniroute-run\` | **存在**,6 個檔:`start-omniroute.vbs`、`usage_watch.py`、`usage-cache.json`(1.4MB)、`usage-calibration.json`、`patch_allow_rule.py`、`auto-switch.log` |
+| 排程觸發器 | **只剩一支** `OmniRoute AutoStart`(`State=Ready`、**登入觸發**、`wscript.exe start-omniroute.vbs`) |
+| 會改寫 `settings.json` 的那支 | 🟢 **已經整個不存在** —— `auto-switch.log` 末行:`2026-09-05 01:54:24 [DISABLED] scheduled task 'OmniRoute auto-switch' disabled on Carson's instruction - no further automatic settings.json writes`,而今天列排程時它**連工作都查不到了** |
+| OmniRoute 現在在跑嗎 | 🔴 **在跑**:npm 全域安裝(`AppData\Roaming\npm\node_modules\omniroute`),pid 29156 **正在聽 20128** |
+| 其他持久層路由鍵 | 使用者層與機器層都掃過,`ANTHROPIC_BASE_URL`/`ANTHROPIC_AUTH_TOKEN`/`ANTHROPIC_MODEL` **全部不存在** |
+| `settings.json` | `env` **0 個鍵**、**無 `model` 鍵** |
+
+⇒ **結論:自動改寫那條路已經斷了(Carson 09-05 下的令生效),但 gateway 服務本身仍在服役且開機自啟。**
+這不是殘留,是一個**還在用的東西**。要不要讓它繼續服役是 Carson 的決定,基建線不動。
+
+⚠️ 但風險要講明:**gateway 活著 = 只要有任何東西再把那三個路由鍵設進某個 session 的環境,它就會再被釘住一次**,
+而那次釘住**只存在於該程序的執行期**(磁碟上查無來源)⇒ 只能靠重啟解、且症狀是靜默的。
+09-08 的 `non.`(wB:p1)就是這樣停擺四天,見 `docs/ops/2026-09-08_gate_health_inventory.md` 第十節。
