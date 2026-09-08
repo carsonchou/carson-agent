@@ -126,10 +126,46 @@ except Exception:
 
 
 def say(t):
+    # ⚠️ 這個 except **刻意不留痕**,它是本輪的陰性對照:排程用 pythonw ⇒ `sys.stdout is None`
+    # ⇒ `print(t)` 是**靜默 no-op 不丟例外**(實測),這條 except 在排程上不會被走到;
+    # 真要留痕也只會變成每輪都叫的雜訊。同理上面 `sys.stdout.reconfigure` 那個 except。
+    # **判準:留痕的對象是「本來應該成功的事」,不是「本來就預期失敗的事」。**
     try:
         print(t)
     except Exception:
         pass
+
+
+# ── 吞掉但留痕(2026-09-08)────────────────────────────────────────────────
+# 🔴 缺陷不是「吞」(記 log 失敗不該弄垮判準,那是對的),是**吞掉之後沒辦法知道它在吞**。
+# ⚠️ 不可以照抄 `auditability_coverage` 那個「印到 stderr」的範本:那支是 local_cron 的 job
+# (stderr 落 `logs/job_stderr.log`),而本支是 **Windows 排程工作、`pythonw.exe`、無任何重導向**。
+# 2026-09-08 實測(detached 無 console):`sys.stdout`/`sys.stderr` **都是 None**;
+# `print(msg, file=sys.stderr)` → **靜默 no-op**;`sys.stderr.write` → **AttributeError**;寫檔 → ✅。
+# ⇒ 照抄範本會在唯一重要的那個環境裡完全靜默,而在互動終端測起來是好的 —— 那正是本輪要治的病。
+# **主通道是 log 檔,stderr 只是互動/local_cron 下的第二條路。**
+_SWALLOWED = []
+
+
+def swallowed(what, e=None):
+    """吞掉但留痕。判準(exit code 與上面的輸出)完全不受影響,只是不再靜默。"""
+    msg = f"{what}" + (f"({type(e).__name__}: {e})" if e is not None else "")
+    _SWALLOWED.append(msg)
+    stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    line = (("[DRILL] " if SELFTEST else "") + f"[{stamp}] ⚠️ 吞掉但留痕:{msg}"
+            " —— 判準不受影響,但這行代表那件事沒被記錄/沒送出,請修。")
+    try:
+        LOG.parent.mkdir(parents=True, exist_ok=True)
+        with LOG.open("a", encoding="utf-8") as f:
+            f.write(line + "\n")
+    except Exception:
+        pass
+    try:
+        if sys.stderr is not None:
+            print("[warn] " + line, file=sys.stderr)
+    except Exception:
+        pass
+    return msg
 
 
 def record(line):
@@ -145,11 +181,16 @@ def alert(title, body):
     if SELFTEST:
         say("[DRILL] 演習不推播")
         return
+    # 🔴 推播失敗原本**兩條路都到不了讀者**:①拋例外那條走 `say(...)`,而 say 在排程環境是
+    # 靜默 no-op ⇒ 告警送不出去這件事本身也送不出去(`WATCHDOG.md` 09-06 記過,一直開著);
+    # ②**不拋例外那條** —— `push()` 都沒設定/403/5xx 回 False,而這裡沒看回傳值 ⇒ 安靜當成功。
     try:
         from notify import push
-        push(title, body, tag="clipboard")
+        if not push(title, body, tag="clipboard"):
+            swallowed("ntfy 推播回報未送出(push() 回 False:topic 沒設定,或所有後端都失敗)"
+                      " —— 手機不會響,log 這行是唯一痕跡")
     except Exception as e:
-        say(f"(ntfy 推播失敗,不影響本檢查:{e!r})")
+        swallowed("ntfy 推播丟例外 —— 手機不會響", e)
 
 
 def samples():
@@ -158,19 +199,29 @@ def samples():
         good_biz = "……這家公司主要在提供半導體、面板產業的製程設備與解決方案。"
         plain = "……你知道嗎？這檔股票十五年報酬只有百分之七十二。"
         if SELFTEST_MODE == "summary":      # 只有收束句掉下去
-            return [good_biz + plain] * 10 + [good_biz + good_sum] * 2
+            return [good_biz + plain] * 10 + [good_biz + good_sum] * 2, 0
         if SELFTEST_MODE == "biz":          # 只有業務句掉下去
-            return [good_sum + plain] * 10 + [good_sum + good_biz] * 2
-        return [plain] * 12                 # 兩條都掉
-    out = []
+            return [good_sum + plain] * 10 + [good_sum + good_biz] * 2, 0
+        return [plain] * 12, 0              # 兩條都掉
+    # 🔴 失敗形態(2026-09-08 修):這個 `except: continue` 原本把讀不掉的旁白檔靜靜丟掉,
+    # 而丟掉的後果是 **n 變小** —— n 掉到 MIN_N 以下時,main() 會寫
+    # 「⏳ 樣本不足只報不判」並 **return 0**。那是一句**看起來完全正常的話**。
+    # ⇒ 這道哨可以在「每天一個檔都讀不到」的狀態下無限期回報樣本不足,
+    #   而它和「今天真的還沒產片」在 log 上長得一模一樣。
+    #   權限/編碼/磁碟問題會偽裝成「產線今天沒出片」,而後者不是這道哨該回報的事。
+    out, unread = [], []
     for f in OUT.glob("L_個股體檢*.voice.txt"):
         try:
             if datetime.date.fromtimestamp(f.stat().st_mtime) < RULE_DATE:
                 continue
             out.append(f.read_text(encoding="utf-8", errors="replace"))
-        except Exception:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001
+            unread.append(f"{f.name}({type(e).__name__})")
             continue
-    return out
+    if unread:
+        swallowed(f"讀不掉 {len(unread)} 支旁白,它們沒進樣本(n 因此變小,可能表現成「樣本不足」):"
+                  + "、".join(unread[:3]) + ("…" if len(unread) > 3 else ""))
+    return out, len(unread)
 
 
 def main():
@@ -186,7 +237,7 @@ def main():
         return 1
 
     try:
-        texts = samples()
+        texts, n_unread = samples()
     except Exception as e:
         line = f"[{now}] 🔴 讀不到旁白,無法判斷(這不是「合規」):{e!r}"
         record(line); alert("旁白合規守望:讀不到樣本", line)
@@ -197,11 +248,17 @@ def main():
     n_biz = sum(1 for t in texts if any(re.search(p, t) for p in _BIZ_PAT))
     r_sum = n_sum / n if n else 0.0
     r_biz = n_biz / n if n else 0.0
-    stat = (f"{RULE_DATE} 起產出 {n} 支｜收束句 {n_sum}/{n}={r_sum:.0%}"
+    # 「讀不掉 N 支」一律印,連 0 也印 —— 這一格消失或是非零,都要看得出來。
+    # 理由同 seeding_watch 09-08 那個修法:**一格從 log 上靜靜不見,比一個壞數字更難發現。**
+    stat = (f"{RULE_DATE} 起產出 {n} 支(讀不掉 {n_unread} 支)｜收束句 {n_sum}/{n}={r_sum:.0%}"
             f"(地板 {FLOOR_SUMMARY:.0%})｜業務介紹 {n_biz}/{n}={r_biz:.0%}(地板 {FLOOR_BIZ:.0%})")
 
     if n < MIN_N:
-        record(f"[{now}] ⏳ 樣本不足只報不判(n={n} < {MIN_N})｜{stat}")
+        # 🔴 這句「樣本不足」正是讀檔失敗會偽裝成的那句話,所以它必須自己講清楚可不可信。
+        why = ("" if not n_unread else
+               f" 🔴 但同一輪有 {n_unread} 支讀不掉 —— **「樣本不足」這句話這一輪不可信**,"
+               f"先查那幾支檔案再信這個 ⏳(讀不掉的原因見上一行「吞掉但留痕」)")
+        record(f"[{now}] ⏳ 樣本不足只報不判(n={n} < {MIN_N}){why}｜{stat}")
         return 0
 
     bad = []

@@ -24,6 +24,12 @@
 本次盤到直接中彈的:`brain_score_watch`、`brain_submit_watch`、`brain_miner_watchdog`、
 `auditability_coverage` —— 它們「沒事」和「有事」印的東西**都**進黑洞。
 
+⚠️ **補記(09-08 §十二):這一節講的是 `local_cron` 的 job,而它不涵蓋三支 Windows 排程哨。**
+`f550a66a` 把 job 的 stdout 導到 `logs/jobout/` 之後,「印一行紅字」對 **cron 的 job** 確實到得了讀者了;
+但 `carson-seeding-watch` / `carson-narration-compliance-watch` / `carson-quota-ceiling-watch`
+走的是 `pythonw.exe` 且**排程 Actions 裡沒有任何重導向**(實查),`sys.stdout`/`sys.stderr` **都是 None**。
+⇒ **對這三支,「印一行」到不了任何地方,而且修法不同(只有寫檔有效)。** 細節見 §十二。
+
 ⚠️ 這一條不是「某道閘門的 bug」,是**所有閘門共用的那條線斷了**,
 而 crontab 的每一行都寫著一個看起來會保存輸出的重導向。**那行字本身在誤導讀者。**
 
@@ -628,3 +634,96 @@ PowerShell 5.1 不會剝掉 ⇒ `ParserError: '[' 後面遺漏型別名稱`。
   「一支沒人執行的失敗測試,和一則註解的差別只剩下一個人會不會手動跑」。
   本輪只補了引信本身,**沒有補「誰來扣扳機」** —— 那是跨哨的排程問題,不是這一支的。
 - `UPSTREAM_FLOOR=0.50` 仍是 09-06 用當時資料校準的,無重校機制(總表第 6 列的「會漂?」那一格照舊)。
+
+
+---
+
+# 十二、基建線三支哨:「吞掉之後沒人知道它在吞」收掉了(2026-09-08)
+
+改的是 `scripts/seeding_watch.py`、`scripts/narration_compliance_watch.py`、
+`scripts/quota_ceiling_watch.py` 三支,不碰別線。
+
+## 🔴 先講一件會讓整個修法走錯方向的環境事實
+
+交辦時的前提是「`f550a66a` 之後印一行就有人收得到,所以照 `auditability_coverage`
+那個範本印到 stderr 就好」。**那個前提對 `local_cron` 的 job 成立,對這三支不成立。**
+
+實查排程定義:三支都是 `pythonw.exe` + **Actions 裡沒有任何重導向**。
+2026-09-08 實測(用 `DETACHED_PROCESS` 且完全不傳 std handle,重現無 console 的排程環境):
+
+| 寫法 | 排程環境(pythonw、無 console) | 後果 |
+|---|---|---|
+| `sys.stdout` / `sys.stderr` | **兩個都是 `None`** | — |
+| `print(msg, file=sys.stderr)` | **靜默 no-op**(`file=None` 退回 `sys.stdout`,而它也是 None) | **照抄範本 = 什麼都沒做** |
+| `sys.stderr.write(msg)` | **`AttributeError`** | 改成這樣會**弄垮哨本身** |
+| `print(msg)` | 靜默 no-op | — |
+| **寫檔** | ✅ 有效(回讀得到) | **這是唯一到得了讀者的通道** |
+
+⇒ **照抄那個現成範本,會在唯一重要的那個環境裡完全靜默,而在互動終端測起來是好的。**
+那正是本輪要治的病本身,只是換了一個殼。
+⚠️ 這是 `dispatch.md` §6「現成的閘門最誘人,因為它已經驗過、已經上線、加一行就好」的
+另一個形狀:**現成的「告警通道」也一樣誘人,而通道的射程和判準一樣要重新量。**
+⇒ 三支的主通道一律是 **log 檔**,stderr 只當互動/local_cron 下的第二條路,且必須 None-safe。
+
+## 三個失敗形態(每支一個,加一個三支共有的)
+
+**共有 —— `alert()` 的推播失敗有兩條路,兩條都到不了讀者:**
+① 拋例外那條原本走 `say(...)`,而 `say` 在排程環境是靜默 no-op
+⇒ **「告警送不出去」這件事本身也送不出去**。`WATCHDOG.md` 09-06 就記過這個洞
+(「log 有紅字而手機沒響」),而它從那天起一直開著。
+② **不拋例外那條**:`notify.push()` 任一後端成功才回 True、都沒設定/403/5xx 回 False,
+而三支**都沒看回傳值** ⇒ topic 沒設、被封、網路斷,全部安靜地當成推播成功。
+(`push` 自己的診斷是 `print`,在 pythonw 下同樣是 no-op ⇒ 那一層也看不到。)
+
+**`narration_compliance_watch` —— 讀不掉的旁白會偽裝成「樣本不足」。**
+`samples()` 的 `except: continue` 把讀不掉的檔靜靜丟掉,後果是 **n 變小**;
+n 掉到 `MIN_N` 以下時 main() 寫「⏳ 樣本不足只報不判」並 **return 0** ——
+那是一句**看起來完全正常的話**。⇒ 這道哨可以在「每天一個檔都讀不到」的狀態下無限期
+回報樣本不足,而它和「今天真的還沒產片」在 log 上長得一模一樣。
+修法:計數、綴進 log 行(**連 0 也印**),且樣本不足那句話在 `n_unread>0` 時自己聲明不可信。
+
+**`quota_ceiling_watch` —— 本輪最嚴重的一個:state 壞掉會偽裝成「第一次跑」。**
+`prev` 的 `except: pass` 讓「state 檔壞掉」和「第一次跑」變成同一件事:
+`prev={}` → `base=None` → 走「基準建立」→ **`changed=False` → 不推播** → 然後把當前值寫回 state。
+⇒ **天花板在那一天變了、而 state 剛好壞了,那次變化永遠不會被報告,
+下一輪起還以新值為基準 ⇒ 證據不可回溯地消失。** log 上留下的是「基準建立」,
+一句第一次跑本來就該出現的話。⚠️ 而這兩件事**分得開**:`STATE.exists()` 為真但解析失敗 = 壞掉。
+修法:分開判、走 🔴 verdict、`changed=True` 去推播。
+(`days_n` 讀不到那條也補了:它原本只在「天花板下移」那一支講得出來,其餘分支完全不提。)
+
+## 刻意**不**留痕的兩處(這是「不該叫的不叫」那一半)
+
+`sys.stdout.reconfigure` 的 except 與 `say()` 的 except **維持原樣、不留痕**:
+排程環境下 `stdout is None`,前者每輪必中、後者則因為 `print` 是 no-op 而根本不會被走到。
+把它們也變成告警,就是**每輪都叫的雜訊**。
+⇒ 判準一句:**留痕的對象是「本來應該成功的事」,不是「本來就預期失敗的事」。**
+
+## 驗收(全部實跑,沙箱)
+
+| 對照 | seeding | narration | quota |
+|---|---|---|---|
+| **陰性** push 正常 → log/stderr **不可以**有留痕 | ✅ rc=1 | ✅ rc=1 | ✅ rc=0 |
+| **陽性 A** push 丟例外 → 必須留痕 | ✅ rc=1 | ✅ rc=1 | ✅ rc=0 |
+| **陽性 B** push 回 False(不丟例外)→ 必須留痕 | ✅ rc=1 | ✅ rc=1 | ✅ rc=0 |
+| **exit code 三次完全一致**(判準不受影響) | ✅ | ✅ | ✅ |
+
+額外對照 —— quota 的新判準自己也要兩個方向:
+`state 壞掉` → 「🔴 基準被迫重建」+ 留痕 ✅;`state 不存在(真的第一次跑)` → 「基準建立」、**無**留痕 ✅。
+⇒ 兩件事分得開,不是對什麼都叫。
+
+演習全模式回歸(確認判準沒被掏空):seeding 8 個模式、narration 4 個、quota 2 個
+**共 14 次全部符合期望**,且正常演習裡都**沒有**多出留痕。
+
+隔離:`LOG` 與 `STATE` 全部 monkeypatch 到臨時沙箱,執行期斷言沙箱真的生效;
+`notify.push` 在跑 `main()` **之前**就被換掉並斷言 `is fake_push`
+⇒ 這支 harness **結構上不可能發出真實推播**。四個正式機檔案指紋前後比對全部未變:
+`seeding-watch.log` / `stock_checkup_facts.json`(17,483,619 bytes)/
+`narration-compliance-watch.log` / `quota-ceiling-watch.state.json`。
+
+## 這次沒做的
+
+- **`swallowed()` 在三支各複製了一份**(約 20 行)。抽成共用模組會讓這三支多一個 import
+  依賴,而它們刻意是「和被監視的東西平行、不依賴產線」的(`WATCHDOG.md:116-127`)。
+  重複是**刻意的取捨**,不是漏掉;要抽的話連那個設計約束一起重新想。
+- 全 repo 另外 55 處同型 `except: pass` **一處都沒動**(本輪只做基建線這三支)。
+- 引信仍然是手動的 —— 和 §七.3、§十一那個缺口同一個:**沒有東西在定期扣扳機。**

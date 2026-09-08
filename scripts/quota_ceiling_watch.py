@@ -40,11 +40,49 @@ except Exception:
 
 
 def say(text: str) -> None:
-    """print 的可失敗版:log 是主通道,stdout 只是順帶。"""
+    """print 的可失敗版:log 是主通道,stdout 只是順帶。
+
+    ⚠️ 這個 except **刻意不留痕**,它是本輪的陰性對照:排程用 pythonw ⇒ `sys.stdout is None`
+    ⇒ `print(t)` 是**靜默 no-op 不丟例外**(實測),這條 except 在排程上不會被走到;
+    真要留痕也只會變成每輪都叫的雜訊。同理上面 `sys.stdout.reconfigure` 那個 except。
+    **判準:留痕的對象是「本來應該成功的事」,不是「本來就預期失敗的事」。**"""
     try:
         print(text)
     except Exception:
         pass
+
+
+# ── 吞掉但留痕(2026-09-08)────────────────────────────────────────────────
+# 🔴 缺陷不是「吞」(記 log 失敗不該弄垮判準,那是對的),是**吞掉之後沒辦法知道它在吞**。
+# ⚠️ 不可以照抄 `auditability_coverage` 那個「印到 stderr」的範本:那支是 local_cron 的 job
+# (stderr 落 `logs/job_stderr.log`),而本支是 **Windows 排程工作、`pythonw.exe`、無任何重導向**。
+# 2026-09-08 實測(detached 無 console):`sys.stdout`/`sys.stderr` **都是 None**;
+# `print(msg, file=sys.stderr)` → **靜默 no-op**;`sys.stderr.write` → **AttributeError**;寫檔 → ✅。
+# ⇒ 照抄範本會在唯一重要的那個環境裡完全靜默,而在互動終端測起來是好的 —— 那正是本輪要治的病。
+# **主通道是 log 檔,stderr 只是互動/local_cron 下的第二條路。**
+# (本檔的 `production_suffix` 早就示範了對的做法:讀不到就把「🔴 產量/庫存讀不到」綴進 log 行。)
+_SWALLOWED = []
+
+
+def swallowed(what: str, e: BaseException = None) -> str:
+    """吞掉但留痕。判準(exit code 與上面的輸出)完全不受影響,只是不再靜默。"""
+    msg = f"{what}" + (f"({type(e).__name__}: {e})" if e is not None else "")
+    _SWALLOWED.append(msg)
+    stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    line = (("[DRILL] " if SELFTEST else "") + f"[{stamp}] ⚠️ 吞掉但留痕:{msg}"
+            " —— 判準不受影響,但這行代表那件事沒被記錄/沒送出,請修。")
+    try:
+        LOG.parent.mkdir(parents=True, exist_ok=True)
+        with LOG.open("a", encoding="utf-8") as f:
+            f.write(line + "\n")
+    except Exception:
+        pass
+    try:
+        if sys.stderr is not None:
+            print("[warn] " + line, file=sys.stderr)
+    except Exception:
+        pass
+    return msg
 
 
 def record(line: str) -> None:
@@ -86,11 +124,17 @@ def alert(title: str, body: str) -> None:
     if SELFTEST:
         say("[DRILL] 演習不推播")
         return
+    # 🔴 推播失敗原本**兩條路都到不了讀者**:①拋例外那條走 `say(...)`,而 say 在排程環境是
+    # 靜默 no-op ⇒ 告警送不出去這件事本身也送不出去(`WATCHDOG.md` 09-06 記過,一直開著);
+    # ②**不拋例外那條** —— `push()` 都沒設定/403/5xx 回 False,而這裡沒看回傳值 ⇒ 安靜當成功。
+    # 這一支尤其致命:天花板變化**只在 changed 的那一次推播**,漏掉就是漏掉,沒有第二次。
     try:
         from notify import push
-        push(title, body, tag="chart_with_upwards_trend")
+        if not push(title, body, tag="chart_with_upwards_trend"):
+            swallowed("ntfy 推播回報未送出(push() 回 False:topic 沒設定,或所有後端都失敗)"
+                      " —— 手機不會響,而天花板變化只推這一次,log 這行是唯一痕跡")
     except Exception as e:
-        say(f"(ntfy 推播失敗,不影響本檢查:{e!r})")
+        swallowed("ntfy 推播丟例外 —— 手機不會響,而天花板變化只推這一次", e)
 
 
 def main() -> int:
@@ -107,17 +151,29 @@ def main() -> int:
         cur = eff                           # 見檔頭:cefa9ba8 後直接信 effective_limit,別再包 max
         try:                                # 帳本日數:用來把「帳本遺失/重置」從「真調降」裡分出來
             days_n = len(json.loads(pathlib.Path(qm.STATE).read_text("utf-8")).get("days") or {})
-        except Exception:
+        except Exception as e:
+            # days_n=None 下游只在「天花板下移」那一支講得出來(:141),其餘分支完全不提它
+            # ⇒ 帳本讀不到這件事,在沒有下移的日子是靜默的。這裡補上那條缺的路。
             days_n = None
+            swallowed("quota_meter 帳本讀不到,days 筆數無法用來分辨「帳本遺失」與「真調降」", e)
     except Exception as e:
         record(f"[{now}] 🔴 讀不到 quota_meter:{e!r} —— 這本身是警報,不是「沒事」")
         say(traceback.format_exc())
         return 1
 
-    prev = {}
+    # 🔴 失敗形態(2026-09-08 修,本輪三支裡最嚴重的一個):
+    # 這個 `except: pass` 原本讓「state 檔壞掉」和「第一次跑」變成同一件事 ——
+    # prev={} → base=None → 走「基準建立」分支 → **changed=False → 不推播** →
+    # 然後把當前值寫回 state。所以:**天花板在那一天變了、而 state 剛好壞了,
+    # 那次變化永遠不會被報告,下一輪起還以新值為基準 ⇒ 證據就此消失,而且不可回溯。**
+    # log 上留下的是「基準建立」—— 一句第一次跑本來就該出現的、看起來完全正常的話。
+    # ⚠️ 而這兩件事**分得開**:`STATE.exists()` 為真但解析失敗 = 壞掉,不是第一次。
+    prev, prev_broken = {}, None
     if STATE.exists():
-        try: prev = json.loads(STATE.read_text("utf-8"))
-        except Exception: pass
+        try:
+            prev = json.loads(STATE.read_text("utf-8"))
+        except Exception as e:
+            prev_broken = swallowed("state 檔存在但讀不掉 ⇒ 基準遺失(這不是第一次跑)", e)
     base = prev.get("effective")
     if SELFTEST:
         if SELFTEST_MODE == "down":     # 演習「下移+days 驟減」:走 ⚠️+帳本遺失標註路徑
@@ -126,7 +182,13 @@ def main() -> int:
         else:                           # 演習「上移」:走 🎉 路徑
             base = cur - 1234
 
-    if base is None:
+    if base is None and prev_broken:
+        verdict = (f"🔴 **基準被迫重建,這不是第一次跑**:{prev_broken}。本輪把 watch={cur:,} 當成新基準"
+                   f"收下(effective={eff:,}, floor={floor}, ceiling={ceil})—— 如果天花板今天剛好變了,"
+                   f"**那次變化不會被報告,而且下一輪起以新值為基準 ⇒ 證據不可回溯地消失**。"
+                   f"先看 {STATE.name} 是不是被截斷/寫壞(它就在 docs/ops/),再決定要不要把舊基準手動補回去。")
+        changed = True          # ← 要推播:這是唯一一次講得出「基準是怎麼沒的」的機會
+    elif base is None:
         verdict = f"基準建立:watch={cur:,}(effective={eff:,}, floor={floor}, ceiling={ceil})"
         changed = False
     elif cur > base:

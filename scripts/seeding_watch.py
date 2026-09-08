@@ -80,10 +80,54 @@ except Exception:
 
 
 def say(t):
+    # ⚠️ 這個 except **刻意不留痕**,而且它是本輪的陰性對照:
+    # 排程用 pythonw ⇒ `sys.stdout is None` ⇒ `print(t)` 是**靜默 no-op 不丟例外**(實測),
+    # 所以這條 except 在排程上根本不會被走到;真要留痕也只會變成每輪都叫的雜訊。
+    # 同理上面那個 `sys.stdout.reconfigure` 的 except(stdout 是 None → AttributeError → 每輪必中)。
+    # **判準:留痕的對象是「本來應該成功的事」,不是「本來就預期失敗的事」。**
     try:
         print(t)
     except Exception:
         pass
+
+
+# ── 吞掉但留痕(2026-09-08)────────────────────────────────────────────────
+# 🔴 `try: <告警> except: pass` 的缺陷**不是「吞」** —— 記 log 失敗不該弄垮判準,那個設計是對的。
+# 缺陷是**吞掉之後沒有任何辦法知道它在吞**。09-08 實據:`auditability_coverage` 的 `log_ops`
+# 筆誤被吞掉,上線兩天 ops_log 0 筆,而它每天準時跑、rc=0、看起來完全正常。
+#
+# ⚠️ 但這三支哨**不可以照抄** `auditability_coverage` 那個「印到 stderr」的範本。
+# 那支是 local_cron 的 job(stderr 落 `logs/job_stderr.log`、stdout 從 09-08 起落 `logs/jobout/`);
+# 這三支是 **Windows 排程工作、走 `pythonw.exe`、Actions 裡沒有任何重導向**(實查排程定義)。
+# 2026-09-08 實測(detached 無 console,重現排程環境):
+#   `sys.stdout is None` ✅ / `sys.stderr is None` ✅
+#   `print(msg, file=sys.stderr)` → **靜默 no-op**(file=None 退回 sys.stdout,而它也是 None)
+#   `sys.stderr.write(msg)`       → **AttributeError**
+#   寫檔                          → ✅ 有效(這也是這三支的 log 每天長得出來的唯一原因)
+# ⇒ 照抄範本,會在**唯一重要的那個環境裡完全靜默**,而在互動終端測起來是好的。
+#   那正是本輪要治的病本身。**所以主通道是 log 檔,stderr 只是互動/local_cron 下的第二條路。**
+_SWALLOWED = []
+
+
+def swallowed(what, e=None):
+    """吞掉但留痕。判準(exit code 與上面的輸出)完全不受影響,只是不再靜默。"""
+    msg = f"{what}" + (f"({type(e).__name__}: {e})" if e is not None else "")
+    _SWALLOWED.append(msg)
+    stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    line = (("[DRILL] " if SELFTEST else "") + f"[{stamp}] ⚠️ 吞掉但留痕:{msg}"
+            " —— 判準不受影響,但這行代表那件事沒被記錄/沒送出,請修。")
+    try:
+        LOG.parent.mkdir(parents=True, exist_ok=True)
+        with LOG.open("a", encoding="utf-8") as f:
+            f.write(line + "\n")
+    except Exception:
+        pass          # log 也寫不進去就真的沒路了,下面 stderr 是最後一條
+    try:
+        if sys.stderr is not None:
+            print("[warn] " + line, file=sys.stderr)
+    except Exception:
+        pass
+    return msg
 
 
 def record(line):
@@ -99,11 +143,20 @@ def alert(title, body):
     if SELFTEST:
         say("[DRILL] 演習不推播")
         return
+    # 🔴 推播失敗原本有**兩條路都到不了讀者**,兩條都在這五行裡:
+    # ① 拋例外那條 → 原本走 `say(...)`,而 say 在排程環境是靜默 no-op
+    #    ⇒「告警送不出去」這件事本身也送不出去。`WATCHDOG.md` 09-06 就記過這個洞
+    #    (「log 有紅字而手機沒響」),而它從那天起一直開著。
+    # ② **不拋例外那條** → `push()` 任一後端成功才回 True、都沒設定/403/5xx 回 False,
+    #    而這裡**根本沒看回傳值** ⇒ topic 沒設、被封、網路斷,都會安靜地當成推播成功。
+    #    (`notify.push` 自己的診斷是 `print`,在 pythonw 下同樣是 no-op ⇒ 那層也看不到。)
     try:
         from notify import push
-        push(title, body, tag="seedling")
+        if not push(title, body, tag="seedling"):
+            swallowed("ntfy 推播回報未送出(push() 回 False:topic 沒設定,或所有後端都失敗)"
+                      " —— 手機不會響,log 這行是唯一痕跡")
     except Exception as e:
-        say(f"(ntfy 推播失敗,不影響本檢查:{e!r})")
+        swallowed("ntfy 推播丟例外 —— 手機不會響", e)
 
 
 

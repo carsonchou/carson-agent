@@ -114,6 +114,30 @@ python scripts\narration_compliance_watch.py --selftest=summary|biz|both
 `notify.push` 只在後端真的回 2xx 時才回 True(08-30 修過:原本 403/404/5xx 全被當成功),
 所以這是「真的送出」不是「沒丟例外」。臨時任務跑完即註銷。
 
+### ✅ 2026-09-08:上面那個洞補上了(補的是「留痕」,不是「讓手機一定會響」)
+
+09-06 這段點名的 **「log 有紅字而手機沒響」** 一直開著兩天。09-08 的修法:
+三支的 `alert()` 不再把失敗交給 `say(...)`,改走 `swallowed()` **寫進各自的 log 檔**。
+⚠️ 而且原本漏了**第二條路**:`push()` 回傳 True/False,**三支都沒看回傳值**
+⇒ topic 沒設定、被封、所有後端都失敗(這些**不丟例外**)全部被安靜當成推播成功。
+現在兩條都留痕。
+
+🔴 **為什麼不能照 `auditability_coverage`(`8bfaa829`)那樣印到 stderr** —— 09-08 實測
+(`DETACHED_PROCESS` 且不傳 std handle,重現無 console 的排程環境):
+
+| 寫法 | 這三支的排程環境 |
+|---|---|
+| `sys.stdout` / `sys.stderr` | **兩個都是 `None`** |
+| `print(msg, file=sys.stderr)` | **靜默 no-op**(`file=None` 退回 `sys.stdout`,而它也是 None) |
+| `sys.stderr.write(msg)` | **`AttributeError`** —— 會弄垮哨本身 |
+| 寫檔 | ✅ 有效 |
+
+那個範本是給 `local_cron` 的 job 用的(stderr 落 `logs/job_stderr.log`);
+這三支是 Windows 排程工作、`pythonw.exe`、**Actions 裡沒有任何重導向**。
+⇒ **照抄會在唯一重要的那個環境裡完全靜默,而在互動終端測起來是好的。**
+**通道的射程和判準一樣要重新量,不能繼承。** 失敗形態、對照與數字見
+`docs/ops/2026-09-08_gate_health_inventory.md` §十二。
+
 ## 🔴 兩件已知但**還沒被證明**的,不要算進「已完成」
 
 1. ~~**`narration_compliance_watch` 的判定路徑一次都沒被真資料走到。**
