@@ -213,7 +213,69 @@ rc=0,`C:\Users\User\.stock_monitor\monitor.log` 長出
 ⚠️ 順帶(不是這一棒的事,但看到了):`config.json` 的 `_comment_position` 欄位是 **Big5 亂碼**。
 不影響邏輯(沒有程式讀它),但下次動這個檔的人會看到亂碼。
 
-### 4.6 我沒有做、也建議不要順手做的
+### 4.7 第二輪(2026-09-09,Carson 核准三件;上機後獨立驗證 `7ef69070` 的第 1、2 點併入)
+
+指紋 `a0fd9a605d99ce38`(9,488 B)→ **`d28b8ac09582c0fa`(10,452 B)**。
+`diff` 只有一塊(71 行),`chg` 歸零那條(`:132`)與 `log()` 的 `except: pass`(`:34-35`)**逐字未動**
+—— 那兩件(驗證 §3、§4)**沒有被核准,本輪刻意不碰**。
+
+**① rc `2` → `3`**(推播失敗的兩條路徑)。
+理由不是美觀:**`2 = 0x2` 是 Windows 的 `ERROR_FILE_NOT_FOUND`**,在 `LastTaskResult` 上
+和「排程根本沒把程式啟動起來」同值;而本機 `TaskScheduler/Operational` 是 `IsEnabled=False`
+⇒ **`LastTaskResult` 是唯一那一格**,撞碼等於沒有訊號。
+
+**② 加碼與快照改成各自獨立嘗試**。
+驗證 §2 講的是「加碼**觸發**就壓掉快照」,但真正咬人的形狀更嚴、而且**不會自己癒合**:
+排程拉長後,「加碼**成功**所以壓掉快照」下一輪就補得回來(`buy_alerted` 已是 True);
+**加碼一直失敗那條不會** —— `buy_alerted` 留 `false` ⇒ 每一輪都重試加碼、每一輪都在快照之前 `return`
+⇒ **一次持續性的 Telegram 中斷,會讓快照當天連一次都沒被嘗試過**,而那正是最需要快照的那天。
+⇒ 兩條各自跑、各自留痕,最後統一存檔一次。
+**exit code 合併成 3(任一條掉了就是 3);要分辨是哪一條掉的看 log** —— rc 只有一格,塞不下兩件事。
+
+**③ 排程 `Repetition.Duration` `PT4H45M` → `PT5H30M`**。
+改法是取出既有 task 物件、**只改 `Triggers[0].Repetition.Duration` 再 `Set-ScheduledTask -InputObject`**,
+principal / settings / actions 都沒有重建。
+逐欄比對 20 個欄位:**只有 `Duration` 變了**(`Exec`/`Args`/`UserId`/`LogonType`/`RunLevel`/`Enabled`/
+`DisallowBatt`/`StopBatt`/`MultInst`/`ExecLimit`/`StartWhenAvail`/`TrigCount`/`Start`/`Days`/`Interval`/
+`NextRun`/`LastRun`/`LastRc` 全部相同)。觸發器 `Enabled` 回讀 = `True`。
+
+⚠️ **它沒有解決電池那條**:`DisallowStartIfOnBatteries` 與 `StopIfGoingOnBatteries` **都還是 True**
+⇒ 沒插電時整條線一次都不跑,跑到一半拔電也會被砍。**那件沒有被核准,本輪沒有動。**
+
+#### 4.7.1 陽性 / 陰性對照(沙箱,真實 Telegram 0 次)
+
+入口把 `tg` 與 `urllib.request.urlopen` 都換掉並**立刻斷言身分**,`finally` 還原(回報時已確認還原成功);
+沙箱 config 用假 token。16 項全過:
+
+| 對照 | 結果 |
+|---|---|
+| ★**②核心陽性**:加碼連續失敗 | `tg` 被呼叫 **2 次**(加碼+快照各一)、`rc=3`、兩個旗標都留 `false`、**log 分得出兩條各自掉了** |
+| ②同輪兩條都成功 | `tg` 2 次、`rc=0`、兩旗標都 `True` |
+| ①加碼成功但快照失敗 | `rc=3`、`buy_alerted=True` 而 `snapshot_sent=False` |
+| **陰性 A**:正常日(非買點、未到 13:25) | `tg` **零呼叫**、`rc=0`、仍留一行「無動作」正向輸出 |
+| **陰性 B**:當天兩則都推過 | `tg` **零呼叫**、`rc=0` |
+| 回歸:抓價失敗 | 仍 `rc=1`(沒有被 `rc=3` 蓋掉) |
+
+#### 4.7.2 排程那件的陽性對照(**回讀,不是算術**)
+
+`Export-ScheduledTask` 拿 OS 自己存的註冊 XML:`Interval=PT15M` / **`Duration=PT5H30M`** / Mon–Fri / Start `09:00`。
+依這組**回讀值**展開,當天 23 輪、最後一輪 **14:30**;落在快照門檻 13:25 之後的是
+**13:30 / 13:45 / 14:00 / 14:15 / 14:30 共 5 次**(改前只有 13:30、13:45 兩次)。
+
+⚠️ **沒查到的一項**:想用 `IRegisteredTask.GetRunTimes()` 讓 OS 自己列舉那幾個時刻(那才是最硬的證據),
+但這台的 COM 繫結兩種呼叫法都回 `DISP_E_MEMBERNOTFOUND` ⇒ **拿不到 OS 列舉**。
+所以上面那五個時刻是**從 OS 回讀的註冊值展開的**,不是從 OS 的排程佇列讀出來的 —— 差別要講清楚。
+真正的行為證據要等 13:30 之後那幾輪跑過,看 `monitor.log` 有沒有出現 14:00 以後的行。
+
+#### 4.7.3 今天 09:00 那輪:**沒有被影響**
+
+改排程前後 `NextRunTime` 都是 `2026-09-09 09:00:00`(逐欄比對表裡是 `same`)。
+另外上機後在 06:47 用 `Start-Process pythonw`(無 console)實跑一次線上那份:
+`rc=0`、`monitor.log` 長出 `[2026-09-09 06:47:04] 無動作 price=16.12 chg=-0.31% buy=False`、
+**`state.json` 前後逐字相同**(`buy_alerted`/`snapshot_sent` 都還是 `false`)⇒ 沒有吃掉今天任何一個訊號。
+跑之前先確認兩條推播路徑都不成立(06:47 < 13:25、16.12 > 14.0)。
+
+### 4.8 我沒有做、也建議不要順手做的
 
 - **沒有**用 `--test` 跑它(那條路一定會推一則真訊息到 Carson 手機)。
 - 我對 Telegram 只用了 **`getMe`**(唯讀,不送訊息)確認 token 與連線正常 ⇒ **token 是好的**,
@@ -237,8 +299,18 @@ rc=0,`C:\Users\User\.stock_monitor\monitor.log` 長出
 | `quant-service/data_hunter/scan.py` | `8b8af8b6` | `d8496fc3` | broadcast 回傳值 |
 | `/d/yuanta-api/uat_watch.py`(repo 外) | `30492a58` | `e44ef7bc` | ⑨ |
 
-**⑧ 已授權改動**:`monitor.py` `77ef35c655b39ad9` → `a0fd9a605d99ce38`
-(tmp→`os.replace` 寫入,回讀逐位元組與候選一致,再換獨立儀器 `sha256sum` 複查一次)。
+**⑧ 已授權改動(兩輪)**:`monitor.py`
+`77ef35c655b39ad9`(4,346 B,原版)
+→ `a0fd9a605d99ce38`(9,488 B,第一輪 `fd70104b`)
+→ **`d28b8ac09582c0fa`(10,452 B,第二輪 §4.7,線上現況)**
+每一輪都是 tmp→`os.replace` 寫入、回讀逐位元組與候選一致、再換獨立儀器 `sha256sum` 複查。
+
+🔴 **`monitor.py` 在 repo 外,git log 不會記得它被改過 —— 這張表是唯一的紀錄。**
+耐久備份兩份都在 `C:\Users\User\.stock_monitor\`,可一行回滾到任一輪:
+`monitor.py.bak-20260909-pre-fd70104b`(4,346 B)、`monitor.py.bak-20260909-post-fd70104b`(9,488 B)。
+
+**排程 `Stock009816Monitor`**:`Repetition.Duration` `PT4H45M` → **`PT5H30M`**(§4.7),
+其餘 19 個欄位逐欄比對前後相同。
 
 **未被碰過(前後 sha 一致)**:`C:\Users\User\.stock_monitor\{state.json, config.json}`
 (⚠️ `state.json` 在事後那次端到端實跑中依設計換日成 `2026-09-09` —— 等同 09:00 那輪本來就會做的事,不是額外損失)、
@@ -252,7 +324,14 @@ rc=0,`C:\Users\User\.stock_monitor\monitor.log` 長出
 
 ## 六、留給下一棒
 
-1. **⑧ 已修並上機**(§四)。剩下的是**排程**那一項:`Repetition Duration=PT4H45M` 讓收盤快照一天只有兩次機會,13:45 失敗就沒有下一輪 —— 要不要拉長到 `PT5H30M`,**等 Carson 拍板**(§4.4)。
+1. **⑧ 兩輪都已上機**(§四、§4.7),排程 Duration 也已拉到 `PT5H30M`。
+   **剩下四件都還沒動,且都需要拍板**:
+   ①`chg` 歸零讓「單日跌 3%」那半條判準靜默失效(驗證 `7ef69070` §3)
+   ②`log()` 自己失效時沒有備援、rc 仍 0(同 §4)
+   ③電池那兩個旗標都還是 True(§4.7)
+   ④`fetch_price` 失敗時加碼與快照**都不嘗試**(同附註)。
+   ⚠️ ①③④ 合起來還有一個沒人算過的組合:**TWSE 在 13:30~14:30 那五輪全部逾時 = 當天仍然全失**
+   —— 拉長 Duration 買到的是「Telegram 掉了可以重試」,買不到「TWSE 掉了可以重試」。
 2. **Task Scheduler Operational log 是關的**(`IsEnabled=False`)。
    ⇒ 全機 23 支排程的 exit code **沒有任何歷史**,只有一格會被覆蓋的 `LastTaskResult`。
    要不要打開它是一個獨立決策(有 10MB 上限、會寫磁碟),但**在它打開之前,任何「靠 exit code 就看得到」的設計都是空的**。
