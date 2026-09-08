@@ -50,7 +50,7 @@ A/B/C 三種裡,只有寫檔在三種條件下都成立。
 | ⑤ | `CarsonQuant_PCRender` | `hybrid_render.py:408-414` | 🔴 **沒有**(唯一那則操作員訊息寫 `file=sys.stderr`) | 「這個排程工作已無用途,可以 Unregister」這句話 **08-29 寫下後從沒有人讀到過** | **已改**:改走 `_operator_note()`,主通道寫 `logs/hybrid_render_pc.log` |
 | ⑥ | `CarsonQuant-UptimeMonitor` | `monitor.py:19-24` `TARGETS` | n/a | 無 | **不改**。**Disabled**(2026-07-11 起)**且 `TARGETS` 是空清單** —— 唯一目標(雲端 droplet)已註解掉。即使啟用也監控不到任何東西 |
 | ⑦ | `DataHunter-EOD` | `eod.py:42-47` | **有**。偵測到 `pythonw` 就把 `sys.stdout/stderr` 導向 `logs/eod_YYYYMMDD.log` | — | **註解更正 + 兩處留痕**(見 §三) |
-| ⑧ | `Stock009816Monitor` | `monitor.py:73-113` | 🔴 **完全沒有**(只有 `print`,無 log 檔) | **Carson 錯過加碼點/收盤快照,零訊號** | 🔴 **沒有動它**(紅線·動錢鄰接區)。診斷 + 建議改法見 §四 |
+| ⑧ | `Stock009816Monitor` | `monitor.py:73-113` | 🔴 **完全沒有**(只有 `print`,無 log 檔) | **Carson 錯過加碼點/收盤快照,零訊號** | **已修**(wF:p3 授權後,走完獨立驗證才上機)。見 §四;`77ef35c655b39ad9`→`a0fd9a605d99ce38` |
 | ⑨ | `YuantaUATWatch` | `uat_watch.py:41` `log()` ✅ / `:128`、`:137` `tg()` 回傳值被丟 | **一半**:log 通道好,但推播失敗後**狀態照樣前進** | IP 變了而推播失敗 → `last_ip` 仍被更新 → **白名單失效永遠不會再叫第二次** | **已改**(見 §三) |
 
 ### 那 14 支 `python.exe`:共同結論 + 一支實測
@@ -139,10 +139,13 @@ A/B/C 三種裡,只有寫檔在三種條件下都成立。
 
 ---
 
-## 四、🔴 ⑧ `Stock009816Monitor` —— 診斷與建議改法(**我沒有動它**)
+## 四、🔴 ⑧ `Stock009816Monitor` —— 已修(wF:p3 2026-09-09 授權「那三行照建議改」)
 
 `C:\Users\User\.stock_monitor\monitor.py`,不在本 repo,是 Carson 的錢線。
-派工單 §二.B 要求先回報 ⇒ **只讀、只診斷,一個位元組都沒改**(指紋見 §五)。
+派工單 §二.B 要求先回報 ⇒ 先只讀只診斷;**回報後 wF:p3 點頭才動手**。
+紅線流程照 CLAUDE.md 走完:候選寫 scratchpad → 沙箱對照 → **獨立驗證(fresh-context opus)** → 才上機。
+指紋:`77ef35c655b39ad9` → `a0fd9a605d99ce38`(9,488 bytes)。
+原檔備份在 scratchpad `monitor_ORIGINAL_backup.py`(sha 與動手前正式機一致),可一行回滾。
 
 ### 4.1 它現在是壞的,而且沒有人看得見
 
@@ -164,19 +167,55 @@ A/B/C 三種裡,只有寫檔在三種條件下都成立。
    而 **Task Scheduler 的 Operational log 在這台機器上是 `IsEnabled=False`** ⇒
    `LastTaskResult` 是**唯一**紀錄,而且只有一格、每輪覆蓋、要有人去開工作排程器才看得到。
 
-### 4.3 建議改法(三行等級,**等 wF:p3 / Carson 點頭再動**)
+### 4.3 已實作的三件(＋獨立驗證逼出來的三處修正)
 
-1. `fetch_price()` 包 try,失敗回 `None`(它的呼叫端 `:76` 已經處理 `None` 了)。
-2. `tg()` 的回傳值要看:`ok` 為 False 就**不要**設 `buy_alerted` / `snapshot_sent`,下一輪(15 分鐘後)自然重試。
-3. 加一個 `monitor.log`(同 `uat_watch.py:41` 的寫法,那支就在隔壁且已驗證有效),
-   把每輪結果與失敗原因落檔;`print` 保留當第二條路。
+1. `fetch_price()` 包 try,失敗回 `None`(`:65-69` 連線/解析、`:71-73` 空 msgArray、`:88-90` 無有效價)。
+2. `tg()` 一律回 bool 並把原因寫 log(`:102-110`);呼叫端**送出去才准推進旗標**(`:167-174`、`:178-192`)。
+3. `monitor.log`(`:24`、`:27-39`),寫法沿用 `uat_watch.py:41`;`print` 保留當第二條路。
+
+**獨立驗證員(fresh context, opus)找出三處,都已修** —— 它的價值不在背書,在這三件:
+
+| # | 抓到什麼 | 為什麼要緊 | 處置 |
+|---|---|---|---|
+| a | **`--test` 的 exit code 被我改掉了**(原版恆 0) | 超出授權的三件事,且與「抓價失敗 rc=1」撞碼 | **還原成恆 0**(`:148-153`) |
+| b | **推播失敗仍回 0 = 我自己製造的新盲點** | 舊版 `tg()` 拋例外時行程死掉 ⇒ rc=1;我把例外接住後若照樣回 0,`LastTaskResult` 會從「1」變成「0=看起來成功」,而通知其實掉了 | 兩條推播失敗路徑改 **rc=2**(和 rc=1 分得開) |
+| c | **falsy 陷阱仍在**:`num("b") or num("h") or num("o")` 在三者皆 `0.0` 時回 `0.0`(不是 `None`) | `0.0 <= 14.0` 成立 ⇒ **推一則假的加碼點通知**。原版同病、非本次引入,但我的新守衛就在那一行旁邊 | 守衛改成 `if not price or price <= 0`(`:88`) |
+
+### 4.4 🔴 最重的一項:**「下一輪重試」對收盤快照近乎空話**(排程要另外決定)
+
+驗證員提出,我**獨立複查排程定義證實**:
+`StartBoundary 09:00` + `Repetition Interval=PT15M` + **`Duration=PT4H45M`** + `DaysOfWeek=Mon–Fri`
+⇒ **當天最後一輪是 13:45**。而快照門檻是 `now >= 13:25`
+⇒ **一天只有 13:30 與 13:45 兩次機會;13:45 這次失敗,當天就沒有下一輪**(週五要等到週一)。
+**09-08 掉的那則就是這樣掉的**(LastRunTime 13:45 / rc=1 / `snapshot_sent` 仍是 false)。
+另:`DisallowStartIfOnBatteries=True` + `StopIfGoingOnBatteries=True` ⇒ 沒插電時整條線一次都不跑。
+
+⇒ **我沒有動排程**(授權範圍是那三行;改觸發器是另一類正式機變更)。
+但程式碼裡那句「下一輪重試」已改成講實話(`:183-191`),log 也會把這件事印出來
+—— 否則那就是一句寫在註解裡、下一個人會當規格的假話。
+**要真的有重試,得把 `Repetition Duration` 從 `PT4H45M` 拉到約 `PT5H30M`(跑到 14:30,快照留 5 次機會)
+—— 這一項等 Carson 拍板。**
+
+### 4.5 實測(沙箱,真實 Telegram 0 次)
+
+合成 config(**假 token,真 token 不進 temp 目錄**)+ 入口把 `tg` 換掉並斷言 + `urlopen` 換成會炸的守衛。
+六組共 15 項全過:①抓價連線失敗 → rc=1 且 log 說得出原因 ②加碼點推播失敗 → rc=2、`buy_alerted` 不前進
+③加碼點推播成功 → rc=0、旗標前進(不會每 15 分洗版)④快照推播失敗 → rc=2、`snapshot_sent` 不前進
+⑤**陰性對照**:無動作 → `tg` 零呼叫、rc=0、仍留一行正向輸出
+⑥`b/h/o` 全 `0.0` → rc=1、**零推播**(假加碼點被擋住)。
+
+**真環境端到端**(2026-09-09 05:51:48,`Start-Process pythonw`、無 console、跑正式機那一份):
+rc=0,`C:\Users\User\.stock_monitor\monitor.log` 長出
+`[2026-09-09 05:51:48] 無動作 price=16.12 chg=-0.31% buy=False`
+⇒ **這條線上第一次有「今天它跑過、而且一切正常」的正向證據。**
+跑之前先確認兩條推播路徑都不成立(price 16.12 > 14.0、chg −0.31% > −3%、05:51 < 13:25)⇒ 不會誤送。
 
 ⚠️ 順帶(不是這一棒的事,但看到了):`config.json` 的 `_comment_position` 欄位是 **Big5 亂碼**。
 不影響邏輯(沒有程式讀它),但下次動這個檔的人會看到亂碼。
 
-### 4.4 我沒有做、也建議不要順手做的
+### 4.6 我沒有做、也建議不要順手做的
 
-- **沒有** `--test` 跑它(那會真的推一則訊息到 Carson 手機)。
+- **沒有**用 `--test` 跑它(那條路一定會推一則真訊息到 Carson 手機)。
 - 我對 Telegram 只用了 **`getMe`**(唯讀,不送訊息)確認 token 與連線正常 ⇒ **token 是好的**,
   所以 09-08 那兩次失敗是別的原因(最可能是網路或 TWSE 端瞬時失敗)。
 - **沒有**把 ⑤ 的 `CarsonQuant_PCRender` 排程工作刪掉:它已無用途(`--pc` 需要的 `cloud.json` 不存在,
@@ -198,8 +237,11 @@ A/B/C 三種裡,只有寫檔在三種條件下都成立。
 | `quant-service/data_hunter/scan.py` | `8b8af8b6` | `d8496fc3` | broadcast 回傳值 |
 | `/d/yuanta-api/uat_watch.py`(repo 外) | `30492a58` | `e44ef7bc` | ⑨ |
 
-**未被碰過(逐一比對 size + mtime + sha256,前後一致)**:
-`C:\Users\User\.stock_monitor\{monitor.py, state.json, config.json}`(⑧,`monitor.py` sha `77ef35c655b39ad9`)、
+**⑧ 已授權改動**:`monitor.py` `77ef35c655b39ad9` → `a0fd9a605d99ce38`
+(tmp→`os.replace` 寫入,回讀逐位元組與候選一致,再換獨立儀器 `sha256sum` 複查一次)。
+
+**未被碰過(前後 sha 一致)**:`C:\Users\User\.stock_monitor\{state.json, config.json}`
+(⚠️ `state.json` 在事後那次端到端實跑中依設計換日成 `2026-09-09` —— 等同 09:00 那輪本來就會做的事,不是額外損失)、
 `/d/yuanta-api/{uat_watch_state.json, uat_watch.log}`、
 `docs/ops/quota-ceiling-watch.state.json`。
 
@@ -210,7 +252,7 @@ A/B/C 三種裡,只有寫檔在三種條件下都成立。
 
 ## 六、留給下一棒
 
-1. **⑧ 的三個改法在 §4.3**,等點頭。它現在每天有兩輪在失敗,而收盤快照已經漏掉至少一次(09-08)。
+1. **⑧ 已修並上機**(§四)。剩下的是**排程**那一項:`Repetition Duration=PT4H45M` 讓收盤快照一天只有兩次機會,13:45 失敗就沒有下一輪 —— 要不要拉長到 `PT5H30M`,**等 Carson 拍板**(§4.4)。
 2. **Task Scheduler Operational log 是關的**(`IsEnabled=False`)。
    ⇒ 全機 23 支排程的 exit code **沒有任何歷史**,只有一格會被覆蓋的 `LastTaskResult`。
    要不要打開它是一個獨立決策(有 10MB 上限、會寫磁碟),但**在它打開之前,任何「靠 exit code 就看得到」的設計都是空的**。
