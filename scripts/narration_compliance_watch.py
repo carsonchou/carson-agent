@@ -52,10 +52,68 @@ MIN_N = 8                               # 少於這個數只報不判
 FLOOR_SUMMARY = 0.50
 FLOOR_BIZ = 0.50
 
-_SUM_PAT = ("一句話收束今天的體檢",)
+# ─────────────────────────────────────────────────────────────────────
+# 🔴 2026-09-08:判準改成**從產線那一份長出來**,不再另抄一份。
+#
+# 為什麼改:盤點實測抓到這道哨已經在漂,而且是兩個具體缺口 ——
+#   ① `_SUM_PAT` 原本寫死 `("一句話收束今天的體檢",)` **一種**措辭,
+#      而產線 `produce_batch.py:1815` 認可**五種**(一句話收束/總結/整體而言/綜合來看/結論是)。
+#      ⇒ 旁白自然帶出「總結…」的收尾時,**產線視為合規、本哨記成不合規**
+#      (09-06 後 n=26 實測:sum_hit=10、**alt_only=1 被誤記**、neither=15)。
+#   ② `_BIZ_PAT` 五條正則,**連 `TW_STOCK_CHECKUP_RULES` ①b 自己給的官方範例句
+#      「台星科做積體電路測試服務」都零命中** —— 判準比它要執行的規則還窄。
+#
+# 修法(原則來自 prompt 洩漏閘門那道的修法:**判準要從被監控物身上長出來**):
+#   · 收束句 → `from produce_batch import CHECKUP_SUMMARY_MARKERS`,誰改產線清單哨自動跟著變
+#   · 業務介紹 → 規則是純 prompt 文字沒有可 import 的清單,所以改成**把規則自己給的範例句
+#     抽出來當內建回歸語料**;檢查器對不上自己要執行的規則的範例 ⇒ **fail-closed 不報數字**。
+#     (同 prompt 洩漏閘門用 31 支真實洩漏案例當語料、抓不到就 fail-closed 的機制。)
+# ⚠️ import 失敗**不可以**靜默退回舊的抄本 —— 那正是漂的成因。失敗要大聲。
+# ─────────────────────────────────────────────────────────────────────
+_IMPORT_ERR = ""
+try:
+    from produce_batch import CHECKUP_SUMMARY_MARKERS as _SUM_PAT  # 單一真相來源
+    from produce_batch import TW_STOCK_CHECKUP_RULES as _RULES_TEXT
+except Exception as _e:  # noqa: BLE001
+    _SUM_PAT, _RULES_TEXT, _IMPORT_ERR = (), "", f"{type(_e).__name__}: {_e}"
+
+
+def _rule_examples() -> tuple:
+    """從 `TW_STOCK_CHECKUP_RULES` ①b 的「例:」那行抽出官方範例句。
+
+    **這就是回歸語料,而且它跟著規則走** —— 規則改了範例句、語料自動跟著改,
+    不需要任何人記得同步。抽不到就回空,由 `_biz_selfcheck()` 判成 fail-closed。"""
+    if not _RULES_TEXT:
+        return ()
+    m = re.search(r"例[:：]\s*((?:「[^」]+」\s*)+)", _RULES_TEXT)
+    return tuple(re.findall(r"「([^」]+)」", m.group(1))) if m else ()
+
+
 _BIZ_PAT = (r"這家公司主要[在從]?[^。]{6,}。", r"主要業務[是為]?[^。]{6,}。",
             r"靠(?:販售|賣|提供)[^。]{4,}(?:賺錢|營收)", r"從事[^。]{6,}(?:業務|生產|製造|研發)",
-            r"提供[^。]{6,}(?:服務|解決方案|設備)")
+            # 🔴 2026-09-08 補:原本五條漏掉「做…服務/測試/設備」這個句型,
+            # 導致規則自己的範例「台星科做積體電路測試服務」零命中。
+            r"提供[^。]{4,}(?:服務|解決方案|設備|系統|產品)",
+            r"[做搞][^。]{4,}(?:服務|測試|設備|系統|製造|代工|產品)",
+            r"(?:生產|製造|銷售|研發)[^。]{4,}(?:產品|元件|設備|材料|系統)")
+
+
+def _biz_selfcheck() -> tuple:
+    """規則自己給的範例句,本檢查器抓不抓得到?回 (ok, 訊息)。
+
+    🔴 這是這道哨的**陽性對照**:一個連自己要執行的規則的範例都認不出來的檢查器,
+    算出來的「遵守率」是沒有意義的數字,**不可以拿去跟地板比**。"""
+    if _IMPORT_ERR:
+        return False, f"無法 import 產線常數({_IMPORT_ERR})—— 判準來源不可用"
+    if not _SUM_PAT:
+        return False, "產線收束句清單為空"
+    ex = _rule_examples()
+    if not ex:
+        return False, "抽不到規則裡的官方範例句(規則格式可能改了)"
+    miss = [s for s in ex if not any(re.search(p, s + "。") for p in _BIZ_PAT)]
+    if miss:
+        return False, f"規則自己的範例句有 {len(miss)}/{len(ex)} 條抓不到:{miss}"
+    return True, f"陽性對照通過({len(ex)} 條官方範例全部命中);收束句認可 {len(_SUM_PAT)} 種措辭"
 
 SELFTEST_MODE = next((a.split("=", 1)[1] if "=" in a else "both"
                       for a in sys.argv if a.startswith("--selftest")), None)
@@ -117,6 +175,16 @@ def samples():
 
 def main():
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+
+    # 🔴 陽性對照先跑,而且 **fail-closed**:判準本身認不出規則自己的範例句時,
+    # 算出來的「遵守率」沒有意義 —— 那正是 08-25~09-03 那道 prompt 洩漏閘門的病
+    # (瞎了三週、rc=0、log 一片乾淨)。這裡寧可吵也不要吐一個安靜的假數字。
+    ok, msg = _biz_selfcheck()
+    if not ok:
+        line = f"[{now}] 🔴 判準自檢失敗,本輪不報遵守率(這不是「合規」):{msg}"
+        record(line); alert("旁白合規守望:判準自檢失敗", line)
+        return 1
+
     try:
         texts = samples()
     except Exception as e:
@@ -148,7 +216,9 @@ def main():
         record(line); alert("旁白合規守望:遵守率掉了", line)
         return 1
 
-    record(f"[{now}] ✅ 合規｜{stat}")
+    # 正向輸出把陽性對照的結果也帶上:「它今天有沒有能力叫」本身要看得見,
+    # 不然「沒叫」與「叫不出來」在 log 上又長得一樣。
+    record(f"[{now}] ✅ 合規｜{stat}｜{msg}")
     return 0
 
 

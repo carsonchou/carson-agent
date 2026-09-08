@@ -1351,6 +1351,16 @@ TW_STOCK_RULES = """
 # 10分鐘長片。見 stock_checkup_facts.py(價格面：報酬/套牢/腰斬) + stock_fundamentals.py(基本面：
 # 營收/EPS/毛利/股利/估值位置)。這裡是「一集結構模板」，與 TW_LAB_RULES 同一套疊加機制(在 TW_STOCK_RULES
 # 之外再疊一層更嚴格的順序規範)，不取代 TW_STOCK_RULES 的招牌語氣，只加結構順序與「介紹≠推薦」硬規。
+# 🔴 2026-09-08:這組措辭原本是 `:1815` 的**行內 tuple 字面值**,而
+# `scripts/narration_compliance_watch.py` 那道哨**另抄了一份**、只抄到其中一個
+# (`一句話收束今天的體檢`)⇒ 旁白若自然帶出「總結/整體而言/…」開頭的收尾,
+# **產線視為合規、哨記成不合規**(09-06 後 n=26 實測抓到 1 支被誤記)。
+# 升成具名常數是為了讓那道哨**直接 import 這一份**,而不是再抄一次:
+# 判準要從被監控物身上長出來,誰改了這個清單,哨自動跟著變。
+# ⚠️ 改這個 tuple 等於改產線的合規定義,改完請跑
+# `python scripts/narration_compliance_watch.py --selftest=both`。
+CHECKUP_SUMMARY_MARKERS = ("一句話收束", "總結", "整體而言", "綜合來看", "結論是")
+
 TW_STOCK_CHECKUP_RULES = """
 【★「個股體檢」系列·10分鐘長片結構模板(逐段照走，順序不可打亂)】
 - 系列定位：量化阿森=數據體檢師，不是選股老師。每集單獨介紹一檔台股，**只陳述公開數據，不推薦、不喊單**。
@@ -1812,7 +1822,7 @@ def _checkup_finalize(result, next_name):
     # 🔴 2026-09-05:收束句補在 CTA **之前**。
     # 18/20 支旁白從最後一段資料直接跳到「訂閱頻道才不會錯過」,
     # 觀眾聽完拿不走任何關於這家公司的判斷。只在缺的時候補,LLM 已寫好的不重複。
-    if not any(k in v[-260:] for k in ("一句話收束", "總結", "整體而言", "綜合來看", "結論是")):
+    if not any(k in v[-260:] for k in CHECKUP_SUMMARY_MARKERS):  # 單一真相來源,見該常數註解
         _sum = _checkup_summary_line(result)
         if _sum:
             v = v.rstrip() + _sum
