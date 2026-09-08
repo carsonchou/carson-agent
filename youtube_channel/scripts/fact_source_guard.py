@@ -574,6 +574,20 @@ _CMP_VERBS_ADJ = (r"(少賺|多賺|高出|多出|少出|落後|領先|贏過|勝
 # 對照物形式不收單字「差」(見上 ②)
 _CMP_VERBS_OBJ = (r"(少賺|多賺|高出|多出|少出|落後|領先|贏過|勝過|輸給|超車|拉開|甩開|多領|少領|"
                   r"差距達|差距|相差|差了|竟差)")
+# 🔴 2026-09-08 同日二修(獨立驗證員抓到的誤擋,四句可重跑):
+#   「它落後大盤指數**報酬是**100%」「這檔股票落後加權指數**報酬**31%」
+#   「這檔的總報酬領先0050**同期報酬**50%」「我們的策略贏過大盤**同期年化**12%」
+# —— 這四句舊版放行、第一版新規則**擋**。機制:對照物把「被比較方**自己的**績效值」
+# 吞進去了 ⇒ 那個數字是**操作數**不是關係值(0050 同期報酬 50% 講的是 0050,不是差距)。
+# 收斂①「不得含『的』」擋不到它們(本來就沒有「的」)。
+# 修法:對照物不得含**指標名詞**(報酬/年化/勝率…)也不得含「是」——
+# 有指標名詞時,數字歸屬於那個指標而不是比較關係,語意上本來就該當操作數。
+# ⚠️ 副作用是「落後大盤**績效**31%」這種歧義句回到舊行為(放行)。刻意的:
+# 誤擋會停產(歷史事故),而歧義句本來就分不出 31 是差距還是大盤自己的值 ——
+# **不確定時往舊行為靠,不要往「擋」靠。**
+_CMP_METRIC = ("報酬", "年化", "勝率", "成功率", "命中率", "回撤", "殖利率", "績效",
+               "波動", "夏普", "卡瑪", "配息", "股利", "股息", "營收", "毛利", "淨利",
+               "EPS", "每股", "是")
 _CMP_OBJ = r"(?:(?:[一-鿿0-9A-Za-z](?<!的)){1,8})"
 _CMP_VERB_RX = re.compile(_CMP_VERBS_ADJ + r"\s*" + _CMP_ADV + r"\s*$")
 _CMP_VERB_OBJ_RX = re.compile(_CMP_VERBS_OBJ + r"\s*" + _CMP_ADV + r"\s*"
@@ -591,7 +605,16 @@ def _is_comparison_result(clause: str, raw: str) -> bool:
     if i <= 0:
         return False
     pre = clause[max(0, i - _CMP_WINDOW): i]
-    return bool(_CMP_VERB_RX.search(pre) or _CMP_VERB_OBJ_RX.search(pre))
+    if _CMP_VERB_RX.search(pre):
+        return True                      # 緊貼形式:行為與 2026-09-08 之前完全相同
+    m = _CMP_VERB_OBJ_RX.search(pre)
+    if not m:
+        return False
+    # 對照物裡出現指標名詞 ⇒ 這個數字歸屬於該指標(= 被比較方的操作數),不是關係結果值
+    obj = pre[m.end(1):]
+    if any(w in obj for w in _CMP_METRIC):
+        return False
+    return True
 
 
 def _rel_derivable(val: float, operands: list, loose: bool) -> bool:
