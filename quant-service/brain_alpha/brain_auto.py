@@ -1434,8 +1434,12 @@ def cmd_run(n, workers=2):
                 i = idx["i"]; idx["i"] += 1
             label, expr, settings = todo[i]
             res, err = simulate(s, expr, settings)
+            # `delay` 一定要記:標籤 `F1|ds|field|form` 裡沒有它,而 delay=0 和 delay=1
+            # 的同一個欄位會產生**兩列長得一模一樣的紀錄**(_key 有含 delay 所以不會誤去重,
+            # 但事後沒有任何辦法從帳本分辨這一列是哪個 delay 跑的)。2026-09-08 換軸時發現。
             rec = {"key": _key(expr, settings), "label": label, "expr": expr,
-                   "settings_decay": settings.get("decay"), "nz": settings.get("neutralization")}
+                   "settings_decay": settings.get("decay"), "nz": settings.get("neutralization"),
+                   "delay": settings.get("delay")}
             if err:
                 rec.update(ok=False, error=err)
                 line = f"[{i+1}/{len(todo)}] {label}  ✗ {err[:90]}"
