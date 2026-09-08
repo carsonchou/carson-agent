@@ -1379,10 +1379,20 @@ def push_new_signals(state: dict) -> int:
             lines.append(f"   停損 {s['stop']}／TP1 {s['tp1']}／TP2 {s['tp2']}")
     lines.append("━━━━━━━━━━━━\n量化阿森 · 台股數據獵手")
     msg = "\n".join(lines)
+    # 🔴 2026-09-09:原本只看 broadcast 有沒有拋例外。它不拋——它回
+    # {"ntfy": bool, "line": bool}(quant-service/notify.py:135),沒設定/非 2xx 都是 False。
+    # 於是「一則都沒送出去」會走完整個成功路徑:_save_pushed 把這些 key 記成已推,
+    # 而 _load_pushed 是**永久去重**,那些訊號就再也不會被推第二次 ——
+    # 訊號無聲消失,而上游 eod.py 的摘要還寫「已推播」。
+    # ⇒ 全部管道都失敗時不記已推(下一輪會重試),並把失敗印進 log(pythonw 下 eod.py 已把
+    #   stdout 導向 logs/eod_YYYYMMDD.log,所以這行到得了讀者)。
     try:
-        broadcast(msg, title=f"數據獵手｜{len(fresh)} 個新訊號", priority="high")
+        _r = broadcast(msg, title=f"數據獵手｜{len(fresh)} 個新訊號", priority="high")
     except Exception as e:
         print(f"[hunter] 推播失敗：{e}")
+        return 0
+    if isinstance(_r, dict) and not any(_r.values()):
+        print(f"[hunter] 🔴 推播一則都沒送出去（{_r}）：{len(fresh)} 個新訊號不記為已推，下一輪重試。")
         return 0
     _save_pushed(pushed)
     return len(fresh)

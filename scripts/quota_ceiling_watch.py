@@ -17,7 +17,7 @@
 用法:python scripts/quota_ceiling_watch.py   (排程每天台北 15:20,配額日剛關帳後)
 輸出:docs/ops/quota-ceiling-watch.log 追加一行 + 更新 .state.json + stdout(若有)
 """
-import json, re, sys, datetime, pathlib, traceback
+import json, os, re, sys, datetime, pathlib, traceback
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 LOG   = REPO / "docs" / "ops" / "quota-ceiling-watch.log"
@@ -30,6 +30,8 @@ sys.path.insert(0, str(REPO / "youtube_channel" / "scripts"))
 SELFTEST_MODE = next((a.split("=", 1)[1] if "=" in a else "up"
                       for a in sys.argv if a.startswith("--selftest")), None)  # None|"up"|"down"
 SELFTEST = SELFTEST_MODE is not None
+# 推播失敗的演習模式(2026-09-09):留痕的陽性對照,兩條失敗路徑各一個。
+DRILL_PUSH_MODES = ("pushfail", "pushraise")
 if SELFTEST:
     STATE = REPO / "docs" / "ops" / "quota-ceiling-watch.state.selftest.json"
 
@@ -85,9 +87,35 @@ def swallowed(what: str, e: BaseException = None) -> str:
     return msg
 
 
+# 🔴 2026-09-09(驗證 §4.1):`_SWALLOWED` 原本是唯寫的 —— 判決行永遠不會說「這輪吞了東西」,
+# 而推播失敗那條還排在判決行**後面** ⇒ 只看最後一行或 grep 判決行的人拿到「✅ 正常」。
+# 兩條都補:①判決行帶件數 ②收尾再補一行。**exit code 不動**(它是排程在讀的穩定基準)。
+# 這三份是刻意的複製,理由見 swallowed() 的 docstring 與 WATCHDOG.md:116-127。
+def swallow_suffix() -> str:
+    if not _SWALLOWED:
+        return ""
+    return f"｜⚠️ 本輪吞掉 {len(_SWALLOWED)} 件:" + "; ".join(_SWALLOWED)[:200]
+
+
+def swallow_epilogue() -> None:
+    if not _SWALLOWED:
+        return
+    stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    line = (("[DRILL] " if SELFTEST else "")
+            + f"[{stamp}] ⚠️ 本輪收尾:吞掉 {len(_SWALLOWED)} 件(含判決行之後才發生的,"
+              f"例如推播失敗)—— " + "; ".join(_SWALLOWED)[:300])
+    try:
+        LOG.parent.mkdir(parents=True, exist_ok=True)
+        with LOG.open("a", encoding="utf-8") as f:
+            f.write(line + "\n")
+    except Exception:
+        pass
+
+
 def record(line: str) -> None:
     if SELFTEST:
         line = "[DRILL] " + line
+    line += swallow_suffix()
     LOG.parent.mkdir(parents=True, exist_ok=True)
     with LOG.open("a", encoding="utf-8") as f:
         f.write(line + "\n")
@@ -120,8 +148,32 @@ def production_suffix(now: datetime.datetime) -> str:
         return f"｜🔴 產量/庫存讀不到:{e!r}"
 
 
+def _push_and_trace(pusher, title: str, body: str) -> None:
+    """推播 + 兩條失敗路徑的留痕。演習與正式**走同一份程式碼**(pusher 當參數傳)。"""
+    try:
+        if not pusher(title, body, tag="chart_with_upwards_trend"):
+            swallowed("ntfy 推播回報未送出(push() 回 False:topic 沒設定,或所有後端都失敗)"
+                      " —— 手機不會響,而天花板變化只推這一次,log 這行是唯一痕跡")
+    except Exception as e:
+        swallowed("ntfy 推播丟例外 —— 手機不會響,而天花板變化只推這一次", e)
+
+
+def _drill_push_false(*_a, **_k):
+    return False
+
+
+def _drill_push_raise(*_a, **_k):
+    raise RuntimeError("演習:模擬推播後端丟例外")
+
+
 def alert(title: str, body: str) -> None:
     if SELFTEST:
+        # 🔴 2026-09-09(驗證 §4.2):原本演習在碰 push 之前就 return ⇒ 留痕零常駐回歸。
+        # 真 push 只在下面非 SELFTEST 分支才 import ⇒ 演習路徑上它不存在(禁令放入口)。
+        if SELFTEST_MODE in DRILL_PUSH_MODES:
+            _push_and_trace(_drill_push_false if SELFTEST_MODE == "pushfail"
+                            else _drill_push_raise, title, body)
+            return
         say("[DRILL] 演習不推播")
         return
     # 🔴 推播失敗原本**兩條路都到不了讀者**:①拋例外那條走 `say(...)`,而 say 在排程環境是
@@ -130,11 +182,10 @@ def alert(title: str, body: str) -> None:
     # 這一支尤其致命:天花板變化**只在 changed 的那一次推播**,漏掉就是漏掉,沒有第二次。
     try:
         from notify import push
-        if not push(title, body, tag="chart_with_upwards_trend"):
-            swallowed("ntfy 推播回報未送出(push() 回 False:topic 沒設定,或所有後端都失敗)"
-                      " —— 手機不會響,而天花板變化只推這一次,log 這行是唯一痕跡")
     except Exception as e:
-        swallowed("ntfy 推播丟例外 —— 手機不會響,而天花板變化只推這一次", e)
+        swallowed("ntfy 匯入失敗 —— 手機不會響,而天花板變化只推這一次", e)
+        return
+    _push_and_trace(push, title, body)
 
 
 def main() -> int:
@@ -168,8 +219,16 @@ def main() -> int:
     # 那次變化永遠不會被報告,下一輪起還以新值為基準 ⇒ 證據就此消失,而且不可回溯。**
     # log 上留下的是「基準建立」—— 一句第一次跑本來就該出現的、看起來完全正常的話。
     # ⚠️ 而這兩件事**分得開**:`STATE.exists()` 為真但解析失敗 = 壞掉,不是第一次。
+    # 🔴 2026-09-09 獨立驗證推翻了上面那段的完成度(docs/ops/2026-09-09_verify_c09a2486.md §三):
+    # 上一版把「不是第一次跑」的判準綁在 **prev_broken(解析失敗)** 上,而
+    # `STATE.exists()` 只被拿來決定「要不要 parse」。於是還有一整格漏著:
+    # **state 是合法 JSON、但少了 `effective` 鍵(或 effective: null)** ⇒ prev_broken 是 None
+    # ⇒ 照樣落到「基準建立」⇒ 零留痕、不推播、rc=0 —— 正是這段自己說已經消滅的那句
+    # 「一句看起來完全正常的話」。實跑 keyless / nullval 兩種都重現。
+    # ⇒ **判準改成檔案在不在**:檔案在而拿不到基準,無論是解析失敗還是少鍵,都是「基準遺失」。
     prev, prev_broken = {}, None
-    if STATE.exists():
+    state_existed = STATE.exists()
+    if state_existed:
         try:
             prev = json.loads(STATE.read_text("utf-8"))
         except Exception as e:
@@ -179,11 +238,22 @@ def main() -> int:
         if SELFTEST_MODE == "down":     # 演習「下移+days 驟減」:走 ⚠️+帳本遺失標註路徑
             base = cur + 1234
             prev = {"days_n": (days_n or 0) + 40}
+        elif SELFTEST_MODE in ("keyless", "nullval"):
+            # 演習漏掉的那一格:檔案在、是合法 JSON、解析成功,但 effective 拿不到。
+            # 🔴 prev_broken 刻意保持 None —— 舊判準正是在這裡靜靜地放行。
+            state_existed, base, prev_broken = True, None, None
+        elif SELFTEST_MODE == "first":  # 陰性對照:真的第一次跑(檔案不存在)⇒ 不該報警
+            state_existed, base, prev_broken = False, None, None
+        elif SELFTEST_MODE in DRILL_PUSH_MODES:
+            # 明確走「上移」讓 changed=True 以引爆 alert() —— 不搭別條判準的便車,
+            # 否則那條判準哪天被改,這個演習就會靜靜地不再引爆。
+            base = cur - 1234
         else:                           # 演習「上移」:走 🎉 路徑
             base = cur - 1234
 
-    if base is None and prev_broken:
-        verdict = (f"🔴 **基準被迫重建,這不是第一次跑**:{prev_broken}。本輪把 watch={cur:,} 當成新基準"
+    if base is None and state_existed:
+        _why = prev_broken or "state 檔存在且是合法 JSON,但取不到 effective(少鍵或值為 null)"
+        verdict = (f"🔴 **基準被迫重建,這不是第一次跑**:{_why}。本輪把 watch={cur:,} 當成新基準"
                    f"收下(effective={eff:,}, floor={floor}, ceiling={ceil})—— 如果天花板今天剛好變了,"
                    f"**那次變化不會被報告,而且下一輪起以新值為基準 ⇒ 證據不可回溯地消失**。"
                    f"先看 {STATE.name} 是不是被截斷/寫壞(它就在 docs/ops/),再決定要不要把舊基準手動補回去。")
@@ -209,13 +279,25 @@ def main() -> int:
         changed = False
 
     record(f"[{now}] {verdict}{production_suffix(datetime.datetime.now())}")
-    STATE.write_text(json.dumps({"effective": cur, "raw_effective": eff, "floor": floor,
-                                 "ceiling": ceil, "days_n": days_n,
-                                 "checked_at": now}, ensure_ascii=False), "utf-8")
+    # 🔴 非原子寫最終路徑,正是上面那格「合法 JSON 但少鍵」的來源之一。
+    # memory `write-truncates-before-it-fails`:open(p,"w") 先截斷後寫入,中途拋例外原檔剩 0 bytes;
+    # 而「還原得回 JSON 卻少了鍵」比 0 bytes 更難抓(0 bytes 那種上面已經接住了)。
+    # 同 repo 的 quota_meter.py:195-208 09-03 就為了同一個理由改成 tmp→os.replace。
+    _payload = json.dumps({"effective": cur, "raw_effective": eff, "floor": floor,
+                           "ceiling": ceil, "days_n": days_n,
+                           "checked_at": now}, ensure_ascii=False)
+    _tmp = STATE.with_suffix(STATE.suffix + ".tmp")
+    _tmp.write_text(_payload, "utf-8")
+    os.replace(_tmp, STATE)
     if changed:
         alert("配額天花板變化", verdict)
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        _rc = main()
+    finally:
+        # 收尾行放 finally:main() 中途丟例外時,已經吞掉的東西一樣要留得下來。
+        swallow_epilogue()
+    sys.exit(_rc)

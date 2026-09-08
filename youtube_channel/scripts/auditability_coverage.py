@@ -306,6 +306,15 @@ def main() -> int:
     # 所以照樣吞(記 log 失敗不該弄垮判準),但**把第一次失敗印到 stderr** ——
     # stderr 會落到 logs/job_stderr.log(而 stdout 從 09-08 起也會落到 logs/jobout/),
     # 於是「它在吞」這件事本身變成看得見的。
+    #
+    # 🔴 2026-09-09 射程限制 —— **不要把下面這個「印到 stderr」當成通用範本照抄。**
+    # 它成立的前提是「本檔是 local_cron 的 job」:local_cron 會幫 job 接管 stdout/stderr
+    # 並落到 logs/jobout/ 與 logs/job_stderr.log,所以那裡真的有讀者。
+    # **Windows 排程工作(pythonw.exe)沒有這個前提**:實測 stdout/stderr 都是 None,
+    # `print(..., file=sys.stderr)` 是靜默 no-op、`sys.stderr.write` 直接拋 AttributeError
+    # ⇒ 照抄到那種腳本上等於什麼都沒做,而且在終端機測起來是好的。
+    # 那種腳本要**寫自己的 log 檔**當主通道(範本見 scripts/seeding_watch.py 的 swallowed())。
+    # 三條件實測與母體清單:docs/ops/2026-09-09_pythonw_stdio_correction.md。
     try:
         from ops import log_ops  # noqa: E402
         log_ops("稽核涵蓋", f"遷移後 {post_ok}/{post_t}({pct(post_ok, post_t):.1f}%)"

@@ -45,6 +45,33 @@ def _now():
     return _t.time()
 
 
+# 🔴 2026-09-09:給操作員看的訊息不可以只寫 stderr。
+# 本檔的 --pc 分支唯一的呼叫者是 Windows 排程工作 CarsonQuant_PCRender,而它跑
+# `pythonw.exe`。實測(三條件對照,見 docs/ops/2026-09-09_pythonw_stdio_correction.md):
+#   排程工作 + pythonw → sys.stdout/sys.stderr **都是 None**、STD_*_HANDLE 都是 0
+#   ⇒ print(..., file=sys.stderr) 是**靜默 no-op**(file=None 退回 sys.stdout,它也是 None)
+# 於是 08-29 寫下的那則「這個排程工作已無用途,可以 Unregister」**從來沒有人讀到過**,
+# 而排程工作也就一直留在機器上。⇒ 主通道寫檔,stderr 只當互動/local_cron 下的第二條路。
+# (--cloud 是 local_cron 的 job,stdout 從 f550a66a 起會落 logs/jobout/,那條路本來就有讀者。)
+_OPLOG = ROOT / "logs" / "hybrid_render_pc.log"
+
+
+def _operator_note(msg: str) -> None:
+    """寫給人看的訊息:先落檔(唯一在 pythonw 下到得了讀者的通道),再盡量印。"""
+    line = f"[{__import__('datetime').datetime.now():%Y-%m-%d %H:%M:%S}] {msg}"
+    try:
+        _OPLOG.parent.mkdir(parents=True, exist_ok=True)
+        with _OPLOG.open("a", encoding="utf-8") as f:
+            f.write(line + "\n")
+    except Exception:  # noqa: BLE001 — 留痕失敗不可以擋住主流程
+        pass
+    # None-safe:pythonw 下兩個都是 None,print 會靜默略過;互動/local_cron 下才真的印出來。
+    if sys.stderr is not None:
+        print(line, file=sys.stderr)
+    elif sys.stdout is not None:
+        print(line)
+
+
 def _media_dur(path) -> float:
     """媒體時長(秒);量不到回 0.0。純唯讀,失敗一律回 0 讓呼叫端放行。"""
     # ⚠️ 別用 imageio_ffmpeg.get_ffmpeg_exe().replace("ffmpeg","ffprobe") 推 ffprobe 路徑:
@@ -404,11 +431,11 @@ def main() -> int:
     # --pc 是 SFTP 連雲端 droplet 的模式。cloud.json 不在 = 沒有雲端可連(droplet 已停權,
     # 產線 2026-07 就搬回本機了)。與其讓它每 600 秒失敗一次、握著鎖空轉,直接退出。
     if args.pc and not (ROOT / "cloud.json").exists():
-        print("[hybrid] --pc 需要 cloud.json(SFTP 連雲端),檔案不存在 → 雲端模式已停用,直接結束。\n"
-              "         本機待辦請用 --cloud(crontab 每 15 分鐘那班)。\n"
-              "         若這是開機自啟的 Windows 排程工作 CarsonQuant_PCRender,它已無用途,"
-              "可用系統管理員權限執行:Unregister-ScheduledTask -TaskName CarsonQuant_PCRender -Confirm:$false",
-              file=sys.stderr)
+        _operator_note(
+            "[hybrid] --pc 需要 cloud.json(SFTP 連雲端),檔案不存在 → 雲端模式已停用,直接結束。\n"
+            "         本機待辦請用 --cloud(crontab 每 15 分鐘那班)。\n"
+            "         若這是開機自啟的 Windows 排程工作 CarsonQuant_PCRender,它已無用途,"
+            "可用系統管理員權限執行:Unregister-ScheduledTask -TaskName CarsonQuant_PCRender -Confirm:$false")
         return 0
     global _PROC_LOCK
     _PROC_LOCK = OUT / f".hybrid_render.{'cloud' if args.cloud else 'pc'}.proc.lock"

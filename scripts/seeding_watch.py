@@ -73,6 +73,11 @@ K_ZERO = 5          # 連續幾個 0 才算異常(校準見檔頭)
 # `verification-that-cannot-fail` 的第零種:輸出長得跟成功一樣的檢查。
 DRILL_FACT_MODES = ("unreadable", "empty", "upstream_ok")
 
+# 推播失敗的演習模式(2026-09-09 加)。這兩個模式是「留痕會不會叫」的**陽性對照** ——
+# pushfail = push() 回 False(不拋例外那條);pushraise = 後端丟例外那條。
+# 兩條都必須在 log 裡長出「吞掉但留痕」+ 判決行後綴 + 收尾行,否則留痕是壞的。
+DRILL_PUSH_MODES = ("pushfail", "pushraise")
+
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 except Exception:
@@ -110,7 +115,15 @@ _SWALLOWED = []
 
 
 def swallowed(what, e=None):
-    """吞掉但留痕。判準(exit code 與上面的輸出)完全不受影響,只是不再靜默。"""
+    """吞掉但留痕。判準(exit code 與上面的輸出)完全不受影響,只是不再靜默。
+
+    🔴 **這個函式在三支哨裡各有一份,是刻意的,不要抽成共用模組。**
+    理由見 `youtube_channel/deploy/WATCHDOG.md:116-127`:這三支的設計前提就是
+    「和被監視的東西平行、不依賴產線」——抽成共用模組會讓哨依賴一個會被改的東西,
+    而那個東西壞掉時,三支哨會**同時**變啞(它們正是為了偵測產線變啞而存在的)。
+    再加一條(2026-09-09):母體還可能長到 6~9 支,共用模組的風險隨支數放大。
+    ⇒ 代價是改一次要改三份。**這是已經權衡過的取捨,不是待清理的重複碼。**
+    """
     msg = f"{what}" + (f"({type(e).__name__}: {e})" if e is not None else "")
     _SWALLOWED.append(msg)
     stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -130,17 +143,83 @@ def swallowed(what, e=None):
     return msg
 
 
+# ── 🔴 2026-09-09:留痕要出現在**讀者的視線裡**,不是只存在於檔案某處 ───────────
+# 獨立驗證(docs/ops/2026-09-09_verify_c09a2486.md §4.1)推翻了上面那段的完成度:
+# `_SWALLOWED` 原本是**唯寫**的 —— 只有 `= []` 和 `.append()`,全 repo 沒有任何地方讀它。
+# 後果不是「少一個功能」,是**留痕看不見**:判決行永遠不會說「這輪吞了東西」,
+# 留痕是**另一行**,而推播失敗那條還排在判決行**後面**
+# ⇒ 只看最後一行、或 grep 判決行的人,拿到的是「✅ 正常」。
+# ⚠️ 那正是這支哨要治的病本身,只換了一層:從「訊號不存在」變成「訊號在讀者視線外」。
+# 兩條都補:①`record()` 一律把件數綴進判決行;②收尾再補一行,讓 **log 的最後一行**
+# 一定講得出這輪有沒有吞掉東西(判決行之後才發生的吞掉只能靠這條)。
+# ⚠️ **exit code 不動** —— 它是排程/watchdog 在讀的穩定基準,這一輪不同時動兩個變數
+# (派工單 §五.2 同樣的理由)。要升級成 rc≠0 請單獨開一棒,並先列出誰在讀它。
+def swallow_suffix() -> str:
+    """給判決行用的後綴。沒吞東西時回空字串(不製造每輪必中的雜訊)。"""
+    if not _SWALLOWED:
+        return ""
+    return (f"｜⚠️ 本輪吞掉 {len(_SWALLOWED)} 件:"
+            + "; ".join(_SWALLOWED)[:200])
+
+
+def swallow_epilogue() -> None:
+    """收尾行:確保「這輪吞了東西」是 log 的最後一行,而不是被判決行蓋過去。"""
+    if not _SWALLOWED:
+        return
+    stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    line = (("[DRILL] " if SELFTEST else "")
+            + f"[{stamp}] ⚠️ 本輪收尾:吞掉 {len(_SWALLOWED)} 件(含判決行之後才發生的,"
+              f"例如推播失敗)—— " + "; ".join(_SWALLOWED)[:300])
+    try:
+        LOG.parent.mkdir(parents=True, exist_ok=True)
+        with LOG.open("a", encoding="utf-8") as f:
+            f.write(line + "\n")
+    except Exception:
+        pass
+
+
 def record(line):
     if SELFTEST:
         line = "[DRILL] " + line
+    line += swallow_suffix()          # 判決行自己要說得出「這輪吞了東西」
     LOG.parent.mkdir(parents=True, exist_ok=True)
     with LOG.open("a", encoding="utf-8") as f:
         f.write(line + "\n")
     say(line)
 
 
+def _push_and_trace(pusher, title, body):
+    """推播 + 兩條失敗路徑的留痕。**演習與正式走同一份程式碼** ——
+    把 pusher 當參數傳進來,而不是在演習分支裡複製一份判斷:
+    複製出來的演習只證明得了複本會叫,證明不了本體會叫。"""
+    try:
+        if not pusher(title, body, tag="seedling"):
+            swallowed("ntfy 推播回報未送出(push() 回 False:topic 沒設定,或所有後端都失敗)"
+                      " —— 手機不會響,log 這行是唯一痕跡")
+    except Exception as e:
+        swallowed("ntfy 推播丟例外 —— 手機不會響", e)
+
+
+def _drill_push_false(*_a, **_k):
+    return False
+
+
+def _drill_push_raise(*_a, **_k):
+    raise RuntimeError("演習:模擬推播後端丟例外")
+
+
 def alert(title, body):
     if SELFTEST:
+        # 🔴 2026-09-09 常駐回歸(驗證 §4.2):原本演習**在碰 push 之前就 return**,
+        # 於是 13 個演習模式的留痕實測全是 0 —— 唯一證明「留痕會叫」的東西是驗證員
+        # 當場手搭的 harness,repo 裡沒有、排程裡也沒有。
+        # memory `gate-blind-while-target-evolves`:閘門上線後要有東西**定期證明它還抓得到已知案例**。
+        # ⚠️ 真 `push` 只在下面非 SELFTEST 的分支才 import ⇒ 演習路徑上它根本不存在,
+        #    不是靠「記得不要呼叫」。這是把禁令放在**入口**,不是放在心裡(dispatch.md §6)。
+        if SELFTEST_MODE in DRILL_PUSH_MODES:
+            _push_and_trace(_drill_push_false if SELFTEST_MODE == "pushfail"
+                            else _drill_push_raise, title, body)
+            return
         say("[DRILL] 演習不推播")
         return
     # 🔴 推播失敗原本有**兩條路都到不了讀者**,兩條都在這五行裡:
@@ -152,11 +231,10 @@ def alert(title, body):
     #    (`notify.push` 自己的診斷是 `print`,在 pythonw 下同樣是 no-op ⇒ 那層也看不到。)
     try:
         from notify import push
-        if not push(title, body, tag="seedling"):
-            swallowed("ntfy 推播回報未送出(push() 回 False:topic 沒設定,或所有後端都失敗)"
-                      " —— 手機不會響,log 這行是唯一痕跡")
     except Exception as e:
-        swallowed("ntfy 推播丟例外 —— 手機不會響", e)
+        swallowed("ntfy 匯入失敗 —— 手機不會響", e)
+        return
+    _push_and_trace(push, title, body)
 
 
 
@@ -366,6 +444,10 @@ def main():
             f"｜近 {len(tail)} 筆 連續 0={run0}(門檻 {K_ZERO})｜例外(-1)={len(errs)}")
 
     problems = []
+    if SELFTEST and SELFTEST_MODE in DRILL_PUSH_MODES:
+        # 明確注入,讓這個演習**只**取決於它要測的那件事(推播失敗留痕),
+        # 而不是搭別條判準的便車 —— 別條判準哪天被修好,這個演習就會靜靜地不再引爆。
+        problems.append("🔴 演習:注入假異常以引爆 alert() 的推播失敗路徑(不碰真的 push)")
     if stale_days is None:
         problems.append(f"🔴 最後一列的日期解析不出來({last_day!r})—— 判不了新鮮度,當成有問題")
     elif stale_days >= 1:
@@ -390,8 +472,8 @@ def main():
     up, up_err, up_skip = [], None, None
     if SELFTEST and SELFTEST_MODE in ("upstream", "all"):
         up = [("2026-07-18", 0.93, 14), ("2026-07-19", 1.00, 13)]   # 真實斷料窗的長相
-    elif SELFTEST and SELFTEST_MODE in ("err", "zero", "stale"):
-        up_skip = "本次演習不測(這三個模式只引爆種題那三條)"
+    elif SELFTEST and SELFTEST_MODE in ("err", "zero", "stale") + DRILL_PUSH_MODES:
+        up_skip = "本次演習不測(這幾個模式不測上游)"
     else:
         up, up_err = upstream_status()
 
@@ -433,6 +515,8 @@ if __name__ == "__main__":
         _rc = main()
     finally:
         _iso = _drill_teardown()
+        # 收尾行放 finally:main() 中途丟例外時,已經吞掉的東西一樣要留得下來。
+        swallow_epilogue()
     if _iso is False:
         say("[DRILL] 🔴 隔離失敗 → rc=9(演習結果不採信)")
         _rc = 9

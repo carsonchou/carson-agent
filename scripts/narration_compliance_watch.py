@@ -118,6 +118,8 @@ def _biz_selfcheck() -> tuple:
 SELFTEST_MODE = next((a.split("=", 1)[1] if "=" in a else "both"
                       for a in sys.argv if a.startswith("--selftest")), None)
 SELFTEST = SELFTEST_MODE is not None
+# 推播失敗的演習模式(2026-09-09):留痕的陽性對照,兩條失敗路徑各一個。
+DRILL_PUSH_MODES = ("pushfail", "pushraise")
 
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -168,17 +170,67 @@ def swallowed(what, e=None):
     return msg
 
 
+# 🔴 2026-09-09(驗證 §4.1):`_SWALLOWED` 原本是唯寫的 —— 判決行永遠不會說「這輪吞了東西」,
+# 而推播失敗那條還排在判決行**後面** ⇒ 只看最後一行或 grep 判決行的人拿到「✅ 合規」。
+# 兩條都補:①判決行帶件數 ②收尾再補一行。**exit code 不動**(它是排程在讀的穩定基準)。
+# 這三份是刻意的複製,理由見 seeding_watch.swallowed() 的 docstring 與 WATCHDOG.md:116-127。
+def swallow_suffix():
+    if not _SWALLOWED:
+        return ""
+    return f"｜⚠️ 本輪吞掉 {len(_SWALLOWED)} 件:" + "; ".join(_SWALLOWED)[:200]
+
+
+def swallow_epilogue():
+    if not _SWALLOWED:
+        return
+    stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    line = (("[DRILL] " if SELFTEST else "")
+            + f"[{stamp}] ⚠️ 本輪收尾:吞掉 {len(_SWALLOWED)} 件(含判決行之後才發生的,"
+              f"例如推播失敗)—— " + "; ".join(_SWALLOWED)[:300])
+    try:
+        LOG.parent.mkdir(parents=True, exist_ok=True)
+        with LOG.open("a", encoding="utf-8") as f:
+            f.write(line + "\n")
+    except Exception:
+        pass
+
+
 def record(line):
     if SELFTEST:
         line = "[DRILL] " + line
+    line += swallow_suffix()
     LOG.parent.mkdir(parents=True, exist_ok=True)
     with LOG.open("a", encoding="utf-8") as f:
         f.write(line + "\n")
     say(line)
 
 
+def _push_and_trace(pusher, title, body):
+    """推播 + 兩條失敗路徑的留痕。演習與正式**走同一份程式碼**(pusher 當參數傳)。"""
+    try:
+        if not pusher(title, body, tag="clipboard"):
+            swallowed("ntfy 推播回報未送出(push() 回 False:topic 沒設定,或所有後端都失敗)"
+                      " —— 手機不會響,log 這行是唯一痕跡")
+    except Exception as e:
+        swallowed("ntfy 推播丟例外 —— 手機不會響", e)
+
+
+def _drill_push_false(*_a, **_k):
+    return False
+
+
+def _drill_push_raise(*_a, **_k):
+    raise RuntimeError("演習:模擬推播後端丟例外")
+
+
 def alert(title, body):
     if SELFTEST:
+        # 🔴 2026-09-09(驗證 §4.2):原本演習在碰 push 之前就 return ⇒ 留痕零常駐回歸。
+        # 真 push 只在下面非 SELFTEST 分支才 import ⇒ 演習路徑上它不存在(禁令放入口)。
+        if SELFTEST_MODE in DRILL_PUSH_MODES:
+            _push_and_trace(_drill_push_false if SELFTEST_MODE == "pushfail"
+                            else _drill_push_raise, title, body)
+            return
         say("[DRILL] 演習不推播")
         return
     # 🔴 推播失敗原本**兩條路都到不了讀者**:①拋例外那條走 `say(...)`,而 say 在排程環境是
@@ -186,11 +238,10 @@ def alert(title, body):
     # ②**不拋例外那條** —— `push()` 都沒設定/403/5xx 回 False,而這裡沒看回傳值 ⇒ 安靜當成功。
     try:
         from notify import push
-        if not push(title, body, tag="clipboard"):
-            swallowed("ntfy 推播回報未送出(push() 回 False:topic 沒設定,或所有後端都失敗)"
-                      " —— 手機不會響,log 這行是唯一痕跡")
     except Exception as e:
-        swallowed("ntfy 推播丟例外 —— 手機不會響", e)
+        swallowed("ntfy 匯入失敗 —— 手機不會響", e)
+        return
+    _push_and_trace(push, title, body)
 
 
 def samples():
@@ -280,4 +331,9 @@ def main():
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        _rc = main()
+    finally:
+        # 收尾行放 finally:main() 中途丟例外時,已經吞掉的東西一樣要留得下來。
+        swallow_epilogue()
+    raise SystemExit(_rc)
