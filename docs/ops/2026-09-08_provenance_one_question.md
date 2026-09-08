@@ -89,7 +89,7 @@ slug `L_個股體檢致伸49154915抱139年賺3424為何`
 | 東西 | 保存期 |
 |---|---|
 | `STUDIO/tw_facts_cache/*.csv`(價格面) | **TTL 20 小時**,`_save_cache` 就地覆寫 ⇒ 產片當時用的價格數列**早就不在了** |
-| `twdata/fundamentals_cache/*.json`(FinMind 原始回應) | **TTL 30 天**滾動,同樣就地覆寫 |
+| `twdata/fundamentals_cache/*.json`(FinMind 原始回應) | ~~**TTL 30 天**滾動~~ 🔴 **2026-09-09 更正:不是單一 30 天,是**`stock_fundamentals.py:89` 的 `_TTL_H` **按 dataset 分級** —— 月營收/財報/股利 30 天,**`TaiwanStockPER` 只有 20 小時**,`TaiwanStockInfo` 7 天,而 `.get(dataset, 24)` **預設 24 小時**。⇒ 本益比這類逐日數字的上游輸入,保存期比本文原本寫的**短一個數量級**,而它正是最常進旁白的數字之一。同樣就地覆寫。 |
 
 ⇒ **能證明「我們算出 342.4%」,不能重算證明「342.4% 算得對」** —— 輸入沒留。
 (有 `method` + `period` + `source`,理論上可重算,但要重抓資料,而財報數字會被追溯修正。)
@@ -187,3 +187,108 @@ slug `L_個股體檢致伸49154915抱139年賺3424為何`
 - **產了片而 sidecar 是 0** ⇒ 鏈路在 `:2842`~`:6466` 之間斷掉,去看 `ops_log` 有沒有
   「補產·事實溯源 ⚠️ … sidecar 寫入失敗」那一行(它是 fail-open 的,所以**不會有別的訊號**)。
 - 查法零成本:`ls youtube_channel/output/*.facts.json | wc -l`。
+
+---
+
+# 🔴 補記(2026-09-09):上面那份清單漏了 19 條,其中 16 條在排程上
+
+> 本節由一支 fresh-context agent 以「**試圖證明上面那份清單不完整**」為題掃出來,
+> 再由 wF:p3 逐條複驗(標「已複驗」的是我自己查過原始碼/檔案系統,不是轉述)。
+> ⚠️ **上面 §二 那份不是錯的,是「已知有這些」**。本節補的是「還有這些」。
+
+## 〇、先對齊主頻道那一半的答案
+
+`scripts/auditability_coverage.py` 的結論:**遷移後 234/234 = 100.0%**;
+**07-06 以前的 47 支結構上永遠查不了**(2026-07-05 droplet 停權,`output/` 從來沒被複製到本機)。
+⇒ 那 47 支不是「還沒查」是「查不了」,不要再排進待辦。
+
+## 一、🔴 最高風險:`snapshot_studio.py:109` —— 本文引用了保護,沒引用執行保護的那把刀
+
+**已複驗**。`shutil.rmtree` 掉 `STUDIO/_snapshots/YYYY-MM-DD/`,`KEEP_DAYS = 7`,
+排程 `5 4 * * *`(`crontab.txt:333`),**無例外清單**。
+
+本文 §2.5 說 `quality_scores.json` 的備份「回溯 7 天」—— **那 7 天就是 `KEEP_DAYS=7`,由 `:109` 執行**。
+本文引用了那個安全網,卻沒把執行它的那把刀列進刪除者。
+
+🔴 **而實測的復原深度比 7 天短得多**(2026-09-09 直接數檔案):
+
+| 快照夾 | 有 `stock_checkup_facts.json` 嗎 |
+|---|---|
+| 09-03 ~ 09-07(5 天) | ❌ **沒有** |
+| 09-08 | ✅ 17,037,478 bytes |
+| 09-09 | ✅ 17,483,619 bytes |
+
+⇒ **事實庫的復原窗口是 2 天,不是 7 天**(它 09-07 才進 `KEY_FILES`;
+`snapshot_studio.py:28-40` 的註解自己寫著「07-05 起事實庫零自動備份,零訊號」)。
+
+配上本文 §2.2 已經查到的那條鏈 —— 16MB `write_text` **無 tmp**、讀取端 `except: pass` 退成空骨架、
+**壞掉照樣印「已寫入」** —— 完整的失敗形態是:
+**靜默寫壞 → 零訊號 → 沒人發現 → `:109` 在第 3 天刪掉最後一份好的 → 198 支已發布片的「這句數字哪來的」永久答不出來。**
+這條鏈上每一環本文都寫到了,**唯獨沒寫那個把窗口關上的動作**。
+
+## 二、🔴 第二名:`local_cron.py:313` —— 觸發在即,而且它動手時不會出聲
+
+**已複驗**:`if ERRLOG.stat().st_size > 5_000_000: ERRLOG.write_text("")`,
+在**每 60 秒的派工迴圈**裡,整段包在 `except: pass` 內。
+**現況 `logs/job_stderr.log` = 4,417,756 bytes = 88.4%**,近期必觸發。
+它銷毀的是「憑據寫入失敗時唯一會落地的那行字」——全機排程 job 的 traceback 就這一份。
+`:328` 對 `logs/jobout/<腳本>.log` 同形狀(門檻 `2_000_000`,一支一個檔各自算)。
+(`ops.py:17` 是 `OPS.open("a")` **純附加無輪替** ⇒ ops_log 安全,本文第五節那個可證偽期望站得住;
+但 `produce_batch` 的 stdout 只落在 `jobout/produce_batch.log`,那份會被歸零。)
+
+## 三、補充清單(19 條,依現有文件**沒有**的列)
+
+### A. 銷毀「稽核憑據的備份」——本文一條都沒有(4 條,全在排程)
+`snapshot_studio.py:109`(見上)/ `ch3_health.py:47` `rmtree` `ch3_lab/_backup/`(`30 9 * * *`)/
+`local_cron.py:313`、`:328`(見上)。
+
+### B. 覆寫「線上那一份」——§2.4 只查了字幕軌,沒查描述(6 條,全在排程)
+`desc_backfill.py:262`(`0 14 * * 3`,先讀現行 snippet、`len(new)<len(old)` 跳過 ⇒ 相對安全)/
+`fix_period_disclaimer.py:176`(`5 15 * * *`,**有**逐片備份 `:169`)/
+`ab_title.py:267`(`0 3 * * 1`,改**標題** ⇒ slug↔videoId 的人工比對線索斷一截)/
+`ab_thumbnail.py:370`(`20 3 * * 5`)/ `channel_facelift.py`(`5 16 * * *`,不動單片)/
+`fix_audio_language.py:99`(`25 15 * * *`)。
+
+⚠️ **§2.4 的「取回這條路不存在(`captions.list` 403)」只適用字幕軌** ——
+描述側 `desc_backfill.py:239` 用 `videos().list(part="snippet")` 讀得回來。
+
+### C. TTL(2 條)
+`hidiv_showdown_facts.py:103`/`:118`(TTL 20h)、`stock_fundamentals.py:118`(分級,見上面對 §2.3 的更正)。
+
+### D. `output/` 這一層(4 條)——§2.1 的「唯一」是對的,但理由不是它以為的那個
+`produce_batch.py:6524` `unlink(missing_ok=True)` 會刪 `.mp4`/`.mp3`/**`.voice.txt`**,
+🔴 **而它不碰已發布片靠的不是檢查**:程式碼裡**沒有任何 `slug in led` 已發布判斷**,
+靠的是「它跑在產製當下」這個時序巧合。相對地 `:6671` 的 `rename` **有**明寫保護(`if _old in _led: continue`)。
+⇒ **同一支檔案裡,一條靠不變式、一條靠巧合。** 另:`tts_edge.py:179`、`refresh_backlog_hooks.py:157/:171/:175`(❌手動)。
+
+### E. 合規性刪除(3 條,定義邊緣但都在排程)
+`purge_api_data.py:102`(`20 4 * * *`,保留 25 天)/ `intel_dept.py:70`(`30 13 * * 6`)/
+`daily_publish.py:811` `write_text(json.dumps(...))` **整檔覆寫無 tmp→replace**,
+對象是 `ig/fb/threads_ledger.json`,讀取端 `except: led={}`
+⇒ **與 §2.2 的 `merge_and_write` 同一形狀**(主帳本 `:307` 走 `save_json_atomic`,安全)。
+
+## 四、對本文的兩條更正
+
+1. **§2.3 的「`fundamentals_cache` TTL 30 天」是錯的** —— 已在原處加撤回標記(見上)。
+2. ⚠️ **降級 `fix_audio_language.py:99`**:掃查初稿把它排第二名,理由是「body 從 6 欄白名單**重組**」。
+   **已複驗:那 6 欄(`title`/`description`/`categoryId`/`tags`/`defaultLanguage`/`defaultAudioLanguage`)
+   就是 `videos.update` 能寫的 snippet 全集**,而 `sn` 是**同一輪** `videos().list` 讀回來的原值
+   ⇒ **四個關鍵欄位都在,線上沒有被清空。** 掃查員收到質疑後自行更正,並主動聲明那格是讀碼不是實跑。
+   殘留風險只剩三個小的:①零備份(對比 `fix_period_disclaimer:169` 有)②`if v is not None` 只擋 None,
+   `videos().list` 回殘缺 snippet 就照樣送出 ③白名單**寫死六欄**,YouTube 日後新增可寫欄位會被靜默丟掉且不報錯。
+
+## 五、⚠️ 這份清單的邊界(沒有這一格,「我沒找到」不可判斷)
+
+- 🔴 **執行期行為完全沒驗**:全部是讀碼 + 排程表比對,「觸發條件」欄是**讀出來的不是看到的**。
+- **雲端那份沒查**:`crontab.txt` 自稱是雲端 `crontab -l` 的同步版,而 droplet 07-05 已停權
+  ⇒ 查的是本機 `local_cron` 對它的解析結果;雲端若有此檔沒有的行,看不到。
+- `quant-service/` 只過 pattern 沒逐檔讀;`ch3_lab/` 只查了與主線共用的憑據 ——
+  **ch3 自己的旁白/字幕保存策略要另一份清單**。
+- `_archive/`/`_v2/`/`_baseline/`/`_ttslab311/`/`.claude/worktrees/` 沒掃
+  (worktrees 下有 3 份 `quality_score.py` 副本,不在任何排程上)。
+- **Windows 排程以外的常駐程序沒逐一清點**(當時 8 個 python/pythonw 在跑)。
+- ⚠️ 那 3 條標 `Disabled` 的 `QuantArsen_*` Windows 任務**不代表沒在跑** ——
+  它們同時在 `crontab.txt` 上,實際派工的是 `local_cron.py`。**Disabled 的是重複入口,不是那條路。**
+
+掃描用的 pattern 與目錄清單、以及 `sitecustomize` 會把 `youtube_channel\scripts` 插到 `sys.path[0]` 的實地確認,
+見本次掃查回報(逐字保留在 wF:p3 的 session 逐字稿)。
