@@ -1,0 +1,49 @@
+{
+  "_why": "這道閘門(fact_source_guard)是為了擋 2026-07-13 那次捏造事故才存在的。2026-09-08 實測:那五個原句今天全部放行,溯源路徑在百分比上的實際攔截 = 0。這份語料把那五句釘住,讓之後每一次修法都有一根具體的桿子——不是『看起來比較嚴了』,是『五句擋掉幾句』。",
+  "_how": "python scripts/fact_source_guard.py --regress  (擋不掉任何一句 → exit 1)",
+  "_position": "🔴 這份檔刻意放在 scripts/(進 git),不放 STUDIO/(整個目錄在 .gitignore:95,0 個檔被追蹤)。promptleak_regression.json 就是放錯位置的前例:換機器/重 clone 會讓閘門 fail-closed 全線擋死。",
+  "_not_wired_into_publish": "⚠️ --regress 是獨立指令,**沒有**接進 daily_publish 的發布路徑。刻意的:現在五句全過,接進去等於立刻停產。它是量尺,不是閘門。",
+  "_baseline": {
+    "measured_at": "2026-09-08",
+    "blocked": 0,
+    "total": 5,
+    "note": "上線當下就是紅的。任何修法宣稱有效,先看這個數字有沒有動。"
+  },
+  "cases": [
+    {
+      "id": "20260713-A-winrate31",
+      "expect": "block",
+      "text": "根據臺股十年資料,毛利率成長選股的勝率只有百分之三十一。",
+      "why": "事故原句。查遍 tw_stock_facts / backtest_cards / scripts,根本沒有『毛利率選股回測』這個引擎,數字是 LLM 編的。",
+      "kind": "pct"
+    },
+    {
+      "id": "20260713-B-winrate31-attributed",
+      "expect": "block",
+      "text": "回測顯示,毛利率成長選股的勝率只有百分之三十一。",
+      "why": "同上,但帶假掛名(『回測顯示』= 宣稱這是我實際跑出來的)。這條走的是嚴容差路徑,理應比 A 更容易擋。",
+      "kind": "pct-attributed"
+    },
+    {
+      "id": "20260713-C-pct67",
+      "expect": "block",
+      "text": "百分之六十七的個股在財報前三個月就反映完畢,報酬幾乎被吃光。",
+      "why": "事故同一支片的第二個編造數字(同片三段給出 31/57/54 三個互相矛盾的勝率)。",
+      "kind": "pct"
+    },
+    {
+      "id": "20260713-D-pct47",
+      "expect": "block",
+      "text": "實測發現百分之四十七的訂單失效,獲利直接歸零。",
+      "why": "同族:『實測發現』假掛名 + 無憑據百分比。topics_from_facts.py:8 記著這是實跑抓到的原句。",
+      "kind": "pct-attributed"
+    },
+    {
+      "id": "20260713-E-mixed",
+      "expect": "block",
+      "text": "回測顯示,當沖客的勝率只有百分之八十,其實七成被手續費吃掉。",
+      "why": "🔴 金額與百分比混雜正是 07-13 事故的真實形狀。這句同時測整十數(80)與成數(七成)兩條補強規則——兩條都是 2026-07-14 為了這類句子加的,2026-09-08 實測已雙雙失效。",
+      "kind": "pct-round10+quant"
+    }
+  ]
+}

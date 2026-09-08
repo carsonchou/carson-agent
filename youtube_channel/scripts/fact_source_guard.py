@@ -39,6 +39,9 @@ from pathlib import Path
 
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    # 🔴 2026-09-08:stderr 沒一起 reconfigure,--regress 的紅字警告在 cp950 主控台變成亂碼
+    # ——這道閘門自己吃過「叫聲到不了讀者」的虧(48f85da6),告警印不出來等於沒印。
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 except Exception:  # noqa: BLE001
     pass
 
@@ -102,6 +105,16 @@ HEDGE = ("示意", "假設", "僅供參考", "僅為教學", "不代表未來", 
 PERF_CTX = ("報酬", "獲利", "勝率", "成功率", "命中率", "回撤", "虧損", "賠", "賺",
             "年化", "績效", "夏普", "卡瑪", "波動", "漲", "跌", "翻倍", "倍",
             "總報酬", "累積", "複利", "終值", "機率", "比例", "佔比",
+            # 🔴 2026-09-08 補基本面類(主頻道線裁示 C)。舊表沒有這幾個詞 ⇒ 子句不算「績效語境」
+            # ⇒ extract_claims 直接 return ⇒ **連宣稱都不產生** ⇒ 守門看不到 ⇒ 靜默 fail-open。
+            # 實測(91 支真實候選):2,659 個百分比 token 裡 141 個(5.3%)的子句不含任何 PERF_CTX 詞,
+            # 而那些子句的關鍵字分佈正是 **殖利率 28 / 營收 26 / 成長 18 / 毛利 16 / 股利 14** ——
+            # 恰好是 2026-09-06 捏造事故的品項清單(模板命令依序講營收→EPS→毛利→股利,
+            # FinMind 斷料時 LLM 補洞)。獨立驗證員用較寬的正則量到 225/2,852 = 7.9%,
+            # 幅度不同但關鍵字分佈幾乎同一組。
+            # ⚠️ 這一步只讓它們**被抽出來**;抽出來之後擋不擋是池飽和的問題(另一件事)。
+            "殖利率", "配息", "股利", "股息", "營收", "毛利", "淨利", "每股", "EPS",
+            "年增", "月增", "季增", "成長",
             "差", "高出", "高於", "低於", "落後", "領先", "多出", "少出", "拉開", "甩開",
             "對", "比")
 
@@ -541,20 +554,44 @@ def _approx_kind(clause: str, raw: str) -> str:
 # 就放行,而真實關係是 0056=377.9% vs 00878=230.8% → 實際高出 63.7%;56 是把相對差算錯/錯印成
 # 另一個值)。這正是交接書講的同一物種:數字「存在於某處」,但**語意是錯的**。
 # 判準改成:比較結果數字**只能由文本內真實操作數算得出來**(差 / 兩個方向的相對比),否則無憑據。
-_CMP_VERB_RX = re.compile(
-    r"(少賺|多賺|高出|多出|少出|落後|領先|贏過|勝過|輸給|超車|拉開|甩開|多領|少領|"
-    r"差距達|差距|相差|差了|竟差|差)\s*"
-    r"(整整|了|約|近|達|高達|足足|竟|還|多|只|大約|將近)*\s*$")
+# 🔴 2026-09-08 修「緊貼」限制(獨立驗證員實測坐實,主頻道線裁示 B):
+# 舊版要求比較動詞**緊貼**在數字前(中間只准接副詞),於是中間插一個**對照物**就整條失效:
+#     「這檔的績效落後31%」      → 擋
+#     「這檔的績效落後**大盤**31%」→ **放行**
+#     「它的報酬高出31%」        → 擋
+#     「它的報酬高出**大盤與0050整整**31%」→ **放行**
+# 而財經旁白寫「落後大盤 X%」比寫「落後 X%」自然得多 ⇒ 這條規則實際攔截力遠低於帳面。
+# 實測背景:它是**唯一**真的在擋百分比的規則(91 支真實候選裡被擋的 54 個百分比,54 個全來自它;
+# 溯源路徑擋下 0 個),所以它可以被一句話繞開,等於百分比型完全沒有守門。
+# 修法:動詞與數字之間允許一個 1~8 字的「對照物」(大盤 / 0050 / 加權指數 / 台積電…)。
+# ⚠️ 兩個刻意的收斂,避免把**操作數**誤判成比較結果(那會誤擋真片):
+#   ①對照物不得含「的」——擋掉「少賺**的幅度**是823%」這種(823 是操作數不是關係值)。
+#   ②**單字「差」不參與對照物形式**(只保留緊貼形式)——否則「**誤差**範圍大概是31%」會命中。
+#   ③視窗從 9 字放寬到 14 字(容得下動詞+副詞+對照物),不再放寬。
+_CMP_ADV = r"(?:整整|了|約|近|達|高達|足足|竟|還|多|只|大約|將近)*"
+_CMP_VERBS_ADJ = (r"(少賺|多賺|高出|多出|少出|落後|領先|贏過|勝過|輸給|超車|拉開|甩開|多領|少領|"
+                  r"差距達|差距|相差|差了|竟差|差)")
+# 對照物形式不收單字「差」(見上 ②)
+_CMP_VERBS_OBJ = (r"(少賺|多賺|高出|多出|少出|落後|領先|贏過|勝過|輸給|超車|拉開|甩開|多領|少領|"
+                  r"差距達|差距|相差|差了|竟差)")
+_CMP_OBJ = r"(?:(?:[一-鿿0-9A-Za-z](?<!的)){1,8})"
+_CMP_VERB_RX = re.compile(_CMP_VERBS_ADJ + r"\s*" + _CMP_ADV + r"\s*$")
+_CMP_VERB_OBJ_RX = re.compile(_CMP_VERBS_OBJ + r"\s*" + _CMP_ADV + r"\s*"
+                              + _CMP_OBJ + r"\s*" + _CMP_ADV + r"\s*$")
+_CMP_WINDOW = 14
 
 
 def _is_comparison_result(clause: str, raw: str) -> bool:
-    """這個數字是不是**緊貼在比較動詞之後**(= 兩者關係的結果值,而非獨立事實)。
-    只看數字前 9 個字,避免把同句別處的比較詞誤扣到不相干的絕對數字上
+    """這個數字是不是**比較動詞之後的關係結果值**(而非獨立事實)。
+
+    兩種形式都算:①緊貼(「落後 31%」)②動詞與數字之間隔一個對照物(「落後大盤 31%」)。
+    視窗只看數字前 14 個字,避免把同句別處的比較詞誤扣到不相干的絕對數字上
     (「All in 823%…少賺的幅度」裡的 823 不是比較結果,是操作數,不能被擋)。"""
     i = clause.find(raw)
     if i <= 0:
         return False
-    return bool(_CMP_VERB_RX.search(clause[max(0, i - 9): i]))
+    pre = clause[max(0, i - _CMP_WINDOW): i]
+    return bool(_CMP_VERB_RX.search(pre) or _CMP_VERB_OBJ_RX.search(pre))
 
 
 def _rel_derivable(val: float, operands: list, loose: bool) -> bool:
@@ -1176,7 +1213,56 @@ def observe_report(slugs: list[str] | None = None) -> int:
     return 0
 
 
+REGRESSION_FILE = Path(__file__).resolve().parent / "fabrication_regression.json"
+
+
+def regression_report() -> int:
+    """跑 2026-07-13 捏造事故的原句語料,報「五句擋掉幾句」。
+
+    🔴 為什麼要有這支:這道閘門正是為了擋那五句才存在的,而 2026-09-08 實測**五句全過**。
+    **一個沒有失敗案例的閘門,沒有辦法證明任何修法有效** —— 有了它,之後每次改動都有一根
+    具體的桿子:不是「看起來比較嚴了」,是「五句擋掉幾句」。
+
+    ⚠️ **這支不接進 daily_workflow/daily_publish 的發布路徑**(刻意)。現在五句全過,
+    接進去等於立刻停產。它是量尺不是閘門。
+    ⚠️ 語料檔放 scripts/(進 git),不放 STUDIO/(整個目錄在 .gitignore) —— 見該檔 _position。
+
+    回傳:0 = 全部擋下(語料清空);1 = 還有句子過得去;2 = 語料檔本身有問題。
+    """
+    if not REGRESSION_FILE.exists():
+        print(f"[regress] ⚠️ 找不到語料檔 {REGRESSION_FILE} —— 無法證明閘門還抓得到已知案例。",
+              file=sys.stderr)
+        return 2
+    try:
+        data = json.loads(REGRESSION_FILE.read_text(encoding="utf-8"))
+        cases = data["cases"]
+    except Exception as exc:  # noqa: BLE001
+        print(f"[regress] ⚠️ 語料檔讀不起來:{exc}", file=sys.stderr)
+        return 2
+    pool = fact_pool()
+    print(f"[regress] 事實庫數字池 {len(pool)} 個;語料 {len(cases)} 句(全部 expect=block)")
+    n_blocked = 0
+    for c in cases:
+        bad = unsourced_claims(c["text"], pool)
+        ok = bool(bad) if c.get("expect", "block") == "block" else not bad
+        n_blocked += bool(bad)
+        print(f"  {'✅ 擋下' if bad else '🔴 放行'}  [{c['id']}] {c['text'][:34]}"
+              + (f"  ← 無憑據 {[x['value'] for x in bad][:3]}" if bad else ""))
+        if not ok and bad:
+            print(f"      ⚠️ 這句 expect={c['expect']} 卻被擋 —— 誤擋,不要當成進步")
+    n = len(cases)
+    print(f"[regress] **{n_blocked}/{n} 擋下**"
+          f"(2026-09-08 建立當下的基準是 0/{n};任何修法宣稱有效,先看這個數字有沒有動)")
+    if n_blocked < n:
+        print(f"[regress] 🔴 還有 {n - n_blocked} 句過得去 —— 這道閘門擋不住它存在的理由。",
+              file=sys.stderr)
+        return 1
+    return 0
+
+
 def main() -> int:
+    if "--regress" in sys.argv:
+        return regression_report()
     if "--observe" in sys.argv:
         return observe_report()
     recent = 40
