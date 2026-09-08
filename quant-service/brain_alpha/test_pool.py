@@ -155,6 +155,59 @@ def main() -> int:
     check("平台側的家標了 `plat:` 前綴(表明是推的,不是平台給的)",
           P.family_key(pa).startswith("plat:"), P.family_key(pa))
 
+    print("\n── 2e. 欄位別名:去重鍵與家族排除鍵都要正規化 ──")
+    # 🔴 獨立驗證員 2026-09-08:平台對同一欄位收多個別名(實測 482 組),
+    #    帳本兩種寫法都記、平台回同一個 alpha_id。`build_pool` 以 alpha_id 為鍵
+    #    解掉了「一條 alpha 兩條候選」,但**去重鍵與已交分子排除用的是分子字串**,
+    #    而那個字串是帳本行序決定的任意別名 ⇒ 兩個洞:
+    #    ① 同欄位的 /cap 與 /close 各自存活(self-corr 實測 0.9732 的那個病)
+    #    ② 已交的用別名 A 記、候選用別名 B ⇒ 通過整族排除被推薦出去,必撞。
+    A1, A2 = "fnd2_a_unrgtxbnfthatwdiptetxr", "unrecognized_tax_benefits_affecting_tax_rate"
+    led_a = {
+        # 同一個 alpha_id 兩列不同別名 → 這就是別名的證據來源
+        # ⚠️ 順序有意義:舊行為的 `done_nums` 取「帳本最後一列」的別名,
+        #    所以要讓最後一列是 A1、而候選用 A2 —— 這才是真實的漏法。
+        #    (第一版 fixture 把順序寫反了,結果**舊行為也擋得住**,陰性對照當場紅燈。
+        #     那格紅燈是對的:它證明了我原本的 fixture 沒有量到修法。)
+        "k1": {"key": "k1", "alpha_id": "SUB_A", "ok": True, "label": "R|ds|g",
+               "expr": f"ts_backfill({A2}/close, 120)",
+               "result": {"evaluable_pass": True, "fitness": 1.0, "sharpe": 1.0}},
+        "k2": {"key": "k2", "alpha_id": "SUB_A", "ok": True, "label": "R|ds|g",
+               "expr": f"ts_backfill({A1}/close, 120)",
+               "result": {"evaluable_pass": True, "fitness": 1.0, "sharpe": 1.0}},
+        # 候選:用**另一個別名**、而且分母不同(舊鍵會判成兩個不同分子)
+        "k3": {"key": "k3", "alpha_id": "CAND_1", "ok": True, "label": "R|ds|g",
+               "expr": f"ts_backfill({A2}/cap, 120)",
+               "result": {"evaluable_pass": True, "fitness": 0.9, "sharpe": 1.0}},
+    }
+    plat_a = {aid: _plat_row("x", 1.0, 1.0) for aid in ("SUB_A", "CAND_1")}
+    for aid, ex in (("SUB_A", f"ts_backfill({A1}/close, 120)"),
+                    ("CAND_1", f"ts_backfill({A2}/cap, 120)")):  # 平台各給一個別名
+        plat_a[aid]["code"] = ex
+    amap = P.build_alias_map(led_a, plat_a)
+    check("兩個別名對到同一個代表名", amap.get(A1) == amap.get(A2) is not None,
+          f"{amap.get(A1)} vs {amap.get(A2)}")
+    cand_a, _ = P.build_pool(led_a, plat_a, {"SUB_A"})
+    picks_a, _by_a, dn_a = P.dedup_by_numerator(cand_a, led_a, plat_a, {"SUB_A"})
+    check("用別名的候選被『已交分子整族排除』擋下(不會被推薦出去)",
+          "CAND_1" not in {c["alpha_id"] for c in picks_a},
+          f"picks={[c['alpha_id'] for c in picks_a]}")
+
+    # 陰性對照:不做別名正規化時,那條候選會活下來。
+    def old_dedup(cand, led, plat, done):
+        exprs = {}
+        for r in led.values():
+            if r.get("alpha_id"):
+                exprs[r["alpha_id"]] = r.get("expr")
+        dn = {P.numerator(exprs.get(a) or "") for a in done if exprs.get(a)}
+        return [c for c in cand if P.numerator(c["expr"]) not in dn]
+    survived = old_dedup(cand_a, led_a, plat_a, {"SUB_A"})
+    check("陰性對照:不正規化時它活著被推薦(⇒ 這格量到的是修法)",
+          "CAND_1" in {c["alpha_id"] for c in survived},
+          f"舊行為 picks={[c['alpha_id'] for c in survived]}")
+    check("別名對映只收 ≥2 個名字的類（不亂塞單名欄位）",
+          all(len([k for k, v in amap.items() if v == vv]) >= 2 for vv in set(amap.values())))
+
     print("\n── 3. 粗排:缺 year_quality 的不可以被沉到底 ──")
     ranked = sorted(picks, key=P.prerank_key)
     top = [c["alpha_id"] for c in ranked[:2]]

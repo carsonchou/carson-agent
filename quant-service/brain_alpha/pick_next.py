@@ -150,9 +150,19 @@ def build_pool(led: dict, plat: dict | None, done: set) -> tuple[list, dict]:
         else:
             c["src"] = "both"
         c["plat"] = p
-        # 平台是現況的權威；帳本只補平台沒有的欄位（expr 在兩邊都有時以帳本為準，
-        # 兩者同源，但帳本那份是我們送出去的原文）。
-        if not c["expr"]:
+        # 平台是現況的權威。
+        # 🔴 2026-09-08 改:`expr` 在兩邊都有時**以平台為準**(原本以帳本為準)。
+        #    理由不是誰比較「原始」,是**確定性**:同一條 alpha 在帳本裡可能有多列
+        #    (欄位別名),而 `rec[aid] = {...}` 留下的是**帳本行序最後那列** ——
+        #    帳本還在 append,再寫一列另一個別名,報表上的分子名就會翻一次。
+        #    平台的 `regular.code` 則是打開那條 alpha 時看到的那份 ⇒ 報表拿去跟
+        #    平台 UI 對得起來。實例:`e79p16pM` 帳本後寫的是 `anl4_ebitda_value`、
+        #    平台顯示 `anl4_fs_actual_1qf_v4_nd_ebitda_value`(獨立驗證員抓到)。
+        #    帳本那份仍留在 `expr_ledger`,要追「我們當初送出去的字串」看它。
+        c["expr_ledger"] = c["expr"]
+        if p.get("code"):
+            c["expr"] = p["code"]
+        elif not c["expr"]:
             c["expr"] = p.get("code")
         if p.get("sharpe") is not None:
             c["sharpe"] = p.get("sharpe")
@@ -183,6 +193,67 @@ def build_pool(led: dict, plat: dict | None, done: set) -> tuple[list, dict]:
     return cand, stats
 
 
+def build_alias_map(led: dict, plat: dict | None = None) -> dict:
+    """欄位別名 → 代表名。回 `{別名: 代表名}`(只收有 ≥2 個名字的類)。
+
+    🔴 為什麼需要(2026-09-08,獨立驗證員找到):平台對**同一個資料欄位**收多個
+    別名(`anl4_fs_actual_1qf_v4_nd_ebitda_value` ←→ `anl4_ebitda_value`),
+    帳本兩種寫法都記、平台回**同一個 alpha_id**。實測 **482 組別名、涵蓋 995 個欄位名、
+    最大一類 3 個**。`build_pool()` 以 alpha_id 為鍵,所以同一條 alpha 不會再變兩條 ——
+    **但去重鍵與「已交分子整族排除」用的是分子字串**,而那個字串是
+    帳本行序決定的**任意**別名。後果兩個,都不會產生錯誤訊號:
+
+    ① 去重漏掉:同一欄位的 `/cap` 與 `/close` 兩條會拿到兩個鍵而各自存活 ——
+       那正是本檔開頭記著的病(`operating_income/close` vs `/cap` → self-corr **0.9732**)。
+       實測目前有 **3 對**這樣的候選同時存活。
+    ② 家族排除漏掉:已交 13 條裡有 1 種分子(`fnd2_a_unrgtxbnfthatwdiptetxr`)
+       在平台上有另一個別名。用另一個別名的候選會**通過整族排除被推薦出去**,
+       必撞 self-correlation、賠掉當天一個名額。**目前穿透 0 條 —— 洞是空的,但裝了彈。**
+
+    做法:同一個 `alpha_id` 底下出現過的分子名互為別名(union-find)。
+    代表名取**字典序最小**,只求確定性 —— 它不宣稱是「正確的名字」,
+    只保證同一類一定對到同一個鍵。
+    """
+    seen = defaultdict(set)
+    for r in (led or {}).values():
+        aid, ex = r.get("alpha_id"), r.get("expr")
+        if aid and ex:
+            seen[aid].add(numerator(ex))
+    for aid, p in (plat or {}).items():
+        if p.get("code"):
+            seen[aid].add(numerator(p["code"]))
+
+    parent: dict[str, str] = {}
+
+    def find(x):
+        parent.setdefault(x, x)
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    for names in seen.values():
+        if len(names) < 2:
+            continue
+        v = sorted(names)
+        for other in v[1:]:
+            ra, rb = find(v[0]), find(other)
+            if ra != rb:
+                parent[rb] = ra
+
+    groups = defaultdict(set)
+    for name in parent:
+        groups[find(name)].add(name)
+    out = {}
+    for members in groups.values():
+        if len(members) < 2:
+            continue
+        canon = min(members)
+        for m in members:
+            out[m] = canon
+    return out
+
+
 def dedup_by_numerator(cand: list, led: dict, plat: dict | None, done: set):
     """每個分子只留最好的一條（同分子必然高度相關，多測沒意義）；
     分子已經交過的整族排除（同分子一定撞 self-correlation）。
@@ -192,17 +263,28 @@ def dedup_by_numerator(cand: list, led: dict, plat: dict | None, done: set):
     ⚠️ 認不出分子的式子回 `"?:<雜湊>"`（每條式子一個鍵），所以它們**不會**被
     去重成一條；同一條式子仍對到同一個鍵，真正的重複還是擋得住。見 `numerator()`。
     """
-    exprs = {}
+    alias = build_alias_map(led, plat)
+
+    def key(expr):
+        """去重與家族排除的鍵 —— **經過別名正規化**。
+        顯示用的分子仍然是 `numerator()` 的原字串(那是這條 alpha 實際的式子)。"""
+        n = numerator(expr)
+        return alias.get(n, n)
+
+    # 已交那條的分子:帳本與平台**兩邊的寫法都算**。只取一邊的話,
+    # 已交 alpha 在另一本帳裡記的是別名時,整族排除就會漏掉。
+    exprs = defaultdict(set)
     for r in (led or {}).values():
-        if r.get("alpha_id"):
-            exprs[r["alpha_id"]] = r.get("expr")
+        if r.get("alpha_id") and r.get("expr"):
+            exprs[r["alpha_id"]].add(r["expr"])
     for aid, p in (plat or {}).items():
-        exprs.setdefault(aid, p.get("code"))
-    done_nums = {numerator(exprs.get(a) or "") for a in done if exprs.get(a)}
+        if p.get("code"):
+            exprs[aid].add(p["code"])
+    done_nums = {key(e) for a in done for e in exprs.get(a, ())}
 
     by = defaultdict(list)
     for c in cand:
-        by[numerator(c["expr"])].append(c)
+        by[key(c["expr"])].append(c)
     picks = []
     for num, v in by.items():
         if num in done_nums:
