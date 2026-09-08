@@ -1382,10 +1382,21 @@ def push_new_signals(state: dict) -> int:
     # 🔴 2026-09-09:原本只看 broadcast 有沒有拋例外。它不拋——它回
     # {"ntfy": bool, "line": bool}(quant-service/notify.py:135),沒設定/非 2xx 都是 False。
     # 於是「一則都沒送出去」會走完整個成功路徑:_save_pushed 把這些 key 記成已推,
-    # 而 _load_pushed 是**永久去重**,那些訊號就再也不會被推第二次 ——
     # 訊號無聲消失,而上游 eod.py 的摘要還寫「已推播」。
-    # ⇒ 全部管道都失敗時不記已推(下一輪會重試),並把失敗印進 log(pythonw 下 eod.py 已把
+    # ⇒ 全部管道都失敗時不記已推,並把失敗印進 log(pythonw 下 eod.py 已把
     #   stdout 導向 logs/eod_YYYYMMDD.log,所以這行到得了讀者)。
+    #
+    # ⚠️ 2026-09-09 更正(獨立驗證推翻本段初稿,別再照舊版讀):
+    #   初稿寫「_load_pushed 是**永久去重**,那些訊號再也不會被推第二次」——**不成立**。
+    #   `_load_pushed()`(見上,:1332-1339)只在 `obj["date"] == today` 時才沿用舊 key,
+    #   換一天就回空集合;而 key 本身也帶當天日期 ⇒ **去重是逐日重置的,不是永久。**
+    #   但這不是安慰,反而讓「不記已推 ⇒ 下一輪會重試」這句緩解也一起失效:
+    #   **DataHunter-EOD 一天只跑一班(17:00),當天沒有第二輪**,隔天是全新的訊號集。
+    #   ⇒ 這個改動真正救回來的**只有那行 log**,不是那則推播。當天的訊號還是沒送出去,
+    #     差別在於現在有人看得到它沒送出去。要真的救回訊號得另外做重試,那還沒做。
+    # ⚠️ 下面的守衛是 `isinstance(_r, dict)` 的**軟守衛**:broadcast 目前簽名是
+    #   `-> dict[str, bool]`,所以現況安全;但它哪天改成回 None/非 dict,
+    #   這裡會**靜靜退回舊行為**(記成已推)而不會報錯。
     try:
         _r = broadcast(msg, title=f"數據獵手｜{len(fresh)} 個新訊號", priority="high")
     except Exception as e:
