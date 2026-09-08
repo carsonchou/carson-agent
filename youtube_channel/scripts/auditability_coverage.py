@@ -276,8 +276,15 @@ def main() -> int:
 
     if ok:
         print("✅ 正常:遷移後產出的片,旁白 100% 都還在 —— 這些片將來出事查得清楚。")
-        print(f"   ⚠️ 遷移前那 {pre_t - pre_ok} 支是 2026-07-05 droplet 停權時一起沒的,**找過了,真的沒有**,")
-        print("      不要每次看到全歷史那個百分比就再去找一次。")
+        # 🔴 2026-09-08 更正:這兩行原本印「**找過了,真的沒有**」。那句已於 09-07 被推翻,
+        # 而我當時只改了檔頭 docstring、沒改這段**會被印出來的字**——在 stdout 還進 DEVNULL 的年代
+        # 它反正沒人看得到,而 09-08 修好 stdout 落檔之後它就會被讀到。
+        # 教訓同 memory `yt-watermark-subscribe-2026-08`:推翻一個宣稱要連**面向讀者的那一份**一起改。
+        print(f"   ⚠️ 遷移前那 {pre_t - pre_ok} 支是 2026-07-05 droplet 停權時一起沒的。")
+        print("      本機掃過 14 個備份/隔離目錄 0 命中 —— 但那個範圍只涵蓋**我們自己的磁碟**。")
+        print("      09-07 實測:其中 11 支的旁白**還在 YouTube 的字幕軌上,而且抓得回來**")
+        print("      (captions.download 實抓一支 1,312 字驗證過)。要回填看")
+        print("      docs/ops/2026-09-07_evidence_chain_retention.md;本工具不做回填。")
     else:
         print(f"🔴 有新缺口:遷移後有 {post_t - post_ok} 支已發布長片沒有旁白稿。")
         print("   這不是歷史遺留 —— 這些片是本機產的,旁白**應該在**。")
@@ -290,12 +297,23 @@ def main() -> int:
     print("量的是什麼:uploaded_ledger.json 裡 L_ 開頭的已發布長片,對上 output/<slug>.voice.txt 存不存在。")
     print("不涵蓋:Shorts、旁白內容對不對、是不是該片真正用的那一版。")
 
+    # 🔴 2026-09-08 修:這裡原本寫 `import studio_common as sc; sc.log_ops(...)`,
+    # 而 `studio_common` **從來沒有過** `log_ops`(git `-S "def log_ops"` 查無)、也沒有轉出 `ops` 的東西
+    # ⇒ 每次執行都拋 AttributeError,被下面那個 `except: pass` 吞掉,
+    # **上線兩天 ops_log 裡 `grep -c 稽核涵蓋` = 0**。全 repo 100 支都是 `from ops import log_ops`,
+    # 只有這一支寫錯 ⇒ 查過了,是筆誤不是模式(沒有第二支、也沒有結構性誘因)。
+    # ⚠️ 讓它活兩天的不是那個筆誤,是**吞掉之後沒有任何辦法知道它在吞**。
+    # 所以照樣吞(記 log 失敗不該弄垮判準),但**把第一次失敗印到 stderr** ——
+    # stderr 會落到 logs/job_stderr.log(而 stdout 從 09-08 起也會落到 logs/jobout/),
+    # 於是「它在吞」這件事本身變成看得見的。
     try:
-        import studio_common as sc  # noqa: E402
-        sc.log_ops("稽核涵蓋", f"遷移後 {post_ok}/{post_t}({pct(post_ok, post_t):.1f}%)"
-                               f"｜{'正常' if ok else '🔴 有新缺口'}")
-    except Exception:  # noqa: BLE001
-        pass  # 落 ops_log 失敗不影響判準(判準是 exit code 與上面的輸出)
+        from ops import log_ops  # noqa: E402
+        log_ops("稽核涵蓋", f"遷移後 {post_ok}/{post_t}({pct(post_ok, post_t):.1f}%)"
+                            f"｜{'正常' if ok else '🔴 有新缺口'}")
+    except Exception as _e:  # noqa: BLE001
+        # 判準仍然是 exit code 與上面的輸出,這裡不影響它們;只是不再靜默。
+        print(f"[warn] 落 ops_log 失敗({type(_e).__name__}: {_e})—— 判準不受影響,但這行代表"
+              f"稽核紀錄沒進 ops_log,請修。", file=sys.stderr)
 
     return 0 if ok else 1
 
