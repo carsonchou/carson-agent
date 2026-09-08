@@ -393,9 +393,18 @@ def main() -> int:
         # 且**完全無聲**。那正是 memory verification-that-cannot-fail 記的病。
         # 「最後一年」要有「沒有」的出口:`or 0` 會把拿不到的逐年表印成 0.00,
         # 而真的量到 0.00 是「近年撐不住、別交」—— 兩者在訊息上必須分得出來。
-        _ly = f"{x['ly']:.2f}" if x["ly"] is not None else "未知（逐年表拿不到）"
-        lines.append(f"   Sharpe {(x['sh'] or 0):.2f} · fitness {(x['fit'] or 0):.2f} · "
-                     f"self-corr {(x['sc'] or 0):.3f} · 最後一年 {_ly}")
+        def _n(v, fmt="%.2f", miss="未知"):
+            """四個數字都要有「沒有」的出口(PAUSED.md 下一棒 C)。
+
+            `or 0` 會把「沒量到」印成 `0.00`,而真的量到 0.00 的意思相反
+            （Sharpe 0 = 別交)。**兩者在訊息上必須分得出來**,
+            而 cron 又不能因為一個 None 就格式化例外(那會整天無聲)。
+            `sc` 的 9 是「拿不到 self-corr」的哨兵值,不是一個相關度。
+            """
+            return miss if v is None else fmt % v
+        lines.append(f"   Sharpe {_n(x['sh'])} · fitness {_n(x['fit'])} · "
+                     f"self-corr {_n(None if x['sc'] == 9 else x['sc'], '%.3f', '未知（沒量到）')}"
+                     f" · 最後一年 {_n(x['ly'], '%.2f', '未知（逐年表拿不到）')}")
         if (x["rec"] or {}).get("src") == "platform":
             lines.append("   ⚠️ 這條只在平台上、帳本沒有（帳本把它記成了失敗）")
         # 兩條之間的相關也要看得見：平台只查得到「對已提交池」，查不到彼此。
