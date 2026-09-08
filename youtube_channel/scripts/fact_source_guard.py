@@ -421,7 +421,14 @@ def fact_pool_for(slug: str, refresh: bool = False):
     # slug 裡的四位數不只代號(「存20年賺6100」也會中)→ 取**真的有事實**的那個
     pool = set()
     for c in codes:
-        keys = [k for k in results if k.endswith("__" + c)]
+        # 🔴 2026-09-08:舊版寫 `k.endswith("__" + c)`,對**三段式 key** 一律不命中 ——
+        # `checkup_crash__2303__crisis2008` 結尾是 `__crisis2008` 不是 `__2303`。
+        # 代價實測:全庫 **1,582 條 checkup_crash 事實,收窄池一條都撈不到**(0/1582)。
+        # 而 crash 卡正是「從高點跌到谷底跌 X%;若沒賣抱到現在報酬 Y%」——旁白最愛講的那一類。
+        # 於是抽樣時看到的是:旁白逐位講對(聯電 62.1/1580/1106.1、安碁 630.2/264.1、
+        # 泰藝六個全中),而收窄池把它們全判成無憑據 ⇒ **一整批誤擋,成因是 key 比對不是判準**。
+        # 修法:代號只要是 key 的**任一段**就算命中。
+        keys = [k for k in results if c in k.split("__")]
         if not keys:
             continue
         for k in keys:
