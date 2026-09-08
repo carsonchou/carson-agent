@@ -53,9 +53,9 @@ import brain_auto as B  # noqa: E402
 UNIVERSES = ("TOP1000", "TOP500")
 
 
-def numerator(expr: str) -> str:
-    m = re.findall(r"ts_backfill\(([^,)]+)", expr or "")
-    return m[0].split("/")[0].strip() if m else "?"
+# 分子的實作只有 `brain_auto.numerator` 一份(2026-09-08 收斂,原本四份)。
+# 舊版只認 `ts_backfill(`,認不出的共用一個 `?` 桶 —— 那個桶幾乎只砍平台側。
+numerator = B.numerator
 
 
 def base_settings() -> dict:

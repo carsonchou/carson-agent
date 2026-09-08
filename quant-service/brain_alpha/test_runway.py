@@ -178,9 +178,27 @@ def check(name, cond, detail=""):
         FAILURES.append(name)
 
 
+def plat_snapshot(*cands):
+    """把 fixture 候選做成一份**平台快照**。
+
+    🔴 2026-09-08:`runway` 的候選池改成「帳本 ∪ 平台快照」之後,不 stub 快照的話
+       它會拿**真實的 9,784 條**組池,於是問一條 fixture 不認識的 alpha 的 PnL ⇒
+       `KeyError`。那個紅燈長得像「runway 壞了」,實際是測試沒跟上池子的定義。
+    ⚠️ 不可以 stub 成 `None` 或空 dict:前者讓 `main()` 直接 fail-closed 回 2,
+       後者被 `load_snapshot()` 判成「0 筆快照」也回 None —— 兩種都會讓下面每一格
+       拿到**對的碼、錯的理由**。
+    """
+    return {a: {"code": "ts_backfill(field_%s/close, 120)" % a.lower(),
+                "sharpe": 1.5, "fitness": 1.5 - i * 0.1, "checks_n": 8,
+                "fails": [], "pending": [], "dc": "2026-09-01T00:00:00-04:00",
+                "status": "UNSUBMITTED"}
+            for i, a in enumerate(cands)}
+
+
 def run(active, cands, broken=None, argv=(), **kw):
     """跑**真品** runway.main(),回 (rc, 螢幕輸出)。全 stub,不連網、不真睡。"""
-    orig = (B.auth, B.load_ledger, R.CACHE, sys.argv)
+    import reconcile as RC
+    orig = (B.auth, B.load_ledger, R.CACHE, sys.argv, RC.load_snapshot)
     buf = io.StringIO()
     ns = NoSleep(R); ns.__enter__()
     try:
@@ -189,6 +207,11 @@ def run(active, cands, broken=None, argv=(), **kw):
         R.B.auth = B.auth
         B.load_ledger = lambda *a, **k: ledger(*cands)
         R.B.load_ledger = B.load_ledger
+        # 平台側給同一批 fixture:池子 = 帳本 ∪ 平台,兩邊給同一組才等於原本的意圖。
+        RC.load_snapshot = lambda *a, **k: (
+            plat_snapshot(*cands),
+            {"fetched_at": "stub", "count": len(cands), "expected": len(cands),
+             "age_h": 0.0}, "")
         global LAST_CACHE
         LAST_CACHE = R.CACHE = Path(tempfile.mkdtemp()) / "pnl_cache.json"
         sys.argv = ["runway.py"] + list(argv)
@@ -197,7 +220,8 @@ def run(active, cands, broken=None, argv=(), **kw):
         return rc, buf.getvalue()
     finally:
         ns.__exit__()
-        B.auth, B.load_ledger, R.CACHE, sys.argv = orig
+        B.auth, B.load_ledger, R.CACHE, sys.argv = orig[:4]
+        RC.load_snapshot = orig[4]
         R.B.auth, R.B.load_ledger = orig[0], orig[1]
 
 

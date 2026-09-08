@@ -84,9 +84,9 @@ MIN_OBS = 100
 FETCH_DEADLINE = 90.0
 
 
-def numerator(expr: str) -> str:
-    m = re.findall(r"ts_backfill\(([^,)]+)", expr or "")
-    return m[0].split("/")[0].strip() if m else "?"
+# 分子的實作只有 `brain_auto.numerator` 一份(2026-09-08 收斂,原本四份)。
+# 舊版只認 `ts_backfill(`,認不出的共用一個 `?` 桶 —— 那個桶幾乎只砍平台側。
+numerator = B.numerator
 
 
 def load_cache() -> dict:
@@ -377,20 +377,34 @@ def main() -> int:
         print("\n  ⚠️ --allow-incomplete-pool：以下結果**偏向樂觀**"
               "（相關度被低估），不可以直接拿去提交。")
 
-    # 候選：每個分子取 fitness 最高的
+    # ── 候選池:帳本 ∪ 平台快照,每個分子取 fitness 最高 ──
+    # 🔴 2026-09-08:這裡原本自己寫了一份「帳本 → 每分子取最好 → 扣掉已提交」,
+    #    是同一條規則的**第三份實作**,而且**池子只有帳本** ⇒ 平台上跑完、
+    #    checks 零 FAIL、帳本卻記成失敗的那一群(對帳實據 213 條)結構上看不到,
+    #    跑道因此系統性偏短。改成呼叫 pick_next 的共用純函式。
+    # 📌 順帶修掉「別名」造成的重複:平台對同一個欄位收兩個別名,帳本兩列、
+    #    平台同一個 alpha_id ⇒ 舊寫法會產生兩條候選(實測 674 條裡重複 154 條、
+    #    `--top 60` 內重複 8 條 = 評估名額被自己吃掉)。`build_pool()` 以
+    #    alpha_id 為鍵,結構上不可能再出現同 id 兩條。
+    import pick_next as P  # noqa: PLC0415  函式內 import,避免模組層互相牽動
+    import reconcile as RC  # noqa: PLC0415
     led = B.load_ledger()
-    best = {}
-    for rec in led.values():
-        if not (rec.get("ok") and (rec.get("result") or {}).get("evaluable_pass")):
-            continue
-        if not rec.get("alpha_id"):
-            continue
-        n = numerator(rec["expr"])
-        f = rec["result"].get("fitness") or 0
-        if n not in best or f > (best[n]["result"].get("fitness") or 0):
-            best[n] = rec
-    cands = sorted(best.values(), key=lambda x: -(x["result"].get("fitness") or 0))
-    cands = [c for c in cands if c["alpha_id"] not in active][:top]
+    plat, snap_meta, snap_why = RC.load_snapshot()
+    if plat is None:
+        # fail-closed。退回帳本-only 會讓跑道**偏短而且不自知** —— 那正是這次修掉的病。
+        # 與 `--allow-incomplete-pool` 是兩件事:那道守的是「已提交池少一條」,
+        # 這道守的是「候選池少一半」,不要互相代用。
+        print(f"\n✗ 平台快照拿不到:{snap_why}")
+        print("  候選池要「帳本 ∪ 平台」才完整,只用帳本會讓跑道系統性偏短。")
+        print("  先跑:python reconcile.py --snapshot（約 10 分鐘，唯讀）")
+        return 2
+    cand, pool_st = P.build_pool(led, plat, set(active))
+    picks, _by, _dn = P.dedup_by_numerator(cand, led, plat, set(active))
+    cands = sorted(picks, key=lambda c: -(c.get("fitness") or 0))[:top]
+    print(f"候選池:帳本 ∪ 平台快照 {snap_meta['count']} 條"
+          f"（{snap_meta['fetched_at']}，{snap_meta['age_h']:.1f}h 前）"
+          f" → 合格未提交 {pool_st['qualified_excl_done']}"
+          f"（平台獨有 {pool_st['cand_by_src']['platform']}）")
     print(f"候選 {len(cands)} 條（每個分子取 fitness 最高、扣掉已提交），逐條抓 PnL…\n")
 
     accepted, grey, rejected = [], [], []
@@ -423,7 +437,7 @@ def main() -> int:
             unassessed.append((aid, numerator(c["expr"]),
                                "與 %s 的比較視窗內零變異，相關度沒有定義" % blind))
             continue
-        row =(mx, numerator(c["expr"]), aid, c["result"].get("fitness"), who)
+        row =(mx, numerator(c["expr"]), aid, c.get("fitness"), who)
         if mx < THRESHOLD - GREY:
             accepted.append(row); chosen.append((aid, p))
         elif mx < THRESHOLD + GREY:

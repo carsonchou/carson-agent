@@ -44,6 +44,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -533,6 +534,48 @@ def candidates():
         out.append((f"hump0.01|nz{nz}",
                     LEADER.format(w1=20, w2=3, inner=f"hump(rank({core}), 0.01)"), s))
     return out
+
+
+# ────────────────── 分子 / 分家(唯一實作,四支共用) ──────────────────
+# 🔴 2026-09-08:這兩個函式原本有**四份**(pick_next / runway / hybrid_miner /
+#    universe_sweep),而其中三份帶著同一個舊正則。放在 brain_auto(共用地基)是因為
+#    挖礦側不該為了一個正則去 import 挑片器 —— 那會把挑片器的相依(reconcile、
+#    平台快照)拖進挖礦程序。地基放地基,下游不互相 import。
+
+def numerator(expr: str) -> str:
+    """分子 —— 去重與「已交分子整族排除」的鍵。
+
+    🔴 只認 `ts_backfill(` 的舊版會把 `group_backfill(est_eps/…)` 認成 `?`。
+    在 `pick_next` 那個有「已交分子整族排除」的呼叫端,後果不是漏認是**判反**:
+    `est_eps` 已經交過,認成 `?` 就不會被排除 ⇒ 當成沒交過的新因子推薦出去
+    (實據 `LL7Z3lKv`,同輪離線 PnL 對已提交池量到 0.957)。
+
+    認不出來時回 `"?:<式子雜湊>"` 而**不是**共用一個 `"?"` 桶:共用桶會把一整群
+    互不相關的式子去重成一條。這個坍縮幾乎只砍得到平台側 —— 帳本合格列 100% 是
+    `ts_backfill`,而平台快照裡認不出來的有 281 條。
+    ⇒ 所以「修池子」之前要先修這裡,否則那 281 條湧進來會被併成一條(見
+    `docs/rule-convergence-assessment-20260908.md` 第三節)。
+    """
+    m = re.findall(r"\w*backfill\(([^,)]+)", expr or "")
+    if m:
+        return m[0].split("/")[0].strip()
+    h = hashlib.sha1(" ".join((expr or "").split()).encode()).hexdigest()[:10]
+    return "?:" + h
+
+
+def family_key(c) -> str:
+    """跨資料集 round-robin 的「家」。
+
+    🔴 帳本側用 `label` 的資料集欄;平台側**帳本裡沒有 label**,
+    舊寫法 `(label or "||").split("|")[1]` 對它們一律回 `""` ⇒ 整個平台側
+    共用同一家、每輪只拿一條(而輪數決定一家最多拿幾條)。平台側改從分子前綴推,
+    並標 `plat:` 表明**這是推的**,不是平台給的資料集名。
+    """
+    lb = c.get("label")
+    if lb:
+        return lb.split("|")[1] if "|" in lb else lb
+    num = numerator(c.get("expr"))
+    return "plat:" + (num.split("_")[0] if not num.startswith("?:") else num)
 
 
 # ────────────────────── 帳本 ──────────────────────
