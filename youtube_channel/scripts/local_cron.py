@@ -35,6 +35,17 @@ import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
+# 🔴 排程器可能被三種方式啟動,而它們給的 stdout 編碼不同:
+#   ① run_studio_bg.vbs 的 WshShell.Run(無重導向)② 人工在終端機跑
+#   ③ **local_cron_watchdog 的 `Popen(stdout=<開好的檔>)`** ← 這個在 Windows 上預設 cp950
+# ③ 那條路 2026-09-08 第一次被真的行使,結果排程器印 `▶` 就 UnicodeEncodeError 死掉。
+# 這裡先把自己的 stdout 釘成 utf-8,不要依賴啟動者剛好設對(`:162` 只幫子程序設)。
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:  # noqa: BLE001
+    pass
+
 ROOT = Path(__file__).resolve().parent.parent
 VENV_PY = ROOT / ".venv" / "Scripts" / "python.exe"
 # 🔴 需要 playwright 的腳本必須用「系統 python」跑(.venv 沒裝 playwright)。
@@ -172,7 +183,19 @@ def _log(msg: str):
             f.write(line + "\n")
     except Exception:  # noqa: BLE001
         pass
-    print(line, flush=True)
+    # 🔴 2026-09-08:這一行 `print` 曾經**弄死整個排程器**。
+    # 實據:08:12:58 watchdog 第一次真的行使「拉起」那條路徑,它用 `Popen(stdout=<開好的檔>)`
+    # 啟動 local_cron,那個檔 handle 在 Windows 上預設 **cp950** ⇒ 印 `▶`(U+25B6)直接
+    # `UnicodeEncodeError`;而例外處理裡又去 `_log("✗ 啟動失敗 …")` 印 `✗`(U+2717)**再炸一次**,
+    # 於是 08:15:19 第一支到點的 job 就把排程器整個帶走(113 個 job 全停)。
+    # 諷刺兩處:①:162 幫**子程序**設了 `PYTHONIOENCODING=utf-8`,卻沒幫自己設
+    # ②本函式**先寫檔(utf-8,安全)再 print**,所以 log 檔那行寫進去了、程序才死在下一行。
+    # ⇒ 兩層都補:reconfigure 讓輸出正確;try/except 讓「印不出來」**永遠不可能**弄死排程器。
+    # 這是排程器,它的職責是把 job 跑起來 —— 記錄失敗絕不可以升級成服務中斷。
+    try:
+        print(line, flush=True)
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def _cron_field_match(field: str, val: int) -> bool:
