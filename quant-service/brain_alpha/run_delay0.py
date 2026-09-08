@@ -44,12 +44,17 @@ if "--only" in argv:
     if len(argv) > i + 1:
         ONLY = set(argv[i + 1].split(","))
 
+# 型別預設仍是 MATRIX（原本寫死的行為）。`--vector` 切到 VEC_FORMS 那組模板。
+# 兩者不可混掃：VECTOR 欄位餵進 MATRIX 模板是結構性失敗（帳本裡 news12 有
+# 1,173 列就是這樣燒掉的），反過來也一樣。
+TYPE = "VECTOR" if "--vector" in argv else "MATRIX"
+
 if not B.claim_lock():
     raise SystemExit("有別的挖礦程序在跑 —— 不疊上去（併發上限 2 是帳號層級）")
 F.use_delay(0)
-print(f"delay={F.SETTINGS['delay']}  欄位來源={F.FIELDS_FILE.name}  只掃 MATRIX  n={N}"
+print(f"delay={F.SETTINGS['delay']}  欄位來源={F.FIELDS_FILE.name}  只掃 {TYPE}  n={N}"
       f"  資料集={'全部' if ONLY is None else ','.join(sorted(ONLY))}", flush=True)
 try:
-    F.cmd_run(N, only_type="MATRIX", only_ds=ONLY)
+    F.cmd_run(N, only_type=TYPE, only_ds=ONLY)
 finally:
     B.release_lock()
