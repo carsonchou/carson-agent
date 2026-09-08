@@ -584,35 +584,12 @@ def _factguard_gate(slugs: list) -> tuple[list, dict]:
               "請先把真實回測灌進 STUDIO/tw_stock_facts.json。", file=sys.stderr)
         return slugs, blocked
     keep = []
-    n_scoped = 0
     for s in slugs:
-        # 🔴 2026-09-08:個股體檢片改用**該檔自己的**事實池(fact_pool_for),認不出主題才退回全域。
-        # 為什麼:全域池已長到 42,134 個數字(pct 子池 27,616),0~10,000% 幾乎每個值都找得到
-        # 「鄰居」⇒ 隨便編一個百分比守門都會替它背書(實測:隨機百分比命中率 100%)。
-        # 收窄池中位 173 個數字,同一個實測降到 59%(寬容差)/28%(嚴容差)。
-        # 全查 6 支新增被擋:**擋對 4、誤擋 0、無法判定 2**;反方向「原本擋得住卻被放掉」
-        # 片層 0、宣稱層 0。最乾淨的一例是光洋科 1785:旁白把 crash 卡的 128.9% 講成 228.9%
-        # (同句的兩個日期與 -69.2% 跌幅全部逐字正確)——全域池結構上抓不到,收窄池抓得到。
-        # 判準與全查紀錄:docs/ops/2026-09-08_窄池抽樣判準.md
-        spool = None
-        try:
-            spool = fsg.fact_pool_for(s)
-        except Exception:  # noqa: BLE001
-            spool = None
-        # 護欄:收窄池太小 → 退回全域。守門自己壞掉絕不可以害停產(同上面 len(pool) < 10 那道)。
-        if spool is not None and len(spool) < 10:
-            print(f"[factguard] ⚠️ {s[:36]} 的收窄池只有 {len(spool)} 個數字,本支退回全域池。",
-                  file=sys.stderr)
-            spool = None
-        if spool:
-            n_scoped += 1
-        bad = fsg.check_slug(s, spool or pool)
+        bad = fsg.check_slug(s, pool)
         if bad:
             blocked[s] = [{"value": c["value"], "clause": c["clause"]} for c in bad[:3]]
         else:
             keep.append(s)
-    print(f"[factguard] {len(slugs)} 支:{n_scoped} 支用該檔自己的事實池、"
-          f"{len(slugs) - n_scoped} 支退回全域池({len(pool)} 個數字)")
     if blocked:
         print(f"[factguard] 🔴 擋下 {len(blocked)} 支『績效數字查無來源』的片(不發布):")
         for s, hits in list(blocked.items())[:6]:
