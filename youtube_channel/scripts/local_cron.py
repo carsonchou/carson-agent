@@ -48,6 +48,27 @@ PLAYWRIGHT_SCRIPTS = {"tiktok_upload.py", "community_post.py"}  # 這些走系�
 CRONTAB = ROOT / "deploy" / "crontab.txt"
 LOG = ROOT / "logs" / "local_cron.log"
 ERRLOG = ROOT / "logs" / "job_stderr.log"    # 子程序 stderr 導這裡(補 DEVNULL 盲區:job 靜默失敗可事後查 traceback)
+# 🔴 2026-09-08:子程序 stdout 原本是 `subprocess.DEVNULL`,而 `parse_jobs()`(見 :219 的正則)
+# 又把 crontab 每一行寫的 `>> /root/yt/logs/cron.log 2>&1` **切掉並忽略**(那是 droplet 時代的路徑,
+# 本機 logs/cron.log 根本不存在)⇒ **每一個排程 job 的 stdout 都進黑洞**。
+# 後果不是「少了些除錯訊息」,是**整類「印一行紅字就算告警」的閘門在排程上結構性靜默**:
+# 閘門有沒有叫、叫了什麼,事後在磁碟上完全查不到(見 docs/ops/2026-09-08_gate_health_inventory.md 第〇節)。
+# ⚠️ 為什麼另開一個檔而不是併進 ERRLOG:ERRLOG 已經 4.3MB、上限 5MB,
+# 而 stdout 的量體遠大於 stderr(produce_batch 這種會狂印)⇒ 併進去會把 traceback 的歷史提早擠掉,
+# 那是拿一個現有的鑑識能力去換一個新的。兩個檔各自截斷,互不吃對方的額度。
+# ⚠️ **一支腳本一個檔**,不是共用一個 `job_stdout.log`。獨立驗證實測(2026-09-08):
+# 同一分鐘兩支 job 各自對同一個檔開 append handle,Windows 下**兩個 handle 各有自己的檔案指標**
+# (不像 POSIX `O_APPEND` 保證每次寫入都到當下真正的檔尾)⇒ 先開的會被後開的蓋過去,
+# 連續三次重跑一致地只剩 A=13 行 / B=199 行,而且出現 `[A] line 12[B] line 0` 這種**拼接行**。
+# 🔴 拼接行最壞的地方不是掉資料,是**它看起來像某一支的合法輸出** —— 讀 log 的人會把 B 的內容
+# 當成 A 印的。crontab 同分鐘多支很常見(08:00 有 8 支)⇒ 共用一個檔會讓這件事天天發生。
+# (同一個缺陷 `ERRLOG` 本來就有,那是既有問題、本次不動它;但沒有理由把它複製到新檔案上。)
+OUTDIR = ROOT / "logs" / "jobout"
+
+
+def _outlog_for(script: str) -> Path:
+    """該腳本專屬的 stdout 檔。副作用:順便讓「這支閘門今天叫了什麼」變成一個可以直接開的檔案。"""
+    return OUTDIR / (Path(script).stem + ".log")
 LOCK = ROOT / "STUDIO" / "local_cron.lock"   # 心跳鎖：避免多實例雙發(排程loop每圈更新mtime)
 
 
@@ -272,6 +293,23 @@ def run_job(pyargs, env, jenv=None):
         errf = open(ERRLOG, "a", encoding="utf-8")
         errf.write(f"\n===== [{datetime.now():%Y-%m-%d %H:%M:%S}] {' '.join(pyargs)} =====\n")
         errf.flush()
+        # stdout:一支腳本一個檔(見 OUTDIR 上方的說明),各自 2MB 上限。
+        # 開檔失敗時退回 DEVNULL —— **絕不可以因為記 log 失敗就不跑 job**,
+        # 排程器的職責是把 job 跑起來,記錄是附加價值不是前提。
+        outf = None
+        try:
+            _op = _outlog_for(script)
+            _op.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                if _op.exists() and _op.stat().st_size > 2_000_000:
+                    _op.write_text("", encoding="utf-8")
+            except Exception:  # noqa: BLE001
+                pass
+            outf = open(_op, "a", encoding="utf-8")
+            outf.write(f"\n===== [{datetime.now():%Y-%m-%d %H:%M:%S}] {' '.join(pyargs)} =====\n")
+            outf.flush()
+        except Exception:  # noqa: BLE001
+            outf = None
         _py = str(SYS_PY) if Path(script).name in PLAYWRIGHT_SCRIPTS else str(VENV_PY)
         # CREATE_NO_WINDOW(2026-07-14 修「一直跳黑頻」):排程器用 run_studio_bg.vbs 無視窗常駐後,
         # 父程序沒有 console → 每個到點 job 的子程序 Windows 11 會自動新開一個 Windows Terminal
@@ -279,9 +317,12 @@ def run_job(pyargs, env, jenv=None):
         # 本來就導 DEVNULL/檔案,不需要 console——CREATE_NO_WINDOW 讓子程序(含其孫程序鏈)無視窗。
         _flags = 0x08000000 if sys.platform == "win32" else 0  # CREATE_NO_WINDOW
         proc = subprocess.Popen([_py, script] + pyargs[1:], cwd=str(ROOT), env=env,
-                                 stdout=subprocess.DEVNULL, stderr=errf,
+                                 stdout=(outf if outf is not None else subprocess.DEVNULL),
+                                 stderr=errf,
                                  creationflags=_flags)
         errf.close()  # 子程序已繼承 fd,父端關閉安全
+        if outf is not None:
+            outf.close()
         _log(f"▶ 啟動 {' '.join(pyargs)}")
         # 非阻塞：另開背景執行緒等它跑完再補一行成功/失敗(job 常跑數分鐘，不能卡住排程迴圈)。
         threading.Thread(target=_wait_and_log, args=(proc, script), daemon=True).start()
