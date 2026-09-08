@@ -2117,10 +2117,63 @@ def _load_tw_facts():
     return merged
 
 
+# ── 產製端事實溯源記錄(2026-09-08)────────────────────────────────────────────────
+# 為什麼要在這裡記:誠信閘門(per_stock_fact_gate)的判準是「這個數字對得上**這一檔**的哪條
+# fact」,而它只能靠 resolve_code(slug) 從**檔名猜主體**。slug 沒代號的片(Shorts/ETF/大盤/
+# 系列彙總)連「這是哪一檔」都認不出來 → 閘門根本沒跑(實測待發 80 支裡 53 支認不出代號,
+# 其中 41 支含績效數字宣稱、合計 396 個數字無人溯源)。
+# 根因不是閘門不夠好,是它被問了一個答不出來的問題——**答案在產製端**:旁白是從一組事實寫出
+# 來的,那組事實在產製當下是知道的,就是下面 _tw_facts_context 挑出來注入【本片實證數據】的
+# 那些。它挑完就丟、沒落盤,所以下游只好回頭猜檔名。這裡把它記下來,閘門就不必猜。
+# (與 prompt 洩漏那道閘門修好的原因同形:判準來源從「另抄一份」改成「被監控物本身」。)
+#
+# 🔴 鐵律:記錄是**旁觀者**,絕不可改變 _tw_facts_context 的回傳字串——那是寫稿 LLM 的輸入,
+# 改一個字元等於改變所有影片的內容。故只在既有選取流程旁邊多收一份 key,回傳值原封不動。
+# 所有記錄函式自帶 try/except:它們跑在呼叫端的 try 裡面,一旦拋例外會讓 _tw_inject 變空字串
+# → 整支片改吃 NO_FACTS_INTEGRITY_RULES,那就是「記錄反而改變了產出」。
+_LAST_FACT_KEYS = {}  # {topic_key: record};由 call_claude 取走(pop),不長期持有
+
+
+def _fact_record_key(topic):
+    """topic → _LAST_FACT_KEYS 的鍵。優先用 topic.id(題庫題都有),沒有才退回 title。
+    不能用產出的 d["title"] 反查——標題會被 LLM 潤飾/被 _normalize_checkup_title 改寫。"""
+    if not isinstance(topic, dict):
+        return "__no_topic__"
+    _id = topic.get("id")
+    if _id not in (None, ""):
+        return f"id:{_id}"
+    return "title:" + str(topic.get("title", ""))[:160]
+
+
+def _record_fact_keys(topic, facts, selection, fact_keys):
+    """把「這支片實際注入了哪些 fact」記進模組層,供 call_claude 帶出去給 make_one 落盤。
+    絕不拋例外(見上面鐵律),也絕不回傳任何被呼叫端使用的值。"""
+    try:
+        _t = topic if isinstance(topic, dict) else {}
+        _id = _t.get("id")
+        _fk = _t.get("fact_key")
+        keys = [str(k) for k in (fact_keys or [])]
+        rec = {
+            "topic_id": _id if _id not in (None, "") else None,
+            "topic_fact_key": str(_fk) if _fk else None,
+            "facts_as_of": str(facts.get("as_of", "")) if isinstance(facts, dict) else "",
+            "fact_keys": keys,
+            "n_facts": len(keys),
+            "selection": selection,
+        }
+        # 正常路徑每筆都被 pop 走;call_claude 在 pop 之前就拋例外時會留渣,設個上限免得長跑累積。
+        if len(_LAST_FACT_KEYS) > 64:
+            _LAST_FACT_KEYS.clear()
+        _LAST_FACT_KEYS[_fact_record_key(topic)] = rec
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def _tw_facts_context(facts, topic):
     """把 tw_stock_facts 挑與本題材相關的真數字，拼成一段可注入寫稿 prompt 的實證區塊。
     無 facts / 挑不到相關 → 回空字串，呼叫端不注入（台股題照 TW_STOCK_RULES 產示意數字）。"""
     if not facts or not isinstance(facts, dict):
+        _record_fact_keys(topic, facts, "none", [])
         return ""
     text = (str(topic.get("title", "")) + " " + str(topic.get("category", "")) +
             " " + str(topic.get("angle", ""))) if topic else ""
@@ -2134,14 +2187,21 @@ def _tw_facts_context(facts, topic):
     _ck_code = None
     if topic and str(topic.get("fact_key", "")).startswith("checkup_"):
         _ck_code = _checkup_extract_code(str(topic.get("fact_key", "")))
+    # 溯源記錄用(見 _record_fact_keys):與 lines 平行維護、**同樣的切法**,
+    # 記到的必須恰好是注入的那幾條(不是全部候選),否則閘門會拿到比實際寬的白名單。
+    _sel = "none"
+    _picked_keys = []
     if _ck_code and isinstance(cand, dict):
+        _sel = "checkup_code"
         for key, item in cand.items():
             if not isinstance(item, dict) or not item.get("summary"):
                 continue
             if key.endswith(f"__{_ck_code}") or f"__{_ck_code}__" in key:
                 desc = str(item.get("desc") or item.get("label") or key)
                 lines.append(f"  ·{desc}：{item['summary']}")
+                _picked_keys.append(key)
         lines = lines[:16]  # 安全上限(一檔最多13組，這只是保險)
+        _picked_keys = _picked_keys[:16]
     elif isinstance(cand, dict):
         # 各項回測結果都掛在 facts 下（由 tw_stock_data.py 產）；抓不到的項為 None，跳過不用。
         # 🔴 2026-07-17 相關性修復（假憑據的完美形式）：
@@ -2161,6 +2221,7 @@ def _tw_facts_context(facts, topic):
         # 而不是「留最相干的 6 條」,即使比對對了也會被插入順序洗掉。
         # topic=None(自由生題路徑,text 為空)沒有題目文字可比對 → 維持原本全給,不動那條路。
         _pick_all = not text.strip()
+        _sel = "pick_all" if _pick_all else "keyword_scored"
         scored = []
         for key, item in cand.items():
             if not isinstance(item, dict):
@@ -2173,11 +2234,15 @@ def _tw_facts_context(facts, topic):
             _hits = sum(1 for kw in (item.get("keywords") or [])
                         if isinstance(kw, str) and kw in text)
             if _pick_all or _hits:
-                scored.append((_hits, f"  ·{desc}：{summary}"))
+                # 第 3 元素只給溯源記錄用;sort 的 key 仍只看 x[0],排序結果逐位不變。
+                scored.append((_hits, f"  ·{desc}：{summary}", key))
         scored.sort(key=lambda x: -x[0])  # 穩定排序:命中數相同者維持原順序
-        lines = [s for _, s in scored[:6]]  # 限量：最多 6 條，避免撐爆 token
+        lines = [t[1] for t in scored[:6]]  # 限量：最多 6 條，避免撐爆 token
+        _picked_keys = [t[2] for t in scored[:6]]
     if not lines:
+        _record_fact_keys(topic, facts, "none", [])
         return ""
+    _record_fact_keys(topic, facts, _sel, _picked_keys)
     body = "\n".join(lines)
     return (f"\n【本片實證數據（台股歷史回測，非未來保證；資料截至 {as_of}）】\n{body}\n"
             "（以上為真實歷史回測數字，旁白引用時務必標明是『歷史回測、不代表未來』；"
@@ -2755,6 +2820,7 @@ def call_claude(kind, avoid, topic_override=None, retry_reason=None, retry_n=0):
     facts_ctx = ""  # A4:長片分段深寫要把真數據帶進每一段,故把 tw facts 區塊獨立留一份
     _facts_raw = None  # 病灶A(2026-07-13):原始 facts dict 也留一份,供 _densify_long 逐段分配專屬事實
     _checkup_next = ""  # 供產出後確定性補強片尾(見 _checkup_finalize)
+    _fact_record = None  # 溯源記錄(見 _record_fact_keys),由結尾掛上 result 帶給 make_one 落盤
     if is_tw_stock:
         hook_rules = hook_rules + TW_STOCK_RULES
         # 真數據引擎：讀 STUDIO/tw_stock_facts.json，挑與題材相關的真回測數字注入寫稿 prompt。
@@ -2769,6 +2835,13 @@ def call_claude(kind, avoid, topic_override=None, retry_reason=None, retry_n=0):
                 facts_ctx = _tw_inject
         except Exception:  # noqa: BLE001
             pass
+        # 溯源記錄取走(pop):放在 try 外面且自帶 try——這段是純旁觀,任何失敗都不可以影響
+        # 上面已經組好的 _tw_inject/assign(那是寫稿 LLM 的輸入)。pop 而非 get:免得上面
+        # 拋例外沒寫新記錄時,讀到別支片留下的舊記錄 → 落一份對不上的假溯源(比沒有更糟)。
+        try:
+            _fact_record = _LAST_FACT_KEYS.pop(_fact_record_key(topic), None)
+        except Exception:  # noqa: BLE001
+            _fact_record = None
         # 2026-07-15「個股體檢」系列：疊加10分鐘長片結構模板 + 本集設定(代號/產業/集數/下一集點名)。
         # fact_key 前綴 checkup_ 是本系列專屬命名(見 stock_checkup_facts.py/stock_fundamentals.py)，
         # 不會誤傷其他台股題(那些 fact_key 是 tw_facts_engine/tw_lab_engine 的其他前綴)。
@@ -2946,6 +3019,11 @@ def call_claude(kind, avoid, topic_override=None, retry_reason=None, retry_n=0):
     # 移到這裡才是它本來該在的位置——和 _ab_arm 一樣,由 call_claude 帶出去給 make_one。
     if _parent_slug:
         result["_parent_slug"] = _parent_slug
+    # 事實溯源記錄跟著結果帶出去,make_one 寫成 {slug}.facts.json sidecar。
+    # 與 _parent_slug/_ab_arm 同一個理由放在這裡:make_one 的作用域裡沒有 topic 也沒有 facts,
+    # 在那邊重算會 NameError 被 try 吞掉 = 永遠不寫、而且完全不報錯的靜默失效。
+    if isinstance(_fact_record, dict):
+        result["_fact_record"] = _fact_record
     return result
 
 
@@ -6374,6 +6452,39 @@ def make_one(kind, no_render=False, topic_override=None, script_override=None):
         pass
     (OUT / f"{slug}.voice.txt").write_text(d["voice_text"], encoding="utf-8")
     (OUT / f"{slug}.md").write_text(build_md(d), encoding="utf-8")
+    # 🔴 事實溯源 sidecar(2026-09-08):把「這支片是從哪幾條 fact 寫出來的」落盤,讓誠信閘門
+    # 不必再從 slug 猜主體(見 _record_fact_keys 檔頭)。掛在這一行的理由有三個,缺一不可:
+    #   ① slug 已定案——撞名改名(slug = f"{slug}{...}")在上面,寫早了會落到錯的檔名。
+    #   ② 旁白已落盤——.voice.txt 就是閘門要查的那份文字,sidecar 只有和它同時存在才有意義;
+    #      寫在它前面的話,voice.txt 寫失敗會留下一份指向不存在旁白的孤兒溯源。
+    #   ③ 在 TTS/渲染**之前**——那兩步會失敗,但溯源記錄的正確性與它們無關,不該被它們牽連。
+    # 寫法:tmp → os.replace(本專案踩過 open(p,"w") 先截斷後寫入、中途拋例外留下 0 bytes 的
+    # 事故;而 0 bytes 對下游 json.load 是「壞檔」、對 parser 更糟的是「合法的零筆」)。
+    # fail-open:整段包 try,失敗只記一行 ops——這條線出過「我的修法讓產線停兩天」的事故,
+    # 一份輔助記錄絕不可以擋下已經寫好旁白的片。
+    try:
+        _fr = d.get("_fact_record")
+        if isinstance(_fr, dict):
+            _fr_out = {
+                "slug": slug,
+                "written_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                "topic_id": _fr.get("topic_id"),
+                "topic_fact_key": _fr.get("topic_fact_key"),
+                "facts_as_of": _fr.get("facts_as_of"),
+                "fact_keys": _fr.get("fact_keys") or [],
+                "n_facts": _fr.get("n_facts"),
+                "selection": _fr.get("selection"),
+            }
+            _fj = OUT / f"{slug}.facts.json"
+            _fj_tmp = OUT / f"{slug}.facts.json.tmp"
+            _fj_tmp.write_text(json.dumps(_fr_out, ensure_ascii=False, indent=1),
+                               encoding="utf-8")
+            os.replace(str(_fj_tmp), str(_fj))
+    except Exception as _fe:  # noqa: BLE001
+        try:
+            log_ops("補產·事實溯源", f"⚠️ {slug[:30]} sidecar 寫入失敗(不影響產線):{_fe}")
+        except Exception:  # noqa: BLE001
+            pass
     _record_used_phrases(d, slug)  # A1b:把本支已用比喻句/CTA 結尾記進 STUDIO/used_phrases.json(供稽核)
     sc.record_skeleton_produced(d["title"])  # 記骨架家族時間戳,供週上限(check_skeleton_frequency)計數
     if sc.is_liquidation_hijack(d.get("title", "")):
