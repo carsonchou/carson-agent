@@ -225,24 +225,12 @@ def main() -> int:
     #    它只有帳本側有(1,352/1,359),平台獨有的候選一條都沒有,拿缺值當 -9 或 0
     #    排序等於把整個平台側沉到底再截掉 —— 池子改對了還是選不到。
     picks.sort(key=P.prerank_key)
-    by_ds = defaultdict(list)
-    for r in picks:
-        # 🔴 分家鍵只有一份實作(`pick_next.family_key`)。原本內嵌的
-        #    `(label or "||").split("|")[1]` 對所有平台側候選一律回 `""` ⇒
-        #    **整個平台側擠進同一家、每輪只拿一條**,不管它有幾條候選
-        #    (我原本的註解寫「自成一家」,那是寫反了;獨立驗證員實算家數 6 抓到)。
-        by_ds[P.family_key(r)].append(r)
-    # 各家依「該家最佳 fitness」排序，然後一輪一條輪流拿（round-robin）。
-    order = sorted(by_ds.values(), key=lambda v: -(v[0].get("fitness") or 0))
-    spread = []
-    # `max(...)` 對空序列會 ValueError（下面 `if not picks` 的守門在它**之後**,
-    # 擋不到）。正式路徑上 picks 不會空,但那是「目前不會」不是「不可能」。
-    for i in range(max((len(v) for v in order), default=0)):
-        for v in order:
-            if i < len(v):
-                spread.append(v[i])
-        if len(spread) >= N_CHECK * 3:     # 給預篩留挑的空間（篩掉的多半是同一家）
-            break
+    # 跨資料集 round-robin。實作只有 `pick_next.spread_by_family` 一份 ——
+    # 這段原本內嵌在這裡,於是沒有任何測試碰得到它,而漏帶 `label` 那個 bug
+    # (平台側整群塌成一家)就出在這幾行(獨立驗證員 2026-09-08 指出)。
+    spread, order = P.spread_by_family(picks, N_CHECK * 3)
+    print(f"  分家 {len(order)} 家 → spread {len(spread)} 條"
+          f"（各家 {[len(v) for v in order]}）")
     # ── 先用離線 PnL 相關篩掉「一定會被擋」的，再花平台額度做實測 check ──
     # 實測對照：離線算的 Pearson 與平台回報的 SELF_CORRELATION 誤差 ≤0.01。
     # 今天 6 條 check 有 5 條回 FAIL —— 那 5 條離線就算得出來，等於白花 5 次額度。

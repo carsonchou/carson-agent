@@ -258,6 +258,36 @@ def prerank_key(c):
     return -((c.get("fitness") or 0) * 1.0 + (c.get("sharpe") or 0) * 0.3)
 
 
+def spread_by_family(picks, cap):
+    """跨資料集 round-robin:各家依「該家最佳 fitness」排序，一輪一條輪流拿，
+    取到 `cap` 條為止。回 `(spread, order)`(`order` 是各家的清單,給診斷用)。
+
+    🔴 為什麼要是一個**函式**(2026-09-08):這段原本內嵌在 `brain_daily_pick.main()`
+    裡,於是**沒有任何測試碰得到它** —— 而這批改動的第二個 bug(漏帶 `label`,
+    整個平台側塌成一家)就出在這裡。當時綠燈的那 19 格測的是上游的
+    `build_pool` 有沒有把 label 帶出來(**代理指標**),不是這裡的分家行為。
+    獨立驗證員 2026-09-08 指出這一點,所以把它抽出來、直接測它。
+
+    ⚠️ 這裡有一個不明顯的性質:**輪數決定「任一家最多幾條進 spread」,
+    而輪數不隨家大小變**。驗證員實測(cap=18、6 家):輪數 4 ⇒ 家大小 ≤4 的全進、
+    第 5 條起被切,**且上限鎖死在 4,不管那一家長到多大**。
+    平台側整群共用一家時這會變成硬上限 —— 那正是 `family_key()` 要拆開它的理由。
+    """
+    by = defaultdict(list)
+    for r in picks:
+        by[family_key(r)].append(r)
+    order = sorted(by.values(), key=lambda v: -(v[0].get("fitness") or 0))
+    spread = []
+    # `max(...)` 對空序列會 ValueError,而呼叫端的「沒有候選」守門在它之後。
+    for i in range(max((len(v) for v in order), default=0)):
+        for v in order:
+            if i < len(v):
+                spread.append(v[i])
+        if len(spread) >= cap:
+            break
+    return spread, order
+
+
 def fill_year_quality(s, rows):
     """替缺 `year_quality` 的候選補抓逐年統計。回補到幾條。
 

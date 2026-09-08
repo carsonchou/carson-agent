@@ -5,9 +5,11 @@
 驗收問句照 2026-09-08 的裁示寫成「**修完之後它挑不挑得到那 4 條**」，
 不是「測試有沒有過」—— 後者在整段挑片邏輯都沒跑到時也會全綠。
 
-所以每一格都配一個**陰性對照**：同一個斷言在「舊行為」（只有帳本／舊粗排鍵）
-下必須失敗。沒有陰性對照的話，「4/4 都挑得到」與「這個檢查對什麼都說挑得到」
-分不開（memory `yt-readback-stale-cache`）。
+**38 格裡有 7 格是陰性對照**(舊池子／舊正則／舊分家鍵／舊粗排鍵各跑一次,
+斷言在舊行為下必須失敗)—— 沒有對照的話,「4/4 都挑得到」與「這個檢查對什麼都說
+挑得到」分不開(memory `yt-readback-stale-cache`)。
+⚠️ **不是每一格都有對照**;本檔初稿的 docstring 與 commit `460f85b0` 都寫成「每格都配」,
+那是把「我這一段做到了」講成「整件事做到了」,2026-09-08 由獨立驗證員更正。
 
     python test_pool.py
 """
@@ -186,6 +188,55 @@ def main() -> int:
     check("抓不到時 year_quality 留 None,不是 0", c["year_quality"] is None,
           repr(c["year_quality"]))
     check("真的去抓了（不是靜靜跳過）", calls == ["X"], str(calls))
+
+    print("\n── 4b. round-robin:第二個 bug 就出在這裡,而先前沒有一格碰得到它 ──")
+    # 🔴 獨立驗證員 2026-09-08 的指正:19 格裡**沒有一格**碰到 round-robin,
+    #    而漏帶 `label`(平台側整群塌成一家)正是在那裡出的。先前 2b 盯的是
+    #    「build_pool 有沒有把 label 帶出來」——**上游的代理指標**,不是分家行為本身。
+    def _c(aid, fit, label=None, num="n"):
+        return {"alpha_id": aid, "fitness": fit, "label": label,
+                "expr": f"ts_backfill({num}/close, 120)"}
+    # 平台側 6 條**分屬不同資料集**(前綴 anl4/fnd2/pv13/…),帳本側 6 條同一家。
+    # 舊鍵把平台側 6 條全歸成 `""` 一家;新鍵按前綴拆成 6 家。
+    pref = ["anl4", "fnd2", "pv13", "mdl16", "fnd6", "opt9"]
+    plat_side = [_c("P%d" % i, 1.5 - i * 0.01, None, "%s_x%d" % (pref[i], i))
+                 for i in range(6)]
+    ledg_side = [_c("L%d" % i, 1.4 - i * 0.01, "RAT|fundamental2|g", "f%d" % i)
+                 for i in range(6)]
+    both = plat_side + ledg_side
+
+    def spread_with(keyfn, cap=6):
+        """用指定的分家鍵跑同一段 round-robin —— 換掉 `family_key` 本身,
+        這樣新舊兩種行為走的是**同一份**輪替程式碼,差異只來自分家鍵。"""
+        orig = P.family_key
+        P.family_key = keyfn
+        try:
+            return P.spread_by_family(both, cap)
+        finally:
+            P.family_key = orig
+
+    def old_family(c):
+        return (c.get("label") or "||").split("|")[1]
+
+    sp, order = spread_with(P.family_key)
+    sp_old, order_old = spread_with(old_family)
+    n_plat = sum(1 for c in sp if c["alpha_id"].startswith("P"))
+    n_plat_old = sum(1 for c in sp_old if c["alpha_id"].startswith("P"))
+    check("新鍵把平台側拆成 6 家（不是共用一個空字串）", len(order) == 7,
+          f"家數={len(order)}，各家 {[len(v) for v in order]}")
+    check("陰性對照:舊鍵下平台側 6 條全擠進同一家", len(order_old) == 2,
+          f"舊家數={len(order_old)}，各家 {[len(v) for v in order_old]}")
+    check("**同一份輪替程式碼、只換分家鍵,平台側曝光就不同**（⇒ 這格會失敗）",
+          n_plat > n_plat_old, f"新 {n_plat} 條 vs 舊 {n_plat_old} 條 / spread {len(sp)}")
+
+    # 驗證員量到的性質:輪數不隨家大小變 ⇒ 一家最多拿「輪數」條。
+    big = [_c("B%d" % i, 1.0, "RAT|one_family|g", "b%d" % i) for i in range(40)]
+    sp2, _o2 = P.spread_by_family(big + ledg_side, 18)
+    per_family = sum(1 for c in sp2 if c["alpha_id"].startswith("B"))
+    check("單一大家不會吃掉整個 spread（round-robin 有在輪）",
+          per_family < len(sp2), f"40 條的那一家只拿到 {per_family} / {len(sp2)}")
+    check("空輸入不會 ValueError（`max()` 的 default）",
+          P.spread_by_family([], 6) == ([], []))
 
     print("\n── 5. 快照:少抓一半必須擋下來(不是只擋 0 筆)──")
     # 🔴 `fetch_platform` 的分頁迴圈碰到空頁就 break,**少抓不報錯**,
