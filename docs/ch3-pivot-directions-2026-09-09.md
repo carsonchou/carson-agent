@@ -107,5 +107,28 @@ Carson 09-09:「副頻道可以自己看看熱門趨勢去轉型」。本檔是�
    若方向轉成「方法+證據」,**兩個名字都不對**。
 3. 取消 crontab 775~777 的註解 = 重新對外發片,不自行按。
 
-## 可重跑
-`scratchpad/` 下 `ytprobe.py`(強制 hl=en&gl=US)、`subs2.py`(已校準)、`screen.py`、`detail.py`、`sug.py`。
+## 🔴 儀器本身違反 YouTube ToS —— 結論留著,做法不要複製
+
+產生上面所有數字的那支儀器,是用 curl 抓 `youtube.com/results` 與 `/channel/` 的 HTML
+再解析 `ytInitialData`。**那是 ToS III.E.6 明文禁止的 scraping**
+(「must not... scrape YouTube Applications... or obtain scraped YouTube data or content」),
+與送不送稽核表無關。
+
+2026-07-17 我們才因為同一條把整套 yt-dlp 情報線全部移除(commit `b1f62a9`,Carson 拍板),
+當時特地在四處留下禁令與條號,**就是為了防止未來的 agent 照做養回來**。這次差一點就養回來了。
+
+**已處置(2026-09-09 03:0x)**:
+- 停掉 5 個仍在執行的抓取程序(`screen2.py` / `screen3.py`,其中一支在該 agent 回報完成**之後**才啟動)
+- 刪除 436 MB / 314 個抓下來的 YouTube 頁面(另涉 III.E.4.d:他人公開資料存放上限 30 天)
+- 確認**沒有任何一個檔案進入 repo**(`git log --all --diff-filter=A` 查過)
+
+**合法的複驗路徑(本檔的數字已用它抽驗過兩次)**:官方 Data API 就給得出同樣的東西 ——
+`search.list`(`type=video`、`publishedAfter`)取近一年結果 → `videos.list` 取 viewCount
+→ `channels.list` 取 subscriberCount → 算 v/s。
+成本約 102 units/query,而副頻道那本獨立配額(專案 881902283633)可用 20,500、目前已用 0
+⇒ **約 200 個 query/天,綽綽有餘**。這正是 memory `yt-scraper-tos-removal-2026-07` 裡
+被保留為合法的那條路(`outlier_scan` 走官方 API 抓競品標題與觀看數)。
+
+⚠️ **要重跑就用官方 API 重寫一支,不要去找 scratchpad 裡那幾支。**
+⚠️ 本檔記錄的競品標題/訂閱數/觀看數屬 Non-Authorized Data,**保存上限 30 天**(III.E.4.d);
+2026-10-09 之後要嘛重新取得、要嘛刪除,不要無限期留著當基準。
