@@ -257,6 +257,20 @@ def _main() -> int:
     def run_daily(payload, code=200):
         o = (B.auth, B.track_score, B.load_ledger, sys.argv)
         buf2 = io.StringIO()
+        # 🔴 2026-09-08:候選池改成「帳本 ∪ 平台快照」之後,這一節如果不 stub 快照,
+        #    它會拿**真實的 9,784 條**去組池 → spread 19 條 → `_prefilter` 對每條
+        #    輪詢 PnL ⇒ 這個測試從幾秒變成跑不完。**症狀是掛住不是紅燈**,
+        #    而掛住的測試和「還沒跑完」在 CI 上長得一樣。
+        #    stub 成**小而有效**的快照:回 None 的話 daily_pick 會 fail-closed 中止,
+        #    下面的陽性對照就會拿到 rc=2 —— 那是對的碼、錯的理由,綠燈就不是斷言給的。
+        import reconcile as RC
+        _ols = RC.load_snapshot
+        RC.load_snapshot = lambda *a, **k: (
+            {"L%d" % i: {"code": "ts_backfill(f%d/close, 120)" % i, "sharpe": 1.5,
+                         "fitness": 1.0 - i * 0.1, "checks_n": 8, "fails": [],
+                         "pending": [], "dc": "2026-09-01T00:00:00-04:00"}
+             for i in range(2)},
+            {"fetched_at": "stub", "count": 2, "expected": 2, "age_h": 0.0}, "")
         try:
             B.auth = lambda *a, **k: Sess(payload, code)
             B.track_score = lambda *a, **k: {"submitted_records": []}
@@ -285,6 +299,7 @@ def _main() -> int:
             return rc, buf2.getvalue()
         finally:
             P.poll_check = _op
+            RC.load_snapshot = _ols
             B.auth, B.track_score, B.load_ledger, sys.argv = o
             P.B.auth, P.B.track_score, P.B.load_ledger = o[0], o[1], o[2]
 

@@ -13,11 +13,13 @@
 """
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import pick_next as P  # noqa: E402
+import reconcile as R  # noqa: E402
 
 FAILS: list[str] = []
 
@@ -114,11 +116,42 @@ def main() -> int:
     # 🔴 第一版漏了 `label`,實測後果:所有候選落進同一「家」→ 家數 1 →
     #    round-robin 退化成純 fitness 排序 → 那 4 條全被擠出 spread。
     #    **零錯誤訊號**,候選表照樣印得出來。
-    fam = {(c.get("label") or "||").split("|")[1] for c in cand}
+    fam = {P.family_key(c) for c in cand}
     check("帳本側候選保留 label", any(c.get("label") for c in cand))
-    check("分得出 >1 家（含平台獨有的空 label 自成一家）", len(fam) > 1, str(sorted(fam)))
+    check("分得出 >1 家（平台側靠分子前綴,不是共用一個空字串）", len(fam) > 1, str(sorted(fam)))
     check("平台獨有的候選 label 是 None（不是硬塞一個假的資料集）",
           all(c.get("label") is None for c in cand if c["src"] == "platform"))
+
+    print("\n── 2c. numerator:`group_backfill` 也要認得(否則會判反)──")
+    # 🔴 實據 `LL7Z3lKv`:`group_backfill(est_eps/close, …)`,而 est_eps **已經交過**。
+    #    舊正則只認 `ts_backfill` → 認成 `?` → 沒被「已交分子」排除 →
+    #    **會被當成沒交過的新因子推薦出去**。這不是漏認,是判反。
+    ts = "group_rank(ts_rank(winsorize(ts_backfill(est_eps/close, 120), std=4), 126), subindustry)"
+    gp = "group_rank(ts_rank(group_backfill(est_eps/close, subindustry, 120), 126), subindustry)"
+    check("`ts_backfill` 認得(原行為不變)", P.numerator(ts) == "est_eps", P.numerator(ts))
+    check("`group_backfill` 也認得出同一個分子", P.numerator(gp) == "est_eps", P.numerator(gp))
+    check("陰性對照:舊正則會把它認成 `?`(⇒ 這格量到的是修法)",
+          not re.findall(r"ts_backfill\(([^,)]+)", gp))
+    u1, u2 = "some_unparsed_expr(a)", "another_unparsed_expr(b)"
+    check("認不出來的**不共用一個桶**(否則一整群互不相關的會被去重成一條)",
+          P.numerator(u1) != P.numerator(u2), f"{P.numerator(u1)} vs {P.numerator(u2)}")
+    check("同一條認不出來的式子仍對到同一個鍵(真重複還是擋得住)",
+          P.numerator(u1) == P.numerator(u1 + ""))
+
+    print("\n── 2d. family_key:平台側不可以全部擠進同一家 ──")
+    # 🔴 舊寫法 `(label or "||").split("|")[1]` 對所有平台側候選一律回 ""
+    #    ⇒ 整個平台側每輪只拿一條,不管有幾條候選。獨立驗證員實算家數 6 抓到。
+    pa = {"label": None, "expr": _plat_row("anl4_fs_x", 2.0, 1.5)["code"]}
+    pb = {"label": None, "expr": _plat_row("fnd2_a_y", 2.0, 1.5)["code"]}
+    lg = {"label": "RAT|fundamental2|g", "expr": ts}
+    old_key = lambda c: (c.get("label") or "||").split("|")[1]  # noqa: E731
+    check("兩條不同資料集的平台側候選分屬不同家",
+          P.family_key(pa) != P.family_key(pb), f"{P.family_key(pa)} vs {P.family_key(pb)}")
+    check("陰性對照:舊鍵把它們判成同一家(⇒ 這格量到的是修法)",
+          old_key(pa) == old_key(pb) == "")
+    check("帳本側仍用 label 的資料集欄", P.family_key(lg) == "fundamental2", P.family_key(lg))
+    check("平台側的家標了 `plat:` 前綴(表明是推的,不是平台給的)",
+          P.family_key(pa).startswith("plat:"), P.family_key(pa))
 
     print("\n── 3. 粗排:缺 year_quality 的不可以被沉到底 ──")
     ranked = sorted(picks, key=P.prerank_key)
@@ -153,6 +186,36 @@ def main() -> int:
     check("抓不到時 year_quality 留 None,不是 0", c["year_quality"] is None,
           repr(c["year_quality"]))
     check("真的去抓了（不是靜靜跳過）", calls == ["X"], str(calls))
+
+    print("\n── 5. 快照:少抓一半必須擋下來(不是只擋 0 筆)──")
+    # 🔴 `fetch_platform` 的分頁迴圈碰到空頁就 break,**少抓不報錯**,
+    #    而殘缺快照對讀取端長得跟完整的一模一樣 —— 就是這次修的 bug 換個位置。
+    import json as _j
+    import tempfile
+    import time as _t
+    from pathlib import Path as _P
+    tmpd = _P(tempfile.mkdtemp())
+    cases = [
+        ("完整", {"fetched_at_epoch": _t.time(), "expected_total": 2,
+                  "alphas": {"a": {}, "b": {}}}, True),
+        ("少抓一半", {"fetched_at_epoch": _t.time(), "expected_total": 2,
+                      "alphas": {"a": {}}}, False),
+        ("舊格式(沒有 expected_total)", {"fetched_at_epoch": _t.time(),
+                                         "alphas": {"a": {}, "b": {}}}, False),
+        ("0 筆", {"fetched_at_epoch": _t.time(), "expected_total": 0, "alphas": {}}, False),
+        ("過期", {"fetched_at_epoch": _t.time() - 99 * 3600, "expected_total": 1,
+                  "alphas": {"a": {}}}, False),
+        ("沒有 epoch", {"expected_total": 1, "alphas": {"a": {}}}, False),
+    ]
+    for name, payload, should_pass in cases:
+        f = tmpd / f"snap_{abs(hash(name))}.json"
+        f.write_text(_j.dumps(payload), encoding="utf-8")
+        al, _m, why = R.load_snapshot(f, max_age_h=24)
+        got = al is not None
+        check(f"{name} → {'通過' if should_pass else '擋下'}", got == should_pass,
+              why or "(通過)")
+    al, _m, why = R.load_snapshot(tmpd / "does_not_exist.json")
+    check("檔案不存在 → 擋下(不是回空 dict)", al is None, why)
 
     print("\n" + ("✅ 全過" if not FAILS else f"❌ {len(FAILS)} 格失敗：{FAILS}"))
     return 1 if FAILS else 0

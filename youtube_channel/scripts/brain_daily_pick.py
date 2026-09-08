@@ -185,7 +185,11 @@ def main() -> int:
         #    列舉唯讀、約 10 分鐘;本支排 12:20(ET 00:20),抓完仍遠早於 15:00 結算。
         print(f"平台快照{why_snap} —— 現抓一份（唯讀，約 10 分鐘）…")
         try:
-            R2.save_snapshot(R2.fetch_platform(s, verbose=False))
+            # `totals` 一定要傳:少了它 `expected_total` 是 None,而 `load_snapshot()`
+            # 會（正確地）判這份快照無法確認完不完整 ⇒ 剛抓好的快照當場被自己退回。
+            totals: dict = {}
+            R2.save_snapshot(R2.fetch_platform(s, verbose=False, totals=totals),
+                             expected=totals.get("expected"))
             plat, meta, why_snap = R2.load_snapshot()
         except Exception as e:  # noqa: BLE001
             why_snap = f"重抓失敗：{type(e).__name__} {e}"
@@ -223,9 +227,11 @@ def main() -> int:
     picks.sort(key=P.prerank_key)
     by_ds = defaultdict(list)
     for r in picks:
-        # 平台獨有的候選沒有 label（它不在帳本裡）→ 自成一「家」,
-        # 在 round-robin 裡每輪拿一條,不會被 fundamental2 那種大家族擠掉。
-        by_ds[(r.get("label") or "||").split("|")[1]].append(r)
+        # 🔴 分家鍵只有一份實作(`pick_next.family_key`)。原本內嵌的
+        #    `(label or "||").split("|")[1]` 對所有平台側候選一律回 `""` ⇒
+        #    **整個平台側擠進同一家、每輪只拿一條**,不管它有幾條候選
+        #    (我原本的註解寫「自成一家」,那是寫反了;獨立驗證員實算家數 6 抓到)。
+        by_ds[P.family_key(r)].append(r)
     # 各家依「該家最佳 fitness」排序，然後一輪一條輪流拿（round-robin）。
     order = sorted(by_ds.values(), key=lambda v: -(v[0].get("fitness") or 0))
     spread = []
@@ -329,7 +335,11 @@ def main() -> int:
     # self-corr 當篩選、不當排序：實測全在 0.42~0.52，遠低於門檻，
     # 拿 0.06 的差距去換掉 fitness 0.4 的差不划算。排序用官方 Quality Factor
     # 真正在意的：fitness，加上「近年還撐不撐得住」（分數每週依樣本外更新）。
-    ok.sort(key=lambda x: -((x["fit"] or 0) + (x["ly"] or 0) * 0.5))
+    # 🔴 `ly` 未知的**不混進主排序**:拿 0 當它等於把「沒量到」說成「近年很差」,
+    #    而平台側候選 year_quality 覆蓋率是 0/6(靠上面現場補抓)。未知的排在
+    #    已知的後面並保留在名單裡 —— `pick_next.main()` 同一件事同一個處置,
+    #    兩支不可以不一致(不一致本身就會讓下一個人以為其中一支是對的)。
+    ok.sort(key=lambda x: (x["ly"] is None, -((x["fit"] or 0) + (x["ly"] or 0) * 0.5)))
 
     if not ok and not near:
         # 🔴 原本無論什麼原因都推同一句「獨立分子快用完了」。實測三種完全不同的

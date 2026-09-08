@@ -47,6 +47,7 @@
 """
 from __future__ import annotations
 
+import hashlib
 import re
 import sys
 import time
@@ -61,8 +62,43 @@ import reconcile as R  # noqa: E402  平台列舉與快照的唯一一份實作
 
 
 def numerator(expr: str) -> str:
-    m = re.findall(r"ts_backfill\(([^,)]+)", expr or "")
-    return m[0].split("/")[0].strip() if m else "?"
+    """分子 —— 去重與「已交分子整族排除」的鍵。
+
+    🔴 2026-09-08:原本只認 `ts_backfill(`,而平台側有 `group_backfill(`。
+    後果不是「少認幾條」而是**判反**:`LL7Z3lKv` 的式子是
+    `group_backfill(est_eps/close, …)`,分子 `est_eps` **已經交過**,舊正則把它
+    認成 `?` ⇒ 沒被「已交分子」排除 ⇒ **會被當成一個沒交過的新因子推薦出去**。
+    實測佐證:同一輪離線 PnL 對已提交池量到 **0.957**,正是撞了那條 est_eps。
+    (擋下它的是離線預篩,而預篩的 docstring 自己寫著「作用是省額度,不是守門員」。)
+
+    認不出來時回 `"?:<式子的雜湊>"` 而**不是**共用一個 `"?"` 桶:
+    共用桶會讓一整群互不相關的式子被去重成一條,而這個坍縮**只砍得到平台側**
+    (帳本自己的模板一律用 `ts_backfill`,平台快照裡認不出來的有 281 條)。
+    同一條式子仍然會對到同一個鍵,所以真正的重複還是擋得住。
+    """
+    m = re.findall(r"\w*backfill\(([^,)]+)", expr or "")
+    if m:
+        return m[0].split("/")[0].strip()
+    h = hashlib.sha1(" ".join((expr or "").split()).encode()).hexdigest()[:10]
+    return "?:" + h
+
+
+def family_key(c) -> str:
+    """跨資料集 round-robin 的「家」(`brain_daily_pick` 用它分散名額)。
+
+    🔴 帳本側用 `label` 的資料集欄;平台側**帳本裡沒有 label**,
+    舊寫法 `(label or "||").split("|")[1]` 對它們一律回 `""` ⇒
+    **整個平台側共用同一家、每輪只拿一條**,不管它有幾條候選。
+    (我第一版的註解寫「自成一家」,那是錯的:是**全部擠進同一家**。)
+    平台側改從分子前綴推(`anl4_…` → `anl4`),並標 `plat:` 前綴表明**這是推的**,
+    不是平台給的資料集名 —— 它可能和帳本側同一個資料集分成兩家,
+    那個方向的代價是該資料集多拿一個名額,比整群擠成一家小得多。
+    """
+    lb = c.get("label")
+    if lb:
+        return lb.split("|")[1] if "|" in lb else lb
+    num = numerator(c.get("expr"))
+    return "plat:" + (num.split("_")[0] if not num.startswith("?:") else num)
 
 
 def submitted_ids_ex(s):
@@ -187,8 +223,8 @@ def dedup_by_numerator(cand: list, led: dict, plat: dict | None, done: set):
 
     🔴 `done_nums` 原本只從帳本算 —— 而已提交的 alpha 若不在帳本裡，它的分子就
     不會被排除，於是可能建議一條和已交的同分子的（必撞）。這裡改成從聯集算。
-    ⚠️ `numerator()` 認不出來時回 `"?"`：那是**一個桶不是一個分子**，
-    不同式子會被混在一起，所以 `?` 桶只留一條、而且在輸出裡標出來。
+    ⚠️ 認不出分子的式子回 `"?:<雜湊>"`（每條式子一個鍵），所以它們**不會**被
+    去重成一條；同一條式子仍對到同一個鍵，真正的重複還是擋得住。見 `numerator()`。
     """
     exprs = {}
     for r in (led or {}).values():
@@ -197,7 +233,6 @@ def dedup_by_numerator(cand: list, led: dict, plat: dict | None, done: set):
     for aid, p in (plat or {}).items():
         exprs.setdefault(aid, p.get("code"))
     done_nums = {numerator(exprs.get(a) or "") for a in done if exprs.get(a)}
-    done_nums.discard("?")     # `?` 不是分子，拿它排除會誤殺一整片
 
     by = defaultdict(list)
     for c in cand:

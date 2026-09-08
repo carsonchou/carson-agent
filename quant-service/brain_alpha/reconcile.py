@@ -61,11 +61,17 @@ def _rng(a: dt.datetime, b: dt.datetime) -> str:
             f"&dateCreated%3C{b:%Y-%m-%dT%H:%M:%S}-04:00")
 
 
-def fetch_platform(s, verbose=True) -> dict:
+def fetch_platform(s, verbose=True, totals: dict | None = None) -> dict:
+    """列舉全庫。`totals` 給了的話,把**平台自報的 count 加總**寫進去
+    (`totals["expected"]`)—— 那是唯一能事後判斷「這輪有沒有少抓」的憑據:
+    下面的分頁迴圈碰到空頁就 `break`,**少抓不報錯**,而一份殘缺快照對讀取端
+    長得跟完整的一模一樣(2026-09-08 獨立驗證員抓到)。
+    """
     out: dict = {}
+    expected = 0
 
     def walk(a, b):
-        nonlocal s
+        nonlocal expected, s
         q = _rng(a, b)
         s, j = _get(s, f"{B.API}/users/self/alphas?limit=1&{q}")
         c = j["count"]
@@ -74,6 +80,7 @@ def fetch_platform(s, verbose=True) -> dict:
         if c > 950:                        # 單 query 上限 1,000，留餘裕
             mid = a + (b - a) / 2
             walk(a, mid); walk(mid, b); return
+        expected += c                      # 平台自報的應有筆數（切片不重疊）
         off = 0
         while off < c:
             s, j = _get(s, f"{B.API}/users/self/alphas?limit=100&offset={off}&{q}")
@@ -107,6 +114,8 @@ def fetch_platform(s, verbose=True) -> dict:
     while d < end:
         walk(d, d + dt.timedelta(days=1))
         d += dt.timedelta(days=1)
+    if totals is not None:
+        totals["expected"] = expected
     return out
 
 
@@ -119,7 +128,7 @@ SNAPSHOT = ROOT / "platform_alphas.json"
 SNAPSHOT_MAX_AGE_H = 24.0        # 缺口每天還在長（乙群 ET 逐日 0~8 條）
 
 
-def save_snapshot(plat: dict, path: Path = SNAPSHOT) -> Path:
+def save_snapshot(plat: dict, path: Path = SNAPSHOT, expected: int | None = None) -> Path:
     """原子寫入。**不可以直接寫最終路徑** —— `open(...,"w")` 是先截斷後寫入，
     寫到一半拋例外會留下 0 bytes，而空快照對讀取端是「合法但錯誤的零筆」
     （memory `write-truncates-before-it-fails`）。"""
@@ -127,6 +136,10 @@ def save_snapshot(plat: dict, path: Path = SNAPSHOT) -> Path:
         "fetched_at": time.strftime("%Y-%m-%d %H:%M:%S"),   # 台北
         "fetched_at_epoch": time.time(),
         "count": len(plat),
+        # 平台自報的應有筆數。`load_snapshot()` 拿它擋「列舉中途少抓」——
+        # 沒有這一欄的話,殘缺快照與完整快照在讀取端**完全分不出來**,
+        # 而少掉的那群正是平台獨有的候選 = 這次修的 bug 換個位置復發。
+        "expected_total": expected,
         "alphas": plat,
     }
     tmp = path.with_name(path.name + ".tmp")
@@ -154,8 +167,19 @@ def load_snapshot(path: Path = SNAPSHOT, max_age_h: float = SNAPSHOT_MAX_AGE_H):
     al = d.get("alphas")
     if not isinstance(al, dict) or not al:
         return None, d, "快照裡沒有 alphas（0 筆的快照當成拿不到，不是當成空平台）"
-    age_h = (time.time() - float(d.get("fetched_at_epoch") or 0)) / 3600.0
-    meta = {"fetched_at": d.get("fetched_at"), "count": len(al), "age_h": age_h}
+    exp = d.get("expected_total")
+    if exp is None:
+        return None, {"count": len(al)}, ("快照沒有 expected_total（舊格式）—— "
+                                          "無法判斷列舉完不完整，重抓一份")
+    if len(al) < exp:
+        return None, {"count": len(al), "expected": exp}, (
+            f"快照不完整：抓到 {len(al)} 筆，平台自報應有 {exp} 筆（少 {exp - len(al)}）")
+    ep = d.get("fetched_at_epoch")
+    if not ep:
+        return None, {"count": len(al)}, "快照沒有 fetched_at_epoch，判斷不了新舊"
+    age_h = (time.time() - float(ep)) / 3600.0
+    meta = {"fetched_at": d.get("fetched_at"), "count": len(al),
+            "expected": exp, "age_h": age_h}
     if age_h > max_age_h:
         return None, meta, (f"快照過期 {age_h:.1f}h > {max_age_h:.0f}h"
                             f"（{d.get('fetched_at')}）")
@@ -241,9 +265,10 @@ def main() -> int:
         pass
     s = B.auth()
     now = time.strftime("%Y-%m-%d %H:%M:%S")
-    plat = fetch_platform(s)
+    totals: dict = {}
+    plat = fetch_platform(s, totals=totals)
     if "--snapshot" in sys.argv:
-        p = save_snapshot(plat)
+        p = save_snapshot(plat, expected=totals.get("expected"))
         print(f"\n平台快照 {len(plat)} 條 → {p}（{now} 台北）")
         if "--report" not in sys.argv:
             return 0
