@@ -1471,6 +1471,19 @@ def cmd_run(n, workers=2):
     """
     import threading
 
+    # 🔴 2026-09-08：stdout 的編碼要在**這裡**設，不是在各檔的 main()。
+    # 下面 worker 的失敗行印 `✗`，而 Windows 的預設 stdout 是 cp950 —— 編不出這個字。
+    # 三個 main()（brain_auto / field_miner / pick_next）各自有一行 reconfigure，
+    # 但 `run_delay0.py` 是直接 import 後呼叫 `F.cmd_run`，**繞過了全部三個 main()**
+    # ⇒ 一路成功都不會有事（成功行全是 ASCII），**跑到第一條失敗才炸**，
+    # 兩個 worker 各炸一次、整批靜默中止，而收尾訊息照常印「本輪無候選通過」。
+    # 實測代價：150 條的批次在第 28 條斷掉，看起來像跑完了。
+    # 「每個呼叫端記得先 reconfigure」是期望不是規則 —— 移到印那個字的人身上。
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:  # noqa: BLE001  舊版 Python / 被接管的 stdout：照跑
+        pass
+
     # 跨程序單一實例：三個入口都會啟動挖礦（2 小時 cron 無條件跑、20 分守門、
     # 我手動起的長批），而併發上限 2 是**帳號層級**——疊起來只會互相 429。
     if not claim_lock():
