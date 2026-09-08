@@ -209,9 +209,14 @@ def main() -> int:
     # 每個分子只留最好的一條：同分子必然高度相關（實測 0.97），多測是浪費額度。
     # 換分母沒用（close 與 cap 本身高度相關），只有**換分子**才真的降相關（0.62）。
     picks, by, done_nums = P.dedup_by_numerator(cand, led, plat, done)
+    _famcut = P.excluded_by_done_nums(by, done_nums)
     print(f"候選池:帳本 ∪ 平台快照 {meta['count']} 條（{meta['fetched_at']}，"
           f"{meta['age_h']:.1f}h 前）→ 合格未提交 {pool_st['qualified_excl_done']} "
           f"（平台獨有 {pool_st['cand_by_src']['platform']}）| 未交分子 {len(picks)} 種")
+    if _famcut:
+        # 不出現在下面任何一張表上的那一刀,要自己講自己的名字。
+        print(f"  另有 {len(_famcut)} 條因『分子已交過』整族排除"
+              f"（最高 fitness {(_famcut[0].get('fitness') or 0):.2f}）")
     # 🔴 2026-09-01：不能單純照 fitness 取前 N。
     # 實測：1,220 條通過裡 fundamental2 一家佔 **1,154 條**（94.6%），
     # 高分榜單被同一家的孿生體塞滿 —— 今天照舊排序取前 6 條，

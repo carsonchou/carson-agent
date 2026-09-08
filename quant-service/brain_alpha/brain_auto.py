@@ -1379,8 +1379,15 @@ LOCKFILE = ROOT / "miner.lock"
 # brain_miner_watchdog.py 直接 import 這個常數（原本兩邊各抄一份，
 # 而 `brain_alpha_cron` 兩邊都漏了 —— 見下方事故記錄）。
 # 新增挖礦階段時只改這裡。
+# 🔴 **新增一支挖礦入口就要同時加進這裡。** 漏加不會報錯,它會安靜地變成
+# 「這道鎖認不出你」——別人來看你的鎖檔,`_pid_alive_miner` 回 False,
+# 判定舊鎖是殭屍就**接手**,於是兩個 miner 同時打一個併發上限 2 的帳號。
+# 2026-09-08 實據:`run_delay0.py`(09-03 新增,整篇 docstring 都在講這道鎖)
+# 沒被加進來 ⇒ 開跑 20 分鐘後 brain_alpha_cron 接手了它的鎖,兩邊互相 429。
+# 下面 `_assert_self_recognised()` 就是為了讓這種漏加**會產生輸出**。
 MINER_PATTERNS = ("field_miner", "second_order", "brain_auto",
-                  "universe_sweep", "hybrid_miner", "brain_alpha_cron")
+                  "universe_sweep", "hybrid_miner", "brain_alpha_cron",
+                  "run_delay0")
 
 
 def _pid_alive_miner(pid: int) -> bool:
@@ -1398,8 +1405,30 @@ def _pid_alive_miner(pid: int) -> bool:
     return any(k in out for k in MINER_PATTERNS)
 
 
+def _assert_self_recognised() -> None:
+    """開挖之前先確認:**這道鎖認得出我自己**。認不出就不要跑。
+
+    為什麼是 fail-closed 而不是印個警告:認不出來的後果**不是自己少跑**,
+    是**別人會把我的鎖當殭屍接手**,而那要到兩小時後 cron 下一次觸發才發生 ——
+    到時候沒有人在看,兩個 miner 會安靜地互相 429 直到有人去數程序。
+    警告在那個時間差之後等於不存在。
+
+    誤判風險低到可以這樣做:`_pid_alive_miner` 查不到就回 True(fail-closed),
+    所以對**自己的 PID**(定義上活著)回 False 只有一種可能 ——
+    指令列真的不含任何 MINER_PATTERNS,也就是清單真的漏了。
+    """
+    if not _pid_alive_miner(os.getpid()):
+        raise SystemExit(chr(10).join([
+            f"[lock] 這道鎖認不出我自己(PID {os.getpid()})——",
+            f"        指令列不含 MINER_PATTERNS 任何一項 {MINER_PATTERNS}。",
+            "        照跑的話別的 miner 會把我的鎖當殭屍接手,兩邊互相 429。",
+            "        修法:把這支的檔名加進 brain_auto.py 的 MINER_PATTERNS。",
+        ]))
+
+
 def claim_lock() -> bool:
     """搶到鎖回 True；已經有人在挖回 False。"""
+    _assert_self_recognised()
     try:
         if LOCKFILE.exists():
             old = LOCKFILE.read_text(encoding="utf-8").strip().split(",")[0]

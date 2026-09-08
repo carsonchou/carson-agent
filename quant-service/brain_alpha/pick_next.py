@@ -294,6 +294,21 @@ def dedup_by_numerator(cand: list, led: dict, plat: dict | None, done: set):
     return picks, by, done_nums
 
 
+def excluded_by_done_nums(by: dict, done_nums: set) -> list:
+    """被「分子已交」整族排除的候選,依 fitness 由高到低。
+
+    🔴 2026-09-08(獨立驗證員):這一類移除**不出現在任何一張表上** ——
+    它發生在候選清單成形**之前**,所以既不在「安全可交」也不在「確定撞」。
+    實測 `runway` 路徑上它一次砍掉 **71 條**,其中最高 fitness **1.57**
+    高於當時 `--top 60` 的切點 **1.56** ⇒ 那條在舊版看得見(以「確定撞」的身分),
+    現在它靜靜消失。**方向是對的(同分子必撞),但沉默不是。**
+    ⇒ 呼叫端一律把這個數字印出來;要看細節就看這個清單。
+    """
+    out = [c for n in done_nums for c in by.get(n, [])]
+    out.sort(key=lambda c: -(c.get("fitness") or 0))
+    return out
+
+
 def prerank_key(c):
     """粗排（決定誰值得花一次 /check）。
 
@@ -407,13 +422,16 @@ def main() -> int:
     led = B.load_ledger()
     cand, st = build_pool(led, plat, done)
     picks_all, by, done_nums = dedup_by_numerator(cand, led, plat, done)
+    famcut = excluded_by_done_nums(by, done_nums)
 
     print(f"候選池涵蓋範圍:{coverage}")
     print(f"  聯集 alpha {st['union_alpha_ids']}（帳本 {st['ledger_rows']} 列 / "
           f"平台 {st['platform_rows']} 條）→ 合格且未提交 {st['qualified_excl_done']}"
           f"（帳本獨有 {st['cand_by_src']['ledger']} / 兩邊都有 {st['cand_by_src']['both']}"
           f" / **平台獨有 {st['cand_by_src']['platform']}**）")
-    print(f"已交分子 {len(done_nums)} 種 | 未交分子候選 {len(picks_all)} 種")
+    print(f"已交分子 {len(done_nums)} 種 | 未交分子候選 {len(picks_all)} 種"
+          + (f" | 因分子已交整族排除 {len(famcut)} 條"
+             f"（最高 fitness {(famcut[0].get('fitness') or 0):.2f}）" if famcut else ""))
 
     picks_all.sort(key=prerank_key)
     picks = picks_all[:n]

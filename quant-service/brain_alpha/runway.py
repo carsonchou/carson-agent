@@ -400,6 +400,12 @@ def main() -> int:
         return 2
     cand, pool_st = P.build_pool(led, plat, set(active))
     picks, _by, _dn = P.dedup_by_numerator(cand, led, plat, set(active))
+    _famcut = P.excluded_by_done_nums(_by, _dn)
+    if _famcut:
+        # 這一刀不出現在下面任何一張表上（它在清單成形之前就砍了）。
+        print(f"  另有 {len(_famcut)} 條因『分子已交過』整族排除"
+              f"（最高 fitness {(_famcut[0].get('fitness') or 0):.2f}）——"
+              f"它們不會出現在下面任何一張表上。")
     cands = sorted(picks, key=lambda c: -(c.get("fitness") or 0))[:top]
     print(f"候選池:帳本 ∪ 平台快照 {snap_meta['count']} 條"
           f"（{snap_meta['fetched_at']}，{snap_meta['age_h']:.1f}h 前）"
