@@ -30,11 +30,29 @@ K=5 的校準:08-30 regime 翻轉之後最長連續 0 是 **0 檔**,所以 K=5 �
 教訓來自 `quota_ceiling_watch`(2026-09-02):驗證員手改 state 模擬事件,
 兩行 🎉 落進正式 log,和真事件一模一樣 —— **假證據落在自己指定的權威來源裡,比沒有守望更糟。**
 
+演習模式(每一條判準各要有自己的引信,而且**兩個方向都要有**):
+| 模式 | 引爆什麼 | 期望 |
+|---|---|---|
+| `err` | 種題丟例外(-1) | 叫 |
+| `zero` | 連續 K 個 0 | 叫 |
+| `stale` | 今天零列(不是全 0) | 叫 |
+| `all` | err + zero + 上游斷料 | 叫 |
+| `upstream` | 注入斷料窗的長相(不碰事實庫) | 叫 |
+| `unreadable` | **事實庫讀不到**(沙箱路徑指向不存在的檔) | 叫 |
+| `empty` | **事實庫讀得到但判不出**(`by_code` 空) | 叫 |
+| `upstream_ok` | **陰性對照**:沙箱裡放一份健康事實庫 | **不叫** |
+
+`unreadable` / `empty` / `upstream_ok` 三個模式會把 `FACTS` monkeypatch 到臨時沙箱,
+並在收尾用**正式機檔案的指紋(存在/大小/mtime_ns)前後比對**斷言它沒被動過;
+沙箱沒生效就 `AssertionError` 當場炸,不是印一行警告靠人看。
+(`STUDIO/stock_checkup_facts.json` 是 17MB 單檔,直到 2026-09-08 才被納入 snapshot 清單。)
+
 用法:
   python scripts/seeding_watch.py              # 正式(排程每天台北 07:00,05:50 那輪跑完之後)
   python scripts/seeding_watch.py --selftest   # 演習:用預期會叫的輸入引它一次
+  python scripts/seeding_watch.py --selftest=upstream_ok   # 陰性對照:確認它不是恆叫
 """
-import sys, json, pathlib, datetime, collections
+import sys, json, pathlib, datetime, collections, tempfile, shutil
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 STATE = REPO / "youtube_channel" / "STUDIO" / "stock_checkup_daily_state.json"
@@ -49,6 +67,11 @@ SELFTEST_MODE = next((a.split("=", 1)[1] if "=" in a else "all"
                       for a in sys.argv if a.startswith("--selftest")), None)
 SELFTEST = SELFTEST_MODE is not None
 K_ZERO = 5          # 連續幾個 0 才算異常(校準見檔頭)
+
+# 會把 FACTS 換到沙箱的演習模式。前兩個該叫、第三個**不該叫**(陰性對照)。
+# 沒有陰性對照時,「該叫的都叫了」和「這條判準恆叫」分不開 —— 那是 memory
+# `verification-that-cannot-fail` 的第零種:輸出長得跟成功一樣的檢查。
+DRILL_FACT_MODES = ("unreadable", "empty", "upstream_ok")
 
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -104,13 +127,34 @@ UPSTREAM_MIN_N = 5        # 少於這個數不判(單日樣本太小)
 
 
 def upstream_status():
-    """回 (最近兩個有資料的日期各自的 (日期, 缺項比例, n))。讀不到回 []。"""
+    """回 `(rows, err)`。
+
+    rows = 最近兩個有資料的日期各自的 `(日期, 缺項比例, n)`;err = None。
+    判不出來時回 `([], "為什麼判不出來")` —— **空集合一律配一句理由,不留無聲的空。**
+
+    🔴 2026-09-08 修的失敗形態:舊版讀不到事實庫時回 `[]`,而 `main()` 用 `if up:`
+    接它 ⇒ **整個上游段落從 log 裡消失**:不報錯、不推播、exit 0,那一行照樣寫「✅ 正常」。
+    也就是說,事實庫被改名 / 被鎖 / 寫壞的那一天,這道哨會從「每天回報上游缺項比例」
+    無聲地退化成「每天回報種題那三條」,而**兩種日子的 log 行只差一個看不出來的欄位**。
+    同一支腳本裡種題那三條壞掉會出聲,只有上游這條不會。
+    ⚠️ 方向:**讀不到 ≠ 上游健康。** 判不出來就必須說判不出來,不可以 fail-open 成沒事。
+    這正是 09-06 捏造事故的形狀(FinMind 斷 16 天、108 檔全滅、零告警),
+    差別只在那次是資料變空,這次連告警的入口都不見了。
+
+    ⚠️「讀不到」比「丟例外」寬,而舊版只有例外那條路徑:
+    `by_code` 是空的、或條目全都沒有 `computed_at`,都**不會丟例外**,舊版一樣回 `[]`。
+    所以下面三個出口分開寫,錯誤訊息也分開 —— 修的人要知道是檔案不見了還是內容變了。
+    """
     import json as _json
     import collections as _c
     try:
-        bc = _json.loads(FACTS.read_text(encoding="utf-8")).get("by_code") or {}
-    except Exception:  # noqa: BLE001
-        return []
+        raw = FACTS.read_text(encoding="utf-8")
+    except Exception as e:  # noqa: BLE001
+        return [], f"讀不到事實庫 {FACTS.name}({FACTS}):{e!r}"
+    try:
+        bc = _json.loads(raw).get("by_code") or {}
+    except Exception as e:  # noqa: BLE001
+        return [], f"事實庫 {FACTS.name} 解析失敗({len(raw)} bytes):{e!r}"
     per = _c.defaultdict(lambda: [0, 0])
     for v in bc.values():
         d = (v.get("computed_at") or "")[:10]
@@ -123,7 +167,74 @@ def upstream_status():
     for d in sorted(per)[-2:]:
         n, miss = per[d]
         out.append((d, miss / n if n else 0.0, n))
-    return out
+    if not out:
+        return [], (f"事實庫 {FACTS.name} 讀得到({len(raw)} bytes)但判不出上游:"
+                    f"by_code {len(bc)} 筆、其中帶 computed_at 的 0 筆")
+    return out, None
+
+
+# ── 演習沙箱:上游那條的引信與陰性對照(2026-09-08)──────────────────────
+# 🔴 不可以拿正式機的事實庫做演習:17MB 單檔,而它的自動備份今天才補上。
+# 隔離的做法是**在入口把 FACTS 換掉**,不是靠下游函式自律 —— 派工單/註解層的
+# 「絕對不要碰正式機」被違反時不產生任何輸出,那是期望不是規則(dispatch.md §6)。
+# 所以下面配一組**會產生輸出的**斷言:換沒換成功當場 AssertionError,
+# 收尾再拿正式機檔案的指紋前後比對,不一致就把 rc 蓋成 9。
+PROD_FACTS = FACTS
+_DRILL_DIR = None
+_PROD_FP = None
+
+
+def _fingerprint(p):
+    """(存在, 大小, mtime_ns) —— 只 stat 不讀,17MB 檔也是零成本。"""
+    try:
+        st = p.stat()
+        return (True, st.st_size, st.st_mtime_ns)
+    except FileNotFoundError:
+        return (False, None, None)
+
+
+def _drill_setup(mode):
+    global FACTS, _DRILL_DIR, _PROD_FP
+    _PROD_FP = _fingerprint(PROD_FACTS)
+    _DRILL_DIR = pathlib.Path(tempfile.mkdtemp(prefix="seeding_watch_drill_"))
+    if mode == "unreadable":
+        FACTS = _DRILL_DIR / "does_not_exist.json"          # 檔案不見了
+    elif mode == "empty":
+        FACTS = _DRILL_DIR / "facts_empty.json"             # 讀得到但沒東西可判
+        FACTS.write_text('{"by_code": {}}', encoding="utf-8")
+    elif mode == "upstream_ok":
+        # 陰性對照:12 檔分佈在今天/昨天各 6 檔,每天只有 1 檔缺基本面
+        # ⇒ 缺項 17% < 門檻 50%、n=6 ≥ MIN_N ⇒ **應該不叫**。
+        # 這條和 `upstream` 模式的差別:那個直接注入算好的 tuple,
+        # 完全沒走到 upstream_status() 的剖析;這條走完整條路徑。
+        today = datetime.date.today()
+        bc = {}
+        for i in range(12):
+            d = (today - datetime.timedelta(days=i % 2)).isoformat()
+            key = "checkup_dividend_history" if i < 2 else "checkup_crash_2020"
+            bc["D%d" % i] = {"computed_at": d + "T09:00:00",
+                             "skipped": [{"key": "%s__D%d" % (key, i)}]}
+        FACTS = _DRILL_DIR / "facts_ok.json"
+        FACTS.write_text(json.dumps({"by_code": bc}), encoding="utf-8")
+    assert FACTS != PROD_FACTS, "沙箱沒生效:FACTS 還指著正式機"
+    assert str(FACTS).startswith(str(_DRILL_DIR)), f"FACTS 不在沙箱內:{FACTS}"
+    say(f"[DRILL] 沙箱 FACTS={FACTS}")
+    say(f"[DRILL] 正式機 FACTS={PROD_FACTS}｜開跑指紋 {_PROD_FP}")
+
+
+def _drill_teardown():
+    """回 True/False = 隔離成立/被破;沒跑演習回 None。"""
+    global FACTS
+    if _DRILL_DIR is None:
+        return None
+    after = _fingerprint(PROD_FACTS)
+    ok = (after == _PROD_FP)
+    say(f"[DRILL] 正式機 FACTS 收尾指紋 {after} → "
+        + ("未被動過 ✅" if ok else "🔴 被動過!演習汙染了正式機"))
+    FACTS = PROD_FACTS                    # 還原,免得同 process 後續呼叫沿用沙箱
+    assert FACTS == PROD_FACTS
+    shutil.rmtree(_DRILL_DIR, ignore_errors=True)
+    return ok
 
 
 def load_history():
@@ -144,6 +255,12 @@ def load_history():
             # 零列和全 0 是兩件事,舊判準只涵蓋後者。
             old = (datetime.date.today() - datetime.timedelta(days=2)).isoformat()
             return [{"date": old, "code": "S%d" % i, "n_new_topics": 1} for i in range(16)]
+        if SELFTEST_MODE in DRILL_FACT_MODES:
+            # 上游那三個模式要把種題那三條全部餵成健康,**唯一還會動的變數只剩上游**。
+            # 日期必須是今天:用 `healthy`(08-30)會先被新鮮度那條攔下,
+            # 陰性對照就變成「叫了,但不是為了我在測的那件事」—— 那不叫陰性對照。
+            td = datetime.date.today().isoformat()
+            return [{"date": td, "code": "N%d" % i, "n_new_topics": 1} for i in range(16)]
         # 順序刻意是 err 在前、zero 在後:連續 0 是從**最後一筆往回數**的,
         # 把 err 放最後會把 run0 打斷成 0 —— 第一版就是這樣,"all" 其實只引爆了一條。
         return healthy + err + zero         # 兩條都引爆
@@ -214,10 +331,28 @@ def main():
                         f"「LLM 全滅被 catch 成 return 0」的長相,那次靜默了一整個月")
 
     # 上游斷料:連續兩天缺項比例超標才叫
-    up = [] if SELFTEST and SELFTEST_MODE not in ("upstream", "all") else upstream_status()
+    # 🔴 三種來源分開,因為它們是三件不同的事,而舊版把後兩種壓成同一個空 list:
+    #   ① 演習注入的斷料長相  ② 這輪演習不測上游  ③ 真的去讀事實庫(可能判不出來)
+    # 壓成同一個空 list 的後果不是判錯,是**那一格從 log 上消失**,而消失沒有形狀。
+    up, up_err, up_skip = [], None, None
     if SELFTEST and SELFTEST_MODE in ("upstream", "all"):
         up = [("2026-07-18", 0.93, 14), ("2026-07-19", 1.00, 13)]   # 真實斷料窗的長相
-    if up:
+    elif SELFTEST and SELFTEST_MODE in ("err", "zero", "stale"):
+        up_skip = "本次演習不測(這三個模式只引爆種題那三條)"
+    else:
+        up, up_err = upstream_status()
+
+    if up_skip:
+        stat += f"｜上游 {up_skip}"       # 明寫「沒測」,而不是讓這一格靜靜不見
+    elif up_err:
+        stat += "｜上游 🔴 判不出來"
+        problems.append(
+            f"🔴 上游狀態判不出來,**這不是「沒事」**:{up_err}"
+            f" —— 事實庫是 17MB 單檔,讀不到就等於這道哨對上游斷料失明,"
+            f"而失明的長相和健康的長相在舊版 log 上一模一樣(整段消失、照樣 exit 0)。"
+            f"**先確認該檔存在且是完整 JSON**,再確認 05:50 那輪有沒有寫進去;"
+            f"要復原看 snapshot_studio 的快照(2026-09-08 才納入清單,更早的沒有備份)。")
+    else:
         stat += "｜上游 " + "、".join(f"{d} 缺{r:.0%}(n={n})" for d, r, n in up)
         bad_days = [x for x in up if x[2] >= UPSTREAM_MIN_N and x[1] > UPSTREAM_FLOOR]
         if len(bad_days) >= 2:
@@ -238,4 +373,14 @@ def main():
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    # 沙箱在**入口**建立、在 finally 還原:main() 中途丟例外也不會把 FACTS 留在沙箱上。
+    if SELFTEST and SELFTEST_MODE in DRILL_FACT_MODES:
+        _drill_setup(SELFTEST_MODE)
+    try:
+        _rc = main()
+    finally:
+        _iso = _drill_teardown()
+    if _iso is False:
+        say("[DRILL] 🔴 隔離失敗 → rc=9(演習結果不採信)")
+        _rc = 9
+    raise SystemExit(_rc)

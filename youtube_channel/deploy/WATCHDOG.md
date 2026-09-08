@@ -82,12 +82,23 @@ Start-ScheduledTask 兩支 → 等 25 秒
 ## 演習
 三支都有 `--selftest`,而且**每一條判準各自要有引爆輸入**:
 ```
-python scripts\seeding_watch.py --selftest=err|zero|upstream|all
+python scripts\seeding_watch.py --selftest=err|zero|stale|upstream|all
+python scripts\seeding_watch.py --selftest=unreadable|empty|upstream_ok   # 上游那條(09-08 加)
 python scripts\narration_compliance_watch.py --selftest=summary|biz|both
 ```
 🔴 教訓:第一版 `seeding_watch` 只有一種 fixture,它引爆了 `-1` 那條而
 「連續 0」那條**完全沒被走到** —— 而後者才是覆蓋歷史真實失效的那條。
 **「哨叫了」不等於「每一條判準都會叫」。**
+
+🔴 **第二個教訓(2026-09-08):上面全部都是「該叫的會不會叫」,而那只是一半。**
+`upstream_ok` 是這批裡第一個**陰性對照**:沙箱裡放一份健康的事實庫,**期望它不叫**。
+沒有這一格,「該叫的都叫了」和「這條判準恆叫」在證據上分不開。
+⚠️ 它同時是唯一走完 `upstream_status()` 整條剖析路徑的模式 —— `upstream` 那個是直接注入
+算好的 tuple,剖析那段一行都沒跑到。**引信引爆的是判準,還是只是引爆了你手寫的那個 fixture?**
+⚠️ `unreadable`/`empty`/`upstream_ok` 會把 `FACTS` monkeypatch 到臨時沙箱,
+收尾用正式機檔案的指紋前後比對斷言沒被動過(不一致 → rc=9)。
+17MB 的 `STUDIO/stock_checkup_facts.json` **不參與任何演習**。
+失敗形態、四項陽性對照與實測數字見 `docs/ops/2026-09-08_gate_health_inventory.md` §十一。
 
 ## 端到端推播驗證(2026-09-06 02:12)
 
@@ -105,10 +116,14 @@ python scripts\narration_compliance_watch.py --selftest=summary|biz|both
 
 ## 🔴 兩件已知但**還沒被證明**的,不要算進「已完成」
 
-1. **`narration_compliance_watch` 的判定路徑一次都沒被真資料走到。**
+1. ~~**`narration_compliance_watch` 的判定路徑一次都沒被真資料走到。**
    `RULE_DATE=2026-09-06` 而 09-06 目前產出 0 支 ⇒ 它每天只會吐 `⏳ 樣本不足`,
-   **要等 ≥8 支 09-06 之後的片落地才有第一個真訊號。**
-   **「它跑起來了」≠「它現在會叫」。**
+   **要等 ≥8 支 09-06 之後的片落地才有第一個真訊號。**~~
+   ✅ **已被走到:2026-09-07 07:10 真事件(`LastTaskResult=1`)。** 這條在 09-07 就過期了,
+   而沒人回頭改它 —— 直到 09-08 盤點時被當成「還沒做的事」讀了一次。
+   ⚠️ 原句留著的教訓仍然成立:**「它跑起來了」≠「它現在會叫」**。
+   ⚠️ 但這道哨的判準本身在 09-08 被量到已經漂了(收束句只認 1/5 種措辭),
+   已改成從產線常數 import(`954e283c`)。**被真資料走到 ≠ 走對。**
 2. **機器登出時的行為沒驗。** 三支都是 `LogonType=Interactive` / `RunLevel=Limited`
    ⇒ 推測只在 User 登入時才跑。和既有的 quota 哨一致(不是新風險),
    但**若哪天登出或切使用者,三個哨會一起靜默**。
