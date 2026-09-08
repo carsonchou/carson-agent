@@ -68,9 +68,23 @@ def main():
     ready_long = [o for o in meta if k(o) not in longs
                   and (ROOT / o["video"]).exists()
                   and (not o.get("thumb") or (ROOT / o["thumb"]).exists())]
-    ready_short = [d.name for d in (ROOT / "shorts").iterdir()
-                   if d.is_dir() and d.name not in shorts
-                   and (d / f"{d.name}_short.mp4").exists()]
+    # 🔴 `reels/` 和 `shorts/` 是**同一個發布管道** —— publish_shorts.py:607
+    #    也收 reels/、:765 記進同一本 uploaded_shorts.json。只掃 shorts/ 的話,
+    #    reels/ 有貨時這支會噴缺貨警報(2026-09-09 實測:7 支對健檢是隱形的)。
+    #    ⚠️ 兩邊的帳本 key **不同形狀**:shorts 用裸目錄名,reels 用 `reel_` 前綴。
+    #       前綴寫錯不會報錯,只會讓已發的那 7 支又被算成待發 —— 反方向的同一個病,
+    #       而且從輸出上分不出來。改這裡要跑陽性對照(放一支假的進去,數字要跟著動)。
+    #    口徑:這裡量的是**檔案層庫存**,不跑 reel_gate —— 與 shorts/ 同口徑。
+    def _ready(sub, suffix, key):
+        p = ROOT / sub
+        if not p.is_dir():
+            return []
+        return [f"{sub}/{d.name}" for d in p.iterdir()
+                if d.is_dir() and key(d.name) not in shorts
+                and (d / f"{d.name}{suffix}").exists()]
+
+    ready_short = (_ready("shorts", "_short.mp4", lambda n: n)
+                   + _ready("reels", "_reel.mp4", lambda n: f"reel_{n}"))
     # 一天 1 長 + 4 短
     days_long = len(ready_long)
     days_short = len(ready_short) / 4
