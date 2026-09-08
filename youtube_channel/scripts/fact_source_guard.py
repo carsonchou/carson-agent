@@ -529,6 +529,14 @@ def _sourced_unit(val: float, raw: str, pool: set[float], strict: bool) -> bool:
 
 _RX_OVER = re.compile(r"(超過|逾|突破|至少|不只)\s*$")   # 「超過五百」:真值須 ≥ 宣稱值
 _RX_NEAR = re.compile(r"(近|約|將近|大約|差不多|快要)\s*$")  # 「近60%」:真值在 ±15% 內
+# 🔴 2026-09-08 對稱性缺口(抽樣 10 支裡 1 支的誤擋成因):_RX_OVER 有「超過/逾/突破/至少/不只」、
+# _RX_NEAR 有「近/約/將近/大約」,**唯獨沒有「小於」那一邊**。
+# ⇒「東台抱20年總報酬**不到80%**」(真值 78.7%,這句陳述完全正確)必然被判無憑據。
+# 方向與 over 相反:真值須 ≤ 宣稱值,且不可低太多(否則「不到80%」拿真值 3% 來背書也算過)。
+_RX_UNDER = re.compile(r"(不到|未達|不足|還不到|低於|不滿|沒超過|沒有超過)\s*$")
+
+
+_RX_IS_QUANT = re.compile(r"[一二三四五六七八九十兩]成")
 
 
 def _approx_kind(clause: str, raw: str) -> str:
@@ -536,15 +544,21 @@ def _approx_kind(clause: str, raw: str) -> str:
     2026-07-14:LLM 用真數據時常口語化——「總報酬**超過**百分之五百」(真值 589)、
     「少賺**近**60%」(真值 54.3)。這不是編造,是修辭;但方向要對:
     「超過X」要求池中真的有 ≥X 的數(說「超過90」而真值只有 82 = 說謊,照擋)。"""
+    # 🔴 2026-09-08:成數(七成/八成)**本身就是近似表達**,它的近似性在數字自己身上,
+    # 不在它前面 —— 舊碼只看數字前綴,所以「投資組合**跌了八成**」(真值 -83.8%)拿不到
+    # 任何豁免而被擋。抽樣 10 支裡有 3 支的誤擋是這一條。放在前綴判斷之前,
+    # 但「超過七成」這種前綴仍優先(下面命中 over 會覆蓋),方向資訊比模糊近似更精確。
     i = clause.find(raw)
     if i <= 0:
-        return ""
+        return "near" if _RX_IS_QUANT.search(raw or "") else ""
     prefix = clause[max(0, i - 6): i]
+    if _RX_UNDER.search(prefix):
+        return "under"
     if _RX_OVER.search(prefix):
         return "over"
     if _RX_NEAR.search(prefix):
         return "near"
-    return ""
+    return "near" if _RX_IS_QUANT.search(raw or "") else ""
 
 
 # ── 比較結果數字(2026-07-17,交接書「標題層 +56% 相對差冒充總報酬」的根因修復)──────────
@@ -660,7 +674,9 @@ def _unit_subpool(raw: str, pool: set[float]) -> set:
 
 
 def _sourced_approx(val: float, kind: str, pool: set[float]) -> bool:
-    """近似詞的方向性溯源:over → 存在 p∈[val, val*1.6];near → 存在 p 於 val±15%。"""
+    """近似詞的方向性溯源:over → p∈[val, val*1.25];near → p 於 val±15%;under → p∈[val*0.75, val]。"""
+    if kind == "under":
+        return any(val * 0.75 <= p <= val for p in pool)
     if kind == "over":
         return any(val <= p <= val * 1.25 for p in pool)  # 1.6 太寬會語義錯配,收到 1.25
     if kind == "near":
@@ -761,8 +777,12 @@ def unsourced_claims(text: str, pool: set[float] | None = None) -> list[dict]:
         # 口語近似詞 → 方向性查原始池,但**只限大數值(>100,報酬率類)**:
         # 「總報酬超過500%」(真值589)是修辭;「超過七成當沖客」(≤100,人群統計)沒有這種豁免
         # ——實測 over 對小數值會撞上池裡不相干的 82 之類,語義錯配放水。
-        if kind and c["value"] > 100 and _sourced_approx(c["value"], kind,
-                                                         _unit_subpool(c["raw"], pool)):
+        # 🔴 2026-09-08 拿掉 `and c["value"] > 100`(主頻道線督導裁示)。
+        # 舊註解的理由是「over 對小數值會撞上池裡不相干的 82 之類,語義錯配放水」——
+        # ⚠️ **那個理由只在全域池(42,134 個數字)上成立**;在收窄池(中位 173 個)上不成立,
+        # 而收窄池是這條線的方向。代價已量:全域池下擋片數 20→(見下方 commit 訊息實測),
+        # 收窄池下把抽樣 10 支裡的 4 支誤擋全部清掉。
+        if kind and _sourced_approx(c["value"], kind, _unit_subpool(c["raw"], pool)):
             continue
         bad.append(c)
     return bad
@@ -1276,11 +1296,37 @@ def regression_report() -> int:
     n = len(cases)
     print(f"[regress] **{n_blocked}/{n} 擋下**"
           f"(2026-09-08 建立當下的基準是 0/{n};任何修法宣稱有效,先看這個數字有沒有動)")
+
+    # ── 另一半:真陽性(擋對了,不可以放掉)──
+    # 🔴 只有假陽性語料的閘門會被調得愈來愈鬆,只有真陽性語料的會被調得愈來愈嚴。兩半都要。
+    tps = data.get("true_positives") or []
+    n_kept = 0
+    if tps:
+        print(f"[regress] 真陽性 {len(tps)} 支(必須**仍然被擋**;它們只在收窄池下成立):")
+    for tp in tps:
+        pl = fact_pool_for(tp["slug"]) if tp.get("pool") == "scoped" else pool
+        if not pl:
+            print(f"  ⚠️ 無法驗證 [{tp['id']}] —— 收窄池建不起來(認不出主題或事實庫缺該檔)",
+                  file=sys.stderr)
+            continue
+        hit = [round(c["value"], 4) for c in unsourced_claims(slug_text(tp["slug"]), pl)]
+        ok = round(float(tp["value"]), 4) in hit
+        n_kept += ok
+        print(f"  {'✅ 仍擋下' if ok else '🔴 放掉了'}  [{tp['id']}] {tp['value']} "
+              f"←「{tp['narration'][:40]}」  事實:{tp['fact'][:56]}")
+    if tps:
+        print(f"[regress] **真陽性 {n_kept}/{len(tps)} 仍被擋**")
+
+    rc = 0
     if n_blocked < n:
         print(f"[regress] 🔴 還有 {n - n_blocked} 句過得去 —— 這道閘門擋不住它存在的理由。",
               file=sys.stderr)
-        return 1
-    return 0
+        rc = 1
+    if tps and n_kept < len(tps):
+        print(f"[regress] 🔴 有 {len(tps) - n_kept} 支真陽性被放掉了 —— 這是回歸,"
+              f"上一次修法把擋對的東西弄丟了。", file=sys.stderr)
+        rc = 3
+    return rc
 
 
 def main() -> int:
