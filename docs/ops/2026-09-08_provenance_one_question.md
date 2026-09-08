@@ -134,3 +134,56 @@ slug `L_個股體檢致伸49154915抱139年賺3424為何`
 - 若要動,**最小且不碰產線邏輯的一步**是:產稿時把「本支用到的 fact keys + computed_at」
   寫成一個 `{slug}.facts.json` sidecar。它**只新增檔案、不改任何既有行為**,
   而它解掉的是第 1 項(對應關係不再需要重建)。⚠️ 這只是建議,**我沒有做**。
+
+---
+
+## 五、🔴 sidecar 不用我做了 —— 主頻道線今天已經做完(`cb52ae03`)
+
+交辦「做那個 sidecar」之後我先去看插入點,發現 `produce_batch.py:6455` 已經有一整段
+**2026-09-08 的事實溯源 sidecar 實作**。`git log` 確認是 `cb52ae03`
+(`feat(誠信·產製端): 落盤「這支片是從哪些 fact 寫出來的」`),落在我上一個 commit 之後。
+
+⚠️ **我應該先跑 `git log` 再動手的**(memory `parallel-sessions-same-repo`:那是唯一看得到
+別的 session 做了什麼的窗口)。差一點做出第二份。
+
+**它的設計比我提的完整**:`tmp → os.replace`(避開 `write_text` 先截斷後拋例外留 0 bytes 的事故)、
+整段 fail-open 且失敗記一行 ops、插入點選在「slug 已定案 + 旁白已落盤 + TTS 之前」並把三個理由寫在註解裡。
+
+⇒ **我改成驗它,而不是再做一份。**
+
+### 為什麼需要驗:`output/*.facts.json` 現在是 0
+
+**「還沒產片」和「這條路是壞的」在觀測上一模一樣** —— 那正是本文件與閘門盤點整天的主題。
+(今天已經有一個實例:watchdog 的救援路徑裝了五天沒被走過,一走就發現它會生出一個開跑就死的排程器。)
+
+### 驗到的(執行期,不是讀碼)
+
+鏈路:`_record_fact_keys`(:2148)→ `_LAST_FACT_KEYS`(:2167)→ `call_claude` pop(:2842)
+→ `result["_fact_record"]`(:3026)→ `make_one` 寫 `{slug}.facts.json`(:6466-6483)。
+
+| 檢查 | 結果 |
+|---|---|
+| `_fact_record_key(topic)` 是否穩定(同 topic 兩次同鍵) | ✅ `True`(`'id:checkup_4915'`) |
+| 記進去拿得回來 | ✅ 內容完整:`topic_id` / `topic_fact_key` / `facts_as_of` / `fact_keys` / `n_facts` / `selection` |
+| 🔴 **陰性對照**:別的 topic 拿不到這一筆 | ✅ `None` —— 沒有這個對照,「拿得回來」和「對誰都回同一筆」分不開 |
+
+### 兩個角落(**是銳角不是活 bug**,講清楚免得被當警報)
+
+`_fact_record_key`(:2137-2146)沒有 `id` 時**退回 `"title:" + title[:160]`**:
+
+- 兩個**都沒有 id 且標題相同**的 topic 會撞同一把鑰匙;`{}` 空 topic 退回 `'title:'`,多個空 topic 全部同鍵。
+- **為什麼目前不是活 bug**:`call_claude` 是**記錄完隨即 pop**(:2842),同一支流程內
+  record→pop 是連續的;而平行跑是**不同 process、不共用模組狀態**。
+  ⇒ 要撞到需要**同一個 process 內交錯**兩支無 id 同標題的產製。
+- 同理 `if len(_LAST_FACT_KEYS) > 64: clear()`(:2165)會清掉**全部**,理論上能清掉一筆
+  正在飛的記錄 —— 同樣需要交錯才會發生。
+- ⇒ **不建議現在改**。要防的話最小改法是 key 併入 `fact_key`(那是每支片唯一的),
+  但那要主頻道線自己決定,而且改 key 就要重驗上面那張表。
+
+### 可證偽的期望(給下一個人對答案)
+
+**下一輪產製跑完之後,`output/` 應該出現 `*.facts.json`,數量 = 那一輪產出的個股體檢片數。**
+- 對得上 ⇒ 這條路是通的。
+- **產了片而 sidecar 是 0** ⇒ 鏈路在 `:2842`~`:6466` 之間斷掉,去看 `ops_log` 有沒有
+  「補產·事實溯源 ⚠️ … sidecar 寫入失敗」那一行(它是 fail-open 的,所以**不會有別的訊號**)。
+- 查法零成本:`ls youtube_channel/output/*.facts.json | wc -l`。
