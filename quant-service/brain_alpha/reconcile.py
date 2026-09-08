@@ -21,12 +21,15 @@
 ## 用法
     python reconcile.py                 # 印摘要
     python reconcile.py --dump out.json # 另存缺口明細
+    python reconcile.py --snapshot      # 只存平台快照（挑片器的候選池來源之一）
+    python reconcile.py --snapshot --report  # 兩件都做
 """
 from __future__ import annotations
 
 import collections
 import datetime as dt
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -79,6 +82,7 @@ def fetch_platform(s, verbose=True) -> dict:
                 break
             for al in res:
                 st = al.get("settings") or {}
+                cks = ((al.get("is") or {}).get("checks") or None)
                 out[al["id"]] = {
                     "dc": al.get("dateCreated"), "status": al.get("status"),
                     "delay": st.get("delay"), "universe": st.get("universe"),
@@ -86,8 +90,13 @@ def fetch_platform(s, verbose=True) -> dict:
                     "code": (al.get("regular") or {}).get("code"),
                     "sharpe": (al.get("is") or {}).get("sharpe"),
                     "fitness": (al.get("is") or {}).get("fitness"),
-                    "fails": [c2["name"] for c2 in ((al.get("is") or {}).get("checks") or [])
-                              if c2.get("result") == "FAIL"],
+                    # 🔴 `checks_n` 是「有沒有評過」的出口。只存 fails 的話,
+                    #    **沒有 checks**（`is` 缺席／模擬沒跑完）與 **零 FAIL**
+                    #    在下游長得一模一樣(都是 `fails == []`),而前者必須被當成
+                    #    「不知道」擋掉、後者才是合格品。`None` = 這條沒有 is/checks。
+                    "checks_n": (len(cks) if cks is not None else None),
+                    "fails": [c2["name"] for c2 in (cks or []) if c2.get("result") == "FAIL"],
+                    "pending": [c2["name"] for c2 in (cks or []) if c2.get("result") == "PENDING"],
                 }
             off += 100
         if verbose:
@@ -99,6 +108,58 @@ def fetch_platform(s, verbose=True) -> dict:
         walk(d, d + dt.timedelta(days=1))
         d += dt.timedelta(days=1)
     return out
+
+
+# ───────────────────── 平台快照（挑片器的第二本帳） ─────────────────────
+# `pick_next.py` 的候選池原本只有 `auto_ledger.jsonl`，於是「平台上有、帳本沒有」
+# 的 alpha 結構上永遠選不到（2026-09-05 對帳：199 條，其中 4 條 checks 零 FAIL）。
+# 修法是把候選池改成「帳本 ∪ 平台」，而平台這一半就存在這個快照裡。
+# 快照由 `reconcile.py` 產（列舉規則只有這一份實作），由 `pick_next.py` 讀。
+SNAPSHOT = ROOT / "platform_alphas.json"
+SNAPSHOT_MAX_AGE_H = 24.0        # 缺口每天還在長（乙群 ET 逐日 0~8 條）
+
+
+def save_snapshot(plat: dict, path: Path = SNAPSHOT) -> Path:
+    """原子寫入。**不可以直接寫最終路徑** —— `open(...,"w")` 是先截斷後寫入，
+    寫到一半拋例外會留下 0 bytes，而空快照對讀取端是「合法但錯誤的零筆」
+    （memory `write-truncates-before-it-fails`）。"""
+    payload = {
+        "fetched_at": time.strftime("%Y-%m-%d %H:%M:%S"),   # 台北
+        "fetched_at_epoch": time.time(),
+        "count": len(plat),
+        "alphas": plat,
+    }
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    n = len(json.loads(tmp.read_text(encoding="utf-8"))["alphas"])   # 讀回比對
+    if n != len(plat):
+        tmp.unlink(missing_ok=True)
+        raise RuntimeError(f"快照讀回不符：寫 {len(plat)} 讀 {n}")
+    os.replace(tmp, path)
+    return path
+
+
+def load_snapshot(path: Path = SNAPSHOT, max_age_h: float = SNAPSHOT_MAX_AGE_H):
+    """回 `(alphas, meta, why)`。拿不到一律回 `(None, meta_or_None, 原因)`。
+
+    ⚠️ **不要**在拿不到時回空 dict：呼叫端會把「沒問到平台」讀成「平台上沒有
+    額外的東西」，那正是本次要修掉的那個 fail-open 的新版本。
+    """
+    if not path.exists():
+        return None, None, f"快照不存在（{path.name}）"
+    try:
+        d = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as e:  # noqa: BLE001
+        return None, None, f"快照讀不動：{e}"
+    al = d.get("alphas")
+    if not isinstance(al, dict) or not al:
+        return None, d, "快照裡沒有 alphas（0 筆的快照當成拿不到，不是當成空平台）"
+    age_h = (time.time() - float(d.get("fetched_at_epoch") or 0)) / 3600.0
+    meta = {"fetched_at": d.get("fetched_at"), "count": len(al), "age_h": age_h}
+    if age_h > max_age_h:
+        return None, meta, (f"快照過期 {age_h:.1f}h > {max_age_h:.0f}h"
+                            f"（{d.get('fetched_at')}）")
+    return al, meta, ""
 
 
 def load_ledger_rows():
@@ -181,6 +242,11 @@ def main() -> int:
     s = B.auth()
     now = time.strftime("%Y-%m-%d %H:%M:%S")
     plat = fetch_platform(s)
+    if "--snapshot" in sys.argv:
+        p = save_snapshot(plat)
+        print(f"\n平台快照 {len(plat)} 條 → {p}（{now} 台北）")
+        if "--report" not in sys.argv:
+            return 0
     rows, bad = load_ledger_rows()
     rep = classify(plat, rows)
 
@@ -200,7 +266,8 @@ def main() -> int:
         tail = f"（其中 {amb} 條同鍵混有多種錯誤型別，成因有歧義）" if amb else ""
         print(f"  {n:4d}  {w}{tail}")
 
-    clean = [m for m in rep["missing"] if not m["fails"] and m["sharpe"] is not None]
+    clean = [m for m in rep["missing"]
+             if m.get("checks_n") and not m["fails"] and m["sharpe"] is not None]
     clean.sort(key=lambda m: -m["sharpe"])
     print(f"\n其中 checks 零 FAIL（產線永遠選不到的合格品）{len(clean)} 條：")
     for m in clean:

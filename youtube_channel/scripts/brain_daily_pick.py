@@ -170,23 +170,44 @@ def main() -> int:
                  f"重新挑出來、而且分子去重會整個失效。請確認 token 後重跑。")
         print(f"取不到已提交清單:{why_done} —— 中止(不是沒有候選,是沒問到)。")
         return 2
+    # 🔴 2026-09-08:候選池 = **帳本 ∪ 平台快照**,不是只有帳本。
+    #    帳本看不到的 alpha 這支永遠選不到 —— 2026-09-05 對帳查出 199 條
+    #    「平台有、帳本沒有」,其中 4 條 checks 零 FAIL(最高 Sharpe 2.35,
+    #    對照已提交最高 2.40)。組池與去重的實作**只有 pick_next 一份**:
+    #    這支原本自己抄了一份,於是修好 pick_next 不會修到這條每天 12:20 真的
+    #    在做決定的路徑(memory: 做決策的那個系統看的是哪一本帳)。
+    import reconcile as R2
+    plat, meta, why_snap = R2.load_snapshot()
+    if plat is None and "--no-refresh" not in sys.argv:
+        # 🔴 快照過期就**自己重抓**,不要靠另一個排程去餵它。
+        #    分成兩個排程的話會多一種失效形態:快照那支默默壞掉,這支每天照常
+        #    中止,而「中止」的訊息會說快照拿不到 —— 沒有人會知道是排程掉了。
+        #    列舉唯讀、約 10 分鐘;本支排 12:20(ET 00:20),抓完仍遠早於 15:00 結算。
+        print(f"平台快照{why_snap} —— 現抓一份（唯讀，約 10 分鐘）…")
+        try:
+            R2.save_snapshot(R2.fetch_platform(s, verbose=False))
+            plat, meta, why_snap = R2.load_snapshot()
+        except Exception as e:  # noqa: BLE001
+            why_snap = f"重抓失敗：{type(e).__name__} {e}"
+            plat = None
+    if plat is None:
+        # fail-closed。**不可以退回只用帳本** —— 那正是這次要修掉的盲區,
+        # 而它退化時不會產生任何錯誤訊號(候選表照樣印得出來)。
+        B.notify("🔴 BRAIN 挑片中止:平台快照拿不到",
+                 f"ET {today} {why_snap}\n\n"
+                 f"候選池要「帳本 ∪ 平台」才完整。只用帳本會漏掉平台上跑完、\n"
+                 f"checks 零 FAIL、但帳本記成失敗的那一群(對帳實據 199 條/4 條合格)。\n"
+                 f"→ 跑 `python reconcile.py --snapshot`(約 10 分鐘,唯讀)後重跑本支。")
+        print(f"平台快照拿不到:{why_snap} —— 中止(不退回帳本-only)。")
+        return 2
     led = B.load_ledger()
-    cand = [r for r in led.values()
-            if r.get("ok") and (r.get("result") or {}).get("evaluable_pass")
-            and r.get("alpha_id") not in done]
-
+    cand, pool_st = P.build_pool(led, plat, done)
     # 每個分子只留最好的一條：同分子必然高度相關（實測 0.97），多測是浪費額度。
     # 換分母沒用（close 與 cap 本身高度相關），只有**換分子**才真的降相關（0.62）。
-    by = defaultdict(list)
-    for r in cand:
-        by[P.numerator(r["expr"])].append(r)
-    done_nums = {P.numerator(r["expr"]) for r in led.values() if r.get("alpha_id") in done}
-    picks = []
-    for num, v in by.items():
-        if num in done_nums:
-            continue
-        v.sort(key=lambda r: -(r["result"].get("fitness") or 0))
-        picks.append(v[0])
+    picks, by, done_nums = P.dedup_by_numerator(cand, led, plat, done)
+    print(f"候選池:帳本 ∪ 平台快照 {meta['count']} 條（{meta['fetched_at']}，"
+          f"{meta['age_h']:.1f}h 前）→ 合格未提交 {pool_st['qualified_excl_done']} "
+          f"（平台獨有 {pool_st['cand_by_src']['platform']}）| 未交分子 {len(picks)} 種")
     # 🔴 2026-09-01：不能單純照 fitness 取前 N。
     # 實測：1,220 條通過裡 fundamental2 一家佔 **1,154 條**（94.6%），
     # 高分榜單被同一家的孿生體塞滿 —— 今天照舊排序取前 6 條，
@@ -196,14 +217,21 @@ def main() -> int:
     # 另一個實測（同日）：跨資料集兩兩 PnL 相關 10 組只有 1 組 ≥0.7，
     # 而同資料集內部幾乎全撞。→ **資料集是相關性的主軸**，排序要先跨家分配。
     # （我一開始以為是「模板決定相關」，量完被自己推翻：跨資料集 0.0~0.53。）
-    picks.sort(key=lambda r: -(r["result"].get("fitness") or 0))
+    # 🔴 粗排只用兩邊都有的欄位（fitness/sharpe）。**不可以用 last_year_sharpe**:
+    #    它只有帳本側有(1,352/1,359),平台獨有的候選一條都沒有,拿缺值當 -9 或 0
+    #    排序等於把整個平台側沉到底再截掉 —— 池子改對了還是選不到。
+    picks.sort(key=P.prerank_key)
     by_ds = defaultdict(list)
     for r in picks:
+        # 平台獨有的候選沒有 label（它不在帳本裡）→ 自成一「家」,
+        # 在 round-robin 裡每輪拿一條,不會被 fundamental2 那種大家族擠掉。
         by_ds[(r.get("label") or "||").split("|")[1]].append(r)
     # 各家依「該家最佳 fitness」排序，然後一輪一條輪流拿（round-robin）。
-    order = sorted(by_ds.values(), key=lambda v: -(v[0]["result"].get("fitness") or 0))
+    order = sorted(by_ds.values(), key=lambda v: -(v[0].get("fitness") or 0))
     spread = []
-    for i in range(max(len(v) for v in order)):
+    # `max(...)` 對空序列會 ValueError（下面 `if not picks` 的守門在它**之後**,
+    # 擋不到）。正式路徑上 picks 不會空,但那是「目前不會」不是「不可能」。
+    for i in range(max((len(v) for v in order), default=0)):
         for v in order:
             if i < len(v):
                 spread.append(v[i])
@@ -270,11 +298,26 @@ def main() -> int:
                 "%s=%s" % (k, bad_res.get(k)) for k in bad), elapsed=_elapsed)
         y = (r.get("year_quality") or {}).get("last_year_sharpe")
         rows.append(dict(sc=sc if sc is not None else 9, num=P.numerator(r["expr"]),
-                         aid=aid, sh=r["result"].get("sharpe"),
-                         fit=r["result"].get("fitness"), ly=y, bad=bad,
+                         aid=aid, sh=r.get("sharpe"),
+                         fit=r.get("fitness"), ly=y, bad=bad, rec=r,
                          bad_res=bad_res, elapsed=_elapsed))
         print(f"  {P.numerator(r['expr'])[:30]:<32} {aid}  self_corr={sc}  "
               f"{'非PASS:' + ','.join(bad) if bad else 'OK'}")
+
+    # 🔴 逐年表要在這裡補抓:平台獨有的候選不在帳本裡 ⇒ **一條都沒有** year_quality,
+    #    而下面的排序把缺值當 0 用。不補的話「沒量到」會被當成「最後一年 0.00」,
+    #    一整群平台側候選會因為一個從沒量過的數字被排到最後(同族缺陷:PAUSED.md C 項)。
+    n_filled = P.fill_year_quality(s, [x["rec"] for x in rows if x["ly"] is None])
+    for x in rows:
+        x["ly"] = (x["rec"].get("year_quality") or {}).get("last_year_sharpe")
+    if n_filled:
+        print(f"  補抓逐年統計 {n_filled} 條")
+    still_unknown = [x["aid"] for x in rows if x["ly"] is None and not x["bad"]]
+    if still_unknown:
+        # 補不到就講出來。**不可以讓它靜靜地以 0 參加排序** —— 那是把「沒量到」
+        # 說成一個量到的數,而讀的人看不出差別。
+        print(f"  ⚠️ 逐年表拿不到 {len(still_unknown)} 條，排序上等同 0："
+              + ",".join(still_unknown))
 
     ok = [x for x in rows if not x["bad"] and x["sc"] < SAFE]
     # SAFE=0.60 是**離線估計**時代留的緩衝（我的方法誤差 ±0.01，但池子會隨提交變動）。
@@ -348,8 +391,13 @@ def main() -> int:
         lines.append(f"{i}. {x['num'][:40]}")
         # 全部套 `or 0`：這支跑在 cron 裡,一個 None 格式化例外 = 當天沒通知
         # 且**完全無聲**。那正是 memory verification-that-cannot-fail 記的病。
+        # 「最後一年」要有「沒有」的出口:`or 0` 會把拿不到的逐年表印成 0.00,
+        # 而真的量到 0.00 是「近年撐不住、別交」—— 兩者在訊息上必須分得出來。
+        _ly = f"{x['ly']:.2f}" if x["ly"] is not None else "未知（逐年表拿不到）"
         lines.append(f"   Sharpe {(x['sh'] or 0):.2f} · fitness {(x['fit'] or 0):.2f} · "
-                     f"self-corr {(x['sc'] or 0):.3f} · 最後一年 {(x['ly'] or 0):.2f}")
+                     f"self-corr {(x['sc'] or 0):.3f} · 最後一年 {_ly}")
+        if (x["rec"] or {}).get("src") == "platform":
+            lines.append("   ⚠️ 這條只在平台上、帳本沒有（帳本把它記成了失敗）")
         # 兩條之間的相關也要看得見：平台只查得到「對已提交池」，查不到彼此。
         if x.get("pair"):
             lines.append(f"   與上一條的相關 {x['pair']:.3f}（門檻 {SAFE}）")
