@@ -681,9 +681,21 @@ def simulate(s, expr, settings, timeout_s=600):
     → 現在 401 會就地重新認證並重試，重試失敗才算真失敗。
     """
     loc = None
-    for _ in range(15):                       # 429 退避 / 401 重新認證
-        r = s.post(f"{API}/simulations", json={"type": "REGULAR", "settings": settings,
-                                               "regular": expr}, timeout=30)
+    for _ in range(15):                       # 429 退避 / 401 重新認證 / 連線中斷重試
+        # 🔴 2026-09-09：原本這裡只處理 **HTTP 狀態碼**，沒處理**傳輸層例外**。
+        # 平台會直接把連線掐掉（`RemoteDisconnected: Remote end closed connection
+        # without response`），那不是任何一個 status_code —— 例外會一路穿出
+        # `simulate()`、穿出 `work()`，**把整個 worker thread 殺掉**。
+        # 而 `cmd_run` 不會知道：另一個 worker 繼續把佇列跑完、照常印收尾訊息，
+        # 批次**看起來就像跑完了**（死掉那個 worker 已經 idx += 1 的那幾條
+        # 連失敗列都沒有，事後查不出丟了哪幾條）。
+        # 實測：36 條的批次死掉一個 worker，剩下的用一半吞吐跑完。
+        # 同形狀：cp950 那個崩潰也是「批次看起來像跑完了」。
+        try:
+            r = s.post(f"{API}/simulations", json={"type": "REGULAR", "settings": settings,
+                                                   "regular": expr}, timeout=30)
+        except requests.exceptions.RequestException:  # 連線被掐/逾時 → 當可重試
+            time.sleep(10); continue
         if r.status_code in (200, 201):
             loc = r.headers.get("Location"); break
         if r.status_code == 429:
@@ -705,7 +717,10 @@ def simulate(s, expr, settings, timeout_s=600):
     t0 = time.time(); sim = None
     time.sleep(18)
     while time.time() - t0 < timeout_s:
-        p = s.get(loc, timeout=30)
+        try:
+            p = s.get(loc, timeout=30)
+        except requests.exceptions.RequestException:   # 同上：傳輸層中斷是可重試的
+            time.sleep(5); continue                    # timeout_s 這個 while 條件自己會收
         if p.status_code != 200:
             return None, f"poll {p.status_code}"
         sim = p.json()
@@ -717,9 +732,22 @@ def simulate(s, expr, settings, timeout_s=600):
     aid = sim.get("alpha")
     if not aid:
         return None, f"無 alpha id（語法錯？）msg={str(sim.get('message'))[:150]}"
-    a = s.get(f"{API}/alphas/{aid}", timeout=30)
+    a = None
+    for _ in range(4):
+        try:
+            a = s.get(f"{API}/alphas/{aid}", timeout=30)
+            break
+        except requests.exceptions.RequestException as e:  # noqa: BLE001
+            a = None
+            last = f"{type(e).__name__}: {str(e)[:60]}"
+            time.sleep(5)
+    if a is None:
+        # 這條的模擬**已經跑完了**（平台上有 alpha），只是我們拿不回明細。
+        # 講清楚是哪一種失敗，不要跟「模擬沒跑起來」混在同一句裡 ——
+        # 後者該重跑，前者重跑等於白花一次額度（memory brain-ledger-is-the-decision-book）。
+        return None, f"取 alpha 連線失敗（alpha {aid} 已建立）: {last}"
     if a.status_code != 200:
-        return None, f"取 alpha {a.status_code}"
+        return None, f"取 alpha {a.status_code}（alpha {aid} 已建立）"
     return {"id": aid, "detail": a.json()}, None
 
 
@@ -1387,7 +1415,7 @@ LOCKFILE = ROOT / "miner.lock"
 # 下面 `_assert_self_recognised()` 就是為了讓這種漏加**會產生輸出**。
 MINER_PATTERNS = ("field_miner", "second_order", "brain_auto",
                   "universe_sweep", "hybrid_miner", "brain_alpha_cron",
-                  "run_delay0")
+                  "run_delay0", "news12_weight_fix")
 
 
 def _pid_alive_miner(pid: int) -> bool:
@@ -1518,7 +1546,16 @@ def cmd_run(n, workers=2):
                     return
                 i = idx["i"]; idx["i"] += 1
             label, expr, settings = todo[i]
-            res, err = simulate(s, expr, settings)
+            # 🔴 後盾:worker 不可以無聲死掉。上面的 `simulate()` 已經接住已知的
+            # 傳輸層例外,但「已知」永遠是不完整的清單 —— 而這裡沒有 try 的代價
+            # 不是少跑一條,是 **idx 已經 +1、那一條連失敗列都沒有**,
+            # 事後從帳本查不出丟了哪幾條,而收尾訊息照常印。
+            # 判準(docs/ops/dispatch.md:157):這條規則沒被遵守時會不會產生輸出?
+            # 沒有 try = 不會 ⇒ 那是期望不是規則。
+            try:
+                res, err = simulate(s, expr, settings)
+            except Exception as e:  # noqa: BLE001
+                res, err = None, f"未預期例外 {type(e).__name__}: {str(e)[:100]}"
             # `delay` 一定要記:標籤 `F1|ds|field|form` 裡沒有它,而 delay=0 和 delay=1
             # 的同一個欄位會產生**兩列長得一模一樣的紀錄**(_key 有含 delay 所以不會誤去重,
             # 但事後沒有任何辦法從帳本分辨這一列是哪個 delay 跑的)。2026-09-08 換軸時發現。
