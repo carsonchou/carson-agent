@@ -46,6 +46,76 @@ Start-ScheduledTask -TaskName LocalCronWatchdog                          # 立�
 ```
 產出:`logs/local_cron_watchdog.log`(只在有動作時寫)、`logs/local_cron_boot.log`(被拉起來那個實例的 stderr)、`STUDIO/local_cron_watchdog_alert.json`(現在有問題)、`STUDIO/local_cron_watchdog_push.json`(推播冷卻)。
 
+## 🔴 「commit 了」和「跑起來的行為變了」,對常駐程序隔著一次重啟
+
+2026-09-09 實據:`local_cron.py` 的輪替修法 08:58 / 09:06 commit,而跑著的程序
+**PID 62004/60672 起於 09-08 08:21:56** ⇒ **磁碟上修好了,記憶體裡還是舊碼。**
+當天 12:45:20 那次觸發走的仍是舊路徑:2,691,191 bytes → **129 bytes**,無 `.1`,
+`local_cron.log` 798 行同時段紀錄裡「輪替/歸零/truncate」**零命中** —— 它動手時不出聲。
+🔴 而在那之前,已經有人對外報告過「炸彈拆了」。
+
+**判準(一句話,可機械套用)**:
+
+> 改的東西是被**每次重讀**的(`crontab.txt`、資料檔、`.env`),
+> 還是**啟動時載入一次**的(模組 / 程式碼)?
+> 後者一律要問:**哪個程序在跑它、什麼時候啟動的、那個時間在我的 commit 之前還是之後?**
+
+```powershell
+Get-CimInstance Win32_Process -Filter "Name like '%python%'" |
+  Sort-Object CreationDate |
+  ForEach-Object { "{0,-6} {1:MM-dd HH:mm:ss} {2}" -f $_.ProcessId, $_.CreationDate, $_.CommandLine }
+```
+
+⚠️ **`local_cron` 舊碼不代表它派出去的 job 是舊碼**:`run_job()` 用 `Popen` 每次開**新行程**
+⇒ job 腳本一律載當下磁碟上的碼。**只有 `local_cron.py` 自己會卡在舊版。**
+
+⚠️ 同一天掃出**第二個**,而且更久:`quant-service/brain_alpha/status_pane.py --every 300`
+(PID 35716/41704)起於 **09-01 21:44**,`:143` 的 `import brain_auto` 被 `sys.modules` 快取住
+⇒ 它顯示的數字是 8 天前那版 `brain_auto` 算的。**只讀不寫,所以不毀資料 ——
+但那是一個看起來完全正常、而且會說謊的儀表板。**
+同族:memory `omniroute-usage-failover`(設定改了而跑到一半的程序讀不到,結論也是只能重啟)。
+
+## 🔴 安全重啟 `local_cron`(2026-09-09 實跑驗過)
+
+**不要自己 `Popen` 拉。把它殺掉,然後等 watchdog。**
+
+```powershell
+Stop-Process -Id <local_cron 的兩個 PID> -Force     # .venv + system launcher 是一對,兩個都殺
+# 之後什麼都不用做,watchdog 每 5 分鐘一輪,自己會拉
+```
+
+實錄(空窗 12:46:05 → 12:52:59,約 **7 分鐘**):
+```
+[12:52:59] [watchdog] 心跳 421.2 秒沒更新、也沒有 local_cron 程序 → 拉起排程器。
+[12:53:02] [watchdog] 已啟動,心跳恢復,pid=660
+[12:52:59] ⏰ 偵測到上次心跳停在 09-09 12:45,啟動後將補跑斷檔關鍵任務
+```
+
+- 空窗上限 ≈ **180 秒陳舊門檻 + 最多 5 分鐘 watchdog 週期**。
+- 斷檔 >180 秒會**自動回掃補跑白名單**:`daily_publish` / `quality_score` /
+  `stock_checkup_daily` / `produce_batch`(`local_cron.py:492`)。非白名單是 `*/3`~`*/5` 的高頻 job,
+  程式碼註解明寫「天生高頻,不需補」。
+- ⚠️ **不要 kill 完馬上自己起**:`_lock_fresh()` 判準是鎖檔 <60 秒,太早起的新實例會
+  **靜默自殺**,只印一句聽起來很正常的「另一個 local_cron 已在跑」。走 watchdog 天然避開。
+- 挑時間:避開整點/半點那些非高頻 job(見 `crontab.txt`)。
+
+### 🔴 驗收判準:「重啟了」不算通過,要證明**新碼在執行**
+
+`State=Ready` 不算、`LastTaskResult=0` 不算、PID 換新了也**不算**(那只證明重啟了)。
+而且「檔案沒被歸零」更不算 —— 沒到門檻本來就不會歸零(**不會叫的檢查**)。
+
+**要讓那條路徑真的被走一次**,並且**兩個方向都要有對照**:
+
+| | 舊碼(12:45:20 實測) | 新碼(重啟後實測) |
+|---|---|---|
+| 檔案 | 2,691,191 → **129 bytes** | 移到 `<stem>.1.log`,填充標記完好 |
+| `.1` 檔 | **不存在** | 存在 |
+| `local_cron.log` | **零行** | 出現「🔄 …已輪替到…」 |
+
+做法:把某支 `*/5` job 的 `logs/jobout/<stem>.log` **先備份到 `_safety/`,再 append 一段
+帶標記的填充**推過門檻,等它下一輪派工。**用 append 不用覆寫** —— 那樣 `.1` 裡會同時有
+原內容和標記,證明的是「搬走」而不只是「有個新檔」。
+
 ---
 
 # 主頻道守望排程(2026-09-06 建;Windows 排程工作不受版控,重灌照這裡重建)
