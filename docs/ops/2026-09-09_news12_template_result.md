@@ -46,7 +46,11 @@ C 的 12 格裡有 **8 格的 Sharpe / fitness 與基準到小數點第二位完
 (`OFFICIAL_RULES.md:31`):「被賦權的股票太少」與「單一股票權重過高」。
 現在有直接證據排除後者 ⇒ **是前者,而且沒有任何一個測過的槓桿能動它。**
 
-## ⚠️ A/B 的證據基礎只有 10 格,不是 24 格 —— 別把結論說得比證據強
+## ~~⚠️ A/B 的證據基礎只有 10 格,不是 24 格~~ → **已作廢,見本節末的更正**
+
+> 🔴 **2026-09-10:本節的但書已經失效。** 那 14 格**跑完了**,平台上一條不漏全部找回來,
+> 而且**沒有一格解掉 `CONCENTRATED_WEIGHT`**。A/B 的證據基礎是完整的 **24 格**,結論不變。
+> 詳見 `docs/ops/2026-09-09_news12_unit14_result.md`。以下原文保留,它示範了當時錯在哪。
 
 A/B 共 24 格,其中 **14 格根本沒跑起來**:
 
@@ -58,9 +62,16 @@ A/B 共 24 格,其中 **14 格根本沒跑起來**:
 ⇒ **「`group_backfill` 解不掉 CONCENTRATED_WEIGHT」只有 10 個有效觀測支撐**,
 而「truncation 解不掉」是 12/12 有效觀測 + bit-identical 的硬證據。**兩者強度不同。**
 
-另有 1 格(`all_sessions_volume_weighted_avg_price|v_raw|B`)因為 worker 被連線中斷
-殺掉而沒落帳 —— 那個 bug 已修(`545ed1ce`),但這一格沒補跑,因為
-「≥12/24」的判定不會因為一格而翻盤。
+~~另有 1 格(`all_sessions_volume_weighted_avg_price|v_raw|B`)因為 worker 被連線中斷
+殺掉而沒落帳,這一格沒補跑。~~
+
+🔴 **2026-09-10 更正**:那一格**不用補跑,它在平台上**。`vRkvQvmv`
+(trunc 0.05 = 變體 B),sharpe **4.09** / fitness **3.95**,
+`FAIL = CONCENTRATED_WEIGHT, LOW_SUB_UNIVERSE_SHARPE`。
+worker 是死在**印進度行**之後、`append()` 之前,模擬本身早就送出去了。
+⇒ **A/B 的 24 格現在是完整的 24 格,0 格解掉 `CONCENTRATED_WEIGHT`。**
+連帶:本檔下方「A/B 的證據基礎只有 10 格」那個但書已經失效,見
+`docs/ops/2026-09-09_news12_unit14_result.md`。
 
 ## 已排除 / 沒有排除
 
@@ -76,8 +87,8 @@ A/B 共 24 格,其中 **14 格根本沒跑起來**:
 
 | 仍然未知 | 為什麼 |
 |---|---|
-| `group_backfill` 在**單位相容**的欄位上有沒有用 | 24 格裡 14 格因 `Incompatible unit` 沒跑起來 |
-| 放寬 `unitHandling`(VERIFY → 其他)會怎樣 | 沒試。**但那是繞過檢查不是解決問題**,要先想清楚代價 |
+| ~~`group_backfill` 在單位相容的欄位上有沒有用~~ | 🔴 **2026-09-10 已排除**:那 14 格其實跑完了(平台上找回 14/14),**0 格解掉**。移到上表 |
+| ~~放寬 `unitHandling` 會怎樣~~ | 🔴 **不需要**。官方原文 `OFFICIAL_RULES.md:130`:unit warning **"do not prevent submission"**。問題在我們把 `status=WARNING` 判成失敗,已修(`f84be9d7`) |
 | 其他提高覆蓋的做法(`vec_sum`、`ts_backfill` 更長窗、換分群) | 沒試 |
 | `news12` 的 75 個 MATRIX 欄位、`news18` | 沒碰(見前一份報告) |
 
