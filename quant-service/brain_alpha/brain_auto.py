@@ -727,7 +727,21 @@ def simulate(s, expr, settings, timeout_s=600):
         if sim.get("status") and sim["status"] != "RUNNING":
             break
         time.sleep(2 if time.time() - t0 < 90 else 5)
-    if not sim or sim.get("status") != "COMPLETE":
+    # 🔴 2026-09-09：`WARNING` **不是失敗**。官方原文（`OFFICIAL_RULES.md:130`）：
+    #   "Unit warnings are provided for reference in simple cases and **do not prevent
+    #    submission**... You can safely ignore these warnings if you're sure the Alpha
+    #    correctly handles data units."
+    # 原本這裡只認 `COMPLETE`，於是 `Incompatible unit` 這種**模擬已經跑完、平台已經
+    # 建立了 alpha** 的情況被記成失敗、`alpha_id` 丟掉、去重讓它永遠不會重試。
+    # 實測代價：模板實驗 24 格裡 14 格被這樣丟掉（7 條運算式 × 2 個 truncation），
+    # 事後在平台上**一條不漏全部找得回來**，指標都是好的。
+    # 同族第二次：`docs/ledger-platform-gap-20260905.md` 的 199 條缺口裡，
+    # `status=WARNING` 那 5 條就是同一個原因。
+    # 判準是**有沒有 alpha**，不是狀態字串好不好看：有 alpha ⇒ 它跑完了。
+    warn = None
+    if sim and sim.get("status") == "WARNING" and sim.get("alpha"):
+        warn = str(sim.get("message"))[:150]
+    elif not sim or sim.get("status") != "COMPLETE":
         return None, f"status={sim.get('status') if sim else None} msg={str(sim.get('message'))[:150] if sim else ''}"
     aid = sim.get("alpha")
     if not aid:
@@ -748,7 +762,10 @@ def simulate(s, expr, settings, timeout_s=600):
         return None, f"取 alpha 連線失敗（alpha {aid} 已建立）: {last}"
     if a.status_code != 200:
         return None, f"取 alpha {a.status_code}（alpha {aid} 已建立）"
-    return {"id": aid, "detail": a.json()}, None
+    # `warn` 一定要帶出去：它是**這條 alpha 的性質**（單位不相容），
+    # 不是這一次執行的雜訊。丟掉它等於把「這條有單位警告」這件事永久遺失，
+    # 而官方說那不擋提交、只是要人自己確認單位處理對不對。
+    return {"id": aid, "detail": a.json(), "warning": warn}, None
 
 
 SCORE_LOG = ROOT / "score_history.jsonl"
@@ -1589,6 +1606,8 @@ def cmd_run(n, workers=2):
                     infra["streak"] = 0
                 ev = flatten(res["detail"])
                 rec.update(ok=True, alpha_id=res["id"], result=ev)
+                if res.get("warning"):        # 單位警告：落帳但不當失敗（見 simulate）
+                    rec["warning"] = res["warning"]
                 tag = ("★全過" if ev["all_pass"] else
                        ("☆已評估項全過(pending:" + ",".join(ev["pending"]) + ")"
                         if ev["evaluable_pass"] else ",".join(ev["failed"])))
