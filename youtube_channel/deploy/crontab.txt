@@ -149,6 +149,15 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # 每天 16 個有事實的長片題,供 6 支/日發布仍有餘裕。backlog 尚有 1,778 檔可做。
 # ⚠️ 別再往上加太多:每檔要打 yfinance 約 5 次,實測 42 檔連跑會被 Yahoo 限流
 #    (見 checkup_fundamentals_backfill.py 的重試說明)。
+# 🔴 2026-09-09 事實庫 key 歸屬健檢(方案書 docs/ops/2026-09-09_design_fact_key_ownership.md)。
+#   排 05:45 的唯一理由:在日班 50 5(上一行)之前、週日 rank 40 6 * * 0(:622)之後一整天
+#   ⇒ B 永遠讀到沒有寫入端在跑的靜止檔。
+#   ⚠️ 不要用「B 開檔會讓 os.replace 撞 PermissionError」當理由,那條實測不成立:
+#      B 全程 0.21s、read_text 0.05s,併發壓測 28 輪 B x 10 次真寫入,需要退避 0 次。
+#   為什麼需要它:merge_and_write 的總數比對對「單一前綴整批蒸發」是盲的(那些 key 對
+#   被合併的代號前後都算「自己的」)。這支按前綴分組量覆蓋率,才看得見。
+#   exit code 實務上沒人看得到(cron.log 一天幾百行)⇒ 它的告警走 ops.log_ops,落 STUDIO/ops_log.txt。
+45 5 * * * /root/yt/run.sh scripts/checkup_facts_prefix_health.py >> /root/yt/logs/cron.log 2>&1
 50 5 * * * /root/yt/run.sh scripts/stock_checkup_daily.py --count 16 >> /root/yt/logs/cron.log 2>&1
 # 🔴 2026-08-29 題庫補種:上面那行只做「backlog 隊伍最前面的**下一檔新股票**」,從不回頭。
 #   實測落差:事實庫涵蓋 522 檔,題庫只種過 207 檔 → **315 檔有事實、沒種題**(1,896 組事實

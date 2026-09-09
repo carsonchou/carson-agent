@@ -756,6 +756,57 @@ def _atomic_write_json(path: Path, obj, *, expect_results: int, expect_by_code: 
     return len(blob), n_res, n_by
 
 
+# ── 事實庫 key 的歸屬表(2026-09-09,方案書 docs/ops/2026-09-09_design_fact_key_ownership.md §3.1)──
+#
+# `STUDIO/stock_checkup_facts.json` 的 `results` 是**多個寫入端共用**的 key 命名空間,
+# 而 `merge_and_write()` 需要「清掉本代號改版後失效的欄位」。這兩件事只有一個東西分得開:
+# **前綴**。前綴 = key 第一個 `__` 之前那一段(實測正式檔 8,137 個 key、13 個相異前綴)。
+#
+# ⚠️ 這兩張表是**靜態清單**,它們不會自己發現世界變了。
+#    唯一讓它們過期時出聲的東西是 `merge_and_write()` 裡對未知前綴印的那行告警,
+#    以及 `checkup_facts_prefix_health.py`(按前綴分組量覆蓋率)。表改了記得兩邊一起想。
+
+# 本腳本(含它呼叫的 stock_fundamentals.build_fundamentals_facts)產出的前綴 ⇒ **可以刪**。
+# 這正是原本「清掉改版後失效欄位」的用意,改版後不再產出的欄位要清得掉。
+# 來源不是印象,是逐行對過程式碼:
+#   · 本檔 build_checkup() 的 add(f"checkup_xxx__{code}") 六處
+#   · stock_fundamentals.py:476 `key = f"checkup_{slug}__{code}"`,slug 取自同檔 PLAN 的五個項目
+OWNED_PREFIXES = frozenset({
+    # 價格面(本檔 build_checkup 直接產)
+    "checkup_long_horizon",
+    "checkup_annual_extremes",
+    "checkup_three_way",
+    "checkup_underwater",
+    "checkup_halvings",
+    "checkup_crash",            # 唯一三段式 key:checkup_crash__{code}__{window}
+    # 基本面(stock_fundamentals.PLAN 的五個 slug)
+    "checkup_revenue_trend",
+    "checkup_eps_trend",
+    "checkup_gross_margin",
+    "checkup_dividend_history",
+    "checkup_valuation_position",
+})
+
+# 別的寫入端產的前綴 ⇒ **保留,不出聲**(這是預期狀態,不是異常,不要每輪印它)。
+#   · checkup_industry_rank.py:108  `key = f"checkup_industry_rank__{code}"`
+#   · checkup_industry_rank.py:144  `key = f"checkup_industry_summary__{ind}"`(產業名,不是代號)
+# 兩者都由 crontab 每週日 06:40 的 `checkup_industry_rank.py --apply` 寫入。
+FOREIGN_PREFIXES = frozenset({
+    "checkup_industry_rank",
+    "checkup_industry_summary",
+})
+
+
+def _key_prefix(key: str) -> str:
+    """key 的前綴 = 第一個 `__` 之前那一段。
+
+    ⚠️ 只用 `split("__", 1)[0]`,**不要**先做別的正規化。
+       memory `flattened-key-hides-evidence`:把三段式 key(`checkup_crash__2330__gfc`)
+       壓平成兩段會讓同一檔的三個崩盤視窗折成一筆,證據在眼前消失。
+       這裡取第一段是**取前綴**,不是壓平 —— 回傳值只拿來查表,不拿來當 key 用。
+    """
+    return key.split("__", 1)[0]
+
 def merge_and_write(facts, dry=False):
     """把單一代號的體檢結果合併進共用檔（別的代號已算出的事實不動）。"""
     existing = _load_existing()
@@ -785,20 +836,72 @@ def merge_and_write(facts, dry=False):
             f"[stock_checkup_facts] 🔴 {code} 本次算出的事實裡有 {len(foreign)} 個 key 不屬於它,"
             f"拒絕寫入 —— 例:{foreign[:5]}。"
             f"這些 key 會 `update()` 覆蓋掉別的代號的事實。正式檔零改動。")
-    # 🔴 2026-09-09 獨立驗證在這裡找到一件**現在正在發生、但本次沒修**的事,先標著:
-    #    下面這行會連 `checkup_industry_rank__{code}` 一起 pop 掉 —— 那個 key 不是本腳本產的,
-    #    是 `checkup_industry_rank.py --apply`(crontab.txt:622,**每週日 06:40**)寫的,
-    #    而 `facts["results"]` 不會補回來 ⇒ **每天 `--count 16` 就抹掉 16 檔的同業排名事實,
-    #    要等下個週日才長回來。** 實測:651 檔裡 482 檔的實際歸屬數比宣稱 `n_facts` 多 1
-    #    (多的清一色是 rank key);而 09-07 之後重算過的 34 檔**留著 rank key 的是 0 檔**
-    #    (對照組:09-06 那班之前重算的 601 檔有 471 檔留著)。
-    #    ⚠️ 新加的 `others_after == others_before` **看不到它** —— 那個 key 對本代號來說
-    #       前後都算「自己的」。不要因為那道閘門沒叫就以為沒事。
-    #    ⚠️ 沒有順手修的理由:這行的原始用意是「改版後清掉失效欄位」,而那正需要刪掉
-    #       不再產出的前綴 ⇒ 「保留別人的 key」和「清掉自己的舊 key」在這個判準下分不開,
-    #       要修得先決定**哪些前綴屬於別的寫入端**,那是一個設計決定 + 一輪獨立驗證,不是一行。
-    # 先清掉這個代號舊的 key（避免改版後留下失效欄位），再灌新的
-    stale_keys = [k for k in existing["results"] if k.endswith(f"__{code}") or f"__{code}__" in k]
+    # ── 清掉這個代號舊的 key(避免改版後留下失效欄位)———— 但只清**本腳本自己的**前綴 ──
+    #
+    # 🔴 2026-09-09 修:舊版判準是純集合差「屬於本代號 && 不在本次輸出裡 ⇒ 刪」。
+    #    那是拿**內容**去推**歸屬**,而這個 key 命名空間有不只一個寫入端 ⇒ 必然誤刪。
+    #    實測損害:每天 `--count 16` 抹掉 16 檔的 `checkup_industry_rank__{code}`
+    #    (`checkup_industry_rank.py --apply` 每週日 06:40 寫的),要等下個週日才長回來。
+    #    09-07 之後重算過的 34 檔,留著 rank key 的是 **0 檔**;09-06 前重算的 601 檔有 471 檔留著。
+    #    ⚠️ `others_after == others_before` 對這件事是**盲的** —— 那個 key 對本代號來說前後都算
+    #       「自己的」,總數不變。不要因為那道閘門沒叫就以為沒事。
+    #
+    # 改成按前綴分屬,三分類(方案書 §3.1)。**預設值是「不要動」**:
+    #    未知前綴 ⇒ 保留 + 印一行告警,**不拋例外**。
+    #
+    # ⚠️ 這個預設值把失效方向翻到哪一邊,講清楚:
+    #    - 舊版表過期(有人加了新寫入端)⇒ **靜默刪掉別人的資料**,零訊號,要等下游發現事實不見了。
+    #    - 新版表過期 ⇒ **多留幾個過時欄位 + 每輪一行告警**。資料還在,而且會出聲。
+    #    這是刻意用「留下垃圾」換掉「刪掉別人的資料」,不是兩邊都顧到了。
+    #
+    # ⚠️ 這道判準**看不到**的東西(不要高估它):
+    #    ① 它只認前綴,不認寫入端。**若哪天有別的腳本開始寫 OWNED_PREFIXES 裡的前綴,
+    #       它寫的東西照樣會被這裡靜默刪掉** —— 預設保留只保護「不在表上的前綴」,
+    #       保護不到「在表上、但實際歸屬換人了」的前綴。那一類要靠 ①(每個 key 記寫入端)才擋得住。
+    #    ② 它只掃「key 帶得到本代號」的那些(`__{code}` 結尾或 `__{code}__` 夾在中間)。
+    #       `checkup_industry_summary__{ind}` 用產業名不是代號 ⇒ 本來就進不了候選集,
+    #       它被列進 FOREIGN_PREFIXES 是為了**表本身完整**(給 checkup_facts_prefix_health.py 用),
+    #       不是因為這裡擋住了它。
+    #    ③ 它不驗「留下來的 key 內容對不對」,只決定刪不刪。
+    #
+    # ⚠️ 刻意**不**做成 fail-closed 拋例外:`stock_checkup_daily.py:441` 的 `merge_and_write`
+    #    在 try 外面,任何例外都會終止整輪 `--count 16`。「有人加了新寫入端」不是資料毀損,
+    #    用告警,不要用停產。
+    _scoped = [k for k in existing["results"]
+               if k.endswith(f"__{code}") or f"__{code}__" in k]
+    stale_keys = []
+    _unknown: dict[str, list[str]] = {}
+    for _k in _scoped:
+        _p = _key_prefix(_k)
+        if _p in OWNED_PREFIXES:
+            stale_keys.append(_k)
+        elif _p in FOREIGN_PREFIXES:
+            pass                       # 別人的,保留,不出聲(這是預期狀態,不是異常)
+        else:
+            _unknown.setdefault(_p, []).append(_k)
+    for _p in sorted(_unknown):
+        # 每個未知前綴一行。**這行必須出現**,否則就是一個不會叫的檢查:
+        # 表過期時唯一的訊號就是它(memory `verification-that-cannot-fail`)。
+        print(f"[stock_checkup_facts] ⚠️ {code}:未知前綴 `{_p}`（{len(_unknown[_p])} 個 key，"
+              f"例:{sorted(_unknown[_p])[:3]}）—— **保留不刪**。"
+              f"這代表有寫入端在本表之外:若是本腳本新產的,加進 OWNED_PREFIXES;"
+              f"若是別支腳本寫的,加進 FOREIGN_PREFIXES。在那之前這些 key 會一直留著。")
+        # 🔴 上面那個 print 會落進 `logs/cron.log`,和 `--count 16` 每天幾百行混在一起 ⇒
+        #    **沒人看得到**。方案書 §3.1 說「表過期時會出聲」,而出聲的通道沒人聽 = 等於沒出聲。
+        #    ⇒ 再送一份到工廠統一日誌 `STUDIO/ops_log.txt`(同 `stock_fundamentals.py:503` 的用法)。
+        # ⚠️ 整段包在 try 裡而且**絕對不能往外拋**:`stock_checkup_daily.py:441` 的
+        #    `merge_and_write` 在 try **外面**,這裡拋一個例外就會終止整輪 `--count 16` ——
+        #    為了「記一筆日誌」而停產,是把告警機制變成故障源。print 是保證會有的那一條通道,
+        #    log_ops 是加送的;log_ops 掛掉時我們寧可只有 print,不要沒有產出。
+        try:
+            from ops import log_ops
+            log_ops("事實庫key歸屬",
+                    f"{code} 未知前綴 {_p}（{len(_unknown[_p])} 個 key）保留不刪，"
+                    f"請更新 stock_checkup_facts 的 OWNED_PREFIXES / FOREIGN_PREFIXES")
+        except Exception as _exc:  # noqa: BLE001
+            # 連這一行都不能拋。印出來就好,讓「日誌通道自己壞了」這件事至少留下痕跡。
+            print(f"[stock_checkup_facts] ⚠️ log_ops 送不出去（{_exc!r}）—— "
+                  f"上面那行告警只存在於 stdout。")
     for k in stale_keys:
         existing["results"].pop(k, None)
     existing["results"].update(facts["results"])
