@@ -1,0 +1,342 @@
+{
+ "as_of": "2026-09-09",
+ "populations": {
+  "all_ledger": {
+   "n": 60,
+   "views": {
+    "P50": 1,
+    "P75": 5,
+    "P90": 14,
+    "max": 107,
+    "sum": 379
+   },
+   "engagedViews": {
+    "P50": 0,
+    "P75": 1,
+    "P90": 5,
+    "max": 10,
+    "sum": 74
+   }
+  },
+  "public_only": {
+   "n": 57,
+   "views": {
+    "P50": 1,
+    "P75": 5,
+    "P90": 20,
+    "max": 107,
+    "sum": 376
+   },
+   "engagedViews": {
+    "P50": 0,
+    "P75": 1,
+    "P90": 6,
+    "max": 10,
+    "sum": 72
+   }
+  }
+ },
+ "status": {
+  "-2E64pHRP5M": {
+   "privacy": "public",
+   "published": "2026-08-30",
+   "title": "A steeper hierarchy looks more corrupt? Retested on 321 peop"
+  },
+  "-dGQaD-gHZk": {
+   "privacy": "public",
+   "published": "2026-08-28",
+   "title": "Does a deeper-sounding brand name make a product feel thicke"
+  },
+  "0E6LOVYAKZ0": {
+   "privacy": "public",
+   "published": "2026-08-28",
+   "title": "Do reminders of consumerism change whether you think other p"
+  },
+  "2-Ryad86At4": {
+   "privacy": "public",
+   "published": "2026-08-30",
+   "title": "Do we punish criticism harder when it comes from an outsider"
+  },
+  "3vUzBrM5Xak": {
+   "privacy": "public",
+   "published": "2026-08-28",
+   "title": "A sound played while you sleep strengthens a memory? Pooled "
+  },
+  "4hUXaiRQVgw": {
+   "privacy": "unlisted",
+   "published": "2026-08-31",
+   "title": "The Dunning-Kruger effect: mostly a statistical artefact"
+  },
+  "6P6mfht_t50": {
+   "privacy": "public",
+   "published": "2026-08-26",
+   "title": "Being short on money drains your self-control? The replicati"
+  },
+  "6ab_RzBqv4E": {
+   "privacy": "unlisted",
+   "published": "2026-08-27",
+   "title": "The implicit association test: does it predict what you do? "
+  },
+  "6veI2gvZARI": {
+   "privacy": "public",
+   "published": "2026-08-28",
+   "title": "Red makes a woman look more attractive? Retested on 242 peop"
+  },
+  "7-FMdHPyoYo": {
+   "privacy": "public",
+   "published": "2026-08-31",
+   "title": "Grit: a new name for an old thing."
+  },
+  "70WSNrTxkwE": {
+   "privacy": "public",
+   "published": "2026-09-01",
+   "title": "The marshmallow test: real, and mostly what came before it"
+  },
+  "7Ye0Bq1f3QY": {
+   "privacy": "public",
+   "published": "2026-08-26",
+   "title": "Do people who see the big picture also see more minds? A big"
+  },
+  "7_fO-ua5S70": {
+   "privacy": "public",
+   "published": "2026-08-27",
+   "title": "Ego depletion: willpower runs out as you use it? 23 labs, 2,"
+  },
+  "8JpFJ1HwXZk": {
+   "privacy": "public",
+   "published": "2026-08-29",
+   "title": "Looking forward to a trip beats looking back on it? Retested"
+  },
+  "CJSsNfOux4M": {
+   "privacy": "public",
+   "published": "2026-09-01",
+   "title": "The hot hand fallacy: the arithmetic was wrong, not the play"
+  },
+  "CJdPBbB-lP0": {
+   "privacy": "public",
+   "published": "2026-08-30",
+   "title": "Learning styles: the one thing the idea needs came back at p"
+  },
+  "G0v9lm2OSJE": {
+   "privacy": "public",
+   "published": "2026-08-30",
+   "title": "We checked 25 famous psychology claims. 8 held up."
+  },
+  "GL9VrDhZ-YA": {
+   "privacy": "public",
+   "published": "2026-08-27",
+   "title": "The bystander effect: does a crowd make each person less lik"
+  },
+  "HPt1ApEOQOA": {
+   "privacy": "public",
+   "published": "2026-08-29",
+   "title": "Think analytically, and belief in conspiracies drops? Retest"
+  },
+  "He6f89Q7n9Q": {
+   "privacy": "unlisted",
+   "published": "2026-09-01",
+   "title": "Growth mindset: real, for half the students"
+  },
+  "J4ZJ37jom-o": {
+   "privacy": "public",
+   "published": "2026-08-28",
+   "title": "Agreeable people commit fewer crimes? Retested on 1,550 peop"
+  },
+  "KCamTDf4ghk": {
+   "privacy": "public",
+   "published": "2026-09-01",
+   "title": "Cognitive dissonance: the one thing the idea needs came back"
+  },
+  "LjFyZRTOkU0": {
+   "privacy": "public",
+   "published": "2026-08-28",
+   "title": "Does a crowd stop people helping? -0.35 across 7,700 people"
+  },
+  "M81Ls0uXXT4": {
+   "privacy": "public",
+   "published": "2026-08-30",
+   "title": "Judged on how you decided rather than how it turned out, you"
+  },
+  "MW_XoKidwdA": {
+   "privacy": "public",
+   "published": "2026-08-30",
+   "title": "25 famous psychology claims, retested on 58,653 people. 8 he"
+  },
+  "MppclyzgAkY": {
+   "privacy": "public",
+   "published": "2026-08-28",
+   "title": "Ego depletion: willpower runs out as you use it? Retested on"
+  },
+  "MuCFl66-dbc": {
+   "privacy": "public",
+   "published": "2026-08-30",
+   "title": "The more useful something is, the safer it seems? It came ba"
+  },
+  "MyJiJWfGex4": {
+   "privacy": "public",
+   "published": "2026-08-30",
+   "title": "Looking forward to a trip beats looking back on it?"
+  },
+  "PGptAV8wg1A": {
+   "privacy": "public",
+   "published": "2026-08-29",
+   "title": "We value a life more when fewer lives are at risk?"
+  },
+  "Pwq1CPVfGcc": {
+   "privacy": "public",
+   "published": "2026-08-26",
+   "title": "Do reminders of consumerism change whether you think other p"
+  },
+  "PyPJLek2qgQ": {
+   "privacy": "public",
+   "published": "2026-09-02",
+   "title": "The Mozart effect: any music does it, for fifteen minutes"
+  },
+  "QEK_hAc_KuY": {
+   "privacy": "public",
+   "published": "2026-08-27",
+   "title": "Red makes a woman look more attractive? Retested on 242 peop"
+  },
+  "QwUV3MEdd9g": {
+   "privacy": "public",
+   "published": "2026-08-29",
+   "title": "Reminded of God, do people say they would take more risks? R"
+  },
+  "R-Ho0wb6w9s": {
+   "privacy": "public",
+   "published": "2026-08-29",
+   "title": "What you do reveals more about you than what you own? Retest"
+  },
+  "SCcdDwHTHsE": {
+   "privacy": "public",
+   "published": "2026-08-30",
+   "title": "More reflective thinkers make colder moral choices? Retested"
+  },
+  "UwEqGzvOlXM": {
+   "privacy": "public",
+   "published": "2026-08-30",
+   "title": "The 10,000 hour rule: practice explained 26% in games, under"
+  },
+  "X-N0kjO3NUQ": {
+   "privacy": "public",
+   "published": "2026-08-27",
+   "title": "Targeted memory reactivation: can a sound strengthen what yo"
+  },
+  "X9xuy02icWQ": {
+   "privacy": "public",
+   "published": "2026-08-31",
+   "title": "The backfire effect: the author says you read it wrong."
+  },
+  "YPMBTeGefog": {
+   "privacy": "public",
+   "published": "2026-08-30",
+   "title": "Concrete wording makes a claim seem truer? Retested on 246 p"
+  },
+  "_jSrEYCgU8E": {
+   "privacy": "public",
+   "published": "2026-08-30",
+   "title": "Power posing: they measured 4 things. 1 came back."
+  },
+  "argFKYMKsO4": {
+   "privacy": "public",
+   "published": "2026-08-31",
+   "title": "Terror management theory: the original authors helped, and i"
+  },
+  "bB-ZdA-v8Gs": {
+   "privacy": "public",
+   "published": "2026-08-28",
+   "title": "Feeling unsure of yourself makes you hold on to the things t"
+  },
+  "bvU1mY4bzX0": {
+   "privacy": "public",
+   "published": "2026-08-29",
+   "title": "The more useful something is, the safer it seems? Retested o"
+  },
+  "cSVaeH0cjXc": {
+   "privacy": "public",
+   "published": "2026-08-28",
+   "title": "6 psychology findings that did not survive a bigger test"
+  },
+  "e8f4LpCQ0o4": {
+   "privacy": "public",
+   "published": "2026-08-28",
+   "title": "We value a life more when fewer lives are at risk? Retested "
+  },
+  "fIYty4wlXsw": {
+   "privacy": "public",
+   "published": "2026-08-28",
+   "title": "Being short on money drains your self-control? Retested on 9"
+  },
+  "g1LxglXynH4": {
+   "privacy": "public",
+   "published": "2026-08-26",
+   "title": "Agreeable people commit fewer crimes? It held up."
+  },
+  "hqkIbEFhua0": {
+   "privacy": "public",
+   "published": "2026-08-30",
+   "title": "Thinking about heat makes you see people as more hostile? Re"
+  },
+  "ipAG83pBeS0": {
+   "privacy": "public",
+   "published": "2026-08-31",
+   "title": "Reminded of God, do people say they would take more risks? A"
+  },
+  "jk5uMKeaSSQ": {
+   "privacy": "public",
+   "published": "2026-08-26",
+   "title": "Feeling unsure of yourself makes you hold on to the things t"
+  },
+  "lXP_UIc20nU": {
+   "privacy": "public",
+   "published": "2026-09-01",
+   "title": "The anchoring effect: they measured 4 things. 4 came back."
+  },
+  "m-xbVNVjhUs": {
+   "privacy": "public",
+   "published": "2026-09-01",
+   "title": "What you do reveals more about you than what you own? It cam"
+  },
+  "m14CWlRhpvA": {
+   "privacy": "public",
+   "published": "2026-08-30",
+   "title": "Learning styles: the one thing the idea needs came back at p"
+  },
+  "onS7nv6nXeM": {
+   "privacy": "public",
+   "published": "2026-08-30",
+   "title": "Social priming: 12 replications, 12,871 people, 0 worked."
+  },
+  "q8wXedDJqGc": {
+   "privacy": "public",
+   "published": "2026-08-28",
+   "title": "Do people who see the big picture also see more minds? Retes"
+  },
+  "rkqCiW6uCU0": {
+   "privacy": "public",
+   "published": "2026-08-31",
+   "title": "The lost in the mall study: it replicated, and then the coun"
+  },
+  "tsR95vUUiWY": {
+   "privacy": "public",
+   "published": "2026-08-30",
+   "title": "At easy things, does everyone think they're above average? R"
+  },
+  "un0peWAUAuA": {
+   "privacy": "public",
+   "published": "2026-08-31",
+   "title": "The hungry judge effect: still an open argument"
+  },
+  "v3pfhzDIrfU": {
+   "privacy": "public",
+   "published": "2026-08-28",
+   "title": "Does a deeper-sounding brand name make a product feel thicke"
+  },
+  "zfC-TYUNM6k": {
+   "privacy": "public",
+   "published": "2026-08-31",
+   "title": "Think analytically, and belief in conspiracies drops? A bigg"
+  }
+ },
+ "not_found": []
+}
