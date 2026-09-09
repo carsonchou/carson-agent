@@ -64,7 +64,16 @@
 | `focus_techniques` | B | Focus Techniques That Actually Work When Your Brain Won't Cooperate | 40s |
 | `if_then_plans` | B | Productivity Methods That Actually Work Without a System | 38s |
 | `learning_styles` | E | Learning Styles Are Not Real | 42s |
-| `pomodoro` | E | The Pomodoro Technique Does Not Do What You Think | 42s |
+| `pomodoro` | E | The Pomodoro Technique Does Not Do What You Think | 43s |
+
+⚠️ **`pomodoro` 的收束句在交棒後改過一次,理由要留著。** 原本寫的是
+「那是一個幾乎沒被測過的技巧」—— 但事實查證回來的結論比我寫稿時的讀法**強一級**:
+Smits 等人 2025 年那支 RCT(n=94)**真的**逐字測了 25 分鐘工作 / 5 分鐘休息,
+而且測出來在生產力、任務完成度、心流三項上**沒有好處**。
+⇒「幾乎沒被測過」是**不可知論的姿態,不是裁決**,而 E 臂的定義就是純裁決 ——
+  照原稿發,E 臂會變成一個比登記時更軟的東西,而兩臂的對比就糊掉了。
+  現在的收束句是「唯一直接測過這個配方的試驗,測出來沒有好處」——
+  這是裁決,而且不超出證據(它沒說有害,也沒說所有休息都沒用)。
 
 ⚠️ **估長是字數 ÷ 2.6,不是量出來的。** `make_reel.one()` 渲完會量實際值,
 **不在 35~50 秒就回非零並要求改稿重渲**。`how_to_remember_what_you_read` 估 45s

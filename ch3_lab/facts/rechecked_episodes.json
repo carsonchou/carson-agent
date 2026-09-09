@@ -2826,7 +2826,7 @@
       "slug": "pomodoro",
       "arm": "E",
       "prereg_title": "The Pomodoro Technique Does Not Do What You Think",
-      "story_type_short": "barely tested, not debunked",
+      "story_type_short": "the one direct test found no benefit",
       "evidence": {
         "students_in_the_only_trial": 94,
         "pomodoro_arm": 36,
@@ -2883,9 +2883,9 @@
           "turn": "what came back"
         },
         "belief": "Twenty-five minutes of work. Five minutes of break. Everybody has tried it.",
-        "weight": "It came from one student's own method, not from a study. So has anyone tested that exact recipe?",
-        "turn": "One randomised trial has: 94 university students, one two-hour session. It found no overall difference in fatigue, motivation or productivity. The closest earlier trial used 24 minutes and 6, not 25 and 5. And the paper most often cited as proof is a vigilance experiment that never used work blocks or break blocks at all.",
-        "verdict": "That is not a technique being debunked. That is a technique that has barely been tested.",
+        "weight": "It came from one student's own method, not from a study. So has anyone actually tested that exact recipe?",
+        "turn": "One randomised trial has: 94 university students, one two-hour session. The closest earlier trial used 24 minutes and 6, not 25 and 5. And the paper most often cited as proof is a vigilance experiment that never used work blocks or break blocks at all.",
+        "verdict": "One trial tested that exact recipe, against letting people pick their own breaks. It found no benefit. The 25 and the 5 are not the part that was working.",
         "ask": "How long is your timer set to?"
       }
     },
