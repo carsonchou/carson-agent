@@ -2689,7 +2689,7 @@
           "es_kind": "eta2",
           "cue": "in a second one",
           "display_only": true,
-          "display_only_why": "🔴 刻意不唸。partial η² 唸出來對一般觀眾沒有意義,旁白改講「Both effects were small」。數字留在畫面上讓看得懂的人查得到,而**旁白不對它做任何量級宣稱**。"
+          "display_only_why": "刻意不唸數值:partial η² 對一般觀眾沒有意義,唸出來只會變成一串沒人能解讀的字。數字留在畫面上,讓看得懂的人查得到、對得上事實庫。⚠️ 旁白對它做的宣稱是「Both effects were small」—— **那是一個量級宣稱**,而它由存下來的值本身支撐(0.014 與 0.026,partial η²,兩個都小)。原本這條理由寫「旁白不對它做任何量級宣稱」,那句話**不真** —— small 就是量級宣稱。宣告不真比影片錯更難發現,因為沒有人會去查宣告。"
         },
         {
           "label": "a brief switch away",

@@ -209,7 +209,7 @@ def audit(E, segs):
     #    方向還是往上)。只修那一個 es_kind 治不了整類:下一個新單位會再犯。
     #    ⇒ **改成比對 `val_str()` 的輸出**,而且比的是輸出裡的每一個數字。
     turn_txt = (E['reel'].get('turn') or '')
-    shown, spoken = [], []
+    shown, spoken, noreason = [], [], []
     for x in twist_rows(E):
         if x.get('es') is None or not x.get('es_kind'):
             continue
@@ -236,14 +236,30 @@ def audit(E, segs):
             #    而觀眾同時聽到和看到的正是這兩個對不起來的東西。
             #    要印一個旁白不唸的數字可以,但**要在那一列明示**,
             #    不可以靠沉默(缺漏時不產生輸出的規則不是規則)。
-            if (n not in turn_txt and not x.get('display_only')
-                    and not at_start):
-                spoken.append((x.get('label'), disp, n))
+            if n in turn_txt or at_start:
+                continue
+            # 🔴 逃生門要付代價,而代價就是**寫下理由**。原本這裡只檢查
+            #    `display_only`,而錯誤訊息卻寫著「並附 display_only_why
+            #    —— 靠沉默不算」:**規則只寫在錯誤訊息裡 = 提示層不是規則層**。
+            #    實測:不附 why 通過、why 是空字串也通過。
+            #    這正是今晚剛在 `is_prereg` 那格修掉的同一個形狀,隔壁又長一次。
+            if x.get('display_only'):
+                why = x.get('display_only_why')
+                if not isinstance(why, str) or not why.strip():
+                    noreason.append((x.get('label'), disp))
+                continue
+            spoken.append((x.get('label'), disp, n))
     if shown:
         raise SystemExit(
             f"⛔ 表格**渲染後**要印的數字,事實庫別處找不到:{shown}"
             "   比的是 val_str() 的輸出,不是原始值 —— 中間那次格式化"
             "會改變數字(eta2 曾把 0.026 印成 0.03,方向還往上)。")
+    if noreason:
+        raise SystemExit(
+            f"⛔ 這幾列用了 display_only 卻沒寫理由:{noreason}"
+            "   逃生門要付代價,代價就是寫下理由 —— 一個不用付代價的例外,"
+            "最後所有東西都會從它走掉。理由要能回答:為什麼這個數字"
+            "印在畫面上、而旁白刻意不唸它。")
     if spoken:
         raise SystemExit(
             f"⛔ 畫面要印、而 turn 旁白從沒唸過的數字:{spoken}"

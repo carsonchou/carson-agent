@@ -86,6 +86,27 @@ print("【單位符號不是值】pts/10、pts/7 的 10 和 7 不可以被當成
 b, m = audits(json.loads(json.dumps(EPS["facial_feedback"])))
 ok.append(show("facial_feedback(實測曾被誤擋四列)", b, m, False))
 
+print("【逃生門要付代價】display_only 為真時,理由必須存在且非空白")
+# 🔴 原本錯誤訊息寫著「並附 display_only_why —— 靠沉默不算」,
+#    而程式只檢查 display_only。**規則只寫在錯誤訊息裡 = 提示層不是規則層。**
+#    這和 is_prereg 那格是同一個形狀,而它在隔壁又長了一次。
+for bad_why, tag in ((None, "① 不附 why"),
+                     ("", "② why 是空字串"),
+                     ("   ", "③ why 只有空白")):
+    e = json.loads(json.dumps(EPS["focus_techniques"]))
+    row = next(x for x in e["twist_rows"]
+               if x.get("label") == "phone in another room")
+    if bad_why is None:
+        row.pop("display_only_why", None)
+    else:
+        row["display_only_why"] = bad_why
+    b, m = audits(e)
+    ok.append(show(tag, b, m, True))
+
+print("【陰性】現況的理由是一段真話,必須安靜")
+b, m = audits(json.loads(json.dumps(EPS["focus_techniques"])))
+ok.append(show("focus_techniques 現況", b, m, False))
+
 print()
 print("結論:", "✓ 兩道閘門都會叫,而且不誤擋真資料" if all(ok)
       else "🔴 對照失敗 —— 有一格不算數")

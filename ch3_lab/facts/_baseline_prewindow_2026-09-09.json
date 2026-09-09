@@ -1,0 +1,28 @@
+{
+ "window": [
+  "2026-08-24",
+  "2026-09-06"
+ ],
+ "completeness": {
+  "expected_days": 14,
+  "rows_returned": 12,
+  "data_horizon": "2026-09-06",
+  "truncated_by_lag": false,
+  "zero_view_days": [
+   "2026-08-24",
+   "2026-08-25"
+  ],
+  "note": "內部缺的日子是**真的零觀看**(那一列不存在),不是資料沒進來;分辨兩者的是資料視界,不是列數。",
+  "read_before_nominal_lag": true,
+  "nominal_ready_date": "2026-09-10"
+ },
+ "by_source": {
+  "NO_LINK_OTHER": 2,
+  "SUBSCRIBER": 3,
+  "YT_SEARCH": 61,
+  "YT_OTHER_PAGE": 14,
+  "SHORTS": 294
+ },
+ "total_views": 374,
+ "read_at": "2026-09-09T23:59:47.578473+08:00"
+}
