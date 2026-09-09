@@ -85,7 +85,47 @@ Start-ScheduledTask 兩支 → 等 25 秒
 python scripts\seeding_watch.py --selftest=err|zero|stale|upstream|all
 python scripts\seeding_watch.py --selftest=unreadable|empty|upstream_ok   # 上游那條(09-08 加)
 python scripts\narration_compliance_watch.py --selftest=summary|biz|both
+python scripts\quota_ceiling_watch.py --selftest=up|down
+
+# 2026-09-09 加(三支哨都有):推播失敗那兩條路徑的引信
+#   pushfail  = push() 回 False(不拋例外那條)
+#   pushraise = 推播後端丟例外那條
+# 兩個都必須長出「吞掉但留痕」**與**「本輪收尾」兩行。
+python scripts\seeding_watch.py              --selftest=pushfail|pushraise
+python scripts\narration_compliance_watch.py --selftest=pushfail|pushraise
+python scripts\quota_ceiling_watch.py        --selftest=pushfail|pushraise
+
+# 2026-09-09 加(只有 quota):state 檔的四種形狀。
+#   first=檔案不存在(陰性,不該報警) / keyless=合法 JSON 少鍵 / nullval=effective 是 null
+#   broken=檔案在但不是合法 JSON
+# ⚠️ 這四個模式的輸入是**真的寫成 state 檔**(`_drill_state()`),不是注入 `state_existed` 變數。
+#   舊版直接注入 ⇒ `STATE.exists()` 那半段壞掉時演習照樣通過 = 空對照(驗證 §五)。
+python scripts\quota_ceiling_watch.py --selftest=first|keyless|nullval|broken
 ```
+
+### 🔴 引信是誰在按:`scripts\watch_drill_regression.py`(2026-09-09 加)
+
+演習存在**不等於**有人會按。獨立驗證掃過 9 支 pythonw 排程、`crontab.txt` 與全 repo:
+**零命中** —— 上面這些指令從來沒有任何東西定期跑過
+(memory `gate-blind-while-target-evolves`:閘門上線後要有東西**定期證明它還抓得到已知案例**)。
+
+```
+python scripts\watch_drill_regression.py          # 12 格:陽性 9 + 陰性 3
+python scripts\watch_drill_regression.py --list   # 只列會跑什麼
+```
+
+它每次跑都寫一行 `docs/ops/watch-drill-regression.log`(**全過也寫** ⇒ 沒有輸出永遠是異常),
+失敗回 `rc=1` 並指名是哪一支的哪一個模式缺了哪個片語。
+**它驗的是「留痕還會不會叫」,不是產線健康** —— 它紅了代表哨壞了,不是產線壞了。
+
+陽性對照(2026-09-09 實測):把 `seeding_watch.swallow_epilogue()` 改成 `return` 之後,
+它從 `12/12` 掉到 `10/12` 並回 `rc=1`、指名 `seeding_watch.py:pushfail(缺少期望片語:本輪收尾)`;
+還原後回到 `12/12`。⇒ **這道回歸不是恆真的。**
+
+⚠️ **還沒排程**:它目前只是「一個指令」,不是「一個引信」。
+三支哨是 Windows 排程工作(不在 `crontab.txt` 裡),所以這支的家也該是 Windows 排程工作,
+而**新增排程工作屬於另一類正式機變更,等 Carson 拍板**。核准後的註冊指令見
+`docs/ops/2026-09-09_pythonw_stdio_correction.md` §六。
 🔴 教訓:第一版 `seeding_watch` 只有一種 fixture,它引爆了 `-1` 那條而
 「連續 0」那條**完全沒被走到** —— 而後者才是覆蓋歷史真實失效的那條。
 **「哨叫了」不等於「每一條判準都會叫」。**
@@ -157,9 +197,15 @@ python scripts\narration_compliance_watch.py --selftest=summary|biz|both
 不是把 `record()` 往後挪。判準只寫在人腦裡的話,下一個人一樣會 grep 判決行。
 
 🔴 **附帶,同一份驗證查出來的:沒有任何東西會定期跑 `--selftest`。**
-9 支 pythonw 排程、`deploy/crontab.txt`、repo 內全部掃過**零命中**;
-上面「演習」那節的清單也還沒補上 `pushfail`/`pushraise`。
-⇒ 引信是手動的,**「留痕還會不會出現」目前沒有常駐證明** —— 這條算在下一節的「還沒被證明」裡。
+9 支 pythonw 排程、`deploy/crontab.txt`、repo 內全部掃過**零命中**。
+
+✅ **2026-09-09 已處理一半**:演習清單已補上 `pushfail`/`pushraise` 與 quota 的四種 state 形狀
+(見上面「演習」節),並新增 `scripts\watch_drill_regression.py` 把 12 格演習收成一個指令
++ 一行正向輸出 + 失敗時 `rc=1`(**含破壞測試證明它不是恆真的**)。
+🔴 **另一半還沒處理**:那支腳本**還沒有被排進任何排程** ⇒ 引信仍然要人按。
+新增排程工作屬於另一類正式機變更,**等 Carson 拍板**;註冊指令備妥在
+`docs/ops/2026-09-09_pythonw_stdio_correction.md` §六。
+⇒ 在它被排進去之前,**這一條仍然算在下一節的「還沒被證明」裡**。
 
 ## 🔴 兩件已知但**還沒被證明**的,不要算進「已完成」
 

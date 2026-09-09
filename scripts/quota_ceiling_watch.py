@@ -32,6 +32,16 @@ SELFTEST_MODE = next((a.split("=", 1)[1] if "=" in a else "up"
 SELFTEST = SELFTEST_MODE is not None
 # 推播失敗的演習模式(2026-09-09):留痕的陽性對照,兩條失敗路徑各一個。
 DRILL_PUSH_MODES = ("pushfail", "pushraise")
+
+# 🔴 state 形狀的演習模式(2026-09-09 第二輪,承獨立驗證 §五)。
+# 這幾個模式的輸入**一律寫成真的 state 檔**,不在程式裡注入 `state_existed`——
+# 注入等於把被測的那半段(`STATE.exists()` + `json.loads`)整個跳過,
+# 那道對照在它壞掉時照樣會通過,也就是**空對照**。
+#   first   = 檔案不存在(真的第一次跑,陰性對照:不該報警)
+#   keyless = 合法 JSON 但沒有 effective 鍵
+#   nullval = 合法 JSON 但 effective 是 null
+#   broken  = 檔案在但不是合法 JSON(截斷)
+DRILL_STATE_MODES = ("first", "keyless", "nullval", "broken")
 if SELFTEST:
     STATE = REPO / "docs" / "ops" / "quota-ceiling-watch.state.selftest.json"
 
@@ -110,6 +120,28 @@ def swallow_epilogue() -> None:
             f.write(line + "\n")
     except Exception:
         pass
+
+
+def _drill_state(mode: str) -> None:
+    """把演習用的 state 檔擺成指定形狀 —— **寫真檔案,不注入變數**。
+
+    禁令放在入口且會產生輸出:斷言只准動檔名帶 `.selftest.` 的那份。
+    動到正式的 `quota-ceiling-watch.state.json` 會是災難(它是天花板比對的唯一基準),
+    所以這裡寧可讓演習當場炸掉,也不要靜靜地寫錯檔。
+    """
+    assert SELFTEST and ".selftest." in STATE.name, \
+        f"_drill_state 只准動 selftest state 檔,現在指向 {STATE.name}"
+    if mode == "first":
+        if STATE.exists():
+            STATE.unlink()
+        return
+    body = {
+        "keyless": '{"raw_effective": 26001, "days_n": 5}',
+        "nullval": '{"effective": null, "days_n": 5}',
+        "broken":  '{"effective": 26001, "truncated',      # 截斷 = 不是合法 JSON
+    }[mode]
+    STATE.parent.mkdir(parents=True, exist_ok=True)
+    STATE.write_text(body, encoding="utf-8")
 
 
 def record(line: str) -> None:
@@ -226,6 +258,10 @@ def main() -> int:
     # ⇒ 照樣落到「基準建立」⇒ 零留痕、不推播、rc=0 —— 正是這段自己說已經消滅的那句
     # 「一句看起來完全正常的話」。實跑 keyless / nullval 兩種都重現。
     # ⇒ **判準改成檔案在不在**:檔案在而拿不到基準,無論是解析失敗還是少鍵,都是「基準遺失」。
+    # 演習輸入先落成**真檔案**,再讓底下的正式路徑自己去讀(見 _drill_state 的理由)。
+    if SELFTEST and SELFTEST_MODE in DRILL_STATE_MODES:
+        _drill_state(SELFTEST_MODE)
+
     prev, prev_broken = {}, None
     state_existed = STATE.exists()
     if state_existed:
@@ -238,12 +274,13 @@ def main() -> int:
         if SELFTEST_MODE == "down":     # 演習「下移+days 驟減」:走 ⚠️+帳本遺失標註路徑
             base = cur + 1234
             prev = {"days_n": (days_n or 0) + 40}
-        elif SELFTEST_MODE in ("keyless", "nullval"):
-            # 演習漏掉的那一格:檔案在、是合法 JSON、解析成功,但 effective 拿不到。
-            # 🔴 prev_broken 刻意保持 None —— 舊判準正是在這裡靜靜地放行。
-            state_existed, base, prev_broken = True, None, None
-        elif SELFTEST_MODE == "first":  # 陰性對照:真的第一次跑(檔案不存在)⇒ 不該報警
-            state_existed, base, prev_broken = False, None, None
+        elif SELFTEST_MODE in DRILL_STATE_MODES:
+            # 🔴 2026-09-09(驗證 §五):這幾個模式**不在這裡注入任何變數**。
+            # 舊版直接指派 `state_existed = True/False`,沒有從真檔案推導
+            # ⇒ **`STATE.exists()` 那半段壞掉時,這三個演習照樣通過** —— 空對照,
+            #   和我自承的「`tcp_open` 一律 stub 成 False」是同一個形狀。
+            # 現在輸入由 `_drill_state()` **寫成真的 state 檔**,上面那段正式路徑自己去讀。
+            pass
         elif SELFTEST_MODE in DRILL_PUSH_MODES:
             # 明確走「上移」讓 changed=True 以引爆 alert() —— 不搭別條判準的便車,
             # 否則那條判準哪天被改,這個演習就會靜靜地不再引爆。

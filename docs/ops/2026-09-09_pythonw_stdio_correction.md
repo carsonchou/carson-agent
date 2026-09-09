@@ -40,7 +40,12 @@ A/B/C 三種裡,只有寫檔在三種條件下都成立。
 🔴 **實查修正了派工單的兩處**:`CarsonQuant-UptimeMonitor` 是 **Disabled**(不是活的),
 且那 14 支 `python.exe` **全部 Disabled** —— 它們是 6/14 搬本機前的舊機制,刻意保持關閉
 (`local_cron_watchdog.py:9-11` 記著:打開等於每天發兩次片、燒兩份配額)。
-⇒ **活著的 pythonw 排程其實是 7 支,不是 9 支。**
+⇒ 用詞要分兩層(2026-09-09 補記,承驗證 `97dfb42b` §六①):
+**`State=Ready` 的是 8 支**(只有 `UptimeMonitor` 是 Disabled);
+其中 `CarsonQuant_PCRender` 雖然 Ready,但觸發器只有 Logon、且進 `--loop` 之前就早退
+⇒ **實際會週期性跑起來的是 7 支**。
+⚠️ 我原本只寫「活著的是 7 支」,把自己的**判斷**寫成了系統的**狀態** —— 那正是 memory
+`read-the-sibling-tool-first` 那條病(寫斷言前問「主詞是世界還是我」)。
 
 ### ④~⑨ 逐支結論(格式照派工單 §三.1)
 
@@ -307,9 +312,33 @@ principal / settings / actions 都沒有重建。
 | `scripts/quota_ceiling_watch.py` | `f4da027e` | `4faaea87` | 同上 + 基準判準 + 原子寫 |
 | `youtube_channel/scripts/hybrid_render.py` | `61422e1c` | `f594bf44` | ⑤ |
 | `youtube_channel/scripts/auditability_coverage.py` | `935a8690` | `0f862b5b` | 只加註解射程限制 |
-| `quant-service/data_hunter/eod.py` | `3458fd60` | `bc266573` | 註解更正 + 摘要用詞 |
+| `quant-service/data_hunter/eod.py` | `3458fd60` ⚠️**工作區,非 git parent** | `bc266573` | 註解更正 + 摘要用詞;**另收編 12 行**,見下方 |
 | `quant-service/data_hunter/scan.py` | `8b8af8b6` | `d8496fc3` | broadcast 回傳值 |
 | `/d/yuanta-api/uat_watch.py`(repo 外) | `30492a58` | `e44ef7bc` | ⑨ |
+
+### 🔴 這張表的口徑不一致 —— eod.py 那一列(2026-09-09 補記,承驗證 `97dfb42b` §三)
+
+上表七列的「前 blob」等於 git parent(工作區與 HEAD 一致),**只有 `eod.py` 那一列的「前」是工作區**。
+差別是真的:`eod.py` 在 `bb7ea299^` 的最後一次 commit 是 **`244c18fe` / 2026-07-03**,
+git parent 的 blob 是 **`942accfd`**,而我表上寫的 `3458fd60` 是**我編輯前的磁碟檔**。
+
+原因:那段偵測 `pythonw` 並把 stdout 導向 `logs/` 的程式碼**從 2026-08-11 就在跑**
+(`quant-service/data_hunter/logs/` 有 `eod_20260811.log` 起連續 29 個檔為證),
+但**從來沒有進過 git**。⇒ `bb7ea299` 對 git 而言是 `+26/-1`,其中
+**12 行不是本輪寫的,是本輪一併收編的**,而 commit 訊息沒有講。
+
+可機械複核:
+```
+git rev-parse bb7ea299^:quant-service/data_hunter/eod.py      # -> 942accfd
+git diff --numstat 942accfd 3458fd60                          # -> 12  0  (本輪之前就在磁碟上的)
+git diff --numstat bb7ea299^ bb7ea299 -- .../eod.py           # -> 26  1  (git 看到的總量)
+```
+
+⚠️ **這不是造假,是口徑混用**,但後果是實的:它讓「本輪改了多少」看起來比實際大,
+而讀者無從分辨哪些是本輪寫的、哪些是本來就在跑只是沒進版控的。
+(驗證員記為 +22 行;我用上面第二條指令實算是 **12 行**,以指令輸出為準。)
+
+---
 
 **⑧ 已授權改動(兩輪)**:`monitor.py`
 `77ef35c655b39ad9`(4,346 B,原版)
@@ -342,8 +371,17 @@ principal / settings / actions 都沒有重建。
    ②`log()` 自己失效時沒有備援、rc 仍 0(同 §4)
    ③電池那兩個旗標都還是 True(§4.7)
    ④`fetch_price` 失敗時加碼與快照**都不嘗試**(同附註)。
-   ⚠️ ①③④ 合起來還有一個沒人算過的組合:**TWSE 在 13:30~14:30 那五輪全部逾時 = 當天仍然全失**
-   —— 拉長 Duration 買到的是「Telegram 掉了可以重試」,買不到「TWSE 掉了可以重試」。
+   ~~⚠️ ①③④ 合起來還有一個沒人算過的組合:**TWSE 在 13:30~14:30 那五輪全部逾時 = 當天仍然全失**
+   —— 拉長 Duration 買到的是「Telegram 掉了可以重試」,買不到「TWSE 掉了可以重試」。~~
+   🔴 **已撤回(驗證 `616dec76` 實測推翻)**:13:30 / 13:45 全逾時、14:00 恢復 ⇒ 快照照樣送出。
+   ⇒ 拉長 Duration **也**買到了 TWSE 的重試。成立的只有更窄的一句:
+   **單次執行內 `fetch_price` 失敗時,加碼與快照兩條分支都不嘗試**(`:129-130` 直接 return 1)。
+
+   🔴 **另外四個訊號吞噬點(驗證 `616dec76` §四,全部未授權,先不要動)**:
+   `StartWhenAvailable=False` + `NumberOfMissedRuns=3` ⇒ 錯過的輪次**永不補跑**;
+   trigger 是**週一~週五** ⇒ **台股補班的週六靜默全失**;
+   新買到的 14:00~14:30 可能落在 MIS 收盤後回**空 `msgArray`** 的區間;
+   `MultipleInstances=IgnoreNew` + `ExecutionTimeLimit=PT72H`。
 2. **Task Scheduler Operational log 是關的**(`IsEnabled=False`)。
    ⇒ 全機 23 支排程的 exit code **沒有任何歷史**,只有一格會被覆蓋的 `LastTaskResult`。
    要不要打開它是一個獨立決策(有 10MB 上限、會寫磁碟),但**在它打開之前,任何「靠 exit code 就看得到」的設計都是空的**。
@@ -353,3 +391,28 @@ principal / settings / actions 都沒有重建。
    後者的修法是讓 `notify.push` 回傳原因而不只是 bool —— 那會動到**所有**呼叫端,應該單獨開一棒。
 5. **本檔的三支哨改動我不自驗**(`dispatch.md` §6)。上面所有實測都是我自己跑的,
    請比照 `c09a2486` 另派 fresh-context agent。
+
+6. 🔴 **`scripts/watch_drill_regression.py` 還沒有被排進任何排程 —— 引信仍然要人按。**
+   它把 12 格演習(陽性 9 + 陰性 3)收成一個指令,每次跑寫一行
+   `docs/ops/watch-drill-regression.log`(全過也寫),失敗回 `rc=1` 並指名是哪一支的哪個模式。
+   破壞測試已證明它不是恆真的(把 `swallow_epilogue` 改成 `return` → `10/12` + `rc=1`,還原後回 `12/12`)。
+   三支哨是 Windows 排程工作(不在 `crontab.txt`),所以它的家也該是排程工作,
+   而**新增排程工作屬於另一類正式機變更,等 Carson 拍板**。核准後的註冊指令(每天台北 07:30,
+   principal 抄三支哨:User / Interactive / Limited):
+
+   ```powershell
+   $P = New-ScheduledTaskPrincipal -UserId 'User' -LogonType Interactive -RunLevel Limited
+   $A = New-ScheduledTaskAction -Execute 'D:\carson-agent\youtube_channel\.venv\Scripts\pythonw.exe' `
+        -Argument 'D:\carson-agent\scripts\watch_drill_regression.py' -WorkingDirectory 'D:\carson-agent'
+   $T = New-ScheduledTaskTrigger -Daily -At 07:30
+   Register-ScheduledTask -TaskName 'carson-watch-drill-regression' -Action $A -Trigger $T -Principal $P
+   ```
+   ⚠️ 註冊後要**回讀 `NextRunTime` 確認非空** —— 本檔上面記過:只掛登入觸發會「註冊成功但永遠不跑」。
+
+7. 🔴 **`C:\Users\User\.stock_monitor\monitor.py:163-166` 還留著一段假理由**
+   (「rc=2 會撞 Windows 的 `ERROR_FILE_NOT_FOUND`」)。驗證 `616dec76` 用六個臨時排程工作實測:
+   排程自己啟動失敗放的是 **HRESULT**(找不到執行檔 → `2147942402` / `0x80070002`;
+   權限不足 → `2147942405`),而程式真的 `exit 2` → `2`、`exit 3` → `3`
+   ⇒ **裸的 `2` 只可能來自程式本身,從來沒撞過**。
+   `2→3` 這個改動本身無害、不必改回去,**要修的是註解裡那段理由**。
+   ⚠️ 那是錢線檔案 ⇒ **等 Carson 點頭才能動,本輪沒有碰。**
