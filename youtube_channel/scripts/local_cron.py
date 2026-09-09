@@ -180,7 +180,15 @@ def _log(msg: str):
     #    後果比看起來大:`main()` 的 `while True` 是裸呼叫,`_log` 一拋就**弄死整個排程器**
     #    (和 09-08 那個 `print` 死法同一條路),而且它同時是下面 jobout 那把裸吞傘的根因。
     #    獨立驗證實跑重現過。移進 try ⇒ **`_log` 從此不會拋**,呼叫端可以放心當它是「盡力而為」。
-    line = f"[{datetime.now():%Y-%m-%d %H:%M:%S}] {msg}"
+    # ⚠️ 連組字串都要包起來:`msg` 若是 `__format__` 會拋的物件,這一行自己就會拋。
+    #    產線 17 個呼叫點全部傳 f-string 或字串字面值 ⇒ **目前不可達** ——
+    #    但「不可達」不是「不會發生」,而這個函式拋出去 = 排程器死。
+    #    (獨立驗證另試了 9 種:父層是檔案 / NUL·CON 保留名 / 路徑 >260 / 非法字元 /
+    #     拒寫目錄 / 孤兒代理字元 / 50MB 訊息 / 鎖住 LOG / LOG 本身是目錄 —— 全部被接住。)
+    try:
+        line = f"[{datetime.now():%Y-%m-%d %H:%M:%S}] {msg}"
+    except Exception:  # noqa: BLE001
+        line = f"[{datetime.now():%Y-%m-%d %H:%M:%S}] <訊息格式化失敗:{type(msg).__name__}>"
     try:
         LOG.parent.mkdir(parents=True, exist_ok=True)
         with LOG.open("a", encoding="utf-8") as f:
@@ -334,15 +342,21 @@ def _rotate_or_keep(p: Path, limit: int):
         _log(f"⚠️ 量不到 {p.name} 的大小,這輪略過輪替:{exc!r}")
         return None
     bak = p.with_name(p.stem + ".1" + p.suffix)
+    # 🔴 try 只包 `os.replace` 這一個動作,不可以把後面兩行也包進來。
+    #    獨立驗證實測到的形狀:把 `_log` 也包在同一個 try 裡時,`os.replace` **已經成功**
+    #    (`.1` 實際產生 2,100,001 bytes)、而後面那句 `_log` 一拋就掉進 except,
+    #    ops log 於是印「🔴 輪替失敗…不截斷…需要人工處理」——**把部分成功報成失敗**。
+    #    看 log 的人會去找一個沒有發生的問題,而真正發生的事(輪替了)沒有被記下來。
     try:
         os.replace(p, bak)          # 原子;舊的 .1 被蓋掉 = 固定保留一代
-        _log(f"🔄 {p.name} 到 {size:,} bytes,已輪替到 {bak.name}(保留一代,未刪除內容)")
-        return (f"===== [輪替 {datetime.now():%Y-%m-%d %H:%M:%S}] "
-                f"上一段 {size:,} bytes 已移到 {bak.name},此檔從這裡重新開始 =====")
     except Exception as exc:  # noqa: BLE001
         _log(f"🔴 {p.name} 已 {size:,} bytes 但輪替失敗:{exc!r}"
              f" —— **不截斷**(寧可讓它長也不要把證據刪掉),需要人工處理")
         return None
+    # 到這裡 `os.replace` 已經成功 ⇒ 之後任何失敗都不可以再報成「輪替失敗」。
+    _log(f"🔄 {p.name} 到 {size:,} bytes,已輪替到 {bak.name}(保留一代,未刪除內容)")
+    return (f"===== [輪替 {datetime.now():%Y-%m-%d %H:%M:%S}] "
+            f"上一段 {size:,} bytes 已移到 {bak.name},此檔從這裡重新開始 =====")
 
 
 def run_job(pyargs, env, jenv=None):
@@ -366,10 +380,13 @@ def run_job(pyargs, env, jenv=None):
         try:
             _op = _outlog_for(script)
             _op.parent.mkdir(parents=True, exist_ok=True)
-            # 🔴 輪替**自己包一層**,不可以共用下面那把傘。獨立驗證實跑到的失敗形態:
-            #    `os.replace` 已經成功(舊檔改名走了)、接著 `_log` 拋 → 被下面 `except` 吞掉
-            #    → `outf = None` → **該 job 的 stdout 靜默回 DEVNULL、新檔根本沒建、ops log 零行**
-            #    ⇒ 把 09-08 才補起來的盲區重新打開,而且零訊號。
+            # 輪替**自己包一層**,不與下面那把傘共用。曾經觀察到的失敗形態:
+            # `os.replace` 已經成功、接著 `_log` 拋 → 被下面 `except` 吞掉 → `outf = None`
+            # → 該 job 的 stdout 靜默回 DEVNULL、新檔沒建、ops log 零行(= 09-08 補起來的盲區被重開)。
+            # ⚠️ **但別把功勞算在這一層上**(2026-09-09 複驗更正):真正關掉那條路的是
+            #    `_log` 不再拋(見 `_log` 開頭)。複驗實測:把這層 try 拆掉,行為**逐項相同** ——
+            #    因為 `_rotate_or_keep` 內部的 `_log` 拋出後會被它自己的 except 接住,傳不到這裡。
+            #    ⇒ 這一層是**縱深防禦**,留著沒害;但誰要是拿它當「那條路已經斷了」的理由,就會找錯保護。
             #    (輪替是附加價值,它出事不可以連帶賠掉「這支 job 的 stdout 有沒有落地」。)
             try:
                 _orot = _rotate_or_keep(_op, 2_000_000)   # 同一個缺陷的第二份,同一條路徑修
