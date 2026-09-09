@@ -570,6 +570,70 @@ def _is_percentile_ctx(clause: str) -> bool:
     return any(w in clause for w in _PCTL_CTX2) and "時間" in clause
 
 
+# ── 提案一·A(督導 2026-09-09 拍板):排名類不可當溯源憑據 ──────────────────
+# 🔴 `checkup_industry_rank` 的母體是「**本頻道已體檢的個股**」,而那個母體**隨體檢進度單調增加**
+# ⇒ 每多體檢一檔同業,所有舊稿的名次百分位就變一次。實案(三支,形狀完全一致 —— 名次幾乎沒變、分母長大):
+#   晟銘電 3013 旁白「34 檔第 13,前 38%」→ 卡(09-06 重算)「43 檔第 13,前 30%」
+#   中磊  5388 旁白「11 檔第 8,73% 同業較好」→ 卡「13 檔第 8,前 62%」
+#   聖暉  5536 旁白「11 檔第 5,前 45%」→ 卡「15 檔第 6,前 40%」
+# **旁白寫的時候都是對的。** 排名百分位**結構上不可能穩定溯源**(漂移沒有上界),
+# 留著只會製造誤標 ⇒ 排除它,不當溯源對象。
+# ⚠️ 只排除**名次百分位那個數字**,同句其他數字(例:晟銘電同句的總報酬 1074.9%)照常檢查。
+_RANK_CTX = ("已體檢", "同業", "排第", "排名", "位居第", "名次")
+_RX_RANK_POS = re.compile(r"(前|有)\s*$")
+
+
+def _is_rank_position(clause: str, raw: str) -> bool:
+    """這個數字是不是『同業排名百分位』(前X% / 有X%的同業)。"""
+    if not any(w in clause for w in _RANK_CTX):
+        return False
+    i = clause.find(raw)
+    if i < 0:
+        return False
+    if _RX_RANK_POS.search(clause[max(0, i - 4): i]):
+        return True
+    return "同業" in clause[i: i + 14]
+
+
+# ── 提案二·C(督導拍板):口語概括只准往「不利於本片敘事」的方向 ──────────────
+# 實案四句**都是對的**:威剛「一千趴」/1075.3、南茂「三百多」/316.7、
+# 亞翔「約負35%」/−33.8、波若威「就算…百分之三千」/3377.2。
+# A(一律算違規)會擋掉大量正確旁白;B(一律不算)給捏造留合法通道
+# —— 07-13 事故原句正是「勝率只有百分之三十一」這種整數概數。
+# ⇒ C:允許 ±15%,**但方向必須不利於本片敘事** ——
+#    正向指標(報酬/賺/漲)只能講得**比真值小**;負向指標(回撤/跌/虧/套牢/腰斬)只能講得**比真值大**。
+#    ⇒ 概括不能被用來**美化**,而正確的口語表達照樣通得過。
+_ROUND_TOL_REL = 0.15
+_APPROX_MARK = ("約", "近", "將近", "大約", "差不多", "左右", "上下", "多", "就算",
+                "幾乎", "超過", "不到", "起跳")
+_NEG_METRIC = ("回撤", "跌", "虧", "賠", "套牢", "腰斬", "蒸發", "縮水")
+_POS_METRIC = ("報酬", "賺", "漲", "獲利", "翻")
+
+
+def _colloquial_ok(clause: str, raw: str, val: float, pool: set[float]) -> bool:
+    """口語概括:方向對 + 同量級(±15%)才放行。"""
+    # 🔴 2026-09-09 第一版加了「整數就算概括」的後備,**當場被語料回歸打掉**:
+    # 閎康 3587 的已知真陽性「報酬率低達 **-60%**」(真值 All-in +325.9%)因此被放行 ——
+    # 60 是整十數,而該檔池裡的最大回撤 **67.8** 落在 ±15% 內就把它救了。
+    # ⇒ **那個後備是我為了讓某一個樣本(威剛「一千趴」)過關而加的,代價是放掉一個已知真陽性。**
+    # 而「裸的整數」正是捏造最常見的長相(07-13 原句「勝率只有百分之三十一」、
+    # 07-14 的「勝率 90」都是整數概數)⇒ **概括豁免必須要有明確的口語標記,不可以只看整數。**
+    if not any(m in clause for m in _APPROX_MARK):
+        return False
+    neg = any(w in clause for w in _NEG_METRIC)
+    pos = any(w in clause for w in _POS_METRIC)
+    if neg == pos:                      # 兩者皆有或皆無 ⇒ 判不出方向,不給豁免
+        return False
+    for p in pool:
+        if p <= 0 or abs(p - val) > abs(p) * _ROUND_TOL_REL:
+            continue
+        if neg and val >= p:            # 負向指標:講得比真值大(更不利)⇒ 可
+            return True
+        if pos and val <= p:            # 正向指標:講得比真值小(更保守)⇒ 可
+            return True
+    return False
+
+
 _RX_OVER = re.compile(r"(超過|逾|突破|至少|不只)\s*$")   # 「超過五百」:真值須 ≥ 宣稱值
 _RX_NEAR = re.compile(r"(近|約|將近|大約|差不多|快要)\s*$")  # 「近60%」:真值在 ±15% 內
 # 🔴 2026-09-08 對稱性缺口(抽樣 10 支裡 1 支的誤擋成因):_RX_OVER 有「超過/逾/突破/至少/不只」、
@@ -830,6 +894,12 @@ def unsourced_claims(text: str, pool: set[float] | None = None) -> list[dict]:
         # 百分位補數:「比 91% 的時間點都低」對應卡上的「第 9 百分位」(見 _is_percentile_ctx)
         if (_is_percentile_ctx(c["clause"]) and 0.0 <= c["value"] <= 100.0
                 and _sourced_unit(100.0 - c["value"], c["raw"], pool, False)):
+            continue
+        # 提案一·A:同業排名百分位不當溯源對象(母體隨體檢進度長大,漂移無上界)
+        if _is_rank_position(c["clause"], c["raw"]):
+            continue
+        # 提案二·C:口語概括,方向須不利於本片敘事
+        if _colloquial_ok(c["clause"], c["raw"], c["value"], pool):
             continue
         bad.append(c)
     return bad
