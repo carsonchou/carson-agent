@@ -863,6 +863,11 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 #   拿它當告警值會永遠紅、然後沒人看。零 API 配額,純讀本機檔。見 scripts/auditability_coverage.py
 10 19 * * * /root/yt/run.sh scripts/auditability_coverage.py >> /root/yt/logs/cron.log 2>&1
 # numerus 同段可驗算檢查(每天 11:45·**只報告不阻斷**:掃稿內金額能不能用同段自己
-# 給的數字算出來→寫 STUDIO/numerus_flags.json,不擋不搬永遠 exit 0。升級成阻斷的
-# 判準見 solo_saas/GATE_UPGRADE_CRITERIA.md —— 現在不滿足,別自己接 --gate。)
+# 給的數字算出來→寫 STUDIO/numerus_flags.json。不擋不搬,設計上任何失敗都吞掉回 exit 0。
+# ⚠️ 這句話 2026-09-09 的第一版是**錯的**(旗標迴圈和寫檔寫在 try 外面,輸出目錄不存在
+#   或帳本缺欄位就 exit 1),獨立驗證抓到才修。你在 cron.log 看到它非 0,那是 numerus
+#   自己的 bug,不是產線的問題 —— 不要為它停任何東西。
+# 它到底有沒有跑,看 numerus_flags.json 的 scanned 欄(≈900),**它是 0 才叫壞了**;
+# 別用 flagged 空不空判斷,空有兩種讀法。升級成阻斷的判準見
+# solo_saas/GATE_UPGRADE_CRITERIA.md —— 現在一條都不滿足,別自己接 --gate。)
 45 11 * * * /root/yt/run.sh scripts/numerus_watch.py >> /root/yt/logs/cron.log 2>&1
