@@ -562,12 +562,57 @@ def build_checkup(code, name_override=None, refresh=False):
 
 
 def _load_existing():
-    if OUT_FILE.exists():
-        try:
-            return json.loads(OUT_FILE.read_text(encoding="utf-8"))
-        except Exception:  # noqa: BLE001
-            pass
-    return {"as_of": None, "disclaimer": DISCLAIMER, "results": {}, "by_code": {}}
+    """讀共用事實庫。**讀不掉就拋,絕對不可以回空骨架。**
+
+    🔴 2026-09-09:原本「檔案不存在」和「檔案在但讀不掉」**回同一個空骨架**,
+       而 `merge_and_write()` 會拿那個骨架 + 這一支的事實 `write_text` 回 17MB 的正式檔
+       ⇒ **198 支已發布片的事實一次全部消失**,而且它照樣印「已寫入」。
+
+       這條鏈的其他兩環(`:596` 的 `write_text` 無 tmp、印「已寫入」不看結果)還在,
+       但**任何一環修好都能斷鏈**,而讀取端是最便宜的那一環。
+
+       ⚠️ 為什麼刪掉之後就回不來:`snapshot_studio.py:109` 每天 04:05 `rmtree` 掉
+       `KEEP_DAYS=7` 之外的快照。而 2026-09-09 實測 —— **7 個快照夾都在,
+       但這個檔只存在於其中 2 個**(它 09-07 才進 `KEY_FILES`)⇒ **復原窗口是 2 天不是 7 天。**
+       靜默寫壞 → 零訊號 → 第 3 天最後一份好的被刪掉 → 永久答不出「這句數字哪來的」。
+
+       ⚠️ **fail-closed 是刻意的**:代價是那一天的個股體檢不合併(明天重跑就好),
+       換掉的是不可逆的資料毀損。這個不對稱大到不需要猶豫。
+       呼叫鏈已查過會產生輸出:`stock_checkup_daily.py:441` 的 `merge_and_write` 在 try **外面**,
+       `:481` 的 `process_one` 也沒有被包起來 ⇒ 例外會一路傳出 `main()`,
+       traceback 落 `logs/job_stderr.log`。**這道防護不是「期望」,它失敗時會產生輸出。**
+
+       ⚠️ 同一個形狀 09-09 在 `quota_ceiling_watch.py` 也咬過一次:
+       判準綁在「解析失敗」上,而「合法 JSON 但少了關鍵鍵」照樣走進「第一次跑」那條。
+       所以這裡的判準是**檔案在不在**,而且合法 JSON 也要驗形狀。
+    """
+    if not OUT_FILE.exists():
+        # 真的第一次(或有人刻意清空重建)——這一條才可以回空骨架。
+        return {"as_of": None, "disclaimer": DISCLAIMER, "results": {}, "by_code": {}}
+
+    try:
+        raw = OUT_FILE.read_text(encoding="utf-8")
+        data = json.loads(raw)
+    except Exception as exc:  # noqa: BLE001
+        size = OUT_FILE.stat().st_size if OUT_FILE.exists() else -1
+        msg = (f"[stock_checkup_facts] 🔴 事實庫存在但讀不掉,拒絕繼續 —— "
+               f"{OUT_FILE}({size:,} bytes):{exc!r}\n"
+               f"    **不要重跑、不要刪掉它**。繼續下去會用一個空骨架覆蓋整個檔案。\n"
+               f"    先去 STUDIO/_snapshots/ 找最近一份好的("
+               f"⚠️ 這個檔的快照只回溯得到 2 天,snapshot_studio 每天 04:05 會刪 7 天以外的)。")
+        print(msg)          # 第二條通道:落 logs/jobout/<腳本>.log
+        raise RuntimeError(msg) from exc
+
+    # 合法 JSON 不代表是這個檔。少了 results 就當成讀壞 —— 這一格是 quota 那次的教訓:
+    # 判準只問「parse 成不成功」時,「合法但少鍵」會靜靜走進「第一次跑」那條路。
+    if not isinstance(data, dict) or "results" not in data:
+        msg = (f"[stock_checkup_facts] 🔴 事實庫 parse 得動但形狀不對,拒絕繼續 —— "
+               f"{OUT_FILE}:type={type(data).__name__}、"
+               f"keys={sorted(data)[:8] if isinstance(data, dict) else 'n/a'}\n"
+               f"    同樣**不要重跑、不要刪掉它**,先去 STUDIO/_snapshots/ 取回。")
+        print(msg)
+        raise RuntimeError(msg)
+    return data
 
 
 def merge_and_write(facts, dry=False):
