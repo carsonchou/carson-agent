@@ -605,11 +605,18 @@ def _load_existing():
 
     # 合法 JSON 不代表是這個檔。少了 results 就當成讀壞 —— 這一格是 quota 那次的教訓:
     # 判準只問「parse 成不成功」時,「合法但少鍵」會靜靜走進「第一次跑」那條路。
-    if not isinstance(data, dict) or "results" not in data:
+    # ⚠️ `results` **本身也要驗型別**,不是「鍵在不在」就好(2026-09-09 獨立驗證補的一格):
+    #    `{"results": null}` / `{"results": []}` 過得了「鍵在不在」這關,
+    #    後面 merge_and_write 才在 `.update()` 上拋 TypeError/AttributeError。
+    #    那仍然是 fail-closed(寫入**之前**就拋、檔案零改動),但**訊息會變成一個看不懂的型別錯誤** ——
+    #    而看不懂的錯誤訊息會被下一個人當成「這支壞了」去重跑,那正是最不該做的事。
+    if (not isinstance(data, dict) or not isinstance(data.get("results"), dict)):
         msg = (f"[stock_checkup_facts] 🔴 事實庫 parse 得動但形狀不對,拒絕繼續 —— "
                f"{OUT_FILE}:type={type(data).__name__}、"
+               f"results={type(data.get('results')).__name__ if isinstance(data, dict) else 'n/a'}、"
                f"keys={sorted(data)[:8] if isinstance(data, dict) else 'n/a'}\n"
-               f"    同樣**不要重跑、不要刪掉它**,先去 STUDIO/_snapshots/ 取回。")
+               f"    同樣**不要重跑、不要刪掉它**,先去 STUDIO/_snapshots/ 取回"
+               f"(實測 09-08 / 09-09 兩份都在且 parse 得動,再往前就沒有了)。")
         print(msg)
         raise RuntimeError(msg)
     return data
