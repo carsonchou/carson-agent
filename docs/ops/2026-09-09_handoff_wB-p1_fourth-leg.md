@@ -123,9 +123,22 @@ python mark_verified.py <slug>
    **沒有 unlisted 過渡,一發就是公開。** README 那句「`upload.py --flip public`」
    講的是**長片線**,對 Shorts 不適用。
    ⇒ 這正是「有授權也不免驗」為什麼在這件事上是硬的:發出去就回不來了。
-2. **指名發,不要用 `--limit`。**
-   `python publish_shorts.py --only <key1>,...,<key6>` ——
-   `--limit 6` 取的是排序後前 N 支,**不保證是你驗過的那六支**,而 `reels/` 裡另有 14 支舊片。
+2. 🔴 ~~**指名發,不要用 `--limit`。**~~ **這句是錯的,已撤回。**
+   **正確的是:指名發時必須同時帶 `--limit 6`。**
+   `--limit` 的預設是 **2**(`publish_shorts.py:991`),而那一刀切在 `--only` **之後**
+   (`:1065` `todo, rest = pool[:a.limit]`)。
+   ⇒ 只寫 `--only <六個 key>` 而不帶 `--limit 6`,**只會發前 2 支**,
+     而按字母序那兩支(`reel_focus_techniques` / `reel_how_to_remember_what_you_read`)
+     **都是 B 臂,E 臂 0 支** —— 一個沒有對照組的兩臂實驗。
+   ⇒ 正確指令:
+   ```
+   python publish_shorts.py --only reel_study_techniques,reel_how_to_remember_what_you_read,reel_focus_techniques,reel_if_then_plans,reel_learning_styles,reel_pomodoro --limit 6
+   ```
+   ⚠️ `reels/` 裡另有 14 支舊片、`shorts/` 裡另有 33 支
+   (其中 `shorts/learning_styles` **和新的 E1 同題材**)⇒ `--only` 仍然必要,
+   但它一個人擋不住,要和 `--limit 6` 一起用。
+   (這句原本寫反了是 2026-09-09 獨立驗證抓到的。錯的結論不留在正確結論的上游,
+    所以原句就地劃掉而不是刪掉 —— 它示範了錯在哪。)
 3. **配額**:`python quota.py` 實測 2026-09-09 已用 **0 / 可用 20,500**;
    6 支 Short 約 **9,636~9,936**(約 47%)。吃的是 ch2/ch3 那本帳(專案 **881902283633**),
    **不影響主頻道**(524513894332)。

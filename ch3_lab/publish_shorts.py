@@ -642,14 +642,24 @@ def build_meta():
             if not r.get("belief") or not r.get("ask"):
                 print(f"  ⛔ {d.name}:reel 文案不全,不發")
                 continue
-            T, O = E["test"], E["original"]
-            if not T.get("doi") or not O.get("doi"):
+            # 🔴 這兩個 key 是**裁決片**的形狀(原始研究 vs 重測)。方法片沒有
+            #    它們,而原本這行是直接下標 —— 一旦 reels/ 底下出現一個方法片
+            #    目錄,這裡就 KeyError **整批中止**,連已經驗過的片都發不出去。
+            #    引信是「渲染完成」:在那之前目錄不存在、先 continue 掉了,
+            #    所以讀碼跑碼都看不到它。⇒ 改成按 entry 的形狀分流,fail-closed。
+            T, O = E.get("test") or {}, E.get("original") or {}
+            _pp = E.get("papers")
+            if isinstance(_pp, list) and _pp:
+                _nodoi = [i for i, x in enumerate(_pp)
+                          if not (isinstance(x, dict) and x.get("doi"))]
+                if _nodoi:
+                    print(f"  ⛔ {d.name}:papers[{_nodoi}] 沒有 DOI,不發")
+                    continue
+            elif not T.get("doi") or not O.get("doi"):
                 print(f"  ⛔ {d.name}:缺 DOI,不發")
                 continue
             nl = chr(10)
-            title = f"{E['popular_name']}: {E['story_type_short']}"
-            if len(title) > 95:
-                title = title[:95].rsplit(" ", 1)[0]
+            title = reel_title(E, d.name)
             # 🔴 **說明欄只吐兩個 DOI,而一半的片子講三篇論文。**
             #    backfire 的判決卡整句就是 Nyhan 2021、DK 的「隨機數也畫得出
             #    那張圖」只有 2016 那篇撐、moral licensing 的兩個數字分別來自
@@ -657,79 +667,7 @@ def build_meta():
             #    here was read out of the paper itself」。
             #    **五支片子裡,說明欄留不下讓人查那句話的路。**
             #    改成掃過所有帶 doi 的區塊,一個都不漏。
-            LAB = {"original": "Original", "test": "Retest",
-                   "test2": "A second challenge",
-                   "author_recantation": "Then the original author",
-                   "noise_paper": "The simulation paper",
-                   "bias_correction": "Corrected for publication bias",
-                   "recoding_paper": "The re-analysis",
-                   "expectancy_study": "The expectancy experiment",
-                   "bbc_study": "Run again, independently",
-                   "uk_trial": "A trial in England",
-                   # 🔴 沒登記的 key 會被拆成「Xiao 2024 table3」這種機器名字
-                   #    印給觀眾看。掃描抓到了區塊,標籤卻還是列舉出來的 ——
-                   #    把這幾個補上,而 _label() 的退路留給下一個新區塊。
-                   "xiao_2024_table3": "The 2024 registered replication",
-                   "many_smiles_2022": "The 2022 multi-lab replication",
-                   "coles_2019_trap": "A 2019 meta-analysis",
-                   "original_authors_reply": "The original authors reply",
-                   "targeting_quote": "Pre-registered analysis"}
-            # 🔴 上面那段註解寫著「掃過所有帶 doi 的區塊,一個都不漏」,
-            #    **而底下是一個寫死的字典 —— 它列舉,它沒有掃。**
-            #    獨立稽核實測:14 集裡 8 集有 DOI 區塊落在名單外。最尖銳的是
-            #    moral_licensing 旁白講的 -0.38(xiao_2024_table3,
-            #    doi 10.5334/irsp.945)—— 整集的轉折點,而兩份說明欄都查不到。
-            #    註解描述的是應該做的事,程式做的是另一件。現在真的去掃。
-            def _label(k):
-                return LAB.get(k) or k.replace("_", " ").capitalize()
-            # 順序仍然照片子講的順序:LAB 裡有的照 LAB 排,其餘接在後面。
-            _order = [k for k in LAB if k in E] +                      [k for k in E if k not in LAB]
-            cites = []
-            for _k in _order:
-                b = E.get(_k) or {}
-                _lab = _label(_k)
-                if isinstance(b, dict) and b.get("doi"):
-                    _t, _y = b.get("title"), b.get("year")
-                    if _t:
-                        _head = f"{_lab}: {_t}" + (f" ({_y})" if _y else "")
-                    else:
-                        # 🔴 沒有標題就不要印空括號。5 個區塊是這樣
-                        #    (xiao_2024_table3 / many_smiles_2022 /
-                        #     coles_2019_trap / original_authors_reply /
-                        #     bbc_study)—— 印出「Xiao 2024 table3:  ()」
-                        #    看起來像壞掉,而且沒給觀眾任何可讀的名字。
-                        #    DOI 本身就是可查的,印它就夠;不編一個標題。
-                        _head = f"{_lab}" + (f" ({_y})" if _y else "")
-                    cites.append(f"{_head}{nl}  doi:{b['doi']}")
-            # 🔴 上面那個掃描只走**頂層 dict**,走不進 list。獨立驗證抓到:
-            #    moral_licensing 旁白唸的「3,134 people」那篇,DOI 只存在
-            #    `timeline[2]` —— 說明欄查不到,而頁尾寫著論文都在上面。
-            #    我剛把「列舉改掃描」當成修好了,這是同一個洞的下一層。
-            #    以 DOI 去重:同一篇同時出現在頂層與 timeline 是常態。
-            _seen = {b["doi"] for _k in _order
-                     for b in [E.get(_k) or {}]
-                     if isinstance(b, dict) and b.get("doi")}
-            for _k in _order:
-                v = E.get(_k)
-                if not isinstance(v, list):
-                    continue
-                for x in v:
-                    if not (isinstance(x, dict) and x.get("doi")):
-                        continue
-                    if x["doi"] in _seen:
-                        continue
-                    _seen.add(x["doi"])
-                    _y = x.get("year")
-                    _w = x.get("what") or x.get("name") or ""
-                    _head = (f"{_y}: {_w}" if _y and _w
-                             else (str(_y) if _y else (_w or "Also cited")))
-                    cites.append(f"{_head}{nl}  doi:{x['doi']}")
-            # 有原文、有年份,但**沒有 DOI** 的來源(例如 EEF 評估報告不是
-            # 期刊論文)。片子唸了它就要查得到 —— 不給 DOI 不等於不用給名字。
-            for _k in _order:
-                b = E.get(_k) or {}
-                if isinstance(b, dict) and not b.get("doi")                         and b.get("source_name"):
-                    cites.append(f"{_label(_k)}: {b['source_name']}")
+            cites = cites_for(E, nl)
             papers = nl.join(cites)
             # 🔴 短片說明欄**根本沒有這個區塊**,而長片有 —— 同一個承諾
             #    兩份表面,只做了一份。已上線的短片裡有三支的 missing_public
@@ -763,6 +701,7 @@ def build_meta():
                 f"linked above. The numbers are read from them directly, "
                 f"not from a summary.{nl}#Shorts")
             out.append({"key": f"reel_{d.name}",
+                        "is_prereg": bool(E.get("prereg_title")),
                         "video": str(mp4.relative_to(ROOT)),
                         "title": title, "description": desc, "tags": TAGS,
                         "tone": E.get("tone", "shrunk_real")})
@@ -867,6 +806,162 @@ def insert_one(yt, o, path):
     else:
         print(f"    ⚠️ 沒有 {th} —— 這支會用 YouTube 自己挑的一幀")
     return vid
+
+
+#: 事前登記檔 —— **標題的權威在這份文件裡,不在程式裡**。
+#: 讀它本人,不要另外抄一份標題清單:抄一份就有兩個真相,而漂掉的那次
+#: 不會有人發現(這條線上「同一件事兩份實作」已經第九次)。
+PREREG_DOC = ROOT.parent / "docs" / "ch3_recurrence_test_prereg_2026-09-09.md"
+#: 表格列長這樣:| B1 | B | 記憶／學習(提取練習) | `The Only Study ...` |
+PREREG_ROW = re.compile(
+    r"^\|\s*(B[1-9]|E[1-9])\s*\|.*\|\s*`([^`]+)`\s*\|\s*$", re.M)
+
+
+def prereg_titles():
+    """登記檔裡逐字寫死的標題。讀不到就 fail-closed —— 這道閘門的重點就是
+    「沒被遵守時會產生輸出」,而一個讀不到登記檔還照發的閘門是空的。"""
+    if not PREREG_DOC.exists():
+        raise SystemExit(f"⛔ 找不到事前登記檔:{PREREG_DOC}")
+    rows = PREREG_ROW.findall(PREREG_DOC.read_text(encoding="utf-8"))
+    if len(rows) < 6:
+        raise SystemExit(
+            f"⛔ 登記檔裡只解析出 {len(rows)} 個逐字標題(預期 6)。"
+            f"表格格式若改過,先修這支解析,不要繞過它。")
+    return {t: k for k, t in rows}
+
+
+def reel_title(E, slug):
+    """🔴 標題就是這個實驗**唯一被操縱的變數**(that actually work vs 純裁決)。
+
+    原本這裡組的是 `popular_name: story_type_short` —— 而事前登記的逐字標題
+    存在 `prereg_title`,**全 repo 零個讀取者**。也就是說:登記檔把標題逐字
+    寫死了,產線把它存進一個沒人讀的欄位,然後送出去的是別的字。
+    規則只寫在文件層 = 期望不是規則(memory `verification-that-cannot-fail`
+    的第零種),而且失效**完全靜默**:片子照發、標題照有、只是換了一個。
+    """
+    pt = E.get("prereg_title")
+    if pt:
+        pt = pt.strip()
+        if len(pt) > 95:
+            raise SystemExit(
+                f"⛔ {slug} 的登記標題 {len(pt)} 字元超過 95 —— "
+                f"**不准截**。截掉的正好是被操縱的那個變數,"
+                f"要改就回去改登記檔(而那要說明理由)。")
+        return pt
+    title = f"{E['popular_name']}: {E['story_type_short']}"
+    return title[:95].rsplit(" ", 1)[0] if len(title) > 95 else title
+
+
+def prereg_title_gate(batch):
+    """送出去的標題,必須**逐字等於**登記檔上的那一個。
+
+    只改讀取欄位不算數:那只是把值換對了,沒有任何東西會在它再度換錯時叫。
+    這一格才是會產生輸出的那格。
+    """
+    reg = prereg_titles()
+    out, used = [], {}
+    for o in batch:
+        if not o.get("is_prereg"):
+            continue
+        t = o["title"]
+        if t not in reg:
+            out.append((o["key"],
+                        f"標題不在事前登記檔裡,逐字比對不過:「{t}」"))
+            continue
+        used.setdefault(t, []).append(o["key"])
+    for t, keys in used.items():
+        if len(keys) > 1:
+            for k in keys:
+                out.append((k, f"登記標題「{t}」被 {len(keys)} 支同時用:{keys}"))
+    miss = [f"{reg[t]}={t}" for t in reg if t not in used]
+    if miss:
+        print(f"  ℹ️ 這一批沒有涵蓋的登記標題({len(miss)} 個):{miss}")
+    return out
+
+
+def cites_for(E, nl=chr(10)):
+    """一個 entry 該印在說明欄裡的引用列。
+
+    🔴 抽成函式**不是為了整理**,是為了它變得可以被測。原本這段埋在
+       reels 迴圈裡,而那個迴圈要有 mp4 + VERIFIED 標記才走得到 ——
+       於是「說明欄到底印不印得出 DOI」這個問題,在渲染之前**沒有任何
+       辦法用真的那段程式碼回答**,只能讀碼用猜的,或另外抄一份來測
+       (而測自己抄的那份,就是這條線上出現過三次的空對照)。
+    """
+    LAB = {"original": "Original", "test": "Retest",
+           "test2": "A second challenge",
+           "author_recantation": "Then the original author",
+           "noise_paper": "The simulation paper",
+           "bias_correction": "Corrected for publication bias",
+           "recoding_paper": "The re-analysis",
+           "expectancy_study": "The expectancy experiment",
+           "bbc_study": "Run again, independently",
+           "uk_trial": "A trial in England",
+           # 🔴 沒登記的 key 會被拆成「Xiao 2024 table3」這種機器名字
+           #    印給觀眾看。掃描抓到了區塊,標籤卻還是列舉出來的 ——
+           #    把這幾個補上,而 _label() 的退路留給下一個新區塊。
+           "xiao_2024_table3": "The 2024 registered replication",
+           "many_smiles_2022": "The 2022 multi-lab replication",
+           "coles_2019_trap": "A 2019 meta-analysis",
+           "original_authors_reply": "The original authors reply",
+           "targeting_quote": "Pre-registered analysis"}
+    # 🔴 上面那段註解寫著「掃過所有帶 doi 的區塊,一個都不漏」,
+    #    **而底下是一個寫死的字典 —— 它列舉,它沒有掃。**
+    #    獨立稽核實測:14 集裡 8 集有 DOI 區塊落在名單外。最尖銳的是
+    #    moral_licensing 旁白講的 -0.38(xiao_2024_table3,
+    #    doi 10.5334/irsp.945)—— 整集的轉折點,而兩份說明欄都查不到。
+    #    註解描述的是應該做的事,程式做的是另一件。現在真的去掃。
+    def _label(k):
+        return LAB.get(k) or k.replace("_", " ").capitalize()
+    # 順序仍然照片子講的順序:LAB 裡有的照 LAB 排,其餘接在後面。
+    _order = [k for k in LAB if k in E] +                      [k for k in E if k not in LAB]
+    cites = []
+    for _k in _order:
+        b = E.get(_k) or {}
+        _lab = _label(_k)
+        if isinstance(b, dict) and b.get("doi"):
+            _t, _y = b.get("title"), b.get("year")
+            if _t:
+                _head = f"{_lab}: {_t}" + (f" ({_y})" if _y else "")
+            else:
+                # 🔴 沒有標題就不要印空括號。5 個區塊是這樣
+                #    (xiao_2024_table3 / many_smiles_2022 /
+                #     coles_2019_trap / original_authors_reply /
+                #     bbc_study)—— 印出「Xiao 2024 table3:  ()」
+                #    看起來像壞掉,而且沒給觀眾任何可讀的名字。
+                #    DOI 本身就是可查的,印它就夠;不編一個標題。
+                _head = f"{_lab}" + (f" ({_y})" if _y else "")
+            cites.append(f"{_head}{nl}  doi:{b['doi']}")
+    # 🔴 上面那個掃描只走**頂層 dict**,走不進 list。獨立驗證抓到:
+    #    moral_licensing 旁白唸的「3,134 people」那篇,DOI 只存在
+    #    `timeline[2]` —— 說明欄查不到,而頁尾寫著論文都在上面。
+    #    我剛把「列舉改掃描」當成修好了,這是同一個洞的下一層。
+    #    以 DOI 去重:同一篇同時出現在頂層與 timeline 是常態。
+    _seen = {b["doi"] for _k in _order
+             for b in [E.get(_k) or {}]
+             if isinstance(b, dict) and b.get("doi")}
+    for _k in _order:
+        v = E.get(_k)
+        if not isinstance(v, list):
+            continue
+        for x in v:
+            if not (isinstance(x, dict) and x.get("doi")):
+                continue
+            if x["doi"] in _seen:
+                continue
+            _seen.add(x["doi"])
+            _y = x.get("year")
+            _w = x.get("what") or x.get("name") or ""
+            _head = (f"{_y}: {_w}" if _y and _w
+                     else (str(_y) if _y else (_w or "Also cited")))
+            cites.append(f"{_head}{nl}  doi:{x['doi']}")
+    # 有原文、有年份,但**沒有 DOI** 的來源(例如 EEF 評估報告不是
+    # 期刊論文)。片子唸了它就要查得到 —— 不給 DOI 不等於不用給名字。
+    for _k in _order:
+        b = E.get(_k) or {}
+        if isinstance(b, dict) and not b.get("doi")                         and b.get("source_name"):
+            cites.append(f"{_label(_k)}: {b['source_name']}")
+    return cites
 
 
 def reel_gate(batch):
@@ -983,6 +1078,7 @@ def reel_gate(batch):
         else:
             out.append((key, "既沒有 original/test 也沒有 papers —— "
                              "查不到來源的片不出去"))
+    out.extend(prereg_title_gate(batch))
     return out
 
 

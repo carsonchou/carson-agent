@@ -2623,10 +2623,10 @@
           "weight": "and here is who measured it",
           "turn": "how much it moves"
         },
-        "belief": "Most study advice has never been tested. These three have.",
-        "weight": "Each one was measured against the way students normally study: rereading, and doing one topic at a time.",
+        "belief": "Three study methods that beat what you are probably doing instead.",
+        "weight": "Each one was compared with what students do by default: blocking one topic, rereading, and just reading on.",
         "turn": "Mixing problem types instead of doing one at a time: 74 percent correct a month later, against 42. Testing yourself instead of rereading: 61 percent after a week, against 40. And stopping to explain why something is true: 69 separate effect sizes, pooled at 0.55.",
-        "verdict": "All three feel worse while you are studying. That is the trade, and it is the whole finding.",
+        "verdict": "Two of these were scored a week and a month after the studying stopped. That is where the difference was.",
         "ask": "Which one are you not doing?"
       }
     },
@@ -2634,17 +2634,23 @@
       "slug": "focus_techniques",
       "arm": "B",
       "prereg_title": "Focus Techniques That Actually Work When Your Brain Won't Cooperate",
-      "story_type_short": "neither one is about trying harder",
+      "story_type_short": "three moves, none of them about trying harder",
       "evidence": {
         "phone_eta2_exp1": 0.014,
         "phone_eta2_exp2": 0.026,
-        "todo_list_d": 0.63
+        "todo_list_d": 0.63,
+        "vigilance_break_f": 0.89
       },
       "papers": [
         {
           "year": 2017,
           "what": "phone on the desk vs in another room",
           "doi": "10.1086/691462"
+        },
+        {
+          "year": 2011,
+          "what": "a brief switch away, and the attention decline",
+          "doi": "10.1016/j.cognition.2010.12.007"
         },
         {
           "year": 2018,
@@ -2655,17 +2661,15 @@
       "twist_rows": [
         {
           "label": "phone in another room",
-          "what": "working memory",
-          "es": 0.014,
-          "es_kind": "eta2",
-          "cue": "in the first experiment"
-        },
-        {
-          "label": "the same test again",
-          "what": "independent replication",
+          "what": "working memory, replication",
           "es": 0.026,
           "es_kind": "eta2",
           "cue": "in a second one"
+        },
+        {
+          "label": "a brief switch away",
+          "what": "no decline across the task",
+          "cue": "did not decline at all"
         },
         {
           "label": "tomorrow's list, before bed",
@@ -2681,10 +2685,10 @@
           "weight": "and here is who measured it",
           "turn": "how much it moves"
         },
-        "belief": "When you cannot focus, it is usually not willpower. It is what is in the room.",
-        "weight": "Both of these were measured against doing nothing, and both of them are things you do to the room.",
-        "turn": "Your phone on the desk instead of in another room. Working memory dropped in the first experiment, and again in a second one that repeated it. Both effects were small. Then a different move: writing tomorrow's to-do list before bed. Those people fell asleep faster, and that effect was 0.63.",
-        "verdict": "Neither one asks you to try harder. Both of them change the situation instead.",
+        "belief": "When you cannot focus, it is usually not willpower. It is the room.",
+        "weight": "Each one is a comparison somebody actually ran, against a real alternative.",
+        "turn": "Phone on the desk instead of in another room: working memory dropped in the first experiment, and again in a second one that repeated it. Both effects were small. In a long attention task, the group that briefly switched away did not decline at all, while the three groups that worked straight through all did. And people who wrote tomorrow's list before bed fell asleep faster than people who wrote down what they had already finished, 0.63.",
+        "verdict": "None asks you to try harder. All three change the situation instead.",
         "ask": "Which one could you do tonight?"
       }
     },
@@ -2818,7 +2822,7 @@
         "belief": "You are a visual learner. Teach to that, and you will learn better.",
         "weight": "To actually test that you need one specific experiment: match some people to their preferred style, mismatch the others, and compare.",
         "turn": "Reviewing the whole literature, Pashler and colleagues found only one study that even came close to that design. Among 426 anatomy students, studying in your own style did not predict better grades. And 93 percent of teachers surveyed in the UK agree with the idea anyway.",
-        "verdict": "Rogowsky ran the experiment directly, audiobook against e-text. No interaction. What failed is the matching — not the preference. Preferences are real.",
+        "verdict": "Rogowsky ran the experiment directly, audiobook against e-text. No interaction. What failed is the matching — having a preference was never the claim.",
         "ask": "Were you told you had a learning style?"
       }
     },
@@ -2856,10 +2860,10 @@
       "twist_rows": [
         {
           "label": "trials on the exact recipe",
-          "what": "25 minutes and 5",
+          "what": "that our search found",
           "es": 1,
           "es_kind": "count",
-          "cue": "One randomised trial"
+          "cue": "we found one"
         },
         {
           "label": "people in it",
@@ -2882,9 +2886,9 @@
           "weight": "so somebody checked",
           "turn": "what came back"
         },
-        "belief": "Twenty-five minutes of work. Five minutes of break. Everybody has tried it.",
-        "weight": "It came from one student's own method, not from a study. So has anyone actually tested that exact recipe?",
-        "turn": "One randomised trial has: 94 university students, one two-hour session. The closest earlier trial used 24 minutes and 6, not 25 and 5. And the paper most often cited as proof is a vigilance experiment that never used work blocks or break blocks at all.",
+        "belief": "Twenty-five minutes of work. Five minutes of break. You have probably tried it.",
+        "weight": "So here is the question: has anyone actually tested that exact recipe?",
+        "turn": "In our own search, we found one: 94 university students, one two-hour session. The closest earlier trial used 24 minutes and 6, not 25 and 5. And a study that kept coming up in that search never used work blocks or break blocks at all.",
         "verdict": "One trial tested that exact recipe, against letting people pick their own breaks. It found no benefit. The 25 and the 5 are not the part that was working.",
         "ask": "How long is your timer set to?"
       }
@@ -2933,14 +2937,14 @@
           "what": "students who did better that way",
           "es": 84,
           "es_kind": "pct",
-          "cue": "84 percent of them"
+          "cue": "84 percent of the 120"
         },
         {
           "label": "leave a gap, then go back",
           "what": "best gap vs same day",
           "es": 1.1,
           "es_kind": "d",
-          "cue": "64 percent increase"
+          "cue": "64 percent more recall"
         }
       ],
       "reel": {
@@ -2949,10 +2953,10 @@
           "weight": "and here is who measured it",
           "turn": "how much it moves"
         },
-        "belief": "You just read something. In a week you will remember almost none of it.",
-        "weight": "Three things change that. All three were measured against just reading it again.",
-        "turn": "Take a recall test right after reading instead of rereading: 56 percent a week later, against 42. Practise recalling it instead of building a concept map: 101 of 120 students did better that way, 84 percent of them. And leave a gap before you go back: the best gap gave a 64 percent increase over studying it again the same day.",
-        "verdict": "Not one of them is reading it again. That is the one thing that does not work.",
+        "belief": "You just read something. Read it again and nothing else, and in a week more than half of it is gone.",
+        "weight": "Three things change that, and each was compared with a different thing people do instead.",
+        "turn": "Take a recall test right after reading instead of rereading: 56 percent a week later, against 42. Practise recalling it instead of building a concept map: 84 percent of the 120 students did better that way. And leave a gap before you go back: the best gap gave 64 percent more recall than restudying it the same day.",
+        "verdict": "None of them is reading it again. When rereading was tested head to head, it lost.",
         "ask": "Which one will you try on the next thing you read?"
       }
     }
