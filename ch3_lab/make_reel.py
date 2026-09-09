@@ -193,6 +193,25 @@ def audit(E, segs):
         raise SystemExit(
             f"⛔ 短片文案裡有溯源不到的數字:{bad}\n"
             f"   白名單只收結構化欄位。想講就把它升格成欄位,不要放寬閘門。")
+    # 🔴 `twist_rows[].es` 被 `_OUTPUT_DROP` 從白名單裡拿掉了(那是對的:
+    #    畫面上的數字不可以自己證明自己)。但那留下一個洞:**畫面印的值
+    #    和旁白唸的值可以不一樣,而沒有任何人會叫**。旁白唸的要過白名單、
+    #    畫面印的不必 —— 於是「旁白 0.65 / 畫面 0.56」是靜默的,而
+    #    「旁白與畫面講不同的事」在這條線上是最貴的那一類錯
+    #    (ep005 旁白說效應不在、畫面同時打出 This one held up)。
+    #    ⇒ 補一格會產生輸出的檢查:每一列要印出去的 es,都必須在白名單裡
+    #      找得到(= 它在另一個結構化欄位裡也有一份)。這不放寬任何東西,
+    #      只是不准畫面上出現一個事實庫別處沒有、旁白也沒唸過的數字。
+    orphan = [(x.get('label'), x['es']) for x in twist_rows(E)
+              if x.get('es') is not None
+              and f"{x['es']:g}" not in ok
+              and f"{abs(x['es']):g}" not in ok]
+    if orphan:
+        raise SystemExit(
+            f"⛔ 表格要印的數字在事實庫別處找不到:{orphan}"
+            "   畫面上的值不供給白名單(它不能自己證明自己),"
+            "所以它必須在另一個結構化欄位裡也有一份 —— "
+            "否則畫面可以印一個旁白從來沒說過、也沒人查得到的數字。")
     lang = [(n, CJK.search(t).group()) for n, t in segs if CJK.search(t)]
     if lang:
         raise SystemExit(f"⛔ 文案裡有中文:{lang} —— 這是英文頻道,TTS 會唸出來。")
