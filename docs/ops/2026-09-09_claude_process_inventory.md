@@ -63,6 +63,23 @@ pid=32904  648 MB  起 09-09 00:32(15.3h)  CPU   601.9 秒  父 cmd.exe(4772,活
 ⇒ **「herdr 帳上沒有」不等於「沒人在用」。** herdr 只是一本帳,不是全機真相。
 關掉它們可能毀掉正在跑的工作,以及只活在逐字稿裡的東西(memory `only-what-lands-on-disk-exists`)。
 
+## 三之二、第三本帳:`ListAgents` 的 Peer sessions —— 比行程樹好用
+
+`ListAgents` 會列出**本機所有 Claude session**,不只 herdr 管得到的那些。實測同一時刻:
+
+```
+Peer sessions 裡 kind=interactive 的:11 個(carson-agent-ef/1a/90/da/00/61/3b/65/06/54/98)
++ 本 session 自己  = 12
+```
+
+**和 12 支 shell 起的 `claude.exe` 逐一對得上**,也和「9 個 herdr 窗格 + 3 支對不到帳」對得上。
+三本帳(行程樹 / herdr / ListAgents)互相獨立,結論一致 ⇒ 12 這個數字站得住。
+
+⇒ **下次要盤點 session,先跑 `ListAgents`,不要從 `Get-Process claude` 減起。**
+它天生就只數 session,不會把桌面版 App 那 8 支算進來,省掉整個第零節的坑。
+⚠️ 但它的 `idle` 只表示「當下沒有在跑一個 turn」,**不等於閒置或可回收** ——
+判閒置仍然要看當下 session id 的 jsonl mtime(memory `herdr-pane-session-map`)。
+
 ## 四、要動之前必須先做的(留給 Carson / 總督導,**我沒做**)
 
 1. 把那 3 份逐字稿逐一對到 PID(數量對得上了,但**哪一份對哪一支還沒對**),
