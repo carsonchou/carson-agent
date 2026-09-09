@@ -701,7 +701,10 @@ def build_meta():
                 f"linked above. The numbers are read from them directly, "
                 f"not from a summary.{nl}#Shorts")
             out.append({"key": f"reel_{d.name}",
-                        "is_prereg": bool(E.get("prereg_title")),
+                        # 🔴 **不要在這裡推論**。原樣帶過去,由閘門判它是不是
+                        #    一個合法的布林值 —— 推論會把「欄位不見了」變成
+                        #    「不是登記片」,而那正是這道閘門最不該做的事。
+                        "is_prereg": E.get("is_prereg", "<MISSING>"),
                         "video": str(mp4.relative_to(ROOT)),
                         "title": title, "description": desc, "tags": TAGS,
                         "tone": E.get("tone", "shrunk_real")})
@@ -861,7 +864,19 @@ def prereg_title_gate(batch):
     reg = prereg_titles()
     out, used = [], {}
     for o in batch:
-        if not o.get("is_prereg"):
+        flag = o.get("is_prereg", "<MISSING>")
+        # 🔴 只接受**真的布林值**。字串 "false" 是 truthy、字串 "<MISSING>" 也是,
+        #    而 `if not flag: continue` 會把 `<MISSING>` 當成 True 送去比對、
+        #    把 "false" 也當成 True —— 兩種都不是作者的意思。
+        #    明示 True / 明示 False / 其他一律當錯誤,三條路都會產生輸出。
+        if not isinstance(flag, bool):
+            out.append((o["key"],
+                        f"`is_prereg` 不是布林值(拿到 {flag!r})—— "
+                        f"每個 entry 都必須明示 true/false。"
+                        f"缺欄位或欄位名打錯時,這道閘門會整支跳過而不會叫,"
+                        f"所以缺漏本身就是錯誤,不是「預設不是登記片」。"))
+            continue
+        if not flag:
             continue
         t = o["title"]
         if t not in reg:

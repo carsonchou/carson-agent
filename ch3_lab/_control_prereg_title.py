@@ -47,7 +47,23 @@ def main():
              {"key": "b", "title": REG[0], "is_prereg": True}],
             "兩支搶同一個登記標題"),
     ]
-    ok = (not neg) and all(pos)
+    # 🔴 第二組:閘門的**觸發條件**本身。原本 is_prereg 是從 `prereg_title`
+    #    推論出來的 —— 欄位被拿掉或名字打錯,閘門整支跳過而且不會叫
+    #    (它連被觸發的機會都沒有)。現在改成必須明示布林值。
+    print("陰性對照(明示 is_prereg=False 的舊片,不該被這道閘門管):")
+    neg2 = run([{"key": "reel_old", "title": "hot hand fallacy: whatever",
+                 "is_prereg": False}], "舊片明示 False")
+    print("陽性對照 —— 觸發條件缺漏的四種形狀:")
+    pos += [
+        run([{"key": "reel_x", "title": REG[0]}], "① is_prereg 欄位整個拿掉"),
+        run([{"key": "reel_x", "title": REG[0], "is_prereg_": True}],
+            "② 欄位名打錯一個字母"),
+        run([{"key": "reel_x", "title": REG[0], "is_prereg": "false"}],
+            '③ 值填成字串 "false"(truthy,最會騙人的那個)'),
+        run([{"key": "reel_x", "title": REG[0], "is_prereg": "<MISSING>"}],
+            "④ 產線帶過來的 <MISSING> 哨兵"),
+    ]
+    ok = (not neg) and (not neg2) and all(pos)
     print()
     print("結論:", "✓ 這道閘門會叫,而且不對正確的批次誤叫" if ok
           else "🔴 對照失敗 —— 這道閘門不算數")

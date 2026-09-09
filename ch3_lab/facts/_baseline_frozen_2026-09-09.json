@@ -510,5 +510,25 @@
    "SHORTS": 294
   },
   "total_views": 372
+ },
+ "population_note": {
+  "expected_n": 60,
+  "actual_n": 60,
+  "ledger_ids": 60,
+  "public_n": 57,
+  "unlisted_n": 3,
+  "why_this_matters": "最近秩 P90 直接由 n 決定。實測:一支撞到暫時性 HTTP 500 讓 n 從 60 變 59,engagedViews 的 P90 就從 5 跳到 6 —— 門檻被一次網路抖動改掉,而殘缺母體算出來的基線和完整母體算出來的長得一模一樣。",
+  "rule": "引用 P90 時一律連 n 一起引。actual_n != expected_n 時這份基線不可用,freeze_baseline.py 已 fail-closed 不寫檔。",
+  "chosen_for_criterion_A": {
+   "population": "public_only",
+   "n": 57,
+   "engagedViews_P90": 6,
+   "rejected": {
+    "population": "all_ledger",
+    "n": 60,
+    "engagedViews_P90": 5,
+    "why": "含 3 支已下架低觀看片,會把分佈往下拉、門檻變簡單"
+   }
+  }
  }
 }
