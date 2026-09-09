@@ -257,7 +257,7 @@ def extract_claims(text: str) -> list[dict]:
         except Exception:  # noqa: BLE001
             pass
     for m in _RX_PCT_CN.finditer(text):
-        _add(_cn_num_to_float(m.group(1)), m.group(0), *m.span())
+        _add(*_cn_pct_span(text, m))
     # #13 趴/百分點(% 的同義變體):「18趴」「差314個百分點」「三百一十四個百分點」——一樣要溯源
     for m in _RX_PCT_PA_ARABIC.finditer(text):
         try:
@@ -296,6 +296,25 @@ def extract_claims(text: str) -> list[dict]:
                 claims.append({"value": float(val), "raw": raw,
                                "clause": ("【假掛名·" + attr + "】" + cl.strip())[:100]})
     return claims
+
+
+def _cn_pct_span(text: str, m):
+    """「百分之X」的中文唸法 → (值, 原文, 起, 迄),並修掉**百分位**那個吞字 bug。
+
+    🔴 2026-09-09 存量稽核抓到(3 支誤標,實案):
+      「位於百分之**七十五百**分位」→ 570      (大量 3167,真值第 75 百分位)
+      「位於百分之**百百**分位」    → 200      (尖點 8021 / 日電貿 3090,真值第 100 百分位)
+      「第百分之**九十七百**分位」  → 790      (合晶 6182,真值第 97 百分位)
+    成因:`_RX_PCT_CN` 的字元類含「百」,而「百分位」的頭一個字正好是「百」
+    ⇒ 貪婪吃進去,數字整個變形。**旁白三句都是對的,是抽取器把它們讀壞了。**
+    修法:命中後面緊接「分位」時,把結尾那個「百」還回去。
+    ⚠️ 只動這一個吞字,不碰任何判定 —— 這是抽取器 bug 不是判準問題。
+    """
+    tok, i, j = m.group(1), m.start(), m.end()
+    if text[j:j + 2] == "分位" and tok.endswith("百") and len(tok) > 1:
+        tok = tok[:-1]
+        j -= 1
+    return _cn_num_to_float(tok), text[i:j], i, j
 
 
 def _sourced_hint(val: float) -> bool:
@@ -1042,8 +1061,9 @@ def observe_claims(text: str) -> list[dict]:
         except Exception:  # noqa: BLE001
             pass
     for m in _RX_PCT_CN.finditer(text):
-        pct_spans.append(m.span())
-        _add(_cn_num_to_float(m.group(1)), m.group(0), "pct", *m.span())
+        _v, _raw, _i, _j = _cn_pct_span(text, m)
+        pct_spans.append((_i, _j))
+        _add(_v, _raw, "pct", _i, _j)
     for m in _RX_CN_QUANT.finditer(text):
         pct_spans.append(m.span())
         _add(_CN_QUANT_PCT[m.group(1)], m.group(0), "pct", *m.span())
