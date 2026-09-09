@@ -134,8 +134,18 @@ python mark_verified.py <slug>
    `git log --format=%aI -1 dacddd8e -- docs/ch3_recurrence_test_prereg_2026-09-09.md`
    → `2026-09-09T17:48:05+08:00`,拿去對六支 mp4 的 mtime。
 3. **常態排程仍是註解狀態。**
-   `youtube_channel/deploy/crontab.txt` 第 775/776/777 行,三行都要以 `# ` 開頭。
-   (開工前與這一棒結束時都逐字驗過;唯一未註解的 ch3 行是 `:784` 的 `ch3_health.py`,唯讀健檢。)
+   🔴 **不要用行號找它們 —— 規格 §0.1 寫的「775~777」已經過期了。**
+   這一棒開工時那三行在 775~777,結束時已經變成 **784~786**,
+   因為另一個 session 的 `d07c9bb2` 在上面插了 9 行。**檔案沒被動,是行號漂了**,
+   而照行號查的人會去看到錯的三行、然後回報「已確認」。
+   ⇒ **用內容查,不要用行號**:
+   ```
+   grep -n "ch3_publish" youtube_channel/deploy/crontab.txt   # 三行都必須以 # 開頭
+   grep -n "ch3" youtube_channel/deploy/crontab.txt | grep -v "^[0-9]*:#"
+   ```
+   後者現在應該只回一行:`ch3_health.py`(唯讀健檢,不發片)。
+   2026-09-09 這一棒結束時實測:三行皆 `# [ch3 收線 2026-09-02] ...`,
+   唯一未註解的 ch3 行是 `:793` 的 `ch3_health.py`。工作區對該檔 `git status --porcelain` 為空。
 
 這一棒新增、**必須一起驗**的兩件:
 
