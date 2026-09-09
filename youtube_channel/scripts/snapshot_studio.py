@@ -34,10 +34,17 @@ KEY_FILES = [
     # (`local_cron.py:9` 明文「純 shell 備份自動略過」，`backups/` 目錄不存在)。
     # 這支腳本是那個備份的本機替代品，但清單只搬了 7 個檔、漏掉事實庫
     # ⇒ **07-05 起事實庫零自動備份，零訊號**。
-    # 而它的寫入端 `stock_checkup_facts.py:merge_and_write` 是整檔 `write_text` 覆寫、
-    # 無 tmp→replace，讀取端 `_load_existing()` 的 `except: pass` 會把讀壞的檔
-    # **靜默降級成空骨架**再寫回去 ⇒ 一次失敗就從 7,742 組掉到剩幾組，而它照樣印「已寫入」。
-    # 同一形狀 09-05 才吃掉一個活的正式機檔(memory `write-truncates-before-it-fails`)。
+    # ⚠️ 2026-09-09 更新：**下面這段描述的三環都已經修掉了,別再照它下判斷。**
+    #    原文(留著示範壞在哪):「寫入端 `merge_and_write` 是整檔 `write_text` 覆寫、無
+    #    tmp→replace，讀取端 `_load_existing()` 的 `except: pass` 會把讀壞的檔靜默降級成
+    #    空骨架再寫回去 ⇒ 一次失敗就從 7,742 組掉到剩幾組，而它照樣印「已寫入」。」
+    #    現況:讀取端 fail-closed(`b5e69e69`/`9d289f83`)、寫入端 tmp→讀回比對→`os.replace`
+    #    + 縮水下限 + 結構不變量、「已寫入」改成通過驗證後才印。
+    # 🔴 但**這支腳本自己仍然是那條鏈上最後一道**:它是唯一的自動備份,
+    #    而 `:109` 的 `rmtree(KEEP_DAYS=7 之外)` 是**執行刪除的那把刀**。
+    #    2026-09-09 實測:7 個快照夾裡只有 2 個含這個檔(它 09-07 才進 KEY_FILES)
+    #    ⇒ **復原窗口當時是 2 天不是 7 天**(每天自己長一天,約 09-14 補滿)。
+    #    改 KEEP_DAYS 或改 KEY_FILES 之前先算一次「現在真正回溯得到幾天」,不要看常數。
     STUDIO / "stock_checkup_facts.json",
 ]
 
