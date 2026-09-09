@@ -1,0 +1,136 @@
+{
+  "B1_extra": [
+    {
+      "id": "r1",
+      "label": "Interleaved practice vs. blocked practice — math test scores 30 days later",
+      "value": 74,
+      "unit": "percent correct on delayed test (interleaved) vs 42 percent (blocked), Cohen's d = 0.79",
+      "what_it_means": "126 seventh-graders practiced the same math problems over 3 months, either interleaved (mixed problem types within an assignment) or in the usual blocked-by-type order. On an unannounced test given 30 days after the final review, students scored 74% on material they had practiced in interleaved order vs. 42% on material practiced in blocked order — a large effect (d = 0.79).",
+      "primary_source": true,
+      "source": {
+        "authors": "Rohrer, Dedrick, Stershic",
+        "year": 2015,
+        "title": "Interleaved practice improves mathematics learning.",
+        "venue": "Journal of Educational Psychology, 107(3), 900-908",
+        "doi": "10.1037/edu0000001",
+        "doi_verified_via_crossref": true,
+        "url": "https://files.eric.ed.gov/fulltext/ED557355.pdf",
+        "verbatim": "Students tested 30 days after the review showed a large benefit of interleaving, 74% (SD = 39%) vs. 42% (SD = 43%), t(62) = 4.54, p < .001, Cohen's d = 0.79, 95% confidence interval (CI) [0.43, 1.15].",
+        "note": "Publisher (APA/PsycNET) not fetched; full text obtained via the ERIC open-access mirror (files.eric.ed.gov/fulltext/ED557355.pdf), which is the author-submitted full text of the published article. PDF was binary/uninterpretable via WebFetch's HTML converter, so text was extracted locally with PyMuPDF (fitz) from the downloaded PDF bytes. DOI independently verified via Crossref (title, authors, journal, volume/issue/pages all match)."
+      }
+    },
+    {
+      "id": "r2",
+      "label": "Self-explanation prompts vs. no self-explanation — meta-analytic effect on learning",
+      "value": 0.55,
+      "unit": "Hedge's g (random-effects weighted mean), 95% CI [0.45, 0.65]",
+      "what_it_means": "Across 69 effect sizes pooled from 64 separate research reports, prompting learners to explain material to themselves while studying or solving problems (vs. not prompting them to) produced a medium-sized, statistically reliable improvement in learning outcomes (g = .55).",
+      "primary_source": true,
+      "source": {
+        "authors": "Bisra, Liu, Nesbit, Salimi, Winne",
+        "year": 2018,
+        "title": "Inducing Self-Explanation: a Meta-Analysis",
+        "venue": "Educational Psychology Review, 30(3), 703-725",
+        "doi": "10.1007/s10648-018-9434-x",
+        "doi_verified_via_crossref": true,
+        "url": "https://gwern.net/doc/psychology/spaced-repetition/2018-bisra.pdf",
+        "verbatim": "Our systematic search of relevant bibliographic databases identified 69 effect sizes (from 64 research reports) which met certain inclusion criteria. The overall weighted mean effect size using a random effects model was g = .55. ... an overall point estimate of g = .55 with a 95% confidence interval ranging from .45 to .65",
+        "note": "Publisher (SpringerLink) is paywalled; full text obtained via a third-party mirror (gwern.net) hosting the complete published PDF. PDF was binary/uninterpretable via WebFetch's HTML converter, so text was extracted locally with PyMuPDF from the downloaded PDF bytes. DOI, title, authors, journal, volume/issue/pages independently verified via Crossref."
+      }
+    }
+  ],
+  "B3_extra": [
+    {
+      "id": "s1",
+      "label": "Brief mental 'breaks' (task-switch) prevent the vigilance decrement",
+      "value": 0.89,
+      "unit": "F(3,240), ANOVA effect of block on vigilance sensitivity (A'); not significant for the brief-break group vs F(3,240) > 4.62, p < .005 for the three continuous-work groups",
+      "what_it_means": "In a 40-minute continuous attention task, people who were briefly interrupted 3 times to recall a memorized set of digits (a 'switch'/break) showed NO decline in vigilance performance across the task [F(3,240)=0.89, not significant]. In contrast, three other groups who worked continuously without that kind of break (including a group carrying the same memory load without ever being interrupted to use it) all showed a significant decline in performance over blocks [F(3,240) > 4.62, p < .005 in each case].",
+      "primary_source": true,
+      "source": {
+        "authors": "Ariga, Lleras",
+        "year": 2011,
+        "title": "Brief and rare mental “breaks” keep you focused: Deactivation and reactivation of task goals preempt vigilance decrements",
+        "venue": "Cognition, 118(3), 439-443",
+        "doi": "10.1016/j.cognition.2010.12.007",
+        "doi_verified_via_crossref": true,
+        "url": "https://content.lesaffaires.com/LAF/lacom/mental_breaks.pdf",
+        "verbatim": "Simple main effects of Block were significant for Control, No-switch, and Digit-ignored conditions [Fs(3, 240) > 4.62, p < .005]. Post-hoc tests (Ryan, 1960) indicated that in the Control and Digit-ignored conditions, sensitivity significantly declined over the 3rd and 4th blocks; and that in the No-switch condition sensitivity declined on the 4th block (p < .05). Most crucially, sensitivity in the Switch condition did not decrease as a function of experimental block [F(3, 240) = 0.89, ns.].",
+        "note": "Publisher (ScienceDirect) returned 403 to WebFetch; academia.edu mirror also returned 403. Full text obtained via a third-party PDF mirror (content.lesaffaires.com) hosting the complete published article (matches DOI/journal/pages in its own header/footer running head). PDF was binary/uninterpretable via WebFetch's HTML converter, so text was extracted locally with PyMuPDF from the downloaded PDF bytes. DOI, title, authors, journal, volume/issue/pages independently verified via Crossref."
+      }
+    },
+    {
+      "id": "s2",
+      "label": "Writing a specific to-do list at bedtime speeds sleep onset",
+      "value": 0.63,
+      "unit": "Cohen's d",
+      "what_it_means": "In a sleep-lab study using overnight polysomnography (not self-report), 57 healthy young adults spent 5 minutes before lights-out either writing a to-do list of upcoming tasks or journaling about tasks they'd already completed. The to-do-list group fell asleep significantly faster than the completed-list group (d = 0.63), and the more specific their list, the faster they fell asleep.",
+      "primary_source": true,
+      "source": {
+        "authors": "Scullin, Krueger, Ballard, Pruett, Bliwise",
+        "year": 2018,
+        "title": "The effects of bedtime writing on difficulty falling asleep: A polysomnographic study comparing to-do lists and completed activity lists.",
+        "venue": "Journal of Experimental Psychology: General, 147(1), 139-146",
+        "doi": "10.1037/xge0000374",
+        "doi_verified_via_crossref": true,
+        "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5758411/",
+        "verbatim": "Participants who wrote a To-Do List fell asleep significantly more quickly than those who wrote a Completed List, t(55) = 2.32, p = 0.02, d = .63.",
+        "note": "PubMed abstract page (via WebFetch) and Europe PMC API were both blocked (cookie/CAPTCHA wall, 503). Full text was retrieved directly by curl (with a browser user-agent) from the NCBI PMC mirror, which is the NIH-hosted, publicly viewable full text of this PMC-indexed article (PMCID PMC5758411, confirmed via the paper's own PubMed record). HTML was stripped locally with a regex script to extract the plain-text Results section. DOI, title, authors, journal, volume/issue/pages independently verified via Crossref."
+      }
+    }
+  ],
+  "B2_extra": [
+    {
+      "id": "b2_1",
+      "label": "Spaced (gapped) restudy vs. same-day restudy — final recall",
+      "value": 64,
+      "unit": "percent increase in final recall for the optimal study gap vs. a zero-day (same-day) gap, Cohen's d = 1.1",
+      "what_it_means": "Over 1,350 people learned a set of trivia facts, then reviewed them again after a gap ranging from 0 days to several months, then took a final test after a further delay of up to a year. Compared to reviewing the material the same day it was first learned (zero-day gap), waiting an optimal number of days before reviewing produced 64% more items recalled on the final test (d = 1.1) — this is an original experiment, not the earlier Cepeda 2006 meta-analysis.",
+      "primary_source": true,
+      "source": {
+        "authors": "Cepeda, Vul, Rohrer, Wixted, Pashler",
+        "year": 2008,
+        "title": "Spacing Effects in Learning: A Temporal Ridgeline of Optimal Retention",
+        "venue": "Psychological Science, 19(11), 1095-1102",
+        "doi": "10.1111/j.1467-9280.2008.02209.x",
+        "doi_verified_via_crossref": true,
+        "url": "https://files.eric.ed.gov/fulltext/ED505660.pdf",
+        "verbatim": "The effects of gap were very large in magnitude: For a fixed amount of study time, the optimal gap provided a 64% increase, d = 1.1, in final recall, and a 26% increase, d = 1.5, in final recognition, as compared to a zero-day gap (in the present article, d values refer to the comparison of zero-day versus optimal gap).",
+        "note": "This is a DIFFERENT Cepeda paper from the one Round 1 could not get (that was Cepeda et al. 2006, a meta-analysis of other people's studies, in Psychological Bulletin). This is Cepeda, Vul, Rohrer, Wixted & Pashler (2008), an original empirical study (1,350+ participants tested directly by these authors), in Psychological Science. Publisher (SAGE/Wiley, journals.sagepub.com) not fetched; the direct author-hosted mirror (laplab.ucsd.edu) returned an expired-SSL-certificate error to both curl and WebFetch. Full text instead obtained via the ERIC open-access mirror (files.eric.ed.gov/fulltext/ED505660.pdf), an in-press manuscript version of the same paper (its own header states '2008 Psychological Science (19, 1095-1102)... This manuscript may differ from the final published version' — page numbers and all cited statistics match the published citation). PDF text extracted locally with PyMuPDF. DOI, title, authors, journal, volume/issue/pages independently verified via Crossref. Because this is a manuscript (pre-typeset) version, note it as 'in press version' if narrating page-specific details, though the quoted statistic itself is unambiguous. This claim is also usable as a stronger, non-secondhand replacement for B1's existing spacing claim (which Round 1 sourced secondhand from the Dunlosky monograph) — flagging for your consideration, not applied here since I was told not to edit method_claims_b1b2.json."
+      }
+    }
+  ],
+  "corrections": [
+    {
+      "file": "method_claims_b1b2.json",
+      "path": "B2.claims[c3]",
+      "problem": "value=1.5 (Cohen's d) is not contained in the claim's own verbatim string as written in method_claims_b1b2.json — that verbatim was cut off right before the sentence's closing statistical bracket.",
+      "finding": "The number IS genuinely in the primary source, just past where Round 1's verbatim quote stopped. Full sentence, from the paper's Results section (and repeated in the Figure 1 caption): \"Collapsed across question type (verbatim and inference), the advantage of retrieval practice (M = 0.67) over elaborative studying with concept mapping (M = 0.45) represented about a 50% improvement in long-term retention scores [d = 1.50, F(1,38) = 21.63, ηp² = 0.36].\" Figure 1 caption independently repeats it: \"retrieval practice enhanced long-term learning above and beyond elaborative study with concept mapping by one and a half standard deviations (d = 1.50)...\" So d=1.50 is correct and appears twice in the paper — Round 1's number was NOT fabricated or drifted from elsewhere, it was just quoted with an incomplete verbatim excerpt. Recommend: in method_claims_b1b2.json, extend that claim's verbatim string to include the full sentence through '[d = 1.50, F1,38 = 21.63, ηp² = 0.36].' so the value is self-contained in its own quote.",
+      "url": "https://learninglab.psych.purdue.edu/downloads/2011/2011_Karpicke_Blunt_Science.pdf",
+      "doi": "10.1126/science.1199327",
+      "doi_verified_via_crossref": true
+    }
+  ],
+  "could_not_get": [
+    {
+      "paper": "Cepeda, Pashler, Vul, Wixted & Rohrer (2006), 'Distributed practice in verbal recall tasks: A review and quantitative synthesis', Psychological Bulletin, DOI 10.1037/0033-2909.132.3.354",
+      "why": "Round 1 already established this primary source could not be fetched directly (only readable via secondhand quotation in the Dunlosky et al. 2013 monograph). Not re-attempted this round per the task's instruction to avoid re-hitting known walls; carried forward here so the could_not_get record stays complete across both rounds.",
+      "checked_unpaywall": false
+    },
+    {
+      "paper": "Leroy (2009), 'Why is it so hard to do my work? The challenge of attention residue when switching between work tasks', Organizational Behavior and Human Decision Processes",
+      "why": "Round 1 already established: abstract has no usable numbers, and publisher page is paywalled. Not re-attempted this round per explicit instruction not to re-hit this paper.",
+      "checked_unpaywall": false
+    },
+    {
+      "paper": "Leroy & Glomb (2018), attention residue / interruptions, Organization Science",
+      "why": "Round 1 already established: abstract has no usable numbers, and publisher page is paywalled. Not re-attempted this round per explicit instruction not to re-hit this paper.",
+      "checked_unpaywall": false
+    },
+    {
+      "paper": "Leroy & Schmidt (2016), attention residue, Journal of Behavioral Decision Making",
+      "why": "Round 1 already established: abstract has no usable numbers, and publisher page is paywalled. Not re-attempted this round per explicit instruction not to re-hit this paper.",
+      "checked_unpaywall": false
+    }
+  ]
+}

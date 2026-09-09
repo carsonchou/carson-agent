@@ -1,0 +1,162 @@
+{
+  "B1": {
+    "slug": "study_techniques",
+    "topic": "真的有效的讀書方法",
+    "claims": [
+      {
+        "id": "c1",
+        "label": "Spaced (distributed) practice vs. massed practice — recall rate",
+        "value": 47,
+        "unit": "% items recalled after spaced study (vs 37% after massed study)",
+        "what_it_means": "In a meta-analysis pooling 254 studies (14,000+ participants), students who spaced out their study sessions recalled 47% of material on average, versus 37% for students who massed (crammed) the same study time — a 10-percentage-point advantage for spacing.",
+        "source": {
+          "authors": "Cepeda, Pashler, Vul, Wixted, Rohrer (finding as summarized by Dunlosky, Rawson, Marsh, Nathan, Willingham)",
+          "year": 2006,
+          "title": "Distributed practice in verbal recall tasks: A review and quantitative synthesis.",
+          "venue": "Psychological Bulletin (finding quoted in Dunlosky et al., 2013, Psychological Science in the Public Interest)",
+          "doi": "10.1037/0033-2909.132.3.354",
+          "doi_verified_via_crossref": true,
+          "url": "https://gwern.net/doc/psychology/spaced-repetition/2013-dunlosky.pdf",
+          "verbatim": "Cepeda et al. (2006) reviewed 254 studies involving more than 14,000 participants altogether; overall, students recalled more after spaced study (47%) than after massed study (37%).",
+          "secondhand": true,
+          "secondhand_note": "The 47%/37% figures are Cepeda et al.'s (2006) meta-analytic result, but I could not extract this specific number from the Cepeda 2006 primary-source PDF itself (fetch returned unreadable binary); the verbatim text above is quoted from the Dunlosky et al. (2013) monograph, which cites and summarizes Cepeda et al. (2006). DOI above is Cepeda et al. 2006's own DOI, Crossref-verified against that paper's metadata, but the number itself was not independently confirmed against Cepeda's original text."
+        }
+      },
+      {
+        "id": "c2",
+        "label": "Retrieval practice (repeated testing) vs. repeated rereading — 1-week retention",
+        "value": 61,
+        "unit": "% idea units recalled after 1 week (repeated testing) vs 40% (repeated studying)",
+        "what_it_means": "College students who took three recall tests on a passage (reading it only 3.4 times total) remembered 61% of it a week later, versus 40% for students who instead reread the passage four times (14.2 readings total) and were never tested.",
+        "source": {
+          "authors": "Roediger, Karpicke",
+          "year": 2006,
+          "title": "Test-Enhanced Learning: Taking Memory Tests Improves Long-Term Retention",
+          "venue": "Psychological Science",
+          "doi": "10.1111/j.1467-9280.2006.01693.x",
+          "doi_verified_via_crossref": true,
+          "url": "https://colinallen.dnsalias.org/Readings/2006_Roediger_Karpicke_PsychSci.pdf",
+          "verbatim": "The positive effects of testing were dramatic: In Experiment 2, students in the repeated-testing condition recalled much more after a week than did students in the repeated-study condition (61% vs. 40%), even though students in the former condition read the passage only 3.4 times and those in the latter condition read it 14.2 times.",
+          "secondhand": false
+        }
+      },
+      {
+        "id": "c3",
+        "label": "Elaborative interrogation (asking \"why\") vs. plain reading — cued recall accuracy",
+        "value": 72,
+        "unit": "% accuracy (elaborative-interrogation group) vs ~37% (explanation-given / read-only groups)",
+        "what_it_means": "Undergraduates who were prompted to explain WHY a stated fact was true (e.g., 'Why did that man do that?') later recalled which fact went with which item about 72% of the time, versus only about 37% for students who were simply given the explanation or just read the sentence.",
+        "source": {
+          "authors": "Pressley, McDaniel, Turnure, Wood, Ahmad (as quoted in Dunlosky, Rawson, Marsh, Nathan, Willingham)",
+          "year": 1987,
+          "title": "Generation and precision of elaboration: Effects on intentional and incidental learning",
+          "venue": "Journal of Experimental Psychology: Learning, Memory, and Cognition (study description quoted in Dunlosky et al., 2013, Psychological Science in the Public Interest)",
+          "doi": "",
+          "doi_verified_via_crossref": false,
+          "url": "https://gwern.net/doc/psychology/spaced-repetition/2013-dunlosky.pdf",
+          "verbatim": "On a final test in which participants were cued to recall which man performed each action (e.g., “Who got in the car?”), the elaborative-interrogation group substantially outperformed the other two groups (collapsing across experiments, accuracy in this group was approximately 72%, compared with approximately 37% in each of the other two groups).",
+          "secondhand": true,
+          "secondhand_note": "This is Pressley et al.'s (1987) original data, transcribed from Dunlosky et al.'s (2013) monograph (which cites it in its full reference list exactly as titled above). I did not fetch the Pressley 1987 primary source directly, and did not Crossref-verify its DOI — I only confirmed the citation string via Dunlosky et al.'s own reference list, which is included verbatim in the same PDF."
+        }
+      },
+      {
+        "id": "c4",
+        "label": "Highlighting more text correlates with WORSE test performance (not statistically significant)",
+        "value": -0.29,
+        "unit": "Pearson r (test performance vs. amount of text actively highlighted), n = 19, not statistically significant",
+        "what_it_means": "Among students who were free to highlight as much text as they wanted, the more they highlighted, the worse they tended to score on a later test (r = -.29) — though this specific correlation was not statistically significant because the sample was small (n = 19), so it should be framed as suggestive, not conclusive.",
+        "source": {
+          "authors": "Fowler, Barker (as quoted in Dunlosky, Rawson, Marsh, Nathan, Willingham)",
+          "year": 1974,
+          "title": "Effectiveness of highlighting for retention of text material",
+          "venue": "Journal of Applied Psychology (study description quoted in Dunlosky et al., 2013, Psychological Science in the Public Interest)",
+          "doi": "",
+          "doi_verified_via_crossref": false,
+          "url": "https://gwern.net/doc/psychology/spaced-repetition/2013-dunlosky.pdf",
+          "verbatim": "Test performance was negatively correlated (r = –.29) with the amount of text that had been highlighted in the active-highlighting group, although this result was not significant given the small sample size (n = 19).",
+          "secondhand": true,
+          "secondhand_note": "Fowler & Barker's (1974) original correlational data, transcribed from Dunlosky et al. (2013)'s monograph (full citation confirmed in that monograph's own reference list). Primary source not independently fetched; DOI not Crossref-verified. IMPORTANT: the monograph itself flags this specific correlation as not statistically significant — do not narrate it as a firm/definitive finding."
+        }
+      }
+    ]
+  },
+  "B2": {
+    "slug": "how_to_remember_what_you_read",
+    "topic": "怎麼記住你讀過的東西",
+    "claims": [
+      {
+        "id": "c1",
+        "label": "Self-testing vs. rereading right after reading — 1-week retention (Experiment 1)",
+        "value": 56,
+        "unit": "% idea units recalled after 1 week (took a practice test) vs 42% (restudied)",
+        "what_it_means": "After reading a short passage, students who then took a free-recall test on it (instead of rereading it) remembered 56% of the content a week later, versus only 42% for students who reread the passage instead of being tested.",
+        "source": {
+          "authors": "Roediger, Karpicke",
+          "year": 2006,
+          "title": "Test-Enhanced Learning: Taking Memory Tests Improves Long-Term Retention",
+          "venue": "Psychological Science",
+          "doi": "10.1111/j.1467-9280.2006.01693.x",
+          "doi_verified_via_crossref": true,
+          "url": "https://colinallen.dnsalias.org/Readings/2006_Roediger_Karpicke_PsychSci.pdf",
+          "verbatim": "The benefits of initial testing were also observed after 1 week: The tested group recalled 56% of the material, whereas the restudy group recalled only 42%, t(39) = 6.41, d = 0.83.",
+          "secondhand": false
+        }
+      },
+      {
+        "id": "c2",
+        "label": "Continued self-testing vs. continued restudy — 1-week vocabulary recall",
+        "value": 80,
+        "unit": "% correct recall after 1 week (continued testing) vs 36% (continued studying), on Swahili-English word pairs",
+        "what_it_means": "Once students could first recall a Swahili-English word pair correctly, one group kept only restudying it (no more testing) while another kept only testing it (no more study). A week later, the keep-testing group remembered 80% of the pairs versus 36% for the keep-studying group.",
+        "source": {
+          "authors": "Karpicke, Roediger (as quoted in Dunlosky, Rawson, Marsh, Nathan, Willingham)",
+          "year": 2008,
+          "title": "The critical importance of retrieval for learning",
+          "venue": "Science (study description quoted in Dunlosky et al., 2013, Psychological Science in the Public Interest)",
+          "doi": "",
+          "doi_verified_via_crossref": false,
+          "url": "https://gwern.net/doc/psychology/spaced-repetition/2013-dunlosky.pdf",
+          "verbatim": "As another particularly compelling demonstration of the potency of testing as compared with restudy, Karpicke and Roediger (2008) presented undergraduates with Swahili-English translations for cycles of study and practice cued recall until items were correctly recalled once. After the first correct recall, items were presented only in subsequent study cycles with no further testing, or only in subsequent test cycles with no further study. Performance on a final test 1 week later was substantially greater after continued testing (80%) than after continued study (36%).",
+          "secondhand": true,
+          "secondhand_note": "Karpicke & Roediger's (2008, Science 319, 966-968) original data, transcribed from Dunlosky et al. (2013)'s monograph, whose own reference list confirms this exact citation. Primary Science paper not independently fetched; DOI not Crossref-verified."
+        }
+      },
+      {
+        "id": "c3",
+        "label": "Retrieval practice vs. elaborative studying (concept mapping) — long-term retention effect size",
+        "value": 1.50,
+        "unit": "Cohen's d (retrieval practice advantage over concept mapping); ~50% improvement in retention score",
+        "what_it_means": "One week after studying a science text, students who had practiced free recall of it scored about 50% better on a final test than students who had instead made a concept map of the material while studying — a very large effect (d = 1.50).",
+        "source": {
+          "authors": "Karpicke, Blunt",
+          "year": 2011,
+          "title": "Retrieval Practice Produces More Learning than Elaborative Studying with Concept Mapping",
+          "venue": "Science",
+          "doi": "10.1126/science.1199327",
+          "doi_verified_via_crossref": true,
+          "url": "https://ses.enseigne.ac-lyon.fr/spip/IMG/pdf/2011_karpicke_blunt_science.pdf",
+          "verbatim": "Collapsed across question type (verbatim and inference), the advantage of retrieval practice (M = 0.67) over elaborative studying with concept mapping (M = 0.45) represented about a 50% improvement in long-term retention scores [d = 1.50, F1,38 = 21.63, hp2 = 0.36].",
+          "secondhand": false
+        }
+      },
+      {
+        "id": "c4",
+        "label": "Retrieval practice beats concept mapping for most individual students",
+        "value": 84,
+        "unit": "% of students (101 of 120) who scored higher after retrieval practice than after concept mapping",
+        "what_it_means": "When the same 120 students tried both methods (retrieval practice on one text, concept mapping on another), 84% of them personally did better on the final test after using retrieval practice than after concept mapping.",
+        "source": {
+          "authors": "Karpicke, Blunt",
+          "year": 2011,
+          "title": "Retrieval Practice Produces More Learning than Elaborative Studying with Concept Mapping",
+          "venue": "Science",
+          "doi": "10.1126/science.1199327",
+          "doi_verified_via_crossref": true,
+          "url": "https://ses.enseigne.ac-lyon.fr/spip/IMG/pdf/2011_karpicke_blunt_science.pdf",
+          "verbatim": "Overall, 101 out of 120 students (84%) performed better on the final test after practicing retrieval than after elaborative studying with concept mapping.",
+          "secondhand": false
+        }
+      }
+    ]
+  }
+}

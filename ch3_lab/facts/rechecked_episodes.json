@@ -2562,6 +2562,399 @@
         "The two 2018 meta-analyses are paywalled; figures quoted elsewhere for them are second-hand and disagree between sources.",
         "The UK trial is an evaluation report, not a journal paper, so it has no DOI."
       ]
+    },
+    {
+      "slug": "study_techniques",
+      "arm": "B",
+      "prereg_title": "The Only Study Techniques That Actually Work",
+      "story_type_short": "three that were measured, against the way people actually study",
+      "evidence": {
+        "interleaved_pct_30d": 74,
+        "blocked_pct_30d": 42,
+        "interleaved_d": 0.79,
+        "tested_pct_1wk": 61,
+        "restudied_pct_1wk": 40,
+        "self_explanation_g": 0.55,
+        "self_explanation_effect_sizes": 69
+      },
+      "papers": [
+        {
+          "year": 2015,
+          "what": "interleaved vs blocked maths practice",
+          "doi": "10.1037/edu0000001"
+        },
+        {
+          "year": 2006,
+          "what": "repeated testing vs repeated studying",
+          "doi": "10.1111/j.1467-9280.2006.01693.x"
+        },
+        {
+          "year": 2018,
+          "what": "self-explanation meta-analysis",
+          "doi": "10.1007/s10648-018-9434-x"
+        }
+      ],
+      "twist_rows": [
+        {
+          "label": "mixing problem types",
+          "what": "30 days later",
+          "es": 74,
+          "es_kind": "pct",
+          "cue": "74 percent correct a month later"
+        },
+        {
+          "label": "testing yourself",
+          "what": "one week later",
+          "es": 61,
+          "es_kind": "pct",
+          "cue": "61 percent after a week"
+        },
+        {
+          "label": "explaining why",
+          "what": "69 effect sizes pooled",
+          "es": 0.55,
+          "es_kind": "g",
+          "cue": "69 separate effect sizes"
+        }
+      ],
+      "reel": {
+        "captions": {
+          "belief": "here is what actually works",
+          "weight": "and here is who measured it",
+          "turn": "how much it moves"
+        },
+        "belief": "Most study advice has never been tested. These three have.",
+        "weight": "Each one was measured against the way students normally study: rereading, and doing one topic at a time.",
+        "turn": "Mixing problem types instead of doing one at a time: 74 percent correct a month later, against 42. Testing yourself instead of rereading: 61 percent after a week, against 40. And stopping to explain why something is true: 69 separate effect sizes, pooled at 0.55.",
+        "verdict": "All three feel worse while you are studying. That is the trade, and it is the whole finding.",
+        "ask": "Which one are you not doing?"
+      }
+    },
+    {
+      "slug": "focus_techniques",
+      "arm": "B",
+      "prereg_title": "Focus Techniques That Actually Work When Your Brain Won't Cooperate",
+      "story_type_short": "neither one is about trying harder",
+      "evidence": {
+        "phone_eta2_exp1": 0.014,
+        "phone_eta2_exp2": 0.026,
+        "todo_list_d": 0.63
+      },
+      "papers": [
+        {
+          "year": 2017,
+          "what": "phone on the desk vs in another room",
+          "doi": "10.1086/691462"
+        },
+        {
+          "year": 2018,
+          "what": "writing a to-do list before bed",
+          "doi": "10.1037/xge0000374"
+        }
+      ],
+      "twist_rows": [
+        {
+          "label": "phone in another room",
+          "what": "working memory",
+          "es": 0.014,
+          "es_kind": "eta2",
+          "cue": "in the first experiment"
+        },
+        {
+          "label": "the same test again",
+          "what": "independent replication",
+          "es": 0.026,
+          "es_kind": "eta2",
+          "cue": "in a second one"
+        },
+        {
+          "label": "tomorrow's list, before bed",
+          "what": "time to fall asleep",
+          "es": 0.63,
+          "es_kind": "d",
+          "cue": "fell asleep faster"
+        }
+      ],
+      "reel": {
+        "captions": {
+          "belief": "here is what actually works",
+          "weight": "and here is who measured it",
+          "turn": "how much it moves"
+        },
+        "belief": "When you cannot focus, it is usually not willpower. It is what is in the room.",
+        "weight": "Both of these were measured against doing nothing, and both of them are things you do to the room.",
+        "turn": "Your phone on the desk instead of in another room. Working memory dropped in the first experiment, and again in a second one that repeated it. Both effects were small. Then a different move: writing tomorrow's to-do list before bed. Those people fell asleep faster, and that effect was 0.63.",
+        "verdict": "Neither one asks you to try harder. Both of them change the situation instead.",
+        "ask": "Which one could you do tonight?"
+      }
+    },
+    {
+      "slug": "if_then_plans",
+      "arm": "B",
+      "prereg_title": "Productivity Methods That Actually Work Without a System",
+      "story_type_short": "one sentence, and it is not a system",
+      "evidence": {
+        "goal_attainment_d": 0.65,
+        "independent_tests": 94,
+        "physical_activity_g": 0.31,
+        "clinical_d": 0.99,
+        "clinical_comparisons": 28
+      },
+      "papers": [
+        {
+          "year": 2006,
+          "what": "implementation intentions meta-analysis",
+          "doi": "10.1016/S0065-2601(06)38002-1"
+        },
+        {
+          "year": 2013,
+          "what": "implementation intentions and physical activity",
+          "doi": "10.1080/17437199.2011.560095"
+        },
+        {
+          "year": 2016,
+          "what": "implementation intentions, clinical samples",
+          "doi": "10.1111/bjc.12086"
+        }
+      ],
+      "twist_rows": [
+        {
+          "label": "goal attainment",
+          "what": "94 independent tests",
+          "es": 0.65,
+          "es_kind": "d",
+          "cue": "94 separate tests"
+        },
+        {
+          "label": "actually exercising",
+          "what": "post-intervention",
+          "es": 0.31,
+          "es_kind": "g",
+          "cue": "put it at 0.31"
+        },
+        {
+          "label": "people already struggling",
+          "what": "28 comparisons",
+          "es": 0.99,
+          "es_kind": "d",
+          "cue": "28 comparisons"
+        }
+      ],
+      "reel": {
+        "captions": {
+          "belief": "here is what actually works",
+          "weight": "and here is who measured it",
+          "turn": "how much it moves"
+        },
+        "belief": "You do not need a productivity system. You need one sentence.",
+        "weight": "Psychologists have a name for that sentence. It looks like this: if it is Monday at seven, I will go for a run.",
+        "turn": "Across 94 separate tests, writing that sentence moved goal attainment by 0.65 — a medium to large effect. A separate review of getting people to actually exercise put it at 0.31. And in 28 comparisons with people already struggling with their mental health, 0.99.",
+        "verdict": "One sentence, with a time and a place inside it. That is the entire method.",
+        "ask": "What is the one you would write?"
+      }
+    },
+    {
+      "slug": "learning_styles",
+      "arm": "E",
+      "prereg_title": "Learning Styles Are Not Real",
+      "story_type_short": "the matching failed, not the preference",
+      "evidence": {
+        "studies_with_the_right_design": 1,
+        "anatomy_students_surveyed": 426,
+        "uk_teachers_agreeing_pct": 93,
+        "audiobook_interaction_f": 0.42
+      },
+      "papers": [
+        {
+          "year": 2008,
+          "what": "learning styles: concepts and evidence",
+          "doi": "10.1111/j.1539-6053.2009.01038.x"
+        },
+        {
+          "year": 2015,
+          "what": "audiobook vs e-text, matched to preference",
+          "doi": "10.1037/a0037478"
+        },
+        {
+          "year": 2019,
+          "what": "anatomy students, VARK and study strategies",
+          "doi": "10.1002/ase.1777"
+        },
+        {
+          "year": 2014,
+          "what": "prevalence of neuromyths among teachers",
+          "doi": "10.1038/nrn3817"
+        }
+      ],
+      "twist_rows": [
+        {
+          "label": "studies with the right design",
+          "what": "in the whole literature",
+          "es": 1,
+          "es_kind": "count",
+          "cue": "only one study"
+        },
+        {
+          "label": "anatomy students surveyed",
+          "what": "own style vs grades",
+          "es": 426,
+          "es_kind": "count",
+          "cue": "426 anatomy students"
+        },
+        {
+          "label": "UK teachers who agree",
+          "what": "with the statement",
+          "es": 93,
+          "es_kind": "pct",
+          "cue": "93 percent of teachers"
+        }
+      ],
+      "reel": {
+        "captions": {
+          "belief": "you have heard this one",
+          "weight": "so somebody checked",
+          "turn": "what came back"
+        },
+        "belief": "You are a visual learner. Teach to that, and you will learn better.",
+        "weight": "To actually test that you need one specific experiment: match some people to their preferred style, mismatch the others, and compare.",
+        "turn": "Reviewing the whole literature, Pashler and colleagues found only one study that even came close to that design. Among 426 anatomy students, studying in your own style did not predict better grades. And 93 percent of teachers surveyed in the UK agree with the idea anyway.",
+        "verdict": "Rogowsky ran the experiment directly, audiobook against e-text. No interaction. What failed is the matching — not the preference. Preferences are real.",
+        "ask": "Were you told you had a learning style?"
+      }
+    },
+    {
+      "slug": "pomodoro",
+      "arm": "E",
+      "prereg_title": "The Pomodoro Technique Does Not Do What You Think",
+      "story_type_short": "barely tested, not debunked",
+      "evidence": {
+        "students_in_the_only_trial": 94,
+        "pomodoro_arm": 36,
+        "canonical_work_minutes": 25,
+        "canonical_break_minutes": 5,
+        "closest_earlier_trial_work_minutes": 24,
+        "closest_earlier_trial_break_minutes": 6,
+        "trials_on_the_exact_recipe": 1
+      },
+      "papers": [
+        {
+          "year": 2025,
+          "what": "the one trial that tested 25 and 5 by name",
+          "doi": "10.3390/bs15070861"
+        },
+        {
+          "year": 2023,
+          "what": "the closest earlier trial, 24 and 6",
+          "doi": "10.1111/bjep.12593"
+        },
+        {
+          "year": 2011,
+          "what": "the vigilance study usually cited as proof",
+          "doi": "10.1016/j.cognition.2010.12.007"
+        }
+      ],
+      "twist_rows": [
+        {
+          "label": "trials on the exact recipe",
+          "what": "25 minutes and 5",
+          "es": 1,
+          "es_kind": "count",
+          "cue": "One randomised trial"
+        },
+        {
+          "label": "people in it",
+          "what": "one two-hour session",
+          "es": 94,
+          "es_kind": "count",
+          "cue": "94 university students"
+        },
+        {
+          "label": "the closest earlier trial",
+          "what": "used a different ratio",
+          "es": 24,
+          "es_kind": "count",
+          "cue": "24 minutes and 6"
+        }
+      ],
+      "reel": {
+        "captions": {
+          "belief": "you have heard this one",
+          "weight": "so somebody checked",
+          "turn": "what came back"
+        },
+        "belief": "Twenty-five minutes of work. Five minutes of break. Everybody has tried it.",
+        "weight": "It came from one student's own method, not from a study. So has anyone tested that exact recipe?",
+        "turn": "One randomised trial has: 94 university students, one two-hour session. It found no overall difference in fatigue, motivation or productivity. The closest earlier trial used 24 minutes and 6, not 25 and 5. And the paper most often cited as proof is a vigilance experiment that never used work blocks or break blocks at all.",
+        "verdict": "That is not a technique being debunked. That is a technique that has barely been tested.",
+        "ask": "How long is your timer set to?"
+      }
+    },
+    {
+      "slug": "how_to_remember_what_you_read",
+      "arm": "B",
+      "prereg_title": "How to Remember What You Read: 3 Methods That Actually Work",
+      "story_type_short": "three things to do after you read, none of them rereading",
+      "evidence": {
+        "tested_pct_1wk": 56,
+        "restudied_pct_1wk": 42,
+        "students_who_did_better": 101,
+        "students_total": 120,
+        "students_who_did_better_pct": 84,
+        "optimal_gap_recall_increase_pct": 64,
+        "optimal_gap_d": 1.1
+      },
+      "papers": [
+        {
+          "year": 2006,
+          "what": "a recall test right after reading, vs rereading",
+          "doi": "10.1111/j.1467-9280.2006.01693.x"
+        },
+        {
+          "year": 2011,
+          "what": "practising recall vs building a concept map",
+          "doi": "10.1126/science.1199327"
+        },
+        {
+          "year": 2008,
+          "what": "the optimal gap before you study it again",
+          "doi": "10.1111/j.1467-9280.2008.02209.x"
+        }
+      ],
+      "twist_rows": [
+        {
+          "label": "test yourself, right after",
+          "what": "recalled one week later",
+          "es": 56,
+          "es_kind": "pct",
+          "cue": "56 percent a week later"
+        },
+        {
+          "label": "recall it, do not map it",
+          "what": "students who did better that way",
+          "es": 84,
+          "es_kind": "pct",
+          "cue": "84 percent of them"
+        },
+        {
+          "label": "leave a gap, then go back",
+          "what": "best gap vs same day",
+          "es": 1.1,
+          "es_kind": "d",
+          "cue": "64 percent increase"
+        }
+      ],
+      "reel": {
+        "captions": {
+          "belief": "here is what actually works",
+          "weight": "and here is who measured it",
+          "turn": "how much it moves"
+        },
+        "belief": "You just read something. In a week you will remember almost none of it.",
+        "weight": "Three things change that. All three were measured against just reading it again.",
+        "turn": "Take a recall test right after reading instead of rereading: 56 percent a week later, against 42. Practise recalling it instead of building a concept map: 101 of 120 students did better that way, 84 percent of them. And leave a gap before you go back: the best gap gave a 64 percent increase over studying it again the same day.",
+        "verdict": "Not one of them is reading it again. That is the one thing that does not work.",
+        "ask": "Which one will you try on the next thing you read?"
+      }
     }
   ],
   "_do_not_fill_note": "🔴 每一條的 `forbid` 是**不准出現在旁白裡的字串**,不是欄位名。舊版拿 key 尾段(「trimfill corrected d」)去英文稿裡找,永遠不匹配 ——八條沒有一條可能命中,那是一道不會叫的守門。`forbid` 空陣列代表「這個數字產線根本算不出來,沒有東西可禁」,留著是為了記住為什麼不准填。"

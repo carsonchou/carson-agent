@@ -1,0 +1,108 @@
+{
+  "B3": {
+    "slug": "focus_techniques",
+    "topic": "腦子不配合的時候真的有效的專注方法",
+    "claims": [
+      {
+        "id": "c1",
+        "label": "Phone on desk vs. in another room (Experiment 1)",
+        "value": 0.014,
+        "unit": "partial eta squared",
+        "what_it_means": "In a 520-person experiment, simply having your own phone on the desk (vs. in another room) significantly lowered working-memory task (OSpan) performance, even though people weren't consciously thinking about the phone.",
+        "source": {
+          "authors": "Ward, Duke, Gneezy & Bos",
+          "year": 2017,
+          "title": "Brain Drain: The Mere Presence of One’s Own Smartphone Reduces Available Cognitive Capacity",
+          "venue": "Journal of the Association for Consumer Research",
+          "doi": "10.1086/691462",
+          "doi_verified_via_crossref": true,
+          "url": "https://r.jordan.im/download/cognition/ward2017.pdf",
+          "verbatim": "Phone Location significantly affected both OSpan performance (F(2, 514) 5 3.74, p 5 .02, partial h2 5 .014) and RSPM score (F(2, 514) 5 3.96, p 5 .02, partial h2 5 .015).",
+          "secondhand": false,
+          "note": "Publisher page (journals.uchicago.edu) returned HTTP 403 to automated fetch; verbatim text confirmed against a full-text PDF mirror of the same published article. DOI/title/authors independently verified via Crossref."
+        }
+      },
+      {
+        "id": "c2",
+        "label": "Phone on desk vs. in another room (Experiment 2, replication)",
+        "value": 0.026,
+        "unit": "partial eta squared",
+        "what_it_means": "In a second, independent 275-person experiment replicating Experiment 1, working-memory capacity (OSpan) again dropped significantly as phone location moved from 'other room' to 'desk' — and the effect was larger for people who scored higher on smartphone dependence.",
+        "source": {
+          "authors": "Ward, Duke, Gneezy & Bos",
+          "year": 2017,
+          "title": "Brain Drain: The Mere Presence of One’s Own Smartphone Reduces Available Cognitive Capacity",
+          "venue": "Journal of the Association for Consumer Research",
+          "doi": "10.1086/691462",
+          "doi_verified_via_crossref": true,
+          "url": "https://r.jordan.im/download/cognition/ward2017.pdf",
+          "verbatim": "A 3 (Phone Location: desk, pocket/bag, other room) × 2 (Phone Power: on, off) between-subjects ANOVA revealed a significant effect of Location on OSpan performance (F(2, 263) 5 3.53, p 5 .03, partial h2 5 .026).",
+          "secondhand": false,
+          "note": "Same access caveat as c1: publisher page 403'd automated fetch; verbatim confirmed via full-text PDF mirror of the same article. DOI/title/authors independently verified via Crossref."
+        }
+      }
+    ]
+  },
+  "B4": {
+    "slug": "if_then_plans",
+    "topic": "不用建一套系統也有效的生產力方法",
+    "claims": [
+      {
+        "id": "c1",
+        "label": "Implementation intentions (if-then plans) meta-analysis, general goal attainment",
+        "value": 0.65,
+        "unit": "Cohen's d",
+        "what_it_means": "Across 94 independent tests, people who wrote a specific 'if situation Y happens, I will do X' plan for a goal were substantially more likely to attain that goal than people with only a general intention — no habit-tracking system, just one sentence written in advance.",
+        "source": {
+          "authors": "Gollwitzer & Sheeran",
+          "year": 2006,
+          "title": "Implementation Intentions and Goal Achievement: A Meta‐analysis of Effects and Processes",
+          "venue": "Advances in Experimental Social Psychology, Vol. 38",
+          "doi": "10.1016/S0065-2601(06)38002-1",
+          "doi_verified_via_crossref": true,
+          "url": "https://kops.uni-konstanz.de/handle/123456789/10973",
+          "verbatim": "Findings from 94 independent tests showed that implementation intentions had a positive effect of medium-to-large magnitude (d= .65) on goal attainment.",
+          "secondhand": false
+        }
+      },
+      {
+        "id": "c2",
+        "label": "Implementation intentions for physical activity, post-intervention",
+        "value": 0.31,
+        "unit": "Hedge's g",
+        "what_it_means": "Across 26 studies on getting people to actually exercise, those who formed a specific if-then plan (e.g., 'if it's 7am on Monday, I will go for a run') showed a small-to-medium boost in physical activity right after the intervention, compared to people who didn't plan this way.",
+        "source": {
+          "authors": "Bélanger-Gravel, Godin & Amireault",
+          "year": 2013,
+          "title": "A meta-analytic review of the effect of implementation intentions on physical activity",
+          "venue": "Health Psychology Review, Vol. 7, No. 1",
+          "doi": "10.1080/17437199.2011.560095",
+          "doi_verified_via_crossref": true,
+          "url": "https://www.mcmasteroptimalaging.org/full-article/he/meta-analytic-review-effect-implementation-intentions-physical-activity-25322",
+          "verbatim": "The overall effect size of implementation intentions was 0.31, 95% confidence intervals (CI) [0.11, 0.51] at post-intervention and 0.24, 95% CI [0.13, 0.35] at follow-up.",
+          "secondhand": false,
+          "note": "Verbatim confirmed on a third-party research-summary page (McMaster Optimal Aging Portal) reproducing the published abstract, since the publisher (tandfonline.com) 403'd automated fetch. DOI/title independently verified via Crossref."
+        }
+      },
+      {
+        "id": "c3",
+        "label": "Implementation intentions for goal attainment, clinical/analogue mental-health samples",
+        "value": 0.99,
+        "unit": "Cohen's d (d+)",
+        "what_it_means": "Across 28 experimental comparisons (excluding one outlying very large effect) involving people with diagnosed or sub-clinical mental health difficulties, forming a simple if-then plan produced a large improvement in whether they actually achieved their goal.",
+        "source": {
+          "authors": "Toli, Webb & Hardy",
+          "year": 2016,
+          "title": "Does forming implementation intentions help people with mental health problems to achieve goals? A meta‐analysis of experimental studies with clinical and analogue samples",
+          "venue": "British Journal of Clinical Psychology",
+          "doi": "10.1111/bjc.12086",
+          "doi_verified_via_crossref": true,
+          "url": "https://eprints.whiterose.ac.uk/id/eprint/94825/3/WRRO_94825.pdf",
+          "verbatim": "Excluding one outlying (very large) effect, forming implementation intentions had a large effect on goal attainment (d+ = 0.99, k = 28, N = 1,636).",
+          "secondhand": false,
+          "note": "This effect size is specific to clinical/analogue (mental-health) samples, not the general population — keep that scope in the narration if used."
+        }
+      }
+    ]
+  }
+}
