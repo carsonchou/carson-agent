@@ -2,6 +2,11 @@
 """跑語料。陽性抓不到 或 陰性被誤殺 → exit 1。"""
 import io, json, os, sys
 
+try:   # cp950 主控台會把繁中輸出印成亂碼 —— 讀不懂的測試報告等於沒有報告
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from numerus.check import CONTRADICTED, check_text, worst
 

@@ -16,6 +16,13 @@
 """
 import io, os, sys
 
+# cp950 主控台會把整份輸出印成亂碼(繁中全毀)。判準第 3 條指名要人重跑這支,
+# 而讀不懂的輸出等於沒有輸出。
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from numerus.check import CONTRADICTED, check_text
 

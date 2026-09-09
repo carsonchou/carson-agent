@@ -1,0 +1,58 @@
+{
+ "findings": {
+  "L_個股體檢品安8088抱品安18年賺6398很爽回測揭|六千三百九十八萬元": {
+   "claim": "六千三百九十八萬元",
+   "closest": {
+    "formula": "本金×(1+總報酬) 639.8%",
+    "value": 7398000.0
+   },
+   "current_context": "_bad_leak",
+   "first_context": "_bad_leak",
+   "first_seen": "2026-09-09 22:44:22",
+   "human_note": "2026-09-09 人工核對:100萬×(1+639.8%)=739.8萬,稿寫6398萬,放大8.6倍。但這支落在 _bad_leak/,已被 prompt 洩漏閘門擋下 ⇒ 不是獨立真陽性,不滿足條件1。",
+   "human_verdict": "TRUE_POSITIVE",
+   "last_seen": "2026-09-09 23:19:05",
+   "script_says": 63980000.0,
+   "slug": "L_個股體檢品安8088抱品安18年賺6398很爽回測揭",
+   "verdict_at": "2026-09-09 22:44:50"
+  }
+ },
+ "runs": [
+  {
+   "at": "2026-09-09 22:44:22",
+   "contradicted": 1,
+   "corpus": "D:\\carson-agent\\youtube_channel\\output",
+   "new": 1
+  },
+  {
+   "at": "2026-09-09 22:50:01",
+   "contradicted": 1,
+   "corpus": "D:\\carson-agent\\youtube_channel\\output",
+   "new": 0
+  },
+  {
+   "at": "2026-09-09 22:50:17",
+   "contradicted": 1,
+   "corpus": "D:\\carson-agent\\youtube_channel\\output",
+   "new": 0
+  },
+  {
+   "at": "2026-09-09 22:51:12",
+   "contradicted": 1,
+   "corpus": "D:\\carson-agent\\youtube_channel\\output",
+   "new": 0
+  },
+  {
+   "at": "2026-09-09 23:15:42",
+   "contradicted": 1,
+   "corpus": "D:\\carson-agent\\youtube_channel\\output",
+   "new": 0
+  },
+  {
+   "at": "2026-09-09 23:19:05",
+   "contradicted": 1,
+   "corpus": "D:\\carson-agent\\youtube_channel\\output",
+   "new": 0
+  }
+ ]
+}

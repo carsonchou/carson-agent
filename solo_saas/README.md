@@ -174,11 +174,15 @@ memory `gate-verification-population` 的三個母體都量過 ——
 | **①** | 前者 ∖ 後者 | **0 支** |
 
 唯一那支 CONTRADICTED(品安 8088,把 739.8 萬寫成 6,398 萬)落在 `output/_bad_leak/` ——
-**已經被 prompt 洩漏閘門擋掉了**,接上 numerus 不會改變它的命運,所以不算進①。
+**已經不在出貨路徑上**,接上 numerus 不會改變它的命運,所以不算進①。
+(⚠️ 原本這裡寫「已經被 prompt 洩漏閘門擋掉了」。查證後**這個前提不成立** ——
+全 repo 沒有程式碼會把檔案搬進 `_bad_leak/`,是人搬的,理由和數字錯誤無關。
+詳見 [GATE_UPGRADE_CRITERIA.md](GATE_UPGRADE_CRITERIA.md)。)
 
 **「0」自己不能當證據** —— 得先證明這支量尺量得出非零。陽性對照(用真案例,不用合成 fixture,
-`gate-blind-while-target-evolves`):把那支真的 CONTRADICTED 稿搬進「放行區」→ ① 變 **1/2**;
-同一份稿放進隔離子目錄 → 正確地**不**算進①。量尺會動,0 是真讀數。
+`gate-blind-while-target-evolves`):把那支真的 CONTRADICTED 稿**複製到沙箱語料的根目錄**
+→ ① 變 **1/2**;同一份稿放進沙箱的隔離子目錄 → 正確地**不**算進①。量尺會動,0 是真讀數。
+(這些工具不搬動任何產線檔案 —— solo_saas 裡沒有一行會移動 `output/` 下的東西。)
 
 ⚠️ 但 0 有一個天花板:它是**對已經被上游閘門洗過一輪的稿子**量的。
 上游哪天鬆掉,①會跟著變 —— **①是快照不是常數**,接上去之後要定期重量。
@@ -202,3 +206,34 @@ CONTRADICTED 1 / BARE 897 / CONSISTENT 209。
 **一道今天擋不到任何東西的閘門,它的價值全押在未來**,而那正是 `yt-period-swap-integrity`
 (我上一次估閘門成本用 r³ 而真實觸發率差 11~274 倍)警告過的地方:成本要用**接近真實觸發率**估。
 ①=0 是觸發率的一次觀測,不是它的上界。
+
+---
+
+## 現在的接法:只報告不阻斷(2026-09-09 總督導裁示)
+
+`--gate` 存在但**不掛上產線**。`watch.py` 每次掃描把 CONTRADICTED 寫進 `ledger.json`,
+永遠 exit 0,不影響任何流程。
+
+為什麼不直接接成阻斷 —— 因為①=0 只證明了「安全」,沒證明「有用」:
+**全母體唯一那支 CONTRADICTED 已經不在出貨路徑上,所以 numerus 的邊際貢獻還沒被量到。**
+(「還沒被量到」不是「證明為 0」,兩者也都不是「已證明有用」。)
+
+升級成阻斷的三個條件寫在 **[GATE_UPGRADE_CRITERIA.md](GATE_UPGRADE_CRITERIA.md)**,
+而且是**現在**寫的(在它抓到任何獨立真陽性之前)。`python watch.py --status` 是那份判準的執行版本。
+
+🔴 判準裡有一個會恆真的坑,已經堵掉並驗過:**沒有人核對時,「誤報 0」會自動成立。**
+所以未核對的 CONTRADICTED 一律讓條件 2 **不成立**。兩格對照都跑過:
+合成一支「放行區的真陽性」→ `--status` 說得出「可以進入升級討論」;
+再加一支誤指控 → 條件 2 單獨否決。**兩個條件都能各自翻面,所以真帳本上的「不可升級」是真讀數。**
+
+🔴 獨立驗證(fresh context,`docs/ops/dispatch.md` §6)打穿三個洞,都已修並各自帶對照:
+
+| 洞 | 症狀 | 修法 | 對照 |
+|----|------|------|------|
+| **「獨立性」是可變的,判決是黏的** | 每次掃描用檔案**當下**目錄覆寫判準欄位,而 `human_verdict` 是黏的 ⇒ 把已隔離、已判真陽性的稿子還原回 `output/` 根目錄,`--status` 立刻說「可以升級」——用的正是判準寫明「那支不算」的稿子 | 拆成 `first_context`(立了不改,判準只認它)/ `current_context`(會變,只印一行 ⚠️) | A-3:沙箱裡把它從 `_bad_leak/` **搬**回根目錄,仍判「不可升級」並印出位移警告 |
+| **「永遠 exit 0」是假的** | `numerus_watch.py` 的旗標迴圈和寫檔在 try/except **外面**:輸出目錄不存在 → `FileNotFoundError`;帳本有缺欄位的舊紀錄 → `KeyError` | 整段包進 try、欄位改 `.get()`、`mkdir(parents=True)` | E/F:兩個原本確定 exit 1 的輸入,現在都 exit 0 |
+| **`--status` 在預設主控台就崩** | 沒有 `stdout.reconfigure`,印到 `≥` 就 cp950 `UnicodeEncodeError` exit 1,而 README 和 `[ok]` 訊息都叫人跑它 | 補上 reconfigure(`errors="replace"`) | D:`PYTHONIOENCODING=cp950` 下,陰性對照確認同環境會炸,而 `--status` exit 0 |
+
+另外堵掉的:帳本檔**不存在**時原本讀成空帳本、一路印出「條件 2 成立」;現在先說
+「這不是沒有誤報,是沒有帳」。以及剛寫到一半的稿(`yt-tts-partial-file-truncation`:
+TTS 邊產邊寫在最終路徑)會製造永久假陽性 —— 加了 10 分鐘靜置窗,跳過幾支會印出來。
