@@ -553,6 +553,23 @@ def _sourced_unit(val: float, raw: str, pool: set[float], strict: bool) -> bool:
         return old
 
 
+# 🔴 2026-09-09 百分位補數(存量稽核 2 支誤標的成因):
+# 事實卡寫的是「位於第 **9** 百分位」,而旁白的自然講法是
+#   「本益比比過去十年 **91%** 的時間點都要低」(世紀 5314)
+#   「有 62% 的時間比現在低;有 **38%** 的時間比現在高」(中磊 5388,卡是第 62 百分位)
+# ⇒ **91 = 100 − 9、38 = 100 − 62,是同一個事實的補數說法**,而守門不會算補數 ⇒ 誤標。
+# 修法:**只在百分位語境**下,額外允許 `100 − 值` 溯源。
+# ⚠️ 刻意不做全域補數 —— 那等於把任何 x 都配上一個 100−x 的鄰居,是大幅放寬。
+_PCTL_CTX = ("百分位", "歷史區間")
+_PCTL_CTX2 = ("本益比", "估值", "評價")
+
+
+def _is_percentile_ctx(clause: str) -> bool:
+    if any(w in clause for w in _PCTL_CTX):
+        return True
+    return any(w in clause for w in _PCTL_CTX2) and "時間" in clause
+
+
 _RX_OVER = re.compile(r"(超過|逾|突破|至少|不只)\s*$")   # 「超過五百」:真值須 ≥ 宣稱值
 _RX_NEAR = re.compile(r"(近|約|將近|大約|差不多|快要)\s*$")  # 「近60%」:真值在 ±15% 內
 # 🔴 2026-09-08 對稱性缺口(抽樣 10 支裡 1 支的誤擋成因):_RX_OVER 有「超過/逾/突破/至少/不只」、
@@ -809,6 +826,10 @@ def unsourced_claims(text: str, pool: set[float] | None = None) -> list[dict]:
         # 而收窄池是這條線的方向。代價已量:全域池下擋片數 20→(見下方 commit 訊息實測),
         # 收窄池下把抽樣 10 支裡的 4 支誤擋全部清掉。
         if kind and _sourced_approx(c["value"], kind, _unit_subpool(c["raw"], pool)):
+            continue
+        # 百分位補數:「比 91% 的時間點都低」對應卡上的「第 9 百分位」(見 _is_percentile_ctx)
+        if (_is_percentile_ctx(c["clause"]) and 0.0 <= c["value"] <= 100.0
+                and _sourced_unit(100.0 - c["value"], c["raw"], pool, False)):
             continue
         bad.append(c)
     return bad
