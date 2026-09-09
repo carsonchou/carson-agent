@@ -24,6 +24,20 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 import make_reel  # noqa: E402
 import make_rechecked  # noqa: E402
 
+#: 🔴 **這份清單就是這道規則的定義。**
+#: 描述由 gate_registry.describe() 從這裡產生 —— 不要人手另寫一份。
+CASES = [
+    {"kind": "negative", "label": "focus_techniques 現況:畫面值等於事實庫存的值"},
+    {"kind": "negative", "label": "how_to_remember 現況:畫面 64% = 旁白 64 percent"},
+    {"kind": "negative", "label": "facial_feedback:單位符號 pts/10 的 10 不可以被當成畫面上的值"},
+    {"kind": "positive", "label": "val_str 換回舊的 .2f:0.026 被印成 0.03(捨入且方向往上)"},
+    {"kind": "positive", "label": "how_to_remember 列 3 改回 d = 1.10,而旁白唸的是 64 percent"},
+    {"kind": "positive", "label": "display_only 為真卻不附理由"},
+    {"kind": "positive", "label": "display_only_why 是空字串"},
+    {"kind": "positive", "label": "display_only_why 只有空白"},
+]
+
+
 SRC = pathlib.Path(r"D:\carson-agent\ch3_lab\facts\rechecked_episodes.json")
 EPS = {e["slug"]: e for e in
        json.loads(SRC.read_text(encoding="utf-8"))["episodes"]}

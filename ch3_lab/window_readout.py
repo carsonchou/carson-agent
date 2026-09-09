@@ -11,9 +11,16 @@
 · **量測窗**(發布後)讀太早 ⇒ 尾巴幾天沒進來 ⇒ 新片被低估 ⇒ **測試假性失敗**
 兩個都是**儀器**造成的,不是內容造成的,而且都不會報錯。
 
-⇒ 唯一可靠的判準是**數列數**:用 `dimensions=day` 查同一個窗,
-  回的列數必須等於窗長。不足就 `SystemExit`,不印任何讀數。
+⇒ 判準是**資料視界**:往今天查一段,最後一個有列的日期就是視界。
+  視界 >= 窗結束日 ⇒ 這個窗已經完全落地。不足就 `SystemExit`,不印任何讀數。
   **印一個不完整的數字,比不印更糟** —— 它會被當成結論用下去。
+
+⚠️ **不是數列數。** 本檔第一版寫的是「回的列數必須等於窗長」,而實測
+  (2026-09-09)那條會把一個**完整**的窗判成不完整:零觀看日**根本不回列**,
+  08-15~08-18 連續四天都沒有列。**那個設計已經被放棄,不要照這段話重建它。**
+
+⚠️ `LAG_DAYS = 4` 只是名目值,昨天實測延遲是 **3 天** —— 它貼得很近。
+  **真正 fail-closed 的是視界檢查,不要把 +4 當保護,也不要在別處引用它當常數。**
 
 用法:
   python window_readout.py --start 2026-08-24 --end 2026-09-06
@@ -92,8 +99,10 @@ def assert_complete(y, start, end, allow_incomplete=False):
             f'⛔ 資料視界只到 {horizon},而這個窗要到 {end_iso} —— '
             f'窗的尾巴還沒落地。現在讀會拿到一個分母偏小、'
             f'但看起來完全正常的數字。不輸出任何讀數。')
-    return {'expected_days': want, 'rows_returned': len(rows),
-            'data_horizon': horizon, 'truncated_by_lag': truncated,
+    # 🔴 `rows_returned` / `expected_days` **不放進輸出**。它們會被抄進讀數紀錄,
+    #    而讀的人會拿 12 對 14 得出「少了兩天」的結論 —— 那個結論是錯的,
+    #    而且它比沒有數字更有說服力。判準是視界,紀錄裡就只留視界。
+    return {'data_horizon': horizon, 'truncated_by_lag': truncated,
             'zero_view_days': absent,
             'note': ('內部缺的日子是**真的零觀看**(那一列不存在),'
                      '不是資料沒進來;分辨兩者的是資料視界,不是列數。')}
@@ -129,8 +138,8 @@ def main():
     comp["read_before_nominal_lag"] = early
     comp["nominal_ready_date"] = ready.isoformat()
     if early:
-        print(f"⚠️ 比名目延遲({ready})早讀,但列數檢查通過"
-              f"(資料視界 {comp['data_horizon']} >= 窗結束)——"
+        print(f"⚠️ 比名目延遲({ready})早讀,但視界檢查通過"
+              f"(資料視界 {comp['data_horizon']} >= 窗結束 {a.end})——"
               f"以列數為準,並記進輸出。")
     cols, rows = q(y, startDate=a.start, endDate=a.end,
                    metrics="views,estimatedMinutesWatched",

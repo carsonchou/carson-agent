@@ -10,6 +10,14 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 import make_reel  # noqa: E402
 
+#: 🔴 **這份清單就是這道規則的定義。**
+#: 描述由 gate_registry.describe() 從這裡產生 —— 不要人手另寫一份。
+CASES = [
+    {"kind": "negative", "label": "未動過的真 entry(hot_hand):閘門必須安靜"},
+    {"kind": "positive", "label": "把某列 es 換成 77.7 / 0.4242 / -1234:事實庫別處找不到的值"},
+]
+
+
 SRC = pathlib.Path(r"D:\carson-agent\ch3_lab\facts\rechecked_episodes.json")
 E0 = next(x for x in json.loads(SRC.read_text(encoding="utf-8"))["episodes"]
           if x["slug"] == "hot_hand")

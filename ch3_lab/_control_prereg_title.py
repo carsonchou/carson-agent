@@ -17,6 +17,23 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 import publish_shorts as ps  # noqa: E402
 
+#: 🔴 **這份清單就是這道規則的定義。**
+#: 描述由 gate_registry.describe() 從這裡產生 —— 不要人手另寫一份。
+CASES = [
+    {"kind": "negative", "label": "六支都用登記檔上的逐字標題"},
+    {"kind": "negative", "label": "舊片明示 is_prereg=False,不歸這道閘門管"},
+    {"kind": "positive", "label": "標題尾巴多一個空格(逐字就是逐字)"},
+    {"kind": "positive", "label": "標題少了 The Only"},
+    {"kind": "positive", "label": "換成實測 0 勝出的措辭 Study Tips Backed By Science"},
+    {"kind": "positive", "label": "舊產線 popular_name 組出來的那種標題"},
+    {"kind": "positive", "label": "兩支搶同一個登記標題"},
+    {"kind": "positive", "label": "is_prereg 欄位整個拿掉"},
+    {"kind": "positive", "label": "is_prereg 欄位名打錯一個字母"},
+    {"kind": "positive", "label": "is_prereg 值填成字串「false」(truthy,最會騙人的那個)"},
+    {"kind": "positive", "label": "產線帶過來的 <MISSING> 哨兵"},
+]
+
+
 REG = list(ps.prereg_titles())
 
 

@@ -33,6 +33,30 @@ Shorts 的分發靠前一批曝光回收到的訊號決定要不要放大。回�
   python make_reel.py --slug hot_hand --script-only
   python make_reel.py --slug hot_hand
   python make_reel.py --all
+<!--GATE-CASES:reel.display_vs_facts-->
+這道閘門(reel.display_vs_facts)的定義 = 它的對照腳本 _control_display_vs_facts.py 的案例清單。
+實作在 make_reel.audit()。
+**它會叫**(陽性,5 種):
+  · val_str 換回舊的 .2f:0.026 被印成 0.03(捨入且方向往上)
+  · how_to_remember 列 3 改回 d = 1.10,而旁白唸的是 64 percent
+  · display_only 為真卻不附理由
+  · display_only_why 是空字串
+  · display_only_why 只有空白
+**它不該叫**(陰性,3 種):
+  · focus_techniques 現況:畫面值等於事實庫存的值
+  · how_to_remember 現況:畫面 64% = 旁白 64 percent
+  · facial_feedback:單位符號 pts/10 的 10 不可以被當成畫面上的值
+⚠️ 這份清單會過期。它需要定期用真案例證明它還抓得到。
+<!--/GATE-CASES:reel.display_vs_facts-->
+<!--GATE-CASES:reel.orphan_value-->
+這道閘門(reel.orphan_value)的定義 = 它的對照腳本 _control_orphan.py 的案例清單。
+實作在 make_reel.audit()。
+**它會叫**(陽性,1 種):
+  · 把某列 es 換成 77.7 / 0.4242 / -1234:事實庫別處找不到的值
+**它不該叫**(陰性,1 種):
+  · 未動過的真 entry(hot_hand):閘門必須安靜
+⚠️ 這份清單會過期。它需要定期用真案例證明它還抓得到。
+<!--/GATE-CASES:reel.orphan_value-->
 """
 import argparse
 import json
@@ -54,6 +78,10 @@ from make_short import (UI_RIGHT, UI_BOTTOM, UI_TOP,       # noqa: E402
 W, H, FPS = 1080, 1920, 30
 BG, FG, DIM = "#0E1116", "#E8EAED", "#8A9099"
 ACCENT, HOT = "#FFC23D", "#F5A54E"
+
+#: 🔴 這道閘門「檢查什麼」的定義,在下面這兩支對照腳本的 CASES 清單裡。
+#:    改規則要先改案例,不是先改這裡的文字。
+CONTROL = "_control_display_vs_facts.py / _control_orphan.py"
 
 SEGS = ("belief", "weight", "turn", "verdict", "ask")
 
@@ -252,17 +280,21 @@ def audit(E, segs):
     if shown:
         raise SystemExit(
             f"⛔ 表格**渲染後**要印的數字,事實庫別處找不到:{shown}"
+            f"(這道閘門的定義見 {CONTROL})"
             "   比的是 val_str() 的輸出,不是原始值 —— 中間那次格式化"
             "會改變數字(eta2 曾把 0.026 印成 0.03,方向還往上)。")
     if noreason:
         raise SystemExit(
             f"⛔ 這幾列用了 display_only 卻沒寫理由:{noreason}"
-            "   逃生門要付代價,代價就是寫下理由 —— 一個不用付代價的例外,"
+            f"(這道閘門的定義見 {CONTROL})"
+            "   逃生門要付代價,代價就是寫下理由:這一列要附 `display_only_why`,"
+            "而且不能是空白。一個不用付代價的例外,"
             "最後所有東西都會從它走掉。理由要能回答:為什麼這個數字"
             "印在畫面上、而旁白刻意不唸它。")
     if spoken:
         raise SystemExit(
             f"⛔ 畫面要印、而 turn 旁白從沒唸過的數字:{spoken}"
+            f"(這道閘門的定義見 {CONTROL})"
             "   觀眾同時聽到和看到,這兩個要講同一件事。"
             "   真的要印一個不唸的數字,就在那一列寫 display_only=true "
             "並附 display_only_why —— 靠沉默不算。")

@@ -27,6 +27,24 @@ videos.insert 同樣 1600/支,Shorts 與長片共用同一本帳(`quota.py`)。
   python publish_shorts.py --list
   python publish_shorts.py --limit 2 --dry-run
   python publish_shorts.py --limit 2
+<!--GATE-CASES:publish.prereg_title-->
+這道閘門(publish.prereg_title)的定義 = 它的對照腳本 _control_prereg_title.py 的案例清單。
+實作在 publish_shorts.prereg_title_gate()。
+**它會叫**(陽性,9 種):
+  · 標題尾巴多一個空格(逐字就是逐字)
+  · 標題少了 The Only
+  · 換成實測 0 勝出的措辭 Study Tips Backed By Science
+  · 舊產線 popular_name 組出來的那種標題
+  · 兩支搶同一個登記標題
+  · is_prereg 欄位整個拿掉
+  · is_prereg 欄位名打錯一個字母
+  · is_prereg 值填成字串「false」(truthy,最會騙人的那個)
+  · 產線帶過來的 <MISSING> 哨兵
+**它不該叫**(陰性,2 種):
+  · 六支都用登記檔上的逐字標題
+  · 舊片明示 is_prereg=False,不歸這道閘門管
+⚠️ 這份清單會過期。它需要定期用真案例證明它還抓得到。
+<!--/GATE-CASES:publish.prereg_title-->
 """
 import argparse
 import json
@@ -814,6 +832,9 @@ def insert_one(yt, o, path):
 #: 事前登記檔 —— **標題的權威在這份文件裡,不在程式裡**。
 #: 讀它本人,不要另外抄一份標題清單:抄一份就有兩個真相,而漂掉的那次
 #: 不會有人發現(這條線上「同一件事兩份實作」已經第九次)。
+#: 🔴 這道閘門「檢查什麼」的定義,在對照腳本的 CASES 清單裡。
+CONTROL = "_control_prereg_title.py"
+
 PREREG_DOC = ROOT.parent / "docs" / "ch3_recurrence_test_prereg_2026-09-09.md"
 #: 表格列長這樣:| B1 | B | 記憶／學習(提取練習) | `The Only Study ...` |
 PREREG_ROW = re.compile(
@@ -874,6 +895,7 @@ def prereg_title_gate(batch):
                         f"`is_prereg` 不是布林值(拿到 {flag!r})—— "
                         f"每個 entry 都必須明示 true/false。"
                         f"缺欄位或欄位名打錯時,這道閘門會整支跳過而不會叫,"
+                        f"(定義見 {CONTROL})"
                         f"所以缺漏本身就是錯誤,不是「預設不是登記片」。"))
             continue
         if not flag:
