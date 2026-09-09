@@ -328,6 +328,11 @@ README 寫的安裝路徑是「跑 .bat 開 cloudflared 臨時網址 → 自己 
 - 「Firebase Auth 沒啟用」無法獨立重現(工具丟棄非 2xx 的 response body;
   改用會真的建帳號的寫入端點被分類器擋下,他沒硬繞)⇒ 該句仍是單一觀測者
 - 原始素材 12 筆他只數到本文具名的 11 家(第 12 筆是 Ditther,已補進第 2 節)
+  ✅ **2026-09-09 事後回查原始素材:2.1~2.12 十二家全部具名**(DiskBuddy / Ditther / wento.ai /
+  Hairly AI / 1Lookup / CarAI / VoiceBrief / Aila / Ecom Nation / Rezi / GojiberryAI / Kibu),
+  本文現在也十二家全數點名。⇒ 這一筆是**驗證員射程外的東西**,不是錯誤:
+  他手上只有交付檔、沒有原始素材,所以他能數的只有「本文具名幾家」。
+  記在這裡當形狀:**驗證員說「我數不到」時,先分清是數字錯了還是他看不到那個抽屜。**
 - GojiberryAI 頁面未單獨核對(不在交辦的三個抽驗對象內)
 
 ⚠️ 驗證員報告裡有一句**過頭**:他說 `eigenflux-infra-assessment-2026-08` 全文
