@@ -33,6 +33,7 @@ from __future__ import annotations
 import argparse
 import datetime as _dt
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -622,14 +623,180 @@ def _load_existing():
     return data
 
 
+def _atomic_write_json(path: Path, obj, *, expect_results: int, expect_by_code: int,
+                       min_ratio: float = 0.5, min_floor: int = 1_000_000,
+                       replace_attempts: int = 6):
+    """原子寫 JSON:tmp → 讀回比對 → `os.replace`。回傳 (bytes, n_results, n_by_code)。
+
+    🔴 2026-09-09:這是「事實庫被寫壞」證據鏈的**防止**那一環。
+       讀取端的 fail-closed(`_load_existing`)是**攔住**——它在下一輪才發現檔案壞了,
+       而那時檔案已經死了。實測:17,918,507 bytes 的正式檔被 `open(...,'w')` 截斷後中止
+       ⇒ **0 bytes**,而 0 bytes 對下游是合法的「零筆」(memory `write-truncates-before-it-fails`)。
+
+       `Path.write_text()` 的形狀是「先截斷正式檔,再一路寫」——**中途死掉就沒有原檔了**。
+       這裡改成三段,任何一段失敗時正式檔都**一個 byte 沒被碰過**:
+         ① 序列化在記憶體裡做完(json.dumps 拋例外時,連 tmp 都還沒開)
+         ② 寫進**同目錄**的 tmp、fsync、**讀回逐位比對 + parse 得動 + 不變量對得上**
+         ③ 全過才 `os.replace`(同一個檔案系統 ⇒ 原子替換,不存在「換到一半」)
+       tmp 帶 pid ⇒ 兩個行程同時跑不會互踩對方的暫存檔。
+
+    ⚠️ **為什麼不直接用 `studio_common.save_json_atomic()`**(它存在,而且 20+ 支腳本在用):
+       它做的是 tmp → `os.replace` + per-path lock + `PermissionError` 重試 + **覆寫前 `.bak`**,
+       但**沒有讀回比對、沒有形狀檢查、沒有縮水下限** —— 而這條事故鏈要防的正好是那三樣。
+       ⇒ 這裡自己做,不是不知道有那支。**要改的話應該是把這三格上收到 `save_json_atomic`**,
+         但那會一次影響 20+ 支腳本(有些檔案本來就會合法縮水),屬於另一件事,要獨立驗。
+       ⚠️ 也**刻意不做 `.bak`**:這個檔的 `.bak` 由每週日的 `checkup_industry_rank.py --apply`
+          產生(實測 `stock_checkup_facts.json.bak` = 09-06 06:05,16.9 MB)。
+          本函式每天跑,若也寫 `.bak` 會把「一週的深度」壓成「一天」,**備份反而變淺**。
+
+    ⚠️ **`expect_*` 這組不變量的射程要講清楚,不要高估它**(2026-09-09 獨立驗證糾正過我一次):
+       它是呼叫端從**即將寫出去的那個物件**算的,所以它只量得到「序列化 → 落盤 → 讀回」
+       這一段有沒有走樣。**上游把資料弄丟了它一律看不到** —— 實測把 `_load_existing()`
+       換成回空骨架,651 檔 → 1 檔而這組不變量**不會叫**。
+       擋那條的是下面的**縮水下限**(問磁碟 `stat()`,不看任何 in-memory 物件)、
+       `_load_existing()` 自己的 fail-closed、以及 `merge_and_write` 對**輸入**的檢查。
+       (memory `verification-that-cannot-fail`:拿寫出去的內容驗寫出去的內容恆為真。
+        這裡不是恆為真,但它的定義域比「檔案有沒有被寫壞」小很多。)
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    # ① 記憶體裡先做完
+    try:
+        blob = json.dumps(obj, ensure_ascii=False, indent=2).encode("utf-8")
+    except Exception as exc:  # noqa: BLE001
+        msg = (f"[stock_checkup_facts] 🔴 序列化失敗,正式檔一個 byte 沒被碰過 —— "
+               f"{path}:{exc!r}")
+        print(msg)          # 不印的話,job_stderr 以外看不到任何線索
+        raise RuntimeError(msg) from exc
+
+    # 🔴 縮水下限:這一格**不看 `_load_existing()` 的結果**,直接問磁碟。
+    #    2026-09-09 獨立驗證抓到的:`expect_*` 是呼叫端從**同一個 in-memory 物件**算的,
+    #    所以「上游把舊資料弄丟了」它一律看不到 —— 實測把 `_load_existing` 換成回空骨架,
+    #    651 檔 → 1 檔、17.9 MB → 1,010 bytes,原本的不變量**不會叫**,還照樣印「已寫入」。
+    #    (memory `verification-that-cannot-fail`:拿寫出去的東西驗寫出去的東西恆為真。)
+    #    ⚠️ 合法的縮水只有「同一個代號改版後事實變少」,在 8,000+ 組裡是 < 1% 的量級;
+    #       0.5 這個門檻離合法縮水很遠,離 0.006%(那次事故)更遠。
+    #    要刻意重建整個檔:先把舊檔刪掉/移走,走 `_load_existing` 的「真的第一次」那條路。
+    #
+    # ⚠️ `min_floor`:比率門檻只對**已經累積起來的大檔**開。獨立驗證實測,單一代號佔全檔 > 50%
+    #    的小檔(實務上 = **≤2 個代號的檔**)重算後會被誤擋:6 組 → 1 組,1,286 → 484 bytes(37.6%)。
+    #    正式檔 651 個代號、單代號最多 14/8,137 ≈ 0.17%,打不到;但 `yt_ch2` 那份**冷啟動前幾天會撞**。
+    #    這道閘門要防的是「累積了很久的帳本一次塌掉」,檔案還小的時候本來就沒有那個東西可以塌。
+    prev_size = path.stat().st_size if path.exists() else 0
+    if prev_size >= min_floor and len(blob) < prev_size * min_ratio:
+        msg = (f"[stock_checkup_facts] 🔴 要寫的內容比現有正式檔小太多,拒絕寫入 —— "
+               f"{path}:現有 {prev_size:,} bytes、要寫 {len(blob):,} bytes"
+               f"({len(blob) / prev_size:.1%},門檻 {min_ratio:.0%},"
+               f"只對 ≥ {min_floor:,} bytes 的檔開)。"
+               f"    正式檔**一個 byte 都沒被碰過**。這通常代表上游讀到的舊資料不完整,"
+               f"先查 `_load_existing()` 讀到了什麼,**不要刪檔重跑**。")
+        print(msg)
+        raise RuntimeError(msg)
+
+    tmp = path.with_name(f"{path.name}.tmp.{os.getpid()}")
+    try:
+        # ② tmp + fsync + 讀回
+        with open(tmp, "wb") as fh:
+            fh.write(blob)
+            fh.flush()
+            os.fsync(fh.fileno())
+        back = tmp.read_bytes()
+        if back != blob:
+            raise RuntimeError(
+                f"[stock_checkup_facts] 🔴 暫存檔讀回比對不符,拒絕替換正式檔 —— "
+                f"{tmp}:寫出 {len(blob):,} bytes、讀回 {len(back):,} bytes。"
+                f"正式檔 {path} **一個 byte 都沒被碰過**,原資料還在。")
+        reloaded = json.loads(back.decode("utf-8"))
+        n_res = len(reloaded.get("results") or {})
+        n_by = len(reloaded.get("by_code") or {})
+        if (not isinstance(reloaded.get("results"), dict)
+                or n_res != expect_results or n_by != expect_by_code):
+            raise RuntimeError(
+                f"[stock_checkup_facts] 🔴 暫存檔不變量不符,拒絕替換正式檔 —— "
+                f"results {n_res:,} 應為 {expect_results:,}、"
+                f"by_code {n_by:,} 應為 {expect_by_code:,}。"
+                f"正式檔 {path} **一個 byte 都沒被碰過**,原資料還在。")
+        # ③ 只有前面全過才動正式檔
+        #    🔴 Windows:目標檔被任何人開著讀時,`os.replace` 會 PermissionError(WinError 5) ——
+        #       這是本修法**新引入**的失敗模式,舊碼的 `write_text` 在同情境下寫得進去
+        #       (2026-09-09 獨立驗證實測)。這個檔有十幾個讀取端(produce_batch /
+        #       per_stock_fact_gate / fact_source_guard …),05:50 那班撞上任一個就整天白算。
+        #       ⇒ 退避重試。重試期間正式檔仍然一個 byte 沒被碰過,失敗也只是「今天不合併」。
+        last_exc = None
+        for attempt in range(replace_attempts):
+            try:
+                os.replace(tmp, path)
+                last_exc = None
+                break
+            except PermissionError as exc:
+                last_exc = exc
+                if attempt == replace_attempts - 1:
+                    break
+                time.sleep(0.5 * (2 ** attempt))
+        if last_exc is not None:
+            msg = (f"[stock_checkup_facts] 🔴 替換正式檔失敗({replace_attempts} 次全被拒)—— "
+                   f"{path}:{last_exc!r}"
+                   f"    最可能是有別的程序正開著這個檔在讀(Windows 不准替換被開啟的檔)。"
+                   f"    正式檔**一個 byte 都沒被碰過**,暫存檔已清掉。等那支讀完再重跑即可。")
+            print(msg)
+            raise RuntimeError(msg) from last_exc
+    except BaseException:
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+        raise
+    # ④ 替換後再看一眼。⚠️ 這格**不拋**:os.replace 回來時檔案已經是驗過的那份,
+    #    此時對不上最可能的解釋是「另一個行程在我們之後也寫了」——那是資訊不是我們的毀損。
+    #    但它必須**產生輸出**,否則就是一格不會叫的檢查。
+    final = path.stat().st_size
+    if final != len(blob):
+        print(f"[stock_checkup_facts] ⚠️ 替換後大小對不上:{final:,} bytes,"
+              f"我們寫的是 {len(blob):,} bytes ⇒ 很可能有另一個行程在我們之後也寫了同一個檔。"
+              f"資料沒有被我們寫壞(替換前已逐位驗過),但**這個檔現在不是我們那一份**。")
+    return len(blob), n_res, n_by
+
+
 def merge_and_write(facts, dry=False):
     """把單一代號的體檢結果合併進共用檔（別的代號已算出的事實不動）。"""
     existing = _load_existing()
     existing.setdefault("results", {})
     existing.setdefault("by_code", {})
+    # 🔴 在**動它之前**記下來 —— 事後再算就是拿結果驗結果。
+    code_for_scope = facts["code"]
+    others_before = sum(1 for k in existing["results"]
+                        if not (k.endswith(f"__{code_for_scope}")
+                                or f"__{code_for_scope}__" in k))
+    codes_before = set(existing["by_code"])
     existing["as_of"] = facts["as_of"]
     existing["disclaimer"] = DISCLAIMER
     code = facts["code"]
+    # 🔴 輸入端閘門:本次算出的事實,每個 key 都必須屬於本代號。
+    #    判準放在**輸入**上而不是合併後的總數上,因為總數擋不住「覆寫」——
+    #    `facts["results"]` 若含一個**已存在**的別人的 key,`update()` 會蓋掉它而筆數不變
+    #    ⇒ 數量型判準恆等 ⇒ 不叫(獨立驗證實測:1101 的 claim 被靜默改掉)。
+    #    檢查輸入只要 O(本次事實數) ≈ 14 個 key,新增和覆寫**兩種都擋得住**。
+    #    ⚠️ 位置刻意排在 `if dry` **之前**:第一版排在後面,`--dry` 餵毒 key 不會叫
+    #       ⇒ 拿 `--dry` 當上機前預檢就檢不到(獨立驗證第三輪指出)。
+    #    母體驗過:真實 651 檔的實際歸屬 key **零個**會被判成 foreign。
+    foreign = sorted(k for k in facts["results"]
+                     if not (k.endswith(f"__{code}") or f"__{code}__" in k))
+    if foreign:
+        raise RuntimeError(
+            f"[stock_checkup_facts] 🔴 {code} 本次算出的事實裡有 {len(foreign)} 個 key 不屬於它,"
+            f"拒絕寫入 —— 例:{foreign[:5]}。"
+            f"這些 key 會 `update()` 覆蓋掉別的代號的事實。正式檔零改動。")
+    # 🔴 2026-09-09 獨立驗證在這裡找到一件**現在正在發生、但本次沒修**的事,先標著:
+    #    下面這行會連 `checkup_industry_rank__{code}` 一起 pop 掉 —— 那個 key 不是本腳本產的,
+    #    是 `checkup_industry_rank.py --apply`(crontab.txt:622,**每週日 06:40**)寫的,
+    #    而 `facts["results"]` 不會補回來 ⇒ **每天 `--count 16` 就抹掉 16 檔的同業排名事實,
+    #    要等下個週日才長回來。** 實測:651 檔裡 482 檔的實際歸屬數比宣稱 `n_facts` 多 1
+    #    (多的清一色是 rank key);而 09-07 之後重算過的 34 檔**留著 rank key 的是 0 檔**
+    #    (對照組:09-06 那班之前重算的 601 檔有 471 檔留著)。
+    #    ⚠️ 新加的 `others_after == others_before` **看不到它** —— 那個 key 對本代號來說
+    #       前後都算「自己的」。不要因為那道閘門沒叫就以為沒事。
+    #    ⚠️ 沒有順手修的理由:這行的原始用意是「改版後清掉失效欄位」,而那正需要刪掉
+    #       不再產出的前綴 ⇒ 「保留別人的 key」和「清掉自己的舊 key」在這個判準下分不開,
+    #       要修得先決定**哪些前綴屬於別的寫入端**,那是一個設計決定 + 一輪獨立驗證,不是一行。
     # 先清掉這個代號舊的 key（避免改版後留下失效欄位），再灌新的
     stale_keys = [k for k in existing["results"] if k.endswith(f"__{code}") or f"__{code}__" in k]
     for k in stale_keys:
@@ -644,10 +811,39 @@ def merge_and_write(facts, dry=False):
         print(f"[stock_checkup_facts] --dry：不寫檔（{code} 本次算出 {len(facts['results'])} 組，"
               f"{len(facts['skipped'])} 組資料不足略過）")
         return existing
-    OUT_FILE.parent.mkdir(parents=True, exist_ok=True)
-    OUT_FILE.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"[stock_checkup_facts] 已寫入 {OUT_FILE}（{code} 本次 {len(facts['results'])} 組，"
-          f"全檔累計 {len(existing['results'])} 組）")
+    # 🔴 結構不變量:合併一個代號,**不可以動到別的代號**。
+    #
+    # ⚠️ 這一整組**不是**「資料被上游弄丟」的防線 —— 它算的 `_before` 來自 `_load_existing()`
+    #    的回傳值,上游回一個空骨架時 `others_before=0`、`codes_before=set()`,合併後仍然是
+    #    0 和空集合 ⇒ **它不會叫**(2026-09-09 獨立驗證把 `min_ratio` 設 0 實測:檔案照樣被寫小)。
+    #    擋那條的是 `_atomic_write_json` 的**縮水下限**(問磁碟 `stat()`,不看任何 in-memory 物件),
+    #    以及 `_load_existing()` 自己的 fail-closed。**這裡守的是另一類失效:輸入夾帶了別人的東西。**
+    #
+    # 判準放在**輸入**上(實作在本函式開頭的 `foreign`,見那裡的說明)。
+    # 總數這一格留著當第二道:擋「合併過程本身把 existing 改壞」(例如 stale_keys 誤刪)。
+    others_after = sum(1 for k in existing["results"]
+                       if not (k.endswith(f"__{code}") or f"__{code}__" in k))
+    if others_after != others_before:
+        raise RuntimeError(
+            f"[stock_checkup_facts] 🔴 合併 {code} 動到了別的代號,拒絕寫入 —— "
+            f"其他代號的事實 {others_before:,} → {others_after:,}。正式檔零改動。")
+    # ⚠️ 誠實標註:下面這格**目前不可能觸發** —— `by_code` 在本函式只有 `setdefault` 和
+    #    `by_code[code] = {...}`,沒有任何刪除路徑(獨立驗證逐行列過)。留著是給未來改動的絆線,
+    #    **它現在不是證據**:不要因為「它沒叫」就推論代號沒掉(memory `verification-that-cannot-fail`)。
+    lost_codes = codes_before - set(existing["by_code"])
+    if lost_codes:
+        raise RuntimeError(
+            f"[stock_checkup_facts] 🔴 合併 {code} 弄丟了 {len(lost_codes)} 個代號,拒絕寫入 —— "
+            f"例:{sorted(lost_codes)[:5]}。正式檔零改動。")
+    # 磁碟層的不變量(抓序列化/落盤走樣),見 _atomic_write_json 的說明。
+    expect_results = len(existing["results"])
+    expect_by_code = len(existing["by_code"])
+    n_bytes, n_res, n_by = _atomic_write_json(
+        OUT_FILE, existing, expect_results=expect_results, expect_by_code=expect_by_code)
+    # ⚠️ 「已寫入」這句只能印在讀回比對通過之後,而且要帶驗到的數字。
+    #    舊版是寫完無條件印——檔案被截成 0 bytes 那次,它照樣印「已寫入」。
+    print(f"[stock_checkup_facts] 已寫入並讀回驗證 {OUT_FILE}（{code} 本次 {len(facts['results'])} 組，"
+          f"全檔累計 {n_res} 組 / {n_by} 檔，{n_bytes:,} bytes）")
     return existing
 
 
