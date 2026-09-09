@@ -196,7 +196,12 @@
         "weight": "For thirty-three years psychology said that was an illusion. The 1985 paper is cited more than 1,600 times.",
         "turn": "In 2018 somebody checked the arithmetic. If you pick out only the shots that follow a run of hits, a perfectly random shooter does not score zero on that measure. He scores minus 8 percentage points. The players scored plus 4. Against a random shooter that is 12 points ahead, not level.",
         "verdict": "The bias-adjusted difference is plus 13 percentage points. The illusion was in the arithmetic.",
-        "ask": "Did you ever believe the hot hand was fake?"
+        "ask": "Did you ever believe the hot hand was fake?",
+        "captions": {
+          "belief": "you have heard this one",
+          "weight": "so somebody checked",
+          "turn": "what came back"
+        }
       }
     },
     {
@@ -402,7 +407,12 @@
         "weight": "65 percent granted after a break, almost none before one. Cited more than 1,400 times, in law and in management.",
         "turn": "Two teams challenged it, and neither ran the study again. One got a different set of hearings and found that case order is not random: prisoners without a lawyer go last, and they win 15 percent of the time against 35. The other simulated a judge doing nothing wrong, and got the same falling line.",
         "verdict": "The original authors answered both and withdrew nothing. This one is still an argument.",
-        "ask": "Do you think the judges were hungry, or just running late?"
+        "ask": "Do you think the judges were hungry, or just running late?",
+        "captions": {
+          "belief": "you have heard this one",
+          "weight": "so somebody checked",
+          "turn": "what came back"
+        }
       },
       "missing_public": [
         "Neither paper challenging the original reports a p value or a confidence interval.",
@@ -606,7 +616,12 @@
         "weight": "The idea is that your face feeds back into how you feel. The textbook demonstration, cited more than 1,800 times.",
         "turn": "In 2016, 17 laboratories ran it on 1,894 people. The difference was 0.03 points on a ten point scale, and 0 of the 17 pointed the right way. Six years later a bigger group tried three ways of making people smile. Copying a smiling face worked. Posing it yourself worked. The pen still did nothing.",
         "verdict": "The pen died. The idea did not - and the original author co-signed the paper that showed it.",
-        "ask": "The pen, or copying someone's smile - which would you have bet on?"
+        "ask": "The pen, or copying someone's smile - which would you have bet on?",
+        "captions": {
+          "belief": "you have heard this one",
+          "weight": "so somebody checked",
+          "turn": "what came back"
+        }
       },
       "missing_public": [
         "The total number of people in the 2019 review: it counts articles, studies and effect sizes, never people.",
@@ -842,7 +857,12 @@
         "weight": "The standard explanation for why good people do shabby things. Cited over 1,000 times.",
         "turn": "Pooled, the effect is 0.31. Published studies 0.43, unpublished 0.11. A 2016 replication on 3,134 people still found it, much smaller. Correct for publication bias one way: minus 0.05. In 2024 a registered replication: minus 0.38 on one scenario, 0.08 on the other.",
         "verdict": "Every retest made the sample bigger and the effect smaller. The last one changed sign.",
-        "ask": "Do you catch yourself doing this?"
+        "ask": "Do you catch yourself doing this?",
+        "captions": {
+          "belief": "you have heard this one",
+          "weight": "so somebody checked",
+          "turn": "what came back"
+        }
       },
       "bias_correction": {
         "year": 2019,
@@ -1023,7 +1043,12 @@
         "weight": "A whole research programme about fear, politics and prejudice is built on it. The replication team put the original effect at 1.34.",
         "turn": "The usual defence when a result does not come back is that the replicators did it wrong. So this time 7 of the labs ran a protocol the original authors advised on. Those labs got 0.08. The labs left to themselves differed by 0.01, which is not a difference.",
         "verdict": "They let the original authors help design it, and it still did not come back.",
-        "ask": "Does being reminded of death change how you argue?"
+        "ask": "Does being reminded of death change how you argue?",
+        "captions": {
+          "belief": "you have heard this one",
+          "weight": "so somebody checked",
+          "turn": "what came back"
+        }
       },
       "missing_public": [
         "The pooled effect for the labs that ran it without the original authors: the paper never reports one separately."
@@ -1209,7 +1234,12 @@
         "weight": "It is the reason people say facts do not work. The 2010 paper is cited more than 3,200 times.",
         "turn": "That paper ran 5 experiments. Backfire showed up in 2 of them. In 2019 another team tested 52 issues on more than 10,100 people and could not produce it once. For about nine issues in ten, the correction worked.",
         "verdict": "In 2021 the original author published a paper to say he had been misread.",
-        "ask": "Have you ever used this study to give up on an argument?"
+        "ask": "Have you ever used this study to give up on an argument?",
+        "captions": {
+          "belief": "you have heard this one",
+          "weight": "so somebody checked",
+          "turn": "what came back"
+        }
       },
       "missing_public": [
         "Nothing missing for this episode."
@@ -1389,7 +1419,12 @@
         "weight": "Lost in the mall. It is the study expert witnesses cite in court. Cited more than 1,100 times.",
         "turn": "In 2023 it was run again and the rate came back higher: 35 percent, against 25 in the original. Then another team asked what has to be true to count one. Take out those whose real childhood could fit the story: 17. Those with no memory of being lost: 11. Those who never said they remembered it: 4.",
         "verdict": "35 percent or 4 percent, from the same data. It depends what you think the study is for.",
-        "ask": "Which number would you accept in a courtroom?"
+        "ask": "Which number would you accept in a courtroom?",
+        "captions": {
+          "belief": "you have heard this one",
+          "weight": "so somebody checked",
+          "turn": "what came back"
+        }
       },
       "recoding_paper": {
         "year": 2024,
@@ -1600,7 +1635,12 @@
         "weight": "A book, a TED talk, and a great deal of parenting advice are built on it. The 1990 paper is cited more than 1,200 times.",
         "turn": "In 2018 a team ran it on ten times as many children. The effect was there: a standardised coefficient of 0.24. Then they controlled for the family the child came from and what the child could already do. 0.08. Then for everything measured at the same age. 0.05, and no longer distinguishable from nothing.",
         "verdict": "It is real. Two thirds of it was there before the test.",
-        "ask": "Would you still run this test on your own kid?"
+        "ask": "Would you still run this test on your own kid?",
+        "captions": {
+          "belief": "you have heard this one",
+          "weight": "so somebody checked",
+          "turn": "what came back"
+        }
       },
       "missing_public": [
         "The exact figures for behaviour problems at age 15: they sit in a table we could not read reliably.",
@@ -1750,7 +1790,12 @@
         "weight": "A book, a TED talk, a school curriculum. Cited over 6,900 times.",
         "turn": "In 2017 someone pooled 88 samples - 66,807 people. Grit predicts academic performance at 0.18. Its overlap with plain conscientiousness, corrected for measurement error: 0.84. Two conscientiousness questionnaires only agree with each other at 0.63. The 2007 paper had reported that overlap itself: 0.77.",
         "verdict": "Grit matches conscientiousness more closely than conscientiousness matches itself. It still predicts.",
-        "ask": "Is grit a real thing, or a new name for an old one?"
+        "ask": "Is grit a real thing, or a new name for an old one?",
+        "captions": {
+          "belief": "you have heard this one",
+          "weight": "so somebody checked",
+          "turn": "what came back"
+        }
       },
       "missing": [],
       "same_scale": false,
@@ -1909,7 +1954,12 @@
         "weight": "It has a name, a graph everyone has seen, and more than 7,000 citations.",
         "turn": "In 2020 a team took 929 people and analysed them twice. Sorted into quartiles the way the original did it, the effect was right there. Using a test built for this kind of data, the correlation was minus 0.05. Same people, same answers, opposite conclusion. And ranked against how they actually did, self-ratings still track performance, at 0.28.",
         "verdict": "Mostly a statistical artefact. Mostly is the authors' own word, not entirely.",
-        "ask": "Have you ever used this one to explain somebody you disagree with?"
+        "ask": "Have you ever used this one to explain somebody you disagree with?",
+        "captions": {
+          "belief": "you have heard this one",
+          "weight": "so somebody checked",
+          "turn": "what came back"
+        }
       },
       "missing": [
         "Krajč & Ortmann 2008(10.1016/j.joep.2007.12.006)全文在付費牆後,DOI 已驗證但沒有拿到逐字原句,所以片中不引它的任何數字"
@@ -2060,7 +2110,12 @@
         "weight": "It is in every textbook, and in every argument about how atrocities happen.",
         "turn": "In 2019 somebody went into the Stanford archive and listened to the tapes. At the guard briefing the experimenters say what they want produced: boredom, frustration, fear, a sense of powerlessness. At one point the warden takes a guard aside for being too soft and tells him to play the part of the tough guard. And less than 15 percent of the 150 hours was ever recorded.",
         "verdict": "The paper says the guards got no specific training. Zimbardo's own reply says: central in the training of guards.",
-        "ask": "Does it still count if they were told to do it?"
+        "ask": "Does it still count if they were told to do it?",
+        "captions": {
+          "belief": "you have heard this one",
+          "weight": "so somebody checked",
+          "turn": "what came back"
+        }
       },
       "missing": [
         "原始論文沒有效果量(本來就沒有,不要硬算)",
@@ -2180,7 +2235,12 @@
         "weight": "It is one of the most widely held beliefs about children anywhere. Birthday parties are organised around it.",
         "turn": "In 1994 a team took 35 boys whose mothers said they were sugar sensitive. Every child was given a placebo. The only thing randomised was what the mother was told. The mothers told their son had just had a large dose of sugar rated him as significantly more hyperactive. The year after, 23 studies were pooled: none of the 14 measures cleared zero.",
         "verdict": "What changed was the parent.",
-        "ask": "Did you grow up being kept off sugar?"
+        "ask": "Did you grow up being kept off sugar?",
+        "captions": {
+          "belief": "you have heard this one",
+          "weight": "so somebody checked",
+          "turn": "what came back"
+        }
       },
       "missing": [
         "Prinz 1980 的 n、效果量、引文(付費牆 + PubMed 無摘要,一個字都沒拿到)",
@@ -2336,7 +2396,12 @@
         "weight": "It became a state programme handing classical CDs to newborns, and a shelf of products aimed at parents.",
         "turn": "Pool everything that has been run since. Mozart against silence: 0.37. Real, and small. Then the comparison the headlines never made. Any other music against silence: 0.38 — the same. Mozart against any other music: 0.15. And the original paper already said the effect does not last beyond the 10 to 15 minutes of the task.",
         "verdict": "The effect is real. It is not Mozart, and it is over in fifteen minutes.",
-        "ask": "What do you put on before you need to concentrate?"
+        "ask": "What do you put on before you need to concentrate?",
+        "captions": {
+          "belief": "you have heard this one",
+          "weight": "so somebody checked",
+          "turn": "what came back"
+        }
       },
       "missing": [
         "統合分析的確切總人數(摘要只寫 over 3000 subjects)",
@@ -2480,7 +2545,12 @@
         "weight": "It became a school programme, a bestseller, a classroom poster.",
         "turn": "So they ran it properly: 65 schools, 12,490 students, analysis plan registered in advance. And they found it. Lower-achieving students gained a tenth of a grade point - an effect size of 0.11. The other half: Higher-achieving students: 0.01, p equals 0.634. And a trial in England with 5,018 pupils found no additional progress in reading or maths.",
         "verdict": "It works, for the students who were already behind. A tenth of a grade point.",
-        "ask": "Is a tenth of a grade point worth an assembly?"
+        "ask": "Is a tenth of a grade point worth an assembly?",
+        "captions": {
+          "belief": "you have heard this one",
+          "weight": "so somebody checked",
+          "turn": "what came back"
+        }
       },
       "missing": [
         "Blackwell 2007 的 Cohen's d(成績那個結果只報 b/t)",

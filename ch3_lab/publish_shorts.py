@@ -953,12 +953,36 @@ def reel_gate(batch):
             out.append((key, f"片裡唸的跟事實庫現在的 reel 對不上:{drift}"
                              f" —— 要重渲"))
             continue
-        for who, p in (("原始", E.get("original") or {}),
-                       ("重測", E.get("test") or {})):
-            if not p.get("doi"):
-                out.append((key, f"{who}論文沒有 DOI")); break
-            if p["doi"] not in o["description"]:
-                out.append((key, f"{who}論文的 DOI 不在說明欄裡")); break
+        # 🔴 第 4 條(「片子唸的東西要查得到」)本來寫死成「原始 + 重測兩篇」——
+        #    那是**裁決片**的結構。方法片(「什麼有效,證據在這裡」)手上是一組
+        #    各自獨立的來源,沒有「原始 vs 重測」這一對,套進來會兩邊都空、
+        #    然後被判成「沒有 DOI」擋死。
+        #    ⇒ 判準本身不變,只是換一種 entry 形狀:對 `papers` 型的 entry
+        #      要求的是**每一篇**都要在說明欄裡(不是兩篇),而且至少三篇。
+        #      這對新 entry 是**更嚴**,不是放寬。
+        #    ⇒ 兩種形狀都沒有的 entry **fail-closed**,不要靜默放行。
+        papers = E.get("papers")
+        if isinstance(papers, list) and papers:
+            if len(papers) < 3:
+                out.append((key, f"papers 只有 {len(papers)} 篇,少於 3 篇")); continue
+            bad = [i for i, x in enumerate(papers)
+                   if not (isinstance(x, dict) and x.get("doi"))]
+            if bad:
+                out.append((key, f"papers[{bad}] 沒有 DOI")); continue
+            missing = [x["doi"] for x in papers
+                       if x["doi"] not in o["description"]]
+            if missing:
+                out.append((key, f"這些 DOI 不在說明欄裡:{missing}")); continue
+        elif (E.get("original") or E.get("test")):
+            for who, p in (("原始", E.get("original") or {}),
+                           ("重測", E.get("test") or {})):
+                if not p.get("doi"):
+                    out.append((key, f"{who}論文沒有 DOI")); break
+                if p["doi"] not in o["description"]:
+                    out.append((key, f"{who}論文的 DOI 不在說明欄裡")); break
+        else:
+            out.append((key, "既沒有 original/test 也沒有 papers —— "
+                             "查不到來源的片不出去"))
     return out
 
 

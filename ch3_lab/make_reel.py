@@ -43,7 +43,7 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 ROOT = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 
-from make_rechecked import (CJK, NUM_RE, _collect, load,   # noqa: E402
+from make_rechecked import (CJK, NUM_RE, _collect, _need, load,  # noqa: E402
                             twist_rows, val_str)
 #: 安全區是**實測**出來的,而且只有一份 —— 從 make_short 匯入,不要再抄一份。
 #: (這條線上「同一個常數兩份實作」已經第九次。)
@@ -154,6 +154,22 @@ def balanced(s, n):
     return greedy(n)
 
 
+#: 🔴 這三張卡的副標原本寫死在這支程式裡,而它們**帶著姿態**:
+#:    「you have heard this one」「so somebody checked」「what came back」——
+#:    講的是「有人去把它重測了」,那是**裁決片**的框架。
+#:    方法片(「什麼有效,證據在這裡」)走同一份程式碼,會被這三句話當場改寫成
+#:    裁決片,而**標題對、旁白對、數字也對**,只有畫面上那一行在講別的事 ——
+#:    這正是這條線最貴的那種錯(旁白與畫面講不同的事)。
+#:    ⇒ 升格成事實庫欄位。**沒有預設值**:模板化的產線裡,一個看似無害的
+#:    fallback 就是一句別人的話。缺就不出片。
+def caption(E, name):
+    v = ((E.get("reel") or {}).get("captions") or {}).get(name)
+    if not isinstance(v, str) or not v.strip():
+        _need(E, f"reel.captions.{name}",
+              "這張卡的副標帶著姿態,寫死一份會讓所有片變成同一種姿態。")
+    return v.strip()
+
+
 def build_script(E):
     r = E.get("reel")
     if not r:
@@ -232,20 +248,20 @@ def render_scene(name, t_now, dur, ctx):
     if name == "belief":
         # 🔴 **第 0 幀就要是完整的一句話。** alpha 從 1 開始,不淡入。
         _, bot, tfs = block(r["belief"], 0.62, 104, 16)
-        ax.text(0.5 - (UI_RIGHT / 2), bot - 0.055, "you have heard this one",
+        ax.text(0.5 - (UI_RIGHT / 2), bot - 0.055, caption(E, "belief"),
                 ha="center", va="center", fontsize=sub_fs(tfs, 40),
                 color=DIM, weight="normal")
 
     elif name == "weight":
         _, bot, tfs = block(r["weight"], 0.62, 72, 22, DIM, "normal")
-        ax.text(0.5 - (UI_RIGHT / 2), bot - 0.06, "so somebody checked",
+        ax.text(0.5 - (UI_RIGHT / 2), bot - 0.06, caption(E, "weight"),
                 ha="center", va="center", fontsize=sub_fs(tfs, 46),
                 color=ACCENT, weight="bold",
                 alpha=ease((t_now - 1.0) / 0.8))
 
     elif name == "turn":
         # 數字逐個出現 —— 這一段最長(約 14 秒),畫面不能不動。
-        ax.text(0.5 - (UI_RIGHT / 2), SAFE_HI - 0.03, "what came back",
+        ax.text(0.5 - (UI_RIGHT / 2), SAFE_HI - 0.03, caption(E, "turn"),
                 ha="center", va="center", fontsize=42, color=DIM,
                 weight="normal")
         n = max(1, len(rows))
@@ -549,6 +565,12 @@ def _plt():
 def one(slug, script_only=False):
     E = load(slug)
     segs = build_script(E)
+    # 🔴 副標的 fail-closed 本來只在 render_scene 裡叫,而 render 是渲了三分半
+    #    才走到的那一步 —— `--script-only` 完全碰不到它,等於「稿子過了」的
+    #    綠燈是在還沒檢查姿態的情況下亮的。把它拉到最前面,讓這道閘門
+    #    **在最便宜的那一步就產生輸出**。render_scene 那份不拿掉(縱深)。
+    for _k in ("belief", "weight", "turn"):
+        caption(E, _k)
     rows = twist_rows(E)
     words = sum(len(t.split()) for _, t in segs)
     print(f"[{slug}] {E['story_type_short']}")
