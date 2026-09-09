@@ -176,9 +176,13 @@ def load_env() -> dict:
 
 
 def _log(msg: str):
-    LOG.parent.mkdir(parents=True, exist_ok=True)
+    # 🔴 2026-09-09:`mkdir` 原本在 try **外面** ⇒ `_log` 自己會拋。
+    #    後果比看起來大:`main()` 的 `while True` 是裸呼叫,`_log` 一拋就**弄死整個排程器**
+    #    (和 09-08 那個 `print` 死法同一條路),而且它同時是下面 jobout 那把裸吞傘的根因。
+    #    獨立驗證實跑重現過。移進 try ⇒ **`_log` 從此不會拋**,呼叫端可以放心當它是「盡力而為」。
     line = f"[{datetime.now():%Y-%m-%d %H:%M:%S}] {msg}"
     try:
+        LOG.parent.mkdir(parents=True, exist_ok=True)
         with LOG.open("a", encoding="utf-8") as f:
             f.write(line + "\n")
     except Exception:  # noqa: BLE001
@@ -300,6 +304,47 @@ def _wait_and_log(proc: subprocess.Popen, script: str):
         _log(f"✗ 監控失敗 {script}: {exc}")
 
 
+def _rotate_or_keep(p: Path, limit: int):
+    """超過 `limit` 就**輪替**(不是截斷)。回傳要寫進新檔的第一行;不需要動就回 `None`。
+
+    🔴 2026-09-09:原本是 `p.write_text("")` **整檔歸零**,而且整段包在 `except: pass` 裡
+       ⇒ **它動手的那一刻不會留下任何痕跡**,而它銷毀的正是「job 靜默失敗時唯一會落地的
+       那行字」(見 :61 ERRLOG 的說明)。實據:`job_stderr.log` 一路長到
+       **4,420,040 / 5,000,000 = 88.4%**,近期必觸發。
+       ⚠️ 單位口徑:門檻是**十進位 `5_000_000`,不是 5 MiB**。拿 5 MiB(5,242,880)去算
+       會得到 84.3%,看起來還很遠 —— 差那 4 個百分點就是「還有幾天」和「快到了」的差別。
+
+       改成輪替到 `<stem>.1<suffix>`:**上一代還在**,而且輪替這件事會在
+       ①新檔的第一行 ②ops log 各留一句 ⇒ 「被清空了」和「本來就沒東西」從此分得開。
+       (只保留一代是刻意的:再多就要處理清理策略,而清理策略就是這個 bug 的來源。)
+
+    ⚠️ 守住這支檔案既有的約束(見 `run_job` 裡的註解):
+       **絕不可以因為記 log 失敗就不跑 job。** 所以這裡任何失敗都只回報、不拋。
+    ⚠️ Windows 特有:上一輪的子程序若還握著 fd,`os.replace` 會丟 `PermissionError`。
+       那時**不要退回截斷** —— 讓檔案繼續長,比把證據刪掉安全(磁碟便宜,traceback 不便宜)。
+       但要出聲:「輪替一直失敗」是一個**會累積的狀態**,不是一次性事件,所以每次都講。
+    """
+    try:
+        if not p.exists():
+            return None
+        size = p.stat().st_size
+        if size <= limit:
+            return None
+    except Exception as exc:  # noqa: BLE001
+        _log(f"⚠️ 量不到 {p.name} 的大小,這輪略過輪替:{exc!r}")
+        return None
+    bak = p.with_name(p.stem + ".1" + p.suffix)
+    try:
+        os.replace(p, bak)          # 原子;舊的 .1 被蓋掉 = 固定保留一代
+        _log(f"🔄 {p.name} 到 {size:,} bytes,已輪替到 {bak.name}(保留一代,未刪除內容)")
+        return (f"===== [輪替 {datetime.now():%Y-%m-%d %H:%M:%S}] "
+                f"上一段 {size:,} bytes 已移到 {bak.name},此檔從這裡重新開始 =====")
+    except Exception as exc:  # noqa: BLE001
+        _log(f"🔴 {p.name} 已 {size:,} bytes 但輪替失敗:{exc!r}"
+             f" —— **不截斷**(寧可讓它長也不要把證據刪掉),需要人工處理")
+        return None
+
+
 def run_job(pyargs, env, jenv=None):
     script = pyargs[0]
     if jenv:
@@ -308,12 +353,10 @@ def run_job(pyargs, env, jenv=None):
         # 子程序 stderr 導到 job_stderr.log(取代 DEVNULL):job 靜默失敗會留 traceback 可事後查。
         # 檔過大(>5MB)先截斷,避免無限長。父端開檔傳給 Popen,子程序繼承 fd 後父端關閉不影響子寫入。
         ERRLOG.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            if ERRLOG.exists() and ERRLOG.stat().st_size > 5_000_000:
-                ERRLOG.write_text("", encoding="utf-8")
-        except Exception:  # noqa: BLE001
-            pass
+        _rot = _rotate_or_keep(ERRLOG, 5_000_000)
         errf = open(ERRLOG, "a", encoding="utf-8")
+        if _rot:
+            errf.write(_rot + "\n")
         errf.write(f"\n===== [{datetime.now():%Y-%m-%d %H:%M:%S}] {' '.join(pyargs)} =====\n")
         errf.flush()
         # stdout:一支腳本一個檔(見 OUTDIR 上方的說明),各自 2MB 上限。
@@ -323,16 +366,27 @@ def run_job(pyargs, env, jenv=None):
         try:
             _op = _outlog_for(script)
             _op.parent.mkdir(parents=True, exist_ok=True)
+            # 🔴 輪替**自己包一層**,不可以共用下面那把傘。獨立驗證實跑到的失敗形態:
+            #    `os.replace` 已經成功(舊檔改名走了)、接著 `_log` 拋 → 被下面 `except` 吞掉
+            #    → `outf = None` → **該 job 的 stdout 靜默回 DEVNULL、新檔根本沒建、ops log 零行**
+            #    ⇒ 把 09-08 才補起來的盲區重新打開,而且零訊號。
+            #    (輪替是附加價值,它出事不可以連帶賠掉「這支 job 的 stdout 有沒有落地」。)
             try:
-                if _op.exists() and _op.stat().st_size > 2_000_000:
-                    _op.write_text("", encoding="utf-8")
-            except Exception:  # noqa: BLE001
-                pass
+                _orot = _rotate_or_keep(_op, 2_000_000)   # 同一個缺陷的第二份,同一條路徑修
+            except Exception as _re:  # noqa: BLE001
+                _orot = None
+                _log(f"⚠️ {_op.name} 輪替時丟例外(已忽略,不影響本 job 的 stdout):{_re!r}")
             outf = open(_op, "a", encoding="utf-8")
+            if _orot:
+                outf.write(_orot + "\n")
             outf.write(f"\n===== [{datetime.now():%Y-%m-%d %H:%M:%S}] {' '.join(pyargs)} =====\n")
             outf.flush()
-        except Exception:  # noqa: BLE001
+        except Exception as _oe:  # noqa: BLE001
             outf = None
+            # 🔴 這裡原本完全不出聲 ⇒ 「這支 job 的 stdout 進黑洞」和「它今天沒印東西」
+            #    在磁碟上長得一模一樣。退回 DEVNULL 是對的(記錄不是跑 job 的前提),
+            #    但**退回這件事本身要留一行**,否則就是 :62-67 那個盲區的縮小版。
+            _log(f"⚠️ {script} 的 stdout 開不了檔,本輪退回 DEVNULL:{_oe!r}")
         _py = str(SYS_PY) if Path(script).name in PLAYWRIGHT_SCRIPTS else str(VENV_PY)
         # CREATE_NO_WINDOW(2026-07-14 修「一直跳黑頻」):排程器用 run_studio_bg.vbs 無視窗常駐後,
         # 父程序沒有 console → 每個到點 job 的子程序 Windows 11 會自動新開一個 Windows Terminal
