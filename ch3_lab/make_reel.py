@@ -202,16 +202,54 @@ def audit(E, segs):
     #    ⇒ 補一格會產生輸出的檢查:每一列要印出去的 es,都必須在白名單裡
     #      找得到(= 它在另一個結構化欄位裡也有一份)。這不放寬任何東西,
     #      只是不准畫面上出現一個事實庫別處沒有、旁白也沒唸過的數字。
-    orphan = [(x.get('label'), x['es']) for x in twist_rows(E)
-              if x.get('es') is not None
-              and f"{x['es']:g}" not in ok
-              and f"{abs(x['es']):g}" not in ok]
-    if orphan:
+    # 🔴 這一格原本比的是 `f"{es:g}"` —— **原始值**,不是觀眾看到的那串字。
+    #    閘門本身沒壞(陰性安靜、陽性會叫),**它量錯對象**:
+    #    白名單驗的是「事實庫裡有沒有這個值」,而畫面上是 `val_str()` 的輸出,
+    #    中間隔著一次格式化 —— 而格式化會改變數字(eta2 把 0.026 印成 0.03,
+    #    方向還是往上)。只修那一個 es_kind 治不了整類:下一個新單位會再犯。
+    #    ⇒ **改成比對 `val_str()` 的輸出**,而且比的是輸出裡的每一個數字。
+    turn_txt = (E['reel'].get('turn') or '')
+    shown, spoken = [], []
+    for x in twist_rows(E):
+        if x.get('es') is None or not x.get('es_kind'):
+            continue
+        # `@start` 是產線既有的慣例:背景基準列,整段從頭就在,
+        # 而 render_scene 那邊已經寫明它**不宣稱跟旁白同步**。
+        # 那已經是一個明示宣告,不是沉默 ⇒ 規則③認它,不要求再宣告一次。
+        at_start = (x.get('cue') or '').strip() == '@start'
+        # `@start` 是產線既有的慣例:背景基準列,整段從頭就在,
+        # 而 render_scene 那邊已經寫明它**不宣稱跟旁白同步**。
+        # 那已經是一個明示宣告,不是沉默 ⇒ 規則③認它,不要求再宣告一次。
+        at_start = (x.get('cue') or '').strip() == '@start'
+        disp = val_str(x['es_kind'], x['es'], x.get('es_is_max', False))
+        # 🔴 **單位符號裡也有數字。** `pts/10 = 0.03`、`pts/7 = 0.49` ——
+        #    直接對整串 val_str 輸出跑 NUM_RE,會把 `10` 和 `7` 當成畫面上的值,
+        #    然後對 facial_feedback 誤擋四列(實測)。單位不是值。
+        #    ⇒ 有 " = " 就只取右邊;沒有的是後綴型(`74%` / `+9 IQ` / `9th`),整串沒問題。
+        num_part = disp.split(" = ")[-1]
+        for n in NUM_RE.findall(num_part):
+            if n not in ok and n.replace(',', '') not in ok:
+                shown.append((x.get('label'), disp, n))
+            # ③ 畫面印得出來、事實庫也有,**但旁白在講別的東西** ——
+            #    `how_to_remember` 列 3 是畫面 `d = 1.10`、旁白同一刻
+            #    唸的是 `64 percent`。②抓不到它(1.1 在事實庫裡),
+            #    而觀眾同時聽到和看到的正是這兩個對不起來的東西。
+            #    要印一個旁白不唸的數字可以,但**要在那一列明示**,
+            #    不可以靠沉默(缺漏時不產生輸出的規則不是規則)。
+            if (n not in turn_txt and not x.get('display_only')
+                    and not at_start):
+                spoken.append((x.get('label'), disp, n))
+    if shown:
         raise SystemExit(
-            f"⛔ 表格要印的數字在事實庫別處找不到:{orphan}"
-            "   畫面上的值不供給白名單(它不能自己證明自己),"
-            "所以它必須在另一個結構化欄位裡也有一份 —— "
-            "否則畫面可以印一個旁白從來沒說過、也沒人查得到的數字。")
+            f"⛔ 表格**渲染後**要印的數字,事實庫別處找不到:{shown}"
+            "   比的是 val_str() 的輸出,不是原始值 —— 中間那次格式化"
+            "會改變數字(eta2 曾把 0.026 印成 0.03,方向還往上)。")
+    if spoken:
+        raise SystemExit(
+            f"⛔ 畫面要印、而 turn 旁白從沒唸過的數字:{spoken}"
+            "   觀眾同時聽到和看到,這兩個要講同一件事。"
+            "   真的要印一個不唸的數字,就在那一列寫 display_only=true "
+            "並附 display_only_why —— 靠沉默不算。")
     lang = [(n, CJK.search(t).group()) for n, t in segs if CJK.search(t)]
     if lang:
         raise SystemExit(f"⛔ 文案裡有中文:{lang} —— 這是英文頻道,TTS 會唸出來。")

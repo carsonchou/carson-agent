@@ -594,14 +594,18 @@
           "what": "copying a smile",
           "es": 0.49,
           "es_kind": "raw_diff_7pt_scale",
-          "cue": "Copying a smiling face worked"
+          "cue": "Copying a smiling face worked",
+          "display_only": true,
+          "display_only_why": "既有已發布集數。旁白沒有逐字唸這個數值 —— 這一格檢查是 2026-09-09 才加的,**這一列的內容未經改動**,在此只做明示宣告。要不要改旁白是另一件事,不要把這個宣告讀成「已確認沒問題」。"
         },
         {
           "label": "2022",
           "what": "posing it yourself",
           "es": 0.4,
           "es_kind": "raw_diff_7pt_scale",
-          "cue": "Posing it yourself worked"
+          "cue": "Posing it yourself worked",
+          "display_only": true,
+          "display_only_why": "既有已發布集數。旁白沒有逐字唸這個數值 —— 這一格檢查是 2026-09-09 才加的,**這一列的內容未經改動**,在此只做明示宣告。要不要改旁白是另一件事,不要把這個宣告讀成「已確認沒問題」。"
         },
         {
           "label": "2022",
@@ -609,7 +613,9 @@
           "es": 0.04,
           "es_kind": "raw_diff_7pt_scale",
           "hot": true,
-          "cue": "The pen still did nothing"
+          "cue": "The pen still did nothing",
+          "display_only": true,
+          "display_only_why": "既有已發布集數。旁白沒有逐字唸這個數值 —— 這一格檢查是 2026-09-09 才加的,**這一列的內容未經改動**,在此只做明示宣告。要不要改旁白是另一件事,不要把這個宣告讀成「已確認沒問題」。"
         }
       ],
       "popular_name": "The facial feedback hypothesis",
@@ -2234,7 +2240,9 @@
           "what": "of 14 measures cleared zero",
           "es": 0,
           "es_kind": "count",
-          "cue": "none of the 14 measures cleared zero"
+          "cue": "none of the 14 measures cleared zero",
+          "display_only": true,
+          "display_only_why": "旁白把這個 0 唸成英文字:「none of the 14 measures cleared zero」。畫面印 0、旁白唸 none —— 同一件事的兩種寫法,不是兩個數字。"
         }
       ],
       "say_spread": "It is one of the most widely held beliefs about children anywhere — birthday parties, bedtimes, and a generation of food rules are built on it.",
@@ -2679,7 +2687,9 @@
           "what": "working memory, replication",
           "es": 0.026,
           "es_kind": "eta2",
-          "cue": "in a second one"
+          "cue": "in a second one",
+          "display_only": true,
+          "display_only_why": "🔴 刻意不唸。partial η² 唸出來對一般觀眾沒有意義,旁白改講「Both effects were small」。數字留在畫面上讓看得懂的人查得到,而**旁白不對它做任何量級宣稱**。"
         },
         {
           "label": "a brief switch away",
@@ -2813,7 +2823,9 @@
           "what": "in the whole literature",
           "es": 1,
           "es_kind": "count",
-          "cue": "only one study"
+          "cue": "only one study",
+          "display_only": true,
+          "display_only_why": "旁白唸的是 Pashler 自己的原話「found only one study」——英文字 one,不是數字 1。畫面印 1 是同一個值的另一種寫法。"
         },
         {
           "label": "anatomy students surveyed",
@@ -2881,7 +2893,9 @@
           "what": "that our search found",
           "es": 1,
           "es_kind": "count",
-          "cue": "we found one"
+          "cue": "we found one",
+          "display_only": true,
+          "display_only_why": "旁白唸的是「In our own search, we found one」—— 英文字 one,不是數字 1。"
         },
         {
           "label": "people in it",
@@ -2961,8 +2975,8 @@
         {
           "label": "leave a gap, then go back",
           "what": "best gap vs same day",
-          "es": 1.1,
-          "es_kind": "d",
+          "es": 64,
+          "es_kind": "pct",
           "cue": "64 percent more recall"
         }
       ],

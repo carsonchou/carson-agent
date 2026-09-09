@@ -214,7 +214,15 @@ def val_str(kind, v, is_max=False):
     if kind == "percentile":
         return _ordinal(int(v))
     if kind == "eta2":
-        return f"η² = {v:.2f}"
+        # 🔴 這裡本來寫死 `.2f`,而**本函式的 docstring 就寫著「精度跟著存的值」**
+        #    (一般分支是 max(2, min(dec, 3)))。eta2 的值天生小:
+        #    0.026 被印成 0.03 —— 而且方向**往上**,也就是往「效果比較大」走,
+        #    正是本函式 `is_max` 註解說的那一種最該擋的偏誤。
+        #    全 20 集只有一集用 eta2 ⇒ **這條路徑從來沒被跑過**,
+        #    所以「一般分支已經對了」不代表這裡也對。
+        _s = f"{abs(v):.6f}".rstrip("0").rstrip(".")
+        _dec = len(_s.split(".")[1]) if "." in _s else 0
+        return f"η² = {v:.{max(2, min(_dec, 3))}f}"
     if kind == "iq_points":
         # 🔴 裸的 9 在畫面上沒有意義,而原文寫的是 "8-9 points" 的 IQ 等值。
         return f"+{v:g} IQ"
@@ -533,9 +541,18 @@ def _collect(node, out, key="", in_output=False):
         #    「B = 0.10 grade points」—— 唸成 0.1 就跟原文對不上,
         #    寫 0.10 又被自己的閘門擋下。補的是**同一個值的格式變體**,
         #    不是新的值,所以白名單沒有變鬆。
+        # 🔴 上面那句「補的是同一個值的格式變體,不是新的值」**對小數多的值是假的**。
+        #    `0.10` vs `0.1` 確實是同一個值;但 `0.026` 補進 2 位小數就變成
+        #    **`0.03` —— 那是另一個數字**,而且是四捨五入後**往上**的那個。
+        #    後果:白名單自己把捨入後的寫法收了進去,於是
+        #    「事實庫存 0.026、畫面印 0.03」在溯源上**恆為合法** ——
+        #    這正是 2026-09-09 eta2 那個偏差躲過所有閘門的原因,
+        #    也是「量錯對象」之外更深的一層:**尺自己有刻度誤差**。
+        #    ⇒ 只收**無損**的定小數位寫法。這是收緊,不是放寬。
         for dp in (2, 3):
-            out.add(f"{abs(node):.{dp}f}")
-            out.add(f"{node:.{dp}f}")
+            for cand in (f"{abs(node):.{dp}f}", f"{node:.{dp}f}"):
+                if float(cand) == float(f"{node:g}") or                         float(cand) == abs(float(f"{node:g}")):
+                    out.add(cand)
         if "." in s:
             out.add(s.split(".")[1])          # 「p equals .017」抓到的是 017
         # 帶千分位與不帶,兩種都可能出現在稿子裡
