@@ -57,8 +57,42 @@ Shorts 的分發靠前一批曝光回收到的訊號決定要不要放大。回�
   · 未動過的真 entry(hot_hand):閘門必須安靜
 ⚠️ 這份清單會過期。它需要定期用真案例證明它還抓得到。
 <!--/GATE-CASES:reel.orphan_value-->
+<!--GATE-CASES:reel.layout_overlap-->
+這道閘門(reel.layout_overlap)的定義 = 它的對照腳本 _control_layout_overlap.py 的案例清單。
+實作在 make_reel.layout_guard()。
+**它會叫**(陽性,2 種):
+  · 真案例 marshmallow_test「everything measured at the same time」×「β = 0.05」,左欄字級改用**全幅**寬度算(= 不知道右欄存在,出事那版的形狀)⇒ 重疊必須叫,**而安全區對同一張圖全綠**
+  · 真字串放大到溢出畫面右緣 ⇒ 安全區那一段必須叫(兩段各自都要能獨立產生輸出)
+**它不該叫**(陰性,1 種):
+  · 全部 20 集的真表格,用現行兩欄算術排版 ⇒ layout_guard 全程安靜
+⚠️ 這份清單會過期。它需要定期用真案例證明它還抓得到。
+<!--/GATE-CASES:reel.layout_overlap-->
+<!--GATE-CASES:reel.caption_fit-->
+這道閘門(reel.caption_fit)的定義 = 它的對照腳本 _control_caption_fit.py 的案例清單。
+實作在 make_reel.cap_fit()。
+**它會叫**(陽性,2 種):
+  · 真案例 if_then_plans/weight:修法前左緣 0.0154 越界,修法後收進安全區
+  · 長到 20pt 地板還放不下的副標:cap_fit 縮不動 ⇒ 安全區守門仍須判定越界
+**它不該叫**(陰性,2 種):
+  · 現在放得下的 59 個副標(母體 20 集 × 3 個副標位置 = 60):cap_fit 算出的字級必須和修法前逐一相同(no-op)
+  · 全部 20 集、三個副標位置,套用後左右緣都在安全區內
+⚠️ 這份清單會過期。它需要定期用真案例證明它還抓得到。
+<!--/GATE-CASES:reel.caption_fit-->
+<!--GATE-CASES:reel.reveal_timing-->
+這道閘門(reel.reveal_timing)的定義 = 它的對照腳本 _control_reveal_timing.py 的案例清單。
+實作在 make_reel.reveal_guard()。
+**它會叫**(陽性,2 種):
+  · (A) 真案例形狀:把**最後一列**的 cue 換成旁白裡**它自己那個數字之後**的一段真話(逐字抄的,列序不變 ⇒ 上游那道列序守門不會先攔下來)⇒ 旁白唸到它的數字時那一列還沒出現(缺口 ≥ 1.5 秒,才是事故的形狀—— 挪 25 個字元只造出 0.35 秒,那是產線的提前量,不是事故)。**凡是造得出這個形狀的集數,一集都不准漏。**
+  · (B) 把某一列的值提前掛到真圖上(值、cue、旁白都取自真集)⇒ 它的 cue 還沒被唸到,必須叫。⚠️ 這一格證的是**守門的判斷**,不是產線走得到
+**它不該叫**(陰性,2 種):
+  · 全部 20 集的 turn 段,整段每 0.5 秒取樣一次 ⇒ **reveal_guard** 全程安靜。⚠️ 這條只判 reveal_guard:render_scene 裡別的守門叫出來要**另外列出**(不算這條的成績,但也不准吞掉 —— 實測 backfire_effect 的字幕守門在 HEAD 版就會叫,是既有狀況不是這輪造成的)
+  · @start 背景基準列與 display_only 列**豁免**(兩個都是產線既有的明示宣告,不是沉默)⇒ 不准因為它們而叫
+⚠️ 這份清單會過期。它需要定期用真案例證明它還抓得到。
+<!--/GATE-CASES:reel.reveal_timing-->
 """
 import argparse
+import bisect
+import functools
 import json
 import pathlib
 import sys
@@ -81,7 +115,9 @@ ACCENT, HOT = "#FFC23D", "#F5A54E"
 
 #: 🔴 這道閘門「檢查什麼」的定義,在下面這兩支對照腳本的 CASES 清單裡。
 #:    改規則要先改案例,不是先改這裡的文字。
-CONTROL = "_control_display_vs_facts.py / _control_orphan.py"
+CONTROL = ("_control_display_vs_facts.py / _control_orphan.py"
+           " / _control_caption_fit.py / _control_layout_overlap.py"
+           " / _control_reveal_timing.py")
 
 SEGS = ("belief", "weight", "turn", "verdict", "ask")
 
@@ -313,6 +349,182 @@ def sub_fs(title_fs, cap):
     return max(22, min(cap, int(title_fs * 0.72)))
 
 
+#: 🔴 **副標從來沒有被它自己的寬度限制過。** 字級是 `sub_fs(主標字級)` 算出來的,
+#:    而主標的寬度和副標那句話的寬度是兩件無關的事。
+#:    實測 `if_then_plans` 的 weight 副標左緣 **0.0154**(界線 0.02):
+#:    主標行數多、每行短 ⇒ 主標字級偏大 ⇒ 副標跟著變大,
+#:    而副標那句話比主標任何一行都長。**主標愈好排,副標愈容易溢出** —— 方向是反的。
+#:    卡片上每一段字都走 `fit()`,只有副標沒有;這裡把它補上。
+#:
+#:    ⚠️ **不改成「把那句副標寫短一點」**:副標的措辭是這個實驗
+#:      **唯一被操縱的變數**(B 臂 `that actually work` / E 臂純裁決)。
+#:      為了版面改其中一支的措辭,會讓那一支和同臂另外三支在**被測的那個維度上**
+#:      不一樣 —— 修版面是修版面,修措辭是動實驗。
+#:    ⚠️ **安全區守門照舊留著**,不要因為這裡會自動縮就把它拿掉:
+#:      `fit()` 有 20pt 的地板,長到 20pt 還放不下時要炸出來,不要默默縮到看不見。
+#:    ⚠️ 上限用的是**副標實際的中心**(`0.5 - UI_RIGHT/2`)到安全區兩側的較小距離,
+#:      不是主文那個 `SAFE_X - (1 - SAFE_X)`。後者是對「置中於 0.5」寫的,
+#:      而副標不置中於 0.5 ⇒ 沿用它會連現在放得下的 39 個副標一起縮小。
+CAP_CX = 0.5 - (UI_RIGHT / 2)
+CAP_MAX_FRAC = 2 * min(CAP_CX - MARGIN, SAFE_X - CAP_CX)
+
+
+def cap_fit(plt, text, fs, weight="bold"):
+    """副標字級:先由主標決定(維持主從關係),再由自己的寬度收一次。"""
+    return min(fs, fit(plt, text, fs, CAP_MAX_FRAC, weight))
+
+
+@functools.lru_cache(maxsize=32)
+def _spk_table(turn_txt):
+    """turn_txt 的每個前綴在 **spoken 空間**裡的長度,單調不減 ⇒ 可以二分。"""
+    return [len(spoken_text(turn_txt[:i])) for i in range(len(turn_txt) + 1)]
+
+
+def reveal_guard(name, t_now, dur, ax, ctx):
+    """揭露時序:**同一個時間戳上**,畫面的數字 vs 旁白正在唸的數字。
+
+    🔴 **這條量的是關係,不是個體。** 旁白逐字正確、畫面數字在事實庫裡查得到
+       —— 兩格都會過,而觀眾同時聽到 `minus 0.05`、看到 `r = 0.28`。
+       已上線的片**六支中招**。
+
+    ⚠️ **兩條事故都是「聽得到、看不到」,不是「看得到、還沒聽到」。**
+       r = 0.28 那支:旁白唸 minus 0.05 而畫面上那一列還沒出現。
+       紅色那集:旁白唸「女性 −0.09」而畫面只有男性的 0.09。
+       ⇒ 主不變量是 (A),方向是**旁白不能超前畫面**。
+
+    (A) 遲到/錯配:旁白已經唸過的數字,只要它是某一列的值,
+        那一列(或另一列同值的)**必須已經在畫面上**。
+    (B) 超前:畫面上的列,它自己的 `cue` 必須已經被唸到。
+        錨在**那一列自己的 cue**,不是錨在數字 ——
+        因為產線的設計就是「cue 一唸到就揭露,數字在同一句稍後才唸出來」。
+        實測 20 集 49 列,值的中位提前量 2.52 秒、最大 7.59 秒:
+        那是設計,不是缺陷。**拿數字當錨會對 15/20 集誤報。**
+
+    ⚠️ 和 audit() 的 reel.display_vs_facts 不重複:那道問的是
+       「畫面的數字在 turn 旁白裡**有沒有出現過**」(集合),
+       這道問的是「在**那個時刻**對不對得上」(時間軸)。
+       集合版對「唸的順序反了 / 早了二十秒」是盲的。
+
+    時間↔旁白位置用**產線自己那條映射**(render_scene 算 ats 用的同一條):
+    位置在 spoken 空間裡量,因為音軌唸的是 spoken 那一份。
+
+    ⚠️ **LEAD 是產線明示的提前量**,不是我放寬的容差:
+       render_scene 寫著「早 0.35 秒讓字先站定,再被唸到」,
+       再加 0.5 秒的 ease 淡入 ⇒ 0.85,取 1.0。
+
+    只有 turn 段有逐列揭露;其它段整段一起出現,這條在那裡沒有意義。
+    """
+    if name != "turn":
+        return
+    E, rows = ctx["E"], ctx["rows"]
+    turn_txt = E["reel"]["turn"]
+    table = _spk_table(turn_txt)
+    spk_all = max(1, table[-1])
+    LEAD = 1.0
+
+    def spoken_upto(t):
+        """時刻 t 為止,旁白唸到 turn_txt 的哪個字元位置。"""
+        budget = min(1.0, max(0.0, t / dur)) * spk_all
+        return max(0, bisect.bisect_right(table, budget) - 1)
+
+    #: 值字串 → 擁有它的列(可能不只一列同值)。用 val_str() 的輸出逐字比對。
+    owner = {}
+    for x in rows:
+        if x.get("es") is None or not x.get("es_kind"):
+            continue
+        owner.setdefault(val_str(x["es_kind"], x["es"], x.get("es_is_max", False)),
+                         []).append(x)
+
+    def exempt(x):
+        # 產線既有的兩個明示宣告:@start 背景基準列、display_only。
+        # 兩個都是**寫下來**的,不是沉默。
+        return (x.get("cue") or "").strip() == "@start" or bool(x.get("display_only"))
+
+    shown = set()
+    for ob in list(ax.texts):
+        if (ob.get_alpha() or 1) < 0.35:
+            continue
+        if ob.get_text() in owner:
+            shown.add(ob.get_text())
+
+    # ---- (A) 旁白唸過了,畫面上有沒有? ----
+    said_txt = turn_txt[:spoken_upto(t_now)]
+    said = set(NUM_RE.findall(said_txt))
+    missing = []
+    for val, xs in owner.items():
+        if val in shown or all(exempt(x) for x in xs):
+            continue
+        nums = NUM_RE.findall(val.split(" = ")[-1])
+        if nums and all(n in said or n.replace(",", "") in said for n in nums):
+            missing.append((xs[0].get("label"), val))
+    if missing:
+        raise SystemExit(
+            f"⛔ {E['slug']} t={t_now:.2f}s 旁白超前畫面:{missing}"
+            f"{chr(10)}   旁白到這一刻唸過 {sorted(said)},而那一列還沒出現 ——"
+            f"觀眾聽得到、看不到。(這道閘門的定義見 _control_reveal_timing.py 的 CASES)")
+
+    # ---- (B) 畫面出來了,它自己的 cue 唸到沒有? ----
+    ahead = []
+    cue_k = spoken_upto(t_now + LEAD)
+    for val in shown:
+        for x in owner[val]:
+            if exempt(x):
+                continue
+            cue = (x.get("cue") or "").strip()
+            if not cue:
+                continue
+            pos = turn_txt.find(cue)
+            # 產線錨在 cue 的**起點**(render_scene: k = turn_txt.find(c)),
+            # 不是終點。錨在終點會對 20/20 集誤報 —— cue 本身要唸一兩秒。
+            if pos >= 0 and pos > cue_k:
+                ahead.append((x.get("label"), val, cue))
+    if ahead:
+        raise SystemExit(
+            f"⛔ {E['slug']} t={t_now:.2f}s 畫面超前旁白:{ahead}"
+            f"{chr(10)}   這幾列已經在畫面上,而它們自己的 cue 還沒被唸到"
+            f"(產線明示的提前量是 {LEAD} 秒)。"
+            f"(這道閘門的定義見 _control_reveal_timing.py 的 CASES)")
+
+
+def layout_guard(name, ax, fig):
+    """版面守門:安全區(**個體**)+ 兩兩重疊(**關係**)。兩件事,不互相取代。
+
+    🔴 **逐元素邊界檢查對「重疊」是結構性盲的。** 已上線的片實測兩欄相撞
+       22×10 畫素,而四個邊**全綠** —— 每個元素各自都在安全區內,
+       兩個合起來才撞。所以第二段量的是元素**兩兩之間的交集**,
+       不是各自出不出界。
+
+    ⚠️ 這段本來寫在 render_scene 裡面,從外面**叫不到**
+       ⇒ 它沒辦法有陽性對照,而沒有陽性對照的守門和沒有守門的差別
+       只能靠相信。拉出來只是**搬家**,判準一個字沒改
+       (定義見 _control_layout_overlap.py 的 CASES)。
+    """
+    fig.canvas.draw()
+    rend = fig.canvas.get_renderer()
+    boxes = []
+    for ob in list(ax.texts):
+        bb = ob.get_window_extent(renderer=rend)
+        for v, lo, hi, side in ((bb.x0 / W, MARGIN, SAFE_X, "左"),
+                                (bb.x1 / W, MARGIN, SAFE_X, "右"),
+                                (bb.y0 / H, SAFE_LO, SAFE_HI, "下"),
+                                (bb.y1 / H, SAFE_LO, SAFE_HI, "上")):
+            if not (lo - 1e-9 <= v <= hi + 1e-9):
+                raise SystemExit(
+                    f"⛔ {name} 越出安全區:「{ob.get_text()[:24]}」"
+                    f"{side}緣 {v:.3f}(允許 {lo:.2f}~{hi:.2f})"
+                    f" —— 那個位置在真機上被 YouTube 的 UI 蓋住。")
+        if (ob.get_alpha() or 1) >= 0.35:
+            boxes.append((ob.get_text()[:24], bb))
+    for i in range(len(boxes)):
+        for j in range(i + 1, len(boxes)):
+            (ta, A), (tb, B) = boxes[i], boxes[j]
+            ox = min(A.x1, B.x1) - max(A.x0, B.x0)
+            oy = min(A.y1, B.y1) - max(A.y0, B.y0)
+            if ox > 2 and oy > 2:
+                raise SystemExit(f"⛔ {name} 文字重疊:「{ta}」×「{tb}」"
+                                 f"{ox:.0f}×{oy:.0f} 畫素")
+
+
 def render_scene(name, t_now, dur, ctx):
     plt, E, rows = ctx["plt"], ctx["E"], ctx["rows"]
     r = E["reel"]
@@ -354,21 +566,26 @@ def render_scene(name, t_now, dur, ctx):
         # 🔴 **第 0 幀就要是完整的一句話。** alpha 從 1 開始,不淡入。
         _, bot, tfs = block(r["belief"], 0.62, 104, 16)
         ax.text(0.5 - (UI_RIGHT / 2), bot - 0.055, caption(E, "belief"),
-                ha="center", va="center", fontsize=sub_fs(tfs, 40),
+                ha="center", va="center",
+                fontsize=cap_fit(plt, caption(E, "belief"),
+                                 sub_fs(tfs, 40), "normal"),
                 color=DIM, weight="normal")
 
     elif name == "weight":
         _, bot, tfs = block(r["weight"], 0.62, 72, 22, DIM, "normal")
         ax.text(0.5 - (UI_RIGHT / 2), bot - 0.06, caption(E, "weight"),
-                ha="center", va="center", fontsize=sub_fs(tfs, 46),
+                ha="center", va="center",
+                fontsize=cap_fit(plt, caption(E, "weight"),
+                                 sub_fs(tfs, 46), "bold"),
                 color=ACCENT, weight="bold",
                 alpha=ease((t_now - 1.0) / 0.8))
 
     elif name == "turn":
         # 數字逐個出現 —— 這一段最長(約 14 秒),畫面不能不動。
         ax.text(0.5 - (UI_RIGHT / 2), SAFE_HI - 0.03, caption(E, "turn"),
-                ha="center", va="center", fontsize=42, color=DIM,
-                weight="normal")
+                ha="center", va="center",
+                fontsize=cap_fit(plt, caption(E, "turn"), 42, "normal"),
+                color=DIM, weight="normal")
         n = max(1, len(rows))
         # 🔴 **爆點不要比旁白早二十秒出現。** 列是照時間均分揭露的,跟旁白
         #    唸到哪裡無關 —— 實測 hot_hand 的 +13 在畫面上掛了 5 秒之後,
@@ -620,30 +837,8 @@ def render_scene(name, t_now, dur, ctx):
                 weight="bold")
 
     # ── 守門 ──
-    fig.canvas.draw()
-    rend = fig.canvas.get_renderer()
-    boxes = []
-    for ob in list(ax.texts):
-        bb = ob.get_window_extent(renderer=rend)
-        for v, lo, hi, side in ((bb.x0 / W, MARGIN, SAFE_X, "左"),
-                                (bb.x1 / W, MARGIN, SAFE_X, "右"),
-                                (bb.y0 / H, SAFE_LO, SAFE_HI, "下"),
-                                (bb.y1 / H, SAFE_LO, SAFE_HI, "上")):
-            if not (lo - 1e-9 <= v <= hi + 1e-9):
-                raise SystemExit(
-                    f"⛔ {name} 越出安全區:「{ob.get_text()[:24]}」"
-                    f"{side}緣 {v:.3f}(允許 {lo:.2f}~{hi:.2f})"
-                    f" —— 那個位置在真機上被 YouTube 的 UI 蓋住。")
-        if (ob.get_alpha() or 1) >= 0.35:
-            boxes.append((ob.get_text()[:24], bb))
-    for i in range(len(boxes)):
-        for j in range(i + 1, len(boxes)):
-            (ta, A), (tb, B) = boxes[i], boxes[j]
-            ox = min(A.x1, B.x1) - max(A.x0, B.x0)
-            oy = min(A.y1, B.y1) - max(A.y0, B.y0)
-            if ox > 2 and oy > 2:
-                raise SystemExit(f"⛔ {name} 文字重疊:「{ta}」×「{tb}」"
-                                 f"{ox:.0f}×{oy:.0f} 畫素")
+    layout_guard(name, ax, fig)
+    reveal_guard(name, t_now, dur, ax, ctx)
     # 第 0 幀不能是空的,也不能只有半句
     if t_now < 0.05 and name == "belief":
         shown = " ".join(o.get_text() for o in ax.texts

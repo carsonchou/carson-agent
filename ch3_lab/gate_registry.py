@@ -45,7 +45,7 @@ R3「不影響任何數字,只誤導下一個讀的人」。
   · R2 真形狀:訊息點名 display_only_why 而程式從來沒讀過它(= 規則只寫在錯誤訊息裡)
   · R3 真形狀:docstring 的產生區塊被換成一個被放棄的設計(= window_readout 的「唯一可靠的判準是數列數」)
 **它不該叫**(陰性,1 種):
-  · 現況的三道閘門:R1/R2/R3 都不該叫
+  · 註冊表**現況的每一道閘門**(數量不寫死 —— 寫死的數字就是下一個 R3):R1/R2/R3 都不該叫
 ⚠️ 這份清單會過期。它需要定期用真案例證明它還抓得到。
 <!--/GATE-CASES:meta.gate_registry-->
 """
@@ -72,6 +72,25 @@ GATES = {
     "reel.orphan_value": {
         "module": "make_reel", "func": "audit",
         "control": "_control_orphan.py"},
+    # 🔴 這兩道是 09-10 影像層那一輪補的。
+    #    `layout_guard` 本來寫在 render_scene 裡面,**從外面叫不到**
+    #    ⇒ 它沒辦法有陽性對照。沒有陽性對照的守門和沒有守門,
+    #    差別只能靠相信 —— 拉出來當函式是為了讓它可以被證明。
+    "reel.layout_overlap": {
+        "module": "make_reel", "func": "layout_guard",
+        "control": "_control_layout_overlap.py"},
+    # 🔴 揭露時序:兩條真事故都是「聽得到、看不到」——
+    #    旁白唸 minus 0.05 而畫面上那一列還沒出現。方向搞反的話,
+    #    對照會對 20 集裡的 15 集誤報(實測過)。
+    "reel.reveal_timing": {
+        "module": "make_reel", "func": "reveal_guard",
+        "control": "_control_reveal_timing.py"},
+    # ⚠️ cap_fit **不是閘門,是修法**:它不擋任何東西,它把字縮小。
+    #    所以它的對照要證的是「對沒壞的 59 個是 no-op」和
+    #    「它沒有把安全區守門變成靜音」,不是「它擋得住」。
+    "reel.caption_fit": {
+        "module": "make_reel", "func": "cap_fit",
+        "control": "_control_caption_fit.py"},
     "publish.prereg_title": {
         "module": "publish_shorts", "func": "prereg_title_gate",
         "control": "_control_prereg_title.py"},

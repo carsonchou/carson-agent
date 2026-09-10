@@ -25,7 +25,7 @@ ROOT = pathlib.Path(r"D:\carson-agent\ch3_lab")
 
 #: 🔴 **這份清單就是這道規則的定義。**
 CASES = [
-    {"kind": "negative", "label": "現況的三道閘門:R1/R2/R3 都不該叫"},
+    {"kind": "negative", "label": "註冊表**現況的每一道閘門**(數量不寫死 —— 寫死的數字就是下一個 R3):R1/R2/R3 都不該叫"},
     {"kind": "positive",
      "label": "R1 真形狀:CONTROL 宣告了但沒有任何地方讀它"
               "(= prereg_title 零讀取者)"},
@@ -49,7 +49,7 @@ def say(tag, hit, want, msg=""):
 
 SRC = (ROOT / "make_reel.py").read_text(encoding="utf-8")
 
-print("【陰性】現況的三道閘門,三個偵測器都不該叫:")
+print(f"【陰性】註冊表現況的 {len(gr.GATES)} 道閘門,三個偵測器都不該叫:")
 for gid in gr.GATES:
     g = gr.GATES[gid]
     s = (ROOT / f"{g['module']}.py").read_text(encoding="utf-8")

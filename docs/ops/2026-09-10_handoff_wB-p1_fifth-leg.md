@@ -21,25 +21,36 @@
 
 ## 一、下一棒的順序(不可換)
 
+🔴 **直譯器不是 `python`。** 裸的 `python` 是系統 Python39,
+**沒有 matplotlib / moviepy / soundfile / kokoro / imageio_ffmpeg** ——
+第五棒照這份檔跑第一支就 `ModuleNotFoundError`,而且它在 TTS 跑完之後才炸,
+留下一個**半成品的 `reels/<slug>/` 目錄**(5 個完整的 wav),
+對下游是合法輸入。渲染線的直譯器是那個 venv:
+
+```
+PY=D:/carson-agent/youtube_channel/.venv/Scripts/python.exe
+```
+(`_renderq.sh` / `_farm1.ps1` / `_v5_0.sh` 三支都是這麼設的。)
+
 ```
 cd D:\carson-agent\ch3_lab
 
 # 0) 先確認閘門這套還是好的(三輪都靠它)
-python gate_registry.py            # 應印「4 道閘門 … ✓」
-python _control_gate_registry.py   # rc 必須 0
+$PY gate_registry.py            # 應印「N 道閘門 … ✓」(09-10 起是 6 道)
+$PY _control_gate_registry.py   # rc 必須 0
 
 # 1) 渲染六支,一支約 3.5 分鐘
-python make_reel.py --slug study_techniques
-python make_reel.py --slug how_to_remember_what_you_read
-python make_reel.py --slug focus_techniques
-python make_reel.py --slug if_then_plans
-python make_reel.py --slug learning_styles
-python make_reel.py --slug pomodoro
+$PY make_reel.py --slug study_techniques
+$PY make_reel.py --slug how_to_remember_what_you_read
+$PY make_reel.py --slug focus_techniques
+$PY make_reel.py --slug if_then_plans
+$PY make_reel.py --slug learning_styles
+$PY make_reel.py --slug pomodoro
 #  🔴 每支都要看 rc。片長不在 35~50 秒會印 ⛔ 並回 1 —— 那是要**改稿重渲**。
 #  🔴 **不准為了不重渲而放寬硬帶。**
 
 # 2) 影像層驗證(見 §二)—— 這是新的一道閘門
-# 3) 人工看過才標:python mark_verified.py <slug>
+# 3) 人工看過才標:$PY mark_verified.py <slug>
 # 4) reel_gate 的 papers 分支陽性對照(見 §三)
 # 5) 🔴 派 fresh-context 獨立驗證員,重點**全部在畫面上**
 # 6) 發布(見 §四)
@@ -73,7 +84,7 @@ python make_reel.py --slug pomodoro
 ⇒ 渲完之後:故意從某一支的說明欄刪掉一個 DOI,確認它會擋。**沒補之前不准發。**
 
 唯讀、不連網的兩支可以先跑:
-`python publish_shorts.py --list`、`python publish_shorts.py --dry-run`。
+`$PY publish_shorts.py --list`、`$PY publish_shorts.py --dry-run`。
 
 ---
 
@@ -84,10 +95,10 @@ python make_reel.py --slug pomodoro
 2. 🔴 **`--only` 必須同時帶 `--limit 6`**。`--limit` 預設 **2** 且切在 `--only` **之後**
    ⇒ 不帶只會發前 2 支,而按字母序**兩支都是 B 臂、E 臂 0 支**(沒有對照組的兩臂實驗)。
    ```
-   python publish_shorts.py --only reel_study_techniques,reel_how_to_remember_what_you_read,reel_focus_techniques,reel_if_then_plans,reel_learning_styles,reel_pomodoro --limit 6
+   $PY publish_shorts.py --only reel_study_techniques,reel_how_to_remember_what_you_read,reel_focus_techniques,reel_if_then_plans,reel_learning_styles,reel_pomodoro --limit 6
    ```
 3. **配額**:專案 `881902283633`(ch2/ch3),不影響主頻道。6 支約 9,636~9,936。
-   發布前跑一次 `python quota.py` 看即時值。
+   發布前跑一次 `$PY quota.py` 看即時值。
 
 ---
 
@@ -99,7 +110,7 @@ python make_reel.py --slug pomodoro
 - **判準 B**:median(B)/median(E) ≥ 3;E 中位為 0 時改判 B 中位 ≥3 且 E 兩支皆 ≤1
 - **判準 C**:發布後 14 天窗 `YT_SEARCH` views ≥ **122**(= 對照窗 61 × 2)
 
-🔴 **讀數用 `python window_readout.py --start … --end … --measurement`**:
+🔴 **讀數用 `$PY window_readout.py --start … --end … --measurement`**:
 - 量測窗讀數**不得早於「窗結束日 + 4 天」**(`--measurement` 把這條升為硬閘門)
 - 完整性判準是**資料視界**,**不是列數** —— 零觀看日根本不回列,
   用列數會把完整的窗判成不完整,而錯誤訊息會說「資料還沒進來」(**一個很有說服力的錯誤診斷**)
