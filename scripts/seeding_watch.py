@@ -58,6 +58,8 @@ REPO = pathlib.Path(__file__).resolve().parent.parent
 STATE = REPO / "youtube_channel" / "STUDIO" / "stock_checkup_daily_state.json"
 LOG = REPO / "docs" / "ops" / "seeding-watch.log"
 sys.path.insert(0, str(REPO / "youtube_channel" / "scripts"))
+sys.path.insert(0, str(REPO / "scripts"))   # 讓 import watch_crosscheck 不看「是誰啟動的」
+import watch_crosscheck   # 互查在模組層 import:缺檔/壞檔在**啟動時**大聲失敗,不是在收尾時靜靜跳過
 
 # 演習模式:err|zero|all。**每一條判準各要有自己的引爆輸入** ——
 # 第一版只有一種 fixture,它引爆了 -1 那條而「連續 0」那條完全沒被走到,
@@ -179,6 +181,9 @@ def swallow_epilogue() -> None:
 
 
 def record(line):
+    # 補跑時 WATCH_MANUAL=1 ⇒ 前綴打在**讀數行本身**,不靠後面追加的註記行去指認它
+    # (註記行只帶「我被寫下的時間」,不帶「我在指誰」—— 隔天才註記就失效,而且往不叫倒)。
+    line = watch_crosscheck.manual_prefix() + line
     if SELFTEST:
         line = "[DRILL] " + line
     line += swallow_suffix()          # 判決行自己要說得出「這輪吞了東西」
@@ -511,17 +516,29 @@ if __name__ == "__main__":
     # 沙箱在**入口**建立、在 finally 還原:main() 中途丟例外也不會把 FACTS 留在沙箱上。
     if SELFTEST and SELFTEST_MODE in DRILL_FACT_MODES:
         _drill_setup(SELFTEST_MODE)
+    import watch_crosscheck
+    _rc, _iso = 1, None          # main() 丟例外時的預設:例外不是「沒事」
     try:
         _rc = main()
     finally:
         _iso = _drill_teardown()
         # 收尾行放 finally:main() 中途丟例外時,已經吞掉的東西一樣要留得下來。
         swallow_epilogue()
-    if _iso is False:
-        say("[DRILL] 🔴 隔離失敗 → rc=9(演習結果不採信)")
-        _rc = 9
-    # 互查放在最後:**自己那行已經寫完了**才問「同伴最近一次該跑的時候有沒有留下行」。
-    # 順序反過來會製造假告警競態;三個母體與已知邊界見 scripts/watch_crosscheck.py 的 docstring。
-    import watch_crosscheck
-    _rc = watch_crosscheck.crosscheck_tail(_rc, "seeding", record, alert)
+        if _iso is False:
+            say("[DRILL] 🔴 隔離失敗 → rc=9(演習結果不採信)")
+            _rc = 9
+        # 互查放在最後:**自己那行已經寫完了**才問「同伴最近一次該跑的時候有沒有留下行」。
+        # 順序反過來會製造假告警競態;三個母體與已知邊界見 scripts/watch_crosscheck.py 的 docstring。
+        # 🔴 互查也必須放 finally。原本它在 try/finally **之外** ⇒ main() 丟例外時
+        # 控制流根本走不到那一行,互查整天不執行而且**沒有任何訊號**(09-10 獨立驗證 3-2)。
+        # ⚠️ 更正一個錯誤的診斷:病不在「_rc 從沒被賦值」,在**控制流到不了那一行**。
+        #    照「_rc 沒賦值」去修(在 try 前面給預設值)一個字都沒修到。
+        try:
+            _rc = watch_crosscheck.crosscheck_tail(_rc, "seeding", record, alert)
+        except BaseException as _xe:
+            # 不 re-raise:在 finally 裡 raise 會**取代** main() 原本那個例外,把根因換掉。
+            # 但也絕不可以 pass —— 沉默偵測器沉默地壞掉正是它在治的病。
+            print(f"[XCHK-BROKEN] 守望互查收尾自己爆了,今天沒有沉默偵測:{_xe!r}", file=sys.stderr)
+            if _rc in (0, None):
+                _rc = 4          # 4=互查機構自己壞了(≠同伴都正常)
     raise SystemExit(_rc)

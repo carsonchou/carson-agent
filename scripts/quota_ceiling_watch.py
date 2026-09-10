@@ -23,6 +23,8 @@ REPO = pathlib.Path(__file__).resolve().parent.parent
 LOG   = REPO / "docs" / "ops" / "quota-ceiling-watch.log"
 STATE = REPO / "docs" / "ops" / "quota-ceiling-watch.state.json"
 sys.path.insert(0, str(REPO / "youtube_channel" / "scripts"))
+sys.path.insert(0, str(REPO / "scripts"))   # 讓 import watch_crosscheck 不看「是誰啟動的」
+import watch_crosscheck   # 互查在模組層 import:缺檔/壞檔在**啟動時**大聲失敗,不是在收尾時靜靜跳過
 
 # --selftest:演習模式。教訓(2026-09-02):驗證員手改 state 模擬提額,兩行 🎉 落在正式 log,
 # 和真事件一模一樣——假證據落在自己指定的權威來源裡,比沒有守望更糟。
@@ -145,6 +147,9 @@ def _drill_state(mode: str) -> None:
 
 
 def record(line: str) -> None:
+    # 補跑時 WATCH_MANUAL=1 ⇒ 前綴打在**讀數行本身**,不靠後面追加的註記行去指認它
+    # (註記行只帶「我被寫下的時間」,不帶「我在指誰」—— 隔天才註記就失效,而且往不叫倒)。
+    line = watch_crosscheck.manual_prefix() + line
     if SELFTEST:
         line = "[DRILL] " + line
     line += swallow_suffix()
@@ -332,14 +337,26 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    import watch_crosscheck
+    _rc = 1                      # main() 丟例外時的預設:例外不是「沒事」
     try:
         _rc = main()
     finally:
         # 收尾行放 finally:main() 中途丟例外時,已經吞掉的東西一樣要留得下來。
         swallow_epilogue()
-    # 互查放在最後:**自己那行已經寫完了**才問「同伴最近一次該跑的時候有沒有留下行」。
-    # 順序反過來會製造假告警競態;三個母體與已知邊界見 scripts/watch_crosscheck.py 的 docstring。
-    # 🔴 quota 排 15:20,離開機/登入窗最遠 —— 它是這個設計唯一的支點,不要把它挪走。
-    import watch_crosscheck
-    _rc = watch_crosscheck.crosscheck_tail(_rc, "quota", record, alert)
+        # 互查放在最後:**自己那行已經寫完了**才問「同伴最近一次該跑的時候有沒有留下行」。
+        # 順序反過來會製造假告警競態;三個母體與已知邊界見 scripts/watch_crosscheck.py 的 docstring。
+        # 🔴 quota 排 15:20,離開機/登入窗最遠 —— 它是這個設計唯一的支點,不要把它挪走。
+        # 🔴 互查也必須放 finally。原本它在 try/finally **之外** ⇒ main() 丟例外時
+        # 控制流根本走不到那一行,互查整天不執行而且**沒有任何訊號**(09-10 獨立驗證 3-2)。
+        # ⚠️ 更正一個錯誤的診斷:病不在「_rc 從沒被賦值」,在**控制流到不了那一行**。
+        #    照「_rc 沒賦值」去修(在 try 前面給預設值)一個字都沒修到。
+        try:
+            _rc = watch_crosscheck.crosscheck_tail(_rc, "quota", record, alert)
+        except BaseException as _xe:
+            # 不 re-raise:在 finally 裡 raise 會**取代** main() 原本那個例外,把根因換掉。
+            # 但也絕不可以 pass —— 沉默偵測器沉默地壞掉正是它在治的病。
+            print(f"[XCHK-BROKEN] 守望互查收尾自己爆了,今天沒有沉默偵測:{_xe!r}", file=sys.stderr)
+            if _rc in (0, None):
+                _rc = 4          # 4=互查機構自己壞了(≠同伴都正常)
     sys.exit(_rc)

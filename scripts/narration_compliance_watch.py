@@ -55,6 +55,8 @@ REPO = pathlib.Path(__file__).resolve().parent.parent
 OUT = REPO / "youtube_channel" / "output"
 LOG = REPO / "docs" / "ops" / "narration-compliance-watch.log"
 sys.path.insert(0, str(REPO / "youtube_channel" / "scripts"))
+sys.path.insert(0, str(REPO / "scripts"))   # 讓 import watch_crosscheck 不看「是誰啟動的」
+import watch_crosscheck   # 互查在模組層 import:缺檔/壞檔在**啟動時**大聲失敗,不是在收尾時靜靜跳過
 
 # 🔴 上線日設 09-06 不是 09-05:兩條規則是 09-05 **深夜** commit 的,
 # 而 09-05 白天已經產了 11 支舊規則的片。設成 09-05 會把上線前的產出算進分母,
@@ -209,6 +211,9 @@ def swallow_epilogue():
 
 
 def record(line):
+    # 補跑時 WATCH_MANUAL=1 ⇒ 前綴打在**讀數行本身**,不靠後面追加的註記行去指認它
+    # (註記行只帶「我被寫下的時間」,不帶「我在指誰」—— 隔天才註記就失效,而且往不叫倒)。
+    line = watch_crosscheck.manual_prefix() + line
     if SELFTEST:
         line = "[DRILL] " + line
     line += swallow_suffix()
@@ -344,13 +349,25 @@ def main():
 
 
 if __name__ == "__main__":
+    import watch_crosscheck
+    _rc = 1                      # main() 丟例外時的預設:例外不是「沒事」
     try:
         _rc = main()
     finally:
         # 收尾行放 finally:main() 中途丟例外時,已經吞掉的東西一樣要留得下來。
         swallow_epilogue()
-    # 互查放在最後:**自己那行已經寫完了**才問「同伴最近一次該跑的時候有沒有留下行」。
-    # 順序反過來會製造假告警競態;三個母體與已知邊界見 scripts/watch_crosscheck.py 的 docstring。
-    import watch_crosscheck
-    _rc = watch_crosscheck.crosscheck_tail(_rc, "narration", record, alert)
+        # 互查放在最後:**自己那行已經寫完了**才問「同伴最近一次該跑的時候有沒有留下行」。
+        # 順序反過來會製造假告警競態;三個母體與已知邊界見 scripts/watch_crosscheck.py 的 docstring。
+        # 🔴 互查也必須放 finally。原本它在 try/finally **之外** ⇒ main() 丟例外時
+        # 控制流根本走不到那一行,互查整天不執行而且**沒有任何訊號**(09-10 獨立驗證 3-2)。
+        # ⚠️ 更正一個錯誤的診斷:病不在「_rc 從沒被賦值」,在**控制流到不了那一行**。
+        #    照「_rc 沒賦值」去修(在 try 前面給預設值)一個字都沒修到。
+        try:
+            _rc = watch_crosscheck.crosscheck_tail(_rc, "narration", record, alert)
+        except BaseException as _xe:
+            # 不 re-raise:在 finally 裡 raise 會**取代** main() 原本那個例外,把根因換掉。
+            # 但也絕不可以 pass —— 沉默偵測器沉默地壞掉正是它在治的病。
+            print(f"[XCHK-BROKEN] 守望互查收尾自己爆了,今天沒有沉默偵測:{_xe!r}", file=sys.stderr)
+            if _rc in (0, None):
+                _rc = 4          # 4=互查機構自己壞了(≠同伴都正常)
     raise SystemExit(_rc)
