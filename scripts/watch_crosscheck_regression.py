@@ -94,7 +94,7 @@ def add(rows, name, expect, got, ok):
 
 # 🔴 格數本身也要斷言:少了一格(某個 continue 提早跳掉、某個分支沒進去)在舊版會印成
 #    「N/N 符合期待」,和真的全過長得一模一樣。這兩個數字改動時要連同理由一起改。
-EXPECT_ROWS = {True: 23, False: 20}   # key = 有沒有給 --before
+EXPECT_ROWS = {True: 35, False: 32}   # key = 有沒有給 --before
 
 
 def block(path):
@@ -107,6 +107,17 @@ def block(path):
 
 
 class _Err:
+    """友善的假 stderr:永遠可寫、沒有 encoding 屬性。
+
+    🔴 2026-09-11:**本類別自己是一個「不可能失敗的檢查」**(memory
+    verification-that-cannot-fail)。舊版 M3 兩格斷言 `"[XCHK-BROKEN]" in err`,
+    用的就是它 —— 而正式機的 stderr 是 `pythonw.exe` 給的:要嘛 `None`,
+    要嘛 `encoding='cp950'`。兩種都不會讓那行字出現,而這個 stub 兩種都不重現
+    ⇒ **產線靜默,而測試全綠**。所以下面補了 `_ErrCp950` 與 stderr_mode="none"。
+    """
+
+    encoding = "utf-8"
+
     def __init__(self):
         self.buf = ""
 
@@ -117,12 +128,78 @@ class _Err:
         pass
 
 
-def control_flow_trial(src, main_rc=0, main_exc=None, xchk_exc=None, iso=None):
-    """exec 一段真的 `__main__` 原文,回 (互查被呼叫幾次, 逃出來的東西, stderr)。"""
-    calls, err = [], _Err()
+class _ErrCp950(_Err):
+    """重現獨立驗證實測到的那一支:`pythonw` 有繼承 handle 時 encoding 是 cp950。
 
-    def crosscheck_tail(rc, key, record, alert, now=None):
-        calls.append((rc, key))
+    cp950 編不了 emoji ⇒ 寫入時拋 UnicodeEncodeError。而本 repo 的例外訊息到處帶 🔴。
+    """
+
+    encoding = "cp950"
+
+    def write(self, s):
+        s.encode("cp950")          # 編不了就拋 —— 這是實測行為,不是模擬
+        self.buf += s
+
+
+def _make_err(mode):
+    return {"ok": _Err, "cp950": _ErrCp950, "none": lambda: None}[mode]()
+
+
+def func_src(path, name):
+    """取出 `def name(` 起、到下一個頂層敘述為止的**原文**。
+
+    和 `block()` 同一個理由:測的是磁碟上那份位元組,不是我重打一次的版本。
+    """
+    text = io.open(path, encoding="utf-8").read()
+    key = "def " + name + "("
+    if key not in text:
+        raise KeyError(path.name + " 裡找不到 " + key)
+    lines = text[text.index(key):].split(chr(10))
+    out = [lines[0]]
+    for ln in lines[1:]:
+        if ln and not ln[0].isspace():
+            break
+        out.append(ln)
+    return chr(10).join(out)
+
+
+def xchk_broken_trial(fsrc, stderr_mode, log_path, what=None, selftest=False):
+    """exec 真的 `xchk_broken` 原文,回 (log 內容, 它拋出來的東西, stderr 內容)。
+
+    log 一律寫到**暫存目錄**,不是 repo 裡的常駐 log —— 演習不可以往真 log 追加行。
+    `what` 預設帶一個含 emoji 的例外:cp950 編不了它,那正是要驗的那一格。
+    """
+    if what is None:
+        what = RuntimeError("🔴 模擬:record 自己爆了")
+    err = _make_err(stderr_mode)
+    g = {"datetime": datetime, "sys": types.SimpleNamespace(stderr=err),
+         "LOG": log_path, "SELFTEST": selftest, "print": print}
+    exec(compile(fsrc, "<xchk_broken>", "exec"), g)
+    raised = None
+    try:
+        g["xchk_broken"](what)
+    except BaseException as e:     # noqa: BLE001 —— 「它有沒有拋」本身就是受測結果
+        raised = e
+    got = log_path.read_text(encoding="utf-8") if log_path.exists() else ""
+    return got, raised, ("" if err is None else err.buf)
+
+
+def control_flow_trial(src, main_rc=0, main_exc=None, xchk_exc=None, iso=None,
+                       stderr_mode="ok"):
+    """exec 一段真的 `__main__` 原文,回 `.calls / .exc / .err / .broken`。
+
+    `stderr_mode` 決定假 stderr 的形狀("ok" / "cp950" / "none");預設 "ok" 是
+    **最不像正式機**的那一種,所以要靠呼叫端明講,不要靠預設值。
+    `broken` 記 `xchk_broken()` 被呼叫幾次 —— 收尾自己壞掉時的留痕現在走它,不走 stderr。
+    """
+    calls, err, broken = [], _make_err(stderr_mode), []
+
+    def crosscheck_tail(rc, key, record, alert, now=None, on_broken=None):
+        # 🔴 `on_broken` 一定要在簽章裡,而且要**記下來**:呼叫端忘了傳的話,
+        #    最後一道留痕就退回本模組那條守衛版 stderr —— 在 pythonw 下等於沒有留痕。
+        #    2026-09-11 實測:這個 stub 少了 on_broken 參數時,三支哨的呼叫直接 TypeError,
+        #    被 finally 的 except 吞成 rc=4 ⇒ 「互查被呼叫 0 次」。所以這格會翻面,不是恆過。
+        calls.append((rc, key, on_broken))
         if xchk_exc:
             raise xchk_exc
         return rc
@@ -147,6 +224,7 @@ def control_flow_trial(src, main_rc=0, main_exc=None, xchk_exc=None, iso=None):
          "say": lambda *a, **k: None, "swallow_epilogue": lambda: None,
          "SELFTEST": iso is not None, "SELFTEST_MODE": "up", "DRILL_FACT_MODES": (),
          "_drill_setup": lambda *a: None, "_drill_teardown": lambda: iso,
+         "xchk_broken": lambda what: broken.append(what),
          "print": lambda *a, **k: (k["file"].write(" ".join(map(str, a)) + chr(10))
                                   if k.get("file") is err else None)}
     out = None
@@ -159,7 +237,8 @@ def control_flow_trial(src, main_rc=0, main_exc=None, xchk_exc=None, iso=None):
             sys.modules["watch_crosscheck"] = saved
         else:
             sys.modules.pop("watch_crosscheck", None)
-    return calls, out, err.buf
+    return types.SimpleNamespace(calls=calls, exc=out, broken=broken,
+                                 err=("" if err is None else err.buf))
 
 
 class Corpus:
@@ -323,33 +402,91 @@ def main():
         for fname, key in WATCH_FILES:
             src = block(REPO / "scripts" / f"{fname}.py")
             try:
-                calls, exc, err = control_flow_trial(src, main_exc=RuntimeError("模擬:main() 炸了"))
+                r = control_flow_trial(src, main_exc=RuntimeError("模擬:main() 炸了"))
             except NameError as ne:
                 add(rows, f"M3 {key} 原文 exec", "可 exec", f"NameError:{ne}", False)
                 print(f"  🔴 {fname}:__main__ 原文 exec 不起來({ne})—— "
                       f"那段程式碼改了,**先來補本檔的 stub**,不是產線壞了")
                 continue
-            ok = len(calls) == 1 and isinstance(exc, RuntimeError)
-            add(rows, f"M3 {key} main()丟例外→互查仍執行", "1 次", f"{len(calls)} 次", ok)
+            _ob = r.calls[0][2] is not None if r.calls else False
+            ok = len(r.calls) == 1 and isinstance(r.exc, RuntimeError) and _ob
+            add(rows, f"M3 {key} main()丟例外→互查仍執行且帶 on_broken", "1 次+有",
+                f"{len(r.calls)} 次+{'有' if _ob else '沒有'}", ok)
 
-            calls, exc, err = control_flow_trial(src, main_rc=0)
-            ok = len(calls) == 1 and isinstance(exc, SystemExit) and exc.code == 0
-            add(rows, f"M3 {key} 正常路徑 rc=0", "0", str(getattr(exc, "code", exc)), ok)
+            r = control_flow_trial(src, main_rc=0)
+            ok = len(r.calls) == 1 and isinstance(r.exc, SystemExit) and r.exc.code == 0
+            add(rows, f"M3 {key} 正常路徑 rc=0", "0", str(getattr(r.exc, "code", r.exc)), ok)
 
-            calls, exc, err = control_flow_trial(src, main_exc=RuntimeError("根因"),
-                                                xchk_exc=RuntimeError("互查自己炸了"))
-            ok = isinstance(exc, RuntimeError) and str(exc) == "根因" and "[XCHK-BROKEN]" in err
-            add(rows, f"M3 {key} 兩邊都炸→根因不被取代", "根因", str(exc), ok)
+            # 🔴 2026-09-11 改斷言:舊版查的是 `"[XCHK-BROKEN]" in err`,而 err 是永遠
+            #    可寫的 _Err ⇒ 產線靜默時它照樣 PASS(見 _Err 的 docstring)。
+            #    現在查的是「有沒有呼叫 xchk_broken(寫 log 檔)」**且 stderr 一個字都沒寫**,
+            #    而且假 stderr 用排程實況 None,不是那個友善的。
+            r = control_flow_trial(src, main_exc=RuntimeError("根因"),
+                                   xchk_exc=RuntimeError("互查自己炸了"), stderr_mode="none")
+            ok = (isinstance(r.exc, RuntimeError) and str(r.exc) == "根因"
+                  and len(r.broken) == 1 and r.err == "")
+            add(rows, f"M3 {key} 兩邊都炸→根因不被取代(stderr=None)", "根因+留痕1",
+                f"{str(r.exc)}+留痕{len(r.broken)}", ok)
 
-            calls, exc, err = control_flow_trial(src, main_rc=0, xchk_exc=RuntimeError("互查自己炸了"))
-            ok = isinstance(exc, SystemExit) and exc.code == 4 and "[XCHK-BROKEN]" in err
-            add(rows, f"M3 {key} 只有互查炸→rc=4 且出聲", "4", str(getattr(exc, "code", exc)), ok)
+            r = control_flow_trial(src, main_rc=0, xchk_exc=RuntimeError("互查自己炸了"),
+                                   stderr_mode="none")
+            ok = (isinstance(r.exc, SystemExit) and r.exc.code == 4
+                  and len(r.broken) == 1 and r.err == "")
+            add(rows, f"M3 {key} 只有互查炸→rc=4 且留痕(stderr=None)", "4+留痕1",
+                f"{getattr(r.exc, 'code', r.exc)}+留痕{len(r.broken)}", ok)
 
             if key == "seeding":
-                calls, exc, err = control_flow_trial(src, main_rc=0, iso=False)
-                ok = isinstance(exc, SystemExit) and exc.code == 9
+                r = control_flow_trial(src, main_rc=0, iso=False)
+                ok = isinstance(r.exc, SystemExit) and r.exc.code == 9
                 add(rows, "M3 seeding 演習隔離失敗 rc=9 不被互查覆蓋", "9",
-                    str(getattr(exc, "code", exc)), ok)
+                    str(getattr(r.exc, "code", r.exc)), ok)
+
+        # ---- M4:最後一道留痕本身,在**正式機的 stderr 形狀**下重驗 ----
+        # 🔴 這一節是獨立驗證新-1 的產物。被驗的不是「有沒有出聲」,是「出聲那條路在
+        #    pythonw 底下到不到得了人眼前」。舊版把它交給 stderr,而那裡兩種形狀都到不了:
+        #    排程無 console ⇒ sys.stderr is None ⇒ 靜默 no-op;有 handle ⇒ cp950 編不了 🔴。
+        print("M4 最後一道留痕(exec 三支哨檔案裡 xchk_broken 的原文,主通道=log 檔)")
+        _xb_tmp = pathlib.Path(tempfile.mkdtemp(prefix="xchk_broken_"))
+        try:
+            for fname, key in WATCH_FILES:
+                path = REPO / "scripts" / f"{fname}.py"
+                src = block(path)
+                # (1) __main__ 必須交給 xchk_broken,而不是自己 print 到 stderr
+                r = control_flow_trial(src, main_rc=0, xchk_exc=RuntimeError("互查自己炸了"),
+                                       stderr_mode="ok")
+                ok = len(r.broken) == 1 and r.err == ""
+                add(rows, f"M4 {key} __main__ 走 xchk_broken 不走 stderr", "留痕1+stderr空",
+                    f"留痕{len(r.broken)}+stderr{len(r.err)}字", ok)
+
+                fsrc = func_src(path, "xchk_broken")
+                # (2) 排程實況:sys.stderr is None ⇒ 主通道仍要落地
+                got, raised, _ = xchk_broken_trial(fsrc, "none", _xb_tmp / f"{key}_none.log")
+                ok = raised is None and "[XCHK-BROKEN]" in got
+                add(rows, f"M4 {key} stderr=None 仍寫進 log", "log 有",
+                    ("log 有" if "[XCHK-BROKEN]" in got else "log 空") + f"/拋{raised!r}", ok)
+
+                # (3) 有 handle 的實況:cp950 遇到 🔴。不准拋(在 finally 裡拋會取代 main()
+                #     的根因),log 要落地,而 stderr 那條要看到被 replace 掉的問號。
+                got, raised, errbuf = xchk_broken_trial(fsrc, "cp950", _xb_tmp / f"{key}_950.log")
+                ok = raised is None and "[XCHK-BROKEN]" in got and "?" in errbuf
+                add(rows, f"M4 {key} stderr=cp950 帶emoji 不拋且 log 落地", "不拋+log有+替換",
+                    f"拋{raised!r}+{'log有' if '[XCHK-BROKEN]' in got else 'log空'}"
+                    f"+{'替換' if '?' in errbuf else '無替換'}", ok)
+
+                # (4) 常駐突變列:承重的是 xchk_broken 裡 `encoding=utf-8` 那一行。
+                #     把它改成 cp950,emoji 就編不進去、被最後那個 except 吞掉 ⇒ log 必須變空。
+                #     少了這一列,「log 落地」和「這兩格恆過」分不開
+                #     (memory load-bearing-line-needs-mutation)。
+                _q = chr(34)
+                mut = fsrc.replace("encoding=" + _q + "utf-8" + _q,
+                                   "encoding=" + _q + "cp950" + _q)
+                assert mut != fsrc, "突變沒生效:xchk_broken 裡找不到 encoding=utf-8"
+                got, raised, _ = xchk_broken_trial(mut, "none", _xb_tmp / f"{key}_mut.log")
+                ok = raised is None and "[XCHK-BROKEN]" not in got
+                add(rows, f"M4 {key} 突變 log 編碼→上一格必須翻面", "log 空",
+                    "log 空" if "[XCHK-BROKEN]" not in got else "log 有(斷言恆過)", ok)
+        finally:
+            shutil.rmtree(_xb_tmp, ignore_errors=True)
 
         bad = [r for r in rows if not r[3]]
         n = len(rows)
@@ -370,7 +507,8 @@ def main():
             print(f"{chr(10)}🔴 {n - len(bad)}/{n} 符合期待,失敗:{[r[0] for r in bad]}")
             return 1
         record(f"[{now_stamp}] ✅ 互查回歸 {n}/{n} 符合期待"
-               f"(M1 前綴、M2 WATCH_MANUAL、M3 控制流 × 3 支、陰性對照 1;"
+               f"(M1 前綴、M2 WATCH_MANUAL、M3 控制流 × 3 支、M4 最後一道留痕 × 3 支"
+               f"(含常駐突變列)、陰性對照 1;"
                f"其中『M2 不帶環境變數』與『收緊代價』兩格記錄的是**已知未修**的現況)。{skipped}")
         print(f"{chr(10)}✅ {n}/{n} 符合期待{skipped}")
         return 0

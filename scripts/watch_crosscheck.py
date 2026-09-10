@@ -75,7 +75,8 @@
   (在 `try` 前面給 `_rc` 預設值)一個字都沒修到。病在控制流到不了那一行。
   修法=互查搬進 `finally`;而 `finally` 裡再包一層 `except BaseException`,
   因為在 `finally` 裡 raise 會**取代** `main()` 原本那個例外、把根因換掉。
-  該層**不准 pass**:印 `[XCHK-BROKEN]` 到 stderr,rc 原本是 0 就升成 **4**。
+  該層**不准 pass**:呼叫該支哨自己的 `xchk_broken()`(**寫進 log 檔**,不是印到
+  stderr —— 見 `crosscheck_tail` 的 docstring 與獨立驗證新-1),rc 原本是 0 就升成 **4**。
 - ⚠️ **相鄰規則收緊的代價,實測**:已收緊成「只降級**緊接在上一行**的那筆讀數」
   (原本是「最後一筆同日讀數」,中間插進東西就會抓錯人)。
   收緊治好了一格、也弄壞一格,兩格都用真 log 量過:
@@ -229,7 +230,27 @@ def crosscheck(self_key, now=None):
                     "③超時被排程砍掉時連 finally 都不跑 ⇒ 這則根本不會出現")
 
 
-def crosscheck_tail(rc, self_key, record, alert, now=None):
+def _broken(on_broken, msg):
+    """把「互查收尾自己壞了」交給呼叫端的最後一道留痕。呼叫端沒給就退回守衛版 stderr。
+
+    這裡的每一層都**不准往外拋**:本函式只在 `finally` 的收尾路徑上被呼叫,
+    在那裡拋例外會取代 `main()` 原本那個例外、把根因換掉。
+    """
+    if on_broken is not None:
+        try:
+            on_broken(msg)
+            return
+        except BaseException:
+            pass          # 連最後一道都壞了 ⇒ 掉到下面那條,總比整個換掉根因好
+    try:
+        if sys.stderr is not None:
+            enc = getattr(sys.stderr, "encoding", None) or "ascii"
+            print(msg.encode(enc, "replace").decode(enc, "replace"), file=sys.stderr)
+    except BaseException:
+        pass
+
+
+def crosscheck_tail(rc, self_key, record, alert, now=None, on_broken=None):
     """三支哨共用的收尾。**在自己那行寫完之後**呼叫,不可以反過來。
 
     反過來的話自己那行還沒落地,同時在跑的兩支會互判對方缺席 —— 一個會製造假告警的競態。
@@ -237,6 +258,16 @@ def crosscheck_tail(rc, self_key, record, alert, now=None):
     `record` / `alert` 由呼叫端傳進來(同 `seeding_watch._push_and_trace` 的作法):
     演習與正式因此走**同一份程式碼**,而不是在演習分支裡複製一份 ——
     複製出來的演習只證明得了複本會叫。
+
+    `on_broken(訊息)` 也由呼叫端傳進來,而且**必須**傳:它是「連 record 都寫不進去」
+    時的最後一道留痕,所以它得寫在**呼叫端自己的 log 檔**上(呼叫端才知道路徑),
+    而不是寫在本模組裡 —— 本函式出問題的時候,本模組正是剛倒的那根柱子。
+    🔴 2026-09-11 獨立驗證(新-1):前一版這裡是 `print(..., file=sys.stderr)`,
+    而三支哨的 Action 是 `pythonw.exe` ⇒ 排程下 `sys.stderr is None`,`print(file=None)`
+    退回同樣是 None 的 `sys.stdout` ⇒ **靜默 no-op**;有繼承 handle 時編碼是 `cp950`,
+    訊息裡的 🔴 會拋 `UnicodeEncodeError`。**沒有一種環境會讓那行字出現在人眼前。**
+    `on_broken=None` 時退回一條「先 encode(...,'replace') 再印」的守衛版 stderr,
+    它只是不讓程式炸掉,**不算留痕** —— 呼叫端沒傳 on_broken 就是還沒接好。
 
     出口碼:**3 = 互查發現別支哨沉默**。只在 rc 原本是 0 時才升級,
     不覆蓋這支哨自己的告警碼(1=自己判出異常)。
@@ -294,7 +325,7 @@ def crosscheck_tail(rc, self_key, record, alert, now=None):
             except Exception:
                 pass
     if xfail:
-        print(f"[XCHK-BROKEN] 互查收尾自己壞了:{'；'.join(xfail)}", file=sys.stderr)
+        _broken(on_broken, f"[XCHK-BROKEN] 互查收尾自己壞了:{'；'.join(xfail)}")
     return 3 if rc == 0 else rc
 
 

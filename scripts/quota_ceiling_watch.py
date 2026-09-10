@@ -336,6 +336,54 @@ def main() -> int:
     return 0
 
 
+def xchk_broken(what):
+    """互查收尾自己爆了 —— **最後一道**留痕。主通道是 log 檔,不是 stderr。
+
+    `what` 可以是例外(從 `__main__` 的 `except BaseException` 來)或字串
+    (從 `watch_crosscheck.crosscheck_tail` 的 `on_broken` 來)。
+
+    🔴 2026-09-11 獨立驗證(新-1)推翻前一版。前一版是這一行::
+
+            print(f"[XCHK-BROKEN] ...{_xe!r}", file=sys.stderr)
+
+    而三支任務的 Action 都是 `pythonw.exe`,**兩種環境都到不了任何人眼前**:
+      · 排程啟動(無 console、無繼承 handle)⇒ `sys.stderr is None`
+        ⇒ `print(file=None)` 退回 `sys.stdout`(也是 None)⇒ **靜默 no-op**。
+        「必須出聲」在唯一重要的那個環境裡變成不出聲。
+      · 有繼承 handle 時 ⇒ 實測 `sys.stderr.encoding == 'cp950'`,而本 repo 的例外
+        訊息到處帶 🔴 ⇒ `UnicodeEncodeError`。它拋在 `finally` 的 except 區塊裡
+        ⇒ **取代 main() 原本那個例外,把根因換掉** —— 正是那行上面的註解說要避免的
+        事,由那行自己造成。
+    ⚠️ 本檔上面 100 行出頭就寫著「print 到 stderr 在這個環境靜默」,而我照樣寫了那行。
+       ⇒ 教訓不是「要小心」,是**留痕的主通道一律是 log 檔**;stderr 只是互動下的
+         第二條路,而且它自己編碼失敗時不准影響任何事。
+
+    🔴 這裡**不准呼叫 `record()`**:`record()` 會呼叫 `watch_crosscheck.manual_prefix()`,
+       而本函式觸發的前提就是 `watch_crosscheck` 那一側剛剛爆掉。最後一道防線不能
+       依賴剛倒的那根柱子。
+    🔴 也**不准抽成三支共用的模組**,理由同 `swallowed()`:它存在的意義就是在共用的
+       東西壞掉時還活著。代價是改一次要改三份,這是已經權衡過的取捨。
+    """
+    stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    detail = repr(what) if isinstance(what, BaseException) else str(what)
+    line = (("[DRILL] " if SELFTEST else "")
+            + f"[{stamp}] 🔴 [XCHK-BROKEN] 守望互查收尾自己爆了,"
+              f"**今天沒有沉默偵測**(這不是「同伴都正常」):{detail}")
+    try:
+        LOG.parent.mkdir(parents=True, exist_ok=True)
+        with LOG.open("a", encoding="utf-8") as f:
+            f.write(line + chr(10))   # 不用反斜線字面:heredoc 會吃掉一層(memory heredoc-backslash-escaping-trap)
+    except BaseException:
+        pass    # log 也寫不進去就真的沒路了。**這是唯一該用 pass 的地方**:它已是最後一道。
+    try:
+        if sys.stderr is not None:
+            enc = getattr(sys.stderr, "encoding", None) or "ascii"
+            # encode/decode 先把編不了的字換掉 ⇒ cp950 遇到 emoji 不會拋。
+            print(line.encode(enc, "replace").decode(enc, "replace"), file=sys.stderr)
+    except BaseException:
+        pass    # stderr 是第二條路,它壞掉不准影響 rc、也不准取代 main() 的根因。
+
+
 if __name__ == "__main__":
     import watch_crosscheck
     _rc = 1                      # main() 丟例外時的預設:例外不是「沒事」
@@ -352,11 +400,14 @@ if __name__ == "__main__":
         # ⚠️ 更正一個錯誤的診斷:病不在「_rc 從沒被賦值」,在**控制流到不了那一行**。
         #    照「_rc 沒賦值」去修(在 try 前面給預設值)一個字都沒修到。
         try:
-            _rc = watch_crosscheck.crosscheck_tail(_rc, "quota", record, alert)
+            _rc = watch_crosscheck.crosscheck_tail(_rc, "quota", record, alert,
+                                                   on_broken=xchk_broken)
         except BaseException as _xe:
             # 不 re-raise:在 finally 裡 raise 會**取代** main() 原本那個例外,把根因換掉。
             # 但也絕不可以 pass —— 沉默偵測器沉默地壞掉正是它在治的病。
-            print(f"[XCHK-BROKEN] 守望互查收尾自己爆了,今天沒有沉默偵測:{_xe!r}", file=sys.stderr)
+            # 🔴 不是 print 到 stderr —— 排程下 sys.stderr is None 會靜默 no-op,
+            #    有 handle 時 cp950 編不了 🔴 會在這裡拋、取代 main() 的根因。見 xchk_broken。
+            xchk_broken(_xe)
             if _rc in (0, None):
                 _rc = 4          # 4=互查機構自己壞了(≠同伴都正常)
     sys.exit(_rc)
