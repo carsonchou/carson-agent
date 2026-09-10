@@ -220,7 +220,13 @@ def crosscheck(self_key, now=None):
                        + (f"｜正常的:{'、'.join(notes)}" if notes else "")
                        + "｜成因與修法見 docs/ops/2026-09-10_watch_silence_rootcause.md"
                        + "｜⚠️ 互查治不了「三支全沉默」,那天它也是安靜的")
-    return True, "互查 ok:" + "、".join(notes)
+    # 🔴 免責原本只掛在 alert 那則,而「ok」是 99% 的情況 ⇒ 絕大多數時候讀 log 的人
+    #    看不到這個系統的已知盲區(09-11 獨立驗證 3-4)。掛到這則上面來。
+    return True, ("互查 ok:" + "、".join(notes)
+                  + "｜⚠️ 這則 ok 的已知盲區:①三支全沉默那天**沒有人呼叫互查**,它也安靜"
+                    "(拓樸缺陷,不是判準缺陷:直接餵過期語料呼叫它,它叫得很大聲)"
+                    "②補跑沒帶 WATCH_MANUAL=1 會被讀成排程行"
+                    "③超時被排程砍掉時連 finally 都不跑 ⇒ 這則根本不會出現")
 
 
 def crosscheck_tail(rc, self_key, record, alert, now=None):
@@ -235,6 +241,22 @@ def crosscheck_tail(rc, self_key, record, alert, now=None):
     出口碼:**3 = 互查發現別支哨沉默**。只在 rc 原本是 0 時才升級,
     不覆蓋這支哨自己的告警碼(1=自己判出異常)。
     **4 = 互查機構自己壞了**(由三支哨的 `finally` 給,不是這裡給;同樣只在 rc==0 時升級)。
+    ⚠️ **`rc != 3` 推論不出「隔壁哨沒事」**:本函式是 `3 if rc == 0 else rc`,
+    只在這支哨自己 rc 原本是 0 時才升級。而 `narration` 目前**天天 rc=1**
+    (連續四天遵守率低於地板)⇒ 它的互查結果**永遠不會出現在 rc 上**。
+    這是常態不是邊角。而且全 repo 沒有任何東西讀 `LastTaskResult` ⇒
+    rc 目前不是訊號通道,只是一個沒人收信的位址(09-11 獨立驗證 3-3 / Q4)。
+    🔴 **搬進 `finally` 只治得了第二層裡的第一層**(09-11 獨立驗證 3-2「而且它有兩層」):
+    第一層 = Action 是 `pythonw.exe`,traceback 無處落地(不在 log:`record()` 還沒被
+    呼叫到;不在 console:沒有 console;不在事件檢視器:那裡只有 exit code 不是 traceback)
+    ⇒ 「這支哨今天炸了」和「今天正常」在磁碟上長得一模一樣。`finally` 治這一層。
+    第二層 = `ExecutionTimeLimit=PT15M`。卡死超時是**整個程序被殺**,走的不是例外路徑,
+    **連 `finally` 都不跑** ⇒ 搬進 `finally` 對這一層無效,腳本內沒有任何修法。
+    唯一出路是體制外觀測者,而那個現在是空殼:`CarsonQuant-UptimeMonitor` 的
+    `monitor.py` 是 `TARGETS = []`(07-11 droplet 退役時註解掉),LastRunTime 停在
+    2026/7/11 11:33、NumberOfMissedRuns=17664 —— 它自己沉默兩個月也沒有人收到訊號,
+    和這次事故同一種病,只是發生在觀測層。**現在沒有任何 out-of-band heartbeat。**
+
     ⚠️ `main()` 丟例外時,呼叫端會在 `finally` 呼叫本函式,但**回傳的 rc 會被丟掉** ——
     原本那個例外會繼續往外逃,行程以 traceback 收場(exit 1)。這是刻意的:
     根因比 rc 重要,而 exit 1 一樣是非零。告警行本身已經在這裡寫進 log 了。
@@ -251,32 +273,71 @@ def crosscheck_tail(rc, self_key, record, alert, now=None):
         line = (f"{XCHK_PREFIX}[{stamp}] 🔴 守望互查丟例外 —— 今天的沉默偵測沒有生效"
                 f"(這不是「同伴都正常」):{e!r}")
         msg = line
+    # 🔴 原本這裡是 `try: record(); alert() / except Exception: pass`,一個 except 包住兩個
+    #    呼叫 ⇒ 有**兩種**壞法而且都靜音(09-11 獨立驗證 3-3):
+    #      · record() 拋 ⇒ log 行和推播雙失,磁碟上完全沒有痕跡
+    #      · 只有 alert() 拋 ⇒ 行落地了但手機沒響,下一個人讀 log 會**以為推播出去過**
+    #    所以拆開,而且第二種要在 log 裡自己招認。
+    xfail, landed = [], False
     try:
         record(line)
+        landed = True
+    except Exception as e:
+        xfail.append(f"record 失敗 ⇒ log 行與推播雙失,磁碟上沒有痕跡:{e!r}")
+    try:
         alert("守望互查:有哨沉默了", msg)
-    except Exception:
-        pass
+    except Exception as e:
+        xfail.append(f"alert 失敗 ⇒ 手機沒響:{e!r}")
+        if landed:
+            try:
+                record(f"{XCHK_PREFIX}[{stamp}] 🔴 上面那行互查告警**沒有推播出去**:{e!r}")
+            except Exception:
+                pass
+    if xfail:
+        print(f"[XCHK-BROKEN] 互查收尾自己壞了:{'；'.join(xfail)}", file=sys.stderr)
     return 3 if rc == 0 else rc
 
 
 def check_schedule():
-    """把上面的 `at` 常數對活的排程比一次 —— 常數會漂,漂了不會有人知道。"""
+    """把上面的 `at` 常數對**活的**排程比一次 —— 常數會漂,漂了不會有人知道。
+
+    🔴 2026-09-11 修:原本的比對是「`want` 這個字串在不在整份 XML 裡」。獨立驗證
+    往活的 XML 裡塞 `<Enabled>false</Enabled>`,它**照樣回 match** ⇒ 它驗的是
+    某個字串在不在,不是那個觸發器活不活 —— 和它要治的病(靜默失效)同一種。
+    現在改成問 scheduler 要結構化欄位:工作沒被停用(State≠Disabled),而且
+    **存在一個 Enabled=True 的觸發器**,其 StartBoundary 落在那個時刻。
+
+    ⚠️ 還沒好的一半(照實寫):全 repo **沒有任何東西呼叫本函式** ——
+    `grep check[-_]schedule` 只命中它自己的定義和施工圖。所以它是**手動引信**,
+    而手動引信等於沒有引信。排進排程屬於新類型的正式機變更,要先問 Carson。
+    """
     import subprocess
+    ps = ("$ErrorActionPreference='Stop'; $t = Get-ScheduledTask -TaskName '{task}'; "
+          "'STATE=' + $t.State; "
+          "foreach ($g in $t.Triggers) {{ 'TRIG=' + $g.Enabled + '|' + $g.StartBoundary }}")
     rc = 0
     for key, w in WATCHES.items():
         try:
             out = subprocess.run(
-                ["powershell", "-NoProfile", "-Command",
-                 f"(Export-ScheduledTask -TaskName '{w['task']}')"],
+                ["powershell", "-NoProfile", "-Command", ps.format(task=w["task"])],
                 capture_output=True, text=True, timeout=60).stdout
         except Exception as e:
             print(f"{key}: FAILED to read task ({e!r})"); rc = 2; continue
-        want = w["at"].strftime("T%H:%M:%S")
-        hit = want in out
+        lines = out.splitlines()
+        state = next((l.split("=", 1)[1].strip() for l in lines if l.startswith("STATE=")), "")
+        trigs = [l for l in lines if l.startswith("TRIG=")]
+        want  = w["at"].strftime("T%H:%M:%S")
+        # 只認「Enabled 的觸發器」+「工作本身沒被停用」,兩個條件都不是字串包含
+        live  = [l for l in trigs if l.split("|", 1)[0].strip().endswith("True") and want in l]
+        ok    = bool(live) and state.lower() != "disabled"
         print(f"{key}: constant {w['at'].strftime('%H:%M')} "
-              f"{'matches' if hit else 'DOES NOT MATCH'} StartBoundary in {w['task']}")
-        if not hit:
+              f"{'matches a LIVE trigger' if ok else 'DOES NOT MATCH any live trigger'} "
+              f"in {w['task']} (State={state or '?'}, triggers={len(trigs)}, "
+              f"enabled_at_that_time={len(live)})")
+        if not ok:
             rc = 2
+    if rc == 0:
+        print("note: 本函式沒有任何排程呼叫它 —— 這次是人手動跑的。手動引信等於沒有引信。")
     return rc
 
 

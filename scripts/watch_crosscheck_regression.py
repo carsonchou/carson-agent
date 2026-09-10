@@ -84,6 +84,19 @@ def load(path, name):
     return mod
 
 
+# 🔴 2026-09-11:原本有 10 格是 `rows.append(...)` 而**沒有 print** ⇒ 讀者看到 10 行、
+#    看到「20/20」。計分和印出必須是同一個動作,否則這支尺自己就是「檢查不會失敗」的一種:
+#    看不到的格子沒有人能查證。所有格子一律走 add()。
+def add(rows, name, expect, got, ok):
+    rows.append((name, expect, got, ok))
+    print(f"  {name:38s} 期待 {expect} / 實得 {got}  {'PASS' if ok else '🔴FAIL'}")
+
+
+# 🔴 格數本身也要斷言:少了一格(某個 continue 提早跳掉、某個分支沒進去)在舊版會印成
+#    「N/N 符合期待」,和真的全過長得一模一樣。這兩個數字改動時要連同理由一起改。
+EXPECT_ROWS = {True: 23, False: 20}   # key = 有沒有給 --before
+
+
 def block(path):
     """取出 `if __name__ == "__main__":` 起到檔尾的**原文**。"""
     text = io.open(path, encoding="utf-8").read()
@@ -312,36 +325,43 @@ def main():
             try:
                 calls, exc, err = control_flow_trial(src, main_exc=RuntimeError("模擬:main() 炸了"))
             except NameError as ne:
-                rows.append((f"M3 {key} 原文 exec", "可 exec", f"NameError:{ne}", False))
+                add(rows, f"M3 {key} 原文 exec", "可 exec", f"NameError:{ne}", False)
                 print(f"  🔴 {fname}:__main__ 原文 exec 不起來({ne})—— "
                       f"那段程式碼改了,**先來補本檔的 stub**,不是產線壞了")
                 continue
             ok = len(calls) == 1 and isinstance(exc, RuntimeError)
-            rows.append((f"M3 {key} main()丟例外→互查仍執行", "1 次", f"{len(calls)} 次", ok))
-            print(f"  {'M3 ' + key + ' main()丟例外→互查仍執行':38s} 期待 1 次 / 實得 {len(calls)} 次  "
-                  f"{'PASS' if ok else '🔴FAIL'}")
+            add(rows, f"M3 {key} main()丟例外→互查仍執行", "1 次", f"{len(calls)} 次", ok)
 
             calls, exc, err = control_flow_trial(src, main_rc=0)
             ok = len(calls) == 1 and isinstance(exc, SystemExit) and exc.code == 0
-            rows.append((f"M3 {key} 正常路徑 rc=0", "0", str(getattr(exc, "code", exc)), ok))
+            add(rows, f"M3 {key} 正常路徑 rc=0", "0", str(getattr(exc, "code", exc)), ok)
 
             calls, exc, err = control_flow_trial(src, main_exc=RuntimeError("根因"),
                                                 xchk_exc=RuntimeError("互查自己炸了"))
             ok = isinstance(exc, RuntimeError) and str(exc) == "根因" and "[XCHK-BROKEN]" in err
-            rows.append((f"M3 {key} 兩邊都炸→根因不被取代", "根因", str(exc), ok))
+            add(rows, f"M3 {key} 兩邊都炸→根因不被取代", "根因", str(exc), ok)
 
             calls, exc, err = control_flow_trial(src, main_rc=0, xchk_exc=RuntimeError("互查自己炸了"))
             ok = isinstance(exc, SystemExit) and exc.code == 4 and "[XCHK-BROKEN]" in err
-            rows.append((f"M3 {key} 只有互查炸→rc=4 且出聲", "4", str(getattr(exc, "code", exc)), ok))
+            add(rows, f"M3 {key} 只有互查炸→rc=4 且出聲", "4", str(getattr(exc, "code", exc)), ok)
 
             if key == "seeding":
                 calls, exc, err = control_flow_trial(src, main_rc=0, iso=False)
                 ok = isinstance(exc, SystemExit) and exc.code == 9
-                rows.append(("M3 seeding 演習隔離失敗 rc=9 不被互查覆蓋", "9",
-                             str(getattr(exc, "code", exc)), ok))
+                add(rows, "M3 seeding 演習隔離失敗 rc=9 不被互查覆蓋", "9",
+                    str(getattr(exc, "code", exc)), ok)
 
         bad = [r for r in rows if not r[3]]
         n = len(rows)
+        want_n = EXPECT_ROWS[bool(before)]
+        if n != want_n:
+            # 這一格治的是「格子靜靜消失」——它在舊版會印成 N/N 符合期待。
+            msg = (f"🔴 格數不對:實得 {n} 格,期待 {want_n} 格"
+                   f"(--before {'有' if before else '沒有'}給)。要嘛少跑了幾格、"
+                   f"要嘛你改了本檔而沒有一起改 EXPECT_ROWS。**在這裡停,不要看下面的比率。**")
+            record(f"[{now_stamp}] {msg}")
+            print(msg)
+            return 1
         skipped = "" if before else "(未給 --before ⇒ 「修之前」欄跳過,病灶重現這次沒做)"
         if bad:
             record(f"[{now_stamp}] 🔴 互查回歸 {n - len(bad)}/{n} 符合期待 —— **互查壞了**"
