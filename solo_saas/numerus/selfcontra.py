@@ -131,19 +131,29 @@ class Reading(object):
 
 
 class Contradiction(object):
-    """同一標的 + 同一指標 + 同一策略,兩個以上的精確值。"""
+    """同一標的 + 同一指標 + 同一策略,兩個以上的精確值。
 
-    __slots__ = ("metric", "strategy", "spread", "readings")
+    🔴 `low` / `high` 是**這次指控的理由** —— 造成 spread 的那兩筆讀數本身。
+       原本這裡只留 spread 和全部 readings,於是「它憑哪兩個數字叫的」沒有落檔,
+       而**判決和理由會分開失效**:2026-09-10 總督導查 ALL-IN0050 那支,
+       判決對(稿子真的自相矛盾)而理由錯(我配的是十年 vs 十三年,
+       正是我自己定義的誤報型)。只驗判決量出來的精確率,不代表你以為的東西。
+    """
 
-    def __init__(self, metric, strategy, spread, readings):
+    __slots__ = ("metric", "strategy", "spread", "readings", "low", "high")
+
+    def __init__(self, metric, strategy, spread, readings, low, high):
         self.metric = metric
         self.strategy = strategy
         self.spread = spread
         self.readings = readings
+        self.low = low
+        self.high = high
 
     def __repr__(self):
-        return "Contradiction(%s/%s, %.1fpp, n=%d)" % (
-            self.metric, self.strategy, self.spread, len(self.readings))
+        return "Contradiction(%s/%s, %.2f vs %.2f = %.1fpp, n=%d)" % (
+            self.metric, self.strategy, self.low.value, self.high.value,
+            self.spread, len(self.readings))
 
 
 def _metric_of(left):
@@ -281,13 +291,17 @@ def find_contradictions(text, metric="annual",
 
     out = []
     for strategy, rs in sorted(by_strategy.items()):
-        exact = [r.value for r in rs if not r.vague]
+        exact = [r for r in rs if not r.vague]
         if len(exact) < 2:
             continue
-        spread = max(exact) - min(exact)
+        lo = min(exact, key=lambda r: r.value)
+        hi = max(exact, key=lambda r: r.value)
+        spread = hi.value - lo.value
         if spread <= tol:
             continue
-        out.append(Contradiction(metric, strategy, spread, rs))
+        # 🔴 lo/hi 一起帶走 = 指控要連理由落檔。只帶 spread 的話,
+        #    「叫對但配錯對」在任何輸出裡都看不出來(2026-09-10 的教訓)。
+        out.append(Contradiction(metric, strategy, spread, rs, lo, hi))
     out.sort(key=lambda c: -c.spread)
     return out
 

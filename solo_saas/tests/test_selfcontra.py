@@ -32,8 +32,36 @@ POSITIVE = [
     ("旺矽6223",       "買進持有 23.1 對上 All in 11.4 —— 同一檔 ETF 同一件事", 10.0),
     ("jpp-KY5284",     "稿子自己說「同樣的回測期間」,卻給 23.6 和 11.1", 10.0),
     ("安勤3479",       "同樣資金同樣時間 23.5,同一稿十年區間 11.7", 10.0),
-    ("ALL-IN0050十年", "本片主角自己的數:一次 All in 年化 23.7 又 21.7", 1.5),
-    ("00919高股息",    "同一稿四個 0050 年化:49.7 / 21.3 / 31.4 / 23.8", 20.0),
+    # 🔴 這一支留在陽性區是因為**稿子真的自相矛盾**:第 7 段 All-in 總報酬 761.2%
+    #    對上第 3 段的 736.9%,而第 8 段自己寫「同樣是近十年的資料」。
+    #    但**偵測器現在叫的理由是錯的**(見下面 KNOWN_WRONG_REASON)。
+    #    判決和理由會分開失效 —— 只驗判決會讓這一格看起來是綠的。
+    ("ALL-IN0050十年", "第 7 段 761.2% 對上第 3 段 736.9%,同一個十年窗", 1.5),
+]
+
+# --- 已知誤報:現在會被叫,而它不該被叫 -----------------------------------
+# 🔴 這一區存在的理由:2026-09-10 三分類之後,25 支裡有 12 支是誤報,
+#    全部是同一型「兩個回測窗都揭露了」。把它們全部塞進 NEGATIVE 會讓測試
+#    永遠是紅的(沒人會再讀它);當作不存在則是把已知缺陷藏起來。
+#    折衷:**斷言它們現在仍然被叫**,並印出警告。
+#    ⇒ 哪天有人修好了揭露判斷,這一格會 FAIL,而 FAIL 訊息會告訴他
+#      「把這一條搬到 NEGATIVE」。兩個方向都會出聲。
+KNOWN_WRONG = [
+    ("00919高股息",    "四個 0050 年化(49.7/21.3/31.4/23.8)各自的上一句都宣告了"
+                       "期間(3.8y / 2013-02-14起 / 6.1y / 8.9y)⇒ 全部已揭露"),
+    ("新手最愛高股息ETF", "21.2 的上一句寫「過去12.6年」,49.5 的上一句是另一檔的"
+                          "3.8 年 ⇒ 已揭露。⚠️ 這支曾被我當成「修誤報造出的漏報」"
+                          "救回來,那個判斷是錯的"),
+    ("S_0050vs0056vs00878", "「同一段時間」錨在上一句的「近6年」,不是「近10年」"),
+]
+
+# 🔴 (b) 叫對、理由錯:這一支被標記是對的,而它憑以叫的那一對是錯的。
+#    釘住現況,不是背書現況 —— 這樣「理由被修對了」和「理由悄悄變了」分得出來。
+KNOWN_WRONG_REASON = [
+    ("ALL-IN0050十年", 21.7, 23.7,
+     "現在配的是 12.7 年窗的 21.7 對上 10 年窗的 23.7 —— 已揭露的不同窗。"
+     "真正的那一對(736.9% vs 761.2%)抽不出來:761.2 那句講「一次性 All-in」"
+     "卻整句沒提 0050,被實體邊界擋掉"),
 ]
 
 # --- 陰性對照:真的沒有矛盾,不准被抓 -------------------------------------
@@ -115,6 +143,44 @@ def main():
             if cs:
                 fails.append("誤報 %s(%s)\n         %r" % (keyword, why, cs))
 
+    warnings = []
+    for keyword, why in KNOWN_WRONG:
+        paths = find_file(keyword)
+        if not paths:
+            fails.append("已知誤報的對照檔不見了: %s" % keyword)
+            continue
+        path = paths[0]
+        cs = find_contradictions(
+            read(path), foreign_tokens=foreign_tokens_from_filename(
+                os.path.basename(path)))
+        checked += 1
+        if cs:
+            warnings.append("%s —— %s" % (keyword, why))
+        else:
+            fails.append("已知誤報 %s 不再被標記了 —— 這是好消息,"
+                         "但請把它從 KNOWN_WRONG 搬到 NEGATIVE,"
+                         "並回頭確認同一次修改沒有順手放掉真陽性"
+                         "(memory `fp-fixes-silently-eat-true-positives`)" % keyword)
+
+    for keyword, lo_v, hi_v, why in KNOWN_WRONG_REASON:
+        paths = find_file(keyword)
+        if not paths:
+            fails.append("已知錯理由的對照檔不見了: %s" % keyword)
+            continue
+        cs = find_contradictions(
+            read(paths[0]), foreign_tokens=foreign_tokens_from_filename(
+                os.path.basename(paths[0])))
+        checked += 1
+        if not cs:
+            fails.append("%s 整支不再被標記 —— 它是真的矛盾,這是漏報" % keyword)
+        elif (round(cs[0].low.value, 1), round(cs[0].high.value, 1)) == (lo_v, hi_v):
+            warnings.append("%s(理由仍是錯的)—— %s" % (keyword, why))
+        else:
+            fails.append("%s 的觸發對變了(現在是 %.1f vs %.1f,原本 %.1f vs %.1f)"
+                         " —— 如果這是有意的修法,請確認它現在配的是"
+                         "736.9%% vs 761.2%% 那一對,然後更新這一條"
+                         % (keyword, cs[0].low.value, cs[0].high.value, lo_v, hi_v))
+
     # 定義域檢查:陰性對照不能因為「什麼都沒抽到」而通過。
     # (memory `filter-accepted-is-not-filter-applied`:要問相反那一邊)
     for keyword, _why in NEGATIVE[:1] + NEGATIVE[3:5]:
@@ -126,8 +192,11 @@ def main():
                 fails.append("陰性對照 %s 一個 0050 年化讀數都沒抽到 —— "
                              "它是「沒有矛盾」還是「儀器瞎了」分不出來" % keyword)
 
-    print("對照 %d 支(陽性 %d / 陰性 %d 個關鍵字)" %
-          (checked, len(POSITIVE), len(NEGATIVE)))
+    print("對照 %d 支(陽性 %d / 陰性 %d / 已知誤報 %d / 已知錯理由 %d)" %
+          (checked, len(POSITIVE), len(NEGATIVE),
+           len(KNOWN_WRONG), len(KNOWN_WRONG_REASON)))
+    for w in warnings:
+        print("  ⚠️ 已知缺陷(還在)  " + w)
     for f in fails:
         print("  FAIL  " + f)
     print("%s" % ("全部通過" if not fails else "%d 項失敗" % len(fails)))

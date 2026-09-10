@@ -81,6 +81,16 @@ def main(argv):
                 "metric": c.metric,
                 "strategy": c.strategy,
                 "spread_pp": round(c.spread, 2),
+                # 🔴 trigger = **這次指控的理由**(造成 spread 的那兩筆),
+                #    和 readings(全部讀數)分開落檔。2026-09-10 總督導查出
+                #    ALL-IN0050 那支「判決對、理由錯」,而當時的輸出裡
+                #    看不出它是憑哪一對叫的 —— 只驗判決量出來的精確率
+                #    不代表你以為的東西(memory
+                #    `verification-claims-in-commit-messages`)。
+                "trigger": {
+                    "low": {"value": c.low.value, "sentence": c.low.sentence[:200]},
+                    "high": {"value": c.high.value, "sentence": c.high.sentence[:200]},
+                },
                 "readings": [{"value": r.value, "vague": r.vague,
                               "sentence": r.sentence[:200]} for r in c.readings],
             } for c in cs],
@@ -91,14 +101,20 @@ def main(argv):
         print("\n== %.1f pp  [%s]  %s" % (r["worst_pp"], r["mtime"], r["path"]))
         for g in r["groups"]:
             print("  [%s/%s] %.1f pp" % (g["metric"], g["strategy"], g["spread_pp"]))
-            seen = set()
+            trig = g["trigger"]
+            # 🔴 先印「憑哪一對叫的」。人要能只讀這兩行就判理由成不成立,
+            #    不必自己從 readings 裡回推 min/max。
+            for tag, rd in (("憑↓", trig["low"]), ("憑↑", trig["high"])):
+                print("   %s %7.2f%%  %s" % (tag, rd["value"], rd["sentence"][:104]))
+            seen = {(round(trig["low"]["value"], 2), trig["low"]["sentence"][:40]),
+                    (round(trig["high"]["value"], 2), trig["high"]["sentence"][:40])}
             for rd in g["readings"]:
                 k = (round(rd["value"], 2), rd["sentence"][:40])
                 if k in seen:
                     continue
                 seen.add(k)
-                print("   %7.2f%%%s %s" % (rd["value"], "~" if rd["vague"] else " ",
-                                           rd["sentence"][:110]))
+                print("   其他 %7.2f%%%s %s"
+                      % (rd["value"], "~" if rd["vague"] else " ", rd["sentence"][:104]))
 
     print("\n---- scanned=%d flagged=%d tol=%.1fpp ----" % (scanned, len(rows), tol))
     out = arg(argv, "--json")
