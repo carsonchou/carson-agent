@@ -54,8 +54,30 @@ NUM = r"(?:百分之[零〇一二三四五六七八九十百千萬兩點]+|[\d,]
 AL  = re.compile(r"0050|零零五零|元大[臺台]灣\s*50|元大[臺台]灣五[十零]")
 TOT = re.compile(r"總報酬(?:率)?[^，。]{0,10}?(" + NUM + ")")
 ANN = re.compile(r"年化(?:報酬率?)?[^，。]{0,10}?(" + NUM + ")")
-YRT = re.compile(r"(\d+(?:\.\d+)?)\s*年")
+# ---- 移植 05_arith_selfconsist_ruler.py 的解析修正(基建線 09-11,實測 16→13)----
+# 修的是本檔 docstring 自己點名的已知失效(「4.6年套牢」)。三個差異:
+#  一、年數要含中文數字,否則「十年ALL IN」抓不到,只抓到旁邊那個「4.6年套牢」。
+#  二、🔴 NOT_PERIOD 要**雙向**掃。05 那支只掃前文(治「套牢近9年」),
+#      而這個母體的長相是「4.6年套牢」—— 非期間詞在**後面**。只掃一邊會漏。
+#  三、片名可能有多個候選年數 ⇒ 只有和**全部**候選都差超過 TOL 才標紅。
+# 對照(memory `fp-fixes-silently-eat-true-positives`):督導手開確認的 6 支真陽性
+# (0829_0729/0803/0810/1251/1319/1326)補完後**全部仍標紅**,且**零支新增變紅**。
+# ⚠️ 消掉的三支意義不同:嘉澤 3533、臺虹 8039 變 ok(片名真期間就是十年,n=10.0 自洽);
+#    尖點 8021 變**片名無年數**=不可判定,那是「儀器不再亂猜」不是「已證明沒問題」。
+# ⚠️ 豐泰 9910(0826_1339,6.7%/0.7%)**沒修掉**:那是成對抽錯不是年數抽錯,本補不治。
+YRT = re.compile(r"(?:(\d+(?:\.\d+)?)|([零〇一二三四五六七八九十百千萬兩點]+))\s*年")
+NOT_PERIOD = re.compile(r"套牢|解套|創高|間隔|長達|腰斬|停滯|又$|個月")
 TOL = 1.5
+
+def title_years(ttl):
+    out = []
+    for m in YRT.finditer(ttl):
+        v = float(m.group(1)) if m.group(1) else cn2num(m.group(2))
+        if v is None or v <= 0.5 or v >= 100: continue          # ≥100 是西元年不是期間
+        if NOT_PERIOD.search(ttl[max(0, m.start()-14):m.start()]): continue
+        if NOT_PERIOD.search(ttl[m.end():m.end()+4]): continue  # 「4.6年套牢」
+        out.append(v)
+    return out
 
 rows = []
 for f in sorted(glob.glob(os.path.join(ROOT, "*.txt"))):
@@ -63,7 +85,7 @@ for f in sorted(glob.glob(os.path.join(ROOT, "*.txt"))):
     if "期間偷換" not in t[:300]: continue
     m = re.search(r"# 標題:\s*(.*)", t)
     ttl = m.group(1).strip() if m else ""
-    ym = YRT.search(ttl); ty = float(ym.group(1)) if ym else None
+    tys = title_years(ttl); ty = tys[0] if tys else None
     pair = None
     for s in re.split(r"[。！？；;\n]", t):
         a0 = AL.search(s)
@@ -77,7 +99,8 @@ for f in sorted(glob.glob(os.path.join(ROOT, "*.txt"))):
         rows.append((os.path.basename(f)[:9], ttl[:34], ty, None, None, None, "配不成對")); continue
     R, g = pair
     n = math.log(1 + R / 100) / math.log(1 + g / 100)
-    v = "🔴疑真偷換" if (ty and abs(n - ty) > TOL) else ("ok" if ty else "片名無年數")
+    v = ("🔴疑真偷換" if all(abs(n - y) > TOL for y in tys) else "ok") if tys else "片名無年數"
+    if tys and len(tys) > 1: ty = min(tys, key=lambda y: abs(n - y))
     rows.append((os.path.basename(f)[:9], ttl[:34], ty, R, g, n, v))
 
 print("退稿區「期間偷換」共 %d 支\n" % len(rows))
@@ -86,4 +109,6 @@ for k, ttl, ty, R, g, n, v in rows:
     print("%-10s %-6s %-9s %-7s %-6s %-8s %s" % (
         k, ty if ty else "-", ("%.1f" % R) if R else "-", ("%.1f" % g) if g else "-",
         ("%.1f" % n) if n else "-", v, ttl))
-print("\n🔴 的每一支都要手開原檔確認 —— 片名年數會抓到「N年套牢」這種非期間數字。")
+print("\n🔴 的每一支都要手開原檔確認。「N年套牢」那類已在 09-11 修掉(16→13),")
+print("   但仍有已知殘留:豐泰 9910(0826_1339)是**成對抽錯**(6.7%/0.7%),不是年數抽錯。")
+print("   「片名無年數」= 不可判定,**不算通過**。")
