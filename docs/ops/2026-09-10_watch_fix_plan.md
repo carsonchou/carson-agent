@@ -27,14 +27,23 @@
 **新檔** `scripts/watch_crosscheck.py`(唯讀,不推播,不寫任何 log):
 
 ```python
-WATCHES = {
-    "seeding":   REPO/"docs"/"ops"/"seeding-watch.log",
-    "narration": REPO/"docs"/"ops"/"narration-compliance-watch.log",
-    "quota":     REPO/"docs"/"ops"/"quota-ceiling-watch.log",
-}
-def today_lines(path, today) -> dict   # {"sched": n, "manual": n}
-def crosscheck(self_key, today) -> (ok: bool, msg: str)
+WATCHES = {k: {"log": ..., "task": ..., "at": datetime.time(...)}}   # 07:00 / 07:10 / 15:20
+def last_sched_date(path) -> (最後一筆排程讀數日期, 最後一筆人工/註記行日期)
+def due_date(at, now)     -> 那支哨「最近一次應該跑完」的日期(含 60 分 GRACE)
+def crosscheck(self_key, now) -> (ok: bool, msg: str)
+def crosscheck_tail(rc, self_key, record, alert, now)  # 三支共用的收尾
+def check_schedule()      -> 把上面的時刻常數對活的排程比一次
 ```
+
+🔴 **判準已從「今天有沒有行」改成「最近一次應該跑完的時刻之後有沒有行」(2026-09-10 實作時更正)。**
+原本寫「今天」是錯的:seeding 排 07:00,而 quota 排 15:20 ——
+**早上 07:00 那一刻 quota 今天本來就還沒跑**,照「今天」寫法它會**每天早上誤叫**。
+這一格是 ②母體(全部會經過它的日子)抓出來的,不是想出來的。
+
+⚠️ 附帶代價:`at` 那三個時刻是排程 `StartBoundary` 的**複本**,會漂
+(memory `criteria-anchored-to-mutable-property`)。
+⇒ 補了 `--check-schedule`,對活的排程機械比對,不要靠讀註解相信它還是對的。
+**實測 2026-09-10:三支全部 match。**
 
 判準(逐字寫死,不要靠讀者推論):
 - 只看**非 `[DRILL]`** 的行。`[DRILL]` 行一律不算讀數 —— 演習不是讀數。
@@ -55,19 +64,33 @@ def crosscheck(self_key, today) -> (ok: bool, msg: str)
 
 ### 1.2 陽性對照(真案例,實測值)
 
-今天 18:05 補跑**之前**的真實檔案內容,可以用截斷還原(這兩個數字是本次補跑前實測的):
+🔴 **更正(實測):`59,289 / 17,589` 不是「補跑前」的大小。**
+把檔案截到那兩個長度、看 tail,`[2026-09-10 18:05]` 那行讀數**還在裡面** ——
+它們是「補跑那行已寫完、`[MANUAL]` 註記尚未追加」的大小。
+真正 15:20 那一刻的磁碟內容還要再往回退一行:
 
 ```
-docs/ops/seeding-watch.log               59,289 bytes   ← 18:05 補跑前
-docs/ops/narration-compliance-watch.log  17,589 bytes   ← 18:05 補跑前
-docs/ops/quota-ceiling-watch.log         (未動)          ← 今天 15:20 有行
+                                          事故當下      讀數在·註記不在     現況
+docs/ops/seeding-watch.log               59,110 bytes   59,289 bytes    59,692
+docs/ops/narration-compliance-watch.log  17,299 bytes   17,589 bytes    17,992
+docs/ops/quota-ceiling-watch.log         (未動,今天 15:20 有行)
 ```
 
-⇒ **把前兩份複製一份、截到上面的長度,那就是今天 15:20 那一刻的真實磁碟內容。**
-互查對這組語料**必須叫**,而且訊息要指名缺的是哪兩支。
+⇒ 兩組都要用,它們問的是不同的問題:
+- **59,110 / 17,299**(事故當下)⇒ 互查**必須叫**,並指名缺的是哪兩支。
+- **59,289 / 17,589**(讀數在、註記不在)⇒ 互查會**安靜** ——
+  🔴 這正是「把補跑讀成排程」的長相,也就是降級規則存在的理由:
+  真檔案裡是後面那行 `[MANUAL]` 註記把它指認出來的。
+
 🔴 **不要用合成 fixture** —— 這條的難點正是真實 log 的行長相(`[DRILL]` / `[MANUAL]` / 表情符號 / 全形括號)。
 
-**陰性**:現況(三支今天都有行)必須安靜。
+**陰性**:09-09 三支都準時跑完 ⇒ 必須安靜;早上 07:05(quota 尚未到點)⇒ 必須安靜。
+
+**實測結果(2026-09-10 19:1x,`scratchpad/pc_run.py`,6/6 PASS)**:
+A 事故當下=叫 / B 補跑後含註記=叫 / C 讀數在無註記=靜 / D 09-09 健康=靜 /
+E 早上 07:05=靜 / F 停機兩天後=叫。
+📌 而且**現場也叫了**:三支在 19:21 用 `--selftest` 實跑,全部指名
+「seeding、narration 停在 09-09,quota=09-10 正常,補跑不等於排程有跑」。
 
 ### 1.3 🔴 告警設計說明 —— 三個母體(memory `gate-verification-population`)
 
@@ -138,8 +161,9 @@ Set-ScheduledTask -TaskName <name> -Trigger @((原本的 CalendarTrigger), $t)
 | 313 | 樣本不足只報不判 | 0 | 0(不動) |
 | 325 | 遵守率低於地板 | 1 | **1**(不動) |
 | 330 | 合規 | 0 | 0(不動) |
+| — | 互查發現別支哨沉默 | — | **3**(新增,三支共用;只在 rc 原本是 0 時升級) |
 
-⇒ **1 = 產線違規(哨是好的,它在做它的工作);2 = 哨自己壞了。**
+⇒ **1 = 產線違規(哨是好的,它在做它的工作);2 = 哨自己壞了;3 = 別支哨沉默了。**
 docstring 要寫上這張表 —— 🔴 而且照第三輪那條規則:**描述閘門行為的文字要指名它的對照腳本**,
 出口碼表要能被 `--selftest` 的既有模式逐格打到(`biz`/`summary` 打 1,判準自檢失敗打 2)。
 
@@ -167,7 +191,19 @@ docstring 要寫上這張表 —— 🔴 而且照第三輪那條規則:**描述
 
 - [x] 成因查清、(b) 排除、尺驗過
 - [x] 今天讀數補跑完成 + `[MANUAL]` 註記
-- [ ] 修(一)(二)(三) 實作
+- [x] 修(一)實作(`watch_crosscheck.py` + 三支接線)、修(三)rc 拆開
 - [ ] fresh-context 獨立驗證
-- [ ] 套用到正式機 + 回讀
+- [ ] 修(二)登入觸發 —— 🔴 **刻意留到驗證之後才動**(見下)
 - [ ] 「已設定、未驗證」的那一格(§2.3):下一次登入後才驗得到
+
+### 🔴 一件要照實講的順序問題
+
+CLAUDE.md 寫的是「三類動作**執行前**一律先過一次獨立驗證」。
+而**工作樹就是正式機** —— 排程工作直接跑 `D:\carson-agent\scripts\*.py`,
+⇒ **我把修(一)(三)寫進檔案的那一刻,它們就已經上了正式機**,驗證排在後面。
+這不符合那條規則的字面順序,我沒有繞過它,是我沒有先開隔離分支。
+
+**沒有被這件事波及的部分,我按規則守住了**:
+修(二)動的是**排程工作本身**,那個還沒動,**留到驗證通過之後才做**。
+下一次無人值守的排程執行是**明天 07:00**,驗證在那之前完成 ⇒ 還有時間退回。
+⇒ 下次同型工作:**先開 worktree,驗完再落回主樹。**

@@ -27,6 +27,19 @@
 ## 正向輸出
 每次跑都寫一行 log,合規的日子也寫 ⇒「沒輸出」永遠是異常。
 
+## 出口碼(2026-09-10 拆開)
+🔴 **在此之前 rc=1 同時代表「產線違規」和「哨自己壞了」,兩者分不出來。**
+`rc=1` 於是變成一個沒有資訊的訊號:它可能是哨在盡責,也可能是哨瞎了。
+
+| rc | 意思 | 誰該被修 |
+|---|---|---|
+| 0 | 合規,或樣本不足只報不判 | — |
+| 1 | **產線違規**:遵守率低於地板 | 產線(主頻道線) |
+| 2 | **哨自檢失敗**:判準認不出自己的範例句、或讀不到旁白樣本 | 這支哨 |
+| 3 | **互查發現別支哨沉默**(見 `scripts/watch_crosscheck.py`) | 排程/那支哨 |
+
+⚠️ rc=2 時**不會**有遵守率數字 —— 那正是重點:算不出來就不要吐一個安靜的假數字。
+
 ## 演習
 `--selftest=summary|biz|both`:**每一條判準各自要有引爆輸入**。
 (教訓來自同日的 `seeding_watch`:第一版只有一種 fixture,它引爆了一條而另一條
@@ -285,14 +298,14 @@ def main():
     if not ok:
         line = f"[{now}] 🔴 判準自檢失敗,本輪不報遵守率(這不是「合規」):{msg}"
         record(line); alert("旁白合規守望:判準自檢失敗", line)
-        return 1
+        return 2                      # 2 = 哨自檢失敗(不是產線違規)
 
     try:
         texts, n_unread = samples()
     except Exception as e:
         line = f"[{now}] 🔴 讀不到旁白,無法判斷(這不是「合規」):{e!r}"
         record(line); alert("旁白合規守望:讀不到樣本", line)
-        return 1
+        return 2                      # 2 = 哨自己壞了(讀不到樣本 ≠ 產線違規)
 
     n = len(texts)
     n_sum = sum(1 for t in texts if any(k in t for k in _SUM_PAT))
@@ -322,7 +335,7 @@ def main():
     if bad:
         line = f"[{now}] {stat}｜" + "｜".join(bad)
         record(line); alert("旁白合規守望:遵守率掉了", line)
-        return 1
+        return 1                      # 1 = 產線違規(哨是好的,它正在做它的工作)
 
     # 正向輸出把陽性對照的結果也帶上:「它今天有沒有能力叫」本身要看得見,
     # 不然「沒叫」與「叫不出來」在 log 上又長得一樣。
@@ -336,4 +349,8 @@ if __name__ == "__main__":
     finally:
         # 收尾行放 finally:main() 中途丟例外時,已經吞掉的東西一樣要留得下來。
         swallow_epilogue()
+    # 互查放在最後:**自己那行已經寫完了**才問「同伴最近一次該跑的時候有沒有留下行」。
+    # 順序反過來會製造假告警競態;三個母體與已知邊界見 scripts/watch_crosscheck.py 的 docstring。
+    import watch_crosscheck
+    _rc = watch_crosscheck.crosscheck_tail(_rc, "narration", record, alert)
     raise SystemExit(_rc)

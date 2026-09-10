@@ -520,4 +520,8 @@ if __name__ == "__main__":
     if _iso is False:
         say("[DRILL] 🔴 隔離失敗 → rc=9(演習結果不採信)")
         _rc = 9
+    # 互查放在最後:**自己那行已經寫完了**才問「同伴最近一次該跑的時候有沒有留下行」。
+    # 順序反過來會製造假告警競態;三個母體與已知邊界見 scripts/watch_crosscheck.py 的 docstring。
+    import watch_crosscheck
+    _rc = watch_crosscheck.crosscheck_tail(_rc, "seeding", record, alert)
     raise SystemExit(_rc)

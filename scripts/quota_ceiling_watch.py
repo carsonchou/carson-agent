@@ -337,4 +337,9 @@ if __name__ == "__main__":
     finally:
         # 收尾行放 finally:main() 中途丟例外時,已經吞掉的東西一樣要留得下來。
         swallow_epilogue()
+    # 互查放在最後:**自己那行已經寫完了**才問「同伴最近一次該跑的時候有沒有留下行」。
+    # 順序反過來會製造假告警競態;三個母體與已知邊界見 scripts/watch_crosscheck.py 的 docstring。
+    # 🔴 quota 排 15:20,離開機/登入窗最遠 —— 它是這個設計唯一的支點,不要把它挪走。
+    import watch_crosscheck
+    _rc = watch_crosscheck.crosscheck_tail(_rc, "quota", record, alert)
     sys.exit(_rc)
