@@ -93,6 +93,21 @@ def main():
         print("| %s | %d | %d | %.1f%% | %d | %.1f%% |"
               % (m, len(sub), o, 100.0 * o / len(sub), n, 100.0 * n / len(sub)))
 
+    # 主頻道線 ab741661 的 49.3% 分母是「08-20 後累計、且已發布」。
+    # 我沒有發布狀態可以切,只能把「時間軸」這一個軸換成累計,讓督導看到
+    # 光換一個軸就會移動多少 —— 這是「兩個比率不可對照」的量化依據,不是對照本身。
+    print("\n== 把時間軸換成累計之後(仍含未發布,發布狀態無法切)==")
+    for name, sub in (
+            ("2026-09 單月(文件裡的 44.8%)",
+             [r for r in rows if r["d"].strftime("%Y-%m") == "2026-09"]),
+            ("mtime > 08-20 累計(含副本)", [r for r in rows if r["d"] > CUTOFF]),
+            ("mtime > 08-20 累計、只算正本",
+             [r for r in rows if r["d"] > CUTOFF and os.path.dirname(r["rel"]) == ""])):
+        h = sum(r["old"] for r in sub)
+        print("  %-28s n=%3d 命中=%3d  %.1f%%"
+              % (name, len(sub), h, 100.0 * h / len(sub) if sub else 0))
+    print("  ⇒ 換一個軸就移動數個百分點;發布狀態那個軸沒有資料 ⇒ 和 49.3% 不可對照。")
+
 
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
