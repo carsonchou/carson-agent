@@ -59,7 +59,11 @@ NEG = re.compile(r"(負|-|−|﹣|－)\s*(?:百分之|\d)")
 LOWER = re.compile(r"超過|逾|至少|以上|多於|不止")   # 🔴 刻意不含「高達」:那是語氣不是下界
                                                     #    含進去會吃掉日電貿 3090 這個真陽性
 YRS = re.compile(r"(?:([\d.]+)|([零〇一二三四五六七八九十百千萬兩點]+))\s*年")
-NOT_PERIOD = re.compile(r"套牢|創高|間隔|長達|腰斬|停滯|又$|個月")
+NOT_PERIOD = re.compile(r"套牢|解套|創高|間隔|長達|腰斬|停滯|又$|個月")
+# 🔴 09-11:NOT_PERIOD 要**雙向**掃。本檔原本只掃前文(治「套牢近9年」),
+#    而退稿區母體的長相是「4.6年套牢」—— 非期間詞在**後面**。只掃一邊會漏,
+#    05_rejected_backlog.py 的已知誤報(嘉澤3533)就是這一格。後綴窗只取 4 字
+#    (「套牢」「解套」都是 2 字,放寬會開始吃到下一句)。
 TOL = 1.5
 
 
@@ -78,7 +82,7 @@ def stated_years(s):
         if v is None or v >= 100 or v <= 0.5:   # >=100 是年份(2016年)不是期間
             continue
         pre = s[max(0, m.start() - 14):m.start()]
-        if NOT_PERIOD.search(pre):
+        if NOT_PERIOD.search(pre) or NOT_PERIOD.search(s[m.end():m.end() + 4]):
             continue
         out.append((v, bool(LOWER.search(pre))))
     return out
