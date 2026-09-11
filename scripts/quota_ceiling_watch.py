@@ -388,7 +388,18 @@ def xchk_broken(what):
     """
     stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
     detail = repr(what) if isinstance(what, BaseException) else str(what)
-    line = (("[DRILL] " if SELFTEST else "")
+    # 🔴 `[XCHK] ` 這個字面前綴是**承重的**,不是裝飾(2026-09-11 兩名獨立驗證者各自抓到,
+    #    其中一名跑了帶陰性對照的語料表):
+    #    沒有它,這一行以 `[` + 時間戳開頭 ⇒ 命中 `watch_crosscheck.py:117` 的 `_TS`、
+    #    又躲過 `:136` 的 `_SKIP_PREFIXES` ⇒ **被同伴當成今天的一筆排程讀數**。
+    #    而本函式會觸發的前提正是「今天的 log 裡沒有真讀數」⇒ 同伴看到「今天有讀數」
+    #    因此**閉嘴**,當天的沉默偵測整個失效。這是我 2026-09-11 `6aadb844` 自己種進去的。
+    #    ⚠️ 演習**結構上**測不到這個形狀:`SELFTEST` 會加 `[DRILL] `,那本來就在
+    #       `_SKIP_PREFIXES` 裡 ⇒ drill 路徑永遠不可能重現產線那一行的長相。
+    #    ⚠️ 不准 `import watch_crosscheck` 去取 `XCHK_PREFIX`(見本函式 docstring:
+    #       最後一道防線不能依賴剛倒的那根柱子)⇒ 這裡寫死字面,
+    #       由 `watch_crosscheck_regression.py` 斷言這個字面 == 那個常數。
+    line = ("[XCHK] " + ("[DRILL] " if SELFTEST else "")
             + f"[{stamp}] 🔴 [XCHK-BROKEN] 守望互查收尾自己爆了,"
               f"**今天沒有沉默偵測**(這不是「同伴都正常」):{detail}")
 
@@ -427,7 +438,9 @@ def xchk_broken(what):
     if landed is not None and failed:
         try:
             with landed.open("a", encoding="utf-8") as f:
-                f.write(f"[{stamp}] [XCHK-BROKEN] ↑ 上一行是**退到備援路徑**才寫成的;"
+                # 這行也要帶 `[XCHK] `(理由同上:它一樣落在 LOG 裡,一樣會被同伴讀到)。
+                # 獨立驗證實測:**只**加這條註腳行、不加主痕跡行,同伴一樣翻成靜音。
+                f.write(f"[XCHK] [{stamp}] [XCHK-BROKEN] ↑ 上一行是**退到備援路徑**才寫成的;"
                         f"失敗的路:{'; '.join(failed)}" + chr(10))
         except BaseException:
             pass    # 這是註腳不是痕跡本身,它寫不進去不准把已經留成的痕跡變成沒留
@@ -470,7 +483,17 @@ if __name__ == "__main__":
             # 但也絕不可以 pass —— 沉默偵測器沉默地壞掉正是它在治的病。
             # 🔴 不是 print 到 stderr —— 排程下 sys.stderr is None 會靜默 no-op,
             #    有 handle 時 cp950 編不了 🔴 會在這裡拋、取代 main() 的根因。見 xchk_broken。
-            xchk_broken(_xe)
+            # 🔴 `xchk_broken()` 內部每一段都各自 try 過,所以「它不會拋」目前是真的 ——
+            #    但那是一句**承重的**話,而它靠的是四段程式碼一直維持原樣。一旦被改壞,
+            #    例外會從 `finally` 逃出去:①**取代 main() 原本的根因**、②下面那行
+            #    `_rc = 4` 跑不到 ⇒ 互查壞掉這件事**靜默降級成 rc=0**。
+            #    ⇒ 不要靠讀程式碼維持這個假設(memory `static-reading-vs-runtime-behaviour`),
+            #      用一個 except 把它釘死。這裡真的只能 pass:最後一道防線的最後一層,
+            #      它下面沒有別的路了,而 rc=4 在外面照樣設得到。
+            try:
+                xchk_broken(_xe)
+            except BaseException:
+                pass
             if _rc in (0, None):
                 _rc = 4          # 4=互查機構自己壞了(≠同伴都正常)
     sys.exit(_rc)

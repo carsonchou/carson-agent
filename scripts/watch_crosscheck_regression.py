@@ -15,6 +15,19 @@
 M1 的因果鏈是**閉合的**:會有人補跑,正是因為那天有哨沉默 ⇒ 那天互查必然叫過
 ⇒ 那天的 log 必然多出那一行。09-10 躲過純粹因為 18:05 補跑時互查還沒上線。
 
+### 🔴 2026-09-11 追加的第四個:M1c —— **M1 只修了兩端裡的一端**
+
+`6aadb844` 給 `xchk_broken()`(收尾自己爆掉時的最後一道留痕)加了一條寫進 `LOG` 的路,
+而那一行**沒有帶 `[XCHK] ` 前綴** ⇒ 它以 `[` + 時間戳開頭 ⇒ 命中 `_TS`、躲過
+`_SKIP_PREFIXES` ⇒ 同伴把它讀成「今天有一筆排程讀數」而閉嘴。
+因果鏈同樣閉合:`xchk_broken()` 觸發的前提正是「今天沒有真讀數」。
+
+**為什麼本檔當時沒抓到**:M1 那兩格用 `pref = after.XCHK_PREFIX` **自己合成**語料
+⇒ 驗的是「互查收到一行已經加對前綴的字串時,判得對不對」,
+沒有任何一格問過「哨那邊到底有沒有加」。⇒ M1c 改成拿 `xchk_broken()`
+**真的落到檔案裡的位元組**當語料。
+⚠️ 演習那條路**結構上**驗不到:`SELFTEST` 會加 `[DRILL] `,那本來就在 `_SKIP_PREFIXES` 裡。
+
 ⇒ 而三個都修完了之後,還是需要有東西**定期證明它們沒有回來**:
 memory `gate-blind-while-target-evolves`「閘門上線後要有東西定期證明它還抓得到已知案例」。
 同一條 memory 的另一半:**陽性對照要用真案例,不要用合成 fixture** ——
@@ -55,6 +68,7 @@ from __future__ import annotations
 
 import datetime
 import importlib.util
+import inspect
 import io
 import pathlib
 import random
@@ -112,7 +126,10 @@ def add(rows, name, expect, got, ok):
 #    這兩個數一律**跑出來**,不要用加法推(推錯過兩次,而推錯的表現是「格數斷言自己過了」)。
 #    2026-09-11:M4 一口氣多五格 × 三支哨 = +15,M1b 排列對照 +1 ⇒ 64→80 / 61→77,
 #    兩個都是跑完之後抄下來的。
-EXPECT_ROWS = {True: 80, False: 77}   # key = 有沒有給 --before
+#    2026-09-11 下午:M0 簽章對照 +2、M1c 真輸出 +3 × 三支哨 = +9 ⇒ 80→91 / 77→88。
+#    這兩個數同樣是**各跑一次抄下來的**(12:00 印 88、12:01 印 91),不是 77+11 加出來的
+#    —— 加法在這裡推錯過兩次,而推錯的表現是「格數斷言自己過了」。
+EXPECT_ROWS = {True: 91, False: 88}   # key = 有沒有給 --before
 
 
 # 🔴 2026-09-10~09-11 真的活在正式機上的那一版 `last_sched_date()` 迴圈,逐字保存。
@@ -157,7 +174,13 @@ def block(path):
 
 
 class _Err:
-    """友善的假 stderr:永遠可寫、沒有 encoding 屬性。
+    """友善的假 stderr:永遠可寫,`encoding` 是 `utf-8`(什麼都編得進去)。
+
+    ⚠️ 2026-09-11 更正一句**已經不成立的**文件:這裡原本寫「沒有 `encoding` 屬性」,
+       而下面第一行就是 `encoding = "utf-8"`。文件寫的不變量比程式碼**寬**,
+       而讀的人會照文件去推論(例如以為 `getattr(sys.stderr, "encoding", None)`
+       在這個 stub 上會走 fallback 分支 —— 不會)。
+       同形狀:memory `static-reading-vs-runtime-behaviour`。
 
     🔴 2026-09-11:**本類別自己是一個「不可能失敗的檢查」**(memory
     verification-that-cannot-fail)。舊版 M3 兩格斷言 `"[XCHK-BROKEN]" in err`,
@@ -250,12 +273,49 @@ def xchk_broken_trial(fsrc, stderr_mode, log_path, what=None, selftest=False,
     finally:
         tempfile.tempdir = saved_tmp
     try:
-        got = log_path.read_text(encoding="utf-8") if log_path.exists() else ""
-    except OSError:
+        # 🔴 `errors="replace"` 不是裝飾:這支尺的突變列會故意把寫入端改成 cp950,
+        #    落地的就是**解不開的位元組**。沒有 `errors=` 的話這裡拋 UnicodeDecodeError,
+        #    而它不是 OSError ⇒ 從 `xchk_broken_trial` 逃出去 ⇒ **整份回歸當場中斷**,
+        #    一格紅的變成一份 traceback(memory `fix-breaks-its-own-instrument`:
+        #    修法打壞自己的量尺)。except 一併放寬,是因為「讀不出來」在這裡永遠只代表
+        #    受測結果,不代表測試環境壞了。
+        got = (log_path.read_text(encoding="utf-8", errors="replace")
+               if log_path.exists() else "")
+    except (OSError, UnicodeDecodeError, ValueError):
         # 演習會故意把主 log 做成**目錄**(驗第二條備援路)⇒ 這裡讀不到是預期的,
         # 意思就是「主通道沒東西」,不是測試環境壞了。
         got = ""
     return got, raised, ("" if err is None else err.buf), ret
+
+
+def _stub_watch_crosscheck(calls, xchk_exc):
+    """做出 `watch_crosscheck` 的替身。
+
+    🔴 **抽到模組層是為了讓簽章對照拿得到它**(2026-09-11,獨立驗證指出):
+       這支尺的賣點是「exec 磁碟上的真原文」,但真原文呼叫的是**我手寫的替身**,
+       而那份替身的簽章從來沒有被機械地和真貨比對過。上一次同形狀的事故是
+       真呼叫點多一個參數 ⇒ 20 格裡有 13 格量到的是「替身跟不上」而不是控制流,
+       而 commit 訊息照樣寫 20/20(memory `fix-breaks-its-own-instrument`)。
+       現在 M0 那一節用 `inspect.signature` 把兩邊釘在一起。
+    """
+
+    def crosscheck_tail(rc, self_key, record, alert, now=None, on_broken=None):
+        # 🔴 `on_broken` 一定要在簽章裡,而且要**記下來**:呼叫端忘了傳的話,
+        #    最後一道留痕就退回本模組那條守衛版 stderr —— 在 pythonw 下等於沒有留痕。
+        #    2026-09-11 實測:這個 stub 少了 on_broken 參數時,三支哨的呼叫直接 TypeError,
+        #    被 finally 的 except 吞成 rc=4 ⇒ 「互查被呼叫 0 次」。所以這格會翻面,不是恆過。
+        # ⚠️ 參數名 `self_key` 是**跟著真貨抄的**,不是隨手取的 —— M0 那格比的是
+        #    整個 `inspect.signature`,名字不一樣就會紅(三支哨目前用位置傳,
+        #    所以名字錯今天不會出事;但「今天不會出事」不是不變量)。
+        calls.append((rc, self_key, on_broken))
+        if xchk_exc:
+            raise xchk_exc
+        return rc
+
+    stub = types.ModuleType("watch_crosscheck")
+    stub.crosscheck_tail = crosscheck_tail
+    stub.manual_prefix = lambda: ""
+    return stub
 
 
 def control_flow_trial(src, main_rc=0, main_exc=None, xchk_exc=None, iso=None,
@@ -268,19 +328,7 @@ def control_flow_trial(src, main_rc=0, main_exc=None, xchk_exc=None, iso=None,
     """
     calls, err, broken = [], _make_err(stderr_mode), []
 
-    def crosscheck_tail(rc, key, record, alert, now=None, on_broken=None):
-        # 🔴 `on_broken` 一定要在簽章裡,而且要**記下來**:呼叫端忘了傳的話,
-        #    最後一道留痕就退回本模組那條守衛版 stderr —— 在 pythonw 下等於沒有留痕。
-        #    2026-09-11 實測:這個 stub 少了 on_broken 參數時,三支哨的呼叫直接 TypeError,
-        #    被 finally 的 except 吞成 rc=4 ⇒ 「互查被呼叫 0 次」。所以這格會翻面,不是恆過。
-        calls.append((rc, key, on_broken))
-        if xchk_exc:
-            raise xchk_exc
-        return rc
-
-    stub = types.ModuleType("watch_crosscheck")
-    stub.crosscheck_tail = crosscheck_tail
-    stub.manual_prefix = lambda: ""
+    stub = _stub_watch_crosscheck(calls, xchk_exc)
     saved = sys.modules.get("watch_crosscheck")
     sys.modules["watch_crosscheck"] = stub
 
@@ -394,6 +442,19 @@ def main():
             return msg
 
         quota = c.quota_ok()
+
+        # ---- M0:量尺自己的替身,簽章必須和真貨對得上 ----
+        # 🔴 這一節量的不是產線,是**本檔自己**。M3 的賣點是「exec 磁碟上的真原文」,
+        #    但那段原文呼叫到的 `watch_crosscheck` 是我手寫的替身 ——
+        #    替身跟不上真貨時,M3 每一格量到的都是「替身壞了」,而它們照樣印 PASS/FAIL,
+        #    分不出是哪一件事。上一次同形狀:真呼叫點多一個參數 ⇒ 20 格有 13 格量錯,
+        #    而 commit 照樣寫 20/20(memory `fix-breaks-its-own-instrument`)。
+        print("M0 替身簽章 vs 真貨(替身跟不上時,M3 每一格量到的都是替身,不是控制流)")
+        _stub = _stub_watch_crosscheck([], None)
+        for _fn in ("crosscheck_tail", "manual_prefix"):
+            _sig_s = str(inspect.signature(getattr(_stub, _fn)))
+            _sig_r = str(inspect.signature(getattr(after, _fn)))
+            add(rows, f"M0 stub.{_fn} 簽章 == 真貨", _sig_r, _sig_s, _sig_s == _sig_r)
 
         # ---- M1:互查自己的告警行 ----
         print("M1 互查自己寫的告警行(語料=真 log 截到 09-10 補跑+註記,尾巴接一次非演習告警)")
@@ -518,6 +579,75 @@ def main():
         add(rows, "M1b 排列 150 種插入位置 判決與內文全相同", "全相同",
             "全相同" if _perm_bad is None else f"{_perm_bad[0]}{_perm_bad[1]}",
             _perm_bad is None)
+
+        # ---- M1c:三支哨**實際寫出來的那一行**,拿去餵互查 ----
+        # 🔴 2026-09-11:兩名獨立驗證者各自抓到同一個洞,而洞在**本檔**。
+        #    上面 M1 用 `pref = after.XCHK_PREFIX` 自己**合成**那一行 ⇒ 它驗的是
+        #    「互查收到一行已經正確加過前綴的字串時,處理得對不對」。
+        #    真正沒人驗的是另一半:**三支哨到底有沒有加那個前綴**。答案是沒有 ——
+        #    `6aadb844` 起,產線那行以 `[` + 時間戳開頭 ⇒ 命中 `watch_crosscheck.py:117`
+        #    的 `_TS`、躲過 `:136` 的 `_SKIP_PREFIXES` ⇒ 同伴把它當成今天的一筆排程讀數
+        #    ⇒ 那天**閉嘴**。而 `xchk_broken()` 會被觸發的前提正是「今天沒有真讀數」,
+        #    因果鏈是閉合的:它一出現,就一定出現在最需要有人叫的那一天。
+        # ⚠️ 演習(`watch_drill_regression.py`)**結構上**驗不到這個形狀:`SELFTEST` 會加
+        #    `[DRILL] `,那本來就在 `_SKIP_PREFIXES` 裡 ⇒ drill 路徑長不出產線那一行的長相。
+        #    「有一支演習在跑」因此不構成這件事被蓋到的理由。
+        # ⇒ 唯一作法:真的去跑 `xchk_broken()`,拿它**落到檔案裡的位元組**當語料,
+        #   而不是拿我重打一次的版本(同 `block()`/`func_src()` 的理由)。
+        print("M1c 哨真的寫出來的那一行(非合成語料)不准被互查算成讀數")
+        _m1c = pathlib.Path(tempfile.mkdtemp(prefix="xchk_line_"))
+        # 突變目標:三支哨裡那個字面前綴。這裡寫死字面是刻意的 —— 它是**被改的對象**,
+        # 不是斷言的依據;斷言用的是 `after.XCHK_PREFIX`(見下面第一格)。
+        # 找不到時不 assert,改成紅格:assert 會把一格紅變成整份 traceback。
+        _PREF_SRC = '"[XCHK] " + ("[DRILL] " if SELFTEST else "")'
+        try:
+            _head = {k: c.upto(k, "[2026-09-09") for k in ("seeding", "narration")}
+            for fname, key in WATCH_FILES:
+                fsrc = func_src(REPO / "scripts" / f"{fname}.py", "xchk_broken")
+
+                def _first_line(src_, tag, _key=key):
+                    got, raised, _e, _r = xchk_broken_trial(
+                        src_, "none", _m1c / f"{_key}_{tag}.log",
+                        temp_to=_m1c / f"{_key}_{tag}_t")
+                    if raised is not None or not got.strip():
+                        return None
+                    return got.strip().splitlines()[0]
+
+                real = _first_line(fsrc, "real")
+                ok = real is not None and real.startswith(after.XCHK_PREFIX)
+                add(rows, f"M1c {key} 真輸出以 XCHK_PREFIX 開頭",
+                    f"startswith {after.XCHK_PREFIX!r}",
+                    (real[:10] + "…") if real else "跑不出那一行", ok)
+
+                if real is None:
+                    add(rows, f"M1c {key} 真 XCHK 行不算讀數 ⇒ 必須叫", "叫", "語料取不到", False)
+                    add(rows, f"M1c {key} 突變 拿掉前綴 ⇒ 必須翻成靜音", "靜音", "語料取不到", False)
+                    continue
+
+                case(f"M1c {key} 真 XCHK 行不算讀數 ⇒ 必須叫", after,
+                     {"seeding": _head["seeding"] + [real],
+                      "narration": _head["narration"] + [real],
+                      "quota": quota}, NOW_LATE, "叫")
+
+                # 陰性對照:把那個字面前綴拿掉,同一份語料必須**翻成靜音**。
+                # 少了這一列,上一格和「這一格恆叫」分不開(memory
+                # `load-bearing-line-needs-mutation`)。
+                # ⚠️ 這一格的「靜音」靠的是 `xchk_broken()` 蓋的是**真實時鐘**的日期,
+                #    而 NOW_LATE 是 2026-09-11 ⇒ 只要真實日期 ≥ 09-11 就成立(日期只會往前),
+                #    不是靠語料裡寫死的時間。
+                bare = (None if _PREF_SRC not in fsrc else _first_line(
+                    fsrc.replace(_PREF_SRC, '("[DRILL] " if SELFTEST else "")'), "mut"))
+                if bare is None:
+                    add(rows, f"M1c {key} 突變 拿掉前綴 ⇒ 必須翻成靜音", "靜音",
+                        "突變沒生效(原文裡找不到那個字面前綴)"
+                        if _PREF_SRC not in fsrc else "突變語料取不到", False)
+                    continue
+                case(f"M1c {key} 突變 拿掉前綴 ⇒ 必須翻成靜音", after,
+                     {"seeding": _head["seeding"] + [bare],
+                      "narration": _head["narration"] + [bare],
+                      "quota": quota}, NOW_LATE, "靜音")
+        finally:
+            shutil.rmtree(_m1c, ignore_errors=True)
 
         # ---- M2:註記隔天才追加 ----
         print("M2 註記行隔天才追加(晚上補跑、隔天早上回來註記)")
@@ -768,7 +898,13 @@ def main():
                 #    而 5/5 個不相干的突變也都滿足它 —— 最糟的是「把標記改個名」:
                 #    log 照樣落 172 bytes,而這一格照樣說「突變被殺掉」。
                 #    改成三件一起要:不拋 + log **整份是空的** + 回傳值是 None。
-                #    改名那種突變因此自己出局(它的 got != "")。
+                # ⚠️ 2026-09-11 更正上面那句的**因果**(獨立驗證【2/4】抓到,不是我自己看出來的):
+                #    原本寫「改名那種突變因此自己出局(它的 got != "")」—— 那是**錯的**。
+                #    本格餵進去的突變自己就是 cp950,`got` 一定是 `""`,和標記叫什麼名字無關
+                #    ⇒ 本格對「改名」完全不敏感。真正殺掉改名突變的是 (2)(3)(5)(6),
+                #    那四格斷言 `"[XCHK-BROKEN]" in got`。本格殺的是**編碼**,只殺編碼。
+                #    (memory `load-bearing-line-needs-mutation`:指錯是哪一行承重,
+                #     等於照錯因去修 —— 一個字都沒修到。)
                 ok = raised is None and got == "" and ret is None
                 add(rows, f"M4 {key} 突變 log 編碼→上一格必須翻面", "不拋+log全空+回傳None",
                     f"拋{raised!r}+{'全空' if got == '' else f'{len(got)}字'}+回傳{ret}", ok)
@@ -865,7 +1001,9 @@ def main():
             print(f"{chr(10)}🔴 {n - len(bad)}/{n} 符合期待,失敗:{[r[0] for r in bad]}")
             return 1
         record(f"[{now_stamp}] ✅ 互查回歸 {n}/{n} 符合期待"
-               f"(M1 前綴、M1b 行序不變量 × 3 + 內文逐字對照 + 排列 150 種 1 + 突變 1"
+               f"(M0 替身簽章 2、"
+               f"M1c 哨真輸出 × 3 支 × 3 格(前綴 + 必須叫 + 拿掉前綴翻靜音)、"
+               f"M1 前綴、M1b 行序不變量 × 3 + 內文逐字對照 + 排列 150 種 1 + 突變 1"
                f" + 歷史相鄰版陽性對照 2、"
                f"M2 WATCH_MANUAL、M5 排程判準 E/F/H/I × 9 + 舊判準並排 9 + LogonTrigger 4、"
                f"M3 控制流 × 3 支、M4 最後一道留痕 × 3 支 × 9 格"
