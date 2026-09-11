@@ -1,0 +1,30 @@
+# set_private_13 --self-test  2026-09-11T18:01:32+08:00  離線;stub service;突變只作用在 SELF-TEST 標記以上
+# 判準:上線 body 由本 harness 逐欄比對讀回值(不用受測模組的 check)
+
+BASE 未突變(同一條 exec 路徑)                                     ✅ 全綠  紅燈情境=無
+NC   陰性對照:改 dry-run 標籤字串                                  ✅ 全綠  紅燈情境=無
+M1   清單外 id 被送出(guard_id 失效)                              ✅ 翻紅(S2)  紅燈情境=['S2']
+       S2 清單外/9YbT/清單被改:清單外 id:沒丟 IdNotAllowed | 清單外 id 有流量:list 1、update ['MuXiM5IqVQQ', 'TDbm4XR5pYk', 'ZZZZZZZZZZZ'] | 9YbT 未開旗標:沒丟 IdNotAllowed,update 1
+M2   body 多改一個欄位(build_body 多翻 embeddable)                ✅ 翻紅(S1)  紅燈情境=['S1', 'S3', 'S4', 'S5', 'S6', 'S7', 'S9']
+       S1 正常13支:run 丟 CheckAbort:🔴 MuXiM5IqVQQ body 檢查失敗,整批停:["privacyStatus 以外有差異:{'embeddable': (True, False)}"] | 上線 0 支 ≠ 13 支依序 | 帳上 ok 0 ≠ 13
+       S3 讀回已非public:run 丟 CheckAbort:🔴 cObU5NcFT-I body 檢查失敗,整批停:["privacyStatus 以外有差異:{'embeddable': (True, False)}"] | 其餘 11 支應照送,實送 0
+       S4 重跑冪等:情境本身丟 CheckAbort:🔴 MuXiM5IqVQQ body 檢查失敗,整批停:["privacyStatus 以外有差異:{'embeddable': (True, False)}"]
+       S5 本地帳本擋:update 被擋:丟的是 CheckAbort 不是 LocalLedgerAbort:🔴 MuXiM5IqVQQ body 檢查失敗,整批停:["privacyStatus 以外有差異:{'embeddable': (True, False)}" | 擋下後還有嘗試:attempts 0、上線 0 | 本地擋之後續跑丟 Blocked | 本地擋之後續跑應送 13,實送 0
+       S6 Google錯:Google 錯:丟的是 CheckAbort 不是 GoogleAbort:🔴 MuXiM5IqVQQ body 檢查失敗,整批停:["privacyStatus 以外有差異:{'embeddable': (True, False)}" | 錯誤後的嘗試 [](應恰 3 次、不重複)
+       S7 dry-run:情境本身丟 CheckAbort:🔴 MuXiM5IqVQQ body 檢查失敗,整批停:["privacyStatus 以外有差異:{'embeddable': (True, False)}"]
+       S9 讀回缺片:情境本身丟 CheckAbort:🔴 MuXiM5IqVQQ body 檢查失敗,整批停:["privacyStatus 以外有差異:{'embeddable': (True, False)}"]
+M2b  M2 + 拿掉 check() 的多欄位檢查(證明判準獨立於腳本自己的 check)           ✅ 翻紅(S1)  紅燈情境=['S1']
+       S1 正常13支:MuXiM5IqVQQ 上線 body 與讀回差 ['embeddable', 'privacyStatus'] | TDbm4XR5pYk 上線 body 與讀回差 ['embeddable', 'privacyStatus'] | cObU5NcFT-I 上線 body 與讀回差 ['embeddable', 'privacyStatus'] | I8F83sPFKWg 上線 body 與讀回差 ['embeddable', 'pr
+M3   讀回已 private 仍送(拿掉 skip 判斷)                           ✅ 翻紅(S3)  紅燈情境=['S3']
+       S3 讀回已非public:run 丟 CheckAbort:🔴 MuXiM5IqVQQ body 檢查失敗,整批停:['privacyStatus 不是 public→private:None'] | 其餘 11 支應照送,實送 0 | skip 紀錄 [] ≠ 那 2 支
+M3b  M3 + 拿掉 check() 的 public→private 檢查                  ✅ 翻紅(S3)  紅燈情境=['S3']
+       S3 讀回已非public:已非 public 的仍被送:['MuXiM5IqVQQ', 'TDbm4XR5pYk'] | 其餘 11 支應照送,實送 13 | skip 紀錄 [] ≠ 那 2 支
+M4   冪等失效(帳上的 ok 不算數)                                     ✅ 翻紅(S4)  紅燈情境=['S4']
+       S4 重跑冪等:重跑有流量:list 1、update 13(重送了)
+M5   本地帳本擋了不中止                                            ✅ 翻紅(S5)  紅燈情境=['S5']
+       S5 本地帳本擋:update 被擋:沒丟 LocalLedgerAbort | 擋下後還有嘗試:attempts 13、上線 12 | 本地擋之後續跑應送 13,實送 1
+M6   Google 錯了不停                                          ✅ 翻紅(S6)  紅燈情境=['S6']
+       S6 Google錯:Google 錯:沒丟 GoogleAbort | 錯誤後的嘗試 ['MuXiM5IqVQQ', 'TDbm4XR5pYk', 'cObU5NcFT-I', 'I8F83sPFKWg', '_Cc49y7ZAeM', 'tN56crKxwJE', 'mvDrUnxEjWs', 'vwEaoo3Txjw', 'UTuMMyvdQ5U', 'DhX2uNzjZ-o', 'OyprNxjrIBQ', 'nHwP_cyy_hc', 'xjQPW
+
+# 零網路:daily_publish / googleapiclient 載入了嗎 → 都沒有
+SELFTEST_RESULT: PASS

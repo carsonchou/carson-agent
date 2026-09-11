@@ -17,6 +17,10 @@
 > 13 支清單一字沒動。同條件的音軌比對顯示,13/13 上架的就是被尺叫到的那份旁白(own r ≥ 0.9996,冒名最大 0.7852),
 > 和驗證者「13 支都不用撤出清單」的結論一致。
 
+> **09-11 追記(二)**:執行腳本 `set_private_13.py` 已補上(§十),**仍未 `--apply`、零 `videos.update`**。
+> 突變 M1–M6 逐條翻紅,陰性對照全綠;真 dry-run 1 unit ⇒ **本輪共 50 units**,13/13 would_send。
+> 🔴 B 查到 `tN56crKxwJE` 可能被每週四 `build_playlists` **第一次**加進公開清單「台股量化」(§10.6,只記不改)。
+
 ## 零、這份東西**不能**證明什麼
 
 1. **dry-run 用的是 08:49 UTC 的快照。** 真執行時 body 必須從**寫入當下**的 `videos.list` 讀回再組,
@@ -217,3 +221,134 @@ status 的 7 欄除了 privacyStatus 以外,和 13 支完全相同。
 | 10 | §八 配額(第 366 行後) | 驗證者的 1 unit 沒有進帳本;帳本檔沒改 |
 
 **配額**:驗證者那 1 unit 是直接拿 token 呼叫的,沒有經過本機配額帳本 ⇒ 帳本少記 1 unit。照督導指示只記在兩份報告裡,**帳本檔沒有動**。
+
+## 十、執行腳本 `set_private_13.py`(09-11 追加;🔴 仍未執行、零 `videos.update`)
+
+督導轉來第二次獨立驗證:清單一致、快照 md5、dry-run body 組法三項都過;🔴 第 4 項 FAIL「執行腳本不存在」。本節補上。
+寫法照 `zombie_sweep.py:413-415`:讀回 → `dict(status)` → 只換 privacyStatus → `update(part="status")`,沒有另起一套。
+
+- blob(`git hash-object`)`b4f75ef886bcf74413278d726de59452042ac1b3`,md5 `10fa4de0ca17eb629925da841ea01222`
+- 預設 dry-run;`--apply` 等督導獨立驗過 blob 之後再談。**這個 commit 沒有跑過 `--apply`。**
+
+### 10.1 承重行為 → 程式碼 → 釘住它的突變
+
+| # | 派工要求 | 程式碼(行號) | 改壞它 → 哪個情境翻紅 |
+|---|---|---|---|
+| 1 | 硬清單:只認 candidates.json 的 13 支,比 md5 + 逐支常數;清單外一律 raise;9YbT 要另開 `--include-9ybt`,預設關 | `:41` `CAND_MD5`(CRLF→LF 後的 md5)、`:42` `HARD13`、`:47` `NINE`;`:89` `load_allowed` 核 md5、ids == HARD13、pending == [NINE];`:104-106` `guard_id`;`run` 開頭逐支 guard,`_send`(`:191`)送出前再 guard 一次 | M1(`:106` 改 `if False`)→ S2 |
+| 2 | 寫入當下讀回,只換 privacyStatus;讀回不是 public → 跳過、記錄、不送 | `:237` 一次 `videos.list(part="status,snippet")`(`:221` 有重複或 >50 支就拒絕);`:111-113` `build_body` = `dict(status)` + 換 privacyStatus;`:123-129` `check`:多出任何差異、或 privacyStatus 不是 public→private,就整批停;`:257` 讀回不是 public → skip | M2 / M2b → S1;M3 / M3b → S3 |
+| 3 | 冪等:jsonl 帶時間戳,逐支 sent / ok / skip / err,每筆 flush + fsync;重跑跳過已 ok | `:136` `LogWriter`(append)、`:145` `os.fsync`;`:167-173` `log_state`。某支最後一筆是 `sent`(送了沒有結果),或是非本地配額的 `err` → `Blocked`,整批不動 | M4(`:173` 改 `if False`)→ S4 |
+| 4 | 本地帳本擋 → 第一次就整批中止,訊息寫「本地帳本擋的,不是 Google」;不准改門檻 / ENFORCE | `:51` `LOCAL_MSG`;`:200`(update 被擋)、`:240`(list 被擋)→ `LocalLedgerAbort`,exit 3。腳本對 quota_meter 只**讀**,把 ENFORCE / RESERVE / remaining 印出來 | M5(`:200` 改 `return False`)→ S5 |
+| 5 | Google 任何錯 → 停,不重送 | `:196` `execute(num_retries=0)`;`:202` / `:241` → `GoogleAbort`,exit 4;`:206` 回應的 privacyStatus 不是 private 也停 | M6(`:202` 改 `return False`)→ S6 |
+| 6 | 預設 dry-run,只有 `--apply` 會送 | `:333` 沒帶 `--apply` 就把 service 包成 `_NoWrite`(`:283` / `:296`):除了 `videos().list` 以外的呼叫一律丟 `DryRunWriteAttempt` | S7 常駐檢查;⚠️ 這一條沒有配突變列 |
+
+其他 exit code:5 = Blocked,6 = check 不過,2 = 其他 Stop。
+
+### 10.2 self_test(`set_private_13_selftest_output.txt`,`SELFTEST_RESULT: PASS`)
+
+**做法**:腳本讀自己的原始碼,只在 `# ======== SELF-TEST` 標記**以上**做 `str.replace`(每一處取代都斷言恰好命中 1 次),再 exec 成新模組跑 S1–S9。
+service 是 stub,status 取自 `snapshot.json` 的真實值。
+「上線 body 和讀回值逐欄比對」這個判準由 harness 自己算,**不用受測模組的 `check`**,M2b / M3b 就是在證明這一點。
+零網路:`daily_publish`、`googleapiclient` 都沒有被載入。
+
+情境:
+- S1 正常 13 支
+- S2 清單外 id / 9YbT 沒開旗標 / candidates 被改過
+- S3 MuXi 讀回 private、TDbm 讀回 unlisted → 送 11 支
+- S4 重跑,而且讀回是舊快取的 public → 零流量
+- S5 第一支 update 就被本地帳本擋 → 中止、只試 1 次、訊息帶那句話;list 被擋也中止;擋完再跑 → 送 13 支
+- S6 第 3 支 update 收到 Google `quotaExceeded` → `GoogleAbort`(不能被標成本地擋的)、剛好試 3 次;再跑 → `Blocked`
+- S7 dry-run:預設 apply=False、0 次 update、1 次 list、不產生 log、`_NoWrite` 擋得住 update
+- S8 送了沒有結果 → `Blocked`
+- S9 讀回少一支 → 送 12 支
+
+| 列 | 改了什麼 | 結果 | 紅燈證據(節錄) |
+|---|---|---|---|
+| BASE | 不突變,走同一條 exec 路徑 | ✅ 全綠 | — |
+| **NC** 陰性對照 | 只改 dry-run 標籤字串 | ✅ **全綠** | — |
+| **M1** | `guard_id` 失效 | ✅ 翻紅 S2 | 清單外 `ZZZZZZZZZZZ` 被送出;9YbT 沒開旗標也送了 1 次 |
+| **M2** | `build_body` 多翻 embeddable | ✅ 翻紅 S1(另外 S3–S7、S9 也紅) | `check` 擋下 `{'embeddable': (True, False)}`,上線 0 支 |
+| M2b | M2 + 關掉 `check` 的多欄位檢查 | ✅ 翻紅 S1 | harness 在上線 body 看到 `embeddable` 差異 |
+| **M3** | 拿掉讀回非 public 的 skip | ✅ 翻紅 S3 | `check` 擋下「privacyStatus 不是 public→private:None」 |
+| M3b | M3 + 關掉 `check` 的 privacy 檢查 | ✅ 翻紅 S3 | MuXi、TDbm 被送出 |
+| **M4** | 帳上的 ok 不算數 | ✅ 翻紅 S4 | 重跑 list 1 次、update 13 次 |
+| M5 | 本地帳本擋了不中止 | ✅ 翻紅 S5 | 被擋之後又試了 13 次 |
+| M6 | Google 錯了不停 | ✅ 翻紅 S6 | 出錯之後 13 支照送 |
+
+### 10.3 真 dry-run(`set_private_13_dryrun_output.txt`)
+
+- `videos.list` 1 次 = **1 unit**。這一輪允許的唯一一次已經用掉。
+- 13/13 讀回是 public,`RESULT: {"already_ok": 0, "ok": 0, "skip": 0, "would_send": 13}`。dry-run 不寫 log,`apply_log.jsonl` 沒有產生。
+- 離線比對:13/13 的 body 除了 privacyStatus,其他欄位和 08:49:55 UTC 的 `snapshot.json` 逐欄相同。
+- quota_meter 讀到 `ENFORCE=False`、`RESERVE=0`,remaining 23221 → 23220。
+- ⚠️ **本地帳本擋那條分支只在 self_test 裡證明過,真跑沒有觸發過。**
+  `quota_meter.py:792-794` / `:832-834` 的條件是 `units and ENFORCE and units > remaining()`。
+  手動 shell 裡 ENFORCE=False,所以真執行時如果 ENFORCE 還是 False、RESERVE 還是 0,本地帳本就不會擋,這一道防線等於不在。
+
+### 10.4 腳本擋不到的(寫下來,不假裝擋得到)
+
+1. **函式庫層的重送**:`execute(num_retries=0)` 只關得掉 googleapiclient 自己的重試。底下還有三條:
+   - httplib2 0.31.2 `__init__.py:1382-1394`:送出時碰到 HTTPException → 重連重送
+   - `:1400-1409`:第一次就 BadStatusLine → 不看 method,照樣重送
+   - google_auth_httplib2 `:232`:401 → refresh token → 重送
+
+   這三條都在 `execute` 底下,本檔看不到也關不掉 ⇒ 同一筆 update 可能在 Google 那端被執行兩次。
+   body 相同,所以結果一樣,但配額可能多扣。
+2. **讀回快取**:寫入當下讀回只縮小窗口,沒有關掉它(memory `yt-readback-stale-cache`)。
+3. **ok 的意思是 update 回應裡 privacyStatus=private,不是獨立回讀**。§六 的 T1 / T2 照樣必做。
+4. `containsSyntheticMedia` 仍然帶不到(§零.2)。這次寫入會不會清掉原本的值,見 10.5。
+
+### 10.5 調查 A:`containsSyntheticMedia`(`A_synthetic_media.md`,唯讀 agent;下列由本線覆核)
+
+**結論:這次寫入不會清掉一個原本有設的值。唯一的前提是沒有人在 repo 外(Studio 網頁)手動設過,這一點無法判定。**
+
+- 三條上傳路徑的 status dict 從來沒有這個 key。本線逐行看過:
+  - `daily_publish.py:963`;發布窗兩端的版本 `8def9b1c:866`、`8758e2fa:905` 逐字相同
+  - `upload_youtube.py:554-568`
+  - `schedule_publish.py:73-83`
+- **全歷史**:本線重跑 `git log -S containsSyntheticMedia --all` 和 `git log -G containsSyntheticMedia --all`,都**只命中 `11f90c70`**,也就是本線自己的 docs commit。
+  `git grep` 確認 `627a3f4e` 和 `11f90c70^` 都不含這個字串;從 `11f90c70` 起,它在 `dryrun.py` 和本檔各出現 1 次。
+  - ⚠️ **更正 A 報告**:A 寫「命中 3 個 commit(627a3f4e、11f90c70、25bdeb72)」不準。627a3f4e 根本不含這個字串;25bdeb72 裡的出現次數沒變,`-S` / `-G` 不會列它。
+  - 結論不受影響,而且更強:這個字串在 11f90c70 之前從來沒有出現在 repo 的任何一個版本裡。A 的原文照抄,沒改。
+- 13 個 videoId 逐支 `git log -S`:只命中 docs commit。這一項是 A 查的,本線沒有重跑。
+- 會清掉它的寫法是 `set_private_by_ids.py:79`(只送 privacyStatus),本線看過那一行。
+  沒有證據它被用在這 13 支上。`_private_batch_ids.json` 現在是 3 支舊片,和 13 支沒有交集;它不在版控,查不到過去列過什麼。
+- **07-15 那 17 支:無法判定。**
+  - `zombie_sweep_state.json` 每筆只存 `prev_privacy` 字串,`STUDIO/` 又在 `.gitignore` 裡。
+  - 就算找得到快照,那也是 `videos.list` 拿的,本來就不含這個欄位。
+- 天花板:`videos.list` 不回傳這個欄位,所以只能證明「repo 裡沒有程式設過它」,證明不了「YouTube 那端是預設值」。
+
+### 10.6 調查 B:設 private 之後,播放清單會不會重加或繼續掛著(`B_playlist_readd.md`;🔴 只記不改)
+
+本線已按 B 引的行號核過,狀態檔成員也對過。
+
+- **6 支會一直掛在公開播放清單裡**:MuXi(兩份狀態檔都有)、Oypr、I8F8、vwEa、UTuM、DhX2。
+  - 不會被重加:已經是成員就跳過(`playlist_engine.py:422-423`、`build_playlists.py:184-185`)。
+  - 也不會被移除:全檔沒有 `playlistItems.delete`,docstring 寫明「絕不刪除」(`playlist_engine.py:45`)。
+- 🔴 **新發現:`tN56crKxwJE` 可能被第一次加進公開清單。**
+  - 它不在任何狀態檔,但在 `uploaded_ledger.json` 裡。slug 含「台積電」(`build_playlists.py:51`),`classify`(`:56-63`)會歸到「台股量化」。
+  - 每週四 22:00 的 cron(`deploy/crontab.txt:423`,啟用中)跑 `build_playlists.py --max 10`,會對它 `playlistItems.insert`(`:190`)。insert 前不看 privacyStatus。
+  - **無法判定**:`--max 10` 輪不輪得到它;對 private 片 insert 會不會成功。
+  - 另外 playlistItems 有分頁漏抓(memory `yt-playlistitems-pagination-bug`),可能讓 `vid in existing` 判錯而重複 insert。這一點**沒驗證、無法判定**。
+- 其餘 6 支(TDbm、cObU、_Cc4、mvDr、nHwP、xjQP):三套分類規則都不命中。
+- 不構成風險的:
+  - `binge_chain.py:184` 濾掉 `S_`,它的 cron(`crontab.txt:667`)08-30 起已註解
+  - `industry_playlists` 的 `match_stock` 對 13 支全回 None
+  - `channel_storefront` 只動清單層級,沒有 cron
+- 執行期**無法判定**:private 成員會不會出現在 `playlistItems.list`;對 private 片 insert 會不會成功;一般觀眾看不看得到清單裡的 private 項目。
+- 🔴 **沒有動任何播放清單腳本或 cron。** 要不要在設 private 前處理 tN56 的排程,由督導 / Carson 判。
+
+### 10.7 本次新增檔案(都在 `2026-09-11_13支設private_準備/`)
+
+| 檔 | 內容 |
+|---|---|
+| `set_private_13.py` | 執行腳本,預設 dry-run(blob `b4f75ef8…`) |
+| `set_private_13_selftest_output.txt` | `--self-test` 輸出(離線、零 API) |
+| `set_private_13_dryrun_output.txt` | 真 dry-run 輸出(1 unit) |
+| `A_synthetic_media.md` | 調查 A 原文(唯讀 agent);本線的覆核與更正見 10.5 |
+| `B_playlist_readd.md` | 調查 B 原文(唯讀 agent) |
+
+### 10.8 配額,以及這一段不影響什麼
+
+- 1 unit(真 dry-run 的 `videos.list`)⇒ **本輪共 50 units**。
+- 零 `--apply`、零 `videos.update`、零 yt-dlp / HTML。
+- 閘門、配額門檻、ENFORCE、配額帳本檔、`candidates.json`、`snapshot.json` 都沒動。播放清單腳本與 cron 也沒動。
