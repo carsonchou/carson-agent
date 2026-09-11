@@ -1,0 +1,191 @@
+{
+  "fetched_at": "2026-09-11T08:51:03.049427+00:00",
+  "uploads_playlist": "UUqP5JQXlQR5ZDLtEiBt4kLA",
+  "pages": 23,
+  "rows": 1132,
+  "unique_ids": 1100,
+  "privacy_distribution": {
+    "public": 915,
+    "private": 212,
+    "unlisted": 4,
+    "privacyStatusUnspecified": 1
+  },
+  "per_video": {
+    "MuXiM5IqVQQ": {
+      "group": "13",
+      "inst1": "public",
+      "inst2": [
+        "public"
+      ],
+      "verdict": "一致"
+    },
+    "TDbm4XR5pYk": {
+      "group": "13",
+      "inst1": "public",
+      "inst2": [
+        "public"
+      ],
+      "verdict": "一致"
+    },
+    "cObU5NcFT-I": {
+      "group": "13",
+      "inst1": "public",
+      "inst2": [
+        "public"
+      ],
+      "verdict": "一致"
+    },
+    "I8F83sPFKWg": {
+      "group": "13",
+      "inst1": "public",
+      "inst2": [
+        "public"
+      ],
+      "verdict": "一致"
+    },
+    "_Cc49y7ZAeM": {
+      "group": "13",
+      "inst1": "public",
+      "inst2": [
+        "public"
+      ],
+      "verdict": "一致"
+    },
+    "tN56crKxwJE": {
+      "group": "13",
+      "inst1": "public",
+      "inst2": [
+        "public"
+      ],
+      "verdict": "一致"
+    },
+    "mvDrUnxEjWs": {
+      "group": "13",
+      "inst1": "public",
+      "inst2": [
+        "public"
+      ],
+      "verdict": "一致"
+    },
+    "vwEaoo3Txjw": {
+      "group": "13",
+      "inst1": "public",
+      "inst2": [
+        "public"
+      ],
+      "verdict": "一致"
+    },
+    "UTuMMyvdQ5U": {
+      "group": "13",
+      "inst1": "public",
+      "inst2": [
+        "public"
+      ],
+      "verdict": "一致"
+    },
+    "DhX2uNzjZ-o": {
+      "group": "13",
+      "inst1": "public",
+      "inst2": [
+        "public"
+      ],
+      "verdict": "一致"
+    },
+    "OyprNxjrIBQ": {
+      "group": "13",
+      "inst1": "public",
+      "inst2": [
+        "public"
+      ],
+      "verdict": "一致"
+    },
+    "nHwP_cyy_hc": {
+      "group": "13",
+      "inst1": "public",
+      "inst2": [
+        "public"
+      ],
+      "verdict": "一致"
+    },
+    "xjQPW3sTY28": {
+      "group": "13",
+      "inst1": "public",
+      "inst2": [
+        "public"
+      ],
+      "verdict": "一致"
+    },
+    "fYTywq3Ah1c": {
+      "group": "ctrl",
+      "inst1": "public",
+      "inst2": [
+        "public"
+      ],
+      "verdict": "一致"
+    },
+    "s4jROPETmlE": {
+      "group": "ctrl",
+      "inst1": "public",
+      "inst2": [
+        "public"
+      ],
+      "verdict": "一致"
+    },
+    "Xmc_qtMqPhk": {
+      "group": "ctrl",
+      "inst1": "public",
+      "inst2": [
+        "public"
+      ],
+      "verdict": "一致"
+    },
+    "nrIYmQgjHFs": {
+      "group": "unl",
+      "inst1": "unlisted",
+      "inst2": [
+        "unlisted"
+      ],
+      "verdict": "一致"
+    },
+    "h4vTXYtlQ7I": {
+      "group": "unl",
+      "inst1": "unlisted",
+      "inst2": [
+        "unlisted"
+      ],
+      "verdict": "一致"
+    },
+    "rgeDJ3vxlxI": {
+      "group": "unl",
+      "inst1": "unlisted",
+      "inst2": [
+        "unlisted"
+      ],
+      "verdict": "一致"
+    },
+    "oq4I_jtEw3Q": {
+      "group": "pos",
+      "inst1": "private",
+      "inst2": [
+        "private"
+      ],
+      "verdict": "一致"
+    },
+    "ODN9YzdBopA": {
+      "group": "pos",
+      "inst1": "private",
+      "inst2": [
+        "private"
+      ],
+      "verdict": "一致"
+    },
+    "7C79mFmnFrE": {
+      "group": "pos",
+      "inst1": "private",
+      "inst2": [
+        "private"
+      ],
+      "verdict": "一致"
+    }
+  }
+}

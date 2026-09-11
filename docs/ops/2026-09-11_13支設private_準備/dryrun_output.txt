@@ -1,0 +1,96 @@
+# dry-run —— 快照時間 2026-09-11T08:49:55.016787+00:00,零 API 呼叫,零寫入
+
+[01] MuXiM5IqVQQ  台積電暴跌35元，你恐慌殺出會少賺多少？0050回測嚇壞你 #Shorts
+  送出 body = videos().update(part="status", body={"id": "MuXiM5IqVQQ", "status": {"embeddable": true, "license": "youtube", "madeForKids": false, "privacyStatus": "private", "publicStatsViewable": true, "selfDeclaredMadeForKids": false, "uploadStatus": "processed"}})
+  diff  privacyStatus            'public' → 'private'
+  不變  embeddable=True, license='youtube', madeForKids=False, publicStatsViewable=True, selfDeclaredMadeForKids=False, uploadStatus='processed'
+  判定  ✅ 只差 privacyStatus
+
+[02] TDbm4XR5pYk  CPI破2.54%你該追高？我用回測資料打臉這句！ | 通膨追高 網格避險 回測 #Shorts
+  送出 body = videos().update(part="status", body={"id": "TDbm4XR5pYk", "status": {"embeddable": true, "license": "youtube", "madeForKids": false, "privacyStatus": "private", "publicStatsViewable": true, "selfDeclaredMadeForKids": false, "uploadStatus": "processed"}})
+  diff  privacyStatus            'public' → 'private'
+  不變  embeddable=True, license='youtube', madeForKids=False, publicStatsViewable=True, selfDeclaredMadeForKids=False, uploadStatus='processed'
+  判定  ✅ 只差 privacyStatus
+
+[03] cObU5NcFT-I  CPI連破3個月！你的投資組合，正在被『通膨怪獸』悄悄吃掉多少？ #Shorts
+  送出 body = videos().update(part="status", body={"id": "cObU5NcFT-I", "status": {"embeddable": true, "license": "youtube", "madeForKids": false, "privacyStatus": "private", "publicStatsViewable": true, "selfDeclaredMadeForKids": false, "uploadStatus": "processed"}})
+  diff  privacyStatus            'public' → 'private'
+  不變  embeddable=True, license='youtube', madeForKids=False, publicStatsViewable=True, selfDeclaredMadeForKids=False, uploadStatus='processed'
+  判定  ✅ 只差 privacyStatus
+
+[04] I8F83sPFKWg  非農資料利空！臺股恐慌殺出，0050定投竟多賺2.3倍？ #Shorts
+  送出 body = videos().update(part="status", body={"id": "I8F83sPFKWg", "status": {"embeddable": true, "license": "youtube", "madeForKids": false, "privacyStatus": "private", "publicStatsViewable": true, "selfDeclaredMadeForKids": false, "uploadStatus": "processed"}})
+  diff  privacyStatus            'public' → 'private'
+  不變  embeddable=True, license='youtube', madeForKids=False, publicStatsViewable=True, selfDeclaredMadeForKids=False, uploadStatus='processed'
+  判定  ✅ 只差 privacyStatus
+
+[05] _Cc49y7ZAeM  Fed恐慌殺！你的資產會少幾成？這招「資金配置」避開大虧！ #Shorts
+  送出 body = videos().update(part="status", body={"id": "_Cc49y7ZAeM", "status": {"embeddable": true, "license": "youtube", "madeForKids": false, "privacyStatus": "private", "publicStatsViewable": true, "selfDeclaredMadeForKids": false, "uploadStatus": "processed"}})
+  diff  privacyStatus            'public' → 'private'
+  不變  embeddable=True, license='youtube', madeForKids=False, publicStatsViewable=True, selfDeclaredMadeForKids=False, uploadStatus='processed'
+  判定  ✅ 只差 privacyStatus
+
+[06] tN56crKxwJE  台積電飆破800元，你的網格機器人是賺翻還是慘賠？ #Shorts
+  送出 body = videos().update(part="status", body={"id": "tN56crKxwJE", "status": {"embeddable": true, "license": "youtube", "madeForKids": false, "privacyStatus": "private", "publicStatsViewable": true, "selfDeclaredMadeForKids": false, "uploadStatus": "processed"}})
+  diff  privacyStatus            'public' → 'private'
+  不變  embeddable=True, license='youtube', madeForKids=False, publicStatsViewable=True, selfDeclaredMadeForKids=False, uploadStatus='processed'
+  判定  ✅ 只差 privacyStatus
+
+[07] mvDrUnxEjWs  市場狂熱，你的網格機器人是賺翻還是清零？ #Shorts
+  送出 body = videos().update(part="status", body={"id": "mvDrUnxEjWs", "status": {"embeddable": true, "license": "youtube", "madeForKids": false, "privacyStatus": "private", "publicStatsViewable": true, "selfDeclaredMadeForKids": false, "uploadStatus": "processed"}})
+  diff  privacyStatus            'public' → 'private'
+  不變  embeddable=True, license='youtube', madeForKids=False, publicStatsViewable=True, selfDeclaredMadeForKids=False, uploadStatus='processed'
+  判定  ✅ 只差 privacyStatus
+
+[08] vwEaoo3Txjw  CPI爆表，0050定投vs恐慌殺出，十年報酬竟差一倍？ #Shorts
+  送出 body = videos().update(part="status", body={"id": "vwEaoo3Txjw", "status": {"embeddable": true, "license": "youtube", "madeForKids": false, "privacyStatus": "private", "publicStatsViewable": true, "selfDeclaredMadeForKids": false, "uploadStatus": "processed"}})
+  diff  privacyStatus            'public' → 'private'
+  不變  embeddable=True, license='youtube', madeForKids=False, publicStatsViewable=True, selfDeclaredMadeForKids=False, uploadStatus='processed'
+  判定  ✅ 只差 privacyStatus
+
+[09] UTuMMyvdQ5U  0050定期定額，臺股回檔竟比「一次全押」少賺一半？ #Shorts
+  送出 body = videos().update(part="status", body={"id": "UTuMMyvdQ5U", "status": {"embeddable": true, "license": "youtube", "madeForKids": false, "privacyStatus": "private", "publicStatsViewable": true, "selfDeclaredMadeForKids": false, "uploadStatus": "processed"}})
+  diff  privacyStatus            'public' → 'private'
+  不變  embeddable=True, license='youtube', madeForKids=False, publicStatsViewable=True, selfDeclaredMadeForKids=False, uploadStatus='processed'
+  判定  ✅ 只差 privacyStatus
+
+[10] DhX2uNzjZ-o  臺股暴漲5000點，你的0050網格反而少賺「一臺賓士」？ #Shorts
+  送出 body = videos().update(part="status", body={"id": "DhX2uNzjZ-o", "status": {"embeddable": true, "license": "youtube", "madeForKids": false, "privacyStatus": "private", "publicStatsViewable": true, "selfDeclaredMadeForKids": false, "uploadStatus": "processed"}})
+  diff  privacyStatus            'public' → 'private'
+  不變  embeddable=True, license='youtube', madeForKids=False, publicStatsViewable=True, selfDeclaredMadeForKids=False, uploadStatus='processed'
+  判定  ✅ 只差 privacyStatus
+
+[11] OyprNxjrIBQ  市場巨變，你的自動交易設定，會讓你多賠一輛車？ #Shorts
+  送出 body = videos().update(part="status", body={"id": "OyprNxjrIBQ", "status": {"embeddable": true, "license": "youtube", "madeForKids": false, "privacyStatus": "private", "publicStatsViewable": true, "selfDeclaredMadeForKids": false, "uploadStatus": "processed"}})
+  diff  privacyStatus            'public' → 'private'
+  不變  embeddable=True, license='youtube', madeForKids=False, publicStatsViewable=True, selfDeclaredMadeForKids=False, uploadStatus='processed'
+  判定  ✅ 只差 privacyStatus
+
+[12] nHwP_cyy_hc  CPI資料一公佈，你的網格機器人會不會『被套』到歸零？ #Shorts
+  送出 body = videos().update(part="status", body={"id": "nHwP_cyy_hc", "status": {"embeddable": true, "license": "youtube", "madeForKids": false, "privacyStatus": "private", "publicStatsViewable": true, "selfDeclaredMadeForKids": false, "uploadStatus": "processed"}})
+  diff  privacyStatus            'public' → 'private'
+  不變  embeddable=True, license='youtube', madeForKids=False, publicStatsViewable=True, selfDeclaredMadeForKids=False, uploadStatus='processed'
+  判定  ✅ 只差 privacyStatus
+
+[13] xjQPW3sTY28  升息49.9%！你的投資組合，會被「這盲點」多咬掉多少？ #Shorts
+  送出 body = videos().update(part="status", body={"id": "xjQPW3sTY28", "status": {"embeddable": true, "license": "youtube", "madeForKids": false, "privacyStatus": "private", "publicStatsViewable": true, "selfDeclaredMadeForKids": false, "uploadStatus": "processed"}})
+  diff  privacyStatus            'public' → 'private'
+  不變  embeddable=True, license='youtube', madeForKids=False, publicStatsViewable=True, selfDeclaredMadeForKids=False, uploadStatus='processed'
+  判定  ✅ 只差 privacyStatus
+
+======================================================================
+13 支結果:13/13 只差 privacyStatus(public→private)
+
+自我檢查(用 MuXiM5IqVQQ):
+  N1 只送 privacyStatus(set_private_by_ids.py:79 寫法) → 被抓出 ✅ privacyStatus 以外有差異:{'embeddable': (True, '<缺>'), 'license': ('youtube', '<缺>'), 'madeForKids': (False, '<缺>'), 'publicStatsViewable': (True, '<缺>'), 'selfDeclaredMadeForKids': (False, '<缺>'), 'uploadStatus': ('processed', '<缺>')}
+  N2 突變 embeddable 翻面                               → 被抓出 ✅ privacyStatus 以外有差異:{'embeddable': (True, False)}
+
+回讀基準(這些片不在批次內,T1/T2 時 status 必須與下列逐欄相同):
+  [public] fYTywq3Ah1c  {"embeddable": true, "license": "youtube", "madeForKids": false, "privacyStatus": "public", "publicStatsViewable": true, "selfDeclaredMadeForKids": false, "uploadStatus": "processed"}
+  [public] s4jROPETmlE  {"embeddable": true, "license": "youtube", "madeForKids": false, "privacyStatus": "public", "publicStatsViewable": true, "selfDeclaredMadeForKids": false, "uploadStatus": "processed"}
+  [public] Xmc_qtMqPhk  {"embeddable": true, "license": "youtube", "madeForKids": false, "privacyStatus": "public", "publicStatsViewable": true, "selfDeclaredMadeForKids": false, "uploadStatus": "processed"}
+  [unlisted] nrIYmQgjHFs  {"embeddable": true, "license": "youtube", "madeForKids": false, "privacyStatus": "unlisted", "publicStatsViewable": true, "selfDeclaredMadeForKids": false, "uploadStatus": "processed"}
+  [unlisted] h4vTXYtlQ7I  {"embeddable": true, "license": "youtube", "madeForKids": false, "privacyStatus": "unlisted", "publicStatsViewable": true, "selfDeclaredMadeForKids": false, "uploadStatus": "processed"}
+  [unlisted] rgeDJ3vxlxI  {"embeddable": true, "license": "youtube", "madeForKids": false, "privacyStatus": "unlisted", "publicStatsViewable": true, "selfDeclaredMadeForKids": false, "uploadStatus": "processed"}
+
+DRYRUN_RESULT: PASS

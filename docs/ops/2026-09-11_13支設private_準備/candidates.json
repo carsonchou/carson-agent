@@ -1,0 +1,238 @@
+{
+  "generated_at": "2026-09-11T08:49:55.016787+00:00",
+  "source_report": "docs/ops/2026-09-11_已發布壞片_空旁白與自我循環_母體掃描.md (627a3f4e)",
+  "status": "PROPOSAL_ONLY_NOT_EXECUTED",
+  "note": "🔴 尚未執行。設 private 屬對外+寫正式機:需 Carson 拍板 + 督導放行 + 獨立驗證。🔴 不要把這些 id 放進 STUDIO/_private_batch_ids.json —— zombie_sweep.py 會自動執行、set_private_by_ids.py 的寫法會重設 status 其他欄位。",
+  "count": 13,
+  "videos": [
+    {
+      "slug": "S_台積電暴跌35元你恐慌殺出會少賺多少0050回測嚇壞",
+      "videoId": "MuXiM5IqVQQ",
+      "privacyStatus_at_prep": "public",
+      "viewCount_at_prep": 702,
+      "viewCount_at_scan": 702,
+      "duration": "PT22S",
+      "publishedAt": "2026-08-04T08:02:15Z",
+      "effective_body": 0,
+      "echo_leftover": 0,
+      "reason": "尺A 零主體(有效主體 0 ≤ 28) + 尺B 自我循環(回聲餘 0 ≤ 2)",
+      "proposed_privacyStatus": "private"
+    },
+    {
+      "slug": "S_CPI破254你該追高我用回測資料打臉這句通膨追高網",
+      "videoId": "TDbm4XR5pYk",
+      "privacyStatus_at_prep": "public",
+      "viewCount_at_prep": 183,
+      "viewCount_at_scan": 183,
+      "duration": "PT21S",
+      "publishedAt": "2026-08-07T00:01:46Z",
+      "effective_body": 0,
+      "echo_leftover": 0,
+      "reason": "尺A 零主體(有效主體 0 ≤ 28) + 尺B 自我循環(回聲餘 0 ≤ 2)",
+      "proposed_privacyStatus": "private"
+    },
+    {
+      "slug": "S_CPI連破3個月你的投資組合正在被通膨怪獸悄悄吃掉多",
+      "videoId": "cObU5NcFT-I",
+      "privacyStatus_at_prep": "public",
+      "viewCount_at_prep": 91,
+      "viewCount_at_scan": 91,
+      "duration": "PT22S",
+      "publishedAt": "2026-08-07T05:36:47Z",
+      "effective_body": 0,
+      "echo_leftover": 0,
+      "reason": "尺A 零主體(有效主體 0 ≤ 28) + 尺B 自我循環(回聲餘 0 ≤ 2)",
+      "proposed_privacyStatus": "private"
+    },
+    {
+      "slug": "S_非農資料利空臺股恐慌殺出0050定投竟多賺23倍",
+      "videoId": "I8F83sPFKWg",
+      "privacyStatus_at_prep": "public",
+      "viewCount_at_prep": 741,
+      "viewCount_at_scan": 741,
+      "duration": "PT22S",
+      "publishedAt": "2026-08-07T20:02:22Z",
+      "effective_body": 0,
+      "echo_leftover": 0,
+      "reason": "尺A 零主體(有效主體 0 ≤ 28) + 尺B 自我循環(回聲餘 0 ≤ 2)",
+      "proposed_privacyStatus": "private"
+    },
+    {
+      "slug": "S_Fed恐慌殺你的資產會少幾成這招資金配置避開大虧",
+      "videoId": "_Cc49y7ZAeM",
+      "privacyStatus_at_prep": "public",
+      "viewCount_at_prep": 220,
+      "viewCount_at_scan": 220,
+      "duration": "PT21S",
+      "publishedAt": "2026-08-07T22:01:45Z",
+      "effective_body": 5,
+      "echo_leftover": 9,
+      "reason": "尺A 零主體(有效主體 5 ≤ 28)",
+      "proposed_privacyStatus": "private"
+    },
+    {
+      "slug": "S_台積電飆破800元你的網格機器人是賺翻還是慘賠",
+      "videoId": "tN56crKxwJE",
+      "privacyStatus_at_prep": "public",
+      "viewCount_at_prep": 718,
+      "viewCount_at_scan": 718,
+      "duration": "PT21S",
+      "publishedAt": "2026-08-08T20:04:32Z",
+      "effective_body": 13,
+      "echo_leftover": 0,
+      "reason": "尺A 零主體(有效主體 13 ≤ 28) + 尺B 自我循環(回聲餘 0 ≤ 2)",
+      "proposed_privacyStatus": "private"
+    },
+    {
+      "slug": "S_市場狂熱你的網格機器人是賺翻還是清零",
+      "videoId": "mvDrUnxEjWs",
+      "privacyStatus_at_prep": "public",
+      "viewCount_at_prep": 204,
+      "viewCount_at_scan": 204,
+      "duration": "PT27S",
+      "publishedAt": "2026-08-09T04:02:04Z",
+      "effective_body": 0,
+      "echo_leftover": 0,
+      "reason": "尺A 零主體(有效主體 0 ≤ 28) + 尺B 自我循環(回聲餘 0 ≤ 2)",
+      "proposed_privacyStatus": "private"
+    },
+    {
+      "slug": "S_CPI爆表0050定投vs恐慌殺出十年報酬竟差一倍",
+      "videoId": "vwEaoo3Txjw",
+      "privacyStatus_at_prep": "public",
+      "viewCount_at_prep": 290,
+      "viewCount_at_scan": 290,
+      "duration": "PT22S",
+      "publishedAt": "2026-08-09T18:02:05Z",
+      "effective_body": 0,
+      "echo_leftover": 0,
+      "reason": "尺A 零主體(有效主體 0 ≤ 28) + 尺B 自我循環(回聲餘 0 ≤ 2)",
+      "proposed_privacyStatus": "private"
+    },
+    {
+      "slug": "S_0050定期定額臺股回檔竟比一次全押少賺一半",
+      "videoId": "UTuMMyvdQ5U",
+      "privacyStatus_at_prep": "public",
+      "viewCount_at_prep": 898,
+      "viewCount_at_scan": 898,
+      "duration": "PT23S",
+      "publishedAt": "2026-08-09T20:02:44Z",
+      "effective_body": 0,
+      "echo_leftover": 0,
+      "reason": "尺A 零主體(有效主體 0 ≤ 28) + 尺B 自我循環(回聲餘 0 ≤ 2)",
+      "proposed_privacyStatus": "private"
+    },
+    {
+      "slug": "S_臺股暴漲5000點你的0050網格反而少賺一臺賓士",
+      "videoId": "DhX2uNzjZ-o",
+      "privacyStatus_at_prep": "public",
+      "viewCount_at_prep": 866,
+      "viewCount_at_scan": 866,
+      "duration": "PT22S",
+      "publishedAt": "2026-08-10T00:02:00Z",
+      "effective_body": 0,
+      "echo_leftover": 0,
+      "reason": "尺A 零主體(有效主體 0 ≤ 28) + 尺B 自我循環(回聲餘 0 ≤ 2)",
+      "proposed_privacyStatus": "private"
+    },
+    {
+      "slug": "S_市場巨變你的自動交易設定會讓你多賠一輛車",
+      "videoId": "OyprNxjrIBQ",
+      "privacyStatus_at_prep": "public",
+      "viewCount_at_prep": 89,
+      "viewCount_at_scan": 89,
+      "duration": "PT27S",
+      "publishedAt": "2026-08-10T16:01:58Z",
+      "effective_body": 28,
+      "echo_leftover": 2,
+      "reason": "尺A 零主體(有效主體 28 ≤ 28) + 尺B 自我循環(回聲餘 2 ≤ 2)",
+      "proposed_privacyStatus": "private"
+    },
+    {
+      "slug": "S_CPI資料一公佈你的網格機器人會不會被套到歸零",
+      "videoId": "nHwP_cyy_hc",
+      "privacyStatus_at_prep": "public",
+      "viewCount_at_prep": 328,
+      "viewCount_at_scan": 328,
+      "duration": "PT26S",
+      "publishedAt": "2026-08-11T16:01:45Z",
+      "effective_body": 0,
+      "echo_leftover": 0,
+      "reason": "尺A 零主體(有效主體 0 ≤ 28) + 尺B 自我循環(回聲餘 0 ≤ 2)",
+      "proposed_privacyStatus": "private"
+    },
+    {
+      "slug": "S_升息499你的投資組合會被這盲點多咬掉多少",
+      "videoId": "xjQPW3sTY28",
+      "privacyStatus_at_prep": "public",
+      "viewCount_at_prep": 186,
+      "viewCount_at_scan": 186,
+      "duration": "PT22S",
+      "publishedAt": "2026-08-11T18:01:57Z",
+      "effective_body": 19,
+      "echo_leftover": 7,
+      "reason": "尺A 零主體(有效主體 19 ≤ 28)",
+      "proposed_privacyStatus": "private"
+    }
+  ],
+  "negative_controls_public": [
+    {
+      "videoId": "fYTywq3Ah1c",
+      "title": "2022臺股熊市：0050恐慌賣出 vs 抱到現在？EP1臺股真相實驗室 #Shorts",
+      "privacyStatus_at_prep": "public",
+      "must_remain": "public"
+    },
+    {
+      "videoId": "s4jROPETmlE",
+      "title": "EP2｜加密網格回測年化80%？實測揭穿流動性陷阱｜量化阿森 #Shorts",
+      "privacyStatus_at_prep": "public",
+      "must_remain": "public"
+    },
+    {
+      "videoId": "Xmc_qtMqPhk",
+      "title": "EP7 機器人 vs 人工操作 30 天實測：本金 1 萬差多少？答案揭曉！ #Shorts",
+      "privacyStatus_at_prep": "public",
+      "must_remain": "public"
+    }
+  ],
+  "negative_controls_unlisted": [
+    {
+      "videoId": "nrIYmQgjHFs",
+      "title": "【光寶科 2301】20年狂賺1176%！但你確定抱得住『七年套牢』的煎熬，還多賠掉一輛二手車？｜個股體檢EP69",
+      "privacyStatus_at_prep": "unlisted",
+      "must_remain": "unlisted"
+    },
+    {
+      "videoId": "h4vTXYtlQ7I",
+      "title": "0050定期定額『這金額』竟少賺50萬？10年回測揭露最佳投入數字 | 0050 定期定額 10年回測",
+      "privacyStatus_at_prep": "unlisted",
+      "must_remain": "unlisted"
+    },
+    {
+      "videoId": "rgeDJ3vxlxI",
+      "title": "0050 定期定額 vs 美股ETF：20年回測竟差這麼多！你以為的穩賺可能少賺一臺賓士",
+      "privacyStatus_at_prep": "unlisted",
+      "must_remain": "unlisted"
+    }
+  ],
+  "instrument2_positive_controls": [
+    {
+      "videoId": "oq4I_jtEw3Q",
+      "title": "當沖手續費『多這0.1%』一年竟吃掉38萬？回測揭露驚人成本 #Shorts",
+      "privacyStatus_at_prep": "private",
+      "must_remain": "private"
+    },
+    {
+      "videoId": "ODN9YzdBopA",
+      "title": "AI交易機器人90%回測虧損？拆穿穩賺神話的真相 #Shorts",
+      "privacyStatus_at_prep": "private",
+      "must_remain": "private"
+    },
+    {
+      "videoId": "7C79mFmnFrE",
+      "title": "比特幣ETF單日吸金9千萬！90%小白追高被套？回測揭『這動作』少賺58%｜量化阿森 #Shorts",
+      "privacyStatus_at_prep": "private",
+      "must_remain": "private"
+    }
+  ]
+}
