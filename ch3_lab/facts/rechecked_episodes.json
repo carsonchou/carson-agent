@@ -2710,7 +2710,7 @@
           "weight": "and here is who measured it",
           "turn": "how much it moves"
         },
-        "belief": "When you cannot focus, it is usually not willpower. It is the room.",
+        "belief": "When you cannot focus, it may not be willpower. It may be the room.",
         "weight": "Each one is a comparison somebody actually ran, against a real alternative.",
         "turn": "Phone on the desk instead of in another room: working memory dropped in the first experiment, and again in a second one that repeated it. Both effects were small. In a long attention task, the group that briefly switched away did not decline at all, while the three groups that worked straight through all did. And people who wrote tomorrow's list before bed fell asleep faster than people who wrote down what they had already finished, 0.63.",
         "verdict": "None asks you to try harder. All three change the situation instead.",
@@ -2734,7 +2734,7 @@
         {
           "year": 2006,
           "what": "implementation intentions meta-analysis",
-          "doi": "10.1016/S0065-2601(06)38002-1"
+          "doi": "10.1016/S0065-2601%2806%2938002-1"
         },
         {
           "year": 2013,
@@ -2921,7 +2921,7 @@
         "belief": "Twenty-five minutes of work. Five minutes of break. You have probably tried it.",
         "weight": "So here is the question: has anyone actually tested that exact recipe?",
         "turn": "In our own search, we found one: 94 university students, one two-hour session. The closest earlier trial used 24 minutes and 6, not 25 and 5. And a study that kept coming up in that search never used work blocks or break blocks at all.",
-        "verdict": "One trial tested that exact recipe, against letting people pick their own breaks. It found no benefit. The 25 and the 5 are not the part that was working.",
+        "verdict": "One trial that our search found tested that exact recipe, against letting people pick their own breaks. It found no benefit. The 25 and the 5 are not the part that was working.",
         "ask": "How long is your timer set to?"
       },
       "is_prereg": true
