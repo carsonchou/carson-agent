@@ -1,0 +1,6 @@
+# 產生物,不入版控 —— 只有 *.before.xml 是**動手前**的基準,那幾份要入版控。
+# 沒有它們,`apply_logon_trigger.ps1` 就只能去讀「現在的排程長怎樣」,
+# 而那正是 -Apply 之後會被改掉的東西(memory `criteria-anchored-to-mutable-property`)。
+*.after.xml
+*.now.xml
+*.readback.xml
