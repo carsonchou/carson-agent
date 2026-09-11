@@ -133,9 +133,11 @@ def add(rows, name, expect, got, ok):
 #    2026-09-11 12:16/12:17:M4 (10)(11) 回讀身分 +2 × 三支哨 = +6,
 #    M5「notes」那格從**只在失敗時才存在**改成無條件一列 × 9 = +9
 #    ⇒ 91→106 / 94→109。兩個數各跑一次抄下來的(12:16 印 106、12:17 印 109)。
-#    ⚠️ 這兩個數今天已經換過三輪(77/80 → 88/91 → 91/94 → 106/109):
+#    2026-09-11 12:28:M6 留痕的讀者一整節 +10(陰性基線 1 + 真案例 3 + 只掛前面 1 +
+#    不翻 ok 1 + 陰性對照 2 + 配對突變 2)⇒ 106→116 / 109→119,兩個數各跑一次抄的。
+#    ⚠️ 這兩個數今天已經換過四輪(77/80 → 88/91 → 91/94 → 106/109 → 116/119):
 #       引用時請連時間一起引,只有最後一輪是現況。
-EXPECT_ROWS = {True: 109, False: 106}   # key = 有沒有給 --before
+EXPECT_ROWS = {True: 119, False: 116}   # key = 有沒有給 --before
 
 
 # 🔴 2026-09-10~09-11 真的活在正式機上的那一版 `last_sched_date()` 迴圈,逐字保存。
@@ -1058,6 +1060,114 @@ def main():
         finally:
             shutil.rmtree(_xb_tmp, ignore_errors=True)
 
+        # ---- M6:那三個留痕位置**終於有讀者了** ----
+        # 🔴 第五輪獨立驗證 (a-2):`.broken.log` 與 `%TEMP%\carson-watch-xchk-broken.log`
+        #    全 repo 只有寫入端、**零讀者**。留痕留得再可靠,沒人讀就只是考古材料。
+        # ⚠️ 讀者接上去那天,產線是 **0 筆**(三份主 log + 兩條備援全空)
+        #    ⇒ 它**從來沒見過真案例**。所以下面的陽性對照**不是手寫 fixture**:
+        #    讓三支哨各自**真的跑一次** `xchk_broken()`,拿它實際吐出來的那一行當語料
+        #    (memory `gate-blind-while-target-evolves`:陽性對照要用真案例)。
+        #    副作用是寫入端改格式時這一節會當場紅 —— 那是要的,讀者和寫入端本來就該綁死。
+        print("M6 留痕的讀者(語料=三支哨 xchk_broken 真的吐出來的行,不是手寫 fixture)")
+        _m6 = pathlib.Path(tempfile.mkdtemp(prefix="xchk_reader_"))
+        _m6_saved_tmp = tempfile.tempdir
+        try:
+            # 讀者會掃 `%TEMP%` 那條路 ⇒ 導到一個空目錄,這一節不去讀真的 %TEMP%
+            #(不導的話這一節的判決會依賴本機 %TEMP% 裡有沒有別人留下的檔:非密封)。
+            (_m6 / "empty_temp").mkdir()
+            tempfile.tempdir = str(_m6 / "empty_temp")
+            _MK = "另有互查收尾自己爆掉的留痕"
+
+            _clean = {"seeding": c.upto("seeding", "[2026-09-10 18:05]"),
+                      "narration": c.upto("narration", "[2026-09-10 18:05]"),
+                      "quota": quota}
+            _okA, _msgA = run(after, _clean, NOW_EARLY)
+            _mk0 = after.xchk_broken_marks()
+            add(rows, "M6 沒有留痕 ⇒ 掃出 0 筆,訊息不長出留痕段",
+                "0筆+無留痕段",
+                f"{len(_mk0)}筆+{'有' if _MK in _msgA else '無'}留痕段",
+                not _mk0 and _MK not in _msgA)
+
+            _okB, _msgB = _okA, _msgA
+            for fname, key in WATCH_FILES:
+                _p = _m6 / f"{key}_real.log"
+                xchk_broken_trial(func_src(REPO / "scripts" / f"{fname}.py", "xchk_broken"),
+                                  "none", _p, temp_to=_m6 / f"{key}_rt")
+                _ls = [ln for ln in _p.read_text(encoding="utf-8").splitlines() if ln.strip()]
+                assert len(_ls) == 1, f"M6 語料取樣意外:{key} 吐了 {len(_ls)} 行"
+                # 三支哨的留痕都掛到 seeding 的 log 上:受測的是**讀者認不認得那個長相**,
+                # 不是「哪支哨寫的」。掛在同一個位置,三格才可比。
+                _lg = dict(_clean)
+                _lg["seeding"] = list(_clean["seeding"]) + [_ls[0]]
+                _okB, _msgB = run(after, _lg, NOW_EARLY)
+                _mk = after.xchk_broken_marks()
+                add(rows, f"M6 {key} 真吐出來的留痕行 ⇒ 讀得到而且掛進訊息",
+                    "1筆+訊息有留痕段",
+                    f"{len(_mk)}筆" + (f"/n={_mk[0]['n']}" if _mk else "")
+                    + f"/訊息{'有' if _MK in _msgB else '無'}",
+                    len(_mk) == 1 and _mk[0]["n"] == 1 and _MK in _msgB)
+
+            # 🔴 讀者只准**掛在前面**:下面那句判定的內文一個字都不准動。
+            #    (這同時複驗 M1b 的不變量:`[XCHK] ` 行插進語料不影響 last_sched_date。)
+            add(rows, "M6 留痕只是掛在前面 ⇒ 底下那則判定逐字不變",
+                "結尾 == 沒留痕時的整則",
+                "相同" if _msgB.endswith(_msgA) else "不同", _msgB.endswith(_msgA))
+            # 🔴 這一格釘的是一個**刻意的取捨**,不是疏漏:留痕講的是過去某天的事故,
+            #    拿它翻今天的 ok 會變成一盞擦不掉的紅燈,而擦不掉的紅燈最後一定被無視。
+            #    代價已經寫進訊息本文:只有留痕、其他都正常的那天**不會 alert**。
+            add(rows, "M6 留痕不翻動 ok(過去事件不改今天的燈)",
+                f"ok={_okA}", f"ok={_okB}", _okB == _okA)
+
+            # 陰性對照(真案例):演習自己寫的那行不算事故。
+            _sd = func_src(REPO / "scripts" / "seeding_watch.py", "xchk_broken")
+            _pd = _m6 / "drill.log"
+            xchk_broken_trial(_sd, "none", _pd, selftest=True, temp_to=_m6 / "drill_t")
+            _drill = [ln for ln in _pd.read_text(encoding="utf-8").splitlines() if ln.strip()][0]
+            _lgd = dict(_clean)
+            _lgd["seeding"] = list(_clean["seeding"]) + [_drill]
+            run(after, _lgd, NOW_EARLY)
+            add(rows, "M6 陰性 演習真輸出([DRILL])不算事故", "0筆",
+                f"{len(after.xchk_broken_marks())}筆", not after.xchk_broken_marks())
+
+            # 陰性對照(真案例):退到備援時補的**註腳行**不算第二筆事故。
+            # (註腳行沒帶 `[DRILL] `,所以它也是「演習的註腳被讀成正式事故」的那條路。)
+            _asdir = _m6 / "fb.log"
+            _asdir.mkdir()
+            _, _, _, _fbret = xchk_broken_trial(_sd, "none", _asdir, temp_to=_m6 / "fb_t")
+            _foot = [ln for ln in _fbret.read_text(encoding="utf-8").splitlines()
+                     if "[XCHK-BROKEN] ↑" in ln]
+            assert len(_foot) == 1, f"M6 註腳取樣意外:拿到 {len(_foot)} 行"
+            _lgf = dict(_clean)
+            _lgf["seeding"] = list(_clean["seeding"]) + [_foot[0]]
+            run(after, _lgf, NOW_EARLY)
+            add(rows, "M6 陰性 備援註腳行不算事故(它沒帶 [DRILL],只能靠 🔴 擋)",
+                "0筆", f"{len(after.xchk_broken_marks())}筆",
+                not after.xchk_broken_marks())
+
+            # 🔴 兩列配對突變。少了它們,上面兩格的綠和「這兩格恆綠」分不開
+            #    (memory `load-bearing-line-needs-mutation`)。
+            _wsrc = (REPO / "scripts" / "watch_crosscheck.py").read_text(encoding="utf-8")
+            _RE_SRC = r'r"^\[XCHK\] \[(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})\] 🔴 \[XCHK-BROKEN\]")'
+            # 突變 A:讓正規式容忍 `[DRILL] ` ⇒ 演習那行被當成事故 ⇒ drill 陰性格翻面。
+            _mutA = _wsrc.replace(
+                _RE_SRC,
+                r'r"^\[XCHK\] (?:\[DRILL\] )?\[(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})\] 🔴 \[XCHK-BROKEN\]")')
+            assert _mutA != _wsrc, "M6 突變 A 沒生效:找不到留痕正規式的字面"
+            _mA = load_mut_src(_mutA, "xchk_m6a", _m6)
+            run(_mA, _lgd, NOW_EARLY)
+            add(rows, "M6 突變 正規式容忍 [DRILL] ⇒ 演習陰性格必須翻面", "1筆",
+                f"{len(_mA.xchk_broken_marks())}筆", len(_mA.xchk_broken_marks()) == 1)
+            # 突變 B:不要求行首那個 🔴 ⇒ 備援註腳行被當成第二筆事故 ⇒ 註腳陰性格翻面。
+            _mutB = _wsrc.replace(_RE_SRC, _RE_SRC.replace(r" 🔴 \[XCHK-BROKEN\]", r" .*\[XCHK-BROKEN\]"))
+            assert _mutB != _wsrc, "M6 突變 B 沒生效:找不到 🔴 那一段"
+            _mB = load_mut_src(_mutB, "xchk_m6b", _m6)
+            run(_mB, _lgf, NOW_EARLY)
+            add(rows, "M6 突變 不要求 🔴 ⇒ 註腳陰性格必須翻面", "1筆",
+                f"{len(_mB.xchk_broken_marks())}筆", len(_mB.xchk_broken_marks()) == 1)
+        finally:
+            tempfile.tempdir = _m6_saved_tmp
+            shutil.rmtree(_m6, ignore_errors=True)
+
         bad = [r for r in rows if not r[3]]
         n = len(rows)
         want_n = EXPECT_ROWS[bool(before)]
@@ -1083,7 +1193,9 @@ def main():
                f" + 歷史相鄰版陽性對照 2、"
                f"M2 WATCH_MANUAL、M5 排程判準 E/F/H/I × 9 + 舊判準並排 9 + LogonTrigger 4、"
                f"M3 控制流 × 3 支、M4 最後一道留痕 × 3 支 × 10 格"
-               f"(主通道 3 + 備援路 2 + 突變 4 + 拆掉回讀的陰性 1)、陰性對照 1;"
+               f"(主通道 3 + 備援路 2 + 突變 4 + 拆掉回讀的陰性 1)、"
+               f"M6 留痕的讀者 10 格(陰性基線 1 + 三支哨真輸出 3 + 只掛前面不動判定 1 + "
+               f"不翻 ok 1 + 真案例陰性對照 2(演習行、備援註腳行)+ 配對突變 2)、陰性對照 1;"
                f"其中『M2 不帶環境變數』那格記錄的是**已知未修**的現況 —— "
                f"『不緊鄰』那格已於 09-11 從靜音翻回叫,不再是未修)。{skipped}")
         print(f"{chr(10)}✅ {n}/{n} 符合期待{skipped}")

@@ -231,6 +231,99 @@ def due_date(at, now):
     return now.date() if now >= today_due else now.date() - datetime.timedelta(days=1)
 
 
+# 三支哨的 `xchk_broken()` 會把「互查收尾自己爆了」依序試三條路寫下來:
+#   ① 自己的 `LOG`(主通道)② `LOG.with_suffix(".broken.log")` ③ `%TEMP%\carson-watch-xchk-broken.log`
+# 🔴 到 2026-09-11 為止這三個位置**一個讀者都沒有**(全 repo grep 只有寫入端)。
+#    留痕留得再可靠,沒人讀就只是考古材料 —— 下面這個函式就是那個讀者。
+#    ⚠️ 接上去的那天產線是 **0 筆**(三份主 log + 兩條備援全空)⇒ 它**從來沒有見過真案例**。
+#       所以回歸的陽性對照不是手寫 fixture,是讓產線那支 `xchk_broken()` 真的跑一次、
+#       拿它**實際吐出來的那一行**餵進來(memory `gate-blind-while-target-evolves`:
+#       陽性對照用真案例)。副作用是寫入端改格式時這裡會當場失效 —— 那是要的。
+_XCHK_BROKEN_TS = re.compile(
+    r"^\[XCHK\] \[(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})\] 🔴 \[XCHK-BROKEN\]")
+_XCHK_TAIL_BYTES = 64 * 1024
+
+
+def xchk_broken_marks(now=None):
+    """掃三支哨的留痕位置,回傳 [{path, n, last, fallback}],最新的排前面。沒有就回空 list。
+
+    只認**正式**的留痕。演習寫的是 `[XCHK] [DRILL] [ts] 🔴 [XCHK-BROKEN] ...`,
+    多一段 `[DRILL] ` ⇒ 配不上錨在行首的 `_XCHK_BROKEN_TS`。
+    🔴 這件事**是承重的**,不是順便:回歸有一列拿真的 drill 輸出當陰性對照釘住它。
+
+    ⚠️ 已知不健全,照實寫:退到備援時補的那行**註腳**
+    (`[XCHK] [ts] [XCHK-BROKEN] ↑ 上一行是...`)**沒有帶 `[DRILL] `**,
+    所以演習的註腳長得跟正式的一樣。因此本函式**只用 🔴 那行計數**,註腳只拿來標記
+    `fallback`、而且只在已經有正式留痕的檔案上才看 ⇒ 演習的註腳影響不到判讀。
+    (正解是把 `[DRILL] ` 補進註腳行,那要動三支哨的產線字串,這次沒做。)
+
+    ⚠️ 只讀每個檔的尾巴 64 KB ⇒ `n` 是「尾巴裡的筆數」不是全檔筆數。成本有界,
+       這三份是活的 append-only 檔,而且本函式一律**唯讀**。
+    """
+    seen, out = set(), []
+    cands = []
+    for w in WATCHES.values():
+        cands.append(w["log"])
+        cands.append(w["log"].with_suffix(".broken.log"))
+    try:
+        import tempfile as _tf
+        cands.append(pathlib.Path(_tf.gettempdir()) / "carson-watch-xchk-broken.log")
+    except BaseException:
+        pass    # 問不出 %TEMP% 就少掃一條路,不影響前面幾條
+
+    for p in cands:
+        key = str(p)
+        if key in seen:
+            continue
+        seen.add(key)
+        try:
+            with p.open("rb") as f:
+                f.seek(0, 2)
+                f.seek(max(0, f.tell() - _XCHK_TAIL_BYTES))
+                tail = f.read().decode("utf-8", "replace")
+        except Exception:
+            continue    # 讀不到主 log 本身是異常,但那由上面的 last_sched_date() 判,不在這裡重判
+        n, last, fb = 0, None, False
+        for ln in tail.splitlines():
+            m = _XCHK_BROKEN_TS.match(ln)
+            if m:
+                n += 1
+                last = m.group(1) + " " + m.group(2)
+            elif "[XCHK-BROKEN] ↑" in ln:
+                fb = True
+        if n:
+            out.append({"path": p, "n": n, "last": last, "fallback": fb})
+    out.sort(key=lambda m: m["last"], reverse=True)
+    return out
+
+
+def _marks_prefix(marks):
+    """把留痕折成掛在互查訊息**最前面**的一段。沒有留痕 ⇒ 回空字串。
+
+    🔴 回空字串這件事是刻意的不變量:**沒有留痕時,互查兩則訊息與接上這個讀者之前
+       逐字相同**(M1b 那組逐字對照因此仍然成立)。
+    🔴 它**不翻動 `ok`**。留痕講的是「過去某一天互查收尾爆了」,是個過去事件;
+       拿它翻今天的判定會變成一盞擦不掉的紅燈,而擦不掉的紅燈最後一定被無視
+       —— 那比沒有還糟。它要的是有人去看、去處理、去把那幾行清掉。
+       ⇒ 代價照實寫在訊息裡:**只有留痕、其餘都正常的那天不會觸發 alert()**,
+         它只會出現在 log 裡等人讀。要它會叫,得先有帶外觀察者,不是在這裡硬翻。
+    """
+    if not marks:
+        return ""
+    return ("🔴 **另有互查收尾自己爆掉的留痕**(那幾天是「沒有沉默偵測」,"
+            "不是「同伴都正常」):"
+            + "；".join(
+                f"{m['path'].name} {m['n']} 筆(尾巴 64 KB 內),最後一筆 {m['last']}"
+                + ("(是**退到備援路徑**才寫成的 ⇒ 主通道當時也寫不進去)"
+                   if m["fallback"] else "")
+                for m in marks)
+            + "｜⚠️ 這一段**不影響下面那句判定**(理由見 `_marks_prefix` docstring:"
+              "過去事件不翻今天的燈)⇒ 只有留痕、其他都正常的那天**不會 alert**,"
+              "它在等人讀。"
+              "｜處理完之後把那幾行從檔案裡刪掉,這段才會消失。"
+            + "｜")
+
+
 def crosscheck(self_key, now=None):
     """回傳 (ok: bool, msg: str)。ok=False ⇒ 呼叫端要 record() + alert()。"""
     now = now or datetime.datetime.now()
@@ -255,14 +348,18 @@ def crosscheck(self_key, now=None):
             else:
                 notes.append(f"{key}={got}(已到 {want})")
 
+    # 留痕掛在**最前面**:它講的是「那天根本沒有沉默偵測」,比下面任何一則讀數都重。
+    # 沒有留痕時回空字串 ⇒ 兩則訊息與接讀者之前逐字相同。
+    _mk = _marks_prefix(xchk_broken_marks())
+
     if bad:
-        return False, ("🔴 守望互查:有哨沉默了 —— " + "；".join(bad)
+        return False, (_mk + "🔴 守望互查:有哨沉默了 —— " + "；".join(bad)
                        + (f"｜正常的:{'、'.join(notes)}" if notes else "")
                        + "｜成因與修法見 docs/ops/2026-09-10_watch_silence_rootcause.md"
                        + "｜⚠️ 互查治不了「三支全沉默」,那天它也是安靜的")
     # 🔴 免責原本只掛在 alert 那則,而「ok」是 99% 的情況 ⇒ 絕大多數時候讀 log 的人
     #    看不到這個系統的已知盲區(09-11 獨立驗證 3-4)。掛到這則上面來。
-    return True, ("互查 ok:" + "、".join(notes)
+    return True, (_mk + "互查 ok:" + "、".join(notes)
                   + "｜⚠️ 這則 ok 的已知盲區:①三支全沉默那天**沒有人呼叫互查**,它也安靜"
                     "(拓樸缺陷,不是判準缺陷:直接餵過期語料呼叫它,它叫得很大聲)"
                     "②補跑沒帶 WATCH_MANUAL=1 會被讀成排程行"
