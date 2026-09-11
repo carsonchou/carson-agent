@@ -1,0 +1,121 @@
+========================================================================
+study_techniques   (560 chars)
+title: The Only Study Techniques That Actually Work
+========================================================================
+Three study methods that beat what you are probably doing instead.
+
+Two of these were scored a week and a month after the studying stopped. That is where the difference was.
+
+Which one are you not doing?
+
+2015: interleaved vs blocked maths practice
+  https://doi.org/10.1037/edu0000001
+2006: repeated testing vs repeated studying
+  https://doi.org/10.1111/j.1467-9280.2006.01693.x
+2018: self-explanation meta-analysis
+  https://doi.org/10.1007/s10648-018-9434-x
+
+The papers are linked above. The numbers are read from them directly, not from a summary.
+#Shorts
+
+========================================================================
+how_to_remember_what_you_read   (632 chars)
+title: How to Remember What You Read: 3 Methods That Actually Work
+========================================================================
+You just read something. Read it again and nothing else, and in a week more than half of it is gone.
+
+None of them is reading it again. When rereading was tested head to head, it lost.
+
+Which one will you try on the next thing you read?
+
+2006: a recall test right after reading, vs rereading
+  https://doi.org/10.1111/j.1467-9280.2006.01693.x
+2011: practising recall vs building a concept map
+  https://doi.org/10.1126/science.1199327
+2008: the optimal gap before you study it again
+  https://doi.org/10.1111/j.1467-9280.2008.02209.x
+
+The papers are linked above. The numbers are read from them directly, not from a summary.
+#Shorts
+
+========================================================================
+focus_techniques   (524 chars)
+title: Focus Techniques That Actually Work When Your Brain Won't Cooperate
+========================================================================
+When you cannot focus, it is usually not willpower. It is the room.
+
+None asks you to try harder. All three change the situation instead.
+
+Which one could you do tonight?
+
+2017: phone on the desk vs in another room
+  https://doi.org/10.1086/691462
+2011: a brief switch away, and the attention decline
+  https://doi.org/10.1016/j.cognition.2010.12.007
+2018: writing a to-do list before bed
+  https://doi.org/10.1037/xge0000374
+
+The papers are linked above. The numbers are read from them directly, not from a summary.
+#Shorts
+
+========================================================================
+if_then_plans   (553 chars)
+title: Productivity Methods That Actually Work Without a System
+========================================================================
+You do not need a productivity system. You need one sentence.
+
+One sentence, with a time and a place inside it. That is the entire method.
+
+What is the one you would write?
+
+2006: implementation intentions meta-analysis
+  https://doi.org/10.1016/S0065-2601(06)38002-1
+2013: implementation intentions and physical activity
+  https://doi.org/10.1080/17437199.2011.560095
+2016: implementation intentions, clinical samples
+  https://doi.org/10.1111/bjc.12086
+
+The papers are linked above. The numbers are read from them directly, not from a summary.
+#Shorts
+
+========================================================================
+learning_styles   (705 chars)
+title: Learning Styles Are Not Real
+========================================================================
+You are a visual learner. Teach to that, and you will learn better.
+
+Rogowsky ran the experiment directly, audiobook against e-text. No interaction. What failed is the matching — having a preference was never the claim.
+
+Were you told you had a learning style?
+
+2008: learning styles: concepts and evidence
+  https://doi.org/10.1111/j.1539-6053.2009.01038.x
+2015: audiobook vs e-text, matched to preference
+  https://doi.org/10.1037/a0037478
+2019: anatomy students, VARK and study strategies
+  https://doi.org/10.1002/ase.1777
+2014: prevalence of neuromyths among teachers
+  https://doi.org/10.1038/nrn3817
+
+The papers are linked above. The numbers are read from them directly, not from a summary.
+#Shorts
+
+========================================================================
+pomodoro   (631 chars)
+title: The Pomodoro Technique Does Not Do What You Think
+========================================================================
+Twenty-five minutes of work. Five minutes of break. You have probably tried it.
+
+One trial tested that exact recipe, against letting people pick their own breaks. It found no benefit. The 25 and the 5 are not the part that was working.
+
+How long is your timer set to?
+
+2025: the one trial that tested 25 and 5 by name
+  https://doi.org/10.3390/bs15070861
+2023: the closest earlier trial, 24 and 6
+  https://doi.org/10.1111/bjep.12593
+2011: the vigilance study usually cited as proof
+  https://doi.org/10.1016/j.cognition.2010.12.007
+
+The papers are linked above. The numbers are read from them directly, not from a summary.
+#Shorts

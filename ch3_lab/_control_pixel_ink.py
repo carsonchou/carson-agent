@@ -39,6 +39,7 @@ sys.path.insert(0, r"D:\carson-agent\ch3_lab")
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 import numpy as np                                       # noqa: E402
+from scipy import ndimage                                # noqa: E402
 import matplotlib                                        # noqa: E402
 matplotlib.use("Agg")
 import imageio.v2 as iio                                 # noqa: E402
@@ -75,6 +76,16 @@ CASES = [
      "label": "把判決卡的字改成和色塊同色(HOT)⇒ 色塊還在、整體比例還是 20% 上下,"
               "而**卡內深色像素比例**必須掉到地板之下。"
               "這一格證的是:上面那個整體指標對這一種壞法是盲的"},
+    {"kind": "positive",
+     "label": "🔴 **會踩到這把尺自己弱點的對照**:verdict 段裡放一個 ACCENT 元素,"
+              "同時把卡上的字塗成 HOT(=字全部消失)⇒ 仍然必須被抓到。"
+              "舊規則(門檻 45 + 全域外接框)在這一格會**漏掉**它:ACCENT 距 HOT 只有 29,"
+              "外接框從 417px 被撐到 968px,卡內深色從 0.00% 被灌成 55.91% ⇒ 真陽性變綠燈。"
+              "這一格同時用舊規則跑一次,證明**承重的是哪兩行**"},
+    {"kind": "negative",
+     "label": "⑧ 的反向對照:verdict 段裡有 ACCENT 但**字還在** ⇒ **不該**被抓到,"
+              "而且讀數要回到真卡的量級。少了這一格,「收緊門檻修好了」和"
+              "「收緊門檻把真卡也切掉了」分不開"},
 ]
 
 SIX = ["study_techniques", "how_to_remember_what_you_read", "focus_techniques",
@@ -84,6 +95,15 @@ BG = np.array([0x0E, 0x11, 0x16], dtype=np.int16)
 HOT = np.array([0xF5, 0xA5, 0x4E], dtype=np.int16)   # 判決卡的色塊,和 make_reel.HOT 同值
 TOL = 12          # 和背景差這麼多以內,算背景(壓縮/抗鋸齒的雜訊)
 CONT_FLOOR = 60   # 色距地板:#E8EAED vs #0E1116 的實際色距遠大於此
+CARD_TOL = 20     # 判決卡色塊的認定門檻(切比雪夫)
+#: 🔴 **色彩門檻要對調色盤裡的每一個其他顏色算一次距離,不能只對背景算。**
+#:    這裡原本是 45,而 ACCENT(#FFC23D)對 HOT(#F5A54E)的切比雪夫距只有 **29**
+#:    ⇒ verdict 段裡任何 ACCENT 元素都會被算成卡片、把外接框撐大、
+#:    把背景像素灌進「卡內深色比例」⇒ **方向往假綠**(實測:字全部消失的那一幀
+#:    從 0.00% 被灌成 55.91%,真陽性變綠燈)。
+#:    這批片沒踩到,只因為 ACCENT 只出現在 ask 段、卡只出現在 verdict 段 ——
+#:    那是**內容的巧合,不是儀器的正確**。
+INKS = {"FG": "#E8EAED", "DIM": "#8A9099", "ACCENT": "#FFC23D", "BG": "#0E1116"}
 ENC = ["-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "20"]
 ok = []
 
@@ -111,7 +131,32 @@ def card_ink(img):
     """
     a = np.asarray(img, dtype=np.int16)[:, :, :3]
     d_hot = np.abs(a - HOT).max(axis=2)
-    card = d_hot < 45                      # yuv420p 之後橘色會漂,放寬一點
+    card = d_hot < CARD_TOL
+    if card.mean() < 0.01:
+        return None, 0.0
+    # 🔴 兩道,各修一種壞法:
+    #    ① CARD_TOL 收到 20 —— 擋「別的油墨色走樣成 HOT」(ACCENT 距 29)
+    #    ② 只取最大連通元件 —— 擋「畫面別處有一塊也長得像 HOT」,
+    #       不管那塊離 HOT 多近。①治色、②治位置,少一道就少一種。
+    lab, n = ndimage.label(card)
+    if n > 1:
+        sizes = ndimage.sum(card, lab, range(1, n + 1))
+        card = lab == (int(np.argmax(sizes)) + 1)
+    ys, xs = np.where(card)
+    box = a[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
+    near_bg = np.abs(box - BG).max(axis=2)
+    near_hot = np.abs(box - HOT).max(axis=2)
+    return float((near_bg < near_hot).mean()), float(card.mean())
+
+
+def _card_ink_legacy(img):
+    """**只給對照用,不要拿它量東西。** 這是 2026-09-11 修掉的那一版
+    (門檻 45 + 全域外接框)。留著是為了讓 ⑧ 那一格能證明
+    「承重的是 CARD_TOL 和最大連通元件那兩行」——
+    綠燈的測試不區分是哪個改動讓它變綠,所以要有一列改壞會翻面的。"""
+    a = np.asarray(img, dtype=np.int16)[:, :, :3]
+    d_hot = np.abs(a - HOT).max(axis=2)
+    card = d_hot < 45
     if card.mean() < 0.01:
         return None, 0.0
     ys, xs = np.where(card)
@@ -191,7 +236,20 @@ def main():
         print(f"🔴 這幾支還沒有 mp4,這支不能跑:{missing}")
         return 1
 
-    print("【陰性 ①②】六支的 mp4,每段後段兩個時刻:")
+    print("【調色盤邊距】卡片門檻 CARD_TOL = "
+          f"{CARD_TOL},每一個其他油墨色到 HOT 的切比雪夫距:")
+    margins = {}
+    for nm, hx in INKS.items():
+        c = np.array([int(hx[1:3], 16), int(hx[3:5], 16), int(hx[5:7], 16)],
+                     dtype=np.int16)
+        margins[nm] = int(np.abs(c - HOT).max())
+        print(f"    {nm:<7} {hx}  距 HOT {margins[nm]}")
+    worst_ink = min(margins, key=margins.get)
+    say(margins[worst_ink] > CARD_TOL,
+        f"最近的那一個({worst_ink},距 {margins[worst_ink]})仍在門檻之外 "
+        f"⇒ 沒有別的油墨色會被算成卡片")
+
+    print(chr(10) + "【陰性 ①②】六支的 mp4,每段後段兩個時刻:")
     rows, bounds = [], {}
     for slug in SIX:
         b = seg_bounds(slug)
@@ -311,6 +369,44 @@ def main():
     print(f"    {slug7}/verdict:卡佔畫面 {frac7:.2%} | 整體油墨 {whole7:.2%} "
           f"| 卡內深色 {ci7 if ci7 is None else format(ci7, '.2%')}")
 
+    print(chr(10)+"【陽性⑧ / 陰性⑧b】verdict 段裡出現 ACCENT —— 這把尺自己的弱點:")
+
+    def _verdict_frame(kill_card_text, add_accent):
+        """就地重畫一張 verdict:可選(a)把卡上的字塗成 HOT=字全消失、
+        (b)在卡片之外放一個 ACCENT 元素。兩者都過同一組編碼參數。"""
+        ctx8 = {"plt": M._plt(), "E": load_E(slug7),
+                "rows": twist_rows(load_E(slug7))}
+        o8 = matplotlib.axes.Axes.text
+        seen = {"n": 0}
+
+        def patched(self, x, y, s_, *a, **k):
+            if k.get("color") == "#0E1116":
+                seen["n"] += 1
+                if seen["n"] == 1 and add_accent:
+                    o8(self, M.CAP_CX, M.SAFE_HI - 0.04, "tell me below",
+                       ha="center", va="center", fontsize=44,
+                       color=M.ACCENT, weight="bold", zorder=3)
+                if kill_card_text:
+                    k["color"] = M.HOT
+            return o8(self, x, y, s_, *a, **k)
+
+        try:
+            matplotlib.axes.Axes.text = patched
+            return through_codec(M.render_scene("verdict", t7, dur7, ctx8))
+        finally:
+            matplotlib.axes.Axes.text = o8
+
+    img8 = _verdict_frame(True, True)     # 該被抓:字沒了,而且有 ACCENT
+    img8b = _verdict_frame(False, True)   # 不該被抓:字還在,只是有 ACCENT
+    ci8, fr8 = card_ink(img8)
+    ci8b, fr8b = card_ink(img8b)
+    ci8_old, fr8_old = _card_ink_legacy(img8)
+    ci8b_old, fr8b_old = _card_ink_legacy(img8b)
+    print(f"    字沒了+有 ACCENT:現行 {ci8:.2%}(卡佔 {fr8:.2%}) | "
+          f"舊規則 {ci8_old:.2%}(卡佔 {fr8_old:.2%})")
+    print(f"    字還在+有 ACCENT:現行 {ci8b:.2%}(卡佔 {fr8b:.2%}) | "
+          f"舊規則 {ci8b_old:.2%}(卡佔 {fr8b_old:.2%})")
+
     # 地板落在「真幀最低」與「兩個陽性最高」之間的空隙裡。
     worst_pos = max(r_fg, r_xl)
     floor = (min(ratios) + worst_pos) / 2
@@ -346,6 +442,17 @@ def main():
         f"而**整體指標幾乎沒動**({whole7:.2%} vs 真卡 "
         f"{[c[3] for c in cards if c[0] == slug7][0]:.2%})"
         f" ⇒ 證明整體那一格對這種壞法是盲的,⑥ 不是多餘的")
+
+    real7 = [c[1] for c in cards if c[0] == slug7][0]
+    say(ci8 is not None and ci8 < card_floor,
+        f"⑧ verdict 裡有 ACCENT 時,字消失**照樣抓得到**({ci8:.2%} < 地板 "
+        f"{card_floor:.2%})")
+    say(ci8_old is not None and ci8_old > card_floor,
+        f"⑧ 而**舊規則(門檻 45 + 全域外接框)會漏掉它**({ci8_old:.2%},在地板之上)"
+        f" ⇒ 承重的是 CARD_TOL 和最大連通元件那兩行,改壞會翻面")
+    say(ci8b is not None and ci8b > card_floor and abs(ci8b - real7) < 0.03,
+        f"⑧b 反向對照:字還在時讀數回到真卡的量級"
+        f"({ci8b:.2%} vs 真卡 {real7:.2%})⇒ 收緊門檻沒有把真卡切掉")
 
     print()
     print("結論:", "✓ 真幀有字、而兩種「沒有字」都抓得到" if all(ok)

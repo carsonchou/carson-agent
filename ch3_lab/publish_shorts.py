@@ -686,38 +686,13 @@ def build_meta():
             #    **五支片子裡,說明欄留不下讓人查那句話的路。**
             #    改成掃過所有帶 doi 的區塊,一個都不漏。
             cites = cites_for(E, nl)
-            papers = nl.join(cites)
             # 🔴 短片說明欄**根本沒有這個區塊**,而長片有 —— 同一個承諾
             #    兩份表面,只做了一份。已上線的短片裡有三支的 missing_public
             #    非空,觀眾一個字都看不到。
             # 🔴 這裡讀的是**渲染快照**,而 missing_public 是事實庫後來補的。
             #    長片那份剛修過同一個坑,這份沒修 —— 又一次「同一件事兩份
             #    實作,只修走到的那一份」,而且是在我剛修完的十分鐘之內。
-            miss = E.get("missing_public") or []
-            if not miss:
-                _s2 = json.loads(
-                    (ROOT / "facts" / "rechecked_episodes.json")
-                    .read_text(encoding="utf-8"))
-                _m2 = next((x for x in _s2["episodes"]
-                            if x["slug"] == d.name), None)
-                miss = (_m2 or {}).get("missing_public") or []
-            mtxt = ("" if not miss else
-                    nl + "What we could not check first-hand:" + nl
-                    + nl.join(f"  - {m}" for m in miss) + nl)
-            desc = (
-                f"{r['belief']}{nl}{nl}"
-                f"{r['verdict']}{nl}{nl}"
-                f"{r['ask']}{nl}{nl}"
-                f"{papers}{nl}{mtxt}{nl}"
-                # 🔴 這句原本是「每一個數字都讀自論文本身,而且存著它的原句」。
-                #    溯源閘門只要求數字出現在結構化欄位裡 —— 沒有 quote 的
-                #    欄位照樣過關(facial_feedback 的 0.49 就是),所以
-                #    「每一個」這個保證撐不住。改成照現況為真的講法。
-                # 「Both papers」在有第三、第四篇的集數就是錯的
-                # (moral_licensing 有四篇)。跟著實際篇數走。
-                f"{'Both papers are' if len(cites) == 2 else 'The papers are'} "
-                f"linked above. The numbers are read from them directly, "
-                f"not from a summary.{nl}#Shorts")
+            desc = desc_for(r, cites, miss_block(E, d.name, nl), nl)
             out.append({"key": f"reel_{d.name}",
                         # 🔴 **不要在這裡推論**。原樣帶過去,由閘門判它是不是
                         #    一個合法的布林值 —— 推論會把「欄位不見了」變成
@@ -916,6 +891,84 @@ def prereg_title_gate(batch):
     return out
 
 
+def miss_block(E, slug, nl=chr(10)):
+    """「我們沒能第一手查證的部分」區塊。
+
+    🔴 抽出來的理由同 `cites_for()` / `desc_for()`:在渲染之前要能被測。
+    🔴 這裡讀的是**渲染快照**,而 missing_public 是事實庫後來補的 ——
+       所以快照沒有時要回頭問上游那一份,否則觀眾一個字都看不到。
+    """
+    miss = E.get("missing_public") or []
+    if not miss:
+        _s2 = json.loads((ROOT / "facts" / "rechecked_episodes.json")
+                         .read_text(encoding="utf-8"))
+        _m2 = next((x for x in _s2["episodes"] if x["slug"] == slug), None)
+        miss = (_m2 or {}).get("missing_public") or []
+    if not miss:
+        return ""
+    return (nl + "What we could not check first-hand:" + nl
+            + nl.join(f"  - {m}" for m in miss) + nl)
+
+
+def desc_for(r, cites, mtxt, nl=chr(10)):
+    """組說明欄。
+
+    🔴 抽成函式的理由和 `cites_for()` 一樣:**為了它變得可以被測**。
+       原本這段埋在 reels 迴圈裡,而那個迴圈要有 mp4 + VERIFIED 才走得到 ⇒
+       「說明欄結尾那句話對不對」在渲染之前沒有任何辦法用真的那段程式碼回答。
+       2026-09-11 的獨立驗證抓到的正是那句話為假,而它為假已經很久了。
+    """
+    papers = nl.join(cites)
+    # 🔴 頁尾那句話是一個**對觀眾的宣稱**,所以它要跟著實際印出去的
+    #    東西走,不能寫死。判準:一列引用「有沒有被連起來」= 它有沒有帶
+    #    `https://` —— 沒有 DOI 只有 source_name 的來源(例如 EEF 評估報告
+    #    不是期刊論文)印得出名字,但**點不動**,那時說「都連在上面」就是假的。
+    linked = sum(1 for c in cites if "https://" in c)
+    if linked and linked == len(cites):
+        lead = "Both papers are" if len(cites) == 2 else "The papers are"
+        claim = f"{lead} linked above."
+    elif linked:
+        claim = ("The papers with a DOI are linked above; "
+                 "the rest are named in full so you can find them.")
+    else:
+        # 閘門本來就擋掉沒有 DOI 的片,走到這裡代表閘門被繞過了 ——
+        # 那就不要順口說一句為假的話。
+        claim = "The sources are named above."
+    return (
+        f"{r['belief']}{nl}{nl}"
+        f"{r['verdict']}{nl}{nl}"
+        f"{r['ask']}{nl}{nl}"
+        f"{papers}{nl}{mtxt}{nl}"
+        # 🔴 這句原本是「每一個數字都讀自論文本身,而且存著它的原句」。
+        #    溯源閘門只要求數字出現在結構化欄位裡 —— 沒有 quote 的
+        #    欄位照樣過關(facial_feedback 的 0.49 就是),所以
+        #    「每一個」這個保證撐不住。改成照現況為真的講法。
+        # 「Both papers」在有第三、第四篇的集數就是錯的
+        # (moral_licensing 有四篇)。跟著實際篇數走。
+        f"{claim} The numbers are read from them directly, "
+        f"not from a summary.{nl}#Shorts")
+
+
+def _doi_url(d):
+    """把 DOI 正規化成**觀眾點得動**的連結。
+
+    🔴 原本印的是裸 `doi:10.xxxx`,而 YouTube 只 linkify `http(s)://` ⇒
+       觀眾看到一串不能點的字,而說明欄結尾寫著「The papers are linked
+       above.」。**這條線唯一的資產就是「你查得到」,而那句話正好在那個
+       資產上撒謊** —— 和主頻道 84 支描述欄那句假聲明同一類。
+       ⚠️ 資料裡的 DOI 有三種寫法(裸 `10.`、`doi:10.`、完整 doi.org
+       網址),`backfill_dois.is_doi()` 兩種都認 ⇒ 這裡要正規化,
+       不能直接前面接字串,否則會產出 `https://doi.org/https://doi.org/...`。
+    """
+    d = str(d).strip()
+    for pre in ("https://doi.org/", "http://doi.org/",
+                "https://dx.doi.org/", "http://dx.doi.org/", "doi:"):
+        if d.lower().startswith(pre):
+            d = d[len(pre):]
+            break
+    return "https://doi.org/" + d.lstrip("/")
+
+
 def cites_for(E, nl=chr(10)):
     """一個 entry 該印在說明欄裡的引用列。
 
@@ -968,7 +1021,7 @@ def cites_for(E, nl=chr(10)):
                 #    看起來像壞掉,而且沒給觀眾任何可讀的名字。
                 #    DOI 本身就是可查的,印它就夠;不編一個標題。
                 _head = f"{_lab}" + (f" ({_y})" if _y else "")
-            cites.append(f"{_head}{nl}  doi:{b['doi']}")
+            cites.append(f"{_head}{nl}  {_doi_url(b['doi'])}")
     # 🔴 上面那個掃描只走**頂層 dict**,走不進 list。獨立驗證抓到:
     #    moral_licensing 旁白唸的「3,134 people」那篇,DOI 只存在
     #    `timeline[2]` —— 說明欄查不到,而頁尾寫著論文都在上面。
@@ -991,7 +1044,7 @@ def cites_for(E, nl=chr(10)):
             _w = x.get("what") or x.get("name") or ""
             _head = (f"{_y}: {_w}" if _y and _w
                      else (str(_y) if _y else (_w or "Also cited")))
-            cites.append(f"{_head}{nl}  doi:{x['doi']}")
+            cites.append(f"{_head}{nl}  {_doi_url(x['doi'])}")
     # 有原文、有年份,但**沒有 DOI** 的來源(例如 EEF 評估報告不是
     # 期刊論文)。片子唸了它就要查得到 —— 不給 DOI 不等於不用給名字。
     for _k in _order:
