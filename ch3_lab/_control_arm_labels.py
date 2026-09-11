@@ -56,7 +56,8 @@ CASES = [
     {"kind": "positive", "label":
      "只把**一支**的 facts.json arm 欄翻面 ⇒ 必須被抓到(這一格在測①②兩個來源真的獨立)"},
     {"kind": "negative", "label":
-     "反向對照:把六支的**順序**打亂(與自變項無關)⇒ **不該**被抓到。"
+     "反向對照:把 B 臂的副標整批換成**另一組措辭**(仍帶 actually work、"
+     "仍與 E 互斥)⇒ **不該**被抓到。它管的是「姿態」,不是「這六個字串」;"
      "少了這一格,「它抓得到對調」和「它對任何改動都叫」分不開"},
 ]
 
@@ -220,11 +221,25 @@ def main():
     print(f"    理由({victim}):{w8}")
     say(not g8, f"arm 欄翻面({victim})被抓到 ⇒ 登記檔與 facts.json 是兩個獨立來源")
 
-    print(chr(10) + "【陰性 ⑨】反向對照 —— 只把六支的順序打亂:")
-    shuffled = {s: facts[s] for s in reversed(SIX)}
-    g9, w9 = check(arms, shuffled)
+    print(chr(10) + "【陰性 ⑨】反向對照 —— B 臂換一組措辭,姿態不變:")
+    # 🔴 **這一格原本寫的是「把六支的順序打亂」,而 check() 本來就是順序無關的
+    #    實作 ⇒ 那一格不可能失敗,是恆真句不是對照。**(總督導 2026-09-11 抓到;
+    #    memory `verification-that-cannot-fail` 記的正是這一類:一個沒有任何輸入
+    #    能讓它翻面的檢查,和一個恆綠的檢查在報告上長得一模一樣。)
+    #    換成一個**真的會經過判準**的無關改動:B 臂整批改寫措辭,姿態不動。
+    #    它要回答的問題是:這把尺量的是「姿態」,還是「我現在看到的這六個字串」?
+    #    —— 後者會讓任何一次合法的文案潤飾變成假警報,而那種尺會被人關掉。
+    reworded = {}
+    for slug, (t, a, c) in facts.items():
+        if a == "B":
+            c = {"belief": "here is what actually works, with receipts",
+                 "weight": "and here is who ran the numbers",
+                 "turn": "how far it actually moves"}
+        reworded[slug] = (t, a, dict(c))
+    g9, w9 = check(arms, reworded)
+    print(f"    新措辭:{reworded[victim][2]}")
     print(f"    理由:{w9}")
-    say(g9, "與自變項無關的改動**沒有**被抓到 ⇒ 它叫的是「臂別錯了」不是「有東西動了」")
+    say(g9, "換了措辭但姿態沒變 ⇒ **沒有**被抓到;它量的是姿態不是字串快照")
 
     print()
     print("結論:" + ("自變項的分派可機械查核,而且對調會被抓到" if all(ok)
