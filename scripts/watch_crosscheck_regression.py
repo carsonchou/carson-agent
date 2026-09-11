@@ -33,7 +33,10 @@ memory `gate-blind-while-target-evolves`「閘門上線後要有東西定期證�
 ## 已知還沒好的(母體③,照實列在這裡,不要當成已修)
 - 補跑**沒帶** `WATCH_MANUAL=1` 時,M2 那個形狀**依然靜音**。本檔把它當成
   「期待靜音」記錄下來 —— 它是現況,不是通過。
-- 相鄰規則收緊的**淨方向是往靜音倒**(見 `watch_crosscheck.py` docstring 的實測)。
+- 🔴 **相鄰規則已經廢掉**(2026-09-11):它在產線真實行序下**永遠不觸發** ⇒ 靜音。
+  現在是「每一則 `[MANUAL]` 註記認領同一天的一筆讀數,不看位置」,見 M1b 那一節。
+  剩下的不健全:同一天兩筆補跑只配一則註記時,仍會剩一筆被當成排程讀數 ⇒ 仍靜音;
+  出口是 `WATCH_MANUAL=1`(那條路上讀數行自己說得出它是誰)。
 
 ## 用法
     python scripts/watch_crosscheck_regression.py
@@ -54,6 +57,7 @@ import datetime
 import importlib.util
 import io
 import pathlib
+import random
 import shutil
 import sys
 import tempfile
@@ -87,6 +91,17 @@ def load(path, name):
 # 🔴 2026-09-11:原本有 10 格是 `rows.append(...)` 而**沒有 print** ⇒ 讀者看到 10 行、
 #    看到「20/20」。計分和印出必須是同一個動作,否則這支尺自己就是「檢查不會失敗」的一種:
 #    看不到的格子沒有人能查證。所有格子一律走 add()。
+def load_mut_src(src, name, tmpdir):
+    """把改壞的原文寫成暫存檔再載進來 —— 模組層級的突變只能這樣做。
+
+    和 `load()` 的差別:`load()` 載磁碟上的正本,這支載的是**故意改壞的副本**,
+    而且一定寫在 tmpdir 裡,不准落在 repo(memory `write-truncates-before-it-fails`)。
+    """
+    q = tmpdir / (name + ".py")
+    q.write_text(src, encoding="utf-8")
+    return load(q, name)
+
+
 def add(rows, name, expect, got, ok):
     rows.append((name, expect, got, ok))
     print(f"  {name:38s} 期待 {expect} / 實得 {got}  {'PASS' if ok else '🔴FAIL'}")
@@ -94,7 +109,42 @@ def add(rows, name, expect, got, ok):
 
 # 🔴 格數本身也要斷言:少了一格(某個 continue 提早跳掉、某個分支沒進去)在舊版會印成
 #    「N/N 符合期待」,和真的全過長得一模一樣。這兩個數字改動時要連同理由一起改。
-EXPECT_ROWS = {True: 35, False: 32}   # key = 有沒有給 --before
+#    這兩個數一律**跑出來**,不要用加法推(推錯過兩次,而推錯的表現是「格數斷言自己過了」)。
+#    2026-09-11:M4 一口氣多五格 × 三支哨 = +15,M1b 排列對照 +1 ⇒ 64→80 / 61→77,
+#    兩個都是跑完之後抄下來的。
+EXPECT_ROWS = {True: 80, False: 77}   # key = 有沒有給 --before
+
+
+# 🔴 2026-09-10~09-11 真的活在正式機上的那一版 `last_sched_date()` 迴圈,逐字保存。
+# 它只降級「緊接在上一行」的那筆讀數,而產線每一次人工補跑的真實行序是
+#     讀數 → 同一次執行 finally 寫的 [XCHK] 告警 → (之後) [MANUAL] 註記
+# ⇒ 中間那行把 prev_was_sched 打掉 ⇒ 降級永不觸發 ⇒ **靜音**,且和更早那版逐位相同。
+# 留著它是為了當**陽性對照**:新規則要能在同一份語料上叫出來,而這一版必須靜音。
+# ⚠️ 不要「順手更新」這段字 —— 它是歷史紀錄,不是活的碼。
+HIST_ADJACENT = """    sched = []
+    manual_dates = []
+    prev_was_sched = False
+    for line in raw.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if line.startswith(_SKIP_PREFIXES):
+            prev_was_sched = False
+            continue
+        m = _MANUAL_TS.match(line)
+        if m:
+            manual_dates.append(m.group(1))
+            if prev_was_sched and sched and sched[-1] == m.group(1):
+                sched.pop()
+            prev_was_sched = False
+            continue
+        m = _TS.match(line)
+        if m:
+            sched.append(m.group(1))
+            prev_was_sched = True
+        else:
+            prev_was_sched = False
+"""
 
 
 def block(path):
@@ -163,25 +213,49 @@ def func_src(path, name):
     return chr(10).join(out)
 
 
-def xchk_broken_trial(fsrc, stderr_mode, log_path, what=None, selftest=False):
-    """exec 真的 `xchk_broken` 原文,回 (log 內容, 它拋出來的東西, stderr 內容)。
+def xchk_broken_trial(fsrc, stderr_mode, log_path, what=None, selftest=False,
+                      temp_to=None):
+    """exec 真的 `xchk_broken` 原文,回 `(log 內容, 它拋出來的東西, stderr 內容, 回傳值)`。
 
     log 一律寫到**暫存目錄**,不是 repo 裡的常駐 log —— 演習不可以往真 log 追加行。
     `what` 預設帶一個含 emoji 的例外:cp950 編不了它,那正是要驗的那一格。
+
+    `temp_to`:把第三條備援路(`%TEMP%`)導到指定目錄。**一定要給**,否則演習會往
+    真的 `%TEMP%` 寫檔,而那是別人的地盤。做法是設 `tempfile.tempdir` ——
+    `gettempdir()` 會把結果快取住,只改環境變數在第二次呼叫之後就沒用了。
+
+    🔴 第四個回傳值是 `xchk_broken()` **自己的回傳值**(留成痕的那個路徑,或 None)。
+       少了它,斷言只能寫成「沒拋例外 + log 裡有那個字串」,而那個條件連「把
+       `[XCHK-BROKEN]` 這個標記改名」這種突變都殺不掉(第四輪驗證【3/5】實測:
+       改名之後 log 照樣落 172 bytes,而那一格照樣說「突變被殺掉」)。
     """
     if what is None:
         what = RuntimeError("🔴 模擬:record 自己爆了")
     err = _make_err(stderr_mode)
-    g = {"datetime": datetime, "sys": types.SimpleNamespace(stderr=err),
+    # `pathlib` 要在 exec 的全域裡 —— 三支哨都在模組層 import 它,而 xchk_broken 的
+    # 第三條備援路用得到。不給的話那條路會靜靜少掉一條,而測試看起來照樣綠。
+    g = {"datetime": datetime, "pathlib": pathlib,
+         "sys": types.SimpleNamespace(stderr=err),
          "LOG": log_path, "SELFTEST": selftest, "print": print}
     exec(compile(fsrc, "<xchk_broken>", "exec"), g)
-    raised = None
+    raised, ret = None, None
+    saved_tmp = tempfile.tempdir
+    if temp_to is not None:
+        temp_to.mkdir(parents=True, exist_ok=True)
+        tempfile.tempdir = str(temp_to)
     try:
-        g["xchk_broken"](what)
+        ret = g["xchk_broken"](what)
     except BaseException as e:     # noqa: BLE001 —— 「它有沒有拋」本身就是受測結果
         raised = e
-    got = log_path.read_text(encoding="utf-8") if log_path.exists() else ""
-    return got, raised, ("" if err is None else err.buf)
+    finally:
+        tempfile.tempdir = saved_tmp
+    try:
+        got = log_path.read_text(encoding="utf-8") if log_path.exists() else ""
+    except OSError:
+        # 演習會故意把主 log 做成**目錄**(驗第二條備援路)⇒ 這裡讀不到是預期的,
+        # 意思就是「主通道沒東西」,不是測試環境壞了。
+        got = ""
+    return got, raised, ("" if err is None else err.buf), ret
 
 
 def control_flow_trial(src, main_rc=0, main_exc=None, xchk_exc=None, iso=None,
@@ -335,6 +409,116 @@ def main():
                     "quota": quota}
             case("M1 " + tag, mod, logs, NOW_LATE, "靜音" if mod is before else "叫")
 
+        # ---- M1b:降級規則對「[XCHK] 行的位置」必須免疫 ----
+        # 🔴 這一節是第三輪獨立驗證【2/5】的產物,而它抓到的是**我的語料排除掉了唯一會
+        #    出事的排列**。上面 M1 的語料是「讀數 → [MANUAL] 註記 → 隔天的 XCHK」,
+        #    而產線真實行序是「讀數 → 同一次執行 finally 寫的 XCHK → (之後)註記」。
+        #    舊的相鄰降級被中間那行打掉 ⇒ 靜音,且和修之前逐位相同。實測(問 last_sched_date):
+        #        讀數→註記→XCHK  ⇒ ('2026-09-09','2026-09-10')  會叫
+        #        讀數→XCHK→註記  ⇒ 舊碼 ('2026-09-10','2026-09-10') ← **靜音**
+        #    ⚠️ 判準必須用 NOW_EARLY(due=09-10):用 NOW_LATE 時 due=09-11,不管有沒有
+        #    降級都會叫 ⇒ 這一節會變成恆過。上面 M1 兩格用 NOW_LATE,正是它漏掉的原因之一。
+        print("M1b 降級對 [XCHK] 行的位置免疫(語料=真 log,三種位置,NOW_EARLY)")
+        xchk_same_run = f"{after.XCHK_PREFIX}[2026-09-10 18:05] {c.xchk_body}"
+        xchk_prev_day = xchk_same_run.replace("2026-09-10 18:05", "2026-09-09 18:05")
+
+        def m1b_logs(order):
+            out = {"quota": quota}
+            for key, note in (("seeding", c.note_s), ("narration", c.note_n)):
+                head = c.upto(key, "[2026-09-10 18:05]")
+                if order == "note_then_xchk":       # 我原本語料的形狀
+                    out[key] = head + [note, xchk_same_run]
+                elif order == "xchk_between":       # 🔴 產線真實形狀
+                    out[key] = head + [xchk_same_run, note]
+                elif order == "xchk_both_sides":    # 前一天也叫過、這次也叫過
+                    out[key] = [xchk_prev_day] + head + [xchk_same_run, note]
+                else:
+                    raise AssertionError(order)
+            return out
+
+        m1b_verdicts = {}
+        for order, label in (("note_then_xchk", "註記在 XCHK 之前"),
+                             ("xchk_between", "XCHK 夾在讀數與註記之間(產線)"),
+                             ("xchk_both_sides", "讀數前後都有 XCHK 行")):
+            m1b_verdicts[order] = case(f"M1b {label}", after,
+                                       m1b_logs(order), NOW_EARLY, "叫")
+        # 三格判決一致還不夠 —— 連**告警內文**都要逐字相同,否則「同判決」可能是兩個
+        # 不同理由碰巧撞到同一個字。不變量宣稱「輸出只依賴每個日期有幾筆讀數、幾則註記」,
+        # 那就拿輸出本身來對。
+        _uniq = set(m1b_verdicts.values())
+        add(rows, "M1b 三種位置的告警內文逐字相同", "一致",
+            "一致" if len(_uniq) == 1 else f"分岔 {len(_uniq)} 種", len(_uniq) == 1)
+
+        # 常駐突變列:承重的是 last_sched_date() 尾巴那段「註記認領同一天的一筆讀數」。
+        # 把認領拆掉 ⇒ 09-10 那筆不再被降級 ⇒ 「產線」那一格必須翻成靜音。
+        # 少了這一列,「三格都叫」和「這三格恆叫」分不開(memory load-bearing-line-needs-mutation)。
+        _claim = ("    for _d in manual_dates:" + chr(10)
+                  + "        for _i in range(len(sched) - 1, -1, -1):" + chr(10)
+                  + "            if sched[_i] == _d:" + chr(10)
+                  + "                del sched[_i]" + chr(10)
+                  + "                break" + chr(10))
+        _src = (REPO / "scripts" / "watch_crosscheck.py").read_text(encoding="utf-8")
+        if _claim not in _src:
+            raise KeyError("突變找不到「註記認領」那段 —— last_sched_date() 改過了,先來改本檔")
+        mut_claim = load_mut_src(_src.replace(_claim, "    pass" + chr(10)),
+                                 "xchk_mut_claim", tmpdir)
+        case("突變 拆掉註記認領 ⇒ 產線行序翻靜音", mut_claim,
+             m1b_logs("xchk_between"), NOW_EARLY, "靜音")
+
+        # 🔴 陽性對照,用**真案例的原碼**不是合成突變(memory gate-blind-while-target-evolves
+        #    「陽性對照要用真案例」)。下面 HIST_ADJACENT 是 2026-09-10~09-11 真的活在正式機上
+        #    的那一版 last_sched_date():「只降級**緊接在上一行**的那筆」。它必須在產線行序
+        #    (讀數→XCHK→註記)下靜音、在我原本那個語料行序下照樣叫 —— 兩格合起來才說明
+        #    「不是那一版壞掉,是我的語料選了它會過的那一排」。
+        #    ⚠️ 這一段刻意不參數化:哪天 last_sched_date() 又改寫,下面的 `not in` 會擋住,
+        #    逼下一個人自己判斷歷史對照還適不適用,而不是靜靜地量到別的東西。
+        HIST_NEW = ("    for _d in manual_dates:" + chr(10) + "        for _i in range")
+        if HIST_NEW not in _src:
+            raise KeyError("歷史對照:認領那段不在了 ⇒ 本檔的歷史對照過期,先來改本檔")
+        hist = load_mut_src(_src[:_src.index("    sched = []")] + HIST_ADJACENT
+                            + _src[_src.index("    return (sched[-1] if sched else None,"):],
+                            "xchk_hist_adjacent", tmpdir)
+        case("歷史對照 相鄰版·產線行序 ⇒ 當年真的靜音", hist,
+             m1b_logs("xchk_between"), NOW_EARLY, "靜音")
+        case("歷史對照 相鄰版·我原本的語料行序 ⇒ 照樣叫", hist,
+             m1b_logs("note_then_xchk"), NOW_EARLY, "叫")
+
+        # 🔴 排列對照 —— 這一列補的是一句**曾經是假的**話。`watch_crosscheck.py` 的註解
+        #    寫著「⇒ 回歸有一列洗牌對照釘住它」,而 2026-09-11 grep「洗牌 / shuffle /
+        #    random」**零命中**:那一列從來沒有存在過。宣稱守衛存在而它不存在,比沒有守衛
+        #    更糟 —— 下一個人會信那句話,然後在那個不變量上疊東西(memory
+        #    `verification-that-cannot-fail` 第零種:期望不是規則,失效靜默)。
+        #
+        #    ⚠️ 補的時候順手量到:那句註解宣稱的不變量**本身太寬**。整份 log 亂序洗
+        #    (含讀數行)⇒ 300 次量出 **91 種**不同內文,因為 `sched[-1]` 取的是
+        #    「檔案裡最後出現」的讀數,不是日期最大的那筆。真的成立的是**窄版**:
+        #    讀數行保持時序,而 `[XCHK]` 行與 `[MANUAL]` 註記行插在**任何位置**,
+        #    判決與告警內文都逐字相同 —— 那正是 09-11 那個修法真正買到的東西。
+        #    整個插入格 3,422 種 09-11 全跑過一次:判決全「叫」、內文 **1 種**(45 秒)。
+        #    常駐列抽 150 種(~2 秒),seed 寫死 ⇒ 哪天翻紅,同一組位置重跑得出來。
+        _rng = random.Random(20260911)
+        _perm_heads = {k: c.upto(k, "[2026-09-10 18:05]") for k in ("seeding", "narration")}
+        _perm_notes = {"seeding": c.note_s, "narration": c.note_n}
+        _pn = min(len(v) for v in _perm_heads.values())
+        _grid = [(i, j) for i in range(_pn + 1) for j in range(_pn + 2)]
+        _pairs = [(_pn, _pn + 1)] + _rng.sample(_grid, 149)   # 第一個=M1b「產線」那格的形狀
+        _base_msg = m1b_verdicts["xchk_between"]
+        _perm_bad = None
+        for _i, _j in _pairs:
+            _logs = {"quota": quota}
+            for _k in ("seeding", "narration"):
+                _v = list(_perm_heads[_k])
+                _v.insert(_i, xchk_same_run)
+                _v.insert(_j, _perm_notes[_k])
+                _logs[_k] = _v
+            _ok, _msg = run(after, _logs, NOW_EARLY)
+            if _ok or _msg != _base_msg:       # 判決翻靜音、或內文和基準分岔,都算破
+                _perm_bad = ((_i, _j), "翻成靜音" if _ok else "內文分岔")
+                break
+        add(rows, "M1b 排列 150 種插入位置 判決與內文全相同", "全相同",
+            "全相同" if _perm_bad is None else f"{_perm_bad[0]}{_perm_bad[1]}",
+            _perm_bad is None)
+
         # ---- M2:註記隔天才追加 ----
         print("M2 註記行隔天才追加(晚上補跑、隔天早上回來註記)")
         late = {"seeding": c.upto("seeding", "[2026-09-10 18:05]")
@@ -379,16 +563,106 @@ def main():
               + [f"{after.XCHK_PREFIX}[2026-09-11 09:00] {c.xchk_body}"],
               "quota": quota}, NOW_LATE, "叫")
 
-        # ---- 相鄰收緊的代價:量出來,不用猜 ----
-        print("相鄰規則收緊的代價(註記指的讀數不緊鄰時,新碼比舊碼容易靜音)")
+        # ---- 曾經的「相鄰收緊代價」:現在是缺陷關閉的證據 ----
+        # 🔴 2026-09-11:下面那格**曾經期待「靜音」**,並在檔頭被我記成「收緊的已知代價、
+        #    邊角情況」。第三輪獨立驗證【2/5】證明那不是邊角是主線,規則改成行序無關的
+        #    認領 ⇒ 這一格翻回「叫」。**期待值從靜音改成叫的那一刻就是缺陷關閉點**;
+        #    哪天有人又把「只降級緊鄰那筆」加回去,這一格會自己翻紅。
+        print("註記指的讀數不緊鄰(中間插一行演習)⇒ 認領不看位置,必須照樣叫")
         gap = {"seeding": c.upto("seeding", "[2026-09-09")
                + [c.read_s, "[DRILL] [2026-09-10 19:00] 演習行插在中間", c.note_s],
                # narration 這裡必須正常,否則它自己就會讓整句判成「叫」,把 seeding 那格遮掉
                "narration": c.upto("narration", "[2026-09-09") + ["[2026-09-10 07:10] 語料:排程真的跑了"],
                "quota": quota}
         if before:
-            case("收緊代價 修之前(往叫倒)", before, gap, NOW_EARLY, "叫")
-        case("收緊代價 修之後(往靜音倒·已知)", after, gap, NOW_EARLY, "靜音")
+            case("不緊鄰 修之前(鬆規則 ⇒ 叫)", before, gap, NOW_EARLY, "叫")
+        case("不緊鄰 修之後(認領不看位置 ⇒ 叫)", after, gap, NOW_EARLY, "叫")
+
+        # ---- M5:check_schedule() 的四個判準 ----
+        # 🔴 第三輪獨立驗證【4/5】:上一代 check_schedule() **在 2026-09-10 那場事故本身
+        #    上是綠的** —— 它治「常數漂了」,事故是「該跑沒跑」,而證據(LastRunTime、
+        #    NumberOfMissedRuns)就在同一趟 PowerShell 拿得到的欄位裡,它一個都沒問。
+        #
+        # 這一節餵的是**合成 dump**,而不是去正式機造一個同名工作 / 停用工作 / 塞過期
+        # EndBoundary —— 那是寫正式機,不是驗證該付的代價。合成的只是「儀器讀到的那串字」,
+        # 判準本身是磁碟上真的那一份 judge_schedule()。
+        #
+        # 🔴 每一格都配一列**舊判準對照**:光證明「新判準會叫」不構成修好了,還要證明
+        #    舊判準在同一份 dump 上是**綠的**,否則「我修了 E/F/H/I」和「這四格本來就會叫」
+        #    分不開(memory load-bearing-line-needs-mutation)。舊判準逐字保存在
+        #    watch_crosscheck.old_judge_schedule()。
+        print("M5 排程檢查的四個判準(合成 dump;每格並排舊判準,證明它當時是綠的)")
+        SW = {"at": datetime.time(7, 0), "task": "carson-seeding-watch"}
+        NOW_S = datetime.datetime(2026, 9, 11, 9, 0)      # due = 2026-09-11 07:00
+        T_OK = "TRIG=True|2026-09-06T07:00:00+08:00||MSFT_TaskDailyTrigger|"
+        FRESH = "INFO=2026-09-11T07:00:01|0|0"
+        # 🔴 這一行是 2026-09-11 02:46 從**活的**排程唯讀讀到的真值,不是我編的:
+        #    carson-seeding-watch State=Ready LastRun=09/09 07:00 Missed=1 rc=0
+        STALE = "INFO=2026-09-09T07:00:01|1|0"
+
+        def dump(count="1", states=("Ready",), trigs=(T_OK,), info=FRESH, paths=("\\",)):
+            out = [f"COUNT={count}"]
+            for pa in paths:
+                out.append(f"PATH={pa}")
+            for st in states:
+                out.append(f"STATE={st}")
+            out += list(trigs) + [info]
+            return out
+
+        M5_CASES = [
+            # (名稱, dump, 新判準該不該叫, 舊判準該不該綠)
+            ("M5-H 真事故 09-10 漏跑(活的排程真值)",
+             dump(info=STALE), True, True),
+            ("M5 陰性對照 一切正常",
+             dump(), False, True),
+            ("M5-E 同名工作兩個(Ready + Disabled)",
+             dump(count="2", states=("Ready", "Disabled"), paths=("\\", "\\Foo")), True, True),
+            ("M5-F State=Unknown(工作損壞)",
+             dump(states=("Unknown",)), True, True),
+            ("M5-I EndBoundary 已過期",
+             dump(trigs=("TRIG=True|2026-09-06T07:00:00+08:00|2026-09-08T00:00:00+08:00"
+                         "|MSFT_TaskDailyTrigger|",)), True, True),
+            ("M5-I 陰性 EndBoundary 在未來",
+             dump(trigs=("TRIG=True|2026-09-06T07:00:00+08:00|2027-01-01T00:00:00+08:00"
+                         "|MSFT_TaskDailyTrigger|",)), False, True),
+            ("M5-I EndBoundary 讀不懂 ⇒ 往叫倒",
+             dump(trigs=("TRIG=True|2026-09-06T07:00:00+08:00|???|MSFT_TaskDailyTrigger|",)),
+             True, True),
+            ("M5 觸發器 Enabled=False",
+             dump(trigs=("TRIG=False|2026-09-06T07:00:00+08:00||MSFT_TaskDailyTrigger|",)),
+             True, False),
+            ("M5 LastRunTime 空(從來沒跑過)",
+             dump(info="INFO=|0|0"), True, True),
+        ]
+        for name, d, want_fire, want_old_green in M5_CASES:
+            probs, notes = after.judge_schedule(SW, d, NOW_S)
+            add(rows, name, "叫" if want_fire else "靜音",
+                "叫" if probs else "靜音", bool(probs) == want_fire)
+            green = after.old_judge_schedule(SW, d)
+            add(rows, "└ 舊判準對照", "綠" if want_old_green else "叫",
+                "綠" if green else "叫", green == want_old_green)
+            if not notes:
+                add(rows, "└ notes 不得為空", "有", "空", False)
+
+        # LogonTrigger:照印、不判(這是修(二) 上線後唯一的掛鉤點)
+        logon = dump(trigs=(T_OK, "TRIG=True|2026-09-11T02:00:00+08:00||"
+                                  "MSFT_TaskLogonTrigger|PT5M"))
+        probs, notes = after.judge_schedule(SW, logon, NOW_S)
+        add(rows, "M5 LogonTrigger 不參與判定(不誤叫)", "靜音",
+            "叫" if probs else "靜音", not probs)
+        add(rows, "M5 LogonTrigger 必須被照印出來", "有 Logon",
+            "有 Logon" if any("Logon" in n for n in notes) else "被吃掉",
+            any("Logon" in n for n in notes))
+        # 🔴 而「填了 logon_delay 就變斷言」這個掛鉤本身也要驗 —— 否則它是死碼,
+        #    修(二) 上線那天填進去也不會有人知道它沒作用。
+        sw2 = dict(SW, logon_delay="PT15M")
+        probs2, _ = after.judge_schedule(sw2, logon, NOW_S)
+        add(rows, "M5 logon_delay 填了但排程是 PT5M ⇒ 必須叫", "叫",
+            "叫" if probs2 else "靜音", bool(probs2))
+        sw3 = dict(SW, logon_delay="PT5M")
+        probs3, _ = after.judge_schedule(sw3, logon, NOW_S)
+        add(rows, "M5 logon_delay 對得上 ⇒ 靜音(陰性)", "靜音",
+            "叫" if probs3 else "靜音", not probs3)
 
         # ---- 陰性對照 ----
         print("陰性對照(三支都正常跑到 due ⇒ 必須靜音,否則每天誤叫)")
@@ -460,14 +734,20 @@ def main():
 
                 fsrc = func_src(path, "xchk_broken")
                 # (2) 排程實況:sys.stderr is None ⇒ 主通道仍要落地
-                got, raised, _ = xchk_broken_trial(fsrc, "none", _xb_tmp / f"{key}_none.log")
-                ok = raised is None and "[XCHK-BROKEN]" in got
-                add(rows, f"M4 {key} stderr=None 仍寫進 log", "log 有",
-                    ("log 有" if "[XCHK-BROKEN]" in got else "log 空") + f"/拋{raised!r}", ok)
+                got, raised, _, ret = xchk_broken_trial(
+                    fsrc, "none", _xb_tmp / f"{key}_none.log",
+                    temp_to=_xb_tmp / f"{key}_t2")
+                ok = (raised is None and "[XCHK-BROKEN]" in got
+                      and ret == _xb_tmp / f"{key}_none.log")
+                add(rows, f"M4 {key} stderr=None 仍寫進 log 且回傳主通道", "log有+回傳主",
+                    ("log 有" if "[XCHK-BROKEN]" in got else "log 空")
+                    + f"/回傳{ret}/拋{raised!r}", ok)
 
                 # (3) 有 handle 的實況:cp950 遇到 🔴。不准拋(在 finally 裡拋會取代 main()
                 #     的根因),log 要落地,而 stderr 那條要看到被 replace 掉的問號。
-                got, raised, errbuf = xchk_broken_trial(fsrc, "cp950", _xb_tmp / f"{key}_950.log")
+                got, raised, errbuf, ret = xchk_broken_trial(
+                    fsrc, "cp950", _xb_tmp / f"{key}_950.log",
+                    temp_to=_xb_tmp / f"{key}_t3")
                 ok = raised is None and "[XCHK-BROKEN]" in got and "?" in errbuf
                 add(rows, f"M4 {key} stderr=cp950 帶emoji 不拋且 log 落地", "不拋+log有+替換",
                     f"拋{raised!r}+{'log有' if '[XCHK-BROKEN]' in got else 'log空'}"
@@ -481,10 +761,88 @@ def main():
                 mut = fsrc.replace("encoding=" + _q + "utf-8" + _q,
                                    "encoding=" + _q + "cp950" + _q)
                 assert mut != fsrc, "突變沒生效:xchk_broken 裡找不到 encoding=utf-8"
-                got, raised, _ = xchk_broken_trial(mut, "none", _xb_tmp / f"{key}_mut.log")
-                ok = raised is None and "[XCHK-BROKEN]" not in got
-                add(rows, f"M4 {key} 突變 log 編碼→上一格必須翻面", "log 空",
-                    "log 空" if "[XCHK-BROKEN]" not in got else "log 有(斷言恆過)", ok)
+                got, raised, _, ret = xchk_broken_trial(
+                    mut, "none", _xb_tmp / f"{key}_mut.log",
+                    temp_to=_xb_tmp / f"{key}_t4")
+                # 🔴 斷言收緊(第四輪驗證【3/5】):原本是「沒拋 + log 裡沒有那個標記字串」,
+                #    而 5/5 個不相干的突變也都滿足它 —— 最糟的是「把標記改個名」:
+                #    log 照樣落 172 bytes,而這一格照樣說「突變被殺掉」。
+                #    改成三件一起要:不拋 + log **整份是空的** + 回傳值是 None。
+                #    改名那種突變因此自己出局(它的 got != "")。
+                ok = raised is None and got == "" and ret is None
+                add(rows, f"M4 {key} 突變 log 編碼→上一格必須翻面", "不拋+log全空+回傳None",
+                    f"拋{raised!r}+{'全空' if got == '' else f'{len(got)}字'}+回傳{ret}", ok)
+                # ── (5)~(9) 第四輪驗證【2/5】:退路與回讀 ──────────────────────
+                # 【2/5】的指控:舊版「寫完就算數」,而且第一條路失敗時退到 stderr ——
+                # 和剛剛失敗的那條 log 通道**同一個失敗點**,在 pythonw 底下整條靜默。
+                # 下面五格把新的三條路(主 log → 同目錄 .broken.log → %TEMP%)和
+                # 「寫完回讀」各自釘住,而且每一格都配一個會翻面的突變。
+
+                # (5) `docs/ops/` 整個寫不進去(父層是一個**檔案**)⇒ ①② 同時死,
+                #     必須落到**換了磁碟區**的第三條路,而且要說得出前兩條為什麼死。
+                blocked_dir = _xb_tmp / f"{key}_block"
+                blocked_dir.write_text("我是檔案不是目錄", encoding="utf-8")
+                t5 = _xb_tmp / f"{key}_t5"
+                got, raised, _, ret = xchk_broken_trial(
+                    fsrc, "none", blocked_dir / "x.log", temp_to=t5)
+                landed = ret.read_text(encoding="utf-8") if ret is not None else ""
+                ok = (raised is None and ret is not None
+                      and ret.parent != blocked_dir            # 真的換了地方
+                      and "[XCHK-BROKEN]" in landed
+                      and "退到備援路徑" in landed)            # 主通道為什麼沒有,寫在活著那份裡
+                add(rows, f"M4 {key} 目錄整個不可寫 ⇒ 落到 %TEMP% 並註明退路",
+                    "換路+留痕+註明",
+                    f"回傳{ret}/{'有痕' if '[XCHK-BROKEN]' in landed else '無痕'}"
+                    f"/{'有註明' if '退到備援路徑' in landed else '沒註明'}/拋{raised!r}", ok)
+
+                # (6) 只有主 log 那一個檔壞掉(它是個目錄)⇒ 同目錄的 `.broken.log` 接住,
+                #     **不必**跨磁碟區。這一格和 (5) 分開,是因為它們治的是不同的壞法。
+                dir_as_log = _xb_tmp / f"{key}_asdir.log"
+                dir_as_log.mkdir(parents=True, exist_ok=True)
+                got, raised, _, ret = xchk_broken_trial(
+                    fsrc, "none", dir_as_log, temp_to=_xb_tmp / f"{key}_t6")
+                landed = ret.read_text(encoding="utf-8") if ret is not None else ""
+                ok = (raised is None and ret is not None
+                      and ret == dir_as_log.with_suffix(".broken.log")
+                      and "[XCHK-BROKEN]" in landed)
+                add(rows, f"M4 {key} 主 log 壞掉 ⇒ 同目錄 .broken.log 接住",
+                    "落在 .broken.log", f"回傳{ret}/拋{raised!r}", ok)
+
+                # (7) 突變:把備援清單砍回只剩主通道 ⇒ (5) 必須翻面成「完全沒留痕」。
+                #     少了這一列,(5) 和「這一格恆過」分不開。
+                mut7 = fsrc.replace('cands = [LOG, LOG.with_suffix(".broken.log")]',
+                                    "cands = [LOG]")
+                mut7 = mut7.replace(
+                    'cands.append(pathlib.Path(_tf.gettempdir()) / "carson-watch-xchk-broken.log")',
+                    "pass")
+                assert mut7 != fsrc and "cands = [LOG]" in mut7, "突變 7 沒生效:備援清單改過了"
+                got, raised, _, ret = xchk_broken_trial(
+                    mut7, "none", blocked_dir / "x.log", temp_to=_xb_tmp / f"{key}_t7")
+                ok = raised is None and ret is None
+                add(rows, f"M4 {key} 突變 砍掉備援清單 ⇒ 上一格必須翻面", "回傳None",
+                    f"回傳{ret}/拋{raised!r}", ok)
+
+                # (8) 突變:寫進去的是空字串(模擬「write 沒拋例外但那行沒落地」)。
+                #     🔴 **回讀就是為了這個而存在的** ⇒ 三條路全部要判定失敗、回傳 None。
+                mut8 = fsrc.replace("f.write(line + chr(10))", 'f.write("")')
+                assert mut8 != fsrc, "突變 8 沒生效:找不到寫入那行"
+                got, raised, _, ret = xchk_broken_trial(
+                    mut8, "none", _xb_tmp / f"{key}_m8.log", temp_to=_xb_tmp / f"{key}_t8")
+                ok = raised is None and ret is None and "[XCHK-BROKEN]" not in got
+                add(rows, f"M4 {key} 突變 寫入變空 ⇒ 回讀必須抓到", "回傳None",
+                    f"回傳{ret}/log{len(got)}字/拋{raised!r}", ok)
+
+                # (9) 🔴 陰性對照,(8) 的另一半:同樣把寫入變空,**再把回讀拆掉**。
+                #     這就是舊版的行為 ⇒ 它會**謊報成功**(回傳一個路徑,而 log 是空的)。
+                #     這一列在證明 (8) 量到的是回讀,不是別的東西。
+                mut9 = mut8.replace(
+                    'raise IOError("寫完回讀找不到自己那行:" + str(path))', "pass")
+                assert mut9 != mut8, "突變 9 沒生效:找不到回讀的 raise"
+                got, raised, _, ret = xchk_broken_trial(
+                    mut9, "none", _xb_tmp / f"{key}_m9.log", temp_to=_xb_tmp / f"{key}_t9")
+                ok = raised is None and ret is not None and "[XCHK-BROKEN]" not in got
+                add(rows, f"M4 {key} 陰性 拆掉回讀 ⇒ 空 log 也回報成功(舊版行為)",
+                    "回傳路徑+log空", f"回傳{ret}/log{len(got)}字", ok)
         finally:
             shutil.rmtree(_xb_tmp, ignore_errors=True)
 
@@ -507,9 +865,13 @@ def main():
             print(f"{chr(10)}🔴 {n - len(bad)}/{n} 符合期待,失敗:{[r[0] for r in bad]}")
             return 1
         record(f"[{now_stamp}] ✅ 互查回歸 {n}/{n} 符合期待"
-               f"(M1 前綴、M2 WATCH_MANUAL、M3 控制流 × 3 支、M4 最後一道留痕 × 3 支"
-               f"(含常駐突變列)、陰性對照 1;"
-               f"其中『M2 不帶環境變數』與『收緊代價』兩格記錄的是**已知未修**的現況)。{skipped}")
+               f"(M1 前綴、M1b 行序不變量 × 3 + 內文逐字對照 + 排列 150 種 1 + 突變 1"
+               f" + 歷史相鄰版陽性對照 2、"
+               f"M2 WATCH_MANUAL、M5 排程判準 E/F/H/I × 9 + 舊判準並排 9 + LogonTrigger 4、"
+               f"M3 控制流 × 3 支、M4 最後一道留痕 × 3 支 × 9 格"
+               f"(主通道 3 + 備援路 2 + 突變 3 + 拆掉回讀的陰性 1)、陰性對照 1;"
+               f"其中『M2 不帶環境變數』那格記錄的是**已知未修**的現況 —— "
+               f"『不緊鄰』那格已於 09-11 從靜音翻回叫,不再是未修)。{skipped}")
         print(f"{chr(10)}✅ {n}/{n} 符合期待{skipped}")
         return 0
     finally:

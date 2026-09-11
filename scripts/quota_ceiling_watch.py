@@ -358,6 +358,28 @@ def xchk_broken(what):
        ⇒ 教訓不是「要小心」,是**留痕的主通道一律是 log 檔**;stderr 只是互動下的
          第二條路,而且它自己編碼失敗時不准影響任何事。
 
+    🔴 2026-09-11 第四輪獨立驗證【2/5】再推翻一次。前一版是「寫完就算數,失敗退
+       stderr」,兩個洞:
+         · `write()` 沒拋例外**不等於**那行在磁碟上 ⇒ 沒有回讀就沒有證據
+           (memory `only-what-lands-on-disk-exists` 的機械版)。
+         · 🔴 更重的那個:它和**剛剛失敗的那條 log 通道走同一個失敗點**。
+           `watch_crosscheck` 爆掉的原因如果是「`docs/ops/` 這個目錄寫不進去」,
+           那本函式寫同一個目錄也寫不進去,然後退到 stderr —— 而排程下
+           `sys.stderr is None` ⇒ **整條最後防線靜默**,而且前一版那句
+           `except BaseException: pass` 把這件事的唯一訊號也吃掉了。
+       ⇒ 現在是三條路,**每條都寫完回讀**,回讀不到才換下一條:
+           ① `LOG`(主通道)② `LOG.with_suffix(".broken.log")`(同目錄,治「主 log
+           被鎖住 / 被寫壞」)③ `%TEMP%`(**換一個磁碟區**,治「`docs/ops/` 整個寫不進去」)
+         退到備援時,把「前面哪幾條路失敗、錯誤是什麼」補寫進**活著的那一份**,
+         否則下次有人只看到備援檔,不知道主通道為什麼沒有這一行。
+         stderr 降成**附帶**通道:它不算留痕,失敗與否都不影響判定。
+    ⚠️ 仍然治不了的,照實寫:整台機器磁碟滿、程序被 `kill -9`、或本行之前就當掉。
+       那些要靠**帶外觀察者**(`CarsonQuant-UptimeMonitor`,目前 `TARGETS = []`
+       ⇒ 還沒接上),不是靠這裡。本函式只保證「這支程序還活著而且 CPU 還在跑」時留得下痕。
+    ⚠️ 回讀讀到的可能是 OS 快取而不是碟片(沒有 `fsync`)⇒ 它排除的是「路徑不可寫 /
+       write 靜靜半途而廢」,不排除「寫完後斷電」。這是刻意的取捨:`fsync` 在最後一道
+       防線裡多一個會拋的系統呼叫,而它擋的那個情境本來就得靠帶外觀察者。
+
     🔴 這裡**不准呼叫 `record()`**:`record()` 會呼叫 `watch_crosscheck.manual_prefix()`,
        而本函式觸發的前提就是 `watch_crosscheck` 那一側剛剛爆掉。最後一道防線不能
        依賴剛倒的那根柱子。
@@ -369,19 +391,60 @@ def xchk_broken(what):
     line = (("[DRILL] " if SELFTEST else "")
             + f"[{stamp}] 🔴 [XCHK-BROKEN] 守望互查收尾自己爆了,"
               f"**今天沒有沉默偵測**(這不是「同伴都正常」):{detail}")
-    try:
-        LOG.parent.mkdir(parents=True, exist_ok=True)
-        with LOG.open("a", encoding="utf-8") as f:
+
+    def _land(path):
+        """寫一行,然後**讀回來確認它在裡面**;讀不到就拋,讓上面換下一條路。
+
+        回讀只讀尾巴 64 KB(位元組層 seek)⇒ 成本有界,log 長到幾百 MB 也不會爆記憶體;
+        用 `errors="replace"` 解碼,因為切在多位元組字元中間是正常的,那不是失敗。
+        """
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as f:
             f.write(line + chr(10))   # 不用反斜線字面:heredoc 會吃掉一層(memory heredoc-backslash-escaping-trap)
+        with path.open("rb") as f:    # 另開一次 ⇒ 上面那個 with 關檔時已 flush
+            f.seek(0, 2)
+            f.seek(max(0, f.tell() - 65536))
+            tail = f.read().decode("utf-8", "replace")
+        if line not in tail:
+            raise IOError("寫完回讀找不到自己那行:" + str(path))
+        return path
+
+    cands = [LOG, LOG.with_suffix(".broken.log")]
+    try:
+        import tempfile as _tf   # 三支哨不是每支都在模組層 import tempfile,這裡就地拿
+        cands.append(pathlib.Path(_tf.gettempdir()) / "carson-watch-xchk-broken.log")
     except BaseException:
-        pass    # log 也寫不進去就真的沒路了。**這是唯一該用 pass 的地方**:它已是最後一道。
+        pass    # 連 %TEMP% 都問不出來就少一條路,不影響前兩條
+
+    landed, failed = None, []
+    for cand in cands:
+        try:
+            landed = _land(cand)
+            break
+        except BaseException as e:
+            failed.append(f"{cand}: {e!r}")
+
+    if landed is not None and failed:
+        try:
+            with landed.open("a", encoding="utf-8") as f:
+                f.write(f"[{stamp}] [XCHK-BROKEN] ↑ 上一行是**退到備援路徑**才寫成的;"
+                        f"失敗的路:{'; '.join(failed)}" + chr(10))
+        except BaseException:
+            pass    # 這是註腳不是痕跡本身,它寫不進去不准把已經留成的痕跡變成沒留
+
     try:
         if sys.stderr is not None:
             enc = getattr(sys.stderr, "encoding", None) or "ascii"
             # encode/decode 先把編不了的字換掉 ⇒ cp950 遇到 emoji 不會拋。
             print(line.encode(enc, "replace").decode(enc, "replace"), file=sys.stderr)
     except BaseException:
-        pass    # stderr 是第二條路,它壞掉不准影響 rc、也不准取代 main() 的根因。
+        pass    # stderr 是**附帶**通道(排程下 sys.stderr is None,它本來就不出聲):
+                # 它壞掉不准影響 rc、不准取代 main() 的根因,也不算留痕。
+
+    # 🔴 回傳「到底有沒有留下痕跡」—— 讓回歸腳本斷言得到一個**具體簽章**,
+    #    而不是只能斷言「沒拋例外」(那條件連「改掉標記字串」這種突變都殺不掉)。
+    #    呼叫端(`except BaseException` 與 `on_broken=`)一律忽略它,行為不變。
+    return landed
 
 
 if __name__ == "__main__":

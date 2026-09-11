@@ -77,13 +77,17 @@
   因為在 `finally` 裡 raise 會**取代** `main()` 原本那個例外、把根因換掉。
   該層**不准 pass**:呼叫該支哨自己的 `xchk_broken()`(**寫進 log 檔**,不是印到
   stderr —— 見 `crosscheck_tail` 的 docstring 與獨立驗證新-1),rc 原本是 0 就升成 **4**。
-- ⚠️ **相鄰規則收緊的代價,實測**:已收緊成「只降級**緊接在上一行**的那筆讀數」
-  (原本是「最後一筆同日讀數」,中間插進東西就會抓錯人)。
-  收緊治好了一格、也弄壞一格,兩格都用真 log 量過:
-    · 治好:註記指的**不是**那筆真排程讀數時,舊碼會把真排程讀數降級 ⇒ 誤叫;新碼不會。
-    · 弄壞:註記指的讀數**不緊鄰**(中間插一行演習)時,舊碼降級 ⇒ 叫;
-      新碼不降級 ⇒ **靜音**(實測 got 從 09-09 變 09-10,判決從「叫」變「靜音」)。
-  ⇒ 收緊的**淨方向是往靜音倒**,不是純改善。這一格的出口同樣是 `WATCH_MANUAL=1`。
+- 🔴 **相鄰規則已經廢掉,改成行序無關的認領**(2026-09-11 第三輪獨立驗證【2/5】)。
+  歷史:曾經是「最後一筆同日讀數」→ 收緊成「只降級**緊接在上一行**的那筆」→ 現在是
+  「每一則 `[MANUAL]` 註記認領同一天的一筆讀數,不看位置」。
+  收緊那一版錯在**兩個失效方向不對稱,而我選了會靜音的那邊**:
+    · 鬆的那版失效 ⇒ **誤叫**(把真排程讀數降級)。成本 = 有人多看一眼。
+    · 緊的那版失效 ⇒ **靜音**(降級不觸發)。成本 = 這支哨那天等於不存在。
+  而緊的那版的失效條件不是邊角,是**每一次人工補跑的必然形狀**:同一次執行裡
+  `finally` 會先寫一行 `[XCHK]` 告警,夾在讀數和事後註記之間,把 `prev_was_sched` 打掉。
+  ⇒ 我當初把它記成「演習行的邊角代價」,那句話是錯的,是主線。
+  ⇒ 判準不對稱時先問「失效會往哪邊倒」,再問「命中率」
+  (memory `fail-closed-criterion-is-explainability`)。這一格的出口仍然是 `WATCH_MANUAL=1`。
 """
 import datetime
 import pathlib
@@ -124,9 +128,11 @@ _MANUAL_TS = re.compile(r"^\[MANUAL\]\s*\[(\d{4}-\d{2}-\d{2}) \d{2}:\d{2}")
 XCHK_PREFIX = "[XCHK] "
 # 讀數行**自己**要說得出「我是補跑」時用的環境變數。相鄰規則猜不到的事情,讓它自己講。
 MANUAL_ENV = "WATCH_MANUAL"
-# ⚠️ 這張表**目前是冗餘的**(對 `_TS` 而言):`[DRILL] `/`[XCHK] ` 開頭的行本來就配不上
+# ⚠️ 這張表**是冗餘的**(對 `_TS` 而言):`[DRILL] `/`[XCHK] ` 開頭的行本來就配不上
 # `_TS`,因為 `_TS` 錨在行首。突變測試證實清成 `()` 判決不變。留著是因為它會在
 # `_TS` 哪天被放寬成 `search` 的那一刻變成唯一的防線 —— 但**不要把它當成 M1 的修法**。
+# 🔴 2026-09-11:M1 曾經**真的**靠它擋(靠 `prev_was_sched` 被它重設),而那條路已經
+# 拆掉了,原因見 `last_sched_date()` 裡那段長註解。現在它回到「純冗餘的第二層」。
 _SKIP_PREFIXES = ("[DRILL]", XCHK_PREFIX.strip())
 
 
@@ -153,31 +159,64 @@ def last_sched_date(path):
 
     sched = []          # [date str],依出現順序
     manual_dates = []
-    prev_was_sched = False      # 上一行「被採計成排程讀數」了嗎(相鄰降級只認真的相鄰)
     for line in raw.splitlines():
         line = line.strip()
         if not line:
             continue
         if line.startswith(_SKIP_PREFIXES):
-            # 演習行、以及**互查自己寫的行**,都不是讀數。後者是 M1 的修法所在:
-            # 少了它,「互查叫過」會被下一次互查讀成「今天有排程讀數」。
-            prev_was_sched = False
+            # 演習行、以及**互查自己寫的行**,都不是讀數。
+            # ⚠️ 這個分支**不承重**:`[DRILL] `/`[XCHK] ` 開頭的行本來就配不上錨在行首的
+            #    `_TS`,清成 `()` 判決不變(突變實測)。真正承重的是下面那段認領。
             continue
         m = _MANUAL_TS.match(line)
         if m:
             manual_dates.append(m.group(1))
-            # 降級:**緊接在上一行**、同一天的那筆讀數,其實是人工補跑的。
-            # 🔴 收緊過:原本是「最後一筆同日讀數」,中間插進任何行都會抓錯人。
-            if prev_was_sched and sched and sched[-1] == m.group(1):
-                sched.pop()
-            prev_was_sched = False
             continue
         m = _TS.match(line)
         if m:
             sched.append(m.group(1))
-            prev_was_sched = True
-        else:
-            prev_was_sched = False
+    # 🔴 降級(2026-09-11 第三輪獨立驗證【2/5】重寫):**每一則 `[MANUAL]` 註記,
+    #    認領同一天的一筆讀數**。刻意不看行的位置。
+    #
+    #    為什麼不看位置:上一版是「只降級**緊接在上一行**的那筆」,而產線真實行序是
+    #        讀數 → `[XCHK]` 告警(同一次執行,`finally` 寫的) → (之後)`[MANUAL]` 註記
+    #    ⇒ `[XCHK]` 那行把 `prev_was_sched` 打掉 ⇒ 降級**永遠不觸發** ⇒ 靜音,
+    #    而且和修之前逐位相同。實測 A/B(只差 `[XCHK]` 行的位置):
+    #        讀數→註記→XCHK  ⇒ ('2026-09-09','2026-09-10') 會叫
+    #        讀數→XCHK→註記  ⇒ ('2026-09-10','2026-09-10') **靜音**
+    #    而「補跑」的因果鏈是閉合的:會有人補跑正是因為那天有哨沉默 ⇒ **那天互查必然
+    #    叫過** ⇒ 中間插一行不是邊角情況,是每一次人工補跑的必然形狀。
+    #
+    #    🔴 為什麼不照驗證員給的第一個修法(讓 `[XCHK]` 分支不要動 `prev_was_sched`):
+    #    突變實測,那個修法今天能過**只因為** `[XCHK] ` 剛好命中 `_SKIP_PREFIXES`;
+    #    把那個「本檔註解自己宣告冗餘」的常數清成 `()`,`[XCHK]` 行掉到 else 分支,
+    #    靜音就無聲無息地回來(突變 3 翻面、突變 4 又靜音)。那是把判準釘在會變的屬性上
+    #    (memory `criteria-anchored-to-mutable-property`),失效方向是放寬。
+    #
+    #    這個寫法的**不變量(窄版,這才是真的)**:`[MANUAL]` 註記認領哪一筆讀數,
+    #    只看日期、不看位置 ⇒ 註記行與 `[XCHK]` 行插在檔案的**任何位置**,
+    #    判決與告警內文都逐字相同,那組 A/B 在定義上不可能再分岔。
+    #    回歸有一列排列對照釘住它(`watch_crosscheck_regression.py` 的「M1b 排列」:
+    #    兩行插到所有位置共 3,422 種,2026-09-11 全跑過一次 ⇒ 內文 1 種;常駐列抽 150 種)。
+    #
+    #    🔴 **不要把它讀成「輸出完全不依賴行序」** —— 這句話在 2026-09-11 之前就寫在這裡,
+    #    後面還接著「回歸有一列洗牌對照釘住它」,而那一列**當時並不存在**(grep 零命中),
+    #    宣稱本身也是假的:實測把整份 log(含讀數行)亂序洗 300 次,量到 **91 種**不同內文,
+    #    因為 `sched[-1]` 取的是「檔案裡最後出現」的讀數,不是日期最大的那筆。
+    #    ⇒ 本檔**承重一個具名假設:log 是 append-only 且時間遞增**。
+    #    (刻意不改成 `max(sched)`:位置版碰到亂序會**誤叫**,max 版會被一行未來日期**消音**
+    #     ⇒ 失效方向要留在會叫的那一邊,memory `criteria-anchored-to-mutable-property`。)
+    #
+    #    ⚠️ 剩下的不健全,講清楚:`_MANUAL_TS` 分不出「自己宣告的補跑讀數」
+    #    (`WATCH_MANUAL=1` 產生的 `[MANUAL] [ts] 讀數`)和「事後補的註記行」——
+    #    兩者長相一模一樣。所以同一天兩筆補跑只配一則註記時,會剩一筆被當成排程讀數
+    #    ⇒ 仍然靜音。出口還是 `WATCH_MANUAL=1`:那條路上讀數行**自己**說得出它是誰,
+    #    根本不需要認領(第一輪獨立驗證判它閉合)。
+    for _d in manual_dates:
+        for _i in range(len(sched) - 1, -1, -1):
+            if sched[_i] == _d:
+                del sched[_i]
+                break
     return (sched[-1] if sched else None,
             manual_dates[-1] if manual_dates else None)
 
@@ -329,46 +368,220 @@ def crosscheck_tail(rc, self_key, record, alert, now=None, on_broken=None):
     return 3 if rc == 0 else rc
 
 
-def check_schedule():
-    """把上面的 `at` 常數對**活的**排程比一次 —— 常數會漂,漂了不會有人知道。
+def judge_schedule(w, lines, now):
+    """純函式:吃 PowerShell dump 的行,回 `(probs, notes)`。
 
-    🔴 2026-09-11 修:原本的比對是「`want` 這個字串在不在整份 XML 裡」。獨立驗證
-    往活的 XML 裡塞 `<Enabled>false</Enabled>`,它**照樣回 match** ⇒ 它驗的是
-    某個字串在不在,不是那個觸發器活不活 —— 和它要治的病(靜默失效)同一種。
-    現在改成問 scheduler 要結構化欄位:工作沒被停用(State≠Disabled),而且
-    **存在一個 Enabled=True 的觸發器**,其 StartBoundary 落在那個時刻。
+    🔴 **刻意和 `subprocess` 拆開。** 不拆開的話,E / F / H / I 四個判準就是四句
+    沒有儀器的宣稱 —— 而要用真排程去驗它們,得去正式機造一個同名工作、把工作停用、
+    塞一個過期的 EndBoundary,那是**寫正式機**,不是驗證該付的代價。
+    拆開之後 `watch_crosscheck_regression.py` 餵合成 dump 就驗得到,而合成的只是
+    **儀器讀到的那串字**,判準本身是真的那一份(memory `load-bearing-line-needs-mutation`
+    要的常駐突變列也才有地方掛)。
+
+    dump 的格式(見 `check_schedule()` 裡那段 PowerShell):
+        COUNT=<n>   PATH=<taskpath>   STATE=<state>
+        TRIG=<enabled>|<start>|<end>|<cimclass>|<delay>
+        INFO=<lastrun ISO>|<missedruns>|<lasttaskresult>
+    """
+    def many(tag):
+        return [l.split("=", 1)[1] for l in lines if l.startswith(tag + "=")]
+
+    probs, notes = [], []
+    count = next((l.split("=", 1)[1] for l in lines if l.startswith("COUNT=")), "0")
+    paths, states, trigs = many("PATH"), many("STATE"), many("TRIG")
+    info = next((l.split("=", 1)[1] for l in lines if l.startswith("INFO=")), "")
+
+    # (E) 恰好一個同名工作
+    if count != "1":
+        probs.append(f"同名工作有 {count} 個(TaskPath={paths})—— 陣列會讓 State "
+                     f"變成 'Ready Disabled' 這種字串,舊判準會放它過")
+    # (F) State 只認 Ready / Running
+    state = states[0] if states else ""
+    if state not in ("Ready", "Running"):
+        probs.append(f"State={state or '?'}(只認 Ready / Running;Unknown 代表排程"
+                     f"讀不到這個工作,而舊判準 != Disabled 會放它過)")
+
+    # (I) 觸發器:Enabled + 時刻對 + EndBoundary 沒過期
+    want = w["at"].strftime("T%H:%M:%S")
+    live, expired = [], []
+    for tr in trigs:
+        f = (tr.split("|") + [""] * 5)[:5]
+        en, sb, eb = f[0].strip(), f[1].strip(), f[2].strip()
+        if en.lower() != "true" or want not in sb:
+            continue
+        if eb:
+            try:
+                gone = datetime.datetime.fromisoformat(eb).replace(tzinfo=None) < now
+            except Exception:
+                gone = True     # 讀不懂就當它過期 —— 失效方向往「叫」倒
+            if gone:
+                expired.append(eb)
+                continue
+        live.append(tr)
+    if not live:
+        probs.append(f"沒有任何「Enabled + StartBoundary 落在 {w['at'].strftime('%H:%M')}"
+                     f" + EndBoundary 未過期」的觸發器"
+                     + (f";有 {len(expired)} 個時刻對但已過期({expired})" if expired else ""))
+
+    # (H) 🔴 排程自己說它上次跑在什麼時候 —— 和 log 那邊同一把尺(同一個 due_date)
+    lr, missed, lastrc = (info.split("|") + ["", "", ""])[:3]
+    due_dt = datetime.datetime.combine(due_date(w["at"], now), w["at"])
+    if not lr:
+        probs.append("排程說它**從來沒跑過**(LastRunTime 空)")
+    else:
+        try:
+            last = datetime.datetime.fromisoformat(lr)
+        except Exception:
+            probs.append(f"LastRunTime 讀不懂:{lr!r}")
+            last = None
+        if last is not None and last < due_dt:
+            probs.append(f"🔴 排程自己說上次跑是 {lr},而最近一次該跑完的是 "
+                         f"{due_dt.isoformat(' ')} ⇒ **漏跑**。"
+                         f"2026-09-10 那場事故就是這一格,而上一代這裡是綠的")
+
+    notes.append(f"常數 {w['at'].strftime('%H:%M')} / {w['task']} / LastRun={lr or '?'} / "
+                 f"due={due_dt.isoformat(' ')} / "
+                 f"LastTaskResult={lastrc or '?'}(不當判準:narration 穩態就是 1) / "
+                 f"MissedRuns={missed or '?'}(不當判準:歸零時機未驗)")
+
+    # 不參與判定的觸發器(LogonTrigger 就落在這裡):照印
+    for tr in trigs:
+        f = (tr.split("|") + [""] * 5)[:5]
+        if want in f[1]:
+            continue
+        notes.append(f"(附帶·不參與判定)type={f[3] or '?'} enabled={f[0]} "
+                     f"start={f[1]} delay={f[4] or '-'}")
+    want_delay = w.get("logon_delay")
+    if want_delay:
+        hit = [tr for tr in trigs
+               if "Logon" in (tr.split("|") + [""] * 5)[3] and want_delay in tr]
+        if not hit:
+            probs.append(f"修(二) 的 LogonTrigger(Delay={want_delay})不在活的排程裡")
+    return probs, notes
+
+
+def old_judge_schedule(w, lines):
+    """**第二代的判準,逐字保存,只給回歸腳本當陽性對照用。**
+
+    它就是被【4/5】打掉的那一版:`State != Disabled` + 「有 Enabled 觸發器時刻對得上」,
+    不問 `LastRunTime`、不問同名工作幾個、不看 `EndBoundary`。
+    回歸腳本拿它和 `judge_schedule()` 在同一份 dump 上並排 ——
+    **「新判準會叫」單獨不構成修好了**,還要證明舊判準在同一份 dump 上是綠的,
+    否則「我修了 E/F/H/I」和「這四格本來就會叫」分不開。
+    ⚠️ 不要「順手更新」這個函式:它是歷史紀錄,不是活的碼。
+    """
+    states = [l.split("=", 1)[1] for l in lines if l.startswith("STATE=")]
+    trigs = [l.split("=", 1)[1] for l in lines if l.startswith("TRIG=")]
+    want = w["at"].strftime("T%H:%M:%S")
+    state = " ".join(states)        # $t 是陣列時 PowerShell 就是這樣攤平的
+    live = [tr for tr in trigs
+            if tr.split("|", 1)[0].strip().lower() == "true" and want in tr]
+    return bool(live) and state.lower() != "disabled"
+
+
+def check_schedule(now=None):
+    """把上面的 `at` 常數對**活的**排程比一次,並且**問排程它上次到底有沒有跑**。
+
+    ## 這支的病史(兩代,兩次都是「驗的東西不是要治的病」)
+
+    第一代:比對是「`want` 這個字串在不在整份 XML 裡」。獨立驗證往活的 XML 塞
+    `<Enabled>false</Enabled>`,它照樣回 match ⇒ 它驗的是某個字串在不在,
+    不是那個觸發器活不活 —— 和它要治的病(靜默失效)同一種。
+
+    🔴 第二代(2026-09-11 第三輪獨立驗證【4/5】):改成問結構化欄位之後,它**在
+    2026-09-10 那場事故本身上是綠的**。實測活的排程(09-11 02:46 讀,唯讀):
+
+        carson-seeding-watch             State=Ready  LastRun=09/09 07:00  Missed=1  rc=0
+        carson-narration-compliance-...  State=Ready  LastRun=09/09 07:10  Missed=1  rc=1
+        carson-quota-ceiling-watch       State=Ready  LastRun=09/10 15:20  Missed=0  rc=0
+
+    兩支哨 09-10 整天沒跑,而**排程自己記著這件事**(`LastRunTime` 停在 09-09、
+    `NumberOfMissedRuns=1`),就在同一趟 PowerShell 拿得到的欄位裡 ——
+    而第二代一個都沒問。它治的是「常數漂了」,事故是「該跑沒跑」。
+    ⇒ **一道檢查在它要治的那場事故上是綠的,是「檢查不會失敗」的一種**
+    (memory `verification-that-cannot-fail`)。
+
+    ## 現在問什麼(括號裡是驗證員的編號)
+
+    1. 同名工作**恰好一個**(E)。同名工作躺在兩個 TaskPath 時 `$t` 是陣列,
+       `$t.State` 會變成 `Ready Disabled` 這種字串 —— 而舊碼的判準是
+       `state != "disabled"` ⇒ **一個被停用的孿生工作可以讓它綠燈**。
+    2. `State` 必須是 `Ready` 或 `Running`(F)。舊碼寫 `!= Disabled`
+       ⇒ `Unknown`(工作損壞、排程服務讀不到)**過關**。失效方向是放寬。
+    3. 觸發器:Enabled、StartBoundary 落在那個時刻、**而且 EndBoundary 沒過期**(I)。
+       過期的觸發器留在 XML 裡長得和活的一模一樣,但它不會再跑。
+       EndBoundary 有值卻讀不懂 ⇒ 也算問題(往「叫」倒)。
+    4. 🔴 **`LastRunTime` 不得早於 `due_date()` 算出來的那個時刻**(H)。
+       這一格用的是**和 log 那一邊完全同一把尺**(同一個 `due_date`)⇒ 兩個獨立
+       來源(排程自己的紀錄 vs log 落地的行)配同一個判準,對不上就是有一邊在騙人。
+
+    ## 刻意**不**當判準的兩個欄位,理由寫在這裡而不是留在腦子裡
+
+    - `LastTaskResult`:`narration` 的穩態就是 `rc=1`(它天天在告警,
+      見施工圖 §3 註腳 (ii))⇒ 拿它當判準會**天天誤叫**,而天天誤叫等於靜音。
+      照印不判。
+    - `NumberOfMissedRuns`:它的**歸零時機我沒有驗過**。若它不會自己歸零,
+      拿它當判準會變成永久紅燈,而永久紅燈也等於靜音。照印不判,並留一個
+      可觀測的作業:09-11 07:00 那次跑完之後回來看它有沒有變 0 ——
+      有,才可以把它升成判準。
+
+    ## 這支**驗不了**什麼(不要拿它當修(二)的守衛)
+
+    - 🔴 **它驗不了 LogonTrigger。** 判準是「StartBoundary 落在 `at` 這個時刻」,
+      而 LogonTrigger 的 StartBoundary 是**註冊那一刻**,不是時刻常數 ⇒ 它只會
+      被當成「不參與判定的觸發器」印出來。修(二)(登入補跑)上線之後要有人回來把
+      `logon_delay` 填進 `WATCHES` 才會變成斷言 —— 在那之前這裡只**照印**型別與 Delay。
+    - 它的輸出通道只有 **stdout**:本模組唯讀,不寫 log。⇒ 只能由人在 shell 裡跑;
+      哪天把它排進 `pythonw`,`sys.stdout is None`,整支**靜默 no-op**
+      (和新-1 同一個病)。要排程化就得先給它一條 log 通道。
 
     ⚠️ 還沒好的一半(照實寫):全 repo **沒有任何東西呼叫本函式** ——
     `grep check[-_]schedule` 只命中它自己的定義和施工圖。所以它是**手動引信**,
     而手動引信等於沒有引信。排進排程屬於新類型的正式機變更,要先問 Carson。
     """
     import subprocess
-    ps = ("$ErrorActionPreference='Stop'; $t = Get-ScheduledTask -TaskName '{task}'; "
-          "'STATE=' + $t.State; "
-          "foreach ($g in $t.Triggers) {{ 'TRIG=' + $g.Enabled + '|' + $g.StartBoundary }}")
+    now = now or datetime.datetime.now()
+    ps = ("$ErrorActionPreference='Stop'; "
+          "$all = @(Get-ScheduledTask -TaskName '{task}'); "
+          "'COUNT=' + $all.Count; "
+          "foreach ($x in $all) {{ 'PATH=' + $x.TaskPath; 'STATE=' + $x.State }} "
+          "$t = $all[0]; "
+          "foreach ($g in $t.Triggers) {{ "
+          "$d = ''; if ($g.PSObject.Properties['Delay']) {{ $d = [string]$g.Delay }} "
+          "'TRIG=' + $g.Enabled + '|' + $g.StartBoundary + '|' + $g.EndBoundary + '|' "
+          "+ $g.CimClass.CimClassName + '|' + $d }} "
+          "$i = Get-ScheduledTaskInfo -TaskName '{task}'; "
+          "$lr = ''; if ($i.LastRunTime) {{ $lr = $i.LastRunTime.ToString('yyyy-MM-ddTHH:mm:ss') }} "
+          "'INFO=' + $lr + '|' + $i.NumberOfMissedRuns + '|' + $i.LastTaskResult")
     rc = 0
     for key, w in WATCHES.items():
         try:
-            out = subprocess.run(
+            cp = subprocess.run(
                 ["powershell", "-NoProfile", "-Command", ps.format(task=w["task"])],
-                capture_output=True, text=True, timeout=60).stdout
+                capture_output=True, text=True, timeout=60)
         except Exception as e:
-            print(f"{key}: FAILED to read task ({e!r})"); rc = 2; continue
-        lines = out.splitlines()
-        state = next((l.split("=", 1)[1].strip() for l in lines if l.startswith("STATE=")), "")
-        trigs = [l for l in lines if l.startswith("TRIG=")]
-        want  = w["at"].strftime("T%H:%M:%S")
-        # 只認「Enabled 的觸發器」+「工作本身沒被停用」,兩個條件都不是字串包含
-        live  = [l for l in trigs if l.split("|", 1)[0].strip().endswith("True") and want in l]
-        ok    = bool(live) and state.lower() != "disabled"
-        print(f"{key}: constant {w['at'].strftime('%H:%M')} "
-              f"{'matches a LIVE trigger' if ok else 'DOES NOT MATCH any live trigger'} "
-              f"in {w['task']} (State={state or '?'}, triggers={len(trigs)}, "
-              f"enabled_at_that_time={len(live)})")
-        if not ok:
+            print(f"{key}: 🔴 讀不到排程({e!r})")
             rc = 2
+            continue
+        lines = [l.strip() for l in cp.stdout.splitlines() if l.strip()]
+        if not lines:
+            print(f"{key}: 🔴 PowerShell 沒有回任何東西(returncode={cp.returncode}) "
+                  f"stderr={cp.stderr.strip()[:200]!r}")
+            rc = 2
+            continue
+        probs, notes = judge_schedule(w, lines, now)
+        if probs:
+            rc = 2
+            print(f"{key}: 🔴 " + "；".join(probs))
+        else:
+            print(f"{key}: OK 常數 {w['at'].strftime('%H:%M')} 對到活的觸發器且沒有漏跑")
+        for n in notes:
+            print("      " + n)
+
     if rc == 0:
         print("note: 本函式沒有任何排程呼叫它 —— 這次是人手動跑的。手動引信等於沒有引信。")
+        print("note: 它驗不了 LogonTrigger(判準錨在時刻常數,而 LogonTrigger 沒有時刻)"
+              " ⇒ 不要拿它當修(二)的守衛。")
     return rc
 
 
