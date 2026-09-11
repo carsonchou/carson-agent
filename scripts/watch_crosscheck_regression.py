@@ -129,7 +129,8 @@ def add(rows, name, expect, got, ok):
 #    2026-09-11 下午:M0 簽章對照 +2、M1c 真輸出 +3 × 三支哨 = +9 ⇒ 80→91 / 77→88。
 #    這兩個數同樣是**各跑一次抄下來的**(12:00 印 88、12:01 印 91),不是 77+11 加出來的
 #    —— 加法在這裡推錯過兩次,而推錯的表現是「格數斷言自己過了」。
-EXPECT_ROWS = {True: 91, False: 88}   # key = 有沒有給 --before
+#    2026-09-11 12:04/12:05:M4 (6b) 補 (6) 自己的翻面突變 +3 ⇒ 88→91 / 91→94,一樣是抄的。
+EXPECT_ROWS = {True: 94, False: 91}   # key = 有沒有給 --before
 
 
 # 🔴 2026-09-10~09-11 真的活在正式機上的那一版 `last_sched_date()` 迴圈,逐字保存。
@@ -944,6 +945,30 @@ def main():
                 add(rows, f"M4 {key} 主 log 壞掉 ⇒ 同目錄 .broken.log 接住",
                     "落在 .broken.log", f"回傳{ret}/拋{raised!r}", ok)
 
+                # (6b) 🔴 (6) 自己的翻面突變:只把**第二條路**從清單裡拿掉(%TEMP% 那條留著)。
+                #      少了這一列,(6) 和「這一格恆過」分不開 —— 下面的 (7) 砍的是
+                #      第二和第三條**一起**,它殺得掉 (5) 卻殺不掉「(6) 其實是被 %TEMP%
+                #      接住而我看錯」這種讀法(memory `load-bearing-line-needs-mutation`:
+                #      綠燈的測試不區分是哪個改動讓它變綠)。
+                #      翻面的長相是「還是有留痕,但**落錯地方**」,不是「沒留痕」——
+                #      所以斷言要盯**落在哪裡**,不是盯有沒有落。
+                mut6 = fsrc.replace('cands = [LOG, LOG.with_suffix(".broken.log")]',
+                                    "cands = [LOG]")
+                if mut6 == fsrc:
+                    add(rows, f"M4 {key} 突變 砍掉 .broken.log 那條 ⇒ 上一格必須翻面",
+                        "落到別處", "突變沒生效(找不到 cands 那行)", False)
+                else:
+                    dir_as_log6 = _xb_tmp / f"{key}_asdir6.log"
+                    dir_as_log6.mkdir(parents=True, exist_ok=True)
+                    got, raised, _, ret = xchk_broken_trial(
+                        mut6, "none", dir_as_log6, temp_to=_xb_tmp / f"{key}_t6b")
+                    landed = ret.read_text(encoding="utf-8") if ret is not None else ""
+                    ok = (raised is None and ret is not None
+                          and ret != dir_as_log6.with_suffix(".broken.log")
+                          and "[XCHK-BROKEN]" in landed)
+                    add(rows, f"M4 {key} 突變 砍掉 .broken.log 那條 ⇒ 上一格必須翻面",
+                        "留痕但落到別處", f"回傳{ret}/拋{raised!r}", ok)
+
                 # (7) 突變:把備援清單砍回只剩主通道 ⇒ (5) 必須翻面成「完全沒留痕」。
                 #     少了這一列,(5) 和「這一格恆過」分不開。
                 mut7 = fsrc.replace('cands = [LOG, LOG.with_suffix(".broken.log")]',
@@ -1006,8 +1031,8 @@ def main():
                f"M1 前綴、M1b 行序不變量 × 3 + 內文逐字對照 + 排列 150 種 1 + 突變 1"
                f" + 歷史相鄰版陽性對照 2、"
                f"M2 WATCH_MANUAL、M5 排程判準 E/F/H/I × 9 + 舊判準並排 9 + LogonTrigger 4、"
-               f"M3 控制流 × 3 支、M4 最後一道留痕 × 3 支 × 9 格"
-               f"(主通道 3 + 備援路 2 + 突變 3 + 拆掉回讀的陰性 1)、陰性對照 1;"
+               f"M3 控制流 × 3 支、M4 最後一道留痕 × 3 支 × 10 格"
+               f"(主通道 3 + 備援路 2 + 突變 4 + 拆掉回讀的陰性 1)、陰性對照 1;"
                f"其中『M2 不帶環境變數』那格記錄的是**已知未修**的現況 —— "
                f"『不緊鄰』那格已於 09-11 從靜音翻回叫,不再是未修)。{skipped}")
         print(f"{chr(10)}✅ {n}/{n} 符合期待{skipped}")
