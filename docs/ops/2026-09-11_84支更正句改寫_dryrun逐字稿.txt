@@ -1,41 +1,125 @@
-# 84 支已發布片・更正說明尾句改寫 —— dry-run 逐字稿(定稿)
+# 84 支已發布片・更正說明尾句改寫 —— dry-run 逐字稿(F1–F5 修正後重跑版)
 #
-# 產生指令(不連寫、不呼叫 videos.update):
-#   youtube_channel/.venv/Scripts/python.exe youtube_channel/scripts/fix_period_disclaimer.py --rewrite-note
-# 觀測時間:2026-09-11(台北)。rc=0。
+# 🔴 這份**取代**同檔名前一版(commit 610f81b2 那份)。前一版量的是 F1–F5 修正**之前**
+#    的程式,那些數字作廢,只剩歷史價值(git 裡查得到)。改了程式就要重量。
 #
-# 🔴 這份是 **dry-run**。全程零 videos.update 呼叫,YouTube 上一個字都沒改。
-# 🔴 --apply 尚未執行過一次。對外執行權在總督導 wF:p5 手上,要等獨立驗證放行。
+# 🔴 全程 dry-run:零 videos.update 呼叫,YouTube 上一個字都沒改;--apply 一次都沒跑過。
+#    對外執行權在總督導 wF:p5 手上,要等獨立驗證放行。
 #
-# 這份是**加上寫入時間戳之後**重跑的第三輪。三輪之間逐支輸出逐字相同,
-# 只差兩行:quota 計數、以及時間戳檔路徑(第一版誤指到 youtube_channel/docs/ops/,
-# 靠把路徑印出來才抓到)。改了程式就要重量,不能引用改之前的數字。
+# 工具:youtube_channel/scripts/fix_period_disclaimer.py
+#   blob 6ca9c1a0a1d7f302603199ebfd502f9d122c4996(610f81b2)→ 35149f7e39159779ea6d0fa21fe139a8d3b60e58
+#   ⚠️ 驗 blob 請用 `git hash-object`。repo 是 core.autocrlf=true:磁碟上是 CRLF,
+#      自己對檔案算 sha1 得到的是 raw 值(新檔 c1cb5f59…、舊檔 86461e40…),跟 git 對不上。
+#      我的換檔腳本第一版就是這樣把「沒人動過」誤判成「有人動過」而拒換(fail-closed,沒出事)。
+#   換上方式:scratchpad 副本改完 → self_test 全綠 → 同目錄 tmp → 逐位元組讀回比對 → os.replace
+#   (換上前核對:正式檔 blob 仍是 6ca9c1a0、相對 HEAD 無未 commit 改動;16:52:53 換上)。
 #
-# 讀這份要注意的四件事:
-#  1. 「其餘逐字相同:是」那一行是不變量檢查的**結果**,不是宣告。它對新舊描述
-#     各自獨立重新定位那一句、挖掉、再比剩下的字元;寫成恆真句就量不到東西。
-#  2. 「★必測7」是 w9:p1 盤點(commit 97906309)點名的 7 支 —— 播放清單連結被插在
-#     MARK 段落**正中間**。用段落邊界改寫會安靜地吃掉它。這 7 支的播放清單行
-#     在下面逐支印出新舊兩份供對照。
-#  3. 實際帶播放清單行的是 **23 支**不是 7 支;另外 16 支的那一行在描述別處,
-#     不受段落邊界問題影響,但一樣逐支驗過。
-#  4. 「寫入時間戳:dry-run 不落」——時間戳只在 --apply 時產生。它存在的理由是
-#     wF:p1(commit a3994a6f)量到有 8 支常駐 job 會 read-modify-write 同一個描述欄:
-#     被 job 蓋回去、和 YouTube 吐舊快取,在回讀端是同一個畫面,沒有送出/回應
-#     時間就分不開。
+# 觀測(2026-09-11 台北,本機手動跑,YT_QUOTA_ENFORCE / YT_QUOTA_RESERVE 皆 <unset>):
+#   16:53:47  --rewrite-note(改寫路徑)開始   → 16:53:54 rc=0
+#   16:53:54  --max 15,不帶 --apply(= cron 那行拿掉 --apply,插入路徑)→ 16:54:18 rc=0
+#   self_test:正式檔位置跑,54 格 OK、rc=0;pyflakes rc=0
 #
-# ⚠️ 附帶觀察:抬頭那行 [quota] 已用 26197/26197(100%),而其後 84 次 videos.list
-#    **全部成功**。這是 memory `quota-self-throttle-vs-google-403` 的第三次獨立目擊
-#    —— 那個 100% 是自家帳本,不是 Google 擋的。
+# ── 結果 ──────────────────────────────────────────────────────────
+#   改寫路徑:可改寫 84(public 69 / private 15);已是新措辭 0 / 拒動 0 / 取不到 0;
+#             84 支每支都印「body 欄位:帶齊 ✅」;帶播放清單行的 23 支,23 支原封不動。
+#   插入路徑:待加更正 0 支(已完成 84)⇒ 將加 0 支。
+#   本機檔案副作用(兩輪前後各量一次 sha1 + mtime):
+#     _mixed_period_published.json(SRC)  f64bf883249a  2026-09-05 15:05:26  前後不變
+#     period_disclaimer_done.json(DONE)  f1bd042655c1  2026-09-11 15:06:18  前後不變
+#
+# ── F1–F5 各一行 ─────────────────────────────────────────────────
+#  F1 body 漏帶欄位:兩條路徑共用 build_body();檢查 body_keeps_fields() **不共用** builder
+#     的欄位表,改走線上 snippet 自己的每個鍵、只跳過 API 唯讀的 6 個,不認得的鍵一律當必須帶
+#     ⇒ 拒寫。檢查排在 `if not args.apply` 之前,dry-run 也跑到(上面 84/84「帶齊」就是它印的)。
+#     self_test ㉑–㉑f;原始碼突變 2 條。
+#  F2 寫入時間戳:每支 sent/ok 兩行、逐行 fsync(610f81b2 已做,本輪未動;⑱⑲⑳)。
+#  F3 M3「那一句必須恰好 1 次」、M4「新句逐字 = Carson 核定」:self_test ㉒/㉓ 用**獨立字面值**
+#     比對,不引用工具自己的常數;原始碼突變 2 條。
+#  F4 配額拒絕分主詞:_client_side_quota() 認真的 quota_meter.QuotaExhausted 與
+#     `quota exhausted:` / `quota reserve:` 前綴;兩條路徑遇到都**中止整輪**,時間戳記
+#     phase=blocked、by=本機 quota_meter,訊息寫明「未送出、不是 Google 的 403、不要改門檻」。
+#     Google 真 403 不會被誤認(㉗d 陰性)。self_test ㉗–㉗d;原始碼突變 2 條。
+#  F5 插入路徑:NOTE = NOTE_NEW(和改寫路徑同一個常數,不是兩份);超長拒寫不截斷;
+#     body 同 F1;DONE 改 tmp → 讀回比對 → os.replace。self_test ㉔–㉖;原始碼突變 3 條。
+#     (舊句 NOTE_OLD 只剩 self_test 造樣本用。)
+#
+# ── cron 那行走哪條路 ─────────────────────────────────────────────
+#   crontab.txt(以內容搜尋,不是行號):
+#     5 15 * * * YT_QUOTA_RESERVE=23650 /root/yt/run.sh scripts/fix_period_disclaimer.py --apply --max 15 …
+#   ⇒ route_of() = "insert"(只有 --rewrite-note 才進改寫路徑;self_test ㉖–㉖d 釘住,
+#     突變「旗標恆真」會翻紅)。cron 那行本輪沒有動。
+#
+#   🔴 **更正我前一版的說法**:我之前寫「cron 經 run.sh source .env」—— 機制講錯了。
+#     run.sh / /root/yt 是 droplet 時代的路徑,這台機器上不存在(WSL 以 root 查:No such file)。
+#     真正跑它的是本機排程器 youtube_channel/scripts/local_cron.py:
+#       · 把 `/root/yt/run.sh scripts/X.py args` 翻成本機 `.venv\Scripts\python.exe scripts/X.py args`,
+#         ROOT = 本 repo 的 youtube_channel ⇒ 執行的就是剛換上的這支檔案;
+#       · load_env()(:163)把 youtube_channel/.env 併進環境 ⇒ YT_QUOTA_ENFORCE=1(.env:38);
+#       · parse_jobs()(:262–273)抽出行內前綴、run_job()(:365)`{**env, **jenv}` ⇒ YT_QUOTA_RESERVE=23650。
+#     結論不變(cron 那一輪看得到 ENFORCE=1 + RESERVE=23650;本機手動跑兩個都沒有,除非自己 export),
+#     但出處是 local_cron.py 不是 run.sh。
+#   實據:logs/local_cron.log `[2026-09-11 15:05:05] ▶ 啟動 … --apply --max 15` →
+#         `[15:06:18] ✓ 完成`,與 DONE 的 mtime 15:06:18 同秒;
+#         logs/jobout/fix_period_disclaimer.log 09-10、09-11 兩輪都是「待加更正 0 支 / 已加 0 支」。
+#   ⇒ 明天(09-12)15:05 那一輪跑的是 blob 35149f7e 這一份。若 18:00 發布產生新的中招片,
+#     它寫出去的是**核准的新句**、body 帶齊線上可寫欄位、超長拒寫。
+#
+# ── 已知副作用(督導交代:不修,寫進交付檔)────────────────────────
+#   插入路徑的 _refresh_candidates()(新檔第 461 行起,寫檔在第 503 行
+#   `sc.save_json_atomic(SRC, rows)`)只要找到新候選,**不帶 --apply 的 dry-run 也會寫正式的 SRC**
+#   (STUDIO/_mixed_period_published.json)。本輪沒有新候選,所以上面量到 SRC 前後不變 ——
+#   這**不是**「dry-run 不寫 SRC」的證據,只是這一次沒走到那條分支。
+#
+# ── 這份**沒有**證明的事 ───────────────────────────────────────────
+#   · 真的 --apply 對 YouTube 的效果(沒寫過,也不准寫)。body 帶齊只證明「我們送出去的包裡有」,
+#     不證明 YouTube 收到後不會再重猜 defaultAudioLanguage;要等 --apply 後用獨立儀器回讀。
+#   · body 是用同一輪 videos.list 讀回的 snippet 組的。讀和寫之間若 8 支常駐 job 之一改了描述,
+#     仍會被蓋掉 —— 寫入時間戳(F2)是為了事後分得出來,不是防止它。
+#   · 本機配額帳本與 Google 端一致(另案,a7a56c46 排程表 §1-2)。
+#   · 原始碼突變只涵蓋下面列出的承重行;沒列的行,改壞了 self_test 不一定會叫。
 #
 # ─────────────────────────────────────────────────────────────
+
+# ═══ 〔A〕local_cron.py --list(排程器自己的解析結果,唯讀:第 434–438 行在拿鎖之前 return)
+解析到 115 個本機 job：
+  5 15 * * *  scripts/fix_period_disclaimer.py --apply --max 15
+
+# ═══ 〔B〕原始碼突變:youtube_channel/scripts/fix_period_disclaimer_mutants.py(對正式檔,rc=0)
+對象:D:\carson-agent\youtube_channel\scripts\fix_period_disclaimer.py
+基準(未突變):rc=0  紅格 0
+  OK  F1  可寫欄位表拿掉 defaultAudioLanguage     rc=1  紅格 3
+        翻紅:㉑ F1:body 帶齊線上有值的可寫欄位
+        翻紅:㉑b F1:只有 description 換掉,其餘原樣帶回去
+        翻紅:㉑f【陰性】唯讀鍵(thumbnails/channelTitle/publishedAt)沒帶 ⇒ 不該翻紅
+  OK  F1  body_keeps_fields 改回走同一張表        rc=1  紅格 1
+        翻紅:㉑e F1:線上出現**不認得的鍵** ⇒ 當成必須帶 ⇒ 拒寫(不是悄悄清空)
+  OK  M3  次數檢查放寬成 n==0                     rc=1  紅格 1
+        翻紅:㉒ F3-M3:同一句出現 2 次居然沒被拒
+  OK  M4  核准句逗號換全形                         rc=1  紅格 2
+        翻紅:㉓ F3-M4:新句逐字等於 Carson 2026-09-11 核定的措辭
+        翻紅:㉓b F3-M4:NOTE_NEW 的尾句就是它,舊句不在裡面
+  OK  F5  插入路徑改回舊句                         rc=1  紅格 4
+        翻紅:㉔ F5:插入路徑與改寫路徑共用同一個常數(不是各寫一份)
+        翻紅:㉔b F5:插入路徑寫出去的是新句,已撤回的舊句不在裡面
+        翻紅:㉔c【突變】若把 NOTE 改回 _HEAD + _TAIL_OLD ⇒ 與上一格衝突(會翻紅)
+  OK  F5  超長不拒寫                            rc=1  紅格 1
+        翻紅:㉕ F5:插入後超長居然沒被拒(會硬截掉描述尾巴)
+  OK  cron 改寫變成預設                          rc=1  紅格 1
+        翻紅:㉖ cron 那行原封不動的參數 ⇒ 走插入路徑(不是改寫)
+  OK  F4  分類退化成 'quota' in 字串              rc=1  紅格 1
+        翻紅:㉗d【陰性】Google 的真 403(quotaExceeded)⇒ **不是**本機擋的
+  OK  F4  型別判斷拿掉(只剩前綴)                     rc=1  紅格 1
+        翻紅:㉗ F4:真的 QuotaExhausted(訊息不帶前綴也算)⇒ 本機帳本擋的
+  OK  陰性對照:改一句 dry-run 提示字                 rc=0  紅格 0
+全部符合預期(每個突變都翻紅、對照維持全綠、沒有崩潰)
+
+# ═══ 〔C〕改寫路徑 dry-run 原始輸出:fix_period_disclaimer.py --rewrite-note(rc=0;只濾掉 _llm_shim 一行亂碼)
 D:\carson-agent\youtube_channel\.venv\lib\site-packages\google\auth\__init__.py:54: FutureWarning: You are using a Python version 3.9 past its end of life. Google will update google-auth with critical bug fixes on a best-effort basis, but not with any other fixes or features. Please upgrade your Python version, and then update google-auth.
   warnings.warn(eol_message.format("3.9"), FutureWarning)
 D:\carson-agent\youtube_channel\.venv\lib\site-packages\google\api_core\_python_version_support.py:242: FutureWarning: You are using a non-supported Python version (3.9.13). Google will not post any further updates to google.api_core supporting this Python version. Please upgrade to the latest Python version, or at least Python 3.10, and then update google.api_core.
   warnings.warn(message, FutureWarning)
 D:\carson-agent\youtube_channel\.venv\lib\site-packages\google\oauth2\__init__.py:40: FutureWarning: You are using a Python version 3.9 past its end of life. Google will update google-auth with critical bug fixes on a best-effort basis, but not with any other fixes or features. Please upgrade your Python version, and then update google-auth.
   warnings.warn(eol_message.format("3.9"), FutureWarning)
-[quota] ⚠️ 已用 26197/26197(100%)
 改寫母體:DONE 名單 84 支(已加過更正的)
 錨:整句逐字取代,出現次數必須恰好 1
   舊 '之後的影片已改成在同一句標明期間。'
@@ -52,11 +136,13 @@ D:\carson-agent\youtube_channel\.venv\lib\site-packages\google\oauth2\__init__.p
          播放清單行:原封不動 ✅
            舊 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
            新 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [ 2/84] -dyes0qFE9U  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 1022 字元逐字相同
          長度 1039 → 1057 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [ 3/84] 0EPASuhQti0  private
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
@@ -65,6 +151,7 @@ D:\carson-agent\youtube_channel\.venv\lib\site-packages\google\oauth2\__init__.p
          播放清單行:原封不動 ✅
            舊 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
            新 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [ 4/84] 0Gy7jec6Agc  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
@@ -73,16 +160,19 @@ D:\carson-agent\youtube_channel\.venv\lib\site-packages\google\oauth2\__init__.p
          播放清單行:原封不動 ✅
            舊 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
            新 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [ 5/84] 0tc8VKpjfrA  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 1017 字元逐字相同
          長度 1034 → 1052 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [ 6/84] 24Kz-SOtX2o  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 832 字元逐字相同
          長度 849 → 867 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [ 7/84] 28VsAqNKCZA  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
@@ -91,31 +181,37 @@ D:\carson-agent\youtube_channel\.venv\lib\site-packages\google\oauth2\__init__.p
          播放清單行:原封不動 ✅
            舊 '📚 全系列連播｜0050/ETF 定期定額實驗：https://www.youtube.com/playlist?list=PLJp7y2jl2p64'
            新 '📚 全系列連播｜0050/ETF 定期定額實驗：https://www.youtube.com/playlist?list=PLJp7y2jl2p64'
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [ 8/84] 5qLlIj65Rt4  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 1436 字元逐字相同
          長度 1453 → 1471 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [ 9/84] 5xlZ-GgkLoE  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 1008 字元逐字相同
          長度 1025 → 1043 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [10/84] 6HsGEj_jt0Y  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 1032 字元逐字相同
          長度 1049 → 1067 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [11/84] 6TRk1183KbA  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 1062 字元逐字相同
          長度 1079 → 1097 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [12/84] 7DIYyvjQdKY  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 1246 字元逐字相同
          長度 1263 → 1281 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [13/84] 7ixOvHW5aM8  private
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
@@ -124,16 +220,19 @@ D:\carson-agent\youtube_channel\.venv\lib\site-packages\google\oauth2\__init__.p
          播放清單行:原封不動 ✅
            舊 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
            新 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [14/84] 8NCqx8Zzwu0  private
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 1049 字元逐字相同
          長度 1066 → 1084 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [15/84] 9Ly1duaPucw  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 1069 字元逐字相同
          長度 1086 → 1104 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [16/84] 9Sirsi0ZP9o  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
@@ -142,16 +241,19 @@ D:\carson-agent\youtube_channel\.venv\lib\site-packages\google\oauth2\__init__.p
          播放清單行:原封不動 ✅
            舊 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
            新 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [17/84] 9_35qFeSCIw  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 813 字元逐字相同
          長度 830 → 848 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [18/84] Az3gBJzc6q8  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 999 字元逐字相同
          長度 1016 → 1034 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [19/84] B1VfToi_HdY  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
@@ -160,41 +262,49 @@ D:\carson-agent\youtube_channel\.venv\lib\site-packages\google\oauth2\__init__.p
          播放清單行:原封不動 ✅
            舊 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
            新 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [20/84] B9mXAplHxYk  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 1316 字元逐字相同
          長度 1333 → 1351 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [21/84] BiGdBpEvI6Q  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 1262 字元逐字相同
          長度 1279 → 1297 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [22/84] BymPJQbC9cU  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 1127 字元逐字相同
          長度 1144 → 1162 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [23/84] Cc6-UL16-CQ  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 965 字元逐字相同
          長度 982 → 1000 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [24/84] D-IZXExuPmw  private
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 1094 字元逐字相同
          長度 1111 → 1129 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [25/84] DOZcYNsXfjc  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 768 字元逐字相同
          長度 785 → 803 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [26/84] DQqWOKBFDs8  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 1000 字元逐字相同
          長度 1017 → 1035 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [27/84] EFQGvPDDTRQ  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
@@ -203,41 +313,49 @@ D:\carson-agent\youtube_channel\.venv\lib\site-packages\google\oauth2\__init__.p
          播放清單行:原封不動 ✅
            舊 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
            新 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [28/84] EaFK-E6_xss  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 1014 字元逐字相同
          長度 1031 → 1049 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [29/84] FYpVo6KawFE  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 999 字元逐字相同
          長度 1016 → 1034 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [30/84] GNSXluoU1-E  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 838 字元逐字相同
          長度 855 → 873 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [31/84] H3Sk1AfUVT0  private
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 1083 字元逐字相同
          長度 1100 → 1118 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [32/84] Hgf5C6P0fN4  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 1125 字元逐字相同
          長度 1142 → 1160 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [33/84] I-dZzhEhAAA  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 973 字元逐字相同
          長度 990 → 1008 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [34/84] IjgIEJo5w7E  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 1025 字元逐字相同
          長度 1042 → 1060 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [35/84] J5pDfPc9w7A  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
@@ -246,11 +364,13 @@ D:\carson-agent\youtube_channel\.venv\lib\site-packages\google\oauth2\__init__.p
          播放清單行:原封不動 ✅
            舊 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
            新 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [36/84] J_VtZrDPZB8  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 685 字元逐字相同
          長度 702 → 720 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [37/84] MTPczTWeZ74  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
@@ -259,26 +379,31 @@ D:\carson-agent\youtube_channel\.venv\lib\site-packages\google\oauth2\__init__.p
          播放清單行:原封不動 ✅
            舊 '📚 全系列連播｜0050/ETF 定期定額實驗：https://www.youtube.com/playlist?list=PLJp7y2jl2p64'
            新 '📚 全系列連播｜0050/ETF 定期定額實驗：https://www.youtube.com/playlist?list=PLJp7y2jl2p64'
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [38/84] N_quHN5BBRE  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 1005 字元逐字相同
          長度 1022 → 1040 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [39/84] Nhc7XjmcTLY  private
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 992 字元逐字相同
          長度 1009 → 1027 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [40/84] OhrPgVP_CR8  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 1052 字元逐字相同
          長度 1069 → 1087 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [41/84] OqjzGFuuuHc  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 1064 字元逐字相同
          長度 1081 → 1099 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [42/84] OtwYzI6XE8Y  private  ★必測7
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
@@ -287,6 +412,7 @@ D:\carson-agent\youtube_channel\.venv\lib\site-packages\google\oauth2\__init__.p
          播放清單行:原封不動 ✅
            舊 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
            新 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [43/84] Oy7dux0cBHs  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
@@ -295,31 +421,37 @@ D:\carson-agent\youtube_channel\.venv\lib\site-packages\google\oauth2\__init__.p
          播放清單行:原封不動 ✅
            舊 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
            新 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [44/84] PJu4zbcZ4Eo  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 1047 字元逐字相同
          長度 1064 → 1082 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [45/84] Qk-o2-ZaV-c  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 1079 字元逐字相同
          長度 1096 → 1114 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [46/84] Qzi-6x9iGj4  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 1169 字元逐字相同
          長度 1186 → 1204 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [47/84] RUZLI4k8OU8  private
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 1212 字元逐字相同
          長度 1229 → 1247 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [48/84] SFk0W_2WqLc  private
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 1052 字元逐字相同
          長度 1069 → 1087 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [49/84] Slty-G_Gdj4  public  ★必測7
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
@@ -328,6 +460,7 @@ D:\carson-agent\youtube_channel\.venv\lib\site-packages\google\oauth2\__init__.p
          播放清單行:原封不動 ✅
            舊 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
            新 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [50/84] TBMTuaUTd8A  public  ★必測7
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
@@ -336,16 +469,19 @@ D:\carson-agent\youtube_channel\.venv\lib\site-packages\google\oauth2\__init__.p
          播放清單行:原封不動 ✅
            舊 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
            新 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [51/84] U0Rj9r0jzHg  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 1066 字元逐字相同
          長度 1083 → 1101 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [52/84] UAHNpnF3uqk  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 1078 字元逐字相同
          長度 1095 → 1113 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [53/84] UY0DdkuZrHo  private
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
@@ -354,6 +490,7 @@ D:\carson-agent\youtube_channel\.venv\lib\site-packages\google\oauth2\__init__.p
          播放清單行:原封不動 ✅
            舊 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
            新 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [54/84] Vd3pOcDFhFQ  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
@@ -362,11 +499,13 @@ D:\carson-agent\youtube_channel\.venv\lib\site-packages\google\oauth2\__init__.p
          播放清單行:原封不動 ✅
            舊 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
            新 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [55/84] WFJoOC-4izg  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 1034 字元逐字相同
          長度 1051 → 1069 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [56/84] WNrS46cXiQ8  public  ★必測7
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
@@ -375,11 +514,13 @@ D:\carson-agent\youtube_channel\.venv\lib\site-packages\google\oauth2\__init__.p
          播放清單行:原封不動 ✅
            舊 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
            新 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [57/84] Xdwvq7NEE84  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 1004 字元逐字相同
          長度 1021 → 1039 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [58/84] ZzYz7JrDBK0  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
@@ -388,11 +529,13 @@ D:\carson-agent\youtube_channel\.venv\lib\site-packages\google\oauth2\__init__.p
          播放清單行:原封不動 ✅
            舊 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
            新 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [59/84] _GgxPgLzsKQ  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 1111 字元逐字相同
          長度 1128 → 1146 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [60/84] aoLWkUDQ0zI  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
@@ -401,36 +544,43 @@ D:\carson-agent\youtube_channel\.venv\lib\site-packages\google\oauth2\__init__.p
          播放清單行:原封不動 ✅
            舊 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
            新 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [61/84] bJN3uXU9mgo  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 734 字元逐字相同
          長度 751 → 769 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [62/84] dURMDAu8HYY  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 727 字元逐字相同
          長度 744 → 762 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [63/84] eXCi6EQ3scI  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 1145 字元逐字相同
          長度 1162 → 1180 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [64/84] gFbecJC41-I  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 1003 字元逐字相同
          長度 1020 → 1038 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [65/84] gXc3LvibBLs  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 1059 字元逐字相同
          長度 1076 → 1094 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [66/84] gv_LsCVxSOw  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 1067 字元逐字相同
          長度 1084 → 1102 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [67/84] gyVqxplDyu8  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
@@ -439,26 +589,31 @@ D:\carson-agent\youtube_channel\.venv\lib\site-packages\google\oauth2\__init__.p
          播放清單行:原封不動 ✅
            舊 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
            新 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [68/84] h5eH6di_SNA  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 1000 字元逐字相同
          長度 1017 → 1035 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [69/84] hmFTD4Tb4Sg  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 989 字元逐字相同
          長度 1006 → 1024 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [70/84] jDjuUXeSx98  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 1030 字元逐字相同
          長度 1047 → 1065 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [71/84] jsIt1qA1aj8  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 975 字元逐字相同
          長度 992 → 1010 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [72/84] l36tPQliBSc  private  ★必測7
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
@@ -467,11 +622,13 @@ D:\carson-agent\youtube_channel\.venv\lib\site-packages\google\oauth2\__init__.p
          播放清單行:原封不動 ✅
            舊 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
            新 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [73/84] l7bwt2ExKvg  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 693 字元逐字相同
          長度 710 → 728 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [74/84] m1pqccjG5s8  private
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
@@ -480,16 +637,19 @@ D:\carson-agent\youtube_channel\.venv\lib\site-packages\google\oauth2\__init__.p
          播放清單行:原封不動 ✅
            舊 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
            新 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [75/84] mvNh7IjgRLY  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 1124 字元逐字相同
          長度 1141 → 1159 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [76/84] otTPyfbKfJ0  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 996 字元逐字相同
          長度 1013 → 1031 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [77/84] p6Qvg2mC-9w  public  ★必測7
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
@@ -498,41 +658,49 @@ D:\carson-agent\youtube_channel\.venv\lib\site-packages\google\oauth2\__init__.p
          播放清單行:原封不動 ✅
            舊 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
            新 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [78/84] p_KCREwmyds  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 1067 字元逐字相同
          長度 1084 → 1102 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [79/84] rwdhTBAfXQI  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 1616 字元逐字相同
          長度 1633 → 1651 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [80/84] tDanOnIWAfo  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 1069 字元逐字相同
          長度 1086 → 1104 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [81/84] u-2PyNoTOQk  private
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 1062 字元逐字相同
          長度 1079 → 1097 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [82/84] u0gWQe1RbNA  private
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 943 字元逐字相同
          長度 960 → 978 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [83/84] wcqE7dVwkP4  private
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 1017 字元逐字相同
          長度 1034 → 1052 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
   [84/84] yKc1SMchkSw  public
          舊句 '之後的影片已改成在同一句標明期間。'
          新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
          其餘逐字相同:是 —— 其餘 845 字元逐字相同
          長度 862 → 880 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
 
 ====================================================================
 可改寫 84 支(public 69 / private 15)
@@ -541,3 +709,15 @@ D:\carson-agent\youtube_channel\.venv\lib\site-packages\google\oauth2\__init__.p
 帶播放清單行的 23 支,其中 23 支那一行原封不動(必測清單 7 支)
 
 dry-run:全程沒有呼叫 videos.update,YouTube 上一個字都沒改。
+
+# ═══ 〔D〕插入路徑 dry-run 原始輸出:fix_period_disclaimer.py --max 15(不帶 --apply;rc=0)
+D:\carson-agent\youtube_channel\.venv\lib\site-packages\google\auth\__init__.py:54: FutureWarning: You are using a Python version 3.9 past its end of life. Google will update google-auth with critical bug fixes on a best-effort basis, but not with any other fixes or features. Please upgrade your Python version, and then update google-auth.
+  warnings.warn(eol_message.format("3.9"), FutureWarning)
+D:\carson-agent\youtube_channel\.venv\lib\site-packages\google\api_core\_python_version_support.py:242: FutureWarning: You are using a non-supported Python version (3.9.13). Google will not post any further updates to google.api_core supporting this Python version. Please upgrade to the latest Python version, or at least Python 3.10, and then update google.api_core.
+  warnings.warn(message, FutureWarning)
+D:\carson-agent\youtube_channel\.venv\lib\site-packages\google\oauth2\__init__.py:40: FutureWarning: You are using a Python version 3.9 past its end of life. Google will update google-auth with critical bug fixes on a best-effort basis, but not with any other fixes or features. Please upgrade your Python version, and then update google-auth.
+  warnings.warn(eol_message.format("3.9"), FutureWarning)
+待加更正:0 支(已完成 84);依近 30 天觀看排序
+
+
+將加 0 支

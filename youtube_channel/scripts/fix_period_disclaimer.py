@@ -69,8 +69,17 @@ _HEAD = (
 _TAIL_OLD = "之後的影片已改成在同一句標明期間。\n"
 _TAIL_NEW = "之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。\n"
 
-NOTE = _HEAD + _TAIL_OLD        # 插入模式(--apply)用的,維持原樣不動
-NOTE_NEW = _HEAD + _TAIL_NEW    # 改寫模式(--rewrite-note)要換上去的
+# 🔴 F5(2026-09-11):插入路徑原本寫 `NOTE = _HEAD + _TAIL_OLD`,也就是**今天正在從
+#    84 支上撤掉的那一句**。cron 每天 15:05 跑 `--apply --max 15`,只要
+#    _refresh_candidates 找到一支新的中招片(09-05 就新增過 1 支),它就會把已撤回的
+#    句子寫到新片上 —— 一邊撤一邊發,而且沒有任何東西會察覺。
+#    ⇒ 兩條路徑**共用同一個常數**,不要各寫一份:一份改了另一份沒改,正是這個病的根。
+NOTE_NEW = _HEAD + _TAIL_NEW    # Carson 2026-09-11 逐字核定的措辭
+NOTE = NOTE_NEW                 # 插入模式(--apply)寫的也是這一份
+# 84 支線上**現在**帶的那一份(改寫路徑的輸入)。只給 self_test 造樣本用 ——
+# 🔴 不准拿去寫任何東西。F5 之後樣本若還用 NOTE 造,造出來的已經是新句,
+#    改寫路徑的對照全部會悄悄變成「冪等不動」而不是在量改寫。
+NOTE_OLD = _HEAD + _TAIL_OLD
 
 # ── 要改寫的是**那一句**,不是那一段 ─────────────────────────────
 # 🔴 這是這支工具最危險的一段:邊界抓錯 = 吃掉觀眾看得到的原本文案,而且不可逆
@@ -119,6 +128,52 @@ def rewrite_desc(desc):
     return desc[:st] + _SENT_NEW + desc[en:], _SENT_OLD, _SENT_NEW
 
 
+def insert_desc(desc):
+    """插入路徑(cron 每天 15:05 走的那條):把 NOTE 插到描述最前面。
+
+    回 None = 已經有 MARK,不必再插。
+    🔴 **超過上限一律 raise Refuse,不硬截**。舊版寫 `new_desc[:4990]`,
+       那會從**描述尾巴**吃掉字 —— 尾巴放的正是訂閱連結、播放清單、免責聲明,
+       而且沒有任何訊號(YouTube 照樣回 200)。契約是寧可不改,不可以改錯。
+    """
+    if MARK in desc:
+        return None
+    new = NOTE + "\n" + desc
+    if len(new) > DESC_LIMIT:
+        raise Refuse("插入後 %d 字元 > %d ⇒ 拒寫(硬截會吃掉描述尾巴)"
+                     % (len(new), DESC_LIMIT))
+    return new
+
+
+def route_of(args):
+    """這組參數會走哪條路。main() **只**透過這個函式分派,兩邊不會各寫一份。
+
+    🔴 cron 第 644 行的參數(`--apply --max 15`,不帶任何新旗標)必須回 "insert":
+       改寫是對外寫入,只能靠 --rewrite-note 這個明確的新旗標觸發。
+       self_test 有一格用 cron 那串 argv 原封不動釘住這件事。
+    """
+    if args.self_test:
+        return "self_test"
+    if args.rewrite_note:
+        return "rewrite"
+    return "insert"
+
+
+def _client_side_quota(exc):
+    """這個例外是**我們自己的帳本**丟的,還是 Google 回的?
+
+    quota_meter 在送出**之前**丟 QuotaExhausted(quota_meter.py:762/794/834),
+    訊息開頭固定是 `quota exhausted:` 或 `quota reserve:`;Google 的真 403 走
+    HttpError,內容是 quotaExceeded。memory `quota-self-throttle-vs-google-403`:
+    九次「配額不足」**全部**是客戶端自己丟的,而三個來源都寫成無主詞被動式
+    ⇒ 這裡一定要把主詞分出來,不然下一個人又會去找 Google 要配額。
+    """
+    if type(exc).__name__ == "QuotaExhausted":
+        return True
+    s = str(exc)
+    return s.startswith("quota exhausted:") or s.startswith("quota reserve:")
+
+
 def invariant_ok(old_desc, new_desc):
     """🔴 除了那一句以外,**每一個字元都必須逐字相同**。
 
@@ -156,9 +211,9 @@ def _sample(with_playlist):
     """造一支測試用描述。with_playlist = w9 盤點裡那 7 支的形狀。"""
     body = "【某檔 長期回測】原本的文案第一行\n\n⭐ 訂閱:https://example.invalid\n"
     if not with_playlist:
-        return NOTE + "\n" + body
+        return NOTE_OLD + "\n" + body
     head = MARK + "\n\n" + PLAYLIST + "\n\n"
-    return head + NOTE[len(MARK) + 1:] + "\n" + body
+    return head + NOTE_OLD[len(MARK) + 1:] + "\n" + body
 
 
 def self_test():
@@ -248,6 +303,139 @@ def self_test():
             say(True, "⑳【陽性】寫不進去會拋例外,不是靜默吞掉")
     finally:
         g["STAMP"] = real_stamp_path
+
+    # ── F1:整包覆寫不准清掉線上原本有值的可寫欄位 ────────────────────
+    # 🔴 videos.update 是**整包覆寫**:可寫欄位沒帶就會被清空,而 YouTube 會自己
+    #    重猜 defaultAudioLanguage。同一批片 8 月走插入模式時已經發生過一次
+    #    (15 支從 zh/zh-Hant 變成 en-US),推翻 fix_audio_language 兩週的成果。
+    #    每一格都配一個突變:突變沒翻紅 = 上一格量到的不是它宣稱的那件事
+    #    (memory `load-bearing-line-needs-mutation`)。
+    nl = chr(10)
+    live = {"title": "【某檔 3999】長期回測", "description": old,
+            "categoryId": "22", "tags": ["台股", "回測"],
+            "defaultLanguage": "zh-Hant", "defaultAudioLanguage": "zh-Hant"}
+    b = build_body("VID_TEST", live, new)
+    say(body_keeps_fields(live, b)[0], "㉑ F1:body 帶齊線上有值的可寫欄位")
+    # .get / pop(…, None):欄位真的不見時要**翻紅**,不是 KeyError 崩潰(崩潰會
+    # 讓後面的格子全部沒跑到 —— 原始碼突變實測踩過)。
+    say(b["snippet"].get("description") == new
+        and b["snippet"].get("title") == live["title"]
+        and b["snippet"].get("defaultAudioLanguage") == "zh-Hant",
+        "㉑b F1:只有 description 換掉,其餘原樣帶回去")
+    for miss in ("defaultAudioLanguage", "defaultLanguage", "title", "tags"):
+        mut = {"id": "VID_TEST", "snippet": dict(b["snippet"])}
+        mut["snippet"].pop(miss, None)
+        mok, mbad = body_keeps_fields(live, mut)
+        say((not mok) and any(miss in x for x in mbad),
+            "㉑c【突變】body 少帶 %s ⇒ 翻紅(%s)"
+            % (miss, (mbad[0][:44] if mbad else "🔴 沒翻紅")))
+    mut2 = {"id": "VID_TEST", "snippet": dict(b["snippet"])}
+    mut2["snippet"]["defaultAudioLanguage"] = "en-US"
+    say(not body_keeps_fields(live, mut2)[0],
+        "㉑d【突變】值被改成 en-US(8 月那次的形狀)⇒ 翻紅")
+
+    live_x = dict(live, newWritableField="x")
+    say(not body_keeps_fields(live_x, build_body("VID_TEST", live_x, new))[0],
+        "㉑e F1:線上出現**不認得的鍵** ⇒ 當成必須帶 ⇒ 拒寫(不是悄悄清空)")
+    live_r = dict(live, thumbnails={"default": {}}, channelTitle="量化阿森",
+                  publishedAt="2026-09-01T00:00:00Z")
+    say(body_keeps_fields(live_r, build_body("VID_TEST", live_r, new))[0],
+        "㉑f【陰性】唯讀鍵(thumbnails/channelTitle/publishedAt)沒帶 ⇒ 不該翻紅")
+
+    # ── F3-M3:「那一句出現 2 次要拒寫」要被真的釘住 ──────────────────
+    dup = old.replace(_SENT_OLD, _SENT_OLD + nl + _SENT_OLD, 1)
+    try:
+        locate_sentence(dup, _SENT_OLD)
+        say(False, "㉒ F3-M3:同一句出現 2 次居然沒被拒")
+    except Refuse as exc:
+        say("2" in str(exc), "㉒ F3-M3:同一句出現 2 次 ⇒ 拒寫(%s)" % str(exc)[:40])
+
+    def _mutant_n0(d, s):
+        """突變體:把「恰好 1 次」放寬成「不是 0 次就好」。"""
+        if d.count(s) == 0:
+            raise Refuse("該句出現 0 次")
+        i = d.index(s)
+        return i, i + len(s)
+
+    try:
+        _mutant_n0(dup, _SENT_OLD)
+        say(True, "㉒b【突變】次數檢查放寬成 n==0 ⇒ 2 次被放過 ⇒ 上一格釘的就是次數")
+    except Refuse:
+        say(False, "㉒b【突變】突變體也拒了 ⇒ 上一格量到的**不是**次數檢查")
+
+    # ── F3-M4:核准措辭本身要被釘住(第二份獨立抄寫,不是引用同一個常數)──
+    APPROVED = "之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。"
+    say(_SENT_NEW == APPROVED,
+        "㉓ F3-M4:新句逐字等於 Carson 2026-09-11 核定的措辭")
+    say(NOTE_NEW.endswith(APPROVED + nl) and _SENT_OLD not in NOTE_NEW,
+        "㉓b F3-M4:NOTE_NEW 的尾句就是它,舊句不在裡面")
+    for lab, mt in (("逗號換全形", APPROVED.replace(",", "，")),
+                    ("分號換全形", APPROVED.replace(";", "；")),
+                    ("句號換半形", APPROVED.replace("。", ".")),
+                    ("「漏的」改「漏掉的」", APPROVED.replace("漏的", "漏掉的"))):
+        say(_SENT_NEW != mt, "㉓c【突變】%s ⇒ 與核定措辭不同(會翻紅)" % lab)
+
+    # ── F5:插入路徑(cron 15:05 走的那條)寫的必須是**新句** ────────────
+    say(NOTE is NOTE_NEW, "㉔ F5:插入路徑與改寫路徑共用同一個常數(不是各寫一份)")
+    say(_SENT_NEW in NOTE and _SENT_OLD not in NOTE,
+        "㉔b F5:插入路徑寫出去的是新句,已撤回的舊句不在裡面")
+    say((_HEAD + _TAIL_OLD) != NOTE,
+        "㉔c【突變】若把 NOTE 改回 _HEAD + _TAIL_OLD ⇒ 與上一格衝突(會翻紅)")
+    plain = "【某檔 3999】原本的文案\n\n⭐ 訂閱:https://example.invalid\n"
+    ins = insert_desc(plain)
+    say(ins.startswith(MARK) and ins.endswith(plain) and _SENT_NEW in ins,
+        "㉔d F5:插入是加在最前面,原文一字不動")
+    say(insert_desc(ins) is None, "㉔e F5:已有 MARK 就不再插(冪等)")
+
+    # ── F5:超過上限要**拒寫**,不准硬截(舊版是 new_desc[:4990])────────
+    longd = "字" * (DESC_LIMIT + 10)
+    try:
+        insert_desc(longd)
+        say(False, "㉕ F5:插入後超長居然沒被拒(會硬截掉描述尾巴)")
+    except Refuse as exc:
+        say("拒寫" in str(exc), "㉕ F5:插入後超長 ⇒ 拒寫(%s)" % str(exc)[:46])
+    say(len((NOTE + nl + longd)[:DESC_LIMIT]) == DESC_LIMIT
+        and (NOTE + nl + longd)[:DESC_LIMIT] != (NOTE + nl + longd),
+        "㉕b【對照】硬截確實會吃掉尾巴 —— 這正是不准做的事")
+
+    # ── cron 第 644 行那串參數必須走插入路徑 ───────────────────────────
+    # 🔴 `5 15 * * * … fix_period_disclaimer.py --apply --max 15`
+    #    改寫 = 未經放行的對外寫入,只能靠 --rewrite-note 這個明確旗標觸發。
+    cron_args = _parser().parse_args(["--apply", "--max", "15"])
+    say(route_of(cron_args) == "insert",
+        "㉖ cron 那行原封不動的參數 ⇒ 走插入路徑(不是改寫)")
+    say(cron_args.apply is True and cron_args.max == 15
+        and cron_args.rewrite_note is False and cron_args.self_test is False,
+        "㉖b cron 參數解析出來就是 --apply --max 15,沒帶任何新旗標")
+    say(route_of(_parser().parse_args(["--rewrite-note", "--apply"])) == "rewrite",
+        "㉖c 只有 --rewrite-note 才會走改寫路徑")
+
+    class _MutArgs:
+        """突變體:有人把改寫做成預設(忘了讀旗標)。"""
+        apply, max, rewrite_note, self_test = True, 15, True, False
+
+    say(route_of(_MutArgs()) != "insert",
+        "㉖d【突變】旗標被當成恆真 ⇒ cron 參數會走進改寫(上一格會翻紅)")
+
+    # ── F4:配額拒絕要分得出**主詞**(我們自己的帳本 vs Google)─────────────
+    # 用**真的** quota_meter.QuotaExhausted,不自己造一個同名類別 —— 造的會跟著
+    # 我的假設一起錯。import 不到就記紅,不准靜默跳過。
+    try:
+        from quota_meter import QuotaExhausted as _QE
+    except Exception as exc:  # noqa: BLE001
+        _QE = None
+        say(False, "㉗ F4:import quota_meter 失敗(%s)⇒ 這幾格量不到" % str(exc)[:40])
+    if _QE is not None:
+        say(_client_side_quota(_QE("預算用完")),
+            "㉗ F4:真的 QuotaExhausted(訊息不帶前綴也算)⇒ 本機帳本擋的")
+        say(_client_side_quota(RuntimeError("quota exhausted:videos.update 需 50,今日剩 0")),
+            "㉗b F4:`quota exhausted:` 前綴(被包成別的型別也認得)⇒ 本機")
+        say(_client_side_quota(RuntimeError("quota reserve:videos.update 需 50 units,今日剩 40")),
+            "㉗c F4:`quota reserve:`(cron 帶 YT_QUOTA_RESERVE=23650)⇒ 本機")
+        g403 = RuntimeError('<HttpError 403 "The request cannot be completed because '
+                            'you have exceeded your quota." reason: quotaExceeded>')
+        say(not _client_side_quota(g403),
+            "㉗d【陰性】Google 的真 403(quotaExceeded)⇒ **不是**本機擋的")
 
     print("  " + ("全部通過" if ok_all else "🔴 有格子沒過"))
     return 0 if ok_all else 1
@@ -373,6 +561,87 @@ def _stamp(row):
         _os.fsync(fh.fileno())
 
 
+def _stamped(vid):
+    """這支在時間戳檔裡有沒有我們自己的 sent/ok 紀錄。回 (有沒有, 最後一筆)。
+
+    用途只有一個:線上已經是新措辭時,分辨「是本工具寫的」還是「不明來源」。
+    後者不准算成完成 —— 那正是常駐 job 或別人動過手的形狀。
+    """
+    if not STAMP.exists():
+        return False, None
+    last = None
+    for ln in STAMP.read_text(encoding="utf-8").splitlines():
+        if not ln.strip():
+            continue
+        try:
+            row = json.loads(ln)
+        except Exception:  # noqa: BLE001
+            continue
+        if row.get("vid") == vid and row.get("phase") in ("sent", "ok"):
+            last = row
+    return last is not None, last
+
+
+# ── videos.update 是整包覆寫:這張表漏一個欄位,線上那個欄位就被清空 ──
+# 🔴 `defaultAudioLanguage` **是可寫欄位**,不是唯讀。這支工具 8 月的插入模式
+#    只帶了 title/description/categoryId/tags/defaultLanguage 送出去,把 15 支的
+#    defaultAudioLanguage 清掉(ops_log 的「音軌語言還剩」在插入隔天跳升,
+#    增量對得上寫入支數)—— 而 repo 裡有 fix_audio_language.py 專門在設它,
+#    兩週的成果被一次寫入推翻。ch3_lab/retitle.py:228 已經為同一個欄位踩過一次,
+#    「同一句話三份只修最安靜的那份」。
+# ⇒ 不寫死預設值,從**寫入當下 videos.list 讀回的 snippet** 原樣帶上去。
+# videos.list 回來的 snippet 裡,API 文件列為**唯讀**的鍵(送回去被忽略、不送也不會被清)。
+# 2026-09-11 對 desc_snapshot_20260911 的 87 支實測:snippet 恰好 12 個鍵
+# = 這 6 個唯讀 + 下面 6 個可寫,沒有第 13 個。
+_READONLY_SNIPPET = ("publishedAt", "channelId", "thumbnails", "channelTitle",
+                     "liveBroadcastContent", "localized")
+_WRITABLE_SNIPPET = ("title", "description", "tags", "categoryId",
+                     "defaultLanguage", "defaultAudioLanguage")
+
+
+def build_body(vid, live_sn, new_desc):
+    """只換 description,其餘可寫欄位原樣從線上帶回去。"""
+    snip = {}
+    for k in _WRITABLE_SNIPPET:
+        if k == "description":
+            snip[k] = new_desc
+            continue
+        v = live_sn.get(k)
+        if k == "tags":
+            snip[k] = list(v) if v else []
+        elif v not in (None, ""):
+            snip[k] = v
+    return {"id": vid, "snippet": snip}
+
+
+def body_keeps_fields(live_sn, body):
+    """🔴 線上原本有值的可寫欄位,body 少帶一個或改了值就翻紅。回 (ok, 問題清單)。
+
+    刻意**不**拿 build_body 自己產生的東西互相比對 —— 那由建構方式保證成立,
+    是恆真句(memory `verification-that-cannot-fail`)。這裡拿**線上 snippet**
+    當獨立基準,逐欄位問三個問題:你有值嗎 / body 帶了嗎 / 值一樣嗎。
+    """
+    bad = []
+    snip = body.get("snippet") or {}
+    # 🔴 迴圈刻意**不**走 _WRITABLE_SNIPPET:那是 build_body 用的同一張表,
+    #    有人從表裡拿掉一格,兩邊會一起瞎掉而 self_test 照樣全綠。改成走**線上
+    #    snippet 自己的每一個鍵**,只跳過 API 列為唯讀的;不認得的鍵一律當成
+    #    必須帶 ⇒ YouTube 哪天加了新的可寫欄位,這裡是拒寫,不是悄悄清空。
+    for k in live_sn:
+        if k in _READONLY_SNIPPET:
+            continue
+        v = live_sn.get(k)
+        if v in (None, "", []):
+            continue
+        if k not in snip:
+            bad.append("%s:線上有值(%.40r)但 body 沒帶 ⇒ 會被清空" % (k, v))
+        elif k != "description" and snip[k] != v:
+            bad.append("%s:值被改了,線上 %.40r → body %.40r" % (k, v, snip[k]))
+    if not snip.get("description"):
+        bad.append("description 沒帶或是空的")
+    return (not bad), bad
+
+
 def _md5(path):
     import hashlib
     return hashlib.md5(path.read_bytes()).hexdigest()
@@ -461,6 +730,7 @@ def rewrite_mode(args) -> int:
     bk.mkdir(exist_ok=True)
 
     ready, already, refused, missing = [], [], [], []
+    quota_stop = False
     pub = {"public": 0, "private": 0, "unlisted": 0, "?": 0}
     pl_kept = pl_seen = written = 0
     for idx, vid in enumerate(vids, 1):
@@ -472,6 +742,12 @@ def rewrite_mode(args) -> int:
         except Exception as exc:  # noqa: BLE001
             print("  [warn] %s videos.list 失敗:%s" % (vid, str(exc)[:100]),
                   file=sys.stderr)
+            if _client_side_quota(exc):
+                print("[quota] 🔴 中止整輪 —— 是**本機 quota_meter** 擋的"
+                      "(YT_QUOTA_ENFORCE / YT_QUOTA_RESERVE),不是 Google 回的 403。"
+                      "不要改門檻,先確認今天的配額帳本。", file=sys.stderr)
+                quota_stop = True
+                break
             if "quota" in str(exc).lower():
                 print("[quota] 停止本輪(冪等)", file=sys.stderr)
                 break
@@ -487,13 +763,41 @@ def rewrite_mode(args) -> int:
         pub[priv] = pub.get(priv, 0) + 1
         desc = sn.get("description") or ""
 
-        # (a) 拿改寫前的快照當基準:線上與快照不同 ⇒ 有人在快照之後改過,基準過期
+        # (a) 基準比對。🔴 **冪等判斷要排在「基準已過期」之前** ——
+        #     否則本工具自己寫過的片,重跑時會被記成「線上與快照不一致(有人改過)」。
+        #     那個標籤正是時間戳要拿來分辨「被常駐 job 蓋回去」的那一個,兩種
+        #     情況混在一起 ⇒ 回讀時分不出是誰動的,等於把最重要的訊號洗掉。
+        #     預設 --max 20、84 支要跑好幾輪 ⇒ 這條路徑**必定**會走到。
         snap = _snapshot_desc(vid)
         if snap is None:
             refused.append((idx, vid, "快照裡沒有這支 ⇒ 沒有基準可比"))
             print("  [%2d/%d] %s  ⛔ 快照缺這支,拒動" % (idx, len(vids), vid))
             continue
-        if snap != desc:
+        expected_new = (snap.replace(_SENT_OLD, _SENT_NEW, 1)
+                        if snap.count(_SENT_OLD) == 1 else None)
+        if desc != snap:
+            if expected_new is not None and desc == expected_new:
+                # 線上已經是「快照換掉那一句」的樣子 ⇒ 這支已被改寫過。
+                # 🔴 但「已經是新措辭」不等於「是我們寫的」。要在時間戳檔裡
+                #    找得到這支的 sent/ok 才算本工具的成果;找不到就是**不明來源**
+                #    ——常駐 job、別人的 session、或 Studio 手動都長這樣 ——
+                #    不准算成完成(memory `filter-accepted-is-not-filter-applied`:
+                #    「結果對」證不了「是這條路徑做的」)。
+                seen, last = _stamped(vid)
+                if seen:
+                    # 最後一筆只有 sent、沒有 ok ⇒ 上一輪送出後回應遺失(中斷/逾時),
+                    # 而線上確實已是新措辭 ⇒ 歸「已完成(回應遺失)」,不是拒動。
+                    lost = (last or {}).get("phase") == "sent"
+                    already.append((idx, vid))
+                    print("  [%2d/%d] %s  ✓ 已是新措辭(本工具寫的%s)"
+                          % (idx, len(vids), vid,
+                             ",回應遺失" if lost else ""))
+                    continue
+                refused.append((idx, vid,
+                                "線上已是新措辭,但時間戳檔沒有這支的紀錄 ⇒ 不明來源"))
+                print("  [%2d/%d] %s  ⛔ 已是新措辭但**不是我們寫的**(時間戳無紀錄)"
+                      % (idx, len(vids), vid))
+                continue
             refused.append((idx, vid, "線上描述與 09-11 快照不同 ⇒ 基準已過期"))
             print("  [%2d/%d] %s  ⛔ 線上與快照不一致(有人改過),拒動"
                   % (idx, len(vids), vid))
@@ -539,6 +843,20 @@ def rewrite_mode(args) -> int:
             print("         ⛔ 拒寫:超過 %d ——**不硬截**,硬截會吃掉描述尾巴"
                   % DESC_LIMIT)
             continue
+        # 🔴 F1:整包覆寫 —— 從**線上讀回來的 sn** 帶齊所有可寫欄位,只換 description。
+        #    刻意排在 `if not args.apply` **之前**:dry-run 也要對 84 支真實 snippet
+        #    各檢一次,否則這道檢查只在第一次真的寫入時才第一次跑 —— 那時已經來不及。
+        body = build_body(vid, sn, new_desc)
+        keep_ok, keep_bad = body_keeps_fields(sn, body)
+        print("         body 欄位:%s" % ("帶齊 ✅ " + ",".join(
+            k for k in body["snippet"] if k != "description")
+            if keep_ok else "🔴 會清掉線上欄位"))
+        if not keep_ok:
+            refused.append((idx, vid, "body 會清掉線上欄位:" + "; ".join(keep_bad)))
+            print("         ⛔ 拒寫:body 少帶線上有值的欄位 ⇒ 會被清空")
+            for x in keep_bad:
+                print("             %s" % x)
+            continue
         ready.append((idx, vid, priv))
 
         if not args.apply:
@@ -548,16 +866,26 @@ def rewrite_mode(args) -> int:
         #    一份原始版本,蓋掉等於把退路燒掉。改寫前的另存一檔。
         pre = bk / ("%s.pre_rewrite.json" % vid)
         if pre.exists():
-            refused.append((idx, vid, "pre_rewrite 備份已存在,不覆蓋"))
-            print("         ⛔ 拒寫:%s 已存在" % pre.name)
-            continue
-        pre.write_text(json.dumps(sn, ensure_ascii=False), encoding="utf-8")
-        body = {"id": vid, "snippet": {
-            "title": sn.get("title"), "description": new_desc,
-            "categoryId": sn.get("categoryId"), "tags": sn.get("tags", []),
-        }}
-        if sn.get("defaultLanguage"):
-            body["snippet"]["defaultLanguage"] = sn["defaultLanguage"]
+            # 🔴 原本一律拒寫,而這會把「上一輪在 update 途中被中斷」的那一支
+            #    永久鎖死:備份已經寫好、update 還沒送出,重跑就再也不動它。
+            #    備份的用途是**保住改寫前的原文**;內容與快照逐字相同時,
+            #    它已經完成了任務,沿用它不會失去任何退路。
+            try:
+                pre_desc = (json.loads(pre.read_text(encoding="utf-8"))
+                            .get("description") or "")
+            except Exception as exc:  # noqa: BLE001
+                refused.append((idx, vid, "pre_rewrite 讀不動:%s" % str(exc)[:80]))
+                print("         ⛔ 拒寫:%s 讀不動" % pre.name)
+                continue
+            if pre_desc != snap:
+                refused.append((idx, vid,
+                                "pre_rewrite 已存在且內容與快照不同 ⇒ 來源不明,不覆蓋"))
+                print("         ⛔ 拒寫:%s 已存在且與快照不符" % pre.name)
+                continue
+            print("         ↻ 沿用既有 %s(內容與快照逐字相同)" % pre.name)
+        else:
+            pre.write_text(json.dumps(sn, ensure_ascii=False), encoding="utf-8")
+
         # 🔴 送出時間要在呼叫**之前**就落盤。只在成功之後才記的話，
         #    「送出了但回應丟了」這一種——正好是最危險、也最需要紀錄的
         #    那一種——會完全沒有紀錄，而 YouTube 那邊可能已經寫進去了。
@@ -567,8 +895,24 @@ def rewrite_mode(args) -> int:
         try:
             resp = yt.videos().update(part="snippet", body=body).execute()
         except Exception as exc:  # noqa: BLE001
-            _stamp({"vid": vid, "idx": idx, "phase": "error", "sent_at": sent,
-                    "recv_at": _now(), "error": repr(exc)[:400]})
+            # 🔴 F4:先分主詞。客戶端配額是在**送出之前**丟的 ⇒ 這支沒被寫入,
+            #    狀態是**已知**的(和「送出了但回應丟了」完全不同一件事),
+            #    而且要中止整輪 —— 繼續跑只會一支一支撞同一道自家的牆。
+            client = _client_side_quota(exc)
+            _stamp({"vid": vid, "idx": idx,
+                    "phase": "blocked" if client else "error",
+                    "by": "本機 quota_meter" if client else "未知",
+                    "sent_at": sent, "recv_at": _now(),
+                    "error": repr(exc)[:400]})
+            if client:
+                refused.append((idx, vid,
+                                "被本機配額帳本擋下(**未送出**):%s" % str(exc)[:110]))
+                print("         ⛔ 本機帳本擋的,不是 Google —— 未送出")
+                print("[quota] 🔴 中止整輪 —— 是**本機 quota_meter** 擋的"
+                      "(YT_QUOTA_ENFORCE / YT_QUOTA_RESERVE),不是 Google 回的 403。"
+                      "不要改門檻,先確認今天的配額帳本。", file=sys.stderr)
+                quota_stop = True
+                break
             refused.append((idx, vid,
                             "update 拋例外，這支狀態**未知**（可能已寫入）：%s"
                             % repr(exc)[:120]))
@@ -604,10 +948,13 @@ def rewrite_mode(args) -> int:
             pass
     else:
         print(nl + "dry-run:全程沒有呼叫 videos.update,YouTube 上一個字都沒改。")
-    return 1 if (refused or missing or pl_kept != pl_seen) else 0
+    if quota_stop:
+        print(nl + "🔴 本輪被**本機 quota_meter** 中止(不是 Google)—— 上面的數字只涵蓋中止前的部分")
+    return 1 if (refused or missing or pl_kept != pl_seen or quota_stop) else 0
 
 
-def main() -> int:
+def _parser():
+    """參數表拆出來,讓 self_test 能用**同一個** parser 餵 cron 那串 argv。"""
     ap = argparse.ArgumentParser()
     ap.add_argument("--apply", action="store_true")
     ap.add_argument("--max", type=int, default=20)
@@ -615,11 +962,16 @@ def main() -> int:
                     help="把已插入的那一句換成新措辭(其餘一字不動)")
     ap.add_argument("--self-test", action="store_true",
                     help="只跑錨定與不變量的對照,不連網")
-    args = ap.parse_args()
+    return ap
 
-    if args.self_test:
+
+def main() -> int:
+    args = _parser().parse_args()
+
+    route = route_of(args)
+    if route == "self_test":
         return self_test()
-    if args.rewrite_note:
+    if route == "rewrite":
         return rewrite_mode(args)
 
     import daily_publish as dp
@@ -635,6 +987,7 @@ def main() -> int:
     bk = ROOT / "STUDIO" / "desc_backup"
     bk.mkdir(exist_ok=True)
     n = 0
+    skipped, quota_stop = [], False
     for slug, vid in cands:
         if n >= args.max:
             print(f"[quota] 達本輪上限 {args.max},其餘下次續(冪等)")
@@ -647,42 +1000,77 @@ def main() -> int:
                 continue
             sn = items[0]["snippet"]
             desc = sn.get("description") or ""
-            if MARK in desc:
+            # 🔴 F5:插入的內容、超長的處置都搬進 insert_desc() ——
+            #    舊版在這裡直接 `new_desc[:4990]` 硬截,會從描述**尾巴**吃掉
+            #    訂閱連結/播放清單,而且完全沒有訊號。
+            try:
+                new_desc = insert_desc(desc)
+            except Refuse as exc:
+                print("     ⛔ 拒寫 %s:%s" % (vid, str(exc)[:110]), file=sys.stderr)
+                skipped.append((vid, str(exc)))
+                continue
+            if new_desc is None:
                 done.add(vid)
                 continue
-            new_desc = NOTE + "\n" + desc
-            if len(new_desc) > 4990:
-                new_desc = new_desc[:4990]
+            # 🔴 F1:整包覆寫 —— 和改寫路徑共用 build_body / body_keeps_fields。
+            #    舊版這裡漏帶 defaultAudioLanguage ⇒ 8 月那次 15 支被 YouTube
+            #    重猜成 en-US,推翻 fix_audio_language 兩週的成果。
+            #    排在 `if not args.apply` 之前:dry-run 也要檢到。
+            body = build_body(vid, sn, new_desc)
+            keep_ok, keep_bad = body_keeps_fields(sn, body)
+            if not keep_ok:
+                print("     ⛔ 拒寫 %s:body 會清掉線上欄位 —— %s"
+                      % (vid, "; ".join(keep_bad)[:160]), file=sys.stderr)
+                skipped.append((vid, "body 會清掉線上欄位:" + "; ".join(keep_bad)))
+                continue
             print(f"  ✏ {slug[:40]} (觀看 {views.get(vid, 0)})")
             if not args.apply:
                 n += 1
                 continue
             (bk / f"{vid}.json").write_text(json.dumps(sn, ensure_ascii=False), encoding="utf-8")
-            body = {"id": vid, "snippet": {
-                "title": sn.get("title"), "description": new_desc,
-                "categoryId": sn.get("categoryId"), "tags": sn.get("tags", []),
-            }}
-            if sn.get("defaultLanguage"):
-                body["snippet"]["defaultLanguage"] = sn["defaultLanguage"]
             yt.videos().update(part="snippet", body=body).execute()
             done.add(vid)
             n += 1
             print("     ✅ 已加更正")
         except Exception as exc:  # noqa: BLE001
             print(f"     [warn] {str(exc)[:120]}", file=sys.stderr)
+            if _client_side_quota(exc):
+                # 🔴 F4:擋人的是**我們自己的** quota_meter(送出之前就丟),
+                #    不是 Google 的 403。主詞要印出來,否則下一個人會去找 Google。
+                print("[quota] 🔴 中止整輪 —— 是**本機 quota_meter** 擋的"
+                      "(YT_QUOTA_ENFORCE / YT_QUOTA_RESERVE),不是 Google 回的 403。"
+                      "不要改門檻,先確認今天的配額帳本。", file=sys.stderr)
+                quota_stop = True
+                break
             if "quota" in str(exc).lower():
                 print("[quota] 停止本輪(冪等,下個配額日接著跑)", file=sys.stderr)
                 break
 
     if args.apply:
-        DONE.write_text(json.dumps(sorted(done)), encoding="utf-8")
+        # 🔴 write_text 會**先截斷再寫入**:中途拋例外就留下 0 bytes,而空的
+        #    DONE 對下游是合法的「零筆」⇒ 84 支全部會被當成沒做過重跑一遍。
+        #    (memory `write-truncates-before-it-fails`:我曾因此把活的 crontab
+        #     114 個排程清成 0。)⇒ tmp → 讀回逐字比對 → os.replace。
+        import os as _os
+        payload = json.dumps(sorted(done))
+        tmp = DONE.with_name(DONE.name + ".tmp")
+        tmp.write_text(payload, encoding="utf-8")
+        if tmp.read_text(encoding="utf-8") != payload:
+            print("🔴 DONE 暫存檔回讀不符 —— 不敢 replace,原檔保持不動",
+                  file=sys.stderr)
+            return 1
+        _os.replace(tmp, DONE)
         try:
             from ops import log_ops
             log_ops("期間更正", f"加更正說明 {n} 支(累計 {len(done)})")
         except Exception:  # noqa: BLE001
             pass
     print(f"\n{'已加' if args.apply else '將加'} {n} 支")
-    return 0
+    if skipped:
+        print("\n【拒寫】%d 支" % len(skipped))
+        for vid, whyx in skipped:
+            print("  %s  %s" % (vid, str(whyx)[:150]))
+    return 1 if (skipped or quota_stop) else 0
 
 
 if __name__ == "__main__":
