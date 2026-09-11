@@ -18,20 +18,24 @@
 
 用法(在 youtube_channel/ 下):
   .venv\\Scripts\\python.exe scripts\\verify_desc_rewrite.py --self-test [--evidence-dir DIR]   離線、零 API
-  .venv\\Scripts\\python.exe scripts\\verify_desc_rewrite.py --baseline [--cred both|main|ch2] [--out FILE]
+  .venv\\Scripts\\python.exe scripts\\verify_desc_rewrite.py --baseline [--out FILE]          (正式一律兩支儀器)
   .venv\\Scripts\\python.exe scripts\\verify_desc_rewrite.py --check BASELINE.json [--label T1]
-        [--expect-written vid1,vid2 | @file] [--cred ...] [--out FILE]
+        [--expect-written=vid1,vid2 | --expect-written=@file | --expect-none] [--out FILE]
+  --cred main|ch2 只供診斷:少量的那支儀器算 code 3,baseline 會標成「不可作為比較基準」。
 每支儀器一輪 = 88 個 id(84 + 3 陰性對照 + 1 假 id)= 2 次 videos.list = 2 units(記在該儀器的專案帳上)。
 本工具的呼叫不進 STUDIO/quota_meter.json(刻意不 import daily_publish)⇒ 本地帳本會少記這幾 units。
 
 --check 判準(逐支):新句恰 1 次、舊句 0 次;描述把新句換回舊句後逐位元組 == baseline;
   title/tags/categoryId/defaultLanguage/defaultAudioLanguage/privacyStatus 與 baseline 不同 ⇒ 列「需人判」,不自動判錯。
   --expect-written 外的目標反過來判:舊句恰 1、新句 0、描述逐位元組 == baseline(沒被碰)。
-  沒回來的 id 一律「未讀到」,不是通過。
+  沒回來的 id 一律「未讀到」,不是通過。ch2 讀不到的 private 只在「main 同一輪讀到它是 private」時豁免;
+  main 本輪沒量到 ⇒ 一支都不豁免。
+baseline 只有在兩支儀器都 ok、code 0 時落檔標 usable_as_baseline=true;--check 讀到其他 baseline 一律拒比(code 2)。
 
-exit code:0 成功 | 4 描述全過、有需人判 | 1 不成立 | 2 儀器作廢(陰性對照翻面 / 回了沒送的 id)| 3 儀器不可用
+exit code:0 成功 | 4 描述全過、有需人判 | 1 不成立 | 2 儀器作廢(陰性對照翻面 / 回了沒送的 id / 重複 id /
+          nextPageToken / baseline 不可用 / 參數錯)| 3 儀器不可用或沒量(含工具本身丟例外)
 """
-import argparse, datetime, hashlib, io, json, os, sys
+import argparse, datetime, hashlib, io, json, os, sys, traceback
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 YC = os.path.normpath(os.path.join(HERE, ".."))
@@ -138,6 +142,13 @@ def git_blob(path):
     return hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest()
 
 
+def rel(path):
+    try:
+        return os.path.relpath(os.path.abspath(path), REPO).replace("\\", "/")
+    except ValueError:  # 不同磁碟
+        return os.path.abspath(path).replace("\\", "/")
+
+
 def count_old_new(desc):
     return desc.count(OLD), desc.count(NEW)
 
@@ -161,9 +172,9 @@ def first_diff(a, b):
 
 # ---------------------------------------------------------------- 讀取(唯一的 API 呼叫點)
 def read_ids(yt, ids):
-    """每 50 支一次 videos.list。存送出的 id、回來的 id、原始回應;不只數 items。"""
+    """每 50 支一次 videos.list。只存送出的 id 和原始回應;判讀一律交給 reads_from_calls(和讀落檔同一條路)。"""
     ids = list(ids)
-    calls, items, problems, error = [], {}, [], None
+    calls = []
     for i in range(0, len(ids), 50):
         chunk = ids[i:i + 50]
         rec = {"at": now_iso(), "sent_ids": chunk}
@@ -171,33 +182,32 @@ def read_ids(yt, ids):
         try:
             resp = yt.videos().list(part="snippet,status", id=",".join(chunk)).execute(num_retries=0)  # 1 unit
         except Exception as exc:  # noqa: BLE001
-            rec["error"] = repr(exc)[:1200]
-            error = "第 %d 次 videos.list 丟例外:%s" % (len(calls), repr(exc)[:300])
+            rec["error"] = "第 %d 次 videos.list 丟例外:%s" % (len(calls), repr(exc)[:1200])
             break
         rec["response"] = resp
-        got = [it.get("id") for it in (resp or {}).get("items") or []]
-        rec["returned_ids"] = got
-        if (resp or {}).get("nextPageToken"):
-            problems.append("第 %d 次回了 nextPageToken(分頁沒處理)" % len(calls))
-        for it in (resp or {}).get("items") or []:
-            vid = it.get("id")
-            if vid in items:
-                problems.append("id 重複回來:%s" % vid)
-            if vid not in chunk:
-                problems.append("回了沒送的 id:%s" % vid)
-            items[vid] = it
-    sent = [v for c in calls for v in c["sent_ids"]]
-    return {"calls": calls, "items": items, "problems": problems, "error": error, "sent": sent}
+        rec["returned_ids"] = [it.get("id") for it in (resp or {}).get("items") or []]   # 給人看;判讀不用
+    return reads_from_calls(calls)
 
 
 def reads_from_calls(calls):
-    """從落檔的原始回應重建 read_ids 的回傳(不信任任何衍生欄位)。"""
+    """從原始回應重建讀值(不信任任何衍生欄位)。
+    重複 id / nextPageToken / 回了沒送的 id / 沒回應也沒錯誤 ⇒ problems(→ code 2)。"""
     items, problems = {}, []
-    for c in calls:
-        for it in ((c.get("response") or {}).get("items") or []):
-            if it.get("id") not in c["sent_ids"]:
-                problems.append("回了沒送的 id:%s" % it.get("id"))
-            items[it.get("id")] = it
+    for n, c in enumerate(calls, 1):
+        resp = c.get("response")
+        if not isinstance(resp, dict):
+            if not c.get("error"):
+                problems.append("第 %d 次沒有回應也沒有錯誤" % n)
+            continue
+        if resp.get("nextPageToken"):
+            problems.append("第 %d 次回了 nextPageToken(分頁沒處理)" % n)
+        for it in resp.get("items") or []:
+            vid = it.get("id")
+            if vid in items:
+                problems.append("id 重複回來(後一份蓋掉前一份,讀值不可信):%s" % vid)
+            if vid not in c["sent_ids"]:
+                problems.append("回了沒送的 id:%s" % vid)
+            items[vid] = it
     err = next((c["error"] for c in calls if c.get("error")), None)
     return {"calls": calls, "items": items, "problems": problems, "error": err,
             "sent": [v for c in calls for v in c["sent_ids"]]}
@@ -219,8 +229,10 @@ def summarize(rows, priv_ref):
     return g
 
 
-def expected_unread(pop, priv_ref, sees_private):
-    return set() if sees_private else {v for v in pop["targets"] if priv_ref.get(v) == "private"}
+def expected_unread(pop, main_privacy, sees_private):
+    """看不到 private 的儀器,只豁免「main 同一輪讀到是 private」的那幾支。
+    main_privacy 必須是同一輪 main 的讀值;main 沒量到 ⇒ 呼叫端傳 {} ⇒ 一支都不豁免(沒量 ≠ 通過)。"""
+    return set() if sees_private else {v for v in pop["targets"] if main_privacy.get(v) == "private"}
 
 
 def judge_controls(pop, items, sent, base_items=None):
@@ -236,10 +248,12 @@ def judge_controls(pop, items, sent, base_items=None):
             rows[vid] = "🔴 舊句 %d / 新句 %d(應 0 / 0)" % (o, n)
             bad.append("陰性對照 %s 被判成有那句話 ⇒ 儀器對什麼都說有" % vid)
             continue
-        rows[vid] = "不適用/未改"
         b = (base_items or {}).get(vid)
         if b is not None and ((b.get("snippet") or {}).get("description") or "") != d:
-            rows[vid] += "(描述與 baseline 不同,需人判)"
+            rows[vid] = "🔴 描述與 baseline 不同"
+            bad.append("陰性對照 %s 的描述和 baseline 不同 ⇒ 範圍外有東西被動過或儀器讀錯;停手、開原檔人判" % vid)
+            continue
+        rows[vid] = "不適用/未改"
     if not any(r.startswith("不適用/未改") for r in rows.values()):
         bad.append("沒有任何一支陰性對照被讀到並判成未改")
     if pop["fake"] not in sent:
@@ -291,8 +305,9 @@ def judge_target(b, c, written=True):
     return (PASS if not reasons else FAIL), reasons, review, info
 
 
-def judge_check(pop, base, cur, priv_ref, sees_private, written=None):
-    """base / cur = read_ids() 的回傳;written = 應已改寫的 id 集合(None = 全部)。"""
+def judge_check(pop, base, cur, main_privacy, sees_private, written=None, group_ref=None):
+    """base / cur = reads_from_calls() 的回傳;main_privacy = 同一輪 main 讀到的 privacyStatus(沒量到 = {});
+    written = 應已改寫的 id 集合(None = 全部);group_ref 只給分組顯示用(預設 = main_privacy)。"""
     written = set(pop["targets"]) if written is None else set(written)
     rows = {}
     for vid in pop["targets"]:
@@ -306,18 +321,20 @@ def judge_check(pop, base, cur, priv_ref, sees_private, written=None):
             continue
         v, reasons, review, info = judge_target(b, c, vid in written)
         rows[vid] = dict(info, verdict=v, reasons=reasons, review=review, expect="written" if vid in written else "untouched")
-    expect = expected_unread(pop, priv_ref, sees_private)
+    expect = expected_unread(pop, main_privacy, sees_private)
     ctrl = judge_controls(pop, cur["items"], cur["sent"], base["items"])
-    problems = list(cur.get("problems") or []) + ([cur["error"]] if cur.get("error") else [])
+    problems = (["[baseline] " + p for p in base.get("problems") or []] + list(cur.get("problems") or [])
+                + ([cur["error"]] if cur.get("error") else []))
     unread = {v for v, r in rows.items() if r["verdict"] == UNREAD}
     code = 3 if cur.get("error") else decide(rows, ctrl, problems, expect, pop)
-    return {"rows": rows, "groups": summarize(rows, priv_ref), "controls": ctrl, "problems": problems,
+    return {"rows": rows, "groups": summarize(rows, main_privacy if group_ref is None else group_ref),
+            "controls": ctrl, "problems": problems,
             "split": {"expected_unread": sorted(expect), "unread": sorted(unread), "ok": unread == expect},
             "code": code}
 
 
-def judge_baseline(pop, rd, priv_ref, sees_private):
-    """§3-A 改寫前鏡像:讀到的每一支必須舊句 1 / 新句 0。"""
+def judge_baseline(pop, rd, main_privacy, sees_private, group_ref=None):
+    """§3-A 改寫前鏡像:讀到的每一支必須舊句 1 / 新句 0。main_privacy / group_ref 同 judge_check。"""
     rows = {}
     for vid in pop["targets"]:
         it = rd["items"].get(vid)
@@ -332,12 +349,13 @@ def judge_baseline(pop, rd, priv_ref, sees_private):
                      "reasons": [] if mirror_ok else ["改寫前應舊句 1 / 新句 0,實際 %d / %d" % (o, n)],
                      "old": o, "new": n, "sha1": sha1(d), "len": len(d), "pl": pl_lines(d),
                      "privacy": privacy(it), "audio": sn.get("defaultAudioLanguage")}
-    expect = expected_unread(pop, priv_ref, sees_private)
+    expect = expected_unread(pop, main_privacy, sees_private)
     ctrl = judge_controls(pop, rd["items"], rd["sent"])
     problems = list(rd.get("problems") or []) + ([rd["error"]] if rd.get("error") else [])
     unread = {v for v, r in rows.items() if r["verdict"] == UNREAD}
     code = 3 if rd.get("error") else decide(rows, ctrl, problems, expect, pop)
-    return {"rows": rows, "groups": summarize(rows, priv_ref), "controls": ctrl, "problems": problems,
+    return {"rows": rows, "groups": summarize(rows, main_privacy if group_ref is None else group_ref),
+            "controls": ctrl, "problems": problems,
             "split": {"expected_unread": sorted(expect), "unread": sorted(unread), "ok": unread == expect},
             "code": code}
 
@@ -394,21 +412,50 @@ def build_instrument(name):
 def run_instrument(name, ids):
     try:
         yt, meta = build_instrument(name)
-    except InstrumentUnavailable as exc:
+    except Exception as exc:  # noqa: BLE001  token 檔不在 / 壞掉 / refresh 失敗 都是「儀器不可用」,不是影片有問題
         return {"meta": {"name": name, "project": INSTRUMENTS[name]["project"]}, "status": "unavailable",
-                "error": str(exc), "calls": [], "api_attempts": 0}
+                "error": "%s: %s" % (type(exc).__name__, exc), "problems": [], "calls": [], "api_attempts": 0}
     rd = read_ids(yt, ids)
     return {"meta": meta, "status": "error" if rd["error"] else "ok", "error": rd["error"],
-            "calls": rd["calls"], "api_attempts": len(rd["calls"])}
+            "problems": rd["problems"], "calls": rd["calls"], "api_attempts": len(rd["calls"])}
 
 
-def privacy_reference(instruments):
+def reads_of(inst):
+    """落檔原始回應重建的讀值,再併入 run_instrument 當場記的 problems(兩邊應相同;不同也都留著)。"""
+    rd = reads_from_calls(inst.get("calls") or [])
+    rd["problems"] += [p for p in inst.get("problems") or [] if p not in rd["problems"]]
+    return rd
+
+
+def round_privacy(instruments):
+    """這一輪 main 讀到的 privacyStatus。main 沒量 / 不可用 / 讀到一半出錯 ⇒ {}(⇒ ch2 的 private 一支都不豁免)。"""
     m = instruments.get("main")
-    if m and m.get("status") == "ok":
-        items = reads_from_calls(m["calls"])["items"]
-        return {v: privacy(items[v]) for v in TARGETS if v in items}, "main 儀器同一輪讀到的 privacyStatus"
-    return ({v: ("private" if v in INVENTORY_PRIVATE15 else "public") for v in TARGETS},
-            "🔴 09-11 盤點的 15 支清單(不是本次量測;本輪沒有 main 儀器)")
+    if not m or m.get("status") != "ok":
+        return {}
+    items = reads_from_calls(m["calls"])["items"]
+    return {v: privacy(items[v]) for v in TARGETS if v in items}
+
+
+def report_unmeasured(names, codes):
+    """--cred 排除的儀器:印出來、算 code 3。沒量的那支儀器負責的結論,本輪就是沒有。"""
+    for n in INSTRUMENTS:
+        if n not in names:
+            print("\n== 儀器 %s | 🔴 本輪沒量(--cred 排除)⇒ code 3;它負責的那一半結論本輪不存在" % n)
+            codes.append(3)
+
+
+def baseline_unusable(bl):
+    """回「不可作為比較基準」的理由;空 list = 可用。旗標之外逐項重核(旗標可能被手改)。"""
+    why_unusable = []
+    if bl.get("usable_as_baseline") is not True:
+        why_unusable.append("usable_as_baseline=%r" % bl.get("usable_as_baseline"))
+    for n in INSTRUMENTS:
+        st = ((bl.get("instruments") or {}).get(n) or {}).get("status")
+        if st != "ok":
+            why_unusable.append("儀器 %s status=%r" % (n, st))
+    if bl.get("code") != 0:
+        why_unusable.append("baseline code=%r" % bl.get("code"))
+    return why_unusable
 
 
 def write_new_json(path, obj):
@@ -507,18 +554,27 @@ def cmd_baseline(a):
            "instruments": {}}
     print("# %s --baseline  %s  tool_blob=%s" % (TOOL_TAG, out["taken_at"], out["tool_blob"]))
     print("# 送出 %d 個 id = 84 目標 + 3 陰性對照 + 假 id %s" % (len(ids), FAKE))
-    for name in cred_names(a.cred):
+    names = cred_names(a.cred)
+    for name in names:
         out["instruments"][name] = run_instrument(name, ids)
-    priv_ref, priv_src = privacy_reference(out["instruments"])
-    out["privacy_reference"] = priv_src
-    print("# 分組依據:%s" % priv_src)
+    main_priv = round_privacy(out["instruments"])   # 同一輪 main 讀到的;ch2 的豁免只認這個
+    if main_priv:
+        group_ref, src = main_priv, "main 儀器同一輪讀到的 privacyStatus"
+    else:
+        group_ref = {v: ("private" if v in INVENTORY_PRIVATE15 else "public") for v in TARGETS}
+        src = "🔴 09-11 盤點的 15 支清單,只用來分組顯示(本輪沒有 main 讀值 ⇒ ch2 讀不到的 private 一支都不豁免)"
+    out["privacy_reference"] = src
+    print("# 分組依據:%s" % src)
     codes = []
+    report_unmeasured(names, codes)
     for name, inst in out["instruments"].items():
         if not print_head(inst):
             codes.append(3)
             continue
-        rd = reads_from_calls(inst["calls"])
-        rep = judge_baseline(POP, rd, priv_ref, INSTRUMENTS[name]["sees_private"])
+        if not INSTRUMENTS[name]["sees_private"] and not main_priv:
+            print("   🔴 本輪沒有 main 讀值 ⇒ 讀不到的 private 不豁免,都算未讀到")
+        rd = reads_of(inst)
+        rep = judge_baseline(POP, rd, main_priv, INSTRUMENTS[name]["sees_private"], group_ref)
         inst["judge"] = {k: rep[k] for k in ("groups", "controls", "problems", "split", "code")}
         print("   送出 %d / 回來 %d" % (len(rd["sent"]), len(rd["items"])))
         print("   %-3s %-12s %-8s %-8s %-12s %2s %2s %2s %5s" % ("#", "videoId", "privacy", "audio", "desc_sha1",
@@ -546,15 +602,26 @@ def cmd_baseline(a):
     return finish(a, out, codes, "baseline_%s.json" % out["taken_at"][:19].replace(":", "").replace("-", ""))
 
 
-def load_written(spec):
+def load_written(spec, none=False):
+    """應已改寫的 id 集合;None = 全部 84。空字串 / 讀不了的 @檔 / 不在 84 裡的 id ⇒ Stop(code 2)。"""
+    if none:
+        return set()
     if spec is None:
         return None
+    src = "--expect-written"
     if spec.startswith("@"):
-        spec = io.open(spec[1:], encoding="utf-8").read()
+        src = "--expect-written=" + spec
+        try:
+            spec = io.open(spec[1:], encoding="utf-8-sig").read()
+        except (UnicodeDecodeError, OSError) as exc:
+            raise Stop("🔴 %s 讀不了(要存成 ASCII 或 UTF-8;PS5.1 用 Set-Content -Encoding ascii,"
+                       "不要用 Out-File 預設的 UTF-16):%s: %s" % (src, type(exc).__name__, exc))
     ids = [x.strip() for x in spec.replace("\n", ",").split(",") if x.strip()]
+    if not ids:
+        raise Stop("🔴 %s 是空的 —— 空集合等於「84 支都該沒被碰」;真的要這樣判,改用 --expect-none" % src)
     stray = [v for v in ids if v not in TARGETS]
     if stray:
-        raise Stop("🔴 --expect-written 有不在 84 支裡的 id:%s" % stray)
+        raise Stop("🔴 %s 有不在 84 支裡的 id:%s" % (src, stray))
     return set(ids)
 
 
@@ -563,34 +630,41 @@ def cmd_check(a):
     if bl.get("mode") != "baseline" or bl.get("old_md5") != OLD_MD5 or bl.get("new_md5") != NEW_MD5 \
             or bl.get("targets_sha1") != TARGETS_SHA1:
         raise Stop("🔴 baseline 檔的 mode / 字面值 md5 / 母體 sha1 與本工具不符,不比")
-    written = load_written(a.expect_written)
-    names = [n for n in (cred_names(a.cred) if a.cred else list(bl["instruments"]))
-             if bl["instruments"].get(n, {}).get("status") == "ok"]
+    why = baseline_unusable(bl)
+    if why:
+        raise Stop("🔴 baseline 不可作為比較基準(%s)⇒ 不比;重跑 --baseline(兩支儀器都 ok、code 0 才可用)"
+                   % ";".join(why))
+    written = load_written(a.expect_written, a.expect_none)
+    names = cred_names(a.cred or "both")
     ids = list(TARGETS) + list(CONTROLS) + [FAKE]
     out = {"tool": TOOL_TAG, "tool_blob": git_blob(os.path.abspath(__file__)), "mode": "check", "label": a.label,
-           "checked_at": now_iso(), "baseline_file": os.path.relpath(os.path.abspath(a.check), REPO).replace("\\", "/"),
+           "checked_at": now_iso(), "baseline_file": rel(a.check),
            "baseline_sha1": hashlib.sha1(io.open(a.check, "rb").read()).hexdigest(),
            "baseline_taken_at": bl.get("taken_at"), "expect_written": sorted(written) if written is not None else "全部 84",
            "instruments": {}}
-    priv_ref, priv_src = privacy_reference(bl["instruments"])
-    out["privacy_reference"] = "baseline 的 " + priv_src
     print("# %s --check  label=%s  %s  tool_blob=%s" % (TOOL_TAG, a.label, out["checked_at"], out["tool_blob"]))
     print("# baseline=%s(%s,sha1 %s)" % (out["baseline_file"], out["baseline_taken_at"], out["baseline_sha1"][:12]))
-    print("# 應已改寫:%s;分組依據:%s" % (out["expect_written"] if written is None else "%d 支" % len(written),
-                                    out["privacy_reference"]))
-    if not names:
-        print("🔴 baseline 裡沒有可用的儀器")
-        return 3
-    codes = []
+    print("# 應已改寫:%s" % (out["expect_written"] if written is None else "%d 支 %s" % (len(written), sorted(written))))
     for name in names:
-        inst = run_instrument(name, ids)
-        out["instruments"][name] = inst
+        out["instruments"][name] = run_instrument(name, ids)   # 先全部量完再判:ch2 的豁免要用同一輪 main 的讀值
+    base_priv = round_privacy(bl["instruments"])
+    main_priv = round_privacy(out["instruments"])  # 本輪 main 讀到的(ch2 豁免只認這個)
+    group_ref = main_priv or base_priv
+    out["privacy_reference"] = ("本輪 main 讀到的 privacyStatus" if main_priv else
+                                "🔴 baseline 時 main 讀到的,只用來分組顯示(本輪沒有 main 讀值 ⇒ ch2 讀不到的 private 一支都不豁免)")
+    print("# 分組依據:%s" % out["privacy_reference"])
+    codes = []
+    report_unmeasured(names, codes)
+    for name in names:
+        inst = out["instruments"][name]
         if not print_head(inst):
             codes.append(3)
             continue
-        base = reads_from_calls(bl["instruments"][name]["calls"])
-        cur = reads_from_calls(inst["calls"])
-        rep = judge_check(POP, base, cur, priv_ref, INSTRUMENTS[name]["sees_private"], written)
+        if not INSTRUMENTS[name]["sees_private"] and not main_priv:
+            print("   🔴 本輪沒有 main 讀值 ⇒ 讀不到的 private 不豁免,都算未讀到")
+        base = reads_of(bl["instruments"][name])
+        cur = reads_of(inst)
+        rep = judge_check(POP, base, cur, main_priv, INSTRUMENTS[name]["sees_private"], written, group_ref)
         inst["judge"] = rep
         print("   送出 %d / 回來 %d" % (len(cur["sent"]), len(cur["items"])))
         print_groups(rep, INSTRUMENTS[name]["sees_private"])
@@ -599,7 +673,7 @@ def cmd_check(a):
             if r["verdict"] == UNREAD and v in rep["split"]["expected_unread"]:
                 continue
             if r["verdict"] != PASS or r["review"]:
-                print("   %-12s [%s] %s %s" % (v, group_of(v, priv_ref), r["verdict"], ";".join(r["reasons"] + r["review"])))
+                print("   %-12s [%s] %s %s" % (v, group_of(v, group_ref), r["verdict"], ";".join(r["reasons"] + r["review"])))
         rows_read = [r for r in rep["rows"].values() if "pl_base" in r]
         print("   📚 行:baseline %d / 現在 %d(已含在逐位元組比對內,這行只是看得見)"
               % (sum(r["pl_base"] for r in rows_read), sum(r["pl_now"] for r in rows_read)))
@@ -615,12 +689,19 @@ def finish(a, out, codes, default_name):
     out["forbidden_modules_loaded"] = leaked
     code = 2 if leaked else overall(codes)
     out["code"] = code
+    if out["mode"] == "baseline":
+        why = baseline_unusable(dict(out, usable_as_baseline=True))
+        out["usable_as_baseline"] = not why
+        out["unusable_reasons"] = why
     path = a.out or os.path.join(OUT_DIR, default_name)
     digest = write_new_json(path, out)
     api = sum(i.get("api_attempts", 0) for i in out["instruments"].values())
     print("\n# 獨立性:%s 載入了嗎 → %s" % ("/".join(FORBIDDEN_MODULES), leaked or "都沒有"))
     print("# 本輪 videos.list 共 %d 次;其他 API 0 次" % api)
     print("# 落檔 %s(sha1 %s)" % (path, digest))
+    if out["mode"] == "baseline":
+        print("# " + ("✅ 可作為比較基準(usable_as_baseline=true)" if out["usable_as_baseline"] else
+                      "🔴 不可作為比較基準:%s —— --check 會拒絕這個檔" % ";".join(out["unusable_reasons"])))
     print("RESULT: code=%d %s" % (code, CODE_TEXT[code]))
     return code
 
@@ -632,9 +713,13 @@ def build_parser():
     g.add_argument("--baseline", action="store_true", help="改寫前量測(§3-A)")
     g.add_argument("--check", metavar="BASELINE_JSON", help="改寫後回讀(T1 / T2)")
     ap.add_argument("--cred", choices=("both", "main", "ch2"), default=None,
-                    help="baseline 預設 both;check 預設沿用 baseline 裡可用的儀器")
+                    help="預設 both;main / ch2 只供診斷(沒量的那支算 code 3,baseline 不可作為比較基準)")
     ap.add_argument("--label", default="T1", help="check 的標籤(T1_canary / T1 / T2 ...)")
-    ap.add_argument("--expect-written", default=None, help="應已改寫的 id(逗號分隔或 @檔案);預設全部 84")
+    ew = ap.add_mutually_exclusive_group()
+    ew.add_argument("--expect-written", default=None,
+                    help="應已改寫的 id:--expect-written=vid1,vid2 或 --expect-written=@檔案(要帶等號,id 可能以 - 開頭);"
+                         "預設全部 84;空字串會被拒")
+    ew.add_argument("--expect-none", action="store_true", help="一支都不該被寫(取代空字串 --expect-written=)")
     ap.add_argument("--out", default=None, help="落檔路徑(預設 %s 下自動命名,不覆蓋)" % OUT_DIR)
     ap.add_argument("--evidence-dir", default=None, help="self-test 證據檔目錄")
     return ap
@@ -651,14 +736,19 @@ def main(argv=None):
         return cmd_check(a)
     except Stop as exc:
         print(exc)
+        print("RESULT: code=2 %s" % CODE_TEXT[2])
         return 2
+    except Exception:  # noqa: BLE001  工具本身壞掉:traceback 的 exit 1 不能被讀成「不成立」
+        traceback.print_exc(file=sys.stdout)
+        print("RESULT: code=3 %s(工具本身丟例外,這一輪輸出作廢)" % CODE_TEXT[3])
+        return 3
 
 
 # ======== SELF-TEST(不屬於正式路徑;突變只作用在本行以上的原始碼) ========
 def self_test(evidence_dir=None):
     """讀本檔原始碼 → 對「標記以上」做字串突變 → exec 成獨立模組 → 對造出來的樣本跑情境。
     判準(每個情境的預期)寫死在這裡,不來自受測模組。"""
-    import copy, types
+    import contextlib, copy, shutil, tempfile, types
 
     src = io.open(os.path.abspath(__file__), encoding="utf-8").read()
     mark = "# ======" + "== SELF-TEST"
@@ -710,8 +800,10 @@ def self_test(evidence_dir=None):
             return self.fn()
 
     class StubYT:
-        def __init__(self, world, sees_private=True, fake_returns=False):
+        def __init__(self, world, sees_private=True, fake_returns=False, dup=None, page_token=False,
+                     fail_on_call=None):
             self.world, self.sees, self.fake = world, sees_private, fake_returns
+            self.dup, self.pt, self.fail_on_call, self.n = dup or {}, page_token, fail_on_call, 0
 
         def videos(self):
             return StubVideos(self)
@@ -722,14 +814,22 @@ def self_test(evidence_dir=None):
 
         def list(self, part, id):
             def f():
+                self.p.n += 1
+                if self.p.fail_on_call == self.p.n:
+                    raise RuntimeError("stub: 第 %d 次呼叫丟例外" % self.p.n)
                 out = []
                 for v in id.split(","):
+                    if v in self.p.dup:
+                        out.append(copy.deepcopy(self.p.dup[v]))     # 先回一份(快取吐的舊副本)
                     it = self.p.world.get(v)
                     if it is not None and (self.p.sees or it["status"]["privacyStatus"] == "public"):
                         out.append(copy.deepcopy(it))
                     if v == FK and self.p.fake:
                         out.append(mk(FK, "假", "public"))
-                return {"kind": "youtube#videoListResponse", "items": out}
+                r = {"kind": "youtube#videoListResponse", "items": out}
+                if self.p.pt:
+                    r["nextPageToken"] = "CDIQAA"
+                return r
             return Req(f)
 
     def chk(m, cur, sees=True, fake=False, written=None, base=None):
@@ -840,9 +940,196 @@ def self_test(evidence_dir=None):
                                              1, dict(ALLP, P2="FAIL"))]
         return f
 
+    # ---- 黏合層:走 m.main([...]) 正式路徑(cmd_baseline / cmd_check / run_instrument / reads_from_calls /
+    #      round_privacy / load_written / finish),只把 build_instrument 換成 stub;輸出只寫進暫存目錄。
+    GTMP = tempfile.mkdtemp(prefix="vdr_selftest_")
+    GN = [0]
+    INV = set(INVENTORY_PRIVATE15)
+    CAN = [TARGETS[3], TARGETS[43]]   # -_aUs0oj1o0、-dyes0qFE9U:以 - 開頭,只能用 = 形式
+    DRIFT = (INV - {"0EPASuhQti0"}) | {"0Gy7jec6Agc"}   # w9 那種:一支 private→public、一支 public→private
+
+    def gdesc(v):
+        return "\n".join(["📌 關於片中與 0050 的比較", "片中數字取自「近十年」(%s)。" % v, H_OLD, "",
+                          "📚 產業連播｜https://www.youtube.com/playlist?list=PLb" + v, "#台股"])
+
+    def gworld(private):
+        w = {v: mk(v, gdesc(v), "private" if v in private else "public") for v in TARGETS}
+        for c in CONTROLS:
+            w[c] = mk(c, "陰性對照 %s\n📚 https://www.youtube.com/playlist?list=PLc" % c,
+                      "public" if c == CONTROLS[0] else "private")
+        return w
+
+    GBASE = gworld(INV)
+
+    def grw(base, only=None):
+        w = copy.deepcopy(base)
+        for v in (TARGETS if only is None else only):
+            w[v]["snippet"]["description"] = rw(w[v]["snippet"]["description"])
+        return w
+
+    def both(w, **kw):
+        return {"ch2": dict(kw, world=w), "main": dict(kw, world=w)}
+
+    def gmain(m, worlds, argv):
+        def fake_build(name):
+            cfg = worlds.get(name, "unavailable")
+            if cfg == "unavailable":
+                raise m.InstrumentUnavailable("stub: refresh 失敗")
+            spec = m.INSTRUMENTS[name]
+            meta = {"name": name, "token_file": "stub/" + name, "project": spec["project"],
+                    "independence": spec["independence"], "sees_private": spec["sees_private"],
+                    "granted_scopes": [m.READONLY]}
+            kw = dict(cfg)
+            return m._ListOnly(StubYT(kw.pop("world"), spec["sees_private"], **kw)), meta
+        m.build_instrument = fake_build
+        m.OUT_DIR = os.path.join(GTMP, "never_default")   # 保險:沒帶 --out 也寫不進正式目錄
+        m.SNAP_DIR = os.path.join(GTMP, "no_snapshot")
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            try:
+                code = m.main(argv)
+            except SystemExit as e:
+                code = "SystemExit(%s)" % e.code
+            except Exception as e:  # noqa: BLE001
+                code = "uncaught %s" % type(e).__name__
+        return code, buf.getvalue()
+
+    def gfile(tag):
+        GN[0] += 1
+        return os.path.join(GTMP, "%04d_%s.json" % (GN[0], tag))
+
+    def gload(p):
+        return json.load(io.open(p, encoding="utf-8")) if os.path.exists(p) else {}
+
+    def gbaseline(m, worlds, cred=None):
+        p = gfile("bl")
+        code, _txt = gmain(m, worlds, ["--baseline", "--out", p] + (["--cred", cred] if cred else []))
+        return p, code, gload(p)
+
+    def gcheck(m, bl, worlds, extra=()):
+        p = gfile("ck")
+        code, txt = gmain(m, worlds, ["--check", bl, "--out", p] + list(extra))
+        return code, gload(p), txt
+
+    def jget(doc, name, key):
+        return (((doc.get("instruments") or {}).get(name) or {}).get("judge") or {}).get(key)
+
+    OKBL = {}
+
+    def okbl(m):  # 每個受測模組一份「兩支都好」的 baseline
+        if m.__name__ not in OKBL:
+            OKBL[m.__name__] = gbaseline(m, both(GBASE))
+        return OKBL[m.__name__]
+
+    def G1(m):  # 陽性對照:兩支都好 ⇒ 0 + 可用;全寫對 / canary ⇒ 0;privacy 漂移時豁免跟著本輪 main 走
+        p, c, bl = okbl(m)
+        f = [] if (c, bl.get("usable_as_baseline")) == (0, True) else \
+            ["baseline code %s、usable %r" % (c, bl.get("usable_as_baseline"))]
+        c, ck, _ = gcheck(m, p, both(grw(GBASE)))
+        if c != 0 or sorted(jget(ck, "ch2", "split")["expected_unread"] if ck else []) != sorted(INV):
+            f.append("全寫對 code %s;ch2 豁免的應是本輪 main 讀到的 15 支" % c)
+        c, _, _ = gcheck(m, p, both(grw(GBASE, CAN)), ["--expect-written=" + ",".join(CAN)])
+        if c != 0:
+            f.append("canary code %s ≠ 0" % c)
+        pd, c, _ = gbaseline(m, both(gworld(DRIFT)))
+        if c != 0:
+            f.append("[privacy 漂移] baseline code %s ≠ 0" % c)
+        c, ck, _ = gcheck(m, pd, both(grw(gworld(DRIFT))))
+        exp = (jget(ck, "ch2", "split") or {}).get("expected_unread") or []
+        if c != 0 or sorted(exp) != sorted(DRIFT):
+            f.append("[privacy 漂移] check code %s;ch2 豁免 %d 支,應是本輪 main 讀到的 %d 支" % (c, len(exp), len(DRIFT)))
+        return f
+
+    def G2(m):  # F1:baseline 少一支儀器 ⇒ 不准 0、落檔標不可用、ch2 的 private 不豁免;check 拒比(2)
+        f = []
+        for tag, worlds, cred in (("main 不可用", {"ch2": {"world": GBASE}, "main": "unavailable"}, None),
+                                  ("main 第 2 次出錯", {"ch2": {"world": GBASE},
+                                                      "main": {"world": GBASE, "fail_on_call": 2}}, None),
+                                  ("--cred ch2", both(GBASE), "ch2")):
+            p, c, bl = gbaseline(m, worlds, cred)
+            if c != 3:
+                f.append("[%s] baseline code %s ≠ 3" % (tag, c))
+            if bl.get("usable_as_baseline") is not False:
+                f.append("[%s] 落檔沒標不可用:%r" % (tag, bl.get("usable_as_baseline")))
+            if jget(bl, "ch2", "code") != 1:
+                f.append("[%s] ch2 code %s ≠ 1(同一輪沒有 main ⇒ private 不該豁免)" % (tag, jget(bl, "ch2", "code")))
+            c, _, txt = gcheck(m, p, both(grw(GBASE)))
+            if c != 2 or "不可作為比較基準" not in txt:
+                f.append("[%s] check 沒拒比:code %s" % (tag, c))
+        return f
+
+    def G3(m):  # F1:check 這一輪 main 不在 ⇒ ch2 的 private 不豁免(ch2 判 1),overall 3
+        p, _c, _bl = okbl(m)
+        f = []
+        for tag, mw in (("main 不可用", "unavailable"), ("main 第 2 次出錯", {"world": grw(GBASE), "fail_on_call": 2})):
+            c, ck, _ = gcheck(m, p, {"ch2": {"world": grw(GBASE)}, "main": mw})
+            sp = jget(ck, "ch2", "split") or {}
+            if c != 3 or jget(ck, "ch2", "code") != 1 or sp.get("expected_unread") or not INV <= set(sp.get("unread") or []):
+                f.append("[%s] overall %s、ch2 code %s、豁免 %d 支(應 3、1、0 支)"
+                         % (tag, c, jget(ck, "ch2", "code"), len(sp.get("expected_unread") or [])))
+        return f
+
+    def G4(m):  # F1:--cred 排除的儀器 ⇒ 印出來、算 3(check --cred ch2 不准 0)
+        p, _c, _bl = okbl(m)
+        f = []
+        for cred, other, want_j in (("main", "ch2", 0), ("ch2", "main", 1)):
+            c, ck, txt = gcheck(m, p, both(grw(GBASE)), ["--cred", cred])
+            if c != 3 or jget(ck, cred, "code") != want_j or ("== 儀器 %s | 🔴 本輪沒量" % other) not in txt:
+                f.append("[--cred %s] overall %s(應 3)、%s 判 %s(應 %s)" % (cred, c, cred, jget(ck, cred, "code"), want_j))
+        return f
+
+    def G5(m):  # F2:陰性對照的描述被動過(不含舊句 / 新句)⇒ 2
+        p, _c, _bl = okbl(m)
+        f = []
+        for tag, vid, d in (("private 對照被清空", CONTROLS[1], "被整段清空之後剩這行"),
+                            ("public 對照 📚 行被吃掉", CONTROLS[0], "陰性對照 %s" % CONTROLS[0])):
+            w = grw(GBASE)
+            w[vid]["snippet"]["description"] = d
+            c, _, _ = gcheck(m, p, both(w))
+            if c != 2:
+                f.append("[%s] code %s ≠ 2" % (tag, c))
+        return f
+
+    def G6(m):  # F3:重複 id / nextPageToken 在正式路徑 ⇒ 2(check 和 baseline 都是)
+        p, _c, _bl = okbl(m)
+        f = []
+        old_copy = {TARGETS[0]: copy.deepcopy(GBASE[TARGETS[0]])}
+        for tag, kw in (("重複 id(先舊後新)", {"dup": old_copy}), ("nextPageToken", {"page_token": True})):
+            c, _, _ = gcheck(m, p, both(grw(GBASE), **kw))
+            if c != 2:
+                f.append("[check %s] code %s ≠ 2" % (tag, c))
+            _p, c, bl = gbaseline(m, both(GBASE, **kw))
+            if c != 2 or bl.get("usable_as_baseline") is not False:
+                f.append("[baseline %s] code %s、usable %r" % (tag, c, bl.get("usable_as_baseline")))
+        return f
+
+    def G7(m):  # F4:--expect-written 解析
+        p, _c, _bl = okbl(m)
+        u16, bom, empty = (os.path.join(GTMP, n) for n in ("ids_utf16.txt", "ids_bom.txt", "ids_empty.txt"))
+        io.open(u16, "w", encoding="utf-16").write("\n".join(CAN) + "\n")
+        io.open(bom, "w", encoding="utf-8-sig", newline="").write("\r\n".join(CAN) + "\r\n")
+        io.open(empty, "w", encoding="utf-8").write("\n")
+        f = []
+        for tag, world, extra, want in (
+                ("空字串", GBASE, ["--expect-written="], 2),
+                ("--expect-none、沒寫", GBASE, ["--expect-none"], 0),
+                ("--expect-none、其實寫了", grw(GBASE, CAN), ["--expect-none"], 1),
+                ("@UTF-16", grw(GBASE, CAN), ["--expect-written=@" + u16], 2),
+                ("@UTF-8 BOM + CRLF", grw(GBASE, CAN), ["--expect-written=@" + bom], 0),
+                ("@空檔", GBASE, ["--expect-written=@" + empty], 2),
+                ("@不存在", GBASE, ["--expect-written=@" + os.path.join(GTMP, "nope.txt")], 2),
+                ("打錯一個字", grw(GBASE, CAN), ["--expect-written=%s,%s" % (CAN[0], CAN[1][:-1] + "u")], 2)):
+            c, _, _ = gcheck(m, p, both(world), extra)
+            if c != want:
+                f.append("[%s] code %s ≠ %s" % (tag, c, want))
+        return f
+
     SCEN = [("S0", "字面值", S0), ("S1", "正常", S1), ("S2", "一支沒改到", S2), ("S3", "別處被動", S3),
             ("S4", "看不到private的儀器", S4), ("S5", "沒回來", S5), ("S6", "陰性對照翻面", S6),
-            ("S7", "欄位差異需人判", S7), ("S8", "改寫前鏡像", S8), ("S9", "新句重複", S9), ("S10", "canary範圍", S10)]
+            ("S7", "欄位差異需人判", S7), ("S8", "改寫前鏡像", S8), ("S9", "新句重複", S9), ("S10", "canary範圍", S10),
+            ("G1", "正式路徑陽性對照", G1), ("G2", "baseline少儀器", G2), ("G3", "check本輪main不在", G3),
+            ("G4", "--cred排除", G4), ("G5", "對照描述被動", G5), ("G6", "重複id/分頁", G6),
+            ("G7", "expect-written解析", G7)]
 
     lit_new = 'NEW = "之後的影片已改進做法,但'
     MUT = [  # (代號, 說明, [(原字串, 突變字串)], 必須翻紅的情境)
@@ -868,6 +1155,34 @@ def self_test(evidence_dir=None):
         ("M7b", "欄位差異不列出", [("        if bsn.get(k) != csn.get(k):\n", "        if False:\n")], "S7"),
         ("M8", "拿掉改寫前鏡像(baseline 已有新句也算過)",
          [("        mirror_ok = (o == 1 and n == 0)\n", "        mirror_ok = True\n")], "S8"),
+        ("F1a", "--cred 排除的儀器不算 code 3",
+         [("            codes.append(3)\n\n\ndef baseline_unusable", "            pass\n\n\ndef baseline_unusable")], "G4"),
+        ("F1b", "check 的 ch2 豁免改回用 baseline 的 privacy",
+         [('    main_priv = round_privacy(out["instruments"])  # 本輪 main 讀到的(ch2 豁免只認這個)\n',
+           '    main_priv = round_privacy(bl["instruments"])\n')], "G3"),
+        ("F1c", "baseline 一律標可用",
+         [('        out["usable_as_baseline"] = not why\n', '        out["usable_as_baseline"] = True\n')], "G2"),
+        ("F1d", "check 不擋不可用的 baseline",
+         [("    return why_unusable\n", "    return []\n")], "G2"),
+        ("F1e", "baseline 沒 main 時退回 09-11 盤點清單豁免",
+         [('    main_priv = round_privacy(out["instruments"])   # 同一輪 main 讀到的;ch2 的豁免只認這個\n',
+           '    main_priv = round_privacy(out["instruments"]) or '
+           '{v: ("private" if v in INVENTORY_PRIVATE15 else "public") for v in TARGETS}\n')], "G2"),
+        ("F2", "陰性對照描述不同只改顯示字串、不進 bad",
+         [('            bad.append("陰性對照 %s 的描述和 baseline 不同 ⇒ 範圍外有東西被動過或儀器讀錯;停手、開原檔人判" % vid)\n',
+           "")], "G5"),
+        ("F3a", "reads_from_calls 不查重複 id",
+         [('            if vid in items:\n                problems.append("id 重複回來(後一份蓋掉前一份,讀值不可信):%s" % vid)\n',
+           "")], "G6"),
+        ("F3b", "reads_from_calls 不查 nextPageToken",
+         [('        if resp.get("nextPageToken"):\n            problems.append("第 %d 次回了 nextPageToken(分頁沒處理)" % n)\n',
+           "")], "G6"),
+        ("F4a", "--expect-written= 空字串不擋",
+         [("    if not ids:\n        raise Stop(", "    if False:\n        raise Stop(")], "G7"),
+        ("F4b", "@檔案改回 utf-8(不吃 BOM)",
+         [('io.open(spec[1:], encoding="utf-8-sig").read()', 'io.open(spec[1:], encoding="utf-8").read()')], "G7"),
+        ("F4c", "@檔案解碼錯誤不攔",
+         [("        except (UnicodeDecodeError, OSError) as exc:\n", "        except KeyError as exc:\n")], "G7"),
     ]
 
     print("# %s --self-test  離線;造出來的樣本 + stub service;突變只作用在 SELF-TEST 標記以上" % TOOL_TAG)
@@ -899,7 +1214,7 @@ def self_test(evidence_dir=None):
                     fails = ["情境本身丟 %s:%s" % (type(e).__name__, str(e)[:120])]
                 if fails:
                     reds[name] = fails
-        red_keys = sorted(reds, key=lambda k: int(k[1:]))
+        red_keys = sorted(reds, key=lambda k: (k[0] != "S", int(k[1:])))
         if setup_err:
             ok, verdict = False, "❌ " + setup_err
         elif must_red is None:
@@ -914,6 +1229,7 @@ def self_test(evidence_dir=None):
             print("       %s:%s" % (k, " | ".join(reds[k])[:230]))
         evidence[code] = {"desc": desc, "replacements": reps, "must_red": must_red, "ok": ok, "verdict": verdict,
                           "red_scenarios": reds, "setup_error": setup_err}
+    shutil.rmtree(GTMP, ignore_errors=True)
     leaked = [k for k in ("googleapiclient", "google.auth", "google.oauth2", "httplib2") + FORBIDDEN_MODULES
               if k in sys.modules]
     print("\n# 零網路 / 獨立性:%s 載入了嗎 → %s" % ("/".join(("googleapiclient", "google.auth", "google.oauth2",
