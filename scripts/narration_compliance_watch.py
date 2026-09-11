@@ -400,6 +400,23 @@ def xchk_broken(what):
     """
     stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
     detail = repr(what) if isinstance(what, BaseException) else str(what)
+    # 🔴 `_uniq`:本次呼叫唯一的識別,**放在行尾**,而且下面的回讀比對的是它、不是整行。
+    #    2026-09-11 第五輪獨立驗證 (a-1) 抓到的:原本寫 `if line not in tail`,
+    #    而 `line` 在**跨哨之間可能逐字相同** —— `stamp` 只到分鐘,而
+    #    `detail = repr(what)`,`OSError.args` 只有 `(errno, strerror)`、**不含檔名**
+    #    ⇒ 三支哨同一分鐘退到第三條路時(`%TEMP%` 那個檔名是三支**共用**的寫死字串),
+    #    A 寫成功就足以讓 B 的回讀通過,而 B 自己那行從沒落地。
+    #    ⇒ 原本的回讀量到的是「**這個字串**在檔案裡」,不是「**我寫的那行**在檔案裡」。
+    #    ⚠️ 放行尾不是隨便放,它一次買到兩件事:
+    #       · `detail` 可能很長,只有行尾的識別才留得在回讀的 64 KB 尾巴裡;
+    #       · 看得到行尾 ⇒ 整行寫完了 ⇒ 順便抓得到「write 寫到一半靜靜斷掉」。
+    try:
+        import os as _os     # 三支哨不是每支都在模組層 import os,這裡就地拿(同 `_tf`)
+        _pid = str(_os.getpid())
+    except BaseException:
+        _pid = "?"           # 拿不到就少一個維度;微秒仍然讓它幾乎不可能撞
+    # (單行不是排版潔癖:回歸腳本的突變列要拿這個**字面**當目標,跨行的字串比對很脆。)
+    _uniq = "#" + LOG.stem + ":" + _pid + ":" + datetime.datetime.now().strftime("%H%M%S.%f")
     # 🔴 `[XCHK] ` 這個字面前綴是**承重的**,不是裝飾(2026-09-11 兩名獨立驗證者各自抓到,
     #    其中一名跑了帶陰性對照的語料表):
     #    沒有它,這一行以 `[` + 時間戳開頭 ⇒ 命中 `watch_crosscheck.py:117` 的 `_TS`、
@@ -413,13 +430,16 @@ def xchk_broken(what):
     #       由 `watch_crosscheck_regression.py` 斷言這個字面 == 那個常數。
     line = ("[XCHK] " + ("[DRILL] " if SELFTEST else "")
             + f"[{stamp}] 🔴 [XCHK-BROKEN] 守望互查收尾自己爆了,"
-              f"**今天沒有沉默偵測**(這不是「同伴都正常」):{detail}")
+              f"**今天沒有沉默偵測**(這不是「同伴都正常」):{detail} {_uniq}")
 
     def _land(path):
         """寫一行,然後**讀回來確認它在裡面**;讀不到就拋,讓上面換下一條路。
 
         回讀只讀尾巴 64 KB(位元組層 seek)⇒ 成本有界,log 長到幾百 MB 也不會爆記憶體;
         用 `errors="replace"` 解碼,因為切在多位元組字元中間是正常的,那不是失敗。
+
+        🔴 比對的是行尾的 `_uniq`,**不是整行**(理由見上面 `_uniq` 那段註解:
+           整行比對會被別支哨逐字相同的那一行餵成假陽性)。
         """
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("a", encoding="utf-8") as f:
@@ -428,7 +448,7 @@ def xchk_broken(what):
             f.seek(0, 2)
             f.seek(max(0, f.tell() - 65536))
             tail = f.read().decode("utf-8", "replace")
-        if line not in tail:
+        if _uniq not in tail:
             raise IOError("寫完回讀找不到自己那行:" + str(path))
         return path
 

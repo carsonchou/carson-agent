@@ -130,7 +130,12 @@ def add(rows, name, expect, got, ok):
 #    這兩個數同樣是**各跑一次抄下來的**(12:00 印 88、12:01 印 91),不是 77+11 加出來的
 #    —— 加法在這裡推錯過兩次,而推錯的表現是「格數斷言自己過了」。
 #    2026-09-11 12:04/12:05:M4 (6b) 補 (6) 自己的翻面突變 +3 ⇒ 88→91 / 91→94,一樣是抄的。
-EXPECT_ROWS = {True: 94, False: 91}   # key = 有沒有給 --before
+#    2026-09-11 12:16/12:17:M4 (10)(11) 回讀身分 +2 × 三支哨 = +6,
+#    M5「notes」那格從**只在失敗時才存在**改成無條件一列 × 9 = +9
+#    ⇒ 91→106 / 94→109。兩個數各跑一次抄下來的(12:16 印 106、12:17 印 109)。
+#    ⚠️ 這兩個數今天已經換過三輪(77/80 → 88/91 → 91/94 → 106/109):
+#       引用時請連時間一起引,只有最後一輪是現況。
+EXPECT_ROWS = {True: 109, False: 106}   # key = 有沒有給 --before
 
 
 # 🔴 2026-09-10~09-11 真的活在正式機上的那一版 `last_sched_date()` 迴圈,逐字保存。
@@ -601,6 +606,9 @@ def main():
         # 不是斷言的依據;斷言用的是 `after.XCHK_PREFIX`(見下面第一格)。
         # 找不到時不 assert,改成紅格:assert 會把一格紅變成整份 traceback。
         _PREF_SRC = '"[XCHK] " + ("[DRILL] " if SELFTEST else "")'
+        # 回讀的身分來源。突變列拿它當目標,所以三支哨那行刻意寫成**單行**。
+        _UNIQ_SRC = ('"#" + LOG.stem + ":" + _pid + ":" '
+                     '+ datetime.datetime.now().strftime("%H%M%S.%f")')
         try:
             _head = {k: c.upto(k, "[2026-09-09") for k in ("seeding", "narration")}
             for fname, key in WATCH_FILES:
@@ -772,8 +780,21 @@ def main():
             green = after.old_judge_schedule(SW, d)
             add(rows, "└ 舊判準對照", "綠" if want_old_green else "叫",
                 "綠" if green else "叫", green == want_old_green)
-            if not notes:
-                add(rows, "└ notes 不得為空", "有", "空", False)
+            # 🔴 2026-09-11 獨立驗證(fresh-context)抓到:這一格原本寫成
+            #       `if not notes: add(..., False)`
+            #    三個毛病疊在一起,而且**它通過時連一列都不產生**:
+            #      ① 違反本檔 :106 自己立的規矩(「所有格子一律走 add()」)——
+            #         看不到的格子沒有人能查證,而 77/91 這種數字也永遠不會包含它。
+            #      ② `watch_crosscheck.py:442` 的 `notes.append(...)` 是**無條件**的
+            #         (不在任何分支裡)⇒ `not notes` 結構上不可能為真 ⇒ 這格是死碼。
+            #      ③ 就算真的翻了,先炸的是 `EXPECT_ROWS` 的格數斷言,訊息會說
+            #         「你改了本檔卻沒改 EXPECT_ROWS」⇒ **把真因蓋掉**。
+            #    改成無條件一列,而且斷言的是**有內容的東西**:那行常數回讀帶不帶得出
+            #    `task` 名。它會在有人把 :442 挪進分支、或改掉那行格式時翻紅。
+            add(rows, "└ notes 要帶得出常數回讀(task 名)", f"含 {SW['task']}",
+                f"含 {SW['task']}" if any(SW["task"] in n for n in notes)
+                else f"notes={len(notes)} 列但沒有",
+                any(SW["task"] in n for n in notes))
 
         # LogonTrigger:照印、不判(這是修(二) 上線後唯一的掛鉤點)
         logon = dump(trigs=(T_OK, "TRIG=True|2026-09-11T02:00:00+08:00||"
@@ -1004,6 +1025,36 @@ def main():
                 ok = raised is None and ret is not None and "[XCHK-BROKEN]" not in got
                 add(rows, f"M4 {key} 陰性 拆掉回讀 ⇒ 空 log 也回報成功(舊版行為)",
                     "回傳路徑+log空", f"回傳{ret}/log{len(got)}字", ok)
+
+                # (10)(11) 🔴 回讀必須認得出「**我**寫的那行」,不是「有一行長這樣」。
+                #   2026-09-11 第五輪獨立驗證 (a-1):原本是 `if line not in tail`,而
+                #   `line` 跨哨之間可能逐字相同(`stamp` 只到分鐘、`repr(OSError)` 不含檔名、
+                #   第三條路的檔名三支共用)⇒ A 寫成功就能讓 B 的回讀通過。
+                #   佈景:**先讓一次正常呼叫把一行落進同一個 log**,再用「寫入變空」跑第二次。
+                _fp = _xb_tmp / f"{key}_fp.log"
+                xchk_broken_trial(fsrc, "none", _fp, temp_to=_xb_tmp / f"{key}_t10a")
+                got, raised, _, ret = xchk_broken_trial(
+                    mut8, "none", _fp, temp_to=_xb_tmp / f"{key}_t10")
+                add(rows, f"M4 {key} 回讀 log 裡已有別人那行 + 自己沒寫 ⇒ 仍須判失敗",
+                    "回傳None", f"回傳{ret}/拋{raised!r}",
+                    raised is None and ret is None)
+
+                #   配對突變:把 `_uniq` 釘成常數 = 回到「這一行不帶本次呼叫的身分」。
+                #   於是第二次的識別和第一次逐字相同 ⇒ 回讀在 tail 裡找得到 ⇒ **假陽性重現**:
+                #   它回報留痕成功,而它這一次一個位元組都沒寫。
+                #   🔴 少了這一列,上一列的綠和「這格恆綠」分不開(memory
+                #      `load-bearing-line-needs-mutation`)。
+                mut10 = fsrc.replace(_UNIQ_SRC, '"#FIXED"')
+                assert mut10 != fsrc, "突變 10 沒生效:找不到 _uniq 的字面"
+                mut11 = mut10.replace("f.write(line + chr(10))", 'f.write("")')
+                assert mut11 != mut10, "突變 11 沒生效:找不到寫入那行"
+                _fp2 = _xb_tmp / f"{key}_fp2.log"
+                xchk_broken_trial(mut10, "none", _fp2, temp_to=_xb_tmp / f"{key}_t11a")
+                got, raised, _, ret = xchk_broken_trial(
+                    mut11, "none", _fp2, temp_to=_xb_tmp / f"{key}_t11")
+                add(rows, f"M4 {key} 突變 _uniq 釘成常數 ⇒ 上一格必須翻成假陽性",
+                    "回傳主通道(謊報成功)", f"回傳{ret}/拋{raised!r}",
+                    raised is None and ret == _fp2)
         finally:
             shutil.rmtree(_xb_tmp, ignore_errors=True)
 
