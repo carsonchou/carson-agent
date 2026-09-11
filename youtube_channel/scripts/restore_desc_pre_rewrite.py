@@ -15,22 +15,27 @@ STUDIO/desc_backup/<vid>.pre_rewrite.json(fix_period_disclaimer.py:867-887)。�
   M3 confirm-sha1  --apply 會重讀線上值;sha1(description) ≠ --confirm-sha1 就拒寫
                 (dry-run 之後線上被第三方改過 ⇒ 不蓋掉別人的改動)。
   M4 其他欄位用線上值  body 裡 description 以外的可寫欄位一律取「當下讀回」的 snippet,不用備份裡的舊值。
-  M5 前置條件   a) 線上 description 已逐字等於 pre_rewrite ⇒ 印「不需還原」、exit 0、不寫。
-                b) 線上既找不到新句也找不到舊句 ⇒ 拒寫(被別人改過,現況不明)。
-  —— 以下是 wF:p5 定案的兩條准寫判準(docs/ops/2026-09-12_84支寫入把關清單_wF-p3.md:65-77,commit 6b77c90f),兩條都要成立:
-  M8 (a) 段外有差 ⇒ 拒寫  線上與 pre_rewrite 的逐字差異必須全部落在 pre_rewrite 舊句所在那一段
+  M5 不需還原   線上 description 已逐字等於 pre_rewrite ⇒ 印「不需還原」、exit 0、不寫。
+                (原規格的「線上新句、舊句都找不到 ⇒ 拒寫」已由 wF:p5 刪除、由 (a) 取代:寫入端把那句寫壞時
+                 新舊句正好都找不到,那條會擋掉最需要還原的情形。M11:把它加回來,S5 要翻紅。)
+  —— 以下是 wF:p5 定案的兩條准寫判準(docs/ops/2026-09-12_84支寫入把關清單_wF-p3.md:65-77,commit 6b77c90f;
+     突變編號照 wF:p5 09-12 規格修正),兩條都要成立:
+  M6 (a) 段外有差 ⇒ 拒寫  線上與 pre_rewrite 的逐字差異必須全部落在 pre_rewrite 舊句所在那一段
                 (段 = 空白行分隔;與段相鄰的空白 / 換行多寡可以不同,但段前段後的空白行本身要在 ——
-                否則分不出字是補在這段還是隔壁段)。段外有差 ⇒ 別的 job 動過 ⇒ exit 1、要人判;
-                🔴 任何旗標都蓋不過(M8b:被 --accept-needs-human 蓋過要翻紅)。
+                否則分不出字是補在這段還是隔壁段)。段外有差 ⇒ 別的 job 動過 ⇒ 印出差異、exit 1、要人判;
+                🔴 任何旗標都蓋不過(M6b:被 --accept-needs-human 蓋過要翻紅)。
                 刻意**不是**「線上 == pre_rewrite 換上新句才寫」—— wF:p5 駁回:寫壞了才需要還原,
                 那條只放寫對的、擋寫壞的,方向反了(M10:換成它,「段內寫壞」那個陽性情境要翻紅)。
-  M6/M7 (b) 長度對 STAMP  線上 description 長度 == 寫入端 STAMP 該支的 new_len。new_len 的取法:
-                最後一筆 ok 行 → sent_at 完全相同的 sent 行 → 它的 new_len
-                (🔴 ok 行沒有 new_len,fix_period_disclaimer.py:922-924;sent 行才有,:893-894 —— M6)。
+  M8/M9 (b) 長度對 STAMP  線上 description 長度 == 寫入端 STAMP 該支的 new_len。new_len 的取法:
+                最後一筆 ok 行 → sent_at(整個 {utc,tpe} dict)完全相同的 sent 行 → 它的 new_len
+                (🔴 ok 行沒有 new_len,fix_period_disclaimer.py:922-924;sent 行才有,:893-894 —— M8)。
                 長度不等 / 沒有 ok 行(只有 sent、error)/ 對不到 sent 行 / 最後一筆 ok 之後還有 sent 或 error /
-                STAMP 不存在或有解析不了的行 ⇒ 需人判(exit 4);apply 要**同時**帶 --accept-needs-human 與
-                --confirm-sha1 才寫(M7)。這條較弱(STAMP 沒記 body hash),所以是「需人判」不是拒寫。
-  M9 還原時間戳  sent / ok / error 寫進 restore/restore_stamp.jsonl(格式同 STAMP,另加 tool 欄)。
+                STAMP 不存在或有解析不了的行 / new_len 不是整數 ⇒ 需人判(exit 4),讀不到欄位不當成「沒有條件」;
+                dry-run 印完整 diff、線上長度、sent 行 new_len 與理由。apply 要**同時**帶 --accept-needs-human 與
+                --confirm-sha1 才寫,只帶 --confirm-sha1 ⇒ 不寫、exit 4(M9)。
+                這條較弱(STAMP 沒記 body hash;YouTube 可能正規化空白),所以是「需人判」不是拒寫。
+  M7 還原時間戳  sent / ok / error 寫進 restore/restore_stamp.jsonl(格式同 STAMP 的 _stamp(),另加 tool 欄;
+                本機 quota_meter 擋下時 phase=blocked,同 fix_period_disclaimer.py:903)。sent 在呼叫前落盤。
                 🔴 不寫進寫入端 STAMP:它的 _stamped()(fix_period_disclaimer.py:564-582)只看 vid 與
                 phase ∈ (sent, ok),還原的行混進去會被當成它自己寫過,重跑判成已完成、把還原蓋回去。
 其他:
@@ -224,7 +229,7 @@ def body_problems(vid, live_sn, body, target_desc):
     return bad
 
 
-# ---------------------------------------------------------------- M8 (a) 差異只准在舊句那一段
+# ---------------------------------------------------------------- M6 (a) 差異只准在舊句那一段
 _BLANK_LINE = re.compile(r"\n[^\S\n]*\n")
 
 
@@ -266,7 +271,7 @@ def outside_para_diff(live, target):
     return None
 
 
-# ---------------------------------------------------------------- M6/M7 (b) 長度對寫入端 STAMP(只讀)
+# ---------------------------------------------------------------- M8/M9 (b) 長度對寫入端 STAMP(只讀)
 def stamp_check(vid, live_len):
     """回 (需人判理由清單, new_len)。空清單 = (b) 成立。
     new_len 取法(wF:p5 定案):最後一筆 ok 行 → sent_at 完全相同的 sent 行 → 它的 new_len。
@@ -289,8 +294,10 @@ def stamp_check(vid, live_len):
         reasons.append("STAMP 有 %d 行解析不了(可能正是這支的紀錄;未讀到不是通過)" % bad)
     oks = [n for n, r in enumerate(rows) if r.get("phase") == "ok"]
     if not oks:
-        reasons.append("STAMP 裡這支沒有 ok 行(這支的 phase 依序:%s)⇒ 寫入狀態未知"
-                       % [r.get("phase") for r in rows])
+        reasons.append("STAMP 裡這支沒有 ok 行(這支的 phase 依序:%s;sent 行 new_len 依序:%s,僅供人判)"
+                       "⇒ 回應遺失、寫入狀態未知"
+                       % ([r.get("phase") for r in rows],
+                          [r.get("new_len") for r in rows if r.get("phase") == "sent"]))
         return reasons, None
     ok = rows[oks[-1]]
     later = [r.get("phase") for r in rows[oks[-1] + 1:] if r.get("phase") in ("sent", "error")]
@@ -310,9 +317,9 @@ def stamp_check(vid, live_len):
     return reasons, new_len
 
 
-# ---------------------------------------------------------------- M9 還原時間戳(另開檔)
+# ---------------------------------------------------------------- M7 還原時間戳(另開檔)
 def rstamp(row):
-    """一行一筆,逐行 flush + fsync。🔴 只寫 RESTORE_STAMP,絕不寫寫入端 STAMP(見 docstring M9)。"""
+    """一行一筆,逐行 flush + fsync。🔴 只寫 RESTORE_STAMP,絕不寫寫入端 STAMP(見 docstring M7)。"""
     if RESTORE_STAMP.resolve() == STAMP.resolve():
         raise Refuse("🔴 RESTORE_STAMP 指到寫入端 STAMP —— 拒寫")
     RESTORE_STAMP.parent.mkdir(parents=True, exist_ok=True)
@@ -351,12 +358,10 @@ def _post_write(out, path, obj):
 
 
 def print_diff(out, live_desc, target):
-    lines = list(difflib.unified_diff(live_desc.split("\n"), target.split("\n"),
-                                      fromfile="線上", tofile="還原目標", n=0, lineterm=""))
-    for x in lines[:40]:
+    # 完整印出、不截斷(給人判用;description 上限 5000 字,量不大)
+    for x in difflib.unified_diff(live_desc.split("\n"), target.split("\n"),
+                                  fromfile="線上", tofile="還原目標", n=0, lineterm=""):
         out("    " + x)
-    if len(lines) > 40:
-        out("    …(另 %d 行)" % (len(lines) - 40))
 
 
 # ---------------------------------------------------------------- 主流程
@@ -373,14 +378,12 @@ def run(yt, vid, apply, confirm_sha1, out, counter, accept_human=False):
     out("來源  %s(檔案 sha1=%s)" % (src_path, src_file_sha1))
     out("      pre_rewrite description sha1=%s  長度 %d" % (desc_sha1(target), len(target)))
 
-    # M5a
+    # M5
     if live_desc == target:
         out("✅ 不需還原:線上 description 已逐字等於 pre_rewrite。不寫。")
         return EXIT_OK
-    # M5b
-    if _SENT_NEW not in live_desc and _SENT_OLD not in live_desc:
-        raise Refuse("🔴 線上 description 既沒有新句也沒有舊句 —— 被別人改過、現況不明,拒寫")
-    # M8 (a):差異只准落在舊句那一段;段外有差 ⇒ 直接拒寫,任何旗標都蓋不過
+    # (原規格「新舊句都不在 ⇒ 拒寫」已由 wF:p5 刪除、由 (a) 取代 —— 見 docstring M5 / M11)
+    # M6 (a):差異只准落在舊句那一段;段外有差 ⇒ 直接拒寫,任何旗標都蓋不過
     ps, pe = old_para_bounds(target)
     outside = outside_para_diff(live_desc, target)
     if outside:
@@ -393,11 +396,12 @@ def run(yt, vid, apply, confirm_sha1, out, counter, accept_human=False):
         if live_sha1 != confirm_sha1:
             raise Refuse("🔴 線上 description sha1=%s ≠ --confirm-sha1=%s —— dry-run 之後線上被改過(或貼錯),"
                          "拒寫;重跑 dry-run 看過再說" % (live_sha1, confirm_sha1))
-    # M6 / M7 (b)
+    # M8 / M9 (b)
     needs, new_len = stamp_check(vid, len(live_desc))
     out("(b) 寫入端 STAMP(只讀)=%s" % STAMP)
     if needs:
-        out("(b) 🟠 需人判:")
+        out("(b) 🟠 需人判:線上長度 %d;照取法取到的 sent 行 new_len=%r;對不上的原因:"
+            % (len(live_desc), new_len))
         for r in needs:
             out("      - " + r)
     else:
@@ -444,7 +448,7 @@ def _apply(yt, vid, live_sn, body, target, src_path, src_file_sha1, out, counter
                    dict(meta, phase="body", note="videos.update 送出的內容", part="snippet", body=body,
                         description_sha1=desc_sha1(target)))
     out("落檔(送出前):%s  %sbefore.json / %sbody.json" % (EVID_DIR, base, base))
-    # M9 送出時間在呼叫**之前**落盤(同 fix_period_disclaimer:889-894 的理由),寫到 RESTORE_STAMP
+    # M7 送出時間在呼叫**之前**落盤(同 fix_period_disclaimer:889-894 的理由),寫到 RESTORE_STAMP
     sent_at = now_pair()
     try:
         rstamp({"tool": TOOL, "vid": vid, "idx": None, "phase": "sent", "sent_at": sent_at,
@@ -880,17 +884,20 @@ def self_test():
                      % yt.attempts[0][1].get("snippet", {}).get("description"))
         return f
 
-    def S5(m, tmp):  # 線上被第三方改過
+    def S5(m, tmp):  # 那一段被寫壞到新舊句都不在 ⇒ 照 (a) 可還原;dry-run 後被改 ⇒ confirm-sha1 擋
         f = []
-        setup(m, tmp, "s5", pre=PRE_SN)
-        live = dict(LIVE, description=D_NOW.replace(H_NEW, "(第三方整句改寫)"))
-        yt = StubYT(live)
-        for argv in (DRY, APPLY(H_SHA(live["description"]))):
-            code, o = call(m, yt, argv)
-            if code != 1:
-                f.append("a) 新舊句都不在:%s exit %d ≠ 1" % (argv[0], code))
-        if yt.attempts:
-            f.append("a) 新舊句都不在卻送了 update")
+        # a) 「新舊句都不在 ⇒ 拒寫」已刪、由 (a) 取代:段內寫壞正是要還原的形狀,不准被擋
+        live_d = D_NOW.replace(H_NEW, "(寫壞的半句")
+        setup(m, tmp, "s5", pre=PRE_SN, stamp=stamp_rows(len(live_d)))
+        yt = StubYT(dict(LIVE, description=live_d))
+        code, o = call(m, yt, DRY)
+        if code != 0:
+            f.append("a) 段內新舊句都不在:dry-run exit %d ≠ 0:%s" % (code, tail(o, 160)))
+        code, o = call(m, yt, APPLY(H_SHA(live_d)))
+        if code != 0:
+            f.append("a) 段內新舊句都不在:apply exit %d ≠ 0:%s" % (code, tail(o, 160)))
+        f += ["a) " + x for x in wire_ok(yt, dict(LIVE, description=live_d), D_PRE)]
+        setup(m, tmp, "s5b", pre=PRE_SN)
         yt2 = StubYT(LIVE)
         call(m, yt2, DRY)
         # 改在舊句那一段裡:(a) 過得去,擋它的只剩 confirm-sha1
@@ -982,8 +989,8 @@ def self_test():
             yt = StubYT(dict(LIVE, description=live_d))
             for argv in (DRY, APPLY(H_SHA(live_d)), APPLY(H_SHA(live_d)) + ["--accept-needs-human"]):
                 code, o = call(m, yt, argv)
-                if code != 1 or "段外" not in o:
-                    f.append("%s:%s exit %d(要 1 且訊息有「段外」)"
+                if code != 1 or "段外" not in o or "@@" not in o:
+                    f.append("%s:%s exit %d(要 1、訊息有「段外」、且印出差異)"
                              % (lab, " ".join(a for a in argv if not a.startswith("--c")), code))
             if yt.attempts:
                 f.append("%s:送了 update" % lab)
@@ -1012,8 +1019,10 @@ def self_test():
             setup(m, tmp, "s10%d" % i, pre=PRE_SN, stamp=st)
             yt = StubYT(LIVE)
             code, o = call(m, yt, DRY)
-            if code != 4 or "--accept-needs-human" not in o:
-                f.append("%s:dry-run exit %d ≠ 4 或印的指令沒帶 --accept-needs-human" % (lab, code))
+            if (code != 4 or "--accept-needs-human" not in o or "@@" not in o
+                    or "線上長度 %d" % len(D_NOW) not in o or "new_len=" not in o):
+                f.append("%s:dry-run exit %d ≠ 4,或沒印 --accept-needs-human 指令 / 差異 / 線上長度 / new_len"
+                         % (lab, code))
             code, o = call(m, yt, APPLY(H_SHA(D_NOW)))
             if code != 4 or yt.attempts:
                 f.append("%s:apply 沒帶旗標 exit %d、update %d" % (lab, code, len(yt.attempts)))
@@ -1025,7 +1034,7 @@ def self_test():
         return f
 
     SCEN = [("S1 正常還原", S1), ("S2 不需還原", S2), ("S3 來源缺", S3), ("S4 只有舊.json", S4),
-            ("S5 線上被第三方改過", S5), ("S6 confirm-sha1不符", S6), ("S7 body多一欄差異", S7), ("S8 API錯", S8),
+            ("S5 段內新舊句都不在/dry-run後被改", S5), ("S6 confirm-sha1不符", S6), ("S7 body多一欄差異", S7), ("S8 API錯", S8),
             ("S9 (a)段外有差", S9), ("S10 (b)需人判", S10)]
 
     P_M2 = ("    if extra:\n", "    if False:\n")
@@ -1040,21 +1049,23 @@ def self_test():
         ("M3", "拿掉 confirm-sha1 比對", [("        if live_sha1 != confirm_sha1:\n", "        if False:\n")], "S6"),
         ("M4", "其他欄位改用備份裡的舊值", [P_M4], "S1"),
         ("M4b", "M4 + M2(證明判準獨立於受測模組的 body_problems)", [P_M4, P_M2], "S1"),
-        ("M5a", "拿掉「已等於 pre_rewrite ⇒ 不需還原」", [("    if live_desc == target:\n", "    if False:\n")], "S2"),
-        ("M5b", "拿掉「新舊句都不在 ⇒ 拒寫」",
-         [("    if _SENT_NEW not in live_desc and _SENT_OLD not in live_desc:\n", "    if False:\n")], "S5"),
-        ("M6", "new_len 改讀最後一筆 ok 行(ok 行沒有這欄)",
-         [('    new_len = sents[0].get("new_len")\n', '    new_len = ok.get("new_len")\n')], "S1"),
-        ("M7", "不檢查 --accept-needs-human", [("    if needs and not accept_human:\n", "    if False:\n")], "S10"),
-        ("M8", "拿掉 (a) 段外有差 ⇒ 拒寫", [("    if outside:\n", "    if False:\n")], "S9"),
-        ("M8b", "(a) 段外有差被 --accept-needs-human 蓋過",
+        ("M5", "拿掉「已等於 pre_rewrite ⇒ 不需還原」", [("    if live_desc == target:\n", "    if False:\n")], "S2"),
+        ("M6", "拿掉段落限制((a) 段外有差 ⇒ 拒寫)", [("    if outside:\n", "    if False:\n")], "S9"),
+        ("M6b", "(a) 段外有差被 --accept-needs-human 蓋過",
          [("    if outside:\n", "    if outside and not accept_human:\n")], "S9"),
-        ("M9", "還原時間戳寫進寫入端 STAMP",
+        ("M7", "restore_stamp 改寫進寫入端 STAMP",
          [('    with RESTORE_STAMP.open("a", encoding="utf-8") as fh:\n',
            '    with STAMP.open("a", encoding="utf-8") as fh:\n')], "S1"),
+        ("M8", "new_len 改讀最後一筆 ok 行(ok 行沒有這欄)",
+         [('    new_len = sents[0].get("new_len")\n', '    new_len = ok.get("new_len")\n')], "S1"),
+        ("M9", "需人判時不檢查 --accept-needs-human", [("    if needs and not accept_human:\n", "    if False:\n")], "S10"),
         ("M10", "(a) 換成被駁回的較嚴判準(線上 == pre_rewrite 換新句才寫)",
          [("    outside = outside_para_diff(live_desc, target)\n",
            "    outside = None if live_desc == target.replace(_SENT_OLD, _SENT_NEW) else \"較嚴判準不符\"\n")], "S9"),
+        ("M11", "加回已刪除的「新舊句都不在 ⇒ 拒寫」",
+         [("    # M6 (a):差異只准落在舊句那一段;段外有差 ⇒ 直接拒寫,任何旗標都蓋不過\n",
+           "    if _SENT_NEW not in live_desc and _SENT_OLD not in live_desc:\n"
+           "        raise Refuse(\"新舊句都不在\")\n")], "S5"),
     ]
 
     print("# %s --self-test  %s  離線;假 client;突變只作用在 SELF-TEST 標記以上" % (TOOL, now_tw().isoformat(timespec="seconds")))
