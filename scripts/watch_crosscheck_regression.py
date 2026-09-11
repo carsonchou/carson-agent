@@ -67,6 +67,7 @@ exit 0 = 全部符合期待;1 = 有一格不符合(代表**互查壞了**,不是
 from __future__ import annotations
 
 import datetime
+import hashlib
 import importlib.util
 import inspect
 import io
@@ -135,9 +136,11 @@ def add(rows, name, expect, got, ok):
 #    ⇒ 91→106 / 94→109。兩個數各跑一次抄下來的(12:16 印 106、12:17 印 109)。
 #    2026-09-11 12:28:M6 留痕的讀者一整節 +10(陰性基線 1 + 真案例 3 + 只掛前面 1 +
 #    不翻 ok 1 + 陰性對照 2 + 配對突變 2)⇒ 106→116 / 109→119,兩個數各跑一次抄的。
-#    ⚠️ 這兩個數今天已經換過四輪(77/80 → 88/91 → 91/94 → 106/109 → 116/119):
+#    2026-09-11 12:32:M4 補「三份原文必須逐字相同」+ 它的陰性對照 +2
+#    ⇒ 116→118 / 119→121,一樣是各跑一次抄的。
+#    ⚠️ 這兩個數今天已經換過五輪(77/80 → 88/91 → 91/94 → 106/109 → 116/119 → 118/121):
 #       引用時請連時間一起引,只有最後一輪是現況。
-EXPECT_ROWS = {True: 119, False: 116}   # key = 有沒有給 --before
+EXPECT_ROWS = {True: 121, False: 118}   # key = 有沒有給 --before
 
 
 # 🔴 2026-09-10~09-11 真的活在正式機上的那一版 `last_sched_date()` 迴圈,逐字保存。
@@ -874,6 +877,27 @@ def main():
         #    pythonw 底下到不到得了人眼前」。舊版把它交給 stderr,而那裡兩種形狀都到不了:
         #    排程無 console ⇒ sys.stderr is None ⇒ 靜默 no-op;有 handle ⇒ cp950 編不了 🔴。
         print("M4 最後一道留痕(exec 三支哨檔案裡 xchk_broken 的原文,主通道=log 檔)")
+
+        # 🔴 M4 底下每一格都是**逐支跑**的 ⇒ 三支各自正確時它全綠,而三份**分岔**時它也全綠。
+        #    `xchk_broken` 的 docstring 明令不准抽成共用模組(最後一道防線不能依賴共用的
+        #    東西),代價寫得很清楚:「改一次要改三份」。而那個代價至今**沒有任何東西在收** ——
+        #    只要有人只改一份,下一個人讀另外兩份就會得到錯的全域結論,零訊號。
+        #    這兩格是 2026-09-11 第五輪獨立驗證(watch-verifier)點名建議的,
+        #    他明說那是他**沒驗、只建議**的一條,所以下面是我自己量的。
+        _bodies = {key: func_src(REPO / "scripts" / f"{fname}.py", "xchk_broken")
+                   for fname, key in WATCH_FILES}
+        _digest = {k: hashlib.sha256(v.encode("utf-8")).hexdigest()[:16]
+                   for k, v in _bodies.items()}
+        add(rows, "M4 三支哨的 xchk_broken 原文必須逐字相同(不准只改一份)", "三份相同",
+            "／".join(f"{k}={_digest[k]}" for k in _digest),
+            len(set(_bodies.values())) == 1)
+        # 陰性對照:這把尺必須**分得出不同的東西**,否則上一格的綠可能是「它永遠說相同」
+        # (memory `verification-that-cannot-fail`:通過時分不出兩種世界的檢查等於不存在)。
+        _sw = func_src(REPO / "scripts" / "seeding_watch.py", "swallowed")
+        add(rows, "M4 陰性 同檔的 swallowed 與 xchk_broken 必須被判為不同", "不同",
+            "不同" if _sw != _bodies["seeding"] else "相同(這把尺壞了)",
+            _sw != _bodies["seeding"])
+
         _xb_tmp = pathlib.Path(tempfile.mkdtemp(prefix="xchk_broken_"))
         try:
             for fname, key in WATCH_FILES:
@@ -1192,7 +1216,8 @@ def main():
                f"M1 前綴、M1b 行序不變量 × 3 + 內文逐字對照 + 排列 150 種 1 + 突變 1"
                f" + 歷史相鄰版陽性對照 2、"
                f"M2 WATCH_MANUAL、M5 排程判準 E/F/H/I × 9 + 舊判準並排 9 + LogonTrigger 4、"
-               f"M3 控制流 × 3 支、M4 最後一道留痕 × 3 支 × 10 格"
+               f"M3 控制流 × 3 支、M4 三份原文逐字相同 1 + 它的陰性對照 1、"
+               f"M4 最後一道留痕 × 3 支 × 10 格"
                f"(主通道 3 + 備援路 2 + 突變 4 + 拆掉回讀的陰性 1)、"
                f"M6 留痕的讀者 10 格(陰性基線 1 + 三支哨真輸出 3 + 只掛前面不動判定 1 + "
                f"不翻 ok 1 + 真案例陰性對照 2(演習行、備援註腳行)+ 配對突變 2)、陰性對照 1;"
