@@ -1,0 +1,36 @@
+mp4 MuXiM5IqVQQ API=22s 本機={'0回測嚇壞.mp4': 21.81, 'ytcta.mp4': 24.84} → 唯一相符
+mp4 TDbm4XR5pYk API=21s 本機={'通膨追高網.mp4': 20.63, 'ytcta.mp4': 23.67} → 唯一相符
+mp4 cObU5NcFT-I API=22s 本機={'悄悄吃掉多.mp4': 21.59, 'ytcta.mp4': 24.63} → 唯一相符
+mp4 I8F83sPFKWg API=22s 本機={'多賺23倍.mp4': 21.02, 'ytcta.mp4': 24.04} → 唯一相符
+mp4 _Cc49y7ZAeM API=21s 本機={'置避開大虧.mp4': 20.3, 'ytcta.mp4': 23.31} → 唯一相符
+mp4 tN56crKxwJE API=21s 本機={'翻還是慘賠.mp4': 20.58, 'ytcta.mp4': 23.61} → 唯一相符
+mp4 mvDrUnxEjWs API=27s 本機={'翻還是清零.mp4': 26.08, 'ytcta.mp4': 29.11} → 唯一相符
+mp4 vwEaoo3Txjw API=22s 本機={'酬竟差一倍.mp4': 21.06, 'ytcta.mp4': 24.08} → 唯一相符
+mp4 UTuMMyvdQ5U API=23s 本機={'押少賺一半.mp4': 22.36, 'ytcta.mp4': 25.4} → 唯一相符
+mp4 DhX2uNzjZ-o API=22s 本機={'賺一臺賓士.mp4': 21.38, 'ytcta.mp4': 24.43} → 唯一相符
+mp4 OyprNxjrIBQ API=27s 本機={'多賠一輛車.mp4': 26.39, 'ytcta.mp4': 29.41} → 唯一相符
+mp4 nHwP_cyy_hc API=26s 本機={'被套到歸零.mp4': 25.05, 'ytcta.mp4': 28.1} → 唯一相符
+mp4 xjQPW3sTY28 API=22s 本機={'多咬掉多少.mp4': 21.93, 'ytcta.mp4': 24.93} → 唯一相符
+mp4 9YbTzPfXz6A API=38s 本機={'露真實後果.mp4': 37.34, 'ytcta.mp4': 40.38} → 唯一相符
+
+同模板非命中冒名池:抽 16 支(母體 153 支同回聲模板、有 mp3 的非命中 S_)
+
+target       own maxr lag     own r@3  | 冒名max    是誰的mp3       冒名r@3max  n
+MuXiM5IqVQQ  0.9999    3.00s  0.9999   | 0.7852   DhX2uNzjZ-o  0.1277   29
+TDbm4XR5pYk  0.9996    3.00s  0.9996   | 0.3031   _Cc49y7ZAeM  0.1397   29
+cObU5NcFT-I  0.9996    3.00s  0.9996   | 0.5235   vwEaoo3Txjw  0.2103   29
+I8F83sPFKWg  0.9997    3.00s  0.9997   | 0.5953   DhX2uNzjZ-o  0.2394   29
+_Cc49y7ZAeM  0.9996    3.00s  0.9996   | 0.3219   TDbm4XR5pYk  0.2367   29
+tN56crKxwJE  0.9996    3.00s  0.9996   | 0.4989   xjQPW3sTY28  0.1423   29
+mvDrUnxEjWs  0.9997    3.00s  0.9997   | 0.3157   vwEaoo3Txjw  0.1516   29
+vwEaoo3Txjw  0.9997    3.00s  0.9997   | 0.5086   cObU5NcFT-I  0.2022   29
+UTuMMyvdQ5U  0.9997    3.00s  0.9997   | 0.6468   I8F83sPFKWg  0.1007   29
+DhX2uNzjZ-o  0.9996    3.00s  0.9996   | 0.7806   MuXiM5IqVQQ  0.1789   29
+OyprNxjrIBQ  0.9996    3.00s  0.9996   | 0.2572   UTuMMyvdQ5U  0.1268   29
+nHwP_cyy_hc  0.9997    3.00s  0.9997   | 0.6554   I8F83sPFKWg  0.1757   29
+xjQPW3sTY28  0.9996    3.00s  0.9996   | 0.5348   tN56crKxwJE  0.1484   29
+9YbTzPfXz6A  0.9996    3.00s  0.9996   | 0.2462   _Cc49y7ZAeM  0.0898   29
+
+陽性配對 own maxr 最小值:0.9996(9YbTzPfXz6A)
+冒名 maxr 全體最大值:0.7852(target MuXiM5IqVQQ ← mp3 of DhX2uNzjZ-o @ 3.42s)
+⇒ 間距(陽性最小 − 冒名最大)= 0.2144

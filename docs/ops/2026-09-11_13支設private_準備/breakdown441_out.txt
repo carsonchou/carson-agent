@@ -1,0 +1,36 @@
+ledger 1132 | 10 目錄找得到 691 | 找不到 441
+  找不到的前綴: {'S_': 349, 'L_': 47, '_ch': 45}
+② _ch_ 佔位:45 支(其中 key == '_ch_'+videoId:45)
+   _ch_ 在找得到那側:0
+③ 找不到的裡,git 歷史出現過同名 .voice.txt:23 支
+   前綴: {'S_': 23}
+   l98x9P2q1Kk eb=200   el=None A=False B=False b2959bbb03  youtube_channel/output/S_72法則.voice.txt  S_72法則
+   GTAZ_UaXn60 eb=198   el=None A=False B=False b2959bbb03  youtube_channel/output/S_DCA核心.voice.txt  S_DCA核心
+   ji9WfJPyoy8 eb=181   el=None A=False B=False b2959bbb03  youtube_channel/output/S_上下限設太窄.voice.txt  S_上下限設太窄
+   El4PNlWDVrw eb=175   el=None A=False B=False b2959bbb03  youtube_channel/output/S_勝率高還虧.voice.txt  S_勝率高還虧
+   ZQVa1BS8eZU eb=184   el=None A=False B=False b2959bbb03  youtube_channel/output/S_夏普值.voice.txt  S_夏普值
+   czTb06MSIXw eb=210   el=None A=False B=False b2959bbb03  youtube_channel/output/S_定投不是無腦買.voice.txt  S_定投不是無腦買
+   KrO9IK_D0zM eb=195   el=None A=False B=False b2959bbb03  youtube_channel/output/S_定投買在高點.voice.txt  S_定投買在高點
+   a2wLnZ9RUDI eb=219   el=None A=False B=False b2959bbb03  youtube_channel/output/S_最大回撤.voice.txt  S_最大回撤
+   We96QkjN5wM eb=171   el=None A=False B=False b2959bbb03  youtube_channel/output/S_期望值思維.voice.txt  S_期望值思維
+   Lecc8_zn4jY eb=235   el=None A=False B=False b2959bbb03  youtube_channel/output/S_樣本外驗證.voice.txt  S_樣本外驗證
+   KrRnvB7YA_4 eb=198   el=None A=False B=False b2959bbb03  youtube_channel/output/S_無限網格一句話.voice.txt  S_無限網格一句話
+   ahEVoLaWxZg eb=228   el=None A=False B=False b2959bbb03  youtube_channel/output/S_盈虧比一句話.voice.txt  S_盈虧比一句話
+   _3afyUkU_yM eb=174   el=None A=False B=False b2959bbb03  youtube_channel/output/S_停損2聽起來穩但連敗10次帳戶剩多少用複利倒推你的真.voice.txt  S_停損2聽起來穩但連敗10次帳戶剩多少用複利倒推你的真
+   YAzNQicZU4M eb=134   el=None A=False B=False b2959bbb03  youtube_channel/output/S_凱利公式說押80為什麼高手只敢押40估算誤差的破產陷.voice.txt  S_凱利公式說押80為什麼高手只敢押40估算誤差的破產陷
+   K2JFXT1pLys eb=129   el=None A=False B=False b2959bbb03  youtube_channel/output/S_加碼攤平馬丁格爾散戶最愛的陷阱一個公式揭露破產真相.voice.txt  S_加碼攤平馬丁格爾散戶最愛的陷阱一個公式揭露破產真相
+   TMpa9Bs3uRs eb=176   el=None A=False B=False b2959bbb03  youtube_channel/output/S_加碼獲利vs加碼虧損為什麼一個能用凱利公式一個只會自.voice.txt  S_加碼獲利vs加碼虧損為什麼一個能用凱利公式一個只會自
+   gvyp6YqJRsc eb=161   el=None A=False B=False b2959bbb03  youtube_channel/output/S_參數掃描一片綠過擬合信號為什麼平滑才是真穩健.voice.txt  S_參數掃描一片綠過擬合信號為什麼平滑才是真穩健
+   OtcwNNZhufE eb=157   el=None A=False B=False b2959bbb03  youtube_channel/output/S_同一策略切法不同夏普差一倍回測陷阱第一課樣本切割的隱.voice.txt  S_同一策略切法不同夏普差一倍回測陷阱第一課樣本切割的隱
+   ShNWT612P18 eb=168   el=None A=False B=False b2959bbb03  youtube_channel/output/S_回測只用現存幣你的報酬率高估了30生存者偏差一次看懂.voice.txt  S_回測只用現存幣你的報酬率高估了30生存者偏差一次看懂
+   F9w5cusZFpI eb=226   el=None A=False B=False b2959bbb03  youtube_channel/output/S_回測起點差一個月最大回撤差一倍你選的是最好的起點還是.voice.txt  S_回測起點差一個月最大回撤差一倍你選的是最好的起點還是
+   Vd2_iYBB-Wk eb=141   el=None A=False B=False b2959bbb03  youtube_channel/output/S_夏普比率騙了你加密貨幣策略用卡瑪比率才能活著回家.voice.txt  S_夏普比率騙了你加密貨幣策略用卡瑪比率才能活著回家
+   GyS_wmPncn0 eb=153   el=None A=False B=False b2959bbb03  youtube_channel/output/S_定投停利vs無限抱同樣報酬率下複利終值差3倍選錯一個.voice.txt  S_定投停利vs無限抱同樣報酬率下複利終值差3倍選錯一個
+   LHtl4E26pjo eb=131   el=None A=False B=False b2959bbb03  youtube_channel/output/S_定投山寨幣微笑曲線還成立我用一個數字戳破真相.voice.txt  S_定投山寨幣微笑曲線還成立我用一個數字戳破真相
+   兩把尺命中:尺A 0 / 尺B 0 / 讀不回 0
+   git 路徑的目錄分佈: [('youtube_channel/output', 23)]
+   現在磁碟上有那條路徑的: 0
+
+⇒ 441 = _ch_ 45 + git 可補 23 + 真正判不動 373(_ch_ 與 git 重疊 0)
+   真正判不動 373 支:帳本前 441 筆內 373 / 後段 0
+   _ch_ 在帳本位置:前 441 內 31 / 後段 14

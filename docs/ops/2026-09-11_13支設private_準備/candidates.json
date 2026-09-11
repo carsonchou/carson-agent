@@ -234,5 +234,21 @@
       "privacyStatus_at_prep": "private",
       "must_remain": "private"
     }
+  ],
+  "pending_carson_separate": [
+    {
+      "slug": "S_臺股狂漲3186點新手追高賠光嗎我回測揭露真實後果",
+      "videoId": "9YbTzPfXz6A",
+      "privacyStatus_at_read": "public",
+      "viewCount_at_read": 504,
+      "duration": "PT38S",
+      "publishedAt": "2026-08-01T08:02:42Z",
+      "effective_body": 78,
+      "echo_leftover": 62,
+      "rulers": "尺A 不叫(78 > 28)、尺B 不叫(62 > 2) —— 不是這兩把尺的命中",
+      "found_by": "獨立驗證者(督導 09-11 轉交):CTA 前無句末標點掃描,42 候選中唯一真斷尾",
+      "own_reading": "本線開 voice.txt 全文複判:旁白第三句停在「就忍不住追進零零五零或零零」(半個代號),無標點直接接「這就是「…結果假設」的答案,回開頭對一次…」—— 引文本身也斷在「結果假設」;HOOK 承諾的「少賺五十八趴」回測內容一句都沒講。wordtimes.json 顯示 TTS 確實把斷句與回聲 CTA 當同一句念出(11.914s 起 11.551s)。",
+      "status": "PENDING_CARSON_SEPARATE —— 不在 13 支批次內,未經 Carson 判定不得併入"
+    }
   ]
 }

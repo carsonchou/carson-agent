@@ -1,0 +1,94 @@
+{
+  "fetched_at": "2026-09-11T09:06:36.394248+00:00",
+  "request": {
+    "part": "snippet,status,statistics,contentDetails",
+    "ids_sent": [
+      "9YbTzPfXz6A",
+      "ZZZZfake000"
+    ],
+    "ids_returned": [
+      "9YbTzPfXz6A"
+    ]
+  },
+  "items": {
+    "9YbTzPfXz6A": {
+      "kind": "youtube#video",
+      "etag": "R5AOZI-gL1vF9kOz8WtFOHhQ378",
+      "id": "9YbTzPfXz6A",
+      "snippet": {
+        "publishedAt": "2026-08-01T08:02:42Z",
+        "channelId": "UCqP5JQXlQR5ZDLtEiBt4kLA",
+        "title": "臺股狂漲3186點，新手追高賠光嗎？我回測揭露真實後果 #Shorts",
+        "description": "📺 完整策略拆解看這裡 👉 https://www.youtube.com/@carsonquant\n\n【回測、大盤】用真實歷史回測數字拆解回測，完整過程與數據來源都在影片裡，看完你能自己判斷該怎麼配置。\n\n另外，今天影片中實測使用的工具，我放在資訊欄裡了：\n【派網 Pionex】我自己在用的自動交易平台，新用戶透過連結註冊享手續費優惠（邀請碼 08NAcfvcWna） https://accounts.pionex.com/zh-TW/signUp?r=08NAcfvcWna\n\n（以上為聯盟推薦連結，透過連結註冊不會增加你的成本，並能支持本頻道持續產出真數據內容。要不要使用請自行評估；投資有風險。）\n\n📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」領避雷檢核表\n\n\n**Hashtags：** 0056 網格機器人 回測 當沖 大盤\n\n投資有風險，不構成投資建議。\n\n#Shorts #量化交易 #Pionex #自動交易\n\n🔔 我用 Python 把台股 1841 檔全部跑過回測——訂閱看每週全市場實測、拆穿話術陷阱，不誇大只看真數據\n👉 https://www.youtube.com/@carsonquant?sub_confirmation=1",
+        "thumbnails": {
+          "default": {
+            "url": "https://i.ytimg.com/vi/9YbTzPfXz6A/default.jpg",
+            "width": 120,
+            "height": 90
+          },
+          "medium": {
+            "url": "https://i.ytimg.com/vi/9YbTzPfXz6A/mqdefault.jpg",
+            "width": 320,
+            "height": 180
+          },
+          "high": {
+            "url": "https://i.ytimg.com/vi/9YbTzPfXz6A/hqdefault.jpg",
+            "width": 480,
+            "height": 360
+          },
+          "standard": {
+            "url": "https://i.ytimg.com/vi/9YbTzPfXz6A/sddefault.jpg",
+            "width": 640,
+            "height": 480
+          },
+          "maxres": {
+            "url": "https://i.ytimg.com/vi/9YbTzPfXz6A/maxresdefault.jpg",
+            "width": 1280,
+            "height": 720
+          }
+        },
+        "channelTitle": "Carson Quant",
+        "tags": [
+          "0056",
+          "回測",
+          "大盤",
+          "當沖",
+          "網格機器人"
+        ],
+        "categoryId": "28",
+        "liveBroadcastContent": "none",
+        "defaultLanguage": "zh-Hant",
+        "localized": {
+          "title": "臺股狂漲3186點，新手追高賠光嗎？我回測揭露真實後果 #Shorts",
+          "description": "📺 完整策略拆解看這裡 👉 https://www.youtube.com/@carsonquant\n\n【回測、大盤】用真實歷史回測數字拆解回測，完整過程與數據來源都在影片裡，看完你能自己判斷該怎麼配置。\n\n另外，今天影片中實測使用的工具，我放在資訊欄裡了：\n【派網 Pionex】我自己在用的自動交易平台，新用戶透過連結註冊享手續費優惠（邀請碼 08NAcfvcWna） https://accounts.pionex.com/zh-TW/signUp?r=08NAcfvcWna\n\n（以上為聯盟推薦連結，透過連結註冊不會增加你的成本，並能支持本頻道持續產出真數據內容。要不要使用請自行評估；投資有風險。）\n\n📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」領避雷檢核表\n\n\n**Hashtags：** 0056 網格機器人 回測 當沖 大盤\n\n投資有風險，不構成投資建議。\n\n#Shorts #量化交易 #Pionex #自動交易\n\n🔔 我用 Python 把台股 1841 檔全部跑過回測——訂閱看每週全市場實測、拆穿話術陷阱，不誇大只看真數據\n👉 https://www.youtube.com/@carsonquant?sub_confirmation=1"
+        }
+      },
+      "contentDetails": {
+        "duration": "PT38S",
+        "dimension": "2d",
+        "definition": "hd",
+        "caption": "false",
+        "licensedContent": false,
+        "contentRating": {},
+        "projection": "rectangular",
+        "hasCustomThumbnail": true
+      },
+      "status": {
+        "uploadStatus": "processed",
+        "privacyStatus": "public",
+        "license": "youtube",
+        "embeddable": true,
+        "publicStatsViewable": true,
+        "madeForKids": false,
+        "selfDeclaredMadeForKids": false
+      },
+      "statistics": {
+        "viewCount": "504",
+        "likeCount": "2",
+        "dislikeCount": "0",
+        "favoriteCount": "0",
+        "commentCount": "0"
+      }
+    }
+  }
+}

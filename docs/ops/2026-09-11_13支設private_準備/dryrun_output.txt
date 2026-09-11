@@ -94,3 +94,15 @@
   [unlisted] rgeDJ3vxlxI  {"embeddable": true, "license": "youtube", "madeForKids": false, "privacyStatus": "unlisted", "publicStatsViewable": true, "selfDeclaredMadeForKids": false, "uploadStatus": "processed"}
 
 DRYRUN_RESULT: PASS
+
+======================================================================
+【待 Carson 另判】1 支 —— 快照 2026-09-11T09:06:36.394248+00:00(snapshot_9YbT.json),不在 13 支批次內
+  以下 body 只是「如果 Carson 判要下架,會送出的樣子」;Carson 沒判之前它不屬於任何批次。
+
+  9YbTzPfXz6A  臺股狂漲3186點，新手追高賠光嗎？我回測揭露真實後果 #Shorts
+  尺    尺A 不叫(78 > 28)、尺B 不叫(62 > 2) —— 不是這兩把尺的命中
+  送出 body = videos().update(part="status", body={"id": "9YbTzPfXz6A", "status": {"embeddable": true, "license": "youtube", "madeForKids": false, "privacyStatus": "private", "publicStatsViewable": true, "selfDeclaredMadeForKids": false, "uploadStatus": "processed"}})
+  diff  privacyStatus            'public' → 'private'
+  不變  embeddable=True, license='youtube', madeForKids=False, publicStatsViewable=True, selfDeclaredMadeForKids=False, uploadStatus='processed'
+  判定  ✅ 只差 privacyStatus
+PENDING_BLOCK: 1 支,不計入上面的 DRYRUN_RESULT

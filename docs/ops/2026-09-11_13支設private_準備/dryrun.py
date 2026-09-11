@@ -97,4 +97,31 @@ for grp in ("negative_controls_public", "negative_controls_unlisted"):
 
 allpass = ok == len(vids) and r1 and r2
 print("\nDRYRUN_RESULT:", "PASS" if allpass else "FAIL")
+
+# ---- 待 Carson 另判(09-11 督導轉交,獨立驗證者發現)—— 不併進上面 13 支、不計入 DRYRUN_RESULT ----
+pend = cand.get("pending_carson_separate", [])
+if pend:
+    s9 = json.load(io.open(os.path.join(HERE, "snapshot_9YbT.json"), encoding="utf-8"))
+    print("\n" + "=" * 70)
+    print("【待 Carson 另判】%d 支 —— 快照 %s(snapshot_9YbT.json),不在 13 支批次內" % (len(pend), s9["fetched_at"]))
+    print("  以下 body 只是「如果 Carson 判要下架,會送出的樣子」;Carson 沒判之前它不屬於任何批次。\n")
+    for p in pend:
+        vid = p["videoId"]
+        it = s9["items"].get(vid)
+        if it is None:
+            print("  %s ❌ 快照裡沒有這支 —— 不送" % vid); continue
+        before = it["status"]
+        body = build_body(vid, before)
+        errs = check(before, body)
+        print("  %s  %s" % (vid, it["snippet"]["title"]))
+        print("  尺    %s" % p["rulers"])
+        print("  送出 body = videos().update(part=\"status\", body=%s)"
+              % json.dumps(body, ensure_ascii=False, sort_keys=True))
+        for k, (a, b) in status_diff(before, body["status"]).items():
+            print("  diff  %-24s %r → %r" % (k, a, b))
+        same = [k for k in sorted(before) if k != "privacyStatus"]
+        print("  不變  %s" % ", ".join("%s=%r" % (k, before[k]) for k in same))
+        print("  判定  %s" % ("✅ 只差 privacyStatus" if not errs else "❌ " + "; ".join(errs)))
+    print("PENDING_BLOCK: %d 支,不計入上面的 DRYRUN_RESULT" % len(pend))
+
 sys.exit(0 if allpass else 1)
