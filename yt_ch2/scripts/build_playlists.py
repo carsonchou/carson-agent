@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# ⚠️ 重複實作:此檔與 youtube_channel/scripts/build_playlists.py 為重複實作;本機無 runner 執行本檔(2026-09-14 wF:p5 查證)。
+#    youtube_channel 版已於 fc665c34 加入 insert 前 privacyStatus 檢查,本檔尚未;若要啟用本檔,先補上該檢查。
 """build_playlists.py — 把已發布影片依【雙主軸系列】分群，建/補 YouTube 播放清單。
 
 跟 organize_dept.py（依主題分四桶：網格/定投/回測/風控）不同，這支是依「連載系列」
