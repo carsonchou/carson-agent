@@ -68,6 +68,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 STUDIO = ROOT / "STUDIO"
 LEDGER = STUDIO / "uploaded_ledger.json"
 STATE_PATH = STUDIO / "playlist_engine.json"  # 獨立狀態檔，見檔頭說明（避免跟 build_playlists.py 互撞）
+# 📌 本檔的桶 key（etf_dca / truth_lab / ep_live_test / beginner_debunk / stock_checkup）
+#    只存在這裡，**不會**出現在 STUDIO/playlists.json（那是 build_playlists.py 的三個桶：
+#    AI×交易 / 台股量化 / EP實測）。binge_chain_plan.json 的 `series` 欄沿用同一組 key。
+#    三套分類法非互斥，同一支片同時歸屬多個桶是設計 —— 在 playlists.json 裡找不到
+#    etf_dca 不是缺陷，別去補。詳見 build_playlists.py 檔頭的「etf_dca 是什麼」。
 QSCORES = STUDIO / "quality_scores.json"       # slug→title 對照(個股體檢連載用標題認系列，不只靠 slug)
 
 try:

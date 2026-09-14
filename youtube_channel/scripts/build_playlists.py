@@ -23,9 +23,18 @@ OAuth 沿用既有 token.json（force-ssl 權限，同 organize_dept.py / decisi
 不記現況，改 privacyStatus 的排程與本支各跑各的 → 只能在 insert 當下問 API。
 回歸測試：tests/playlist_privacy/run_all.py（含突變列與陰性對照列）。
 
-⚠️ 已知未修（刻意）：slug 含 `0050` 的片 classify 會歸到「台股量化」，但 playlists.json
-裡這些片只在 etf_dca。分桶規則是另一個問題，改它會動到公開清單的內容 →
-本次不動，記在 tests/playlist_privacy/known_gap_0050.py。
+⚠️ 已知未修（刻意）：slug 含 `0050` 的片，classify 會歸到「台股量化」。分桶規則是另一個
+問題，改它會動到公開清單的內容 → 本次不動，現況記在 tests/playlist_privacy/known_gap_0050.py。
+
+📌 `etf_dca` 是什麼（留給半年後 grep 到這個字的人，2026-09-14 現量）：
+   它**不是**本支的桶名。本支只有三個桶（AI×交易 / 台股量化 / EP實測），狀態在
+   STUDIO/playlists.json。`etf_dca` 是 **playlist_engine.py 的桶 key**（見它的 :167），
+   標題「0050/ETF 定期定額實驗」，真的有清單：PLJp7y2jl2p64，219 支，狀態在
+   **STUDIO/playlist_engine.json**（兩支刻意用不同狀態檔，理由見 playlist_engine.py:13-16）。
+   STUDIO/binge_chain_plan.json 的 `series` 欄位沿用同一個 key，那是第三套（binge_chain）。
+   同一支片同時在兩邊是**設計，不是漏加**：etf_dca 219 支中 112 支 slug 含 0050，
+   與台股量化清單重疊 105 支，三套分類法非互斥。
+   ⇒ 在 STUDIO/playlists.json 裡找不到 `etf_dca` 是正常的，不要去修一個不存在的問題。
 
 用法：python scripts/build_playlists.py --dry-run
       python scripts/build_playlists.py            # 正式建立/補充播放清單

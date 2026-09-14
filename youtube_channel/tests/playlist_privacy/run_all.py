@@ -8,6 +8,11 @@
 驗收三條(派工單原文):突變一條翻紅、陰性對照一條、離線重模擬 09-17 那一輪 5 支不在名單。
 全部走 sim.py,跑的是 scripts/build_playlists.py 的**真程式碼**,不是抄本。
 
+🔴 判準一律認 **video id**,不認序數、不寫死支數(總督導 2026-09-14 裁決 (a)):
+帳本一長,同一批片在 insert 名單裡的位置就會漂 —— 09-12 量到是該輪第 3–7 次 insert,
+09-14 已經是第 5–9 次。序數只當觀測值印出來,不當判準
+(memory `criteria-anchored-to-mutable-property`)。
+
 🔴 這支自己會不會叫:第 0 條先核突變錨點在原始碼裡恰好出現 1 次。錨點不見了(被改寫、
 被搬走)就直接 FAIL —— 不然突變列會變成「改了個不存在的東西,原碼照跑,測試照綠」
 (memory `verification-that-cannot-fail`)。
@@ -66,11 +71,15 @@ def main() -> int:
           "① 5 支各有一行 [skip] 記錄", r["stderr"][:600])
 
     # ---- ② 陰性對照:public 的片照常加入 ----
-    check(len(ins) == 10, "② 陰性對照:額度仍用滿 10 支(跳過的不佔額度)",
-          f"實際插了 {len(ins)} 支:{ins}")
+    r_allpub = simulate(privacy={}, max_add=10)
+    # 🔴 判準不釘在序數/支數上:帳本一長,名單的位置和長度都會漂(09-12 那 5 支是該輪
+    # 第 3–7 次 insert,09-14 已經變成第 5–9 次)。這裡問的是「跳過非 public 有沒有
+    # 害額度變少」,所以拿同一輪全 public 的結果當基準比,不寫死 10。
+    check(len(ins) == len(r_allpub["inserted"]),
+          "② 陰性對照:跳過非 public 不會吃掉額度(與同輪全 public 插入支數相同)",
+          f"擋掉 5 支後插了 {len(ins)} 支,全 public 時插了 {len(r_allpub['inserted'])} 支")
     check(all(v not in TARGETS for v in ins) and len(set(ins)) == len(ins),
           "② 陰性對照:插進去的都是 public 且不重複", str(ins))
-    r_allpub = simulate(privacy={}, max_add=10)
     check(set(TARGETS).issubset(set(r_allpub["inserted"])),
           "② 陰性對照(相反那一邊):5 支若仍是 public,閘門不會擋它們",
           f"全 public 時的名單:{r_allpub['inserted']}")
