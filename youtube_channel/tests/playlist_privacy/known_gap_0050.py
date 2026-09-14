@@ -12,9 +12,10 @@
   - 派工單寫「playlists.json 裡這些片只在 etf_dca」。`etf_dca` **不在** playlists.json 裡
     (它只有三個鍵:AI×交易 / 台股量化 / EP實測)。
   - 🔴 但 `etf_dca` **是一條真的播放清單**,不是只有一個名字:它是 playlist_engine.py 的
-    桶 key(:167,標題「0050/ETF 定期定額實驗」),清單 id **PLJp7y2jl2p64**、219 支,
-    狀態存在 **STUDIO/playlist_engine.json**(與 build_playlists 刻意分開,見
-    playlist_engine.py:13-16)。binge_chain_plan.json 的 `series` 欄沿用同一個 key,
+    桶 key(在那支裡 grep `"key": "etf_dca"`,標題「0050/ETF 定期定額實驗」),
+    清單 id **PLJp7y2jl2p64**、219 支,
+    狀態存在 **STUDIO/playlist_engine.json**(與 build_playlists 刻意分開,理由見
+    playlist_engine.py 檔頭 docstring 的「為什麼要有這支」那段)。binge_chain_plan.json 的 `series` 欄沿用同一個 key,
     那是第三套分類。
     (這一段更正本檔第一版與我 09-14 上午回報的說法 —— 當時只查到 binge_chain 那一層,
      把「它是 series 欄位值」講成了全部。)

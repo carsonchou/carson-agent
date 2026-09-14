@@ -28,9 +28,10 @@ OAuth 沿用既有 token.json（force-ssl 權限，同 organize_dept.py / decisi
 
 📌 `etf_dca` 是什麼（留給半年後 grep 到這個字的人，2026-09-14 現量）：
    它**不是**本支的桶名。本支只有三個桶（AI×交易 / 台股量化 / EP實測），狀態在
-   STUDIO/playlists.json。`etf_dca` 是 **playlist_engine.py 的桶 key**（見它的 :167），
+   STUDIO/playlists.json。`etf_dca` 是 **playlist_engine.py 的桶 key**（在那支裡 grep `"key": "etf_dca"`），
    標題「0050/ETF 定期定額實驗」，真的有清單：PLJp7y2jl2p64，219 支，狀態在
-   **STUDIO/playlist_engine.json**（兩支刻意用不同狀態檔，理由見 playlist_engine.py:13-16）。
+   **STUDIO/playlist_engine.json**（兩支刻意用不同狀態檔，理由見 playlist_engine.py 檔頭
+   docstring 的「為什麼要有這支」那段）。
    STUDIO/binge_chain_plan.json 的 `series` 欄位沿用同一個 key，那是第三套（binge_chain）。
    同一支片同時在兩邊是**設計，不是漏加**：etf_dca 219 支中 112 支 slug 含 0050，
    與台股量化清單重疊 105 支，三套分類法非互斥。
@@ -201,7 +202,8 @@ def main() -> int:
     # (--max 用完或撞配額)→ 沒輪到的群組會直接從檔案裡消失。
     # 消費者是 binge_chain(每天 17:05 讀 playlists.json 取 playlist_id 做「接著看下一集」),
     # 而本腳本每週四才跑一次 → 一次截斷會讓那些系列斷鏈整整一週。
-    # playlist_engine.py:15 的註解早就警告過這個檔「會被只含 3 個桶的全新 dict 整檔覆寫」。
+    # playlist_engine.py 檔頭 docstring「為什麼要有這支」那段早就警告過這個檔
+    # 「會用『只含自己 3 個桶』的全新 dict 整檔覆寫」。
     try:
         state = json.loads(PLAYLISTS_STATE.read_text(encoding="utf-8")) or {}
         if not isinstance(state, dict):

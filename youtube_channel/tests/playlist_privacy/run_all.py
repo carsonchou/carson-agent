@@ -27,7 +27,8 @@ sys.path.insert(0, str(BASE / "scripts"))
 
 from sim import SRC, simulate  # noqa: E402
 
-# 09-17 22:00 那一輪(crontab.txt:423 `0 22 * * 4 ... --max 10`)當天會變 private 的 5 支。
+# 09-17 22:00 那一輪(deploy/crontab.txt 裡 grep `build_playlists.py --max 10` 得到的
+# 那行 `0 22 * * 4 ...`)當天會變 private 的 5 支。
 TARGETS = ["I8F83sPFKWg", "tN56crKxwJE", "vwEaoo3Txjw", "UTuMMyvdQ5U", "DhX2uNzjZ-o"]
 PRIVATE_5 = {v: "private" for v in TARGETS}
 
