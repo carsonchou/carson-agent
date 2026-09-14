@@ -25,7 +25,13 @@ BASE = HERE.parents[1]
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(BASE / "scripts"))
 
-from sim import SRC, simulate  # noqa: E402
+from sim import SRC, STUDIO, simulate, _diff_studio  # noqa: E402
+
+# 🔴 正式機心跳時間軸。本套件跑完它必須一個位元組都沒變 —— 2026-09-14 之前的版本
+# 每跑一輪就往這裡 append 一行假的「雙主軸分群完成」,而 .gitignore 忽略整個 STUDIO/,
+# git status --porcelain 看不見(總督導裁決,結案條件④)。
+OPS_LOG = STUDIO / "ops_log.txt"
+TEST_SIGNATURE = "雙主軸分群完成"      # 本套件會產生的那種假心跳行的特徵字串
 
 # 09-17 22:00 那一輪(deploy/crontab.txt 裡 grep `build_playlists.py --max 10` 得到的
 # 那行 `0 22 * * 4 ...`)當天會變 private 的 5 支。
@@ -49,9 +55,27 @@ def check(cond, msg, detail=""):
         print(f"FAIL  {msg}" + (f"\n        {detail}" if detail else ""))
 
 
+def ops_size() -> int:
+    return OPS_LOG.stat().st_size if OPS_LOG.exists() else 0
+
+
+def ops_tail_from(offset: int):
+    """只讀 offset 之後新長出來的那一段。用位元組偏移量、不用行數 ——
+    行數會被產線同時間寫進來的心跳干擾,偏移量不會:它問的是「有沒有我的行」,
+    不是「有沒有多出行」(總督導 2026-09-14 §2 第一段)。"""
+    if not OPS_LOG.exists():
+        return []
+    with OPS_LOG.open("rb") as f:
+        f.seek(offset)
+        seg = f.read()
+    return seg.decode("utf-8", errors="replace").splitlines()
+
+
 def main() -> int:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     src = SRC.read_text(encoding="utf-8")
+    ops_before = ops_size()
+    print(f"[量] 跑之前 STUDIO/ops_log.txt size = {ops_before} bytes")
 
     # ---- ⓪ 儀器自檢:突變錨點存在且唯一 ----
     check(src.count(ANCHOR) == 1,
@@ -106,6 +130,50 @@ def main() -> int:
           str([len(c) for c in r["videos_list_calls"]]))
     check('part="status"' in src and "yt.videos().list(" in src,
           "⑤ 查的是 videos.list part=status")
+
+    # ---- ⑥ 隔離:陰性對照 —— 攔截打開時,暫存 ops_log 一行都沒有 ----
+    neg_lines = (r["ops_file_lines"] + r_allpub["ops_file_lines"]
+                 + r_mut["ops_file_lines"] + r_miss["ops_file_lines"])
+    check(len(neg_lines) == 0,
+          "⑥ 隔離陰性對照:四輪都攔住,暫存 ops_log 0 行",
+          f"暫存檔裡竟有 {len(neg_lines)} 行:{neg_lines}")
+
+    # ---- ⑦ 隔離:陽性對照 —— 只拿掉「攔 log_ops」那層,路徑仍指暫存 ⇒ 行會落在暫存檔 ----
+    # 這條回答的是「沒攔的時候到底會不會寫」。少了它,⑥ 的 0 行有可能只是因為那段碼
+    # 根本沒跑到(memory filter-accepted-is-not-filter-applied:要問相反那一邊)。
+    # 🔴 正式機零寫入:ops.OPS 已經指到暫存,跑的不是沒隔離的版本。
+    pos = [simulate(privacy=PRIVATE_5, max_add=10, intercept_log_ops=False),
+           simulate(privacy={}, max_add=10, intercept_log_ops=False),
+           simulate(privacy=PRIVATE_5, max_add=10, intercept_log_ops=False,
+                    mutate=lambda s: s.replace(ANCHOR, MUTANT, 1)),
+           simulate(privacy={v: None for v in TARGETS}, max_add=10, intercept_log_ops=False)]
+    pos_lines = [ln for p in pos for ln in p["ops_file_lines"]]
+    check(len(pos_lines) == 4 and all(TEST_SIGNATURE in ln for ln in pos_lines),
+          "⑦ 隔離陽性對照:拿掉攔截後,四輪各寫 1 行到暫存檔(共 4 行,量尺看得見新增)",
+          f"共 {len(pos_lines)} 行:{pos_lines}")
+
+    # ---- ⑧ 正式機:位元組偏移量之後的新增段落,不准有任何一行是本套件寫的 ----
+    new_seg = ops_tail_from(ops_before)
+    mine = [ln for ln in new_seg if TEST_SIGNATURE in ln]
+    check(not mine,
+          "⑧ 正式機 ops_log.txt 新增段落裡沒有任何一行含測試特徵字串",
+          f"本套件污染了正式機心跳時間軸,逐行:\n        " + "\n        ".join(mine))
+    print(f"[量] 跑之後 STUDIO/ops_log.txt size = {ops_size()} bytes;"
+          f"新增段落 {len(new_seg)} 行,其中測試特徵行 {len(mine)} 行")
+    if new_seg:
+        print("[量] 新增段落逐行(產線在同一時間寫的行允許出現,要在報告裡註明是哪個部門):")
+        for ln in new_seg:
+            print(f"       {ln}")
+
+    # ---- ⑨ 守門人自己的陽性對照:_diff_studio 真的看得見差異嗎 ----
+    # ⑥⑦⑧ 全綠的另一個可能是「偵測器自己壞掉」(memory detector-failure-shapes-2026-09)。
+    # 這條用捏造的快照餵它:看不見差異的偵測器,前面三條就什麼都沒證明。
+    fake_b = {"x.json": (10, 111, "aa"), "y.json": (5, 222, None)}
+    fake_a = {"x.json": (11, 333, "bb"), "y.json": (5, 222, None)}
+    d = _diff_studio(fake_b, fake_a)
+    check(len(d) == 1 and d[0].startswith("x.json:"),
+          "⑨ 守門人自檢:_diff_studio 看得見被改動的檔、也不會誤報沒動的檔",
+          f"實際回傳:{d}")
 
     print(f"\n合計 PASS={_p} FAIL={_f}")
     return 0 if _f == 0 else 1
