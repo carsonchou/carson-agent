@@ -77,6 +77,9 @@ REAL_OPS_LOG = STUDIO / "ops_log.txt"               # 🔴 正式機心跳時間
 WATCHED = ["ops_log.txt", "playlists.json", "uploaded_ledger.json", "playlist_engine.json"]
 
 
+_WARNED = False   # 盲點警語一個 process 只印一次,但**無條件會印**
+
+
 class IsolationLeak(AssertionError):
     """模擬跑完之後,正式機 STUDIO/ 有檔案被動到。"""
 
@@ -263,6 +266,16 @@ def simulate(privacy=None, max_add=10, default_privacy="public", mutate=None,
         ops_file_lines = (tmp_ops.read_text(encoding="utf-8").splitlines()
                           if tmp_ops.exists() else [])
         shutil.rmtree(tmpdir, ignore_errors=True)
+
+    # 🔴 限制要有輸出:沒有輸出的限制等於沒有限制(總督導 2026-09-14 §1)。
+    # 這一層目前**沒有同輪陽性對照** —— 沒有任何一輪故意寫一次 STUDIO 副本、
+    # 要求它丟 IsolationLeak。所以它的零命中和「偵測器壞掉」長得一模一樣。
+    global _WARNED
+    if not _WARNED:
+        _WARNED = True
+        print("⚠️ [盲點·固定印] STUDIO 快照層無同輪陽性對照 ⇒ 本層零命中**不構成證據**;"
+              "本次結論依賴人工逐行歸屬。同輪陽性對照已排 09-18 批次的 (d) 小項。",
+              flush=True)
 
     changed = _diff_studio(before, _snapshot_studio())
     if changed:
