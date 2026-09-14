@@ -211,3 +211,4 @@ docs/ops/quota-ceiling-watch.state.selftest.json
 # BRAIN 平台快照:每日重抓的快取(3.7MB),不進版控
 quant-service/brain_alpha/platform_alphas.json
 quant-service/brain_alpha/platform_alphas.json.tmp
+scratchpad/
