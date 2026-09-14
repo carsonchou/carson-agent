@@ -72,3 +72,12 @@
 
 ## 追蹤
 - 督導排程(session-only,僅提醒):09-17 10:13 查進度、09-18 08:43 死線前核。session 若中斷,以本檔為準。
+- **09-14 今晚 wF:p5 的 session-only 待辦**(總督導 09-14 本機 date 14:26:19 ③ 指示入檔)。排程只存在 wF:p5 的 session 8f69831e 裡,session 一停排程就沒了;這幾行才是權威紀錄。
+  - **15:11 量 DONE 檔 + 寫凍結排程 v3**。做的人:wF:p5。cron 4d72ba79。
+    內容:15:05 排程後 youtube_channel/STUDIO/period_disclaimer_done.json 的 A/B/C(改了沒有)、(D) DONE∩desc_snapshot_20260911 的 payload 筆數/sha256/size、(E) DONE 全檔 sha256/size/mtime = 新 h0、寫死常數總表;以 wN:p1 草案 freeze_cron_v2_prompt_2026-09-14.md(7695 B / sha1 c7b28a8a)為底寫 v3,交 wN:p1 讀一次,15:30 前報總督導放行;wN 建好新排程後,從它的 jsonl 取出 prompt,和 v3 比 sha1。另併入(總督導本機 date 14:29:08 2 乙):FROZEN 字條是帳本,另開只寫一次的 ..._ANCHOR.txt 放四個磁碟 sha256 + 兩個 mtime。會改變 18:45 判定內容的裁決一律同時送 wF:p3(同封 2 丙)。
+    **這一格消失了,從這裡接:**規格兩份在 C:/Users/User/AppData/Local/Temp/claude/D--carson-agent/8f69831e-1991-4a12-a3f0-998c9996e308/scratchpad/todo_1511_spec.md(2864 B / sha1 5d47ca97)和 todo_1511_spec_add.md(1606 B / sha1 de3936c6,優先)。裁決原文:總督導本機 date 14:22:59(改一~四、D/E)和 14:26:19(②加一格、④常數總表)兩封,wF:p5 轉給 wN:p1/w9 的轉發檔在同目錄 body_relay_1422.txt。🔴 沒有 D/E 基準,18:45 的 bca36744 不准跑;接手的人自己量,不准用 ae76d5af / 35f40bec / 1275。
+  - **17:43 死線檔 (e) 全文**。做的人:wF:p5。cron 07a8bb03。任務 A 結束後,把 (e) 的占位換成全文,走 CAS,只 commit 本檔。
+    **這一格消失了,從這裡接:**(e) 全文要寫的句子,原文在 wF:p5 transcript D:/claude/projects/D--carson-agent/8f69831e-1991-4a12-a3f0-998c9996e308.jsonl 裡 CronCreate 07a8bb03 那筆 tool_use 的 input.prompt。本行不轉述內容,以那筆 input.prompt 逐字為準。
+  - **17:47 三件,任務 A 之後**。做的人:wF:p5。cron 03f79696。① 本檔和 docs/ops/2026-09-14_memory_truncation_incident_wF-p5.md 各加抬頭代號註記,含原文句「本檔其餘所有時間欄位不受影響 —— 它們是 commit time / mtime / 工具回傳,不是抬頭代號。」;④ (f) 補「什麼情況下它會變回一個任務」;⑤ wN:p1 自查 classify() 的儀器缺陷排進 09-18 (i),原文句「(i) 不是因為不重要而延後,是因為它問的問題已經有答案;它要補的是儀器的信用,不是結論。」
+    **這一格消失了,從這裡接:**逐字原文在 CronCreate 03f79696 那筆 tool_use 的 input.prompt,同一份 jsonl;裁決原文是總督導本機 date 14:21:58 ①④⑤,轉發檔在同目錄 body_relay_1421.txt。
+  - wF:p5 session 其餘 11 格巡查排程(CronList 09-14 14:2x 回傳):31a04139 15:13、58eee647 15:08、91b6f43a 16:05、fb2bca0f 18:22、cb50f8e4 19:13、eedec409 19:15、9b6db07e 20:57、946d6c02 22:33、910e4b8a 09-15 22:37、9beb4b34 09-17 10:13、3b19aced 09-18 08:43。都是督導巡查(只查只報),守的事寫在各自 prompt 開頭。**消失了從這裡接:**同一份 jsonl 裡各 id 的 CronCreate input.prompt;逐格的「守什麼」本行尚未展開,待補。
