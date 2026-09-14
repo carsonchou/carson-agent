@@ -18,6 +18,15 @@ OAuth 沿用既有 token.json（force-ssl 權限，同 organize_dept.py / decisi
 什麼清單、加哪些片」，完全不連網、不需要 token、不呼叫任何 YouTube 寫入 API。
 正式建立/補充播放清單才會連網（對外發布動作，需 Carson 確認過才跑非 dry-run）。
 
+🔴 正式模式在每次 playlistItems.insert 之前，會先用 videos.list part=status（每 50 支
+1 unit、唯讀）確認該片現在真的是 public，不是就跳過並印 [skip]。帳本只記「發布過」、
+不記現況，改 privacyStatus 的排程與本支各跑各的 → 只能在 insert 當下問 API。
+回歸測試：tests/playlist_privacy/run_all.py（含突變列與陰性對照列）。
+
+⚠️ 已知未修（刻意）：slug 含 `0050` 的片 classify 會歸到「台股量化」，但 playlists.json
+裡這些片只在 etf_dca。分桶規則是另一個問題，改它會動到公開清單的內容 →
+本次不動，記在 tests/playlist_privacy/known_gap_0050.py。
+
 用法：python scripts/build_playlists.py --dry-run
       python scripts/build_playlists.py            # 正式建立/補充播放清單
 """
@@ -158,6 +167,26 @@ def main() -> int:
             pass
         return ids
 
+    # videos.list part=status:每次最多 50 個 id、1 unit,唯讀。
+    # 🔴 查不到的 id(已刪、無權限、整批查詢失敗)**不會**出現在回傳的 dict 裡,
+    # 呼叫端一律當成「不是 public」跳過 —— 失敗方向要是「不加入」而不是「照加」,
+    # 因為加錯了要再打一次 playlistItems.delete 才收得回來,而清單是公開的。
+    def privacy_of(vids):
+        out = {}
+        vids = list(vids)
+        for i in range(0, len(vids), 50):
+            chunk = vids[i:i + 50]
+            try:
+                r = yt.videos().list(part="status", id=",".join(chunk),
+                                      maxResults=50).execute()
+            except Exception as e:  # noqa: BLE001
+                print(f"[warn] 查 privacyStatus 失敗({len(chunk)} 支整批跳過,不加入):{e}",
+                      file=sys.stderr)
+                continue
+            for it in r.get("items", []):
+                out[it["id"]] = (it.get("status") or {}).get("privacyStatus")
+        return out
+
     # ⚠️ 必須先載入既有內容再更新,**不可以從空 dict 開始**:本函式結尾是
     # `PLAYLISTS_STATE.write_text(...)` **整檔覆寫**,而迴圈可能提前 break
     # (--max 用完或撞配額)→ 沒輪到的群組會直接從檔案裡消失。
@@ -179,9 +208,20 @@ def main() -> int:
         if not plid:
             continue
         existing = items_in(plid)
+        # 🔴 加進公開清單前先確認影片本身是 public:private/unlisted 的片塞進去,
+        # 在清單裡是一排點不開的項目,而且清單是對外的。改 privacyStatus 的
+        # 排程(set_private_13 之類)與本支各跑各的,帳本只記「發布過」不記現況
+        # ⇒ 只能在 insert 當下問 API,不能信帳本。
+        candidates = [(slug, vid) for slug, vid in items if vid not in existing]
+        privacy = privacy_of([vid for _, vid in candidates]) if candidates else {}
         added = 0
-        for slug, vid in items:
-            if vid in existing:
+        skipped = 0
+        for slug, vid in candidates:
+            if privacy.get(vid) != "public":   # PRIVACY-GATE
+                skipped += 1
+                print(f"[skip] {slug}({vid}) privacyStatus="
+                      f"{privacy.get(vid) or '查不到'},不加進公開清單「{name}」",
+                      file=sys.stderr)
                 continue
             if budget <= 0:
                 quota_capped = True
@@ -202,7 +242,8 @@ def main() -> int:
                     quota_capped = True
                     break
         state[name] = {"playlist_id": plid, "video_ids": sorted(existing)}
-        print(f"[ok] {name}：清單 {plid}，本次新增 {added} 支，共 {len(existing)} 支。")
+        print(f"[ok] {name}：清單 {plid}，本次新增 {added} 支，共 {len(existing)} 支"
+              + (f"，跳過非 public {skipped} 支。" if skipped else "。"))
         if quota_capped:
             print(f"[info] 已達本次上限 --max {args.max_add}，其餘留待下次補（cron 每日一次會自動接續）。")
             # 撞到 --max 或配額線就整支停:budget 是**跨群組共用**的,再進下一個群組
