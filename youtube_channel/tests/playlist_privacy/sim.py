@@ -220,6 +220,14 @@ def simulate(privacy=None, max_add=10, default_privacy="public", mutate=None,
         _real_ops = importlib.util.module_from_spec(_spec)
         _spec.loader.exec_module(_real_ops)
         _real_ops.OPS = tmp_ops
+        # 🔴 陽性對照這一支真的會落盤,而且落的是 _real_ops.OPS,不是 fake_ops.OPS ⇒
+        # 下面那條 assert 蓋不到這裡。同一道閘門兩條路徑、只掛了一條,失敗方向朝外
+        # (memory yt-duplicate-impl-gate-bypass)。上面那行 _real_ops.OPS = tmp_ops
+        # 哪天被刪掉,沒有這行就會有 4 行真的寫進正式機心跳。
+        if _real_ops.OPS.resolve() == REAL_OPS_LOG.resolve():
+            raise IsolationLeak(
+                f"陽性對照的 ops 路徑指到正式機心跳檔了:{_real_ops.OPS} —— "
+                "真的 ops.log_ops 會 append 進去,這一輪不要跑。")
         fake_ops.log_ops = _real_ops.log_ops
 
     # 🔴 §2 第二段要求的那一行斷言:被測模組看到的 ops 路徑不可以是真的那個。
