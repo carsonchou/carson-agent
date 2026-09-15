@@ -923,7 +923,9 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
         seg_cards = [
             _make_seg_card(seg, i, width=width, height=height, watermark=watermark,
                            accent=accent, vid_seed=vid_seed, video_concept=video_concept,
-                           tmp_dir=tmp_dir, video_ticker=video_ticker, variant=_variants[i])
+                           tmp_dir=tmp_dir, video_ticker=video_ticker, variant=_variants[i],
+                           force_key=(mv._series_force_key(seg.heading or "")
+                                      if getattr(mv, "_series_force_key", None) else None))
             for i, seg in enumerate(segments)
         ]
         # ② 漸進揭露(PROGRESSIVE_REVEAL)重合成用:記住每段疊了哪些 overlay,好在段內逐切片
@@ -1176,7 +1178,10 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
                     width, height, heading=seg.heading or "", narration=seg.narration,
                     watermark=watermark, accent=accent, seed=f"{vid_seed}_{seg_idx}",
                     dest=tmp_dir / f"reveal_{seg_idx:02d}_{bucket}.png",
-                    default_key=video_concept, fallback_ticker=video_ticker, reveal=r,
+                    default_key=video_concept,
+                    force_key=(mv._series_force_key(seg.heading or "")
+                               if getattr(mv, "_series_force_key", None) else None),
+                    fallback_ticker=video_ticker, reveal=r,
                     variant=(_variants[seg_idx] if seg_idx < len(_variants) else 0))
                 if card is not None:
                     bimg = Image.open(str(card)).convert("RGBA")

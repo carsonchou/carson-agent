@@ -1095,6 +1095,91 @@ def _seg_concept_key(heading: str) -> Optional[str]:
     return None
 
 
+# 2026-09-15 擴大 force_key 覆蓋(個股體檢以外的系列):force_key 這個參數鏈路早就打通到
+# render_concept_card(見上方 docstring),但目前全頻道沒有任何呼叫端真的傳非 None 值進來——
+# 純屬已接好卻沒插電的線。_SEG_KEY_RULES/_seg_concept_key 完全不動(個股體檢、旗艦《抱得住嗎》
+# 的 crosssec 兩者都繼續吃這張表,行為 100% 不變)。以下兩張表各自獨立、只服務各自系列,
+# 不併進 _SEG_KEY_RULES 也不進 concept_visuals.classify() 的全域關鍵字表。
+
+# 台股流言終結者(belief_buster_engine.py):固定稿,3 個 belief_id、每個 belief 的段落標題
+# 都是寫死的字面字串(不是 LLM 生的),所以用「整句 heading 精準比對」——比子字串比對更保守,
+# 不會因為某個詞剛好也出現在別的系列而誤中。「風險聲明」段刻意不列:那段是免責聲明,不是
+# 事實內容,沒有對應圖是合理的(維持既有「判不到主題就沒有強制圖」的退回行為)。
+_BELIEF_BUSTER_HEADING_KEY = {
+    # belief_id=stop_profit(L_0050存股停利...)
+    "你從小聽到大的那句話": "trend",
+    "0050 停利：報酬定格 10.1%": "trend",
+    "0050 抱到底：一路噴出十二年": "trend",
+    "停利點設高，一樣": "trend",
+    "台積電 2330：一路噴出二十年": "trend",
+    "報酬來自你沒賣的那些年": "compound",
+    "停利不是錯，是用錯地方": "trend",
+    "你落的是安心，還是落後": "trend",
+    # belief_id=hidiv(高股息 vs 0050)
+    "領息養老，最安穩？": "trend",
+    "0050 一路噴出、0056 跟不上": "trend",
+    "每一檔高股息、每一次都輸": "trend",
+    "0050 這十二年單邊上漲": "trend",
+    "換個對照組,結論會翻嗎": "trend",
+    "代價:年化與最大回撤攤開": "drawdown",
+    "買法:定期定額 vs 單筆": "dca",
+    "配息是從你股價裡扣的": "fundamentals",
+    "高股息不是垃圾": "trend",
+    "錯在用得太早": "trend",
+    "我給你的是位置,不是建議": "trend",
+    "怎麼算的:含息還原與共同起點": "trend",
+    "我沒算進去的三件事": "trend",
+    "贏在感覺，還是真報酬": "trend",
+    # belief_id=crash_dip(崩盤恐慌賣出 vs 抱到底)
+    "崩盤，第一件事是快逃？": "drawdown",
+    "0050 新冠：回撤到阱底": "drawdown",
+    "0050 崩到阱底、回撤見底": "drawdown",
+    "0050 二零二二熊市：又一次回撤": "drawdown",
+    "崩盤殺的是價格，不是價值": "drawdown",
+    "但書一：買大盤不是買個股": "drawdown",
+    "但書三：你撐得過回撤嗎": "drawdown",
+    "逃掉的是報酬，不是風險": "drawdown",
+}
+
+
+def _belief_buster_force_key(heading: str) -> Optional[str]:
+    """belief_buster 系列專用查表；查不到回 None(交回原本 _seg_concept_key/classify 鏈)。"""
+    return _BELIEF_BUSTER_HEADING_KEY.get((heading or "").strip())
+
+
+# 台股真相實驗室(tw_lab_engine.py):FRANCHISE_FORMAT="long"、旁白由 LLM 自由生成,沒有固定
+# heading 模板(不像個股體檢/belief_buster 逐字可列舉),所以無法比照上面做「整句精準比對」。
+# 改用「段落標題關鍵字」比對(只看 heading,理由同 _seg_concept_key 的 docstring:旁白常常
+# 順口帶到別的主題,標題才是這段真正要講的事)。關鍵字取自 output/ 目錄下實際產出的長片
+# script.md(如 L_0050vs00631L十年定投實測…、L_0050定期定額月初vs月中vs月底扣款…、
+# L_0050新冠崩盤恐慌賣出vs抱到底…),逐一核對過**不會**命中個股體檢的固定五段模板
+# (公司是誰/基本面資料/價格體檢/套牢期實測/估值位置)或 belief_buster 上面那 30 條 heading。
+_TW_LAB_HEADING_RULES = (
+    ("dca",      ("扣款日", "扣款", "月初", "月底", "月中")),
+    ("compound", ("槓桿", "兩倍", "數學陷阱")),
+    ("drawdown", ("股災", "恐慌賣出")),
+    ("trend",    ("擇時", "錯過最佳", "錯失反彈", "長期持有的")),
+)
+
+
+def _tw_lab_force_key(heading: str) -> Optional[str]:
+    """tw_lab 系列專用查表(heading 關鍵字);查不到回 None。"""
+    h = (heading or "").strip()
+    if not h:
+        return None
+    for key, words in _TW_LAB_HEADING_RULES:
+        if any(w in h for w in words):
+            return key
+    return None
+
+
+def _series_force_key(heading: str) -> Optional[str]:
+    """belief_buster / tw_lab 兩張新表的合併入口，餵給既有但目前全頻道恆為 None 的
+    force_key 參數。兩系列 heading 彼此不重疊(見上方兩張表的核對註記)，也不會誤中
+    個股體檢/旗艦的固定模板，順序無關緊要；exact-match 表先查純粹是比較便宜。"""
+    return _belief_buster_force_key(heading) or _tw_lab_force_key(heading)
+
+
 def render_concept_card(width: int, height: int, *, heading: str, narration: str,
                         watermark: str, accent, seed: str, dest: Path,
                         default_key: Optional[str] = None,
@@ -2194,11 +2279,12 @@ def build_video(
         if clip is None:
             card_png = None
             try:
+                _fkey = _series_force_key(seg.heading or "")
                 card_png = render_concept_card(
                     width, height, heading=seg.heading or title, narration=seg.narration,
                     watermark=watermark, accent=accent, seed=f"{vid_seed}_{i}",
                     dest=tmp_dir / f"concept_{i:02d}.png", default_key=video_concept,
-                    fallback_ticker=video_ticker, variant=_variants[i],
+                    force_key=_fkey, fallback_ticker=video_ticker, variant=_variants[i],
                 )
                 if card_png is not None:
                     stats["concept_used"] = stats.get("concept_used", 0) + 1
@@ -2215,7 +2301,7 @@ def build_video(
                                 narration=seg.narration, watermark=watermark, accent=accent,
                                 seed=f"{vid_seed}_{i}",
                                 dest=tmp_dir / f"concept_{i:02d}_half.png",
-                                default_key=video_concept, reveal=0.55,
+                                default_key=video_concept, force_key=_fkey, reveal=0.55,
                                 fallback_ticker=video_ticker, variant=_variants[i],
                             )
                             # 有些 drawer 忽略 reveal → 兩張內容一樣,比 bytes 不比路徑
