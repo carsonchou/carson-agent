@@ -1755,12 +1755,17 @@ def _checkup_summary_line(result) -> str:
             return str((v or {}).get("claim") or "")
         lh, val, uw, ind = claim("checkup_long_horizon"), claim("checkup_valuation_position"),                            claim("checkup_underwater"), claim("checkup_industry_rank")
         if not (lh and val):
+            _missing = [n for n, v in (("checkup_long_horizon", lh), ("checkup_valuation_position", val),
+                                        ("checkup_underwater", uw), ("checkup_industry_rank", ind)) if not v]
+            print(f"[checkup] ⚠️ 收束句補強跳過(資料缺,非程式錯誤):{code} 缺 {'/'.join(_missing)}", file=sys.stderr)
             return ""                       # 缺任一支柱就不補(見 docstring 的 fail-open)
         yrs = _re.search(r"約?([\d.]+)\s*年", lh)
         tot = _re.search(r"總報酬\s*(-?[\d.]+)%", lh)
         dd  = _re.search(r"最大回撤\s*(-?[\d.]+)%", lh)
         pct = _re.search(r"第\s*(\d+)\s*百分位", val)
         if not (yrs and tot and dd and pct):
+            _missing_fields = [n for n, v in (("年數", yrs), ("總報酬", tot), ("最大回撤", dd), ("百分位", pct)) if not v]
+            print(f"[checkup] ⚠️ 收束句補強跳過(資料缺,非程式錯誤):{code} 欄位解析失敗 {'/'.join(_missing_fields)}", file=sys.stderr)
             return ""
         wait = _re.search(r"整整等了\s*([\d.]+)\s*年", uw)
         sector = _re.search(r"「([^」]{2,12})」股票", ind)
