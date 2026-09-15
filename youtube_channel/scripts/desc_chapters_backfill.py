@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 import time
@@ -42,6 +43,21 @@ try:
 except Exception:  # noqa: BLE001
     def log_ops(d, m):
         pass
+
+
+def _atomic_write_text(path: Path, text: str) -> None:
+    """tmp 寫入(fsync)→ 回讀逐位元組比對 → os.replace;任何一步失敗都保留原檔,不截斷
+    (memory write-truncates-before-it-fails:open(p,"w") 先截斷後寫,中途失敗原檔剩 0 bytes)。"""
+    data = text.encode("utf-8")
+    tmp = path.with_name(path.name + ".tmp")
+    with open(tmp, "wb") as f:
+        f.write(data)
+        f.flush()
+        os.fsync(f.fileno())
+    if tmp.read_bytes() != data:
+        tmp.unlink(missing_ok=True)
+        raise RuntimeError(f"tmp 回讀與內容不一致,不換檔:{path}")
+    os.replace(tmp, path)
 
 
 def strip_chapters(d: str):
@@ -155,8 +171,8 @@ def main() -> int:
             # (2026-08-12 那批沒存,所以這次要修時只能靠重算比對,無法直接回滾。)
             bk = STUDIO / "desc_backup"
             bk.mkdir(exist_ok=True)
-            (bk / f"{vid}.json").write_text(
-                json.dumps(items[0]["snippet"], ensure_ascii=False, indent=1), encoding="utf-8")
+            _atomic_write_text(bk / f"{vid}.json",
+                                json.dumps(items[0]["snippet"], ensure_ascii=False, indent=1))
             sn["description"] = new_desc
             yt.videos().update(part="snippet", body={"id": vid, "snippet": sn}).execute()
             done.add(vid)
@@ -169,7 +185,7 @@ def main() -> int:
                 print("[quota] 停止本輪(冪等)", file=sys.stderr)
                 break
     if args.apply:
-        done_mark.write_text(json.dumps(sorted(done)), encoding="utf-8")
+        _atomic_write_text(done_mark, json.dumps(sorted(done)))
         log_ops("包裝回填", f"描述章節回填 {changed} 支(累計完成 {len(done)})")
     print(f"{'更新' if args.apply else '將更新'} {changed} 支")
     return 0

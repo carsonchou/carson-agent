@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -45,6 +46,21 @@ except Exception:  # noqa: BLE001
 STUDIO = ROOT / "STUDIO"
 OUT = ROOT / "output"
 DONE = STUDIO / "caption_drift_fixed.json"
+
+
+def _atomic_write_text(path: Path, text: str) -> None:
+    """tmp 寫入(fsync)→ 回讀逐位元組比對 → os.replace;任何一步失敗都保留原檔,不截斷
+    (memory write-truncates-before-it-fails:open(p,"w") 先截斷後寫,中途失敗原檔剩 0 bytes)。"""
+    data = text.encode("utf-8")
+    tmp = path.with_name(path.name + ".tmp")
+    with open(tmp, "wb") as f:
+        f.write(data)
+        f.flush()
+        os.fsync(f.fileno())
+    if tmp.read_bytes() != data:
+        tmp.unlink(missing_ok=True)
+        raise RuntimeError(f"tmp 回讀與內容不一致,不換檔:{path}")
+    os.replace(tmp, path)
 
 
 def _selfcheck(slug):
@@ -140,7 +156,7 @@ def main() -> int:
             yt.captions().update(part="snippet", body={"id": mine[0]["id"]},
                                  media_body=media).execute()
             done.add(vid)
-            DONE.write_text(json.dumps(sorted(done)), encoding="utf-8")
+            _atomic_write_text(DONE, json.dumps(sorted(done)))
             n += 1
             print(f"✅ {vid} 觀看{views:>5} 字幕已重傳 {slug[:28]}")
         except Exception as exc:  # noqa: BLE001
