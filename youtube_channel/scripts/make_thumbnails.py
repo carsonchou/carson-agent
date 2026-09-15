@@ -1029,6 +1029,54 @@ def _clean_cut(s: str, limit: int) -> str:
     if best >= max(2, int(limit * 0.6)):
         head = head[:best]
     head = head.rstrip(_DANGLING).rstrip("".join(_SOFT_BREAK)).strip()
+    # 🔴 2026-08-30:未配對的開括號可能在**中間**,rstrip 清不到。
+    # 實例「個股體檢【元大金」——【 在第 5 個字,切點在第 8 個字。
+    # 把沒有對應收尾的開括號直接刪掉(保留內容,不要把整段丟掉)。
+    # 🔴 2026-09-15 殘留變種:上面「只刪括號字元」在切點落在**框住片語中間、
+    # 且殘字只有一兩個字**時,會留下一個孤字黏在前一個詞尾。實例(台虹8039):
+    # 原文「…揭露個股「假」高報酬」陷阱」硬切在「假」和「高」之間,只刪掉「後
+    # 變成「…個股假」——語意破損。但反過來,像「個股體檢【元大金」(元大金 3 字、
+    # 是有意義的公司名片段)或整句被書名號包住的情況(殘字一長串),
+    # 是**保留內容只去括號**才對——整段丟掉反而更糟(可能清成空字串)。
+    # 修法:用原始未切字串 s 找這個開括號對應的收尾位置;若收尾落在切點之後
+    # (代表框住的片語被腰斬了)**而且**殘字很短才整段丟掉;殘字夠長就退回舊
+    # 行為(只刪括號字元、保留內容)。
+    # 🔴 2026-09-15 二修(獨立驗證用 827 支真實標題實測抓到):
+    # ①門檻 ≤2 訂錯——殘留=2 字時 6/7 案例整段丟掉反而更糟(例如把有意義的
+    #   完整兩字詞「腰斬」整個刪掉,或留下裸繫詞「是」沒有補語),改成 ≤1。
+    # ②index-drift:舊版在 while 迴圈裡讓 head 逐字元縮短(else 分支),之後
+    #   卻拿縮短後的 head 索引去反查未切的 s——兩個座標系統混用。改法:全程用 s
+    #   的座標系統操作(cut_point 凍結切點、excluded 記錄要丟掉的單一括號字元),
+    #   最後才一次性從 s[:cut_point] 組出 head,迴圈中途不再對 head 本身反查。
+    #   ⚠️ 座標系已統一,但「連鎖刪到空字串」問題**仍然存在**——成因不是座標系
+    #   混用,是 `cut_point = _oi` 這條規則本身會遞迴(巢狀開括號時逐層退切點,
+    #   可以一路退到 0)。2026-09-15 二輪獨立驗證(fresh-context,17,000 條合成
+    #   字串 fuzz)實測:非早退案例清空次數從 662(第一輪)降到 217,是降低不是
+    #   消除;真實語料(827 支標題+2,700 段落)0 次觸發,故不擋這輪上線,但**不要
+    #   引用這段當「連鎖清空已修好」的前提**——真要根治,要在 cut_point 縮到低於
+    #   一個下限(如 max(2, limit*0.3))時改走 excluded(只刪括號字元),留給後續。
+    cut_point = len(head)
+    excluded = set()
+    for _o, _c in (("【", "】"), ("『", "』"), ("「", "」"), ("《", "》"), ("〈", "〉")):
+        while (sum(1 for i in range(cut_point) if i not in excluded and s[i] == _o)
+               > s.count(_c, 0, cut_point)):
+            _oi = -1
+            for i in range(cut_point - 1, -1, -1):
+                if i in excluded:
+                    continue
+                if s[i] == _o:
+                    _oi = i
+                    break
+            if _oi == -1:
+                break  # 理論上不會發生(while 條件已保證存在),防呆避免死迴圈
+            _ci = s.find(_c, _oi + 1)
+            _residual = sum(1 for i in range(_oi + 1, cut_point) if i not in excluded)
+            if _ci != -1 and _ci >= cut_point and _residual <= 1:
+                cut_point = _oi
+            else:
+                excluded.add(_oi)
+    head = "".join(ch for i, ch in enumerate(s[:cut_point]) if i not in excluded)
+    head = head.rstrip(_DANGLING).rstrip("".join(_SOFT_BREAK)).strip()
 
     # ⚠️ 2026-07-30 二修:上面找不到自然斷點時仍會硬切,而硬切最糟的一種是**切進數字**。
     # 實測產出:「00878存股6」(原文「存股6年」)、「欣興3037存2」「群創3481存2」
