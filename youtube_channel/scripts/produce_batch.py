@@ -1794,6 +1794,38 @@ def _checkup_summary_line(result) -> str:
         return ""                            # 其餘(讀檔/編碼)不擋產出
 
 
+# 🔴 2026-09-15(Carson 拍板的品質優先計畫,擴大收束句補強):CHECKUP_SUMMARY_MARKERS 純關鍵字比對
+# 是假陽性型判準——LLM 只要寫出「總結而言,投資沒有捷徑,謹慎評估比什麼都重要」這種零數字填充句
+# 一樣算「已收束」而跳過補強。抽真實已產出 281 支個股體檢旁白(youtube_channel/output/*體檢*.voice.txt)
+# 校準:24 支含關鍵字,其中「中探針6217」「新唐4919」兩支的收束句完全沒有具體數字,原判準會誤放。
+# 修法:不只看關鍵字存在,還要求含關鍵字的那句(含下一句,容忍收束句拆成兩句寫)裡真的出現本系列
+# 具體數據字眼(百分位/回撤/套牢/年化/總報酬/報酬率)或「數字+%/％/趴」的百分比模式,才算真收束。
+# 判準刻意保守:寧可對已經有收束句的片再補一次(補強是確定性、不捏造內容的操作,補了不傷片)，
+# 也不要放過空話填充句。
+_CHECKUP_SUMMARY_SUBSTANTIVE_TERMS = ("百分位", "回撤", "套牢", "年化", "總報酬", "報酬率")
+_CHECKUP_SUMMARY_NUM_PCT_RE = re.compile(
+    r"(?:\d+(?:\.\d+)?|[〇零一二三四五六七八九十百千萬億兩]+)\s*(?:%|％|趴)"
+)
+
+
+def _checkup_has_real_summary(text: str, markers=CHECKUP_SUMMARY_MARKERS, tail_chars: int = 260) -> bool:
+    """判斷 text 尾段裡的收束關鍵字,是不是接著真的有內容(不是填充句)。見上方註解。
+    只找得到關鍵字、關鍵字所在句(+下一句)裡沒有具體數據字眼或百分比 → 判定「還沒真收束」。"""
+    tail = text[-tail_chars:]
+    hit_idx = -1
+    for k in markers:
+        idx = tail.rfind(k)
+        if idx > hit_idx:
+            hit_idx = idx
+    if hit_idx == -1:
+        return False
+    sentences = re.split(r"(?<=[。！？])", tail[hit_idx:])
+    window = "".join(sentences[:2])  # 含關鍵字的句子 + 緊接下一句,不擴到更後面(避免撈到片尾固定 CTA 的數字)
+    if any(term in window for term in _CHECKUP_SUMMARY_SUBSTANTIVE_TERMS):
+        return True
+    return bool(_CHECKUP_SUMMARY_NUM_PCT_RE.search(window))
+
+
 def _checkup_finalize(result, next_name):
     """個股體檢片產出後的確定性補強(同 _ai_savings_desc_block 的「確定性附加，保證不被 LLM 吞」
     慣例)——2026-07-15 實跑 EP2 抓到：模板雖注入，LLM 仍把片尾下集點名寫成自由發揮的
@@ -1822,7 +1854,7 @@ def _checkup_finalize(result, next_name):
     # 🔴 2026-09-05:收束句補在 CTA **之前**。
     # 18/20 支旁白從最後一段資料直接跳到「訂閱頻道才不會錯過」,
     # 觀眾聽完拿不走任何關於這家公司的判斷。只在缺的時候補,LLM 已寫好的不重複。
-    if not any(k in v[-260:] for k in CHECKUP_SUMMARY_MARKERS):  # 單一真相來源,見該常數註解
+    if not _checkup_has_real_summary(v):  # 假陽性修法見上方 _checkup_has_real_summary 註解
         _sum = _checkup_summary_line(result)
         if _sum:
             v = v.rstrip() + _sum
@@ -1863,6 +1895,38 @@ def _checkup_finalize(result, next_name):
         result["voice_text"] = v + ("" if v.endswith(("。", "！", "？")) else "。") + "".join(tail_bits)
     elif v != str(result.get("voice_text", "") or "").rstrip():
         result["voice_text"] = v
+    return result
+
+
+# 🔴 2026-09-15(Carson 拍板品質優先計畫·擴大收束句補強第二步):個股體檢的「一句話收束」機制原本
+# 只接在 is_checkup 呼叫點,「台股真相實驗室」(tw_lab)長片走的是同一個 call_claude → is_checkup
+# 判定式,吃不到這道補強——而 tw_lab 的結尾規則(TW_LAB_LONG_RULES)一樣是純 prompt 文字命令
+# LLM 收尾要有判斷,一樣可能被 LLM 寫成空話带過(同 checkup 18/20 缺收束句的病灶)。
+# 不重造一套:tw_lab_engine.fact_data_block 塞給 LLM 的 fact['desc']/fact['claim'] 就是本集
+# 唯一指定的真回測數字(context_block/fact_data_block 已在 produce_batch.py:~2820 注入),
+# 收束句直接複用這兩個字串組裝——零新查證、零新增數字來源,跟 _checkup_summary_line 用
+# stock_checkup_facts 既有欄位組裝同一個模式。
+# fail-open:desc/claim 任一缺就回空字串(寧可沒有收束句,不要半句;同 _checkup_summary_line docstring)。
+def _tw_lab_summary_line(fact) -> str:
+    """台股真相實驗室的一句話收束——複用 tw_lab_engine 已經注入給 LLM 的同一組 fact['desc']/
+    fact['claim'](= 本集唯一指定實證數據),不重新查證、不換算、不自己編任何數字。"""
+    desc = str((fact or {}).get("desc") or "").strip()
+    claim = str((fact or {}).get("claim") or (fact or {}).get("summary") or "").strip()
+    if not (desc and claim):
+        return ""
+    return f"一句話收束今天的真相，{desc}——{claim}。"
+
+
+def _tw_lab_reinforce_summary(result, fact):
+    """tw_lab 長片版的確定性補強:只在缺收束句時補,LLM 已寫好的不重複(同 _checkup_finalize 慣例)。
+    假陽性判準共用 _checkup_has_real_summary(見該函式註解),不另造一套。"""
+    v = str(result.get("voice_text", "") or "").rstrip()
+    if not v:
+        return result
+    if not _checkup_has_real_summary(v):
+        _sum = _tw_lab_summary_line(fact)
+        if _sum:
+            result["voice_text"] = v + ("" if v.endswith(("。", "！", "？")) else "。") + _sum
     return result
 
 
@@ -2997,6 +3061,11 @@ def call_claude(kind, avoid, topic_override=None, retry_reason=None, retry_n=0):
     # (2026-07-15 實跑EP5抓到:補強放 densify 前,產出片尾又變自由發揮的假下集預告)。
     if is_checkup:
         result = _checkup_finalize(result, _checkup_next)
+    # 台股真相實驗室(tw_lab)長片：擴大收束句補強第二步(見 _tw_lab_reinforce_summary 檔頭)——
+    # 只在長片(franchise 正片自 2026-07-19 起固定走長片,見 TW_LAB_LONG_RULES 上方註解)缺收束句時補,
+    # 短片路徑(_tw_lab_long=False)不動,零影響既有短片行為。同樣放在 _densify_long 之後,理由同上。
+    if is_tw_lab and kind == "long":
+        result = _tw_lab_reinforce_summary(result, _tw_lab_fact_used)
     # A/B 分組跟著結果帶出去,make_one 寫成 sidecar。
     # ⚠️ 必須放在**這裡**(call_claude 的結尾),不能放進 _densify_long——
     # 那支的簽章是 (d, facts_ctx, is_tw, facts, topic),**沒有 kind 也沒有 topic_override**,
