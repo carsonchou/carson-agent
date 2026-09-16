@@ -14,10 +14,12 @@ import sys
 import urllib.parse
 
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request
+from fastapi.responses import RedirectResponse
 
 from . import normalize, service, verify
 from .config import Settings, env_report_lines
 from .events import EventKind
+from .stock_checkup import router as stock_checkup_router
 
 try:  # Windows 主控台中文 print 防呆（與其他工作室腳本一致）
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -71,6 +73,14 @@ def build_app(settings: Settings | None = None) -> FastAPI:
             print(line, flush=True)
     api = FastAPI(title="量化阿森 電商金流 webhook", version="2.0.0")
     api.state.settings = settings
+    api.include_router(stock_checkup_router)
+
+    @api.get("/")
+    async def root():
+        # 裸網域是 T3 個股體檢的 ECPay 販售網址目的地，直接給根目錄一個轉址，
+        # 免得客戶/審核點裸連結看到 404（其餘路徑都在 /sale-ping/* 或 /api/*，
+        # 沒人搶 "/"，不影響本檔同時服務的其他 SKU webhook）。
+        return RedirectResponse(url="/stock-checkup")
 
     @api.get("/health")
     async def health():
