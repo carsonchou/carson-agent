@@ -36,6 +36,11 @@ import os
 import sys
 from pathlib import Path
 
+# 2026-09-16:上架優先,字幕維運讓路(Carson裁決)。setdefault不蓋掉cron/手動已明講
+# 的值,只補「沒人設」這個缺口——手動執行本類字幕維運腳本時原本會繞過
+# quota_meter._reserve_guard的保護,吃光配額害18:30發布任務挨餓。
+os.environ.setdefault("YT_QUOTA_RESERVE", "23650")
+
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 try:
@@ -104,24 +109,49 @@ def main() -> int:
     done = set(json.loads(DONE.read_text(encoding="utf-8"))) if DONE.exists() else set()
 
     # 只修 **2026-08-17 修復之前發布** 的片:之後發布的字幕本來就是用真實時戳產的,
-    # 再覆蓋一次是拿 500 units 去換一個一模一樣的檔案。查不到發布日期的一律當成舊片
-    # (保守:寧可多修一支,不要漏掉一支還在飄的)。
+    # 再覆蓋一次是拿 450 units 去換一個一模一樣的檔案。
+    #
+    # 🔴 2026-08-30 修正日期來源。原本「查不到發布日期的一律當成舊片」看起來保守,
+    # 但日期來源 STUDIO/_true_views.json 是 **2026-08-19 的快照** —— 之後發布的片
+    # 全部查不到日期,於是**全部**被當舊片重傳字幕。實測:ledger 1001 支裡 77 支不在
+    # 快照中,依本機 mp4 修改日只有 **3 支**真的早於 08-17(06-30/07-19/07-23),
+    # 其餘 73 支都是之後的 → 現行邏輯會燒掉 73 × 450 = 32,850 units
+    # (≈15 支新片的發布額度 ≈ 64 觀看小時)去換沒有變化的檔案。
+    #
+    # 改法:查不到就退到**本機 mp4 的修改時間**(渲染完成時間,一定早於發布時間,
+    # 所以判成舊片的方向仍然保守、不會漏修);連 mp4 都沒有才當舊片。
     import datetime as _dt
     FIXED_AT = _dt.date(2026, 8, 17)
+
+    def _pub_date(slug, vid):
+        """回發布日(date)或 None。①快照 ②本機 mp4 mtime。"""
+        _d = (info.get(vid) or {}).get("d", "")[:10]
+        if _d:
+            try:
+                return _dt.date.fromisoformat(_d)
+            except ValueError:
+                pass
+        p = OUT / f"{slug}.mp4"
+        if p.exists():
+            return _dt.date.fromtimestamp(p.stat().st_mtime)
+        return None
+
     cands = []
+    _by_mtime = 0
     for slug, vid in led.items():
         if not isinstance(vid, str) or len(vid) != 11 or not slug.startswith("L_"):
             continue
         if vid in done or not (OUT / f"{slug}.wordtimes.json").exists():
             continue
-        _d = (info.get(vid) or {}).get("d", "")[:10]
-        if _d:
-            try:
-                if _dt.date.fromisoformat(_d) >= FIXED_AT:
-                    continue          # 修復之後發布 → 字幕已正確,不動
-            except ValueError:
-                pass
+        _dt_pub = _pub_date(slug, vid)
+        if _dt_pub is not None and _dt_pub >= FIXED_AT:
+            if not (info.get(vid) or {}).get("d"):
+                _by_mtime += 1
+            continue              # 修復之後發布 → 字幕已正確,不動
         cands.append((slug, vid, (info.get(vid) or {}).get("v", 0)))
+    if _by_mtime:
+        print(f"[日期] {_by_mtime} 支快照查無發布日,依本機 mp4 修改時間判定為修復後的片,已跳過"
+              f"(省下 {_by_mtime * 450} units)")
     # 最多人看到的先修
     cands.sort(key=lambda x: -x[2])
     print(f"可修的已發布長片(有真實時戳、尚未修):{len(cands)} 支;本輪最多 {args.mx} 支\n")
