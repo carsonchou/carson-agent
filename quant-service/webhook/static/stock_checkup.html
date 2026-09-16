@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>個股體檢</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@700;900&family=Noto+Sans+TC:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<style>
+  :root{
+    --bg:#0A0D12; --surface:#12161D; --surface-2:#1A1F28; --border:#262C38;
+    --text:#EDEFF3; --text-muted:#8B94A6;
+    --accent:#E3B45E; --accent-soft:#3A2E13; --accent-ink:#1A1206;
+    --good:#34C77B; --good-soft:#123A26;
+    --warn:#F0B429; --warn-soft:#3D2E0B;
+    --bad:#F0555F; --bad-soft:#3D1518;
+    --na:#6B7484; --na-soft:#1A1F28;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 28px -12px rgba(0,0,0,.6);
+  }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
+    padding-block:28px 64px;
+  }
+  h1,h2,h3{ font-family:"Noto Serif TC","Songti TC",serif; text-wrap:balance; margin:0; }
+  .mono{ font-family:"JetBrains Mono","SFMono-Regular",Consolas,monospace; font-variant-numeric:tabular-nums; }
+  .shell{ max-width:460px; margin:0 auto; padding-inline:18px; }
+
+  header.brand{ display:flex; align-items:baseline; justify-content:space-between; gap:10px; margin-bottom:20px; }
+  header.brand .word{ display:flex; align-items:baseline; gap:8px; }
+  header.brand h1{ font-size:22px; font-weight:900; }
+  header.brand .tagline{ font-size:12px; color:var(--text-muted); }
+
+  .panel{ background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:20px; box-shadow:var(--shadow); }
+  .panel + .panel{ margin-top:14px; }
+  .lede{ font-size:14px; color:var(--text-muted); line-height:1.6; margin-top:6px; }
+
+  .code-row{ display:flex; gap:8px; margin-top:12px; }
+  .code-row input{
+    flex:1; font-family:inherit; color:var(--text); background:var(--surface-2);
+    border:1px solid var(--border); border-radius:8px; padding:10px 12px; font-size:14px;
+    min-width:0;
+  }
+  .code-row input:focus{ outline:none; border-color:var(--accent); }
+  .code-row .row-remove{
+    flex:none; width:38px; border-radius:8px; border:1px solid var(--border);
+    background:var(--surface); color:var(--text-muted); font-size:16px; cursor:pointer;
+  }
+  .code-row .row-remove:hover{ border-color:var(--bad); color:var(--bad); }
+  .add-row-btn{
+    display:flex; align-items:center; justify-content:center; gap:6px; width:100%; margin-top:12px;
+    background:transparent; border:1.5px dashed var(--border); border-radius:10px;
+    color:var(--text-muted); font-size:13px; font-family:inherit; font-weight:500;
+    padding:10px; cursor:pointer;
+  }
+  .add-row-btn:hover{ border-color:var(--accent); color:var(--accent); }
+  .add-row-btn:disabled{ opacity:.5; cursor:not-allowed; }
+
+  .upload-divider{ display:flex; align-items:center; gap:10px; margin:16px 0 2px; font-size:11px; color:var(--text-muted); }
+  .upload-divider::before, .upload-divider::after{ content:""; flex:1; height:1px; background:var(--border); }
+  .upload-note{ text-align:center; font-size:11px; color:var(--text-muted); margin-top:6px; line-height:1.5; }
+
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    width:100%; padding:13px 16px; border-radius:11px; border:none;
+    font-size:14.5px; font-weight:700; font-family:"Noto Sans TC"; cursor:pointer;
+    background:var(--accent); color:var(--accent-ink); margin-top:18px;
+  }
+  .btn:disabled{ opacity:.5; cursor:not-allowed; }
+  .btn.ghost{ background:transparent; color:var(--text); border:1.5px solid var(--border); }
+  .btn-note{ text-align:center; font-size:11px; color:var(--text-muted); margin-top:8px; }
+
+  .spinner{
+    margin:26px auto 8px; width:26px; height:26px; border-radius:50%;
+    border:3px solid var(--border); border-top-color:var(--accent);
+    animation:spin .8s linear infinite;
+  }
+  @media (prefers-reduced-motion: reduce){ .spinner{ animation-duration:2.4s; } }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  .spin-label{ text-align:center; font-size:12.5px; color:var(--text-muted); }
+
+  .stock-card{ margin-top:14px; }
+  .stock-head{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
+  .stock-head .code{ font-size:11.5px; color:var(--accent); font-weight:700; }
+  .stock-head .name{ font-size:16px; font-weight:700; margin-top:1px; }
+  .stock-head .grade{
+    flex:none; width:44px; height:44px; border-radius:10px;
+    display:flex; align-items:center; justify-content:center;
+    font-size:20px; font-weight:900; font-family:"Noto Serif TC";
+  }
+  .grade.A,.grade.B{ background:var(--good-soft); color:var(--good); }
+  .grade.C{ background:var(--warn-soft); color:var(--warn); }
+  .grade.D,.grade.E{ background:var(--bad-soft); color:var(--bad); }
+  .grade.dash{ background:var(--na-soft); color:var(--na); }
+
+  .pillars{ margin-top:14px; display:flex; flex-direction:column; gap:9px; }
+  .pillar{ display:flex; align-items:center; gap:10px; }
+  .pillar .label{ flex:none; width:52px; font-size:12px; color:var(--text-muted); }
+  .pillar .track{ flex:1; height:6px; border-radius:999px; background:var(--surface-2); overflow:hidden; }
+  .pillar .fill{ height:100%; border-radius:999px; background:var(--accent); }
+  .pillar .score{ flex:none; width:30px; text-align:right; font-size:12px; }
+  .pillar.na .track{ opacity:.35; }
+  .pillar.na .score{ color:var(--na); }
+
+  .err-note{
+    margin-top:12px; font-size:12.5px; color:var(--bad); background:var(--bad-soft);
+    border-radius:9px; padding:9px 11px; line-height:1.5;
+  }
+
+  .price-row{ display:flex; align-items:baseline; gap:8px; margin-top:4px; }
+  .price-row .amount{ font-size:34px; font-weight:700; }
+  .price-row .unit{ font-size:13px; color:var(--text-muted); }
+
+  .field-label{ font-size:12.5px; color:var(--text-muted); margin-top:16px; display:block; }
+  .field-input{
+    margin-top:6px; width:100%; font-family:inherit; color:var(--text); background:var(--surface-2);
+    border:1px solid var(--border); border-radius:8px; padding:10px 12px; font-size:14px;
+  }
+  .field-input:focus{ outline:none; border-color:var(--accent); }
+
+  .order-note{
+    font-size:12px; color:var(--text-muted); background:var(--surface-2);
+    border:1px solid var(--border); border-radius:9px; padding:9px 11px; margin-top:14px; line-height:1.5;
+  }
+
+  .disclaimer{ margin-top:18px; font-size:11.5px; color:var(--text-muted); border-top:1px solid var(--border); padding-top:14px; line-height:1.6; }
+  [hidden]{ display:none !important; }
+</style>
+</head>
+<body>
+<div class="shell">
+  <header class="brand">
+    <div class="word"><span style="font-size:20px">🩺</span><h1>個股體檢</h1></div>
+    <span class="tagline">最多5檔 · NT$100</span>
+  </header>
+
+  <div id="app"></div>
+</div>
+
+<script>
+(function(){
+  var MAX = 5;
+  var state = { codes: [""], results: null, token: null, checkoutUrl: null, checkoutConfigured: false, note: "" };
+  var app = document.getElementById("app");
+
+  function el(tag, cls, html){
+    var e = document.createElement(tag);
+    if(cls) e.className = cls;
+    if(html !== undefined) e.innerHTML = html;
+    return e;
+  }
+
+  function render(){ app.innerHTML = ""; app.appendChild(state.results ? renderReport() : renderPicker()); }
+
+  function renderPicker(){
+    var panel = el("div", "panel");
+    panel.appendChild(el("h2", null, "輸入想體檢的股票代號"));
+    panel.appendChild(el("p", "lede", "台股代號,最多 " + MAX + " 檔。送出後先免費看一次體檢摘要,確定要完整報告再付款。"));
+
+    state.codes.forEach(function(code, idx){
+      var row = el("div", "code-row");
+      var input = document.createElement("input");
+      input.className = "mono";
+      input.value = code;
+      input.placeholder = "例如 2330";
+      input.maxLength = 6;
+      input.setAttribute("aria-label", "股票代號 " + (idx+1));
+      input.oninput = function(){ state.codes[idx] = input.value.trim().toUpperCase(); };
+      row.appendChild(input);
+      if(state.codes.length > 1){
+        var rm = el("button", "row-remove", "×");
+        rm.setAttribute("aria-label", "移除這一列");
+        rm.onclick = function(){ state.codes.splice(idx, 1); render(); };
+        row.appendChild(rm);
+      }
+      panel.appendChild(row);
+    });
+
+    var addBtn = el("button", "add-row-btn", "＋ 新增一檔");
+    addBtn.disabled = state.codes.length >= MAX;
+    addBtn.onclick = function(){ state.codes.push(""); render(); };
+    panel.appendChild(addBtn);
+
+    var errBox = el("div");
+    panel.appendChild(errBox);
+
+    panel.appendChild(el("div", "upload-divider", "或"));
+    var fileInput = document.createElement("input");
+    fileInput.type = "file";
+    fileInput.accept = "image/*";
+    fileInput.hidden = true;
+    var uploadBtn = el("button", "add-row-btn", "📷 上傳庫存截圖辨識代號");
+    uploadBtn.type = "button";
+    uploadBtn.onclick = function(){ fileInput.click(); };
+    fileInput.onchange = function(){
+      if(fileInput.files && fileInput.files[0]) uploadImage(fileInput.files[0], errBox, uploadBtn);
+      fileInput.value = "";
+    };
+    panel.appendChild(fileInput);
+    panel.appendChild(uploadBtn);
+    panel.appendChild(el("div", "upload-note", "AI 辨識僅供參考,送出前請核對代號是否正確。"));
+
+    var btn = el("button", "btn", "開始體檢");
+    btn.onclick = function(){ submitAnalyze(errBox, btn); };
+    panel.appendChild(btn);
+
+    return panel;
+  }
+
+  function submitAnalyze(errBox, btn){
+    var codes = state.codes.map(function(c){ return (c||"").trim().toUpperCase(); }).filter(Boolean);
+    var seen = {}, dedup = [];
+    codes.forEach(function(c){ if(!seen[c]){ seen[c]=1; dedup.push(c); } });
+    errBox.innerHTML = "";
+    if(dedup.length === 0){
+      errBox.appendChild(el("div", "err-note", "請至少輸入 1 檔股票代號。"));
+      return;
+    }
+    btn.disabled = true;
+    btn.textContent = "分析中…(可能需要數秒)";
+    fetch("/api/stock-checkup/analyze", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({codes: dedup})
+    }).then(function(r){
+      if(!r.ok) return r.json().then(function(e){ throw new Error(e.detail || "分析失敗"); });
+      return r.json();
+    }).then(function(data){
+      state.results = data.results;
+      render();
+    }).catch(function(e){
+      btn.disabled = false;
+      btn.textContent = "開始體檢";
+      errBox.appendChild(el("div", "err-note", e.message || "分析失敗,請稍後再試。"));
+    });
+  }
+
+  function uploadImage(file, errBox, uploadBtn){
+    errBox.innerHTML = "";
+    var origText = uploadBtn.textContent;
+    uploadBtn.disabled = true;
+    uploadBtn.textContent = "辨識中…";
+    var fd = new FormData();
+    fd.append("file", file);
+    fetch("/api/stock-checkup/extract-codes", { method: "POST", body: fd })
+      .then(function(r){
+        if(!r.ok) return r.json().then(function(e){ throw new Error(e.detail || "辨識失敗"); });
+        return r.json();
+      })
+      .then(function(data){
+        var codes = (data.codes || []).slice(0, MAX);
+        state.codes = codes.length ? codes : [""];
+        render();
+      })
+      .catch(function(e){
+        uploadBtn.disabled = false;
+        uploadBtn.textContent = origText;
+        errBox.appendChild(el("div", "err-note", (e.message || "辨識失敗,請改用手動輸入。")));
+      });
+  }
+
+  function pillarRow(name, p){
+    var na = !p || p.has_data === false || p.score === null || p.score === undefined;
+    var row = el("div", "pillar" + (na ? " na" : ""));
+    row.appendChild(el("span", "label", name));
+    var track = el("div", "track");
+    var fill = el("div", "fill");
+    fill.style.width = (na ? 0 : Math.max(0, Math.min(100, p.score))) + "%";
+    track.appendChild(fill);
+    row.appendChild(track);
+    row.appendChild(el("span", "score mono", na ? "—" : Math.round(p.score)));
+    return row;
+  }
+
+  function renderReport(){
+    var frag = document.createDocumentFragment();
+
+    var banner = el("div", "panel");
+    banner.appendChild(el("p", "lede", "以下是免費摘要;付款後取得完整版(逐項指標數值 + 估值區間 + 產業比較)。"));
+    frag.appendChild(banner);
+
+    state.results.forEach(function(r){
+      var panel = el("div", "panel stock-card");
+      if(!r.ok){
+        panel.innerHTML = '<div class="stock-head"><div><div class="code mono">'+r.code+'</div>' +
+          '<div class="name">查無資料</div></div></div>' +
+          '<div class="err-note">'+(r.error || "這檔目前無法分析")+'</div>';
+        frag.appendChild(panel);
+        return;
+      }
+      var health = r.health || {};
+      var grade = health.grade || "—";
+      var gradeClass = "dash";
+      if(["A","B"].indexOf(grade) >= 0) gradeClass = grade;
+      else if(grade === "C") gradeClass = "C";
+      else if(["D","E"].indexOf(grade) >= 0) gradeClass = grade;
+
+      var head = el("div", "stock-head");
+      head.innerHTML =
+        '<div><div class="code mono">'+r.code+'</div>' +
+        '<div class="name">'+(r.name || "")+'</div></div>';
+      var gradeBox = el("div", "grade " + gradeClass, grade);
+      head.appendChild(gradeBox);
+      panel.appendChild(head);
+
+      var pillars = el("div", "pillars");
+      var order = ["技術", "籌碼", "基本面", "估值"];
+      order.forEach(function(name){
+        pillars.appendChild(pillarRow(name, (health.pillars || {})[name]));
+      });
+      panel.appendChild(pillars);
+      frag.appendChild(panel);
+    });
+
+    var orderPanel = el("div", "panel");
+    orderPanel.appendChild(el("h2", null, "取得完整報告"));
+    var priceRow = el("div", "price-row");
+    priceRow.innerHTML = '<span class="amount mono">NT$100</span><span class="unit">最多5檔 · 單次報告</span>';
+    orderPanel.appendChild(priceRow);
+
+    var emailLabel = el("label", "field-label", "接收報告的 Email");
+    orderPanel.appendChild(emailLabel);
+    var emailInput = document.createElement("input");
+    emailInput.className = "field-input";
+    emailInput.type = "email";
+    emailInput.id = "orderEmail";
+    emailInput.placeholder = "you@example.com";
+    orderPanel.appendChild(emailInput);
+
+    var errBox2 = el("div");
+    orderPanel.appendChild(errBox2);
+
+    var goBtn = el("button", "btn", "前往付款 NT$100");
+    goBtn.onclick = function(){ submitOrder(emailInput, errBox2, goBtn); };
+    orderPanel.appendChild(goBtn);
+
+    var back = el("button", "btn ghost", "重新選股票");
+    back.onclick = function(){ state.results = null; render(); };
+    orderPanel.appendChild(back);
+
+    orderPanel.appendChild(el("div", "disclaimer",
+      "本頁僅整理並呈現公開財務與市場數據,不構成個別證券之買賣、加碼或減碼建議,亦不代表任何投資顧問意見。投資決策請自行判斷並留意風險。"));
+
+    frag.appendChild(orderPanel);
+    return wrap(frag);
+  }
+
+  function wrap(frag){ var d = document.createElement("div"); d.appendChild(frag); return d; }
+
+  function submitOrder(emailInput, errBox, btn){
+    var email = emailInput.value.trim();
+    errBox.innerHTML = "";
+    if(!email || email.indexOf("@") < 0){
+      errBox.appendChild(el("div", "err-note", "請填寫有效的 Email。"));
+      return;
+    }
+    var codes = state.results.filter(function(r){return r.ok;}).map(function(r){return r.code;});
+    btn.disabled = true;
+    btn.textContent = "處理中…";
+    fetch("/api/stock-checkup/order", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({codes: codes, email: email})
+    }).then(function(r){
+      if(!r.ok) return r.json().then(function(e){ throw new Error(e.detail || "建立訂單失敗"); });
+      return r.json();
+    }).then(function(data){
+      if(data.checkout_url){
+        window.location.href = data.checkout_url;
+      } else {
+        btn.disabled = false;
+        btn.textContent = "前往付款 NT$100";
+        errBox.appendChild(el("div", "err-note", data.note || "付款連結尚未上架,請稍後再試或聯絡客服。"));
+      }
+    }).catch(function(e){
+      btn.disabled = false;
+      btn.textContent = "前往付款 NT$100";
+      errBox.appendChild(el("div", "err-note", e.message || "建立訂單失敗,請稍後再試。"));
+    });
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>

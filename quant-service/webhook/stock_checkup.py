@@ -42,11 +42,11 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 from pydantic import BaseModel, Field
 
-from . import ecpay, service
+from . import ecpay, service, vision
 from .events import EventKind, NormalizedEvent
 from .ledger import load_json, save_json_atomic
 
@@ -59,6 +59,7 @@ SKU_ID = "T3_multi_checkup"
 PRODUCT_NAME = "個股體檢多檔組合(最多5檔)"
 PRICE_NTD = 100
 MAX_STOCKS = 5
+_MAX_UPLOAD_BYTES = 8 * 1024 * 1024                 # 8MB,手機庫存截圖綽綽有餘
 _CODE_RE = re.compile(r"^[0-9A-Z]{4,6}$")
 
 router = APIRouter()
@@ -151,6 +152,25 @@ async def analyze(body: AnalyzeRequest):
     with ThreadPoolExecutor(max_workers=1) as ex:
         results = list(ex.map(_analyze_one, codes))
     return {"results": results}
+
+
+@router.post("/api/stock-checkup/extract-codes")
+async def extract_codes(file: UploadFile = File(...)):
+    """庫存截圖 → 股票代號清單(prototype,見 vision.py)。前端把回傳的 codes 直接
+    填進選股欄位讓使用者確認/修改後才送出分析,不自動跳過去——辨識準確率未知,
+    人工核對一眼比省那幾秒重要(誤判代號會體檢到別檔股票,使用者不會馬上發現)。"""
+    data = await file.read()
+    if not data:
+        raise HTTPException(422, "檔案是空的")
+    if len(data) > _MAX_UPLOAD_BYTES:
+        raise HTTPException(422, "圖片太大(上限 8MB)")
+    try:
+        codes = vision.extract_codes(data, file.content_type or "", MAX_STOCKS)
+    except vision.VisionError as exc:
+        raise HTTPException(502, str(exc)) from exc
+    if not codes:
+        raise HTTPException(422, "沒有從圖片中辨識出股票代號,請確認截圖清楚或改用手動輸入。")
+    return {"codes": codes}
 
 
 _NOT_LISTED_NOTE = "付款連結尚未上架,請稍後再試或聯絡客服。"
