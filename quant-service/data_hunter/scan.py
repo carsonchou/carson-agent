@@ -562,8 +562,10 @@ def _st_dirs(df: pd.DataFrame) -> tuple[str | None, str | None]:
     tr = pd.concat([high - low, (high - prev_close).abs(), (low - prev_close).abs()], axis=1).max(axis=1)
     atr = tr.ewm(alpha=1 / ST_PERIOD, min_periods=ST_PERIOD, adjust=False).mean()
     hl2 = (high + low) / 2
-    ub = (hl2 + ST_MULT * atr).to_numpy()
-    lb = (hl2 - ST_MULT * atr).to_numpy()
+    # copy=True:pandas 3.0 起 Copy-on-Write 常態化，to_numpy() 可能回傳唯讀陣列；
+    # ub/lb 下面會被原地改寫(ub[i]=/lb[i]=)，唯讀會直接炸 ValueError。
+    ub = (hl2 + ST_MULT * atr).to_numpy(copy=True)
+    lb = (hl2 - ST_MULT * atr).to_numpy(copy=True)
     c = close.to_numpy()
     st = np.full(n, np.nan)
     d = np.zeros(n, dtype=int)

@@ -78,8 +78,9 @@ def _st_dir_series(df: pd.DataFrame, period: int = 10, mult: float = 3.0) -> np.
     tr = pd.concat([high - low, (high - prev).abs(), (low - prev).abs()], axis=1).max(axis=1)
     atr = tr.ewm(alpha=1 / period, min_periods=period, adjust=False).mean()
     hl2 = (high + low) / 2
-    ub = (hl2 + mult * atr).to_numpy()
-    lb = (hl2 - mult * atr).to_numpy()
+    # copy=True:同 scan._st_dirs 的坑,pandas 3.0 起 CoW 常態化 to_numpy() 可能回傳唯讀陣列
+    ub = (hl2 + mult * atr).to_numpy(copy=True)
+    lb = (hl2 - mult * atr).to_numpy(copy=True)
     c = close.to_numpy()
     st = np.full(n, np.nan)
     for i in range(period, n):
