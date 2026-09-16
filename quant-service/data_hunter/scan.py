@@ -304,11 +304,13 @@ def _read_cache(code: str) -> pd.DataFrame | None:
 
 
 def _bulk_yf(codes: list[str], suffix: str, intraday: bool = False,
-             retries: int = 2) -> dict[str, pd.DataFrame]:
+             retries: int = 2, months_back: int = 9) -> dict[str, pd.DataFrame]:
     """yfinance 一次批次抓多檔(同市場)。回傳 {code: df}；失敗回空 dict。
     intraday=True 抓 15 分 K(近5日)；否則抓日線(近6月)。
     auto_adjust=False：與 tw_data.py 寫的快取、證交所即時撮合價(皆原始價)基準一致，
-    避免除權息股在 tail(180) 窗內人造跳空。含重試+遞增 backoff(搬 tw_data.py 樣板)。"""
+    避免除權息股在 tail(180) 窗內人造跳空。含重試+遞增 backoff(搬 tw_data.py 樣板)。
+    months_back 轉給 twstock 官方路徑：每多一個月約 +3 秒(逐檔序列 HTTP)，
+    被硬性 timeout 包住的呼叫端(如 query._load_df)務必傳小一點，見該處說明。"""
     out: dict[str, pd.DataFrame] = {}
     # 日線一律走 twstock 官方(證交所/櫃買)：yfinance 抓台股不可靠——上櫃全錯(環球晶6488 786vs官方1105)、
     # 部分上市也錯/過時。twstock 是官方源、上市上櫃皆正確。intraday 仍走 yfinance(twstock 無分時；即時另有 realtime 覆蓋)。
@@ -317,7 +319,7 @@ def _bulk_yf(codes: list[str], suffix: str, intraday: bool = False,
         try:
             import twse_price as _tp
             for c in codes:
-                df = _tp.fetch_twstock_daily(c, months_back=9)
+                df = _tp.fetch_twstock_daily(c, months_back=months_back)
                 if df is not None and len(df) >= 22:
                     out[c] = df
                 time.sleep(0.25)     # 節流，twstock 逐檔
