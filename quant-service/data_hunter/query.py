@@ -145,14 +145,21 @@ def _resolve_code(q: str) -> str | None:
 
 # ── 資料載入(單檔) ───────────────────────────────────────────────────────────
 def _run_bounded(fn, timeout: float, default=None):
-    """在硬性 timeout 內跑 fn；逾時/例外都回 default(逾時的背景執行緒任其自然結束，主線程不等)。
-    互動查詢絕不可被單一慢速網路呼叫無限拖住。"""
+    """在硬性 timeout 內跑 fn；逾時/例外都回 default，主線程真的不等背景執行緒跑完。
+    互動查詢絕不可被單一慢速網路呼叫無限拖住。
+    🔴09-16 修過的坑：`with ThreadPoolExecutor(...) as ex:` 離開 with 區塊時預設
+    shutdown(wait=True)——即使 .result(timeout=...) 已經逾時拋例外，主線程仍會卡在
+    with 區塊出口，等孤兒執行緒**真正跑完**才放行,等於 timeout 參數整個沒生效
+    (雲端上 9→4 個月都還是全部卡到 27~41 秒才回)。改用 shutdown(wait=False)，孤兒
+    執行緒自然結束、丟棄結果,不擋主線程。"""
     from concurrent.futures import ThreadPoolExecutor
+    ex = ThreadPoolExecutor(max_workers=1)
     try:
-        with ThreadPoolExecutor(max_workers=1) as ex:
-            return ex.submit(fn).result(timeout=timeout)
+        return ex.submit(fn).result(timeout=timeout)
     except Exception:
         return default
+    finally:
+        ex.shutdown(wait=False)
 
 
 # 短期 df 記憶化：開一檔詳情前端會同時打 /api/stock + /api/analyst，兩者都 _load_df 同一檔
