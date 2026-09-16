@@ -139,14 +139,16 @@ async def stock_checkup_page():
 @router.post("/api/stock-checkup/analyze")
 async def analyze(body: AnalyzeRequest):
     """逐檔查詢各有本地快取未命中時的 bounded live-fetch(見 query._load_df /
-    _merge_fundamentals),最多 5 檔序列跑會疊到近 90 秒,雲端無快取的機器一定會撞到——
-    平行跑讓總時間貼齊單檔最慢的那一檔,不是 5 檔相加。
-    🔴09-16 實測:Render 免費方案 WEB_CONCURRENCY=1(單一 vCPU 且被限流),
-    max_workers=len(codes) 全開 5 個執行緒搶同一顆 CPU 反而互相拖垮——1/2/3 檔
-    平行皆 100% 成功,4 檔起開始部分逾時、5 檔全滅。上限鎖 3,超過的用 sliding
-    window 排隊,總時間換成約兩輪(~40s)而非全滅。"""
+    _merge_fundamentals)。
+    🔴09-16 實測:Render 免費方案 WEB_CONCURRENCY=1(單一 vCPU 且被限流,且與其他
+    租戶共享,實際可用 CPU 隨時間浮動,非固定值)。原本平行全開(max_workers=
+    len(codes))想讓總時間貼齊單檔最慢的那一檔,但 1~3 檔平行的「安全上限」實測
+    不穩定——同樣 3 檔在不同時間點測試,有時 100% 成功,有時全滅,4 檔更明顯反覆
+    橫跳(3 成功1失敗 vs 1 成功3失敗)。這代表 CPU 競爭是機率性的 noisy-neighbor
+    問題,不是客戶端能穩定調參解決的。付費功能寧可穩定慢(改序列跑,~90 秒/5檔)
+    也不要快但會炸,故改回 max_workers=1(逐檔序列),犧牲速度換正確性。"""
     codes = _clean_codes(body.codes)
-    with ThreadPoolExecutor(max_workers=min(len(codes), 3)) as ex:
+    with ThreadPoolExecutor(max_workers=1) as ex:
         results = list(ex.map(_analyze_one, codes))
     return {"results": results}
 
