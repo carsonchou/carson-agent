@@ -102,6 +102,14 @@
   .pillar.na .track{ opacity:.35; }
   .pillar.na .score{ color:var(--na); }
 
+  .teaser-stats{ display:flex; gap:8px; margin-top:14px; flex-wrap:wrap; }
+  .teaser-stat{ flex:1; min-width:100px; background:var(--surface-2); border:1px solid var(--border);
+    border-radius:10px; padding:10px 12px; }
+  .teaser-stat .v{ font-size:19px; font-weight:700; }
+  .teaser-stat .l{ font-size:11px; color:var(--text-muted); margin-top:2px; }
+  .teaser-line{ margin-top:12px; font-size:13px; color:var(--text); line-height:1.6; }
+  .teaser-lock{ margin-top:10px; font-size:12px; color:var(--accent); }
+
   .err-note{
     margin-top:12px; font-size:12.5px; color:var(--bad); background:var(--bad-soft);
     border-radius:9px; padding:9px 11px; line-height:1.5;
@@ -308,6 +316,22 @@
         pillars.appendChild(pillarRow(name, (health.pillars || {})[name]));
       });
       panel.appendChild(pillars);
+
+      if((r.teaser_stats || []).length){
+        var statsRow = el("div", "teaser-stats");
+        r.teaser_stats.forEach(function(s){
+          var box = el("div", "teaser-stat");
+          box.appendChild(el("div", "v mono", s.value));
+          box.appendChild(el("div", "l", s.label));
+          statsRow.appendChild(box);
+        });
+        panel.appendChild(statsRow);
+      }
+      if(r.teaser_line){
+        panel.appendChild(el("p", "teaser-line", r.teaser_line));
+      }
+      panel.appendChild(el("p", "teaser-lock", "🔒 逐項指標數值 + 估值區間 + 產業比較,解鎖完整報告看更多。"));
+
       frag.appendChild(panel);
     });
 

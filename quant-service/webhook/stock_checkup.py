@@ -88,6 +88,53 @@ def _clean_codes(raw: list[str]) -> list[str]:
     return seen
 
 
+# 免費預覽「數字+缺口式教唆」:只挑真的算得出來的欄位(見 query._merge_fundamentals /
+# fundamentals.py),依吸引力排序,最多挑 2 個給使用者看,沒資料的欄位不提——避免承諾
+# SPEC 裡宣稱但沒接上的估值區間/流動比等欄位(grep query.py 零命中,已三方查核確認)。
+_TEASER_STAT_CANDIDATES = [
+    ("dividend_yield", "殖利率", "%"),
+    ("eps_yoy", "EPS 年增率", "%"),
+    ("rev_yoy", "營收年增率", "%"),
+    ("pe", "本益比", "倍"),
+    ("gross_margin", "毛利率", "%"),
+]
+_PILLAR_LABEL = {"技術": "技術面", "籌碼": "籌碼面", "基本面": "基本面", "估值": "估值面"}
+_PILLAR_GAP_THRESHOLD = 15  # 分差 < 這個門檻就不夠戲,改講中性句
+
+
+def _pick_teaser_stats(r: dict) -> list[dict]:
+    stats: list[dict] = []
+    for key, label, unit in _TEASER_STAT_CANDIDATES:
+        v = r.get(key)
+        if v is None:
+            continue
+        sign = "+" if unit == "%" and v > 0 else ""
+        stats.append({"label": label, "value": f"{sign}{v:g}{unit}"})
+        if len(stats) == 2:
+            break
+    return stats
+
+
+def _teaser_line(health: dict) -> str:
+    pillars = health.get("pillars") or {}
+    scored = [
+        (name, p.get("score")) for name, p in pillars.items()
+        if p.get("has_data") and p.get("score") is not None
+    ]
+    if len(scored) < 2:
+        return "四大面向資料還在補齊,完整報告有逐項指標數值可以細看。"
+    scored.sort(key=lambda x: x[1])
+    weak_name, weak_score = scored[0]
+    strong_name, strong_score = scored[-1]
+    if strong_score - weak_score < _PILLAR_GAP_THRESHOLD:
+        return "四大面向表現接近,細節差異要看完整報告才分得出來。"
+    return (
+        f"{_PILLAR_LABEL.get(strong_name, strong_name)}撐分({round(strong_score)}分)"
+        f",{_PILLAR_LABEL.get(weak_name, weak_name)}拖分({round(weak_score)}分)"
+        "——完整報告有逐項指標數值可以細看。"
+    )
+
+
 def _analyze_one(code: str) -> dict:
     """單檔體檢:用 data_hunter 既有 query.analyze_stock + health.compute_health,
     不重算技術/籌碼/基本面邏輯。任何例外優雅降級,不讓單一檔失敗拖垮整批。"""
@@ -110,6 +157,8 @@ def _analyze_one(code: str) -> dict:
         "pe": r.get("pe"), "pb": r.get("pb"), "dividend_yield": r.get("dividend_yield"),
         "eps_ttm": r.get("eps_ttm"), "eps_yoy": r.get("eps_yoy"),
         "rev_yoy": r.get("rev_yoy"), "gross_margin": r.get("gross_margin"),
+        "teaser_stats": _pick_teaser_stats(r),
+        "teaser_line": _teaser_line(health),
         "health": {
             "overall": health.get("overall"), "grade": health.get("grade"),
             "confidence": health.get("confidence"),
