@@ -547,15 +547,16 @@ def _quarantine(slug):
     _move_slug_files(slug, REJECT_DIR)
 
 
-def produce_until_pass(title, angle=REMAKE_ANGLE, tries=3):
+def produce_until_pass(title, angle=REMAKE_ANGLE, tries=3, kind="short"):
     """產同主題新片直到分數 ≥ 門檻（最多 tries 次）；保留最高分那支、其餘隔離。
+    kind：沿用原候選格式重做（"short"/"long"），不寫死，否則長片會被靜默重做成短片。
     回 (slug, score)。確保『重做出來的一定不低於門檻』(tries 用盡仍未過則保留最佳並警告)。"""
     from produce_batch import make_one
     mn = get_min()
     best, best_sc = None, -1
     for t in range(1, tries + 1):
         try:
-            slug = make_one("short", topic_override={"title": title, "angle": angle})
+            slug = make_one(kind, topic_override={"title": title, "angle": angle})
         except Exception as e:  # noqa: BLE001
             print(f"[warn] 第{t}次產片失敗：{str(e)[:70]}", file=sys.stderr); slug = None
         if not slug:
@@ -580,9 +581,10 @@ def produce_until_pass(title, angle=REMAKE_ANGLE, tries=3):
     return best, best_sc
 
 
-def _remake_now(title):
-    """立刻重產同主題新片，且確保分數 ≥ 門檻（最多重試 3 次，保留最佳）。"""
-    slug, sc = produce_until_pass(title, tries=3)
+def _remake_now(title, kind="short"):
+    """立刻重產同主題新片，且確保分數 ≥ 門檻（最多重試 3 次，保留最佳）。
+    kind：沿用原候選格式（"short"/"long"），不寫死。"""
+    slug, sc = produce_until_pass(title, tries=3, kind=kind)
     ok = slug is not None
     print(f"[{'ok' if ok else 'warn'}] 立即重做：{title[:24]}（得分 {sc}{'，已達門檻' if ok and sc >= get_min() else ''}）")
     return ok
@@ -596,9 +598,10 @@ def reject(slug, manual=True, remake=False):
     title = title_of(slug)
     moved, _kept = _move_slug_files(slug, REJECT_DIR)
     if remake:
+        kind = "long" if slug.startswith("L_") else "short"
         log_ops("倉庫評分", f"退件＋立即重做：{title[:24]}（隔離 {moved} 檔，重產中…）")
-        print(f"[ok] 已退件：{slug}（隔離 {moved} 檔），立即重產同主題新片…")
-        _remake_now(title)
+        print(f"[ok] 已退件：{slug}（隔離 {moved} 檔），立即重產同主題新片（格式沿用 {kind}）…")
+        _remake_now(title, kind=kind)
     else:
         _free_topic(title)
         log_ops("倉庫評分", f"退件重做：{title[:24]}（隔離 {moved} 檔、釋放題目待補產）")
@@ -652,7 +655,8 @@ def tidy():
             _quarantine(it["slug"]); dup_removed += 1
         if (best["score"] or 0) < mn:   # 留下的還沒過門檻 → 隔離後重產到過
             _quarantine(best["slug"])
-            slug, sc = produce_until_pass(best["title"], tries=3)
+            _kind = "long" if best["slug"].startswith("L_") else "short"
+            slug, sc = produce_until_pass(best["title"], tries=3, kind=_kind)
             if slug:
                 remade += 1
             print(f"[tidy] 重產到門檻：{best['title'][:24]}（{sc}）")
