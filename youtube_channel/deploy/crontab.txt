@@ -871,3 +871,14 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # 別用 flagged 空不空判斷,空有兩種讀法。升級成阻斷的判準見
 # solo_saas/GATE_UPGRADE_CRITERIA.md —— 現在一條都不滿足,別自己接 --gate。)
 45 11 * * * /root/yt/run.sh scripts/numerus_watch.py >> /root/yt/logs/cron.log 2>&1
+
+# ch3 非授權原始快照到期守衛(每天 08:20,只告警不刪除):D:\yt_nonauth_data\ch3_remeasure_2026-09-12\
+#   的 r1/r2/r3 raw json + run_r*.log 依 YouTube API Services ToS III.E.4.d(他人公開資料保存
+#   上限30天)必須在 2026-10-12 前刪除,但 ch3 副線(wA:p2)已於 2026-09-16 結案關閉,原本盯著
+#   這個期限的 pane 不會再存在——之前只靠一份跨 session memory 檔提醒(memory
+#   ch3-nonauth-data-deletion-deadline-2026-10-12),沒有排程/硬性閘門。
+#   2026-10-05 起(到期前7天)才開始檢查,之前完全 no-op;檔案還在就寫一行
+#   [MM-DD HH:MM:SS] ch3非授權資料到期守衛｜... 進 ops_log.txt(比照停擺守衛格式),
+#   讓每天看 ops_log.txt 的人/agent會撞到。刪除本身不自動做——那是不可逆操作,
+#   留給人工或當時的督導確認再動手。見 scripts/check_ch3_nonauth_deadline.py。
+20 8 * * * /root/yt/run.sh scripts/check_ch3_nonauth_deadline.py >> /root/yt/logs/cron.log 2>&1
