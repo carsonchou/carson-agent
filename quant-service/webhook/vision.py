@@ -5,11 +5,15 @@ youtube_channel/scripts/llm.py 是另一個專案的純文字 completion 模組,
 這裡刻意寫成最小、自足的一支,只靠 quant-service/.env 既有且已儲值的
 OPENROUTER_API_KEY(llm.py 註解:「Carson 已儲值」,08-04 起已在用),不申請新的付費管道。
 
-模型選 openai/gpt-4o(OpenRouter 代管):原本用 google/gemini-2.5-flash 較便宜,但實測
+模型選 anthropic/claude-sonnet-4.5(OpenRouter 代管,走一般付費 API 呼叫——不是借用
+Claude Code 本身的登入/OAuth,那條路只給互動用、拿來跑後端服務屬於違反 ToS 的自動化,
+見 memory anthropic-billing-api-vs-oauth)。原本用 google/gemini-2.5-flash 較便宜,但實測
 「用名稱推算代號」這條路徑連續兩版都出包——先把「凱基台灣TOP50」誤猜成完全不同的
 0050,加了明確防呆範例(連正確代號 009816 都寫進 prompt)後,還是穩定地把它抄成
-00916/009186 之類的錯誤數字。換 gpt-4o 用同一份 prompt 對同一張測試圖重跑,連續 3 次
-穩定答對 009816,一般「畫面本來就印代號」的路徑(如 2330)也 3/3 正常,才改預設模型。
+00916/009186 之類的錯誤數字。換過 openai/gpt-4o 先驗證是模型問題不是功能問題(3/3
+穩定答對);後來發現 claude-sonnet-4.5 其實原本就答對,只是回應被包在 ```json``` 這種
+markdown code fence 裡,舊的 json.loads(txt) 直接炸掉被誤判成失敗——修好 fence 剝除後
+兩種案例(名稱推算/畫面本來就印代號)各測 3 次全部正確,改用它當預設模型。
 之後要再換模型只改 STOCK_CHECKUP_VISION_MODEL 環境變數。
 """
 from __future__ import annotations
@@ -23,6 +27,7 @@ import requests
 
 _OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 _CODE_RE = re.compile(r"^[0-9A-Z]{4,6}$")
+_FENCE_RE = re.compile(r"^```[a-zA-Z]*\n(.*)\n```$", re.DOTALL)
 
 _PROMPT = (
     "這是一張台股券商 App 的庫存(持股)畫面截圖。請找出畫面中每一檔股票的「股票代號」"
@@ -48,7 +53,7 @@ class VisionError(RuntimeError):
 
 
 def _model() -> str:
-    return os.environ.get("STOCK_CHECKUP_VISION_MODEL", "openai/gpt-4o").strip()
+    return os.environ.get("STOCK_CHECKUP_VISION_MODEL", "anthropic/claude-sonnet-4.5").strip()
 
 
 def _key() -> str:
@@ -99,7 +104,10 @@ def extract_codes(image_bytes: bytes, content_type: str, max_codes: int) -> list
         raise VisionError(f"辨識服務錯誤:{str(detail)[:200]}〔HTTP {r.status_code}〕")
 
     try:
-        txt = r.json()["choices"][0]["message"]["content"] or ""
+        txt = (r.json()["choices"][0]["message"]["content"] or "").strip()
+        fence = _FENCE_RE.match(txt)   # 有些模型(如 claude 系列)即使指定 json_object
+        if fence:                      # 還是會把 JSON 包在 ```json ... ``` 裡
+            txt = fence.group(1).strip()
         raw_codes = json.loads(txt).get("codes") or []
     except Exception as exc:  # noqa: BLE001
         raise VisionError(f"辨識結果格式不正確,無法解析:{exc}") from exc
