@@ -249,8 +249,27 @@ _REPLY_BANNED = ("保證", "穩賺", "必漲", "必跌", "包贏", "一定會", 
 _REPLY_MAXLEN = 160
 
 
+
+# 2026-09-18(依 Carson 對「後照鏡看股票」留言的裁示):事實庫裡同一檔股票混著兩種類型——
+# 「回測類」(checkup_long_horizon/annual_extremes/three_way/underwater/halvings/crash,
+# 全部是歷史價格報酬/回撤)和「基本面估值類」(revenue_trend/eps_trend/gross_margin/
+# dividend_history/valuation_position/industry_rank,含本益比百分位這種前瞻性最強的欄位)。
+# 根因調查發現:_video_facts_for_reply() 原本把兩類混在同一份無標籤清單裡丟給 LLM,
+# 觀眾質疑「只看歷史、沒前瞻性」時,LLM 卻挑了清單裡最顯眼的回測總報酬數字回覆——
+# 剛好回成觀眾正在批評的那種樣子。分類標籤讓 smart_reply() 的 prompt 能明確指示
+# 「這種質疑不要引用回測類,優先引用基本面估值類」。
+_CHECKUP_BACKTEST_PREFIXES = ("checkup_long_horizon", "checkup_annual_extremes",
+                              "checkup_three_way", "checkup_underwater",
+                              "checkup_halvings", "checkup_crash")
+_CHECKUP_FUNDAMENTAL_PREFIXES = ("checkup_revenue_trend", "checkup_eps_trend",
+                                 "checkup_gross_margin", "checkup_dividend_history",
+                                 "checkup_valuation_position", "checkup_industry_rank")
+
+
 def _video_facts_for_reply(video_id: str, ledger: dict) -> str:
-    """取這支片的真實事實(只給體檢片;其他片回空字串)。回覆只能引用這裡的數字。"""
+    """取這支片的真實事實(只給體檢片;其他片回空字串)。回覆只能引用這裡的數字。
+    每條前面標「【回測】」或「【基本面估值】」,讓 LLM 分得出哪些是純歷史報酬、
+    哪些是本益比百分位/EPS趨勢這類跟「現在貴不貴」相關的事實。"""
     slug = ledger.get(video_id) or ""
     if "個股體檢" not in slug:
         return ""
@@ -266,10 +285,18 @@ def _video_facts_for_reply(video_id: str, ledger: dict) -> str:
     res = facts.get("results") or {}
     bits = []
     for k, v in res.items():
-        if k.endswith("__%s" % code) and isinstance(v, dict):
-            s = str(v.get("summary") or "").strip()
-            if s:
-                bits.append("・" + s[:120])
+        if not k.endswith("__%s" % code) or not isinstance(v, dict):
+            continue
+        s = str(v.get("summary") or "").strip()
+        if not s:
+            continue
+        cat = ("回測" if k.startswith(_CHECKUP_BACKTEST_PREFIXES)
+               else "基本面估值" if k.startswith(_CHECKUP_FUNDAMENTAL_PREFIXES)
+               else "其他")
+        bits.append(f"・【{cat}】{s[:120]}")
+    # 基本面估值類排前面:數量少(通常6條)又是回應「前瞻性」質疑時最該優先被看到的,
+    # 排前面確保清單被截到8條時不會被回測類擠掉。
+    bits.sort(key=lambda b: 0 if "【基本面估值】" in b else 1)
     return "\n".join(bits[:8])
 
 
@@ -306,8 +333,14 @@ def smart_reply(comment_text: str, video_id: str, ledger: dict) -> str:
    分享經驗就回應那個經驗。**嚴禁**答非所問地反問「你進場了嗎」這種罐頭。
 2. 上面有真實數據且跟他講的相關,就引用一個具體數字回他(這是本頻道的價值)。
    沒有數據就只講觀念,**絕對不要自己生一個數字**。
-3. 語氣:理性、平視、像作者本人在回,不諂媚不說教。可以同意他、也可以補充不同角度。
-4. 長度 **40~90 個中文字**,一到兩句。不要開場白、不要「感謝支持」這種場面話。
+3. 【重要】如果他批評的是「這只是回測歷史/後照鏡看股票/沒有前瞻性、不知道現在貴不貴」
+   這一類質疑,**不要引用【回測】標籤的總報酬/年化/回撤數字回他**——那正是他在批評的東西,
+   拿它當答案等於證實他的批評是對的。這時優先引用【基本面估值】標籤的事實
+   (本益比百分位、EPS趨勢、營收趨勢這類跟「現在貴不貴、體質好不好」相關的數據)。
+   如果他問的是更具體、資料庫查不到的東西(例如特定客戶合作、新技術訂單這類質化消息),
+   就老實講這超出目前資料範圍、不要裝懂也不要用別的數字硬答。
+4. 語氣:理性、平視、像作者本人在回,不諂媚不說教。可以同意他、也可以補充不同角度。
+5. 長度 **40~90 個中文字**,一到兩句。不要開場白、不要「感謝支持」這種場面話。
 
 【誠信鐵則(違反就是廢稿)】
 不喊單、不報明牌、不給目標價、不保證收益、不說「應該買/該賣」;
