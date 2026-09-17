@@ -882,3 +882,19 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 #   讓每天看 ops_log.txt 的人/agent會撞到。刪除本身不自動做——那是不可逆操作,
 #   留給人工或當時的督導確認再動手。見 scripts/check_ch3_nonauth_deadline.py。
 20 8 * * * /root/yt/run.sh scripts/check_ch3_nonauth_deadline.py >> /root/yt/logs/cron.log 2>&1
+
+# 84支period disclaimer改寫T2獨立回讀(一次性,09-11事後回讀計畫§7步驟5):
+#   2026-09-18 00:01 已執行 fix_period_disclaimer.py --rewrite-note --apply,84/84改寫成功(commit
+#   94c1c381後續);同日00:08 T1(verify_desc_rewrite.py --check)已跑過,兩儀器(ch2/main)合計
+#   84/84 PASS、0 FAIL、0需人判,exit code 0。裁示要求T2(≥24小時後)用同一支獨立工具、同一份
+#   baseline再驗一次,T2結果出來前84支campaign不算完成。
+#   ⚠️ 依裁示明文指定走這個crontab.txt管道(local_cron每分鐘讀、跨session/跨機器睡眠持久,見
+#   scripts/local_cron.py :446-459的心跳補跑),不用CronCreate(session-only、session結束即消失,
+#   9-11到9-17這條線正是因為排程管道斷過才6天沒人接手--apply)。
+#   排在2026-09-19 06:00(距--apply完成2026-09-18 00:01約30小時,足額超過24小時下限,且避開
+#   05:00~06:07那批發布/評分/題庫重排的密集時段,不搶資源、也不受它們影響)。
+#   不帶--expect-written/--expect-none ⇒ 預設「應已改寫全部84支」的判準(load_written回None)。
+#   零YouTube配額寫入(只呼叫videos.list,ch2 2次+main 2次≈4 units),落檔到
+#   docs/ops/2026-09-11_84支描述欄改寫_事後回讀計畫/(預設自動命名,不覆蓋既有檔)。
+#   ONESHOT:過了2026-09-19不會再誤跑;跑完這行留著當紀錄即可,不用回來刪。
+0 6 19 9 * /root/yt/run.sh scripts/verify_desc_rewrite.py --check ../docs/ops/2026-09-11_84支描述欄改寫_事後回讀計畫/baseline_20260917T235735.json --label T2 >> /root/yt/logs/cron.log 2>&1 # ONESHOT=2026-09-19
