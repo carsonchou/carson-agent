@@ -5,8 +5,12 @@ youtube_channel/scripts/llm.py 是另一個專案的純文字 completion 模組,
 這裡刻意寫成最小、自足的一支,只靠 quant-service/.env 既有且已儲值的
 OPENROUTER_API_KEY(llm.py 註解:「Carson 已儲值」,08-04 起已在用),不申請新的付費管道。
 
-模型選 vision-capable 的:google/gemini-2.5-flash,OpenRouter 上有代管、吃得動圖片、
-價格低。準確率未知(prototype),之後要換模型只改 STOCK_CHECKUP_VISION_MODEL 環境變數。
+模型選 openai/gpt-4o(OpenRouter 代管):原本用 google/gemini-2.5-flash 較便宜,但實測
+「用名稱推算代號」這條路徑連續兩版都出包——先把「凱基台灣TOP50」誤猜成完全不同的
+0050,加了明確防呆範例(連正確代號 009816 都寫進 prompt)後,還是穩定地把它抄成
+00916/009186 之類的錯誤數字。換 gpt-4o 用同一份 prompt 對同一張測試圖重跑,連續 3 次
+穩定答對 009816,一般「畫面本來就印代號」的路徑(如 2330)也 3/3 正常,才改預設模型。
+之後要再換模型只改 STOCK_CHECKUP_VISION_MODEL 環境變數。
 """
 from __future__ import annotations
 
@@ -23,10 +27,17 @@ _CODE_RE = re.compile(r"^[0-9A-Z]{4,6}$")
 _PROMPT = (
     "這是一張台股券商 App 的庫存(持股)畫面截圖。請找出畫面中每一檔股票的「股票代號」"
     "(4~6碼英數字,台股常見4碼數字如2330、006208等)。\n"
+    "有些畫面只印公司或基金「名稱」、沒有印代號(例如「凱基台灣TOP50」)。這種情況下,"
+    "如果你確定該名稱對應的官方台股代號,可以直接填入代號;如果不確定是哪一檔或名稱太模糊"
+    "(可能對到多檔、或你沒把握),就跳過那一檔不要猜。\n"
+    "特別小心:名稱裡出現的數字不代表股票代號,不要因為數字長得像就套用知名代號——例如"
+    "「凱基台灣TOP50」名稱裡有「50」,但它跟代號 0050(元大台灣50)是完全不同的兩檔基金,"
+    "正確代號是 009816。名稱推算一定要對到「發行商+完整主題」都吻合的那一檔,只要有任何"
+    "混淆可能就跳過不猜。\n"
     "只輸出 JSON 物件,格式:{\"codes\": [\"2330\", \"2603\"]}。\n"
     "規則:\n"
     "- 只列股票代號,不要公司名稱、不要其他文字。\n"
-    "- 看不清楚或不確定的代號不要瞎猜,寧可漏掉不要編造。\n"
+    "- 不管是直接看到還是靠名稱推算出來的代號,只要不確定就不要瞎猜,寧可漏掉不要編造。\n"
     "- 依畫面由上到下的順序列出,去除重複。\n"
     "- 若完全看不出任何股票代號,回傳 {\"codes\": []}。"
 )
@@ -37,7 +48,7 @@ class VisionError(RuntimeError):
 
 
 def _model() -> str:
-    return os.environ.get("STOCK_CHECKUP_VISION_MODEL", "google/gemini-2.5-flash").strip()
+    return os.environ.get("STOCK_CHECKUP_VISION_MODEL", "openai/gpt-4o").strip()
 
 
 def _key() -> str:
