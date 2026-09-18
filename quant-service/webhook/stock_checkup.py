@@ -38,12 +38,15 @@ import html
 import re
 import secrets
 import sys
+import threading
+import time
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, File, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse
 from pydantic import BaseModel, Field
 
 from . import ecpay, service, vision
@@ -59,10 +62,31 @@ SKU_ID = "T3_multi_checkup"
 PRODUCT_NAME = "個股體檢多檔組合(最多5檔)"
 PRICE_NTD = 100
 MAX_STOCKS = 5
+
+# 09-18 Carson 拍板:新增「50 檔」大量方案,價格另訂(NT$500),跟 5 檔/NT$100 方案並存,
+# 不是把舊方案直接改量——舊客戶看到的商品名稱/價格不變。
+SKU_ID_BULK = "T4_multi_checkup_50"
+PRODUCT_NAME_BULK = "個股體檢多檔組合(最多50檔)"
+PRICE_NTD_BULK = 500
+MAX_STOCKS_BULK = 50
+
+_SKUS = {
+    SKU_ID: {"product_name": PRODUCT_NAME, "price_ntd": PRICE_NTD, "max_stocks": MAX_STOCKS},
+    SKU_ID_BULK: {"product_name": PRODUCT_NAME_BULK, "price_ntd": PRICE_NTD_BULK,
+                  "max_stocks": MAX_STOCKS_BULK},
+}
+
 _MAX_UPLOAD_BYTES = 8 * 1024 * 1024                 # 8MB,手機庫存截圖綽綽有餘
 _CODE_RE = re.compile(r"^[0-9A-Z]{4,6}$")
 
 router = APIRouter()
+
+
+def _sku_info(sku_id: str) -> dict:
+    info = _SKUS.get(sku_id)
+    if not info:
+        raise HTTPException(422, f"未知商品:{sku_id!r}")
+    return info
 
 
 def _ensure_data_hunter_on_path() -> None:
@@ -72,7 +96,7 @@ def _ensure_data_hunter_on_path() -> None:
         sys.path.insert(0, p)
 
 
-def _clean_codes(raw: list[str]) -> list[str]:
+def _clean_codes(raw: list[str], max_stocks: int = MAX_STOCKS) -> list[str]:
     seen: list[str] = []
     for c in raw or []:
         code = (c or "").strip().upper()
@@ -81,8 +105,8 @@ def _clean_codes(raw: list[str]) -> list[str]:
         if not _CODE_RE.match(code):
             raise HTTPException(422, f"股票代號格式看起來不對:{c!r}")
         seen.append(code)
-        if len(seen) > MAX_STOCKS:
-            raise HTTPException(422, f"最多只能選 {MAX_STOCKS} 檔")
+        if len(seen) > max_stocks:
+            raise HTTPException(422, f"最多只能選 {max_stocks} 檔")
     if not seen:
         raise HTTPException(422, "至少要選 1 檔股票")
     return seen
@@ -170,13 +194,56 @@ def _analyze_one(code: str) -> dict:
     }
 
 
+# 50 檔方案背景批次工作:Render 免費方案只有 1 個 vCPU、序列跑一檔約 18 秒(見下方
+# analyze() 註解實測),50 檔會拉到 15 分鐘——遠超一般 HTTP/瀏覽器逾時,所以改成
+# 背景執行緒跑、前端輪詢進度。單一 process(WEB_CONCURRENCY=1)用記憶體字典即可,
+# 不需要外部佇列;process 重啟(Render 閒置 spin-down)會遺失進行中的工作,屬於
+# 可接受的降級(使用者重新送出即可,分析結果本身不是要保存的資料)。
+_JOBS: dict[str, dict] = {}
+_JOBS_LOCK = threading.Lock()
+_JOB_TTL_SECONDS = 3600   # 超過這麼久沒被輪詢完的工作視為棄置,建立新工作時順手清掉
+
+
+def _prune_old_jobs() -> None:
+    cutoff = time.time() - _JOB_TTL_SECONDS
+    for jid in [j for j, v in _JOBS.items() if v["created_at"] < cutoff]:
+        del _JOBS[jid]
+
+
+def _run_job(job_id: str, codes: list[str]) -> None:
+    for code in codes:
+        result = _analyze_one(code)
+        with _JOBS_LOCK:
+            job = _JOBS.get(job_id)
+            if job is None:   # 被清掉了(理論上不會在 TTL 內發生,防禦性檢查)
+                return
+            job["results"].append(result)
+            job["done"] = len(job["results"])
+    with _JOBS_LOCK:
+        job = _JOBS.get(job_id)
+        if job:
+            job["status"] = "done"
+
+
+def _start_job(codes: list[str]) -> str:
+    job_id = uuid.uuid4().hex
+    with _JOBS_LOCK:
+        _prune_old_jobs()
+        _JOBS[job_id] = {"status": "running", "results": [], "done": 0,
+                         "total": len(codes), "created_at": time.time()}
+    threading.Thread(target=_run_job, args=(job_id, codes), daemon=True).start()
+    return job_id
+
+
 class AnalyzeRequest(BaseModel):
     codes: list[str] = Field(default_factory=list)
+    sku_id: str = SKU_ID
 
 
 class OrderRequest(BaseModel):
     codes: list[str] = Field(default_factory=list)
     email: str = ""
+    sku_id: str = SKU_ID
 
 
 @router.get("/stock-checkup")
@@ -196,25 +263,48 @@ async def analyze(body: AnalyzeRequest):
     不穩定——同樣 3 檔在不同時間點測試,有時 100% 成功,有時全滅,4 檔更明顯反覆
     橫跳(3 成功1失敗 vs 1 成功3失敗)。這代表 CPU 競爭是機率性的 noisy-neighbor
     問題,不是客戶端能穩定調參解決的。付費功能寧可穩定慢(改序列跑,~90 秒/5檔)
-    也不要快但會炸,故改回 max_workers=1(逐檔序列),犧牲速度換正確性。"""
-    codes = _clean_codes(body.codes)
-    with ThreadPoolExecutor(max_workers=1) as ex:
-        results = list(ex.map(_analyze_one, codes))
-    return {"results": results}
+    也不要快但會炸,故改回 max_workers=1(逐檔序列),犧牲速度換正確性。
+
+    09-18 新增 50 檔方案後,同一個「序列跑換正確性」的結論延伸下去,~90秒/5檔
+    ⇒ 50 檔會拉到 15 分鐘,遠超 HTTP/瀏覽器逾時,不能再走同步等待——超過
+    MAX_STOCKS(5)一律改成背景工作,回 202 + job_id,前端改輪詢
+    GET /api/stock-checkup/analyze/{job_id}。5 檔以內(現有 T3 方案)行為不變,
+    不動已經穩定的路徑。"""
+    sku = _sku_info(body.sku_id)
+    codes = _clean_codes(body.codes, sku["max_stocks"])
+    if len(codes) <= MAX_STOCKS:
+        with ThreadPoolExecutor(max_workers=1) as ex:
+            results = list(ex.map(_analyze_one, codes))
+        return {"results": results}
+    job_id = _start_job(codes)
+    return JSONResponse({"job_id": job_id, "total": len(codes)}, status_code=202)
+
+
+@router.get("/api/stock-checkup/analyze/{job_id}")
+async def analyze_status(job_id: str):
+    with _JOBS_LOCK:
+        job = _JOBS.get(job_id)
+        if not job:
+            raise HTTPException(404, "查無此工作,可能已完成太久被清除或伺服器重啟過。")
+        return {"status": job["status"], "done": job["done"], "total": job["total"],
+                "results": list(job["results"])}
 
 
 @router.post("/api/stock-checkup/extract-codes")
-async def extract_codes(file: UploadFile = File(...)):
+async def extract_codes(file: UploadFile = File(...), max_codes: int = Form(MAX_STOCKS)):
     """庫存截圖 → 股票代號清單(prototype,見 vision.py)。前端把回傳的 codes 直接
     填進選股欄位讓使用者確認/修改後才送出分析,不自動跳過去——辨識準確率未知,
-    人工核對一眼比省那幾秒重要(誤判代號會體檢到別檔股票,使用者不會馬上發現)。"""
+    人工核對一眼比省那幾秒重要(誤判代號會體檢到別檔股票,使用者不會馬上發現)。
+    max_codes 由前端依所選方案(5檔/50檔)傳入,夾在 [1, MAX_STOCKS_BULK] 之間,
+    不信任前端傳的數字本身。"""
     data = await file.read()
     if not data:
         raise HTTPException(422, "檔案是空的")
     if len(data) > _MAX_UPLOAD_BYTES:
         raise HTTPException(422, "圖片太大(上限 8MB)")
+    cap = max(1, min(int(max_codes), MAX_STOCKS_BULK))
     try:
-        codes = vision.extract_codes(data, file.content_type or "", MAX_STOCKS)
+        codes = vision.extract_codes(data, file.content_type or "", cap)
     except vision.VisionError as exc:
         raise HTTPException(502, str(exc)) from exc
     if not codes:
@@ -230,51 +320,55 @@ def _save_order(settings, orders: dict, token: str, **patch) -> None:
     save_json_atomic(settings.stock_checkup_orders, orders)
 
 
-def _new_merchant_trade_no() -> str:
+def _new_merchant_trade_no(sku_id: str) -> str:
     """ECPay MerchantTradeNo 限英數字、≤20 字元,不能沿用 token_urlsafe(含 -_)。
-    當作對外(給 ECPay)也對內(訂單字典鍵、給客服的訂單編號)唯一的一組 id。"""
-    return "T3" + secrets.token_hex(7).upper()   # "T3" + 14 hex 字元 = 16 字元
+    當作對外(給 ECPay)也對內(訂單字典鍵、給客服的訂單編號)唯一的一組 id。
+    前綴取自 sku_id(T3/T4),讓客服光看編號就能分辨是哪個方案,不用查訂單檔。"""
+    prefix = sku_id.split("_", 1)[0] or "T3"
+    return prefix + secrets.token_hex(7).upper()
 
 
 @router.post("/api/stock-checkup/order")
 async def create_order(body: OrderRequest, request: Request):
-    codes = _clean_codes(body.codes)
+    sku = _sku_info(body.sku_id)
+    codes = _clean_codes(body.codes, sku["max_stocks"])
     email = (body.email or "").strip()
     if "@" not in email or "." not in email.split("@")[-1]:
         raise HTTPException(422, "email 看起來不對")
 
     settings = request.app.state.settings
-    token = _new_merchant_trade_no()
+    token = _new_merchant_trade_no(body.sku_id)
     orders = load_json(settings.stock_checkup_orders, {})
     orders[token] = {
-        "token": token, "sku_id": SKU_ID, "codes": codes, "email": email,
-        "ntd": PRICE_NTD, "created_at": datetime.now(timezone.utc).isoformat(),
+        "token": token, "sku_id": body.sku_id, "codes": codes, "email": email,
+        "ntd": sku["price_ntd"], "product_name": sku["product_name"],
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "paid": False, "ecpay_trade_no": None,
     }
     save_json_atomic(settings.stock_checkup_orders, orders)
 
     if not settings.public_base_url:
         _save_order(settings, orders, token, error="PUBLIC_BASE_URL 未設定")
-        return {"token": token, "sku_id": SKU_ID, "ntd": PRICE_NTD,
+        return {"token": token, "sku_id": body.sku_id, "ntd": sku["price_ntd"],
                 "checkout_url": None, "checkout_configured": False, "note": _NOT_LISTED_NOTE}
 
     base = settings.public_base_url.rstrip("/")
     try:
         params = ecpay.build_checkout_params(
-            settings, merchant_trade_no=token, amount=PRICE_NTD,
-            item_name=PRODUCT_NAME, trade_desc="量化阿森個股體檢",
+            settings, merchant_trade_no=token, amount=sku["price_ntd"],
+            item_name=sku["product_name"], trade_desc="量化阿森個股體檢",
             return_url=f"{base}/api/stock-checkup/ecpay/notify",
             client_back_url=f"{base}/stock-checkup",
             order_result_url=f"{base}/api/stock-checkup/ecpay/result",
         )
     except ecpay.ECPayError as exc:
         _save_order(settings, orders, token, error=str(exc))
-        return {"token": token, "sku_id": SKU_ID, "ntd": PRICE_NTD,
+        return {"token": token, "sku_id": body.sku_id, "ntd": sku["price_ntd"],
                 "checkout_url": None, "checkout_configured": False, "note": _NOT_LISTED_NOTE}
 
     _save_order(settings, orders, token, ecpay_params=params)
     return {
-        "token": token, "sku_id": SKU_ID, "ntd": PRICE_NTD,
+        "token": token, "sku_id": body.sku_id, "ntd": sku["price_ntd"],
         "checkout_url": f"{base}/api/stock-checkup/ecpay/checkout/{token}",
         "checkout_configured": True,
         "note": f"訂單編號:{token}(若需聯絡客服請附上此編號)",
@@ -352,9 +446,9 @@ async def ecpay_notify(request: Request):
     ev = NormalizedEvent(
         platform="ecpay", kind=EventKind.SALE,
         event_key=f"ecpay:{trade_no}",
-        email=order["email"], name="", product=PRODUCT_NAME,
+        email=order["email"], name="", product=order.get("product_name", PRODUCT_NAME),
         amount=float(order["ntd"]), currency="TWD",
-        order_id=token, sku_id=SKU_ID,
+        order_id=token, sku_id=order.get("sku_id", SKU_ID),
     )
     service.process_event(ev, settings)
     return PlainTextResponse("1|OK")
