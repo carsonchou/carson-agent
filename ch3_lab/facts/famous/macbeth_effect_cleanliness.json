@@ -1,0 +1,30 @@
+{
+ "claim": "Macbeth effect cleanliness",
+ "doi": "https://doi.org/10.3389/fpsyg.2014.01276",
+ "title": "Does cleanliness influence moral judgments? Response effort moderates the effect of cleanliness priming on moral judgments",
+ "year": 2014,
+ "journal": "Frontiers in Psychology",
+ "cited_by": 31,
+ "abstract_chars": 1710,
+ "found": {
+  "n": [
+   {
+    "value": "214",
+    "src": "An online replication (Study 1, N = 214) provided evidence that, when participants exerted low (yet still acceptable) levels of response effort to the experimental material, cleanliness priming led to more lenient moral "
+   },
+   {
+    "value": "440",
+    "src": "An online experiment (Study 2, N = 440; replicated in Study 2a, N = 436) manipulating participants' effort on the priming task (low vs."
+   },
+   {
+    "value": "436",
+    "src": "An online experiment (Study 2, N = 440; replicated in Study 2a, N = 436) manipulating participants' effort on the priming task (low vs."
+   }
+  ],
+  "effect": [],
+  "ci": [],
+  "k": []
+ },
+ "status": "PARTIAL",
+ "abstract": "Whether cleanliness influences moral judgments has recently become a topic of debate in the psychological literature. After the initial report that activating the notion of physical purity can result in less severe moral judgments (Schnall et al., 2008a), a direct replication (Johnson et al., 2014a) with much larger sample sizes failed to yield similar findings. The current paper examines the possibility that only non-conscious activation of the cleanliness concept, as achieved in participants with low response effort on priming materials, can produce the expected effect. An online replication (Study 1, N = 214) provided evidence that, when participants exerted low (yet still acceptable) levels of response effort to the experimental material, cleanliness priming led to more lenient moral judgments than neutral priming. An online experiment (Study 2, N = 440; replicated in Study 2a, N = 436) manipulating participants' effort on the priming task (low vs. high) supported the hypothesized mechanism. Specifically, respondents in the low response effort group were instructed to complete the priming task as quickly as possible without too much attention, and the cleanliness priming resulted in less extreme moral judgments than the neutral condition as expected. In contrast, respondents in the high response effort group were instructed to perform to the best of their ability on the priming task, with a non-significant difference on moral ratings between cleanliness and neutral conditions. In addition to helping resolve the controversy regarding the cleanliness hypothesis, the current paper calls into attention the role of response effort in the execution and replication of priming studies."
+}

@@ -1,0 +1,33 @@
+{
+ "claim": "life-saving interventions would be valued more highly when the number of lives at risk was small than when the number at risk was large",
+ "es_type": "d",
+ "orig": {
+  "n": 54,
+  "es": 0.8,
+  "year": 1997,
+  "title": "Insensitivity to the Value of Human Life: A Study of Psychophysical Numbing",
+  "author": "[{\"given\":\"DAVID\",\"family\":\"FETHERSTONHAUGH\",\"sequence\":\"first\"},{\"given\":\"PAUL\"",
+  "doi": "10.1023/a:1007744326393",
+  "url": ""
+ },
+ "repl": {
+  "n": 723,
+  "es": 0.4,
+  "year": 2021,
+  "title": "Numbing or sensitization? Replications and extensions of Fetherstonhaugh et al. (1997)'s “Insensitivity to the Value of ",
+  "doi": "10.1016/j.jesp.2021.104222",
+  "url": ""
+ },
+ "verdict": "failed",
+ "p_repl": 0.001,
+ "p_type_repl": "l (<)",
+ "p_tails_repl": "",
+ "source": "FORRT Replication Database (FReD), OSF 2tbvd",
+ "record": {
+  "fred_id": "CORE_105",
+  "effect_id": "1870",
+  "prereg": "https://osf.io/786jg/"
+ },
+ "n_ratio": 13.4,
+ "tone": "shrunk_real"
+}

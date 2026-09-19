@@ -1,0 +1,2999 @@
+{
+  "_note": "第五種集型的事實庫:**故事類型不是「又倒了一個」**。2026-08-30 由三組平行 fact agent 從一手 PDF/XML 抽出,每個數字都附逐字原句與位置。任何數字若不在本檔,寫稿端的 audit 會擋下來。",
+  "_why_new_kind": "前四種集型(fred / famous / lineup / domains)講的都是同一個形狀:原始研究說 X,大規模重測說沒有。這八題**每一題的形狀都不一樣** —— 有的是原始分析本身有可證明的偏誤(手感謬誤,修正後結論反過來)、有的是方法倒了但假說活著(咬筆微笑)、有的是原作者親自參與設計仍然沒重現(恐懼管理)、有的是原作者出面說「你們讀錯了」(backfire)、有的是重測做出**更高**的比率然後被重新編碼砍到 4%(假記憶)。這正好是 YPP `inauthentic` 定義裡「模板化、變化極小」的反面,所以敘事多樣性在這裡不是文青堅持,是生存條件。",
+  "_do_not_fill": {
+    "terror_management.in_house_pooled_g": {
+      "why": "ML4 全文從未單獨報 In House 組的整合 g,只給 (a) Table 3 每站個別值 (b) 調節係數 b=0.01。用 0.07 與 0.08 回推是推估不是原文,不准填。 ⚠️ 2026-09-01:我一度把 forbid 填成 [\"0.07\"] —— 錯的。0.07 是**整體**效果量、0.08 是 author advised 組,兩個都合法可講;被禁的是那個算不出來的In House 整合值,它沒有數字可以禁。填錯的後果是守門會誤擋正確內容,而那是比不叫更難發現的壞法(人會把守門關掉)。",
+      "forbid": []
+    },
+    "facial_feedback.coles_total_n": {
+      "why": "Coles 2019 全文沒有報合併總受試人數(只報 98 articles / 138 studies / 286 effect sizes)。網路流傳的『約 11,000 人』驗不到,不准填。",
+      "forbid": [
+        "11,000",
+        "11000"
+      ]
+    },
+    "moral_licensing.trimfill_corrected_d": {
+      "why": "Blanken 2015 沒有報 trim-and-fill 校正後的合併 d,只有圖 2 補了 21 個空心點。不准從圖上讀數。",
+      "forbid": []
+    },
+    "moral_licensing.kuper_total_n": {
+      "why": "Kuper & Bott 2019 沒報總受試人數,只有 k = 76 個效果量。",
+      "forbid": []
+    },
+    "marshmallow_test.behavior_problems_beta": {
+      "why": "Watts 2018 正文只給文字描述,數值在表格右半而 pypdf 抽取欄位錯位。不准做位置配對猜測。",
+      "forbid": []
+    },
+    "false_memory.lp1995_pagination": {
+      "why": "手上是 Loftus 本人放出的作者手稿(自述 close to the final version),頁碼對不上 720-725。不准引頁碼。",
+      "forbid": [
+        "720",
+        "725"
+      ]
+    },
+    "hot_hand.total_shots_2515": {
+      "why": "2,515 是 fact agent 自己加的(23 人 × 100 + 90 + 75 + 50),**不是任何論文的原句**。要用必須標成計算值,或只講「26 名球員」。",
+      "forbid": [
+        "2,515",
+        "2515"
+      ]
+    },
+    "backfire_effect.n_10257": {
+      "why": "10,257 是五個 study 的 N 加總;論文本身只寫 more than 10,100。閘門要求原文字串時用 10,100。",
+      "forbid": [
+        "10,257",
+        "10257"
+      ]
+    }
+  },
+  "_doi_traps": {
+    "10.1080/09658211.2023.2198263": "🔴 已撤稿(重複刊登)。正版是 10.1080/09658211.2023.2198327。兩者標題一字不差,只能靠 DOI 分辨 —— 引錯整支片就完了。OpenAlex 查前者回 is_retracted: True,已獨立複驗。",
+    "10.17605/MP.2018.878": "🔴 Kuper & Bott 那篇 PDF 頁首**印錯自己的 DOI**(17605 是 OSF 前綴)。Crossref/Unpaywall 註冊的是 10.15626/MP.2018.878,打 17605 那串查不到。"
+  },
+  "episodes": [
+    {
+      "slug": "hot_hand",
+      "story_type": "原始分析有偏誤",
+      "story_type_note": "GVT 沒有算錯任何一個數字。他們錯在以為 0 是對的虛無假設。爭議已收斂 —— Miller & Sanjurjo 的論文致謝名單裡就有 Tom Gilovich 本人。",
+      "claim": "the hot hand in basketball is a cognitive illusion — players do not shoot better after a run of hits",
+      "hook": "Basketball's hot hand was called a cognitive illusion for thirty years. The illusion was in the arithmetic.",
+      "original": {
+        "year": 1985,
+        "title": "The hot hand in basketball: On the misperception of random sequences",
+        "journal": "Cognitive Psychology 17(3):295-314",
+        "doi": "10.1016/0010-0285(85)90010-6",
+        "n": 26,
+        "n_word": "players",
+        "quote": "The same conclusions emerged from free-throw records of the Boston Celtics, and from a controlled shooting experiment with the men and women of Cornell's varsity teams. The outcomes of previous shots influenced Cornell players' predictions but not their performance.",
+        "quote_location": "摘要, p.295",
+        "punchline_quote": "The present data demonstrate the operation of a powerful and widely shared cognitive illusion.",
+        "punchline_location": "p.313(已核對 PDF 頁眉)",
+        "cited_by": 1700,
+        "cited_by_source": "OpenAlex, retrieved 2026-08-31",
+        "cited_by_approx": 1600,
+        "cited_by_approx_note": "文案用的「超過 N 次」。取 (真值-1) 無條件捨去到百位,**保證嚴格小於真值** —— 舊版單純捨去,遇到真值剛好是 100 的倍數時(hot hand 的 1700)會產出一個等於真值的『下界』,而旁白唸的是「more than」,那就是假的。"
+      },
+      "test": {
+        "year": 2018,
+        "kind": "reanalysis of the original data",
+        "title": "Surprised by the Hot Hand Fallacy? A Truth in the Law of Small Numbers",
+        "journal": "Econometrica 86(6):2019-2047",
+        "doi": "10.3982/ECTA14943",
+        "n": 26,
+        "es_kind": "percentage_points",
+        "es": 13,
+        "se": 4.7,
+        "p": "<.01",
+        "outcomes": [
+          {
+            "name": "重現 GVT 原始結果(未修正)",
+            "es": 3,
+            "es_kind": "percentage_points",
+            "p": 0.49,
+            "stat": "paired t-test",
+            "is_claim": false,
+            "quote": "As indicated in GVT, players on average hit .49 when on a hit streak, versus .45 when on a miss streak. GVT's paired t-test finds the difference to be statistically indistinguishable from zero, and we replicate this result (p = .49).",
+            "quote_location": "§3.1, p.2026"
+          },
+          {
+            "name": "streak selection bias 的大小",
+            "es": -8,
+            "es_kind": "percentage_points",
+            "p": null,
+            "stat": "解析推導(Theorem 3, Appendix A.4);i.i.d. 隨機球員在 n=100、p=.5 下的期望差",
+            "is_claim": false,
+            "quote": "Under GVT's design target of each player taking n = 100 shots and making half (p = .5) of them, we use the results from Section 2 and Appendix A.4 to find that the expected difference (and the strength of the bias) is -8 percentage points. Therefore, the difference between the average proportion of +4 percentage points observed by GVT is actually +12 percentage points higher than the difference that would be expected from a Bernoulli i.i.d. shooter.",
+            "quote_location": "§3.2, p.2028"
+          },
+          {
+            "name": "偏誤修正後的手感效果",
+            "es": 13,
+            "es_kind": "percentage_points",
+            "p": "<.01",
+            "stat": "bias-adjusted difference in proportions, S.E. = 4.7pp",
+            "is_claim": true,
+            "quote": "With this approach the average difference goes from +3 to a considerable +13 percentage points (p < .01, S.E. = 4.7pp). To put the magnitude of +13 percentage points into perspective, the difference between the median three point shooter and the top three point shooter in the 2015-2016 NBA season was 12 percentage points.",
+            "quote_location": "§3.3, p.2029"
+          }
+        ],
+        "verdict_quote": "The results of our reanalysis of GVT's data lead us to a conclusion that is the opposite of theirs: belief in the hot hand is not a cognitive illusion.",
+        "verdict_location": "§3.5, p.2032",
+        "key_numbers": {
+          "observed_pp_as_reported": 4,
+          "observed_pp_recomputed": 3,
+          "gap_above_random_pp": 12,
+          "bias_pp": -8,
+          "corrected_pp": 13,
+          "_note_for_humans": "4 與 3 的差別見 internal_inconsistency:摘要用 GVT 自報的 .49/.45 相減,Table II 用逐球員資料重算。"
+        },
+        "same_sample": true,
+        "n_word": "players"
+      },
+      "internal_inconsistency": "摘要與 §3.2 講 observed +4 percentage points(GVT 自報的 .49/.45 相減);但 Table II 的 Average 列與 §3.3 講的是 +3(逐球員原始資料重算的精確平均)。兩個都是原句,別混用。安全講法:原始 +3~+4pp、修正後 +13pp。",
+      "n_trap": "GVT 說每人投 100 球,但腳註 4 寫 Three of the players were not able to complete all 100 shots. Miller & Sanjurjo Table II 印出:男子第 4、7、8 號分別是 90、75、50 球,其餘 23 人 100 球。",
+      "extra_material": "Miller & Sanjurjo 對重測研究做同樣修正也同樣翻盤:Avugos et al. 2013a 原始 -2pp → 修正後約 +18pp;Koehler & Conley 2003 修正後 +8pp (p<.01),33 人中 8 人個別顯著。(§3.4)",
+      "citation_trap": "Miller & Sanjurjo 引 GVT「eliminating the effects of shot selection and defensive pressure」時標成 (p. 34),但正式版是 p.304(STUDY 4 開頭)。別跟著抄。",
+      "missing": [],
+      "story_type_short": "the arithmetic was wrong, not the players",
+      "say_twist": "Here is the part it took thirty-three years to notice. The original team did not miscount anything. They compared what the players did against zero — against the idea that a random shooter shows no difference at all. But if you go through a sequence, pick out only the shots that follow three hits, and measure how often those go in, a perfectly random shooter does not come out at zero. He comes out below it. On this design, 8 percentage points below it. So the plus 4 the original study found was not, as everyone read it, about the same as random. It was 12 points above random. Take the bias out, and the average difference goes from plus 3 to plus 13. For scale, the gap between the median three point shooter and the best one in the NBA that season was 12 points.",
+      "say_verdict": "So this is not a study that failed to replicate. The data were fine. The analysis had a bias in it that nobody on either side had spotted, and when you take it out the conclusion turns over. The people who found it wrote: the results of our reanalysis lead us to a conclusion that is the opposite of theirs. Belief in the hot hand is not a cognitive illusion.",
+      "say_spread": "It became the standard example of how badly people read randomness — quoted in behavioural economics, in statistics courses, in every book about cognitive bias.",
+      "timeline": [
+        {
+          "year": 1985,
+          "what": "what the players actually did",
+          "es": 4,
+          "es_kind": "percentage_points",
+          "es_note": "GVT 自報的 .49/.45 相減。Table II 用逐球員資料重算是 +3;兩個都是原句,見 internal_inconsistency。"
+        },
+        {
+          "year": 1985,
+          "what": "read as: no better than random",
+          "es": null
+        },
+        {
+          "year": 2018,
+          "what": "what random actually looks like here",
+          "es": -8,
+          "es_kind": "percentage_points"
+        },
+        {
+          "year": 2018,
+          "what": "the same data, bias removed",
+          "es": 13,
+          "es_kind": "percentage_points"
+        }
+      ],
+      "twist_rows": [
+        {
+          "label": "a random shooter",
+          "what": "scores on this measure",
+          "es": -8,
+          "es_kind": "percentage_points",
+          "cue": "He scores minus 8"
+        },
+        {
+          "label": "the players",
+          "what": "scored",
+          "es": 4,
+          "es_kind": "percentage_points",
+          "cue": "The players scored plus 4"
+        },
+        {
+          "label": "so they are",
+          "what": "ahead of random, not level",
+          "es": 12,
+          "es_kind": "percentage_points",
+          "hot": true,
+          "cue": "that is 12 points ahead"
+        }
+      ],
+      "popular_name": "The hot hand fallacy",
+      "verdict_gloss": "GVT = Gilovich, Vallone and Tversky, the 1985 authors",
+      "reel": {
+        "belief": "Basketball players get hot streaks.",
+        "weight": "For thirty-three years psychology said that was an illusion. The 1985 paper is cited more than 1,600 times.",
+        "turn": "In 2018 somebody checked the arithmetic. If you pick out only the shots that follow a run of hits, a perfectly random shooter does not score zero on that measure. He scores minus 8 percentage points. The players scored plus 4. Against a random shooter that is 12 points ahead, not level.",
+        "verdict": "The bias-adjusted difference is plus 13 percentage points. The illusion was in the arithmetic.",
+        "ask": "Did you ever believe the hot hand was fake?",
+        "captions": {
+          "belief": "you have heard this one",
+          "weight": "so somebody checked",
+          "turn": "what came back"
+        }
+      },
+      "is_prereg": false
+    },
+    {
+      "slug": "hungry_judges",
+      "story_type": "原始分析的識別假設被質疑,但沒有被判定死刑",
+      "story_type_note": "🔴 這集**不能照 hot hand 的講法拍**。兩個質疑方都沒有重測、也都沒拿到新的原始資料:WM&S 是另一批 227 筆 + 訪談,Glöckner 是電腦模擬(連 Danziger 的資料都沒碰)。原作者在同期 PNAS 逐條反駁,原文至今未撤回。正確說法是『識別假設被質疑』,不是『被推翻』。",
+      "claim": "Israeli parole judges grant parole about 65% of the time right after a meal break and almost never right before one",
+      "hook": "A parole board grants about 65% of cases first thing, and almost none just before lunch. Whether it is about lunch is another question.",
+      "original": {
+        "year": 2011,
+        "title": "Extraneous factors in judicial decisions",
+        "journal": "PNAS 108(17):6889-6892",
+        "doi": "10.1073/pnas.1018033108",
+        "n": 1112,
+        "n_word": "judicial rulings",
+        "n_detail": "1,112 筆裁決 / 8 位法官 / 50 天,三個數字別互換。原句:Our data consist of 1,112 judicial rulings, collected over 50 d in a 10-mo period, by eight Jewish-Israeli judges (two females) who preside over two different parole boards",
+        "quote": "We find that the percentage of favorable rulings drops gradually from ~65% to nearly zero within each decision session and returns abruptly to ~65% after a break. Our findings suggest that judicial rulings can be swayed by extraneous variables that should have no bearing on legal decisions.",
+        "quote_location": "摘要, p.6889",
+        "identification_assumption_quote": "Second, the ordinal position of cases is, with rare exception, determined by the arrival time of the prisoner's attorney. The attorneys are sequestered in a room where they are unable to view the proceedings of the board and, therefore, are unaware of any of the rulings of the judge, how many prisoners preceded their client's case, or when and whether the food break occurred.",
+        "identification_assumption_location": "p.6891 —— 這是整個爭議的軸心,一定要放進片子",
+        "approx_warning": "原文三處都帶約等於號 ~65%。片子寫 65% 沒問題,別寫成精確 65.0%。",
+        "panel_warning": "原文明說每個委員會是 one judge, as well as a criminologist and a social worker —— 不是一位法官獨自決定。片子講「法官」要小心。",
+        "cited_by": 1426,
+        "cited_by_source": "OpenAlex, retrieved 2026-08-31",
+        "cited_by_approx": 1400,
+        "cited_by_approx_note": "文案用的「超過 N 次」。取 (真值-1) 無條件捨去到百位,**保證嚴格小於真值** —— 舊版單純捨去,遇到真值剛好是 100 的倍數時(hot hand 的 1700)會產出一個等於真值的『下界』,而旁白唸的是「more than」,那就是假的。",
+        "key_numbers": {
+          "approx_favorable_pct": 65,
+          "judges": 8,
+          "days": 50,
+          "_note_for_humans": "原文三處都帶 ~。畫面寫 65% 可以,不准寫 65.0%。"
+        }
+      },
+      "test": {
+        "year": 2011,
+        "kind": "letter — reanalysis with a different dataset plus interviews",
+        "title": "Overlooked factors in the analysis of parole decisions",
+        "journal": "PNAS 108(42):E833",
+        "doi": "10.1073/pnas.1110910108",
+        "n": 227,
+        "n_detail": "2011 年 6 月、四個假釋委員會其中一個的全部聽證;原註腳明說 do not include information about case ordering",
+        "outcomes": [
+          {
+            "name": "案件順序不是隨機的(核心指控)",
+            "es": null,
+            "es_kind": "MISSING",
+            "p": null,
+            "stat": "訪談 + 12 個開庭日 227 筆裁決",
+            "is_claim": true,
+            "quote": "We examined data provided by the authors and obtained additional data from 12 hearing days (n = 227 decisions). We also interviewed three attorneys, a parole panel judge, and five personnel at Israeli Prison Services and Court Management, learning that case ordering is not random and that several factors contribute to the downward trend in prisoner success between meal breaks. The most important is that the board tries to complete all cases from one prison before it takes a break and to start with another prison after the break. Within each session, unrepresented prisoners usually go last and are less likely to be granted parole than prisoners with attorneys."
+          },
+          {
+            "name": "有無律師的裁准率落差(含延期)",
+            "es": 20,
+            "es_kind": "percentage_points",
+            "p": null,
+            "stat": "35% vs 15%;未報檢定",
+            "is_claim": false,
+            "quote": "Using the same decision rules as Danziger et al., our data indicate that unrepresented prisoners account for about one-third of all cases, but they prevail only 15% of the time, whereas prisoners with counsel prevail at a 35% rate."
+          },
+          {
+            "name": "排除延期案件後的落差",
+            "es": 28,
+            "es_kind": "percentage_points",
+            "p": null,
+            "stat": "67% vs 39%;未報檢定",
+            "is_claim": false,
+            "quote": "Excluding these deferred cases, our data indicate a success rate of 67% for prisoners with counsel and 39% for unrepresented prisoners. Excluding deferrals in the authors' data yields very similar success rates, beginning at about 75% and dropping to 42% at the end of a session."
+          }
+        ],
+        "verdict_quote": "The authors' analysis does not support their conclusion that parole decisions are influenced by legally irrelevant factors. The phenomenon of favorable decisions peaking after a meal break is likely an artifact of the order of case presentation. It is not evidence that meal breaks affect the boards' decisions.",
+        "key_numbers": {
+          "hearing_days": 12,
+          "with_counsel_pct": 35,
+          "without_counsel_pct": 15,
+          "_note_for_humans": "35/15 是含延期案件的版本;排除延期後是 67/39。兩組數字不能混用,片中講的是含延期那組。"
+        },
+        "n_word": "decisions",
+        "same_sample": false
+      },
+      "test2": {
+        "year": 2016,
+        "kind": "simulation",
+        "title": "The irrational hungry judge effect revisited: Simulations reveal that the magnitude of the effect is overestimated",
+        "journal": "Judgment and Decision Making 11(6):601-610",
+        "doi": "10.1017/S1930297500004812",
+        "n": 10000,
+        "n_word": "simulated randomly ordered cases",
+        "outcomes": [
+          {
+            "name": "完全理性的模擬法官也會產生同樣的下滑曲線",
+            "es": 36,
+            "es_kind": "percentage_points",
+            "p": null,
+            "stat": "Weibull 與常態兩種決策時間分布",
+            "is_claim": true,
+            "quote": "With an increasing decision number within a session, the remaining time decreases, causing the downward sloping effect. Since sessions can stop after 1 to 14 decisions, the stopping effect is not only found after case 14, but already to a smaller degree for earlier cases. Hence, the probability can be expected to drop from 36% to zero percent for later rulings.",
+            "quote_location": "p.604"
+          },
+          {
+            "name": "選擇性脫落:裁准案審得比較久,塞不進剩餘時間",
+            "es": 34,
+            "es_kind": "percentage_points",
+            "p": null,
+            "stat": "46% vs 12% 可被納入時段的比例",
+            "is_claim": false,
+            "quote": "only 12% of the favorable cases could still be included in the session, whereas the respective proportion for unfavorable cases is much higher at 46%. Hence, the relative frequency of favorable cases, as compared to all cases, decreases with the time that remains causing selective dropout.",
+            "quote_location": "p.604"
+          },
+          {
+            "name": "光是原作者砍掉每時段最後 5% 資料,就造出人工的下滑",
+            "es": 15,
+            "es_kind": "percentage_points",
+            "p": null,
+            "stat": "模擬(無前瞻假設);原文寫 roughly 15%",
+            "is_claim": false,
+            "quote": "Hence, censoring causes selective dropout of favorable cases even without foresight and artificially induces a downward sloping effect of favorable ruling. The effect was, however, smaller than in the simulations with foresight and caused a drop of roughly 15% only.",
+            "quote_location": "p.606"
+          }
+        ],
+        "verdict_quote": "The simulations show that the seemingly dramatic drop of favorable rulings from 65% to almost 0% towards the end of each session does not conclusively indicate bias or error in judicial decision making. A drop of comparable - although somewhat smaller - magnitude would be produced by a (hypothetical) rational judge who aims to avoid starting work on cases that could not be completed in the time that remains in the current session.",
+        "verdict_location": "p.607",
+        "author_own_limits_quote": "Still, rational time management and selective dropout cannot account for all aspects of the data by DLA. First, the magnitude of the effects reported in the simulations was somewhat smaller than the magnitude of the original effects. This was mainly due to the fact that, second, in the original data the percentage of favorable rulings started at a higher level than in the current simulations (i.e. 65% instead of 45%).",
+        "author_own_limits_quote_2": "the remaining effects of rational time management could be estimated to account for a drop of 15% to 45% only.",
+        "author_own_limits_location": "p.608 —— Glöckner 的立場是『大部分』可被統計假象解釋,不是『全部』;結論句是 the analyses by DLA do not provide conclusive evidence",
+        "key_numbers": {
+          "rational_explains_min_pct": 15,
+          "rational_explains_max_pct": 45,
+          "_note_for_humans": "Glöckner 自己的話:the remaining effects of rational time management could be estimated to account for a drop of 15% to 45% only —— 是區間不是點估計,不准只講其中一端。"
+        }
+      },
+      "original_authors_reply": {
+        "year": 2011,
+        "journal": "PNAS 108(42):E834",
+        "doi": "10.1073/pnas.1112190108",
+        "why_must_air": "平衡起見必須播,而且他們的反駁不弱。",
+        "quotes": [
+          "We recoded our data - including representation as an explanatory variable - and reran all of the regression models presented in our original manuscript... The original results replicate in every analysis; case order and the meal break remain robust predictors of the parole decision.",
+          "We found 39 cases in which an attorney represented two prisoners on the same day (26 in immediate succession) and 4 in which an attorney represented three prisoners on the same day (twice in immediate succession), representing an average of less than one case of shared counsel per day.",
+          "Because Shapard and Weinshall-Margel's dataset did not contain case order, they were unable to run this test."
+        ]
+      },
+      "missing": [
+        "WM&S 2011 全篇沒有報任何 p 值或信賴區間",
+        "Glöckner 2016 的模擬結果沒有 p 值(是模擬不是檢定)",
+        "Danziger 2011 Table 1 的逐項迴歸係數(PMC 網頁排版打散,需要時從 PDF 補)",
+        "Lakens (2017)、Chatziathanasiou (2022) 等後續討論未追"
+      ],
+      "story_type_short": "still an open argument",
+      "say_twist": "Now, this is the point where these videos normally tell you the finding fell over. This one has not, and it matters that I say so. Neither challenge ran the study again. The first one is a letter. They got hold of a different set of hearings and talked to the people in the room, and what they came back with is that the order of cases is not random. Prisoners without a lawyer tend to go last, and they tend to lose. In their data, prisoners with a lawyer succeeded 35 percent of the time and prisoners without one, 15. The second is not data at all. It is a simulation of a completely rational judge who simply avoids starting a case he cannot finish before the break. That judge produces the same falling line. And the original authors answered both, in the same journal, and have not withdrawn anything.",
+      "say_verdict": "So where does that leave it. The original result rests on an assumption stated in the paper — that the order of cases is set by when each prisoner's lawyer turns up, and that nobody in the room can see the schedule. Everything turns on whether that is true, and the people who queried it did not have the case order in their data, so they could not test it directly. Even the simulation's author says his account covers a drop of 15 to 45 percent only, and that the analyses do not provide conclusive evidence. This one is not settled. That is the honest answer, and it is a less satisfying video than the alternative.",
+      "say_spread": "It is the study people reach for whenever they want to say that a decision is not really a decision — quoted in law, in management, in every talk about bias on the bench.",
+      "twist_rows": [
+        {
+          "label": "and they go",
+          "what": "last in the session",
+          "es": null,
+          "hot": true,
+          "cue": "prisoners without a lawyer go last"
+        },
+        {
+          "label": "without one",
+          "what": "prisoners succeeded",
+          "es": 15,
+          "es_kind": "pct",
+          "cue": "they win 15 percent of the time"
+        },
+        {
+          "label": "with a lawyer",
+          "what": "prisoners succeeded",
+          "es": 35,
+          "es_kind": "pct",
+          "cue": "against 35"
+        }
+      ],
+      "popular_name": "The hungry judge effect",
+      "timeline": [
+        {
+          "year": 2011,
+          "what": "the original finding",
+          "es": 65,
+          "es_kind": "pct"
+        },
+        {
+          "year": 2011,
+          "what": "a different set of hearings, and interviews",
+          "es": null
+        },
+        {
+          "year": 2011,
+          "what": "the original authors reply, and do not withdraw",
+          "es": null
+        },
+        {
+          "year": 2016,
+          "what": "a simulated judge, doing nothing wrong",
+          "es": 36,
+          "es_kind": "pct"
+        }
+      ],
+      "reel": {
+        "belief": "Judges go easy on you right after lunch.",
+        "weight": "65 percent granted after a break, almost none before one. Cited more than 1,400 times, in law and in management.",
+        "turn": "Two teams challenged it, and neither ran the study again. One got a different set of hearings and found that case order is not random: prisoners without a lawyer go last, and they win 15 percent of the time against 35. The other simulated a judge doing nothing wrong, and got the same falling line.",
+        "verdict": "The original authors answered both and withdrew nothing. This one is still an argument.",
+        "ask": "Do you think the judges were hungry, or just running late?",
+        "captions": {
+          "belief": "you have heard this one",
+          "weight": "so somebody checked",
+          "turn": "what came back"
+        }
+      },
+      "missing_public": [
+        "Neither paper challenging the original reports a p value or a confidence interval.",
+        "The 2016 paper is a computer simulation, so it has no test statistic to report.",
+        "The original paper's per-factor figures sit in a table the online version scrambles; we did not read them.",
+        "Later commentary papers on this debate, from 2017 and 2022, were not reviewed for this episode."
+      ],
+      "is_prereg": false
+    },
+    {
+      "slug": "facial_feedback",
+      "story_type": "方法倒了,假說還活著",
+      "story_type_note": "🔴 這集的故事不是『表情不影響情緒』,而是『咬筆這個方法倒了』。2022 年模仿表情 0.49、自主擺表情 0.40 都有效,只有咬筆組仍是 0.04。而且原始作者 Fritz Strack 本人是 2022 那篇的共同作者。",
+      "claim": "holding a pen in your teeth makes cartoons funnier than holding it in your lips — your face feeds back into how you feel",
+      "hook": "Seventeen labs killed the pen-in-mouth study. Six years later its author co-signed the paper that saved the idea.",
+      "original": {
+        "year": 1988,
+        "title": "Inhibiting and facilitating conditions of the human smile: A nonobtrusive test of the facial feedback hypothesis",
+        "journal": "Journal of Personality and Social Psychology, 54(5), 768-777",
+        "doi": "10.1037/0022-3514.54.5.768",
+        "n": 92,
+        "n_quote": "Ninety-two male and female undergraduates of the University of Illinois participated in the experiment in partial fulfillment of a course requirement.",
+        "es": 0.82,
+        "es_kind": "raw_diff_10pt_likert",
+        "quote": "Subjects who held the pen with their lips gave the lowest overall ratings (M = 4.32), whereas subjects who held it with their teeth gave the highest ratings (M = 5.14). The ratings for subjects who held the pen in their nondominant hand fell between these two extremes (M = 4.77). The predicted differences were confirmed by a significant linear contrast, t(89) = 1.85, p = .03.",
+        "quote_location": "Study 1 Method/Subjects 與 Results/Funniness ratings",
+        "cited_by": 1810,
+        "cited_by_source": "OpenAlex, retrieved 2026-08-31",
+        "cited_by_approx": 1800,
+        "cited_by_approx_note": "文案用的「超過 N 次」。取 (真值-1) 無條件捨去到百位,**保證嚴格小於真值** —— 舊版單純捨去,遇到真值剛好是 100 的倍數時(hot hand 的 1700)會產出一個等於真值的『下界』,而旁白唸的是「more than」,那就是假的。"
+      },
+      "test": {
+        "year": 2016,
+        "kind": "Registered Replication Report",
+        "title": "Registered Replication Report: Strack, Martin, & Stepper (1988)",
+        "journal": "Perspectives on Psychological Science, 11(6), 917-928",
+        "doi": "10.1177/1745691616674458",
+        "n": 1894,
+        "k": 17,
+        "k_word": "laboratories",
+        "es": 0.03,
+        "es_kind": "raw_diff_10pt_likert",
+        "ci": [
+          -0.11,
+          0.16
+        ],
+        "n_quote": "This RRR featured data from 17 laboratories with a combined total of 1,894 participants included in the analyses.",
+        "outcomes": [
+          {
+            "name": "smile 減 pout 的好笑度差(0-9 Likert)",
+            "es": 0.03,
+            "es_kind": "raw_diff_10pt_likert",
+            "p": null,
+            "stat": "95% CI [-0.11, 0.16]",
+            "is_claim": true,
+            "quote": "The original Strack et al. (1988) study reported a rating difference of 0.82 units on a 10-point Likert scale. Our meta-analysis revealed a rating difference of 0.03 units with a 95% confidence interval ranging from -0.11 to 0.16."
+          },
+          {
+            "name": "17 個實驗室裡方向正確的個數",
+            "es": 0,
+            "es_kind": "count_of_labs_out_of_17",
+            "p": null,
+            "stat": "0/17",
+            "is_claim": false,
+            "quote": "Finally, 0 out of 17 intervals were qualitatively consistent with the facial feedback hypothesis in that they were strictly positive."
+          },
+          {
+            "name": "34 次貝氏檢定支持虛無假設的次數",
+            "es": 33,
+            "es_kind": "count_of_bayes_factors_out_of_34",
+            "p": null,
+            "stat": "33/34",
+            "is_claim": false,
+            "quote": "Furthermore, out of 34 preregistered Bayes factor analyses (i.e., two per laboratory), all but one provided evidence in favor of the null hypothesis."
+          }
+        ],
+        "verdict_quote": "This RRR did not replicate the SMS result and failed to do so in a statistically compelling fashion. Nevertheless, it should be stressed that the RRR results do not invalidate the more general facial feedback hypothesis.",
+        "same_sample": false
+      },
+      "timeline": [
+        {
+          "year": 1988,
+          "what": "the original study, pen in the teeth",
+          "n": 92,
+          "es": 0.82,
+          "doi": "10.1037/0022-3514.54.5.768",
+          "quote": "見 original.quote — t(89) = 1.85, p = .03",
+          "es_kind": "raw_diff_10pt_likert",
+          "what_zh": "原始研究:咬筆組 5.14 vs 含筆組 4.32,差 0.82"
+        },
+        {
+          "year": 2016,
+          "what": "seventeen labs could not find it",
+          "n": 1894,
+          "es": 0.03,
+          "doi": "10.1177/1745691616674458",
+          "quote": "Our meta-analysis revealed a rating difference of 0.03 units with a 95% confidence interval ranging from -0.11 to 0.16.",
+          "es_kind": "raw_diff_10pt_likert",
+          "what_zh": "17 實驗室 RRR:差只有 0.03,信賴區間跨過零,0/17 個實驗室方向正確"
+        },
+        {
+          "year": 2019,
+          "what": "the wider literature, pooled",
+          "n": null,
+          "es": 0.2,
+          "doi": "10.1037/bul0000194",
+          "quote": "Using meta-regression with RVE, the overall size of the effect of facial feedback on self-reported affective experience was d = 0.20, 95% CI [0.14, 0.26], t(137) = 6.42, p = .000000001.",
+          "es_kind": "d",
+          "what_zh": "統合分析:整個表情回饋文獻(不限咬筆)效果顯著但小,d = 0.20;異質性很大"
+        },
+        {
+          "year": 2022,
+          "what": "posing a happy expression, not the pen",
+          "n": 3878,
+          "n_analysed": 1504,
+          "es": 0.31,
+          "doi": "10.1038/s41562-022-01458-9",
+          "quote": "Participants also reported more happiness after posing happy versus neutral expressions (Mdiff = 0.31; 95% CI, (0.21, 0.40); 5.17% scale range; F(1, 24.34) = 39.86; P < 0.001; BF10 = 61.06-102.63.",
+          "es_kind": "raw_diff_7pt_scale",
+          "es_note": "2022 的 0.31 是 7 點量表上的平均差(原文並列 5.17% scale range),跟 1988/2016 的 10 點量表原始差**不是同一把尺** —— 畫面上兩者各自帶單位,不共用刻度。",
+          "what_zh": "Many Smiles 對抗式合作:模仿表情與自主擺表情都有效,但咬筆法仍然是零"
+        }
+      ],
+      "many_smiles_2022": {
+        "doi": "10.1038/s41562-022-01458-9",
+        "n_trap": "🔴 3,878 是收案總數,主分析只有 1,504 人。原句:We stopped data collection when at least 22 research groups had each collected at least 105 participants, totalling 3,878 participants from 26 groups / This left 1,504 participants for the primary analyses. 排除率高的原因:exhibited any awareness of the study hypothesis (46%)。**片子打 3,878 就必須同時打 1,504,否則是誇大。** 另外 19 個國家出自摘要,實驗室是 26 groups(22 個達標)—— 19/26/22 三個數字各有各的意思。",
+        "mimicry": {
+          "es": 0.49,
+          "ci": [
+            0.36,
+            0.61
+          ]
+        },
+        "voluntary": {
+          "es": 0.4,
+          "ci": [
+            0.23,
+            0.56
+          ]
+        },
+        "pen_in_mouth": {
+          "es": 0.04,
+          "ci": [
+            -0.07,
+            0.15
+          ],
+          "quote": "There was moderate support for the null hypothesis in the pen-in-mouth condition (Mdiff = 0.04; 95% CI, (-0.07, 0.15); 0.67% scale range; F(1, 24.74) = 0.57; P = 0.46; BF10 = 0.11-0.17."
+        },
+        "verdict_quote": "Our results do not provide unequivocal evidence of a pen-in-mouth effect. Nonetheless, they do provide strong evidence that other tasks designed to produce partial or full recreations of happy expressions can both modulate and initiate feelings of happiness.",
+        "strack_is_coauthor": true
+      },
+      "coles_2019_trap": {
+        "doi": "10.1037/bul0000194",
+        "internal_inconsistency": "結果段寫 Notably, 20% of these effect sizes came from unpublished sources;討論段寫 Twenty-six percent of effect size estimates in this meta-analysis came from unpublished sources。20% vs 26% 同一篇打架 → **這個數字不要用**。",
+        "publication_bias": "摘要說沒偏誤,但同一篇用 RVE 重跑就有,校正後效果變成零。原句:Contrary to the results produced by the aggregation method, the results of both the PET and PEESE models with robust variance estimates uncovered significant evidence of publication bias, PETrve b1 = 1.11, p = .02; PEESErve b1 = 2.32, p = .01. Furthermore, after controlling for this significant bias, the estimate of the overall effect size did not significantly differ from zero, PETrve d = -0.03, p = .73; PEESErve d = 0.08, p = .09.",
+        "author_own_words": "In the meantime, we cannot reject the possibility of publication bias in the overall facial feedback literature.",
+        "heterogeneity": "T2 = 0.11, I2 = 75.6;只看情緒體驗那半是 d = 0.17, 95% CI [0.11, 0.23]",
+        "cross_source_drift": "2022 那篇引用 2019 時寫成 286 effect sizes from 137 studies,但 2019 原文與摘要都是 138 studies。**以 138 為準。**"
+      },
+      "missing": [
+        "Coles 2019 合併總受試人數(原文只報 98 articles / 138 studies / 286 effect sizes)",
+        "Strack 1988 沒報 Cohen's d,原始效果只有原始單位 0.82,不要硬換算"
+      ],
+      "story_type_short": "the method died, the idea did not",
+      "say_twist": "So the pen is gone. And for six years that was the whole story — one of the most repeated demonstrations in psychology, and 17 labs could not find it. Then look at what happened in 2022. A larger group went back with three different ways of putting a smile on someone's face. Getting people to copy a smiling face: 0.49. Asking them to make the expression themselves: 0.4. And the pen held in the teeth, the version that made the idea famous: 0.04. Still nothing. One of the authors on that paper is the man who ran the 1988 study.",
+      "say_verdict": "So be careful which sentence you take away. The replication report said it themselves: the results do not invalidate the more general facial feedback hypothesis. What fell over was the pen. The 2022 team put it this way — our results do not provide unequivocal evidence of a pen in mouth effect. Nonetheless, they do provide strong evidence that other tasks designed to produce partial or full recreations of happy expressions can both modulate and initiate feelings of happiness.",
+      "say_spread": "It became the textbook demonstration that the body feeds back into the mind.",
+      "twist_rows": [
+        {
+          "label": "2016",
+          "what": "the pen, 17 labs",
+          "es": 0.03,
+          "es_kind": "raw_diff_10pt_likert",
+          "cue": "The difference was 0.03"
+        },
+        {
+          "label": "2022",
+          "what": "copying a smile",
+          "es": 0.49,
+          "es_kind": "raw_diff_7pt_scale",
+          "cue": "Copying a smiling face worked",
+          "display_only": true,
+          "display_only_why": "既有已發布集數。旁白沒有逐字唸這個數值 —— 這一格檢查是 2026-09-09 才加的,**這一列的內容未經改動**,在此只做明示宣告。要不要改旁白是另一件事,不要把這個宣告讀成「已確認沒問題」。"
+        },
+        {
+          "label": "2022",
+          "what": "posing it yourself",
+          "es": 0.4,
+          "es_kind": "raw_diff_7pt_scale",
+          "cue": "Posing it yourself worked",
+          "display_only": true,
+          "display_only_why": "既有已發布集數。旁白沒有逐字唸這個數值 —— 這一格檢查是 2026-09-09 才加的,**這一列的內容未經改動**,在此只做明示宣告。要不要改旁白是另一件事,不要把這個宣告讀成「已確認沒問題」。"
+        },
+        {
+          "label": "2022",
+          "what": "the pen, again",
+          "es": 0.04,
+          "es_kind": "raw_diff_7pt_scale",
+          "hot": true,
+          "cue": "The pen still did nothing",
+          "display_only": true,
+          "display_only_why": "既有已發布集數。旁白沒有逐字唸這個數值 —— 這一格檢查是 2026-09-09 才加的,**這一列的內容未經改動**,在此只做明示宣告。要不要改旁白是另一件事,不要把這個宣告讀成「已確認沒問題」。"
+        }
+      ],
+      "popular_name": "The facial feedback hypothesis",
+      "reel": {
+        "belief": "Holding a pen in your teeth makes things funnier.",
+        "weight": "The idea is that your face feeds back into how you feel. The textbook demonstration, cited more than 1,800 times.",
+        "turn": "In 2016, 17 laboratories ran it on 1,894 people. The difference was 0.03 points on a ten point scale, and 0 of the 17 pointed the right way. Six years later a bigger group tried three ways of making people smile. Copying a smiling face worked. Posing it yourself worked. The pen still did nothing.",
+        "verdict": "The pen died. The idea did not - and the original author co-signed the paper that showed it.",
+        "ask": "The pen, or copying someone's smile - which would you have bet on?",
+        "captions": {
+          "belief": "you have heard this one",
+          "weight": "so somebody checked",
+          "turn": "what came back"
+        }
+      },
+      "missing_public": [
+        "The total number of people in the 2019 review: it counts articles, studies and effect sizes, never people.",
+        "The 1988 pen study never reported a standardised effect size, only a difference on its own rating scale."
+      ],
+      "is_prereg": false
+    },
+    {
+      "slug": "moral_licensing",
+      "story_type": "效果隨樣本變大一路縮水,最後翻到反方向",
+      "story_type_note": "骨架不是『心理學又倒了一個』,而是 0.44 → ηp² .005 → 校正後 0 → 反方向 -0.38。而且打臉的人裡有原作者陣營的合作者(2015 統合分析的作者 Blanken 自己 2014 就先重測失敗過)。",
+      "claim": "doing something good first — proving you are not prejudiced — makes people more willing to express a preference that could look prejudiced",
+      "hook": "Every retest made the sample bigger. Every retest made the effect smaller. The last one made it negative.",
+      "original": {
+        "year": 2001,
+        "title": "Moral credentials and the expression of prejudice",
+        "journal": "Journal of Personality and Social Psychology, 81(1), 33-43",
+        "doi": "10.1037/0022-3514.81.1.33",
+        "n": 132,
+        "n_quote": "One hundred thirty-two Princeton undergraduates (50 men, 82 women) took part in this study for payment or for experimental credit.",
+        "quote": "The only significant effect to emerge was the predicted main effect for credentials, F(l, 124) = 6.3, p < .05, all other Fs ns. As Figure 2 shows, participants were more likely to favor a White man in the credentials condition (M = 4.8) than in the noncredentials condition (M = 4.4).",
+        "study_note": "這是 Study 2(2024 年被直接重測的那個)。Study 1 是 202 人,主效果 F(2, 194) = 4.4, p < .05,但只有男性受試者出現效果。",
+        "cited_by": 1009,
+        "cited_by_source": "OpenAlex, retrieved 2026-08-31",
+        "cited_by_approx": 1000,
+        "cited_by_approx_note": "文案用的「超過 N 次」。取 (真值-1) 無條件捨去到百位,**保證嚴格小於真值** —— 舊版單純捨去,遇到真值剛好是 100 的倍數時(hot hand 的 1700)會產出一個等於真值的『下界』,而旁白唸的是「more than」,那就是假的。"
+      },
+      "test": {
+        "year": 2015,
+        "kind": "meta-analysis",
+        "title": "A Meta-Analytic Review of Moral Licensing",
+        "journal": "Personality and Social Psychology Bulletin, 41(4), 540-558",
+        "doi": "10.1177/0146167215572134",
+        "n": 7397,
+        "k": 91,
+        "k_word": "comparisons",
+        "k_trap": "🔴 91 是**比較數**不是研究篇數。原文:91 comparisons、22 篇已出版/即將出版期刊文章 + 8 份未出版手稿。字卡寫「91 篇研究」會錯。",
+        "es": 0.31,
+        "es_kind": "d",
+        "ci": [
+          0.23,
+          0.38
+        ],
+        "n_quote": "The data set contains 91 different comparisons between a moral licensing and a control condition, with a total of 7,397 participants, reported in 22 published or forthcoming journal articles and 8 unpublished manuscripts.",
+        "outcomes": [
+          {
+            "name": "整體 moral licensing 效果",
+            "es": 0.31,
+            "es_kind": "d",
+            "p": "<.001",
+            "stat": "95% CI [0.23, 0.38], Z = 8.24",
+            "is_claim": true,
+            "quote": "The random-effects meta-analysis (N = 91; 57 published and 34 unpublished studies) produced a mean effect size of moral licensing of d = 0.31 (95% CI [0.23, 0.38]). The null hypothesis H0: mu = 0 was rejected (Z = 8.24, p < .001)"
+          },
+          {
+            "name": "已出版 vs 未出版",
+            "es": 0.43,
+            "es_kind": "d",
+            "p": "<.001",
+            "stat": "published 0.43 (SE .04) vs unpublished 0.11 (SE .06), QM(1) = 20.66",
+            "is_claim": false,
+            "quote": "Article status (published vs. unpublished) turned out to significantly influence the estimated moral licensing effect size, with published studies having larger effects (d = 0.43, SE = 0.04) than unpublished studies (d = 0.11, SE = 0.06), QM(1) = 20.66, p < .001."
+          },
+          {
+            "name": "漏斗圖不對稱檢定(出版偏誤)",
+            "es": null,
+            "es_kind": "Egger-type regression",
+            "p": "<.001",
+            "stat": "t(55) = 5.72;trim-and-fill 補進 21 篇不存在的研究",
+            "is_claim": false,
+            "quote": "The regression test for funnel plot asymmetry using the weighted regression with multiplicative dispersion model showed a significant effect, t(55) = 5.72, p < .001, indicating the presence of a positive publication bias."
+          },
+          {
+            "name": "異質性",
+            "es": null,
+            "es_kind": "tau2/I2/Q",
+            "p": "<.001",
+            "stat": "tau2 = .06 [.03, .11], I2 = 54.58%, Q(90) = 198.17",
+            "is_claim": false,
+            "quote": "The between-study variance is tau2 = .06 (95% CI [.03, .11]) with I2 = 54.58% of the total variation due to heterogeneity among true effects"
+          }
+        ],
+        "verdict_quote": "We tested potential moderators and found that published studies tend to have larger moral licensing effects than unpublished studies. We found no empirical evidence for other moderators that were theorized to be of importance. The effect size estimate implies that studies require many more participants to draw solid conclusions about moral licensing and its possible moderators.",
+        "key_numbers": {
+          "published_d": 0.43,
+          "unpublished_d": 0.11,
+          "trimfill_added_studies": 21
+        },
+        "same_sample": false
+      },
+      "timeline": [
+        {
+          "year": 2001,
+          "what": "the original study",
+          "n": 132,
+          "es": 0.44,
+          "doi": "10.1037/0022-3514.81.1.33",
+          "quote": "The only significant effect to emerge was the predicted main effect for credentials, F(l, 124) = 6.3, p < .05, all other Fs ns.",
+          "es_kind": "d",
+          "es_note": "0.44 是 Xiao 2024 從原文重算的,Monin & Miller 2001 原文沒報 d。",
+          "what_zh": "原始研究 Study 2:先有機會錄取黑人/女性應徵者的人,之後更敢說白人男性比較適合另一份工作"
+        },
+        {
+          "year": 2014,
+          "what": "three replications, none of them worked",
+          "n": 1195,
+          "es": null,
+          "doi": "10.1027/1864-9335/a000189",
+          "quote": "The first two replication attempts (student samples, 95% power based on the initial findings, NStudy1 = 105, NStudy2 = 150), did not confirm the original results. The third replication attempt (MTurk sample, 95% power based on a meta-analysis on self-licensing, N = 940) also did not confirm the moral licensing effect.",
+          "es_kind": null,
+          "what_zh": "三次重測 Sachdeva 2009 的許可證效果,全部沒複製出來(第三次 N=940,依統合分析算到 95% 檢定力)"
+        },
+        {
+          "year": 2016,
+          "what": "3,134 people, the effect much smaller",
+          "n": 3134,
+          "es": null,
+          "es_note": "eta-p2 .043 → .005(⚠️ 這個比值是 partial eta² 上的;換成 d 縮水幅度小得多,所以旁白與畫面都不給倍數)",
+          "doi": "10.1016/j.jesp.2015.10.012",
+          "quote": "In an aggregate analysis of all replication studies (N = 3134), there was a main effect of moral credentials, F(1, 3130) = 17.01, p<.001, eta-p2 = .005, 95% CI = [.001, .012]) such that participants in the \"most\" condition (M = 4.44, SD = 0.94) favored a man more than participants in the \"some\" condition (M = 4.31, SD = 0.83).",
+          "es_kind": null,
+          "what_zh": "Many Labs 3 用 3,134 人重測 Monin & Miller Study 1:主效果還在,但效果量只剩原始的九分之一"
+        },
+        {
+          "year": 2019,
+          "what": "corrected for publication bias",
+          "n": null,
+          "es": -0.05,
+          "doi": "10.15626/MP.2018.878",
+          "quote": "Over all 76 effect sizes, PET-PEESE indicated a significant positive slope for the standard error, beta = 1.36, t(74) = 2.73, p = .008. The intercept, representing the corrected effect size, was not different from zero, beta = -.05, 95% CI [-0.26; 0.16], t(74) = -0.46, p = .64. A 3-PSM (using the weightr R package; Coburn & Vevea, 2017) over all studies indicated a significant corrected effect size of d = 0.18, 95% CI [0.06; 0.29], Z = 3.11, p = .002.",
+          "es_kind": "d",
+          "what_zh": "把統合分析資料重跑並校正出版偏誤:PET-PEESE 校正後效果變成 0(甚至負的),另一種方法只剩 0.18"
+        },
+        {
+          "year": 2024,
+          "what": "a registered replication of the original",
+          "n": 932,
+          "es": -0.38,
+          "doi": "10.5334/irsp.945",
+          "quote": "We observed an opposite signal for the gender scenario and an inconsistent absence of signal for the ethnicity scenario. As such, we found no support for the original findings.",
+          "es_kind": "d",
+          "what_zh": "Registered Report 直接重測 Monin & Miller Study 2:種族情境效果幾乎是零,性別情境是反方向的中等效果"
+        }
+      ],
+      "xiao_2024_table3": {
+        "doi": "10.5334/irsp.945",
+        "original_d": 0.44,
+        "original_ci": [
+          0.09,
+          0.79
+        ],
+        "repl_gender_d": -0.38,
+        "repl_gender_ci": [
+          -0.61,
+          -0.14
+        ],
+        "repl_ethnicity_d": 0.08,
+        "repl_ethnicity_ci": [
+          -0.14,
+          0.3
+        ],
+        "excluded_original_d": 0.59,
+        "excluded_original_ci": [
+          0.2,
+          0.98
+        ],
+        "excluded_gender_d": -0.5,
+        "excluded_gender_ci": [
+          -0.75,
+          -0.24
+        ],
+        "excluded_ethnicity_d": 0.03,
+        "excluded_ethnicity_ci": [
+          -0.23,
+          0.27
+        ],
+        "final_quote": "We could not replicate the original findings."
+      },
+      "traps": [
+        "🔴 Kuper & Bott 的 PDF 頁首印錯自己的 DOI(10.17605/...),註冊的是 10.15626/MP.2018.878。",
+        "🔴 同一個原始研究的 d 在三份來源三個值:Blanken 2015 表 1 編碼成 N=110, d=0.71;Xiao 2024 自己重算是 d=0.59(排除後子樣本);原文根本沒報 d,只有 F(1,124)=6.3 / F(1,102)=9.6。→ 片子要講 d 就只能引 2024 那篇的 0.44 / 0.59,並說明是後人重算的。",
+        "🔴 Blanken 2014 的總人數不要抄二手:原文是 105 + 150 + 940;Kuper & Bott 引成 n = 801,Blanken 2015 表 1 又編碼成 64 / 91 / 567。用原文那組。",
+        "🔴 2016 Many Labs 3 重測的是 Study 1 不是 Study 2,而且它是『成功』的(主效果顯著),只是效果小到 eta-p2 = .005。**只講 2024 失敗、不講 2016 成功,是選擇性呈現。**"
+      ],
+      "missing": [
+        "Blanken 2015 trim-and-fill 校正後的合併 d",
+        "Kuper & Bott 2019 總受試人數",
+        "Many Labs 3 的 d(只報 partial eta squared;流傳的 d = 0.15 是二手轉述,未從 Ebersole 原文驗到)"
+      ],
+      "story_type_short": "the effect shrank every time the sample grew",
+      "say_twist": "The meta-analysis is where it gets uncomfortable, because it answers a question nobody asked it. Split the studies by whether they got published. Published: 0.43. Sitting in a drawer, unpublished: 0.11. The funnel plot test for that asymmetry came back significant, and the correction for it wanted to add 21 studies that do not exist. Then follow the number forward. In 2016, 3,134 people — the effect is still there, and it is a ninth of the size. In 2019 somebody re-ran the whole pile correcting for that publication bias, and the corrected estimate was minus 0.05, which is another way of writing zero. In 2024, a registered replication of the original study, 932 people. Minus 0.38. Not smaller. The other way round.",
+      "say_verdict": "So the shape here is not one study falling over. It is a number that got smaller every single time somebody looked at it with more people, and then changed sign. And the person who ran the first failed replication is one of the authors of the meta-analysis that found the bias. That is what it looks like when a field checks itself. The 2024 team's own sentence: we could not replicate the original findings.",
+      "say_spread": "It became the standard explanation for why people who have just done something good then do something bad.",
+      "twist_rows": [
+        {
+          "label": "published",
+          "what": "studies",
+          "es": 0.43,
+          "es_kind": "d",
+          "cue": "Published studies 0.43"
+        },
+        {
+          "label": "unpublished",
+          "what": "studies, same effect",
+          "es": 0.11,
+          "es_kind": "d",
+          "cue": "unpublished 0.11"
+        },
+        {
+          "label": "2016",
+          "what": "3,134 people",
+          "es": null,
+          "cue": "A 2016 replication on 3,134 people"
+        },
+        {
+          "label": "2019",
+          "what": "corrected for that bias, one method",
+          "es": -0.05,
+          "es_kind": "d",
+          "cue": "Correct for publication bias one way"
+        },
+        {
+          "label": "2024",
+          "what": "registered replication, 932 people",
+          "es": -0.38,
+          "es_kind": "d",
+          "hot": true,
+          "cue": "In 2024 a registered replication"
+        }
+      ],
+      "popular_name": "Moral licensing",
+      "reel": {
+        "belief": "One good deed buys permission to do a bad one.",
+        "weight": "The standard explanation for why good people do shabby things. Cited over 1,000 times.",
+        "turn": "Pooled, the effect is 0.31. Published studies 0.43, unpublished 0.11. A 2016 replication on 3,134 people still found it, much smaller. Correct for publication bias one way: minus 0.05. In 2024 a registered replication: minus 0.38 on one scenario, 0.08 on the other.",
+        "verdict": "Every retest made the sample bigger and the effect smaller. The last one changed sign.",
+        "ask": "Do you catch yourself doing this?",
+        "captions": {
+          "belief": "you have heard this one",
+          "weight": "so somebody checked",
+          "turn": "what came back"
+        }
+      },
+      "bias_correction": {
+        "year": 2019,
+        "title": "Is the evidence for moral licensing/cleansing robust?",
+        "journal": "Meta-Psychology 3",
+        "doi": "10.15626/MP.2018.878",
+        "doi_warning": "🔴 那篇 PDF 頁首印錯自己的 DOI(10.17605 是 OSF 前綴),Crossref 註冊的是 10.15626 —— 用後者。",
+        "es": -0.05,
+        "es_kind": "d",
+        "k": 76,
+        "k_word": "effect sizes",
+        "quote": "Over all 76 effect sizes, PET-PEESE indicated a significant positive slope for the standard error, beta = 1.36, t(74) = 2.73, p = .008. The intercept, representing the corrected effect size, was not different from zero, beta = -.05, 95% CI [-0.26; 0.16], t(74) = -0.46, p = .64."
+      },
+      "missing_public": [
+        "The bias-corrected pooled effect in the 2015 review: the paper shows it only on a chart, never as a number.",
+        "The total number of people in the 2019 review: it reports only how many effects it pooled.",
+        "The 2016 multi-lab replication reports a different statistic; the effect size quoted elsewhere for it is second-hand.",
+        "The 2019 paper corrects for publication bias more than one way; we could only read the figure for one of them first-hand."
+      ],
+      "is_prereg": false
+    },
+    {
+      "slug": "terror_management",
+      "story_type": "原作者親自參與設計,仍然沒重現",
+      "story_type_note": "這集的賣點在原文裡完全站得住:讓原作者親自設計協議,效果量從 0.07 只變成 0.08,而原始效果是 d = 1.34。",
+      "claim": "reminding people of their own death makes them defend their worldview harder — praising authors of their own country, disparaging critics",
+      "hook": "They let the original authors design the replication themselves. The effect went from 1.34 to 0.08.",
+      "original": {
+        "year": 1994,
+        "title": "Role of consciousness and accessibility of death-related thoughts in mortality salience effects",
+        "journal": "Journal of Personality and Social Psychology, 67(4), 627-637",
+        "doi": "10.1037/0022-3514.67.4.627",
+        "n": 59,
+        "es": 1.34,
+        "es_kind": "d",
+        "quote": "In the original study, a total of 59 introductory psychology students in the United States were randomly assigned between five conditions.",
+        "effect_quote": "A pairwise comparison revealed that participants in the \"subtle own death salient\" condition showed a greater preference for the pro-American author than for the anti-American author (Mean Diff = 12.25). This was compared to participants in the \"TV salient\" (control) condition (Mean Diff = 1.64), t(53) = 4.87, p < .001, Cohen's d = 1.34 (Greenberg et al., 1994).",
+        "source_warning": "🔴 這兩句出自 ML4 對原始研究的描述(ML4 p.2-3),**不是 JPSP 原文**。JPSP 1994 非開放取用(Unpaywall is_oa=false),一手 PDF 沒拿到。",
+        "cited_by": 884,
+        "cited_by_source": "OpenAlex, retrieved 2026-08-31",
+        "cited_by_approx": 800,
+        "cited_by_approx_note": "文案用的「超過 N 次」。取 (真值-1) 無條件捨去到百位,**保證嚴格小於真值** —— 舊版單純捨去,遇到真值剛好是 100 的倍數時(hot hand 的 1700)會產出一個等於真值的『下界』,而旁白唸的是「more than」,那就是假的。"
+      },
+      "test": {
+        "year": 2022,
+        "kind": "many-labs replication",
+        "title": "Many Labs 4: Failure to Replicate Mortality Salience Effect With and Without Original Author Involvement",
+        "journal": "Collabra: Psychology, 8(1), 35271",
+        "doi": "10.1525/collabra.35271",
+        "year_warning": "🔴 常被寫成 Klein et al. 2019 —— 那是 PsyArXiv 預印本(10.31234/osf.io/vef2c),**正式出版是 2022 年**。",
+        "n": 1550,
+        "k": 17,
+        "k_word": "laboratories",
+        "es": 0.07,
+        "es_kind": "g",
+        "ci": [
+          -0.03,
+          0.17
+        ],
+        "p": 0.187,
+        "outcomes": [
+          {
+            "name": "全體 17 labs 隨機效果整合(Exclusion Set 1,主要分析)",
+            "es": 0.07,
+            "es_kind": "g",
+            "p": 0.187,
+            "stat": "95% CI [-0.03, 0.17], SE = 0.05, Z = 1.32",
+            "is_claim": true,
+            "quote": "Regardless of which exclusion criteria were used, we did not observe the predicted effect, and the confidence interval was quite narrow: Exclusion Set 1: Hedges' g = 0.07, 95% CI = [-0.03, 0.17], SE = 0.05, Z = 1.32, p = .187."
+          },
+          {
+            "name": "有原作者參與組(Author Advised,7 labs, n=699)",
+            "es": 0.08,
+            "es_kind": "g",
+            "p": 0.292,
+            "stat": "95% CI [-0.07, 0.23], SE = 0.08, Z = 1.05",
+            "is_claim": true,
+            "quote": "To provide a test of the replicability and average effect size of TMT under ideal circumstances, one could focus only on the effect size within author-advised protocols. Effect sizes are descriptively larger among these sites but still not statistically significant. Exclusion rule 1: Hedges' g = 0.08, 95% CI = [-0.07, 0.23], SE = 0.08, Z = 1.05, p = .292;"
+          },
+          {
+            "name": "兩組差異(protocol version 作為調節變項)",
+            "es": 0.01,
+            "es_kind": "meta_regression_b",
+            "p": 0.842,
+            "stat": "95% CI [-0.09, 0.11], SE = 0.05, Z = 0.20",
+            "is_claim": true,
+            "quote": "Critically, protocol version did not significantly predict replication effect size regardless of which exclusion criteria were used. Exclusion Set 1: b = 0.01, 95% CI = [-0.09, 0.11], SE = 0.05, Z = 0.20, p = .842; The Author Advised version did not produce significantly larger effect sizes when compared with the In House versions."
+          },
+          {
+            "name": "只看自稱對 TMT 懂很多的 5 個實驗室",
+            "es": 0.02,
+            "es_kind": "g",
+            "p": 0.843,
+            "stat": "95% CI [-0.18, 0.23], SE = 0.10, Z = 0.20",
+            "is_claim": false,
+            "quote": "However, in all exclusion sets, when restricting analyses to these five sites, results were not statistically significant: Exclusion rule 1: Hedges' g = 0.02, 95% CI = [-0.18, 0.23], SE = 0.10, Z = 0.20, p = .843;"
+          }
+        ],
+        "verdict_quote": "With 17 labs contributing usable data from 1,550 participants, we observed little evidence that priming mortality salience increased worldview defense compared to a control condition. We intended to use this paradigm to evaluate whether experts advising on the research protocol would increase effect sizes and overall replication success compared to independent In House replication attempts. However, neither the Author Advised nor In House protocols successfully replicated the original finding.",
+        "verdict_quote_2": "It could be that changes in history have substantially altered the observability of the effect (original d = 1.34; replication d ranged from 0.07 to 0.13 in the confirmatory tests).",
+        "author_own_summary": "we find little support for this key finding of TMT.",
+        "key_numbers": {
+          "author_advised_labs": 7,
+          "author_advised_n": 699,
+          "in_house_labs": 10,
+          "in_house_n": 851
+        },
+        "same_sample": false
+      },
+      "internal_inconsistency": "🔴 摘要與 Discussion 都寫 1,550 人,但正文 Research Question 1 那段寫 17 labs with 1,578 participants (after exclusions)。Table 1 的 17 站 N 逐一加總 = 1,550(AA 7 站 = 699、IH 10 站 = 851,兩者也對得起來)。**1,578 是筆誤,用 1,550。**",
+      "n_trap": "🔴 『21 labs / 2,281 人』是招募總數不是分析樣本(網路摘要常混用)。原句:Twenty-one labs from 18 universities participated in the project and collected data from a total of 2,281 participants. 扣掉 4 個沒收滿 60 人的站等排除後,才是 17 labs / 1,550 人。",
+      "missing": [
+        "In House 組單獨的整合效果量(g)—— 論文全文從未單獨報,只給 Table 3 每站個別值與調節係數 b=0.01"
+      ],
+      "story_type_short": "the original authors helped, and it still failed",
+      "say_twist": "Here is what makes this one different from every other failed replication you have heard about. The usual defence, when a result does not come back, is that the replicators did it wrong. They did not understand the paradigm. They changed something that mattered. So this time they removed that defence in advance. 7 of the labs, 699 people, ran a protocol the original authors themselves advised on. The other 10 labs, 851 people, wrote their own. The author advised version: 0.08. And the difference between the two approaches was 0.01, which is not a difference. The original effect was 1.34.",
+      "say_verdict": "So the effect did not come back, and it did not come back under the conditions its own authors specified. That closes off the easy explanation. The paper's own summary: neither the author advised nor the in house protocols successfully replicated the original finding. And a sentence from the authors that is worth sitting with — it could be that changes in history have substantially altered the observability of the effect.",
+      "say_spread": "It became the foundation of a whole research programme about what the fear of death does to politics, prejudice and belief.",
+      "twist_rows": [
+        {
+          "label": "1994",
+          "what": "the original effect",
+          "es": 1.34,
+          "es_kind": "d",
+          "cue": "@start"
+        },
+        {
+          "label": "author advised",
+          "what": "7 labs, 699 people",
+          "es": 0.08,
+          "es_kind": "g",
+          "hot": true,
+          "cue": "So this time 7 of the labs"
+        },
+        {
+          "label": "in house",
+          "what": "10 labs, 851 people",
+          "es": null,
+          "cue": "The labs left to themselves"
+        },
+        {
+          "label": "difference",
+          "what": "between the two",
+          "es": 0.01,
+          "es_kind": "meta_regression_b",
+          "cue": "differed by 0.01"
+        }
+      ],
+      "popular_name": "Terror management theory",
+      "verdict_gloss": "TMT = terror management theory",
+      "timeline": [
+        {
+          "year": 1994,
+          "what": "the original study, 59 students",
+          "es": 1.34,
+          "es_kind": "d"
+        },
+        {
+          "year": 2022,
+          "what": "ten labs, writing their own protocol",
+          "es": null
+        },
+        {
+          "year": 2022,
+          "what": "seven labs, advised by the original authors",
+          "es": 0.08,
+          "es_kind": "g"
+        },
+        {
+          "year": 2022,
+          "what": "all of them together",
+          "es": 0.07,
+          "es_kind": "g"
+        }
+      ],
+      "verdict_display": "However, neither the Author Advised nor In House protocols successfully replicated the original finding.",
+      "reel": {
+        "belief": "Reminding people of death makes them defend their beliefs harder.",
+        "weight": "A whole research programme about fear, politics and prejudice is built on it. The replication team put the original effect at 1.34.",
+        "turn": "The usual defence when a result does not come back is that the replicators did it wrong. So this time 7 of the labs ran a protocol the original authors advised on. Those labs got 0.08. The labs left to themselves differed by 0.01, which is not a difference.",
+        "verdict": "They let the original authors help design it, and it still did not come back.",
+        "ask": "Does being reminded of death change how you argue?",
+        "captions": {
+          "belief": "you have heard this one",
+          "weight": "so somebody checked",
+          "turn": "what came back"
+        }
+      },
+      "missing_public": [
+        "The pooled effect for the labs that ran it without the original authors: the paper never reports one separately."
+      ],
+      "is_prereg": false
+    },
+    {
+      "slug": "backfire_effect",
+      "story_type": "原作者出面說『你們讀錯了』",
+      "story_type_note": "🔴 Nyhan 2021 **沒有**說原始結果是錯的。他說的是:五個實驗裡只有兩個看到 backfire、後來的文獻不支持用 backfire 解釋錯誤信念為什麼難消、媒體把它擴大成『所有更正都有反效果』而他們的資料沒說這個。這比『原作者被推翻』誠實得多也更好看。",
+      "claim": "correcting a false belief makes people believe it more — the correction backfires",
+      "hook": "The backfire effect is the reason people say facts do not work. Its author spent the last five years saying that is not what he found.",
+      "original": {
+        "year": 2010,
+        "title": "When Corrections Fail: The Persistence of Political Misperceptions",
+        "journal": "Political Behavior, 32(2), 303-330",
+        "doi": "10.1007/s11109-010-9112-2",
+        "n": 327,
+        "n_breakdown": "Study 1 (2005 秋) N = 130;Study 2 (2006 春) N = 197。全部是中西部一所天主教大學的大學生。",
+        "quote": "The experiments we present in this paper were all conducted in an online survey environment with undergraduates at a Catholic university in the Midwest.",
+        "quote_n1": "130 participants were randomly assigned to one of four treatments in a 2 (correction condition) x 2 (mortality salience) design.",
+        "quote_n2": "197 respondents participated in [Study 2].",
+        "effect_quote": "But most importantly, the effect of the correction for individuals who placed themselves to the right of center ideologically is statistically significant and positive. In other words, the correction backfired - conservatives who received a correction telling them that Iraq did not have WMD were more likely to believe that Iraq had WMD than those in the control condition.",
+        "raw_data_quote": "The percentage of conservatives agreeing with the statement that Iraq had weapons of mass destruction before the US invasion increased from 32% in the control condition to 64% in the correction condition (n = 33). By contrast, for non-conservatives, agreement went from 22% to 13% (n = 97).",
+        "source_warning": "🔴 出自作者自存 PDF(sites.dartmouth.edu 最終稿),非 Springer 出版版(is_oa=false,403)。**頁碼不可引用。** N=130 / N=197 / 32%→64% 三個數字有 Nyhan 2021 PNAS 獨立交叉佐證。",
+        "key_numbers": {
+          "conservatives_control_pct": 32,
+          "conservatives_corrected_pct": 64,
+          "experiments_in_paper": 5,
+          "experiments_showing_backfire": 2
+        },
+        "cited_by": 3218,
+        "cited_by_source": "OpenAlex, retrieved 2026-08-31",
+        "cited_by_approx": 3200,
+        "cited_by_approx_note": "文案用的「超過 N 次」。取 (真值-1) 無條件捨去到百位,**保證嚴格小於真值** —— 舊版單純捨去,遇到真值剛好是 100 的倍數時(hot hand 的 1700)會產出一個等於真值的『下界』,而旁白唸的是「more than」,那就是假的。"
+      },
+      "test": {
+        "year": 2019,
+        "kind": "large-scale replication and extension",
+        "title": "The Elusive Backfire Effect: Mass Attitudes' Steadfast Factual Adherence",
+        "journal": "Political Behavior, 41, 135-163",
+        "doi": "10.1007/s11109-018-9443-y",
+        "n": 10100,
+        "n_is_floor": true,
+        "n_sum_note": "五個 study 加總 10,257(3,127 / 2,801 / 977 / 1,333 / 995 + 1,024);論文原文只寫 more than 10,100。閘門要求原文字串時用 10,100。",
+        "k": 52,
+        "k_word": "issues",
+        "outcomes": [
+          {
+            "name": "全體五個實驗、52 個議題",
+            "es": 0,
+            "es_kind": "count_of_backfire_effects",
+            "p": null,
+            "stat": "0 個議題出現 backfire",
+            "is_claim": true,
+            "quote": "The present paper presents results from five experiments in which we enrolled more than 10,100 subjects and tested 52 issues of potential backfire. Across all experiments, we found no corrections capable of triggering backfire, despite testing precisely the kinds of polarized issues where backfire should be expected."
+          },
+          {
+            "name": "Study 1(8 個高度意識形態化議題,n=3,127)",
+            "es": 0,
+            "es_kind": "count_of_groups_moving_backwards",
+            "p": null,
+            "stat": "沒有任何意識形態群體往反方向移動",
+            "is_claim": true,
+            "quote": "For each issue, the average corrected subject increased their agreement with the facts. No ideological group exposed to the correction moved in the opposite direction; that is, no group demonstrated backfire."
+          },
+          {
+            "name": "直接複製原始 WMD 題目(Study 3, n=977)",
+            "es": null,
+            "es_kind": "conditional",
+            "p": null,
+            "stat": "用原題目=無反應(部分重現原結果);換簡單題目=自由派接受更正",
+            "is_claim": true,
+            "quote": "The WMD survey item to which subjects were exposed strongly conditioned their level of factual backfire. All respondents presented with Nyhan and Reifler's version ignored the empirical correction, inferring nothing from the factual intervention (partially replicating the original finding.) Liberals presented with our simpler survey item adopted the factual correction."
+          },
+          {
+            "name": "Study 4:題目複雜度 18 種組合(n=1,333)",
+            "es": 0,
+            "es_kind": "count",
+            "p": null,
+            "stat": "18 種組合中 0 個出現 backfire",
+            "is_claim": false,
+            "quote": "Among the 18 combinations of survey item complexity and corrections, no backfire was observed."
+          },
+          {
+            "name": "整體命中率",
+            "es": 0.9,
+            "es_kind": "proportion_of_issues_improved",
+            "p": null,
+            "stat": "約十分之九",
+            "is_claim": true,
+            "quote": "Far from it: for about nine issues in ten, factual information significantly improves the average respondent's accuracy. At least for a brief moment, their perceptual screens dim, and the facts prevail."
+          }
+        ],
+        "verdict_quote": "We find that backfire is stubbornly difficult to induce, and is thus unlikely to be a characteristic of the public's relationship to factual information. Overwhelmingly, when presented with factual information that corrects politicians - even when the politician is an ally - the average subject accedes to the correction and distances himself from the inaccurate claim.",
+        "same_sample": false
+      },
+      "author_recantation": {
+        "who": "Brendan Nyhan(原作者第一作者)",
+        "year": 2021,
+        "title": "Why the backfire effect does not explain the durability of political misperceptions",
+        "journal": "PNAS, 118(15), e1912440117",
+        "doi": "10.1073/pnas.1912440117",
+        "quotes": [
+          "In two of the five studies that we conducted, we observed what we called a \"backfire effect\" in which correction exposure actually increased belief in the targeted misperception among groups that were predisposed to believe the claim. As I show below, these results were frequently interpreted as the primary explanation for why misperceptions are so persistent.",
+          "However, the scientific literature - including subsequent research that Reifler and I have conducted - does not support the interpretation that backfire effects explain the prevalence and durability of misperceptions.",
+          "In the years since the study's publication, the results have frequently been misinterpreted as showing that that all corrections are counterproductive or that backfire effects are the primary cause of the persistence of misperceptions (our findings do not support either claim).",
+          "Our initial backfire study has often been interpreted to mean that these effects are widespread. However, subsequent research suggests that backfire effects are extremely rare in practice. Most notably, an extensive replication and extension study conducted by other researchers found that no evidence of backfire effects in response to corrective information across numerous experiments.",
+          "Given these realities, the primary challenge for scientific communication is not to prevent backfire effects but instead, to understand how to target corrective information better and to make it more effective."
+        ]
+      },
+      "counting_trap": "🔴 『五個實驗』vs『兩個 study』是同一件事。2010 論文結構是 Study 1(WMD)+ Study 2(內含 WMD 第二版、減稅、幹細胞三個子實驗)= 共五個實驗。Nyhan 2021 用 five experiments 計數,2010 論文用 Study 1 / Study 2 計數。**backfire 只出現在其中兩個。**",
+      "nuance": "Wood & Porter 並不是『原始結果完全是假的』—— 他們用**原始題目**去測時,確實部分重現了原結果(所有人都對更正無反應);backfire 消失的關鍵是**題目寫法**。",
+      "missing": [],
+      "story_type_short": "the author says you read it wrong",
+      "say_twist": "You have almost certainly heard the conclusion from this study, even if you have never heard the study. It is the reason people say facts do not work, that you cannot argue anybody out of anything. So here is the thing that gets left out. That paper contains 5 experiments. Backfire showed up in 2 of them. And in 2021, the author who ran it wrote a paper in order to say so. His words: the results have frequently been misinterpreted as showing that all corrections are counterproductive, or that backfire effects are the primary cause of the persistence of misperceptions. Our findings do not support either claim.",
+      "say_verdict": "So what actually survives is smaller and more useful than the version that travelled. Corrections mostly work — in about nine issues out of ten the average person moves toward the facts. And notice what the replication did not find. When they used the original wording, nobody moved, which partly reproduces the original result. What killed backfire was rewriting the question. The author's own conclusion in 2021: the primary challenge is not to prevent backfire effects, but to understand how to target corrective information better and make it more effective.",
+      "say_spread": "It became the reason people say facts do not work.",
+      "twist_rows": [
+        {
+          "label": "in the paper",
+          "what": "experiments",
+          "es": 5,
+          "es_kind": "count",
+          "cue": "That paper ran 5 experiments"
+        },
+        {
+          "label": "showing",
+          "what": "backfire",
+          "es": 2,
+          "es_kind": "count",
+          "cue": "Backfire showed up in 2 of them"
+        },
+        {
+          "label": "2019",
+          "what": "issues retested on more than 10,100 people",
+          "es": 52,
+          "es_kind": "count",
+          "cue": "In 2019 another team tested 52 issues"
+        },
+        {
+          "label": "showing",
+          "what": "backfire",
+          "es": 0,
+          "es_kind": "count",
+          "hot": true,
+          "cue": "could not produce it once"
+        }
+      ],
+      "popular_name": "The backfire effect",
+      "timeline": [
+        {
+          "year": 2010,
+          "what": "conservatives in the control group",
+          "es": 32,
+          "es_kind": "pct"
+        },
+        {
+          "year": 2010,
+          "what": "a different group, given the correction",
+          "es": 64,
+          "es_kind": "pct"
+        },
+        {
+          "year": 2019,
+          "what": "issues retested for backfire",
+          "es": 52,
+          "es_kind": "count"
+        },
+        {
+          "year": 2019,
+          "what": "issues that actually backfired",
+          "es": 0,
+          "es_kind": "count"
+        },
+        {
+          "year": 2021,
+          "what": "the original author writes it up again",
+          "es": null
+        }
+      ],
+      "reel": {
+        "belief": "Correcting someone makes them believe the wrong thing harder.",
+        "weight": "It is the reason people say facts do not work. The 2010 paper is cited more than 3,200 times.",
+        "turn": "That paper ran 5 experiments. Backfire showed up in 2 of them. In 2019 another team tested 52 issues on more than 10,100 people and could not produce it once. For about nine issues in ten, the correction worked.",
+        "verdict": "In 2021 the original author published a paper to say he had been misread.",
+        "ask": "Have you ever used this study to give up on an argument?",
+        "captions": {
+          "belief": "you have heard this one",
+          "weight": "so somebody checked",
+          "turn": "what came back"
+        }
+      },
+      "missing_public": [
+        "Nothing missing for this episode."
+      ],
+      "is_prereg": false
+    },
+    {
+      "slug": "false_memory",
+      "story_type": "重測做出更高的比率,然後被重新編碼砍到 4%",
+      "story_type_note": "這集罕見地是『重測成功了、而且成功得更多』,爭議發生在**怎麼算**才算一個假記憶。35% / 17% / 11% / 4% 全部出自同一批資料。",
+      "claim": "psychologists can implant a memory of being lost in a shopping mall as a child — something that never happened",
+      "hook": "The lost-in-the-mall study was replicated, and the number came back higher. Then somebody asked what counts as a memory.",
+      "original": {
+        "year": 1995,
+        "title": "The Formation of False Memories",
+        "journal": "Psychiatric Annals 25(12):720-725",
+        "doi": "10.3928/0048-5713-19951201-07",
+        "n": 24,
+        "es": 25,
+        "es_kind": "pct",
+        "quote": "The 24 subjects were asked to remember a total of 72 true events, and succeeded in remembering something about 49 these 72 true events. Put another way, 68% of the true events were remembered. In the booklet, 7 of the 24 subjects \"remembered\" the false event, either fully or partially. The partial memories included remembering parts of the event and speculations about how and when it might have happened. During the first interview, one subject decided she did not remember, leaving 6 of the 24 (25%) claiming to remember, fully or partially. This same percentage held for the second interview.",
+        "quote_location": "Results 節,作者手稿版",
+        "counting_trap": "🔴 7/24 和 6/24(25%)兩個都對但屬**不同階段**:7/24 是最初書面問卷(booklet),第一次面談有一人反悔 → 定案 6/24 = 25%,第二次面談維持。外界通用的『原始 25%』是 6/24 而非 7/24(=29%)。Murphy 摘要寫 compared to 25% in the original study、Wade 也寫 25% (Loftus and Pickrell 1995),三方一致。**7/24 目前只有作者手稿一個來源,片中建議只講 25%。**",
+        "cited_by": 1123,
+        "cited_by_source": "OpenAlex, retrieved 2026-08-31",
+        "cited_by_approx": 1100,
+        "cited_by_approx_note": "文案用的「超過 N 次」。取 (真值-1) 無條件捨去到百位,**保證嚴格小於真值** —— 舊版單純捨去,遇到真值剛好是 100 的倍數時(hot hand 的 1700)會產出一個等於真值的『下界』,而旁白唸的是「more than」,那就是假的。"
+      },
+      "test": {
+        "year": 2023,
+        "kind": "preregistered replication and extension",
+        "title": "Lost in the mall again: a preregistered replication and extension of Loftus & Pickrell (1995)",
+        "journal": "Memory 31(6):818-830",
+        "doi": "10.1080/09658211.2023.2198327",
+        "doi_warning": "🔴 **不要用 10.1080/09658211.2023.2198263** —— 那是因重複刊登被撤稿的孿生 DOI,標題一字不差。OpenAlex 對前者回 is_retracted: True。",
+        "n": 123,
+        "k": 1,
+        "es": 35,
+        "es_kind": "pct",
+        "outcomes": [
+          {
+            "name": "investigator-coded false memory rate(重測主結果)",
+            "es": 35,
+            "es_kind": "pct",
+            "p": null,
+            "stat": "43/123 = 35.0%",
+            "is_claim": true,
+            "quote": "We replicated the findings of the original study, coding 35% of participants as reporting a false memory for getting lost in a mall in childhood (compared to 25% in the original study).",
+            "quote_source": "Murphy et al. 2023 摘要(出版社供稿,PubMed PMID 37017540)"
+          },
+          {
+            "name": "拆解:8% full + 27% partial",
+            "es": 35,
+            "es_kind": "pct",
+            "p": null,
+            "stat": "8% full, 27% partial",
+            "is_claim": false,
+            "quote": "the authors reported a false memory rate of 35% (10% higher than Loftus and Pickrell) comprising 8% full and 27% partial false memories.",
+            "quote_source": "Andrews & Brewin 2024 引言"
+          },
+          {
+            "name": "參與者自陳記得(非研究者判定)",
+            "es": 14,
+            "es_kind": "pct",
+            "p": null,
+            "stat": "14%",
+            "is_claim": false,
+            "quote": "Fewer participants self-reported remembering the event (14%), consistent with other findings",
+            "quote_source": "Andrews & Brewin 2024 引言"
+          },
+          {
+            "name": "A&B 逐層扣除(三層)",
+            "es": 4,
+            "es_kind": "pct",
+            "p": null,
+            "stat": "35% → 17% → 11% → 4%",
+            "is_claim": true,
+            "quote": "As noted, the logic of the design requires that the event has not previously happened. If in this study the headline number of 43 false memories therefore has subtracted from it the 22 participants with potentially true events, the rate is reduced from 35% to 17% of the full sample. Logic also requires that there must be a memory of being lost. If from the remainder the 7 participants with no recall (explicit or uncertain) of being lost in the fake situation are subtracted, the rate is 11%. Finally, for the sake of legal relevance, it is essential that participants acknowledge a memory of the fake event: If from the remainder the nine with no memory of the fake event on the self-report measure are subtracted, the rate is 4%.",
+            "quote_source": "Andrews & Brewin 2024, Discussion, Applied Cognitive Psychology 38:e70012, doi 10.1002/acp.70012, open access",
+            "arithmetic_check": "用 123 反算:43-22=21 → 17.1%;21-7=14 → 11.4%;14-9=5 → 4.1%。A&B 內部一致。"
+          }
+        ],
+        "verdict_quote": "Finally, whether the false memory rate in Murphy et al.'s (2023) data is 4%, or 35%, or somewhere in between, the findings are important.",
+        "verdict_source": "Wade, Riesthuis, Bücken, Otgaar & Loftus 2025, Applied Cognitive Psychology 39:e70028, doi 10.1002/acp.70028, open access",
+        "key_numbers": {
+          "coded_false_memories": 43,
+          "with_possibly_true_events": 22,
+          "no_recall_of_being_lost": 7,
+          "no_self_reported_memory": 9,
+          "rate_after_first_deduction": 17,
+          "rate_after_second_deduction": 11,
+          "rate_after_third_deduction": 4,
+          "self_reported_pct": 14
+        },
+        "same_sample": false
+      },
+      "closing_quote": {
+        "note": "Wade 把四個數字並列,很適合當片尾",
+        "quote": "The conclusion that Loftus and Pickrell (1995) draw that \"people can be led to […] remember entire events that never actually happened to them\" (p. 723) holds no matter whether the specific rate at which people misremember such events is 25% (Loftus and Pickrell 1995), 35% (Murphy et al. 2023), 11% or 4% (the latter two stemming from Andrews and Brewin's, in press, recoding)."
+      },
+      "traps": [
+        "🔴 A&B 內文另有『38 (30.9%)』,那是**有可對照真實經歷的人數**,不是假記憶率,不要誤用。"
+      ],
+      "missing": [
+        "L&P 1995 出版排版版(只有作者手稿,頁碼對不上 720-725)",
+        "Murphy 2023 全文(T&F 403 Cloudflare,重試 3 次未過)—— N=123 與 35% 來自出版社摘要 + A&B 再分析,不是 Murphy 自己的 Results 節"
+      ],
+      "story_type_short": "it replicated, and then the counting changed",
+      "say_twist": "So it replicated, and it replicated upward. That should have been the end of it. Then another team went back to the same data and asked a question the headline number does not answer: what has to be true for something to count as an implanted memory? Three things, and they took them one at a time. The event has to not have actually happened — 22 of the 43 had something in their real childhood it could be. That takes 35 percent down to 17. There has to be a memory of being lost — 7 more had no recall at all. That takes it to 11. And the person has to say they remember it — 9 more did not. That takes it to 4.",
+      "say_verdict": "So which number is the real one depends entirely on what you think the study is for. If you are asking whether suggestion can push people into describing something that never happened, 35 percent. If you are asking whether it produces the kind of memory a court would act on, 4. The researchers who wrote the reply — including the author of the original 1995 study — put it this way: whether the false memory rate is 4 percent, or 35 percent, or somewhere in between, the findings are important.",
+      "say_spread": "It became the study that expert witnesses cite when they testify that a memory of abuse might have been manufactured.",
+      "twist_rows": [
+        {
+          "label": "as coded",
+          "what": "43 of 123 participants",
+          "es": 35,
+          "es_kind": "pct",
+          "cue": "the rate came back higher: 35 percent"
+        },
+        {
+          "label": "minus 22",
+          "what": "whose childhood could fit the story",
+          "es": 17,
+          "es_kind": "pct",
+          "cue": "whose real childhood could fit the story: 17"
+        },
+        {
+          "label": "minus 7",
+          "what": "with no recall of being lost",
+          "es": 11,
+          "es_kind": "pct",
+          "cue": "Those with no memory of being lost: 11"
+        },
+        {
+          "label": "minus 9",
+          "what": "who did not say they remembered it",
+          "es": 4,
+          "es_kind": "pct",
+          "hot": true,
+          "cue": "Those who never said they remembered it: 4"
+        }
+      ],
+      "popular_name": "The lost in the mall study",
+      "timeline": [
+        {
+          "year": 1995,
+          "what": "the original study",
+          "es": 25,
+          "es_kind": "pct"
+        },
+        {
+          "year": 2023,
+          "what": "the replication, as its authors coded it",
+          "es": 35,
+          "es_kind": "pct"
+        },
+        {
+          "year": 2024,
+          "what": "minus those whose childhood could fit",
+          "es": 17,
+          "es_kind": "pct"
+        },
+        {
+          "year": 2024,
+          "what": "minus those with no memory of being lost",
+          "es": 11,
+          "es_kind": "pct"
+        },
+        {
+          "year": 2024,
+          "what": "minus those who never said they remembered",
+          "es": 4,
+          "es_kind": "pct"
+        }
+      ],
+      "reel": {
+        "belief": "You can plant a memory of something that never happened.",
+        "weight": "Lost in the mall. It is the study expert witnesses cite in court. Cited more than 1,100 times.",
+        "turn": "In 2023 it was run again and the rate came back higher: 35 percent, against 25 in the original. Then another team asked what has to be true to count one. Take out those whose real childhood could fit the story: 17. Those with no memory of being lost: 11. Those who never said they remembered it: 4.",
+        "verdict": "35 percent or 4 percent, from the same data. It depends what you think the study is for.",
+        "ask": "Which number would you accept in a courtroom?",
+        "captions": {
+          "belief": "you have heard this one",
+          "weight": "so somebody checked",
+          "turn": "what came back"
+        }
+      },
+      "recoding_paper": {
+        "year": 2024,
+        "title": "Lost in the mall: a re-examination of what the data show",
+        "journal": "Applied Cognitive Psychology 38:e70012",
+        "doi": "10.1002/acp.70012",
+        "note": "35 / 17 / 11 / 4 的逐層扣除全部出自這一篇,不是 Murphy 2023。說明欄沒有它,觀眾拿 4% 去 Murphy 是找不到的。"
+      },
+      "missing_public": [
+        "The published typeset version of the 1995 mall study; we worked from the authors' own manuscript.",
+        "The 2023 replication's full text is paywalled; its figures come from the abstract and a later re-analysis."
+      ],
+      "is_prereg": false
+    },
+    {
+      "slug": "marshmallow_test",
+      "story_type": "效果是真的,但三分之二是家庭背景",
+      "story_type_note": "不是『棉花糖測驗是假的』。0.24 → 0.08 → 0.05,而且最大的差異來自能不能撐過 20 秒 —— 不是撐過 15 分鐘。",
+      "claim": "four-year-olds who resist the marshmallow do better academically as teenagers",
+      "hook": "The marshmallow test is real. Two thirds of it is your parents' income.",
+      "original": {
+        "year": 1990,
+        "title": "Predicting Adolescent Cognitive and Self-Regulatory Competencies From Preschool Delay of Gratification: Identifying Diagnostic Conditions",
+        "authors": "Shoda, Mischel & Peake",
+        "journal": "Developmental Psychology 26(6):978-986",
+        "doi": "10.1037/0012-1649.26.6.978",
+        "n": 185,
+        "n_detail": "原始受試 653 人 → 追蹤回收 185 人(46%)→ 有 SAT 成績 94 人 → 關鍵 diagnostic condition 相關只算 n=35(SAT)與 n=48(家長評定)",
+        "quote": "a total of 653 children (316 boys, 337 girls) participated in at least one [study] ... a sample of 185 children was now available ... of which the present sample of 185 represents a return rate of 46%. ... Parents of 94 children reported SAT scores.",
+        "es": 0.57,
+        "es_kind": "r",
+        "outcomes": [
+          {
+            "name": "延宕時間 × SAT Quantitative(獎品外露、未教策略 = diagnostic condition)",
+            "es": 0.57,
+            "es_kind": "r",
+            "p": "<.01",
+            "stat": "r=.57**, n=35",
+            "is_claim": true,
+            "quote": "Table 4 / Correlations Between Preschool Delay Time and Scholastic Aptitude Test (SAT) Scores — Spontaneous ideation, Rewards exposed: SAT Verbal .42*, SAT Quantitative .57**, Sample size 35",
+            "quote_location": "Table 4"
+          },
+          {
+            "name": "延宕時間 × SAT Verbal(同上條件)",
+            "es": 0.42,
+            "es_kind": "r",
+            "p": "<.05",
+            "stat": "r=.42*, n=35",
+            "is_claim": false,
+            "quote": "(同 Table 4)"
+          },
+          {
+            "name": "延宕時間 × 家長評定「專注、能集中注意力」",
+            "es": 0.39,
+            "es_kind": "r",
+            "p": "<.01",
+            "stat": "r=.39**, n=48",
+            "is_claim": false,
+            "quote": "Table 3 / Correlations Between Preschool Delay Time and the Parent's Q-Sort Ratings on Items Judged Relevant — Spontaneous ideation, Rewards exposed 欄:Is attentive and able to concentrate .39**;Sample size 48",
+            "quote_location": "Table 3"
+          }
+        ],
+        "caveat_quote": "Because SAT scores were not available for all subjects, in some conditions the sample sizes became barely sufficient for a meaningful computation of correlations.",
+        "attribution_warning": "🔴 1972 年 Mischel 的原始棉花糖實驗**沒有長期追蹤結果**。『忍得住=以後更成功』的相關係數全部出自 Shoda, Mischel & Peake 1990,Watts 重測的也是 1990 這篇。講『原始研究』時必須指向 1990。",
+        "cited_by": 1222,
+        "cited_by_source": "OpenAlex, retrieved 2026-08-31",
+        "cited_by_approx": 1200,
+        "cited_by_approx_note": "文案用的「超過 N 次」。取 (真值-1) 無條件捨去到百位,**保證嚴格小於真值** —— 舊版單純捨去,遇到真值剛好是 100 的倍數時(hot hand 的 1700)會產出一個等於真值的『下界』,而旁白唸的是「more than」,那就是假的。"
+      },
+      "test": {
+        "year": 2018,
+        "kind": "conceptual replication",
+        "title": "Revisiting the Marshmallow Test: A Conceptual Replication Investigating Links Between Early Delay of Gratification and Later Outcomes",
+        "authors": "Watts, Duncan & Quan",
+        "journal": "Psychological Science 29(7):1159-1177",
+        "doi": "10.1177/0956797618761661",
+        "n": 918,
+        "k": 1,
+        "n_detail": "分析樣本 n=918;主力分析聚焦母親未完成大學子樣本 n=552;母親有學位 n=366",
+        "n_quote": "Our analysis sample was limited to children who had a valid measure of delay of gratification at age 54 months, as well as nonmissing achievement and behavioral data at age 15 (n = 918). ... we then split our sample on the basis of mother's education, and we focused much of our analyses on children whose mothers did not report having completed college when the child was 1 month old (n = 552, a sample that is 10 times larger than the sample size in the Shoda et al., 1990, study).",
+        "es": 0.08,
+        "es_kind": "beta",
+        "outcomes": [
+          {
+            "name": "15歲學業成就:無控制變數(bivariate)",
+            "es": 0.24,
+            "es_kind": "beta",
+            "p": "<.001",
+            "stat": "b=0.24, SE=0.04",
+            "is_claim": true,
+            "quote": "The age-15 achievement correlation in the absence of other controls was of moderate size and statistically significant, b = 0.24, SE = 0.04, p < .001;"
+          },
+          {
+            "name": "15歲學業成就:加入早期背景控制後",
+            "es": 0.08,
+            "es_kind": "beta",
+            "p": 0.016,
+            "stat": "b=0.08, SE=0.03",
+            "is_claim": true,
+            "quote": "but fell substantially when controls for earlier characteristics were added, b = 0.08, SE = 0.03, p = .016;"
+          },
+          {
+            "name": "15歲學業成就:再加 54 個月同期控制後(不顯著)",
+            "es": 0.05,
+            "es_kind": "beta",
+            "p": 0.14,
+            "stat": "b=0.05, SE=0.03, ns",
+            "is_claim": true,
+            "quote": "and became nonsignificant when 54-months controls were added, b = 0.05, SE = 0.03, p = .140."
+          },
+          {
+            "name": "小一學業成就:0.28 → 0.10 → 0.05(同樣三段)",
+            "es": 0.28,
+            "es_kind": "beta",
+            "p": "<.001 / .002 / .114",
+            "stat": "b=0.28 (SE .04) → 0.10 (SE .03, p=.002) → 0.05 (SE .03, p=.114)",
+            "is_claim": false,
+            "quote": "the bivariate association between minutes waited and academic achievement was 0.28 (SE = 0.04, p < .001), considerably less than the .57 correlation Shoda and colleagues found for SAT math scores and the .42 correlation they found for verbal scores. ... the standardized association fell to 0.10 (SE = 0.03, p = .002), and when concurrent 54-months controls were added ... fell to a statistically nonsignificant 0.05 (SE = 0.03, p = .114)."
+          },
+          {
+            "name": "15歲行為問題:幾乎沒有關聯",
+            "es": null,
+            "es_kind": "MISSING",
+            "p": null,
+            "stat": "原文只給文字描述",
+            "is_claim": false,
+            "quote": "we were surprised to find virtually no relationship—even in the absence of controls—between delay of gratification and the composite score of mother-reported internalizing and externalizing at either Grade 1 or age 15"
+          }
+        ],
+        "verdict_quote": "Concentrating on children whose mothers had not completed college, we found that an additional minute waited at age 4 predicted a gain of approximately one tenth of a standard deviation in achievement at age 15. But this bivariate correlation was only half the size of those reported in the original studies and was reduced by two thirds in the presence of controls for family background, early cognitive ability, and the home environment. Most of the variation in adolescent achievement came from being able to wait at least 20 s.",
+        "verdict_source": "Watts et al. 2018 摘要(PDF 與 PubMed 版本逐字比對一致)",
+        "best_visual": "成就差異大部分來自能不能撐過 **20 秒**:most of the achievement boost for early delay ability was gained by waiting a mere 20 s",
+        "key_numbers": {
+          "seconds_that_matter": 20,
+          "mothers_without_degree_n": 552,
+          "bivariate_beta": 0.24,
+          "with_background_controls_beta": 0.08,
+          "with_concurrent_controls_beta": 0.05
+        },
+        "n_word": "children",
+        "same_sample": false
+      },
+      "traps": [
+        "Watts 正文有自己的引用筆誤:寫 (third column of Table 1) 實際應為 Table 4,另一處寫 (second column of Table 3)。不影響數字,但要標『出自表幾』時別照抄。",
+        "Shoda 1990 的表格經 pypdf 抽出後欄位會錯位(數字擠成一長串),fact agent 是靠題項順序 ↔ 數值順序 ↔ Sample size 列三重對齊認定 .39**/n=48,沒有按位置硬猜。"
+      ],
+      "missing": [
+        "15 歲行為問題的具體數值(正文只給文字描述,表格經 pypdf 抽取欄位錯位)",
+        "Watts PDF 取自 eScholarship,頁碼顯示 1-19 而非 1159-1177"
+      ],
+      "story_type_short": "real, and mostly what came before it",
+      "say_twist": "The retest is ten times the size, and the first thing it finds is that the effect is there. 0.24, on its own, with nothing controlled for. Real, and about half what the original reported. Then they add what they know about the child before the marshmallow ever appeared — family income, the mother's education, how the home was run, what the child could already do. 0.24 becomes 0.08. Add what was measured at the same age as the test itself, and it is 0.05, and it is no longer distinguishable from nothing. And the piece that does survive is not what the story needs it to be. Most of the difference came from whether a child could wait 20 seconds. Not fifteen minutes. 20 seconds.",
+      "say_verdict": "So this is not a debunking, and anyone selling it as one is selling you something. Waiting predicts later achievement. It is just that two thirds of what looked like willpower was the family the child went home to. The authors' own sentence: this bivariate correlation was only half the size of those reported in the original studies, and was reduced by two thirds in the presence of controls for family background, early cognitive ability, and the home environment.",
+      "say_spread": "It became the story that a four year old's self control predicts the rest of their life — a book, a TED talk, and a great deal of parenting advice.",
+      "twist_rows": [
+        {
+          "label": "on its own",
+          "what": "waiting predicts achievement at 15",
+          "es": 0.24,
+          "es_kind": "beta",
+          "cue": "a standardised coefficient of 0.24"
+        },
+        {
+          "label": "minus",
+          "what": "family background and early ability",
+          "es": 0.08,
+          "es_kind": "beta",
+          "cue": "Then they controlled for the family"
+        },
+        {
+          "label": "minus",
+          "what": "everything measured at the same time",
+          "es": 0.05,
+          "es_kind": "beta",
+          "hot": true,
+          "cue": "Then for everything measured at the same age"
+        }
+      ],
+      "popular_name": "The marshmallow test",
+      "timeline": [
+        {
+          "year": 1990,
+          "what": "the original study, 185 children",
+          "es": 0.57,
+          "es_kind": "r"
+        },
+        {
+          "year": 2018,
+          "what": "ten times the sample, nothing controlled for",
+          "es": 0.24,
+          "es_kind": "beta"
+        },
+        {
+          "year": 2018,
+          "what": "controlling for the family the child came from",
+          "es": 0.08,
+          "es_kind": "beta"
+        },
+        {
+          "year": 2018,
+          "what": "and for everything measured at the same time",
+          "es": 0.05,
+          "es_kind": "beta"
+        }
+      ],
+      "verdict_display": "But this bivariate correlation was only half the size of those reported in the original studies and was reduced by two thirds in the presence of controls for family background, early cognitive ability, and the home environment.",
+      "reel": {
+        "belief": "A four-year-old who waits for the marshmallow does better in life.",
+        "weight": "A book, a TED talk, and a great deal of parenting advice are built on it. The 1990 paper is cited more than 1,200 times.",
+        "turn": "In 2018 a team ran it on ten times as many children. The effect was there: a standardised coefficient of 0.24. Then they controlled for the family the child came from and what the child could already do. 0.08. Then for everything measured at the same age. 0.05, and no longer distinguishable from nothing.",
+        "verdict": "It is real. Two thirds of it was there before the test.",
+        "ask": "Would you still run this test on your own kid?",
+        "captions": {
+          "belief": "you have heard this one",
+          "weight": "so somebody checked",
+          "turn": "what came back"
+        }
+      },
+      "missing_public": [
+        "The exact figures for behaviour problems at age 15: they sit in a table we could not read reliably.",
+        "We used a university-repository copy of the 2018 paper, whose page numbers differ from the journal's."
+      ],
+      "is_prereg": false
+    },
+    {
+      "slug": "grit",
+      "popular_name": "Grit",
+      "story_type": "效果是真的但小很多,而且不是一個新東西",
+      "story_type_short": "a new name for an old thing",
+      "story_type_note": "Credé 等人沒有說 grit 不存在,也沒有說效果是零。他們的結論是「效果小」+「與既有構念重疊」+「perseverance 這個 facet 仍有增量價值」。講成『grit 被推翻了』是過度宣稱。",
+      "claim": "grit — passion and perseverance for long-term goals — predicts success better than talent does",
+      "hook": "Grit correlates with plain conscientiousness more tightly than conscientiousness correlates with itself.",
+      "original": {
+        "year": 2007,
+        "title": "Grit: Perseverance and passion for long-term goals",
+        "journal": "Journal of Personality and Social Psychology 92(6):1087-1101",
+        "doi": "10.1037/0022-3514.92.6.1087",
+        "n": 138,
+        "n_word": "Ivy League undergraduates",
+        "es": 0.25,
+        "es_kind": "r",
+        "cited_by": 6911,
+        "cited_by_source": "OpenAlex, retrieved 2026-08-31",
+        "cited_by_approx": 6900,
+        "quote": "Gritty students outperformed their less gritty peers: Grit scores were associated with higher GPAs (r = .25, p < .01), a relationship that was even stronger when SAT scores were held constant (r = .34, p < .001).",
+        "quote_location": "Study 2 內文",
+        "variance_quote": "grit accounted for an average of 4% of the variance in success outcomes",
+        "key_numbers": {
+          "variance_pct": 4,
+          "own_conscientiousness_r": 0.77,
+          "_note_for_humans": "🔴 .77 是**原始論文 Study 1b 自己報的**:「As we expected, grit related to Conscientiousness (r = .77, p < .001)」——不是後人才發現重疊。這是本集最重要的一點。"
+        },
+        "n_sum_warning": "六個樣本合計 N = 5,074 是 fact agent 自己加的,**論文沒有印這個合計數**,不准當原文引用。",
+        "cited_by_approx_note": "文案用的「超過 N 次」。取 (真值-1) 無條件捨去到百位,**保證嚴格小於真值** —— 舊版單純捨去,遇到真值剛好是 100 的倍數時(hot hand 的 1700)會產出一個等於真值的『下界』,而旁白唸的是「more than」,那就是假的。"
+      },
+      "test": {
+        "year": 2017,
+        "kind": "meta-analysis",
+        "same_sample": false,
+        "title": "Much ado about grit: A meta-analytic synthesis of the grit literature",
+        "journal": "Journal of Personality and Social Psychology 113(3):492-511",
+        "doi": "10.1037/pspp0000102",
+        "year_warning": "PDF 頁首印 2016(APA online-first),Crossref 註冊的是2017 —— 同一個 DOI。以 Crossref 為準。",
+        "n": 66807,
+        "k": 88,
+        "k_word": "independent samples",
+        "es": 0.18,
+        "es_kind": "r",
+        "n_quote": "Our results based on 584 effect sizes from 88 independent samples representing 66,807 individuals indicate that the higher order structure of grit is not confirmed, that grit is only moderately correlated with performance and retention, and that grit is very strongly correlated with conscientiousness.",
+        "key_numbers": {
+          "two_conscientiousness_scales_r": 0.63,
+          "observed_conscientiousness_r": 0.66,
+          "perseverance_academic_r": 0.26,
+          "consistency_academic_r": 0.1,
+          "_note_for_humans": ".66 是未校正的觀察值,.84 是校正測量誤差後的true-score 相關。畫面印 .84 就要說明是校正後。"
+        },
+        "outcomes": [
+          {
+            "name": "grit and academic performance",
+            "es": 0.18,
+            "es_kind": "r",
+            "p": null,
+            "stat": "rho = .18, k = 39, N = 13,141, SDrho = .11",
+            "is_claim": true,
+            "quote": "Overall grit exhibits a relation with overall academic performance of rho = .18 (k = 39, N = 13,141, SDrho = .11) and rho = .17 with the overall GPA criterion (k = 37, N = 12,601, SDrho = .10)."
+          },
+          {
+            "name": "grit and conscientiousness",
+            "es": 0.84,
+            "es_kind": "r",
+            "p": null,
+            "stat": "rho = .84, k = 22, N = 18,826, SDrho = .07",
+            "is_claim": true,
+            "quote": "Conscientiousness was very strongly correlated with overall grit (k = 22, N = 18,826, rho = .84, SDrho = .07) and also with perseverance (k = 8, N = 4,967, rho = .83, SDrho = .14) and consistency (k = 8, N = 4,967, rho = .61, SDrho = .17)."
+          },
+          {
+            "name": "grit and cognitive ability",
+            "es": 0.05,
+            "es_kind": "r",
+            "p": null,
+            "stat": "rho = .05, k = 21, N = 11,513, SDrho = .12",
+            "is_claim": false,
+            "quote": "Consistent with the claim that grit and cognitive ability are largely orthogonal, grit exhibited only a very weak relation with cognitive ability (k = 21, N = 11,513, rho = .05, SDrho = .12)."
+          }
+        ],
+        "killer_quote": "Indeed, the correlation between overall grit and conscientiousness, and between persistence and conscientiousness (rho = .89) is much stronger than what is typically found between scores on two different global measures of conscientiousness (rho = .63; Pace & Brannick, 2010).",
+        "verdict_quote": "Grit as a predictor of performance and success and as a focus of interventions holds much intuitive appeal, but grit as it is currently measured does not appear to be particularly predictive of success and performance and also does not appear to be all that different to conscientiousness."
+      },
+      "timeline": [
+        {
+          "year": 2007,
+          "what": "grit predicts grades, as observed",
+          "es": 0.25,
+          "es_kind": "r"
+        },
+        {
+          "year": 2007,
+          "what": "the paper's own overlap figure, as observed",
+          "es": 0.77,
+          "es_kind": "r"
+        },
+        {
+          "year": 2017,
+          "what": "88 samples, corrected for measurement error",
+          "es": 0.18,
+          "es_kind": "r"
+        },
+        {
+          "year": 2017,
+          "what": "grit against conscientiousness, corrected",
+          "es": 0.84,
+          "es_kind": "r"
+        }
+      ],
+      "twist_rows": [
+        {
+          "label": "grit predicts",
+          "what": "academic performance, corrected",
+          "es": 0.18,
+          "es_kind": "r",
+          "cue": "Grit predicts academic performance at 0.18"
+        },
+        {
+          "label": "grit matches",
+          "what": "conscientiousness, corrected",
+          "es": 0.84,
+          "es_kind": "r",
+          "hot": true,
+          "cue": "Its overlap with plain conscientiousness"
+        },
+        {
+          "label": "for scale",
+          "what": "two conscientiousness scales",
+          "es": 0.63,
+          "es_kind": "r",
+          "cue": "Two conscientiousness questionnaires"
+        }
+      ],
+      "say_spread": "It became a book, a TED talk, and a school curriculum — the answer to why some children get there and others do not.",
+      "say_twist": "So the effect is real, and it is 0.18. But the number that matters is the next one. They checked how much grit overlaps with plain old conscientiousness — a trait psychologists have been measuring since long before anyone said grit. After correcting for measurement error, 0.84. For scale: two different questionnaires that both claim to measure conscientiousness agree with each other at 0.63. Grit matches conscientiousness more closely than conscientiousness matches itself.",
+      "say_verdict": "So this is not a debunking. Grit predicts things. It is just that it may not be a new thing. And the overlap was not discovered later by critics — the original 2007 paper reports it, at 0.77, in its own results. The meta-analysis put it this way: grit as it is currently measured does not appear to be particularly predictive of success and performance, and also does not appear to be all that different to conscientiousness.",
+      "verdict_display": "grit as it is currently measured does not appear to be particularly predictive of success and performance and also does not appear to be all that different to conscientiousness.",
+      "reel": {
+        "belief": "Grit beats talent.",
+        "weight": "A book, a TED talk, a school curriculum. Cited over 6,900 times.",
+        "turn": "In 2017 someone pooled 88 samples - 66,807 people. Grit predicts academic performance at 0.18. Its overlap with plain conscientiousness, corrected for measurement error: 0.84. Two conscientiousness questionnaires only agree with each other at 0.63. The 2007 paper had reported that overlap itself: 0.77.",
+        "verdict": "Grit matches conscientiousness more closely than conscientiousness matches itself. It still predicts.",
+        "ask": "Is grit a real thing, or a new name for an old one?",
+        "captions": {
+          "belief": "you have heard this one",
+          "weight": "so somebody checked",
+          "turn": "what came back"
+        }
+      },
+      "missing": [],
+      "same_scale": false,
+      "missing_public": [
+        "Nothing missing for this episode."
+      ],
+      "is_prereg": false
+    },
+    {
+      "slug": "dunning_kruger",
+      "popular_name": "The Dunning-Kruger effect",
+      "story_type": "原始分析有偏誤(但作者自己的字是 mostly,不是 entirely)",
+      "story_type_short": "mostly a statistical artefact",
+      "story_type_note": "🔴 不准講成「完全是假的」。論文標題自己帶括號的 (mostly),Discussion 明講 mostly rather than entirely。而且同一篇量到人**確實**judge得出自己的能力(r = 0.28)—— 只講前半是選擇性呈現。",
+      "claim": "the least competent people are the most confident — too incompetent to know how incompetent they are",
+      "hook": "Take the same 929 people. One analysis shows the Dunning-Kruger effect. A better one shows nothing.",
+      "original": {
+        "year": 1999,
+        "title": "Unskilled and unaware of it: How difficulties in recognizing one's own incompetence lead to inflated self-assessments",
+        "journal": "Journal of Personality and Social Psychology 77(6):1121-1134",
+        "doi": "10.1037/0022-3514.77.6.1121",
+        "n": 65,
+        "n_word": "Cornell undergraduates in the first study",
+        "cited_by": 7079,
+        "cited_by_source": "OpenAlex, retrieved 2026-08-31",
+        "cited_by_approx": 7000,
+        "quote": "Across 4 studies, the authors found that participants scoring in the bottom quartile on tests of humor, grammar, and logic grossly overestimated their test performance and ability. Although their test scores put them in the 12th percentile, they estimated themselves to be in the 62nd.",
+        "quote_location": "摘要 —— 這是**四個研究的平均**,不是任何單一實驗",
+        "key_numbers": {
+          "actual_percentile": 12,
+          "estimated_percentile": 62,
+          "_note_for_humans": "各研究內文不同:Study 1 是 12→58、Study 2 是 12→62、Study 3 是 10→67。畫面印 12→62 要標明是摘要的跨研究平均。四個研究 n = 65/45/84/140,合計 334 是 agent 自己加的,論文沒印,不准當原文引用。"
+        },
+        "cited_by_approx_note": "文案用的「超過 N 次」。取 (真值-1) 無條件捨去到百位,**保證嚴格小於真值** —— 舊版單純捨去,遇到真值剛好是 100 的倍數時(hot hand 的 1700)會產出一個等於真值的『下界』,而旁白唸的是「more than」,那就是假的。"
+      },
+      "test": {
+        "year": 2020,
+        "kind": "reanalysis of the original data",
+        "same_sample": false,
+        "kind_note": "🔴 `same_sample` 是相對於 1999 那批人 —— 這是**新的** 929 人。片子裡的「同一批」指的是這 929 人被**兩種分析各跑一次**,那是集內的對照,不是跟 1999 同批。",
+        "title": "The Dunning-Kruger effect is (mostly) a statistical artefact: Valid approaches to testing the hypothesis with individual differences data",
+        "journal": "Intelligence 80:101449",
+        "doi": "10.1016/j.intell.2020.101449",
+        "n": 929,
+        "n_word": "people",
+        "es": -0.05,
+        "es_kind": "r",
+        "key_numbers": {
+          "eta_squared_old_method": 0.2,
+          "self_vs_measured_r": 0.28
+        },
+        "outcomes": [
+          {
+            "name": "the original quartile method, on this data",
+            "es": 0.2,
+            "es_kind": "eta2",
+            "p": 0.001,
+            "stat": "F(3, 925) = 79.00, p < .001, eta2 = 0.20",
+            "is_claim": false,
+            "quote": "A between-subjects oneway ANOVA test of the difference between the mean difference scores across the four levels of objective IQ was significant statistically, F(3, 925) = 79.00, p < .001, eta2 = 0.20. ... the trend in the difference score means was downward slopping, suggesting ostensible support for the Dunning-Kruger hypothesis."
+          },
+          {
+            "name": "a test built for this kind of data",
+            "es": -0.05,
+            "es_kind": "r",
+            "p": 0.132,
+            "stat": "r(927) = -0.05, 95% CI -0.11 to 0.02, p = .132",
+            "is_claim": true,
+            "quote": "The correlation between the objective IQ scores and the absolute residuals (i.e., the Glejser test correlation) was not found to be significant statistically, r(927) = -0.05, 95%CI: -0.11/0.02, p = .132, suggesting the data were homoscedastic, which did not support the Dunning-Kruger hypothesis."
+          },
+          {
+            "name": "and no curve in the data",
+            "es": 0.01,
+            "es_kind": "pct",
+            "p": 0.545,
+            "stat": "R2change <= 0.01, F(1, 926) = 0.37, p = .545",
+            "is_claim": true,
+            "quote": "The hierarchical multiple regression failed to identify a statistically significant quadratic effect, R2change <= 0.01, F(1, 926) = 0.37, p = .545 ... suggesting, again, a failure to support the Dunning-Kruger hypothesis."
+          },
+          {
+            "name": "people do judge their own ability",
+            "es": 0.28,
+            "es_kind": "r",
+            "p": 0.001,
+            "stat": "r = 0.28",
+            "is_claim": false,
+            "quote": "We also found that self-assessed intelligence and objectively measured intelligence correlated positively and statistically significantly at r = 0.28, which is comparable to the meta-analytically estimated correlations reported in the literature (r = 0.33; Freund & Kasten, 2012)."
+          }
+        ],
+        "honesty_quote": "Thus, at this stage, our contention is that the Dunning-Kruger effects reported in the literature are mostly the result of statistical artefacts, rather than entirely so.",
+        "verdict_quote": "When such valid statistical analyses are applied to individual differences data, we believe that evidence ostensibly supportive of the Dunning-Kruger hypothesis derived from the mean difference approach employed by Kruger and Dunning (1999) will be found to be substantially overestimated."
+      },
+      "noise_paper": {
+        "year": 2016,
+        "title": "Random Number Simulations Reveal How Random Noise Affects the Measurements and Graphical Portrayals of Self-Assessed Competency",
+        "journal": "Numeracy 9(1), Article 4",
+        "doi": "10.5038/1936-4660.9.1.4",
+        "cited_by": 66,
+        "quote": "We began to suspect that the graphical convention we employed in common with Bell and Volckmann might account for this convergence, and we confirmed our suspicion by graphing nonsense data generated by random numbers. In that graphical convention, random numbers generated patterns very similar to those produced by our actual data.",
+        "followup_2017_doi": "10.5038/1936-4660.10.1.4",
+        "followup_2017_quote": "Our data show that peoples' self-assessments of competence, in general, reflect a genuine competence that they can demonstrate. That finding contradicts the current consensus about the nature of self-assessment."
+      },
+      "timeline": [
+        {
+          "year": 1999,
+          "what": "the bottom quarter scored",
+          "es": 12,
+          "es_kind": "percentile"
+        },
+        {
+          "year": 1999,
+          "what": "and rated themselves",
+          "es": 62,
+          "es_kind": "percentile"
+        },
+        {
+          "year": 2016,
+          "what": "random numbers draw the same graph",
+          "es": null
+        },
+        {
+          "year": 2020,
+          "what": "a test built for the data",
+          "es": -0.05,
+          "es_kind": "r"
+        }
+      ],
+      "twist_rows": [
+        {
+          "label": "same 929 people",
+          "what": "the original quartile method, effect clearly there",
+          "es": null,
+          "cue": "Sorted into quartiles"
+        },
+        {
+          "label": "same 929 people",
+          "what": "a test built for this data",
+          "es": -0.05,
+          "es_kind": "r",
+          "hot": true,
+          "cue": "Using a test built for this kind of data"
+        },
+        {
+          "label": "and",
+          "what": "people do rate themselves about right",
+          "es": 0.28,
+          "es_kind": "r",
+          "cue": "ranked against how they actually did"
+        }
+      ],
+      "say_spread": "It became the thing everyone reaches for to explain somebody they disagree with — a name, a graph, and a shortcut.",
+      "say_twist": "In 2020 a team took 929 people and analysed them twice. First the way the original did it: sort everyone into quartiles by test score and compare the average gap between what they scored and what they thought they scored. That produced the effect, clearly. Then they used a test built for this kind of data instead of comparing group averages. The correlation was minus 0.05. There was no curve either. Same people, same answers, opposite conclusion. And four years earlier another group had shown you can draw that famous graph out of random numbers.",
+      "say_verdict": "So be careful with the sentence you take away. The authors did not say the effect is fake. Their own title says mostly, and in the discussion they write that these effects are mostly the result of statistical artefacts, rather than entirely so. And in the same data, people's estimates of their own intelligence tracked their actual intelligence at 0.28. Which is the part nobody quotes.",
+      "verdict_display": "the Dunning-Kruger effects reported in the literature are mostly the result of statistical artefacts, rather than entirely so.",
+      "reel": {
+        "belief": "The least competent people are the most confident.",
+        "weight": "It has a name, a graph everyone has seen, and more than 7,000 citations.",
+        "turn": "In 2020 a team took 929 people and analysed them twice. Sorted into quartiles the way the original did it, the effect was right there. Using a test built for this kind of data, the correlation was minus 0.05. Same people, same answers, opposite conclusion. And ranked against how they actually did, self-ratings still track performance, at 0.28.",
+        "verdict": "Mostly a statistical artefact. Mostly is the authors' own word, not entirely.",
+        "ask": "Have you ever used this one to explain somebody you disagree with?",
+        "captions": {
+          "belief": "you have heard this one",
+          "weight": "so somebody checked",
+          "turn": "what came back"
+        }
+      },
+      "missing": [
+        "Krajč & Ortmann 2008(10.1016/j.joep.2007.12.006)全文在付費牆後,DOI 已驗證但沒有拿到逐字原句,所以片中不引它的任何數字"
+      ],
+      "missing_public": [
+        "A 2008 critique of the original paper is behind a paywall, so nothing from it is quoted here."
+      ],
+      "is_prereg": false
+    },
+    {
+      "slug": "stanford_prison",
+      "popular_name": "The Stanford prison experiment",
+      "story_type": "原始研究不是它宣稱的那樣",
+      "story_type_short": "the guards were told what to do",
+      "story_type_note": "🔴 **不准用 retracted / fraud / 造假。** SPE 從未被撤稿,Le Texier 也沒有要求撤稿,Zimbardo 公開回應過而且他的反駁不弱。站得住的講法只有一種:**原始論文自己的字**對上 **Zimbardo 自己的字**。",
+      "claim": "put ordinary people in a uniform and give them power, and they will turn cruel on their own",
+      "hook": "The original paper says the guards were given no training. Zimbardo's own reply uses the word training.",
+      "original": {
+        "year": 1972,
+        "title": "Interpersonal Dynamics in a Simulated Prison (ONR Technical Report Z-09)",
+        "journal": "Office of Naval Research; also International Journal of Criminology and Penology 1:69-97 (1973)",
+        "doi": "10.21236/AD0751041",
+        "n": 21,
+        "n_word": "students in the analysis",
+        "quote": "Neither group received any specific training in these roles.",
+        "quote_location": "摘要",
+        "second_quote": "To optimize the extent to which their behavior would reflect their genuine reactions to the experimental prison situation and not simply their ability to follow instructions, they were intentionally given only minimal guidelines for what it meant to be a guard.",
+        "key_numbers": {
+          "applicants": 75,
+          "selected": 24,
+          "arrived": 22,
+          "analysed": 21,
+          "_note_for_humans": "🔴 原始論文**自己**在相隔兩頁寫了 22 與 24,而結論用的是 21(10 囚 + 11 獄卒);Zimbardo 官網又是第四個版本(70+ / 24)。畫面打 21,口白說明原文自己寫了兩個數字。OCR 掃描件的推論統計會壞(Z-3.88, p^.01 其實是 Z=3.88, p<.01),所以原始論文的推論統計數字一律不用。"
+        }
+      },
+      "test": {
+        "year": 2019,
+        "kind": "archival reinvestigation",
+        "same_sample": false,
+        "title": "Debunking the Stanford Prison Experiment",
+        "journal": "American Psychologist 74(7):823-839",
+        "doi": "10.1037/amp0000401",
+        "n": null,
+        "key_numbers": {
+          "recorded_pct": 15,
+          "interaction_table_pct": 4,
+          "video_hours_found": 6,
+          "video_hours_claimed": 12,
+          "guessed_hypothesis_pct": 81,
+          "predicted_oppressive_pct": 90
+        },
+        "outcomes": [
+          {
+            "name": "how much of the experiment was actually recorded",
+            "es": 15,
+            "es_kind": "pct",
+            "p": null,
+            "stat": "6 hr video + 15 hr audio of 150 hr",
+            "is_claim": true,
+            "quote": "Of the 150 hr of the experiment (including the orientation day), less than 15% have been recorded (6 hr of video and 15 hr of audio)."
+          },
+          {
+            "name": "outsiders who guessed the result from the advert alone",
+            "es": 81,
+            "es_kind": "pct",
+            "p": null,
+            "stat": "81%",
+            "is_claim": false,
+            "quote": "81% accurately figured out the experimenter's hypothesis"
+          }
+        ],
+        "briefing_quote": "We can create boredom. We can create a sense of frustration. We can create fear in them, to some degree. We can create a notion of the arbitrariness that governs their lives, which are totally controlled by us, by the system, by you, me, [the warden]. They'll have no privacy at all... In general, what all this should create in them is a sense of powerlessness. We have total power in the situation. They have none.",
+        "warden_quote": "[W]e need you to play the part of, you know, tough guard. [. . .] [T]ry and react as you picture the pigs reacting.",
+        "verdict_quote": "Of the 150 hr of the experiment (including the orientation day), less than 15% have been recorded (6 hr of video and 15 hr of audio)."
+      },
+      "original_authors_reply": {
+        "who": "Philip Zimbardo",
+        "year": 2018,
+        "why_must_air": "他的反駁不弱,而且不播就是我們在做我們批評的事。",
+        "quotes": [
+          "Central in the training of guards was...",
+          "it never instructed guards to employ brutality, and it explicitly banned the use of physical force",
+          "In my view, that is the major flaw of the SPE; it had no independent scientific observer of the unfolding events."
+        ]
+      },
+      "bbc_study": {
+        "year": 2006,
+        "n": 15,
+        "days": 8,
+        "doi": "10.1348/014466605X48998",
+        "journal": "British Journal of Social Psychology 45(1):1-40",
+        "quote": "Unlike the prisoners, the guards failed to identify with their role. This made the guards reluctant to impose their authority and they were eventually overcome by the prisoners. Participants then established an egalitarian social system.",
+        "note": "這是唯一**真的重做過一次**的。放時間軸與口述,不當 test —— 本集的故事型是「原始研究不是它宣稱的那樣」,不是「重測失敗」。"
+      },
+      "timeline": [
+        {
+          "year": 1972,
+          "what": "students in the analysis",
+          "es": 21,
+          "es_kind": "count"
+        },
+        {
+          "year": 1972,
+          "what": "the paper: no training given",
+          "es": null
+        },
+        {
+          "year": 2006,
+          "what": "run again, the guards would not play along",
+          "es": null
+        },
+        {
+          "year": 2019,
+          "what": "of the experiment was ever recorded",
+          "es": 15,
+          "es_kind": "pct",
+          "es_is_max": true
+        }
+      ],
+      "twist_rows": [
+        {
+          "label": "the paper says",
+          "what": "no specific training",
+          "es": null,
+          "cue": "@start"
+        },
+        {
+          "label": "the tapes say",
+          "what": "we need you to play tough guard",
+          "es": null,
+          "hot": true,
+          "cue": "tells him to play the part of the tough guard"
+        },
+        {
+          "label": "on record",
+          "what": "of the 150 hours, at most",
+          "es": 15,
+          "es_kind": "pct",
+          "cue": "less than 15 percent of the 150 hours",
+          "es_is_max": true
+        }
+      ],
+      "say_spread": "It became the standard proof that ordinary people turn cruel when you give them a uniform — in textbooks, in films, and in arguments about every atrocity since.",
+      "say_twist": "In 2019 a researcher went through the Stanford archive and listened to the tapes. On the recording of the guard briefing, the experimenters tell the guards what to produce: boredom, frustration, fear, a sense of powerlessness. On day three the warden takes aside a guard who is being too soft and tells him, we need you to play the part of, you know, tough guard. And less than 15 percent of the 150 hours was ever recorded at all.",
+      "say_verdict": "So be careful what you take from this. The study has not been retracted, and nobody is calling it fraud. What is documented is narrower and harder to argue with: the paper says the guards received no specific training, and Zimbardo's own published reply begins a sentence with the words, central in the training of guards. He also names what he thinks the real flaw was — that it had no independent scientific observer of the unfolding events.",
+      "verdict_display": "Of the 150 hr of the experiment (including the orientation day), less than 15% have been recorded",
+      "reel": {
+        "belief": "Give ordinary people a uniform and power, and they turn cruel.",
+        "weight": "It is in every textbook, and in every argument about how atrocities happen.",
+        "turn": "In 2019 somebody went into the Stanford archive and listened to the tapes. At the guard briefing the experimenters say what they want produced: boredom, frustration, fear, a sense of powerlessness. At one point the warden takes a guard aside for being too soft and tells him to play the part of the tough guard. And less than 15 percent of the 150 hours was ever recorded.",
+        "verdict": "The paper says the guards got no specific training. Zimbardo's own reply says: central in the training of guards.",
+        "ask": "Does it still count if they were told to do it?",
+        "captions": {
+          "belief": "you have heard this one",
+          "weight": "so somebody checked",
+          "turn": "what came back"
+        }
+      },
+      "missing": [
+        "原始論文沒有效果量(本來就沒有,不要硬算)",
+        "Le Texier 2019 沒有效果量",
+        "1973 期刊版與技術報告是否逐字相同未能複驗(期刊版是無文字層掃描)"
+      ],
+      "missing_public": [
+        "Neither the 1972 report nor the 2019 investigation gives an effect size; there is none to give.",
+        "We used the 1972 technical report; the 1973 journal version is an image scan we could not compare."
+      ],
+      "is_prereg": false
+    },
+    {
+      "slug": "sugar_hyperactivity",
+      "popular_name": "Sugar and hyperactive children",
+      "story_type": "信念本身沒有原始研究,而被騙的是家長",
+      "story_type_short": "what changed was the parent",
+      "story_type_note": "🔴 統合分析結論句末的兩個但書(小效果、次群體不能排除)**照唸不准砍**,砍了就是過度宣稱。",
+      "claim": "sugar makes children hyperactive",
+      "hook": "Every child got the placebo. The mothers told it was sugar rated their sons as more hyperactive - and changed how they behaved.",
+      "original": {
+        "year": 1980,
+        "title": "Dietary correlates of hyperactive behavior in children",
+        "journal": "Journal of Consulting and Clinical Psychology 48(6):760-769",
+        "doi": "10.1037/0022-006X.48.6.760",
+        "n": null,
+        "no_data_note": "🔴 這一題**沒有乾淨的原始實驗**。最常被引的這篇是**相關研究不是實驗**,而且付費牆 + PubMed 無摘要,agent 一個字都沒拿到 → 除了書目與 DOI 之外全部留空。硬填一個數字才是錯的。"
+      },
+      "test": {
+        "year": 1995,
+        "kind": "meta-analysis",
+        "same_sample": false,
+        "title": "The effect of sugar on behavior or cognition in children: A meta-analysis",
+        "journal": "JAMA 274(20):1617-1621",
+        "doi": "10.1001/jama.1995.03530200053037",
+        "n": null,
+        "k": 23,
+        "k_word": "within-subject design studies",
+        "key_numbers": {
+          "reports": 16,
+          "constructs": 14,
+          "lowest_mean_es": -0.14,
+          "highest_mean_es": 0.3
+        },
+        "n_quote": "Sixteen reports met the inclusion criteria for a total of 23 within-subject design studies.",
+        "outcomes": [
+          {
+            "name": "measurement constructs whose interval excluded zero",
+            "es": 0,
+            "es_kind": "count",
+            "p": null,
+            "stat": "0 of 14",
+            "is_claim": true,
+            "quote": "The weighted mean effect size and related statistics for each of the 14 measurement constructs revealed that although the range for these means was from -0.14 for direct observations and up to +0.30 for academic tests, the 95% confidence interval for all 14 mean effect sizes included 0."
+          }
+        ],
+        "verdict_quote": "The meta-analytic synthesis of the studies to date found that sugar does not affect the behavior or cognitive performance of children. The strong belief of parents may be due to expectancy and common association. However, a small effect of sugar or effects on subsets of children cannot be ruled out."
+      },
+      "expectancy_study": {
+        "year": 1994,
+        "title": "Effects of sugar ingestion expectancies on mother-child interactions",
+        "journal": "Journal of Abnormal Child Psychology 22(4):501-515",
+        "doi": "10.1007/BF02168088",
+        "n": 35,
+        "n_word": "mother and son pairs",
+        "design_quote": "A challenge study design was employed, in which thirty-five 5- to 7-year-old boys reported by their mothers to be behaviorally \"sugar sensitive,\" and their mothers, were randomly assigned to experimental and control groups. In the experimental group, mothers were told their children had received a large dose of sugar, whereas in the control condition mothers were told their sons received a placebo; all children actually received the placebo (aspartame).",
+        "result_quote": "Mothers in the sugar expectancy condition rated their children as significantly more hyperactive. Behavioral observations revealed these mothers exercised more control by maintaining physical closeness, as well as showing trends to criticize, look at, and talk to their sons more than did control mothers.",
+        "warning": "🔴 全文付費牆,摘要**沒有** F 值、p 值或效果量 → 片中只能說「significantly more hyperactive」,不准報任何數字。"
+      },
+      "timeline": [
+        {
+          "year": 1980,
+          "what": "the study people cite is not an experiment",
+          "es": null
+        },
+        {
+          "year": 1994,
+          "what": "mothers told it was sugar, all placebo",
+          "es": 35,
+          "es_kind": "count"
+        },
+        {
+          "year": 1995,
+          "what": "of 14 measures, this many cleared zero",
+          "es": 0,
+          "es_kind": "count"
+        }
+      ],
+      "twist_rows": [
+        {
+          "label": "1994",
+          "what": "mother and son pairs, all given placebo",
+          "es": 35,
+          "es_kind": "count",
+          "cue": "In 1994 a team took 35 boys"
+        },
+        {
+          "label": "told it was sugar",
+          "what": "mothers rated them more hyperactive",
+          "es": null,
+          "hot": true,
+          "cue": "rated him as significantly more hyperactive"
+        },
+        {
+          "label": "1995",
+          "what": "of 14 measures cleared zero",
+          "es": 0,
+          "es_kind": "count",
+          "cue": "none of the 14 measures cleared zero",
+          "display_only": true,
+          "display_only_why": "旁白把這個 0 唸成英文字:「none of the 14 measures cleared zero」。畫面印 0、旁白唸 none —— 同一件事的兩種寫法,不是兩個數字。"
+        }
+      ],
+      "say_spread": "It is one of the most widely held beliefs about children anywhere — birthday parties, bedtimes, and a generation of food rules are built on it.",
+      "say_twist": "In 1994 a team took 35 boys whose mothers said they were sugar sensitive. Every single child was given a placebo. The only thing that was randomised was what the mother was told. The mothers who were told their son had just had a large dose of sugar rated him as significantly more hyperactive. And the observers watching them saw the mothers themselves change: staying physically closer, criticising more, watching him more.",
+      "say_verdict": "The meta-analysis that pooled the trials put it this way: sugar does not affect the behavior or cognitive performance of children, and the strong belief of parents may be due to expectancy and common association. But read the last sentence too, because they wrote it for a reason: a small effect of sugar, or effects on subsets of children, cannot be ruled out.",
+      "verdict_display": "sugar does not affect the behavior or cognitive performance of children. The strong belief of parents may be due to expectancy and common association.",
+      "reel": {
+        "belief": "Sugar makes children hyperactive.",
+        "weight": "It is one of the most widely held beliefs about children anywhere. Birthday parties are organised around it.",
+        "turn": "In 1994 a team took 35 boys whose mothers said they were sugar sensitive. Every child was given a placebo. The only thing randomised was what the mother was told. The mothers told their son had just had a large dose of sugar rated him as significantly more hyperactive. The year after, 23 studies were pooled: none of the 14 measures cleared zero.",
+        "verdict": "What changed was the parent.",
+        "ask": "Did you grow up being kept off sugar?",
+        "captions": {
+          "belief": "you have heard this one",
+          "weight": "so somebody checked",
+          "turn": "what came back"
+        }
+      },
+      "missing": [
+        "Prinz 1980 的 n、效果量、引文(付費牆 + PubMed 無摘要,一個字都沒拿到)",
+        "Wolraich 1995 的跨研究總人數(摘要沒給)",
+        "Hoover & Milich 1994 的 F 值 / p 值 / 效果量(摘要沒給)"
+      ],
+      "missing_public": [
+        "The 1980 diet study is behind a paywall with no abstract online; we could not read a word of it.",
+        "How many children the 1995 meta-analysis covered in total: the abstract does not give a number.",
+        "The test statistics from the 1994 study of mothers' expectations: the abstract does not report them."
+      ],
+      "is_prereg": false
+    },
+    {
+      "slug": "mozart_effect",
+      "popular_name": "The Mozart effect",
+      "story_type": "效果是真的,但它不屬於莫札特,而且只持續十五分鐘",
+      "story_type_short": "any music does it, for fifteen minutes",
+      "story_type_note": "🔴 不是「沒重現」。對照沉默**確實有**一個小效果 —— 只是任何音樂一樣大(0.38 vs 0.37,兩種音樂之間只有 0.15)。而原文自己就用 IQ 語言寫,所以**不能說「他們根本沒說 IQ」** —— 真正的分界是它只持續 10~15 分鐘。",
+      "claim": "listening to Mozart makes you smarter",
+      "hook": "The effect is real. It is just not Mozart, and it is over in fifteen minutes.",
+      "original": {
+        "year": 1993,
+        "title": "Music and spatial task performance",
+        "journal": "Nature 365:611",
+        "doi": "10.1038/365611a0",
+        "n": 36,
+        "n_word": "college students",
+        "es": 9,
+        "es_kind": "iq_points",
+        "cited_by_approx": null,
+        "quote": "Thus, the IQs of subjects participating in the music condition were 8-9 points above their IQ scores in the other two conditions.",
+        "duration_quote": "The enhancing effect of the music condition is temporal, and does not extend beyond the 10-15-minute period during which subjects were engaged in each spatial task.",
+        "key_numbers": {
+          "music_iq": 119,
+          "relaxation_iq": 111,
+          "silence_iq": 110,
+          "minutes_min": 10,
+          "minutes_max": 15
+        }
+      },
+      "test": {
+        "year": 2010,
+        "kind": "meta-analysis",
+        "same_sample": false,
+        "title": "Mozart effect-Shmozart effect: A meta-analysis",
+        "journal": "Intelligence 38(3):314-323",
+        "doi": "10.1016/j.intell.2010.03.001",
+        "n": 3000,
+        "n_is_floor": true,
+        "n_word": "people",
+        "k": 38,
+        "k_word": "comparisons",
+        "es": 0.37,
+        "es_kind": "d",
+        "key_numbers": {
+          "any_music_d": 0.38,
+          "between_music_d": 0.15
+        },
+        "outcomes": [
+          {
+            "name": "Mozart against silence",
+            "es": 0.37,
+            "es_kind": "d",
+            "p": null,
+            "stat": "d = 0.37, 95% CI [0.23, 0.52]",
+            "is_claim": true,
+            "quote": "We could show that the overall estimated effect is small in size (d = 0.37, 95% CI [0.23, 0.52]) for samples exposed to the Mozart sonata KV 448 and samples that had been exposed to a non-musical stimulus or no stimulus at all preceding spatial task performance."
+          },
+          {
+            "name": "any other music against silence",
+            "es": 0.38,
+            "es_kind": "d",
+            "p": null,
+            "stat": "d = 0.38, 95% CI [0.13, 0.63]",
+            "is_claim": true,
+            "quote": "Additionally, calculation of effect sizes for samples exposed to any other musical stimulus and samples exposed to a non-musical stimulus or no stimulus at all yielded effects similar in strength (d = 0.38, 95% CI [0.13, 0.63])"
+          },
+          {
+            "name": "Mozart against any other music",
+            "es": 0.15,
+            "es_kind": "d",
+            "p": null,
+            "stat": "d = 0.15, 95% CI [0.02, 0.28]",
+            "is_claim": true,
+            "quote": "whereas there was a negligible effect between the two music conditions (d = 0.15, 95% CI [0.02, 0.28])."
+          }
+        ],
+        "lab_quote": "The central finding of the present paper however, is certainly the noticeably higher overall effect in studies performed by Rauscher and colleagues than in studies performed by other researchers, indicating systematically moderating effects of lab affiliation.",
+        "verdict_quote": "On the whole, there is little evidence left for a specific, performance-enhancing Mozart effect."
+      },
+      "timeline": [
+        {
+          "year": 1993,
+          "what": "Mozart, against silence",
+          "es": 9,
+          "es_kind": "iq_points"
+        },
+        {
+          "year": 1993,
+          "what": "and gone within this many minutes",
+          "es": 15,
+          "es_kind": "count"
+        },
+        {
+          "year": 2010,
+          "what": "Mozart against silence, pooled",
+          "es": 0.37,
+          "es_kind": "d"
+        },
+        {
+          "year": 2010,
+          "what": "any other music against silence",
+          "es": 0.38,
+          "es_kind": "d"
+        },
+        {
+          "year": 2010,
+          "what": "Mozart against any other music",
+          "es": 0.15,
+          "es_kind": "d"
+        }
+      ],
+      "twist_rows": [
+        {
+          "label": "Mozart",
+          "what": "against silence",
+          "es": 0.37,
+          "es_kind": "d",
+          "cue": "Mozart against silence: 0.37"
+        },
+        {
+          "label": "any other music",
+          "what": "against silence",
+          "es": 0.38,
+          "es_kind": "d",
+          "cue": "Any other music against silence: 0.38"
+        },
+        {
+          "label": "Mozart",
+          "what": "against any other music",
+          "es": 0.15,
+          "es_kind": "d",
+          "hot": true,
+          "cue": "Mozart against any other music: 0.15"
+        }
+      ],
+      "say_spread": "It became a state programme handing out classical CDs to newborns, and a shelf of products aimed at parents.",
+      "say_twist": "So somebody pooled everything that had been run since. Mozart against silence: 0.37. Real, and small. Then the comparison nobody in the headlines made. Any other music against silence: 0.38 — the same. And Mozart against any other music: 0.15. There is also the detail that the effect is noticeably larger in studies run by the original lab than by anyone else.",
+      "say_verdict": "So the effect is real and it is not Mozart. What it looks like is that music, any music, wakes you up a little before a task. And the original paper already told us how long that lasts. Their own sentence: the enhancing effect of the music condition is temporal, and does not extend beyond the 10 to 15 minute period during which subjects were engaged in each spatial task.",
+      "verdict_display": "On the whole, there is little evidence left for a specific, performance-enhancing Mozart effect.",
+      "reel": {
+        "belief": "Mozart makes you smarter.",
+        "weight": "It became a state programme handing classical CDs to newborns, and a shelf of products aimed at parents.",
+        "turn": "Pool everything that has been run since. Mozart against silence: 0.37. Real, and small. Then the comparison the headlines never made. Any other music against silence: 0.38 — the same. Mozart against any other music: 0.15. And the original paper already said the effect does not last beyond the 10 to 15 minutes of the task.",
+        "verdict": "The effect is real. It is not Mozart, and it is over in fifteen minutes.",
+        "ask": "What do you put on before you need to concentrate?",
+        "captions": {
+          "belief": "you have heard this one",
+          "weight": "so somebody checked",
+          "turn": "what came back"
+        }
+      },
+      "missing": [
+        "統合分析的確切總人數(摘要只寫 over 3000 subjects)",
+        "各結果的 p 值",
+        "出版偏誤用的是哪個檢定與其統計量",
+        "1993 那篇沒有報 Cohen's d"
+      ],
+      "missing_public": [
+        "The exact number of people in the 2010 review: it gives only a lower bound.",
+        "The p values for the individual comparisons in that review are not reported.",
+        "Which publication-bias test the review used, and what that test returned.",
+        "The 1993 Mozart study never reported a standardised effect size."
+      ],
+      "is_prereg": false
+    },
+    {
+      "slug": "growth_mindset",
+      "popular_name": "Growth mindset",
+      "story_type": "效果是真的但小很多,而且只在特定的人與特定的學校",
+      "story_type_short": "real, for half the students",
+      "story_type_note": "🔴 **不准講成全倒。** Yeager 2019 是預先註冊、獨立收資料的全美隨機試驗,而且它**找到了**效果。只是 0.10 個 GPA 點、只在低成就學生(6,320 / 12,490)、而且只在同儕規範支持挑戰的學校裡才維持。高成就組是 0.01、p = 0.634。**兩個並排放才是誠實的畫面。**",
+      "claim": "teaching students that intelligence can grow raises their grades",
+      "hook": "The biggest test of growth mindset found it works. For half the students, by a tenth of a grade point.",
+      "original": {
+        "year": 2007,
+        "title": "Implicit Theories of Intelligence Predict Achievement Across an Adolescent Transition: A Longitudinal Study and an Intervention",
+        "journal": "Child Development 78(1):246-263",
+        "doi": "10.1111/j.1467-8624.2007.00995.x",
+        "n": 91,
+        "n_word": "students in one school",
+        "es": 0.53,
+        "es_kind": "beta",
+        "quote": "However, there was a significant effect of experimental condition on change in grades across the intervention (Time 2 to Time 3; b = .53, t = 2.93, p<.05).",
+        "limits_quote": "First, Study 1 and Study 2 were each conducted in a single school.",
+        "confound_quote": "This extra antistereotyping training may have contributed to our findings."
+      },
+      "test": {
+        "year": 2019,
+        "kind": "randomised controlled trial",
+        "same_sample": false,
+        "title": "A national experiment reveals where a growth mindset improves achievement",
+        "journal": "Nature 573:364-369",
+        "doi": "10.1038/s41586-019-1466-y",
+        "n": 12490,
+        "n_word": "ninth-grade students",
+        "k": 65,
+        "k_word": "schools",
+        "es": 0.11,
+        "es_kind": "d",
+        "key_numbers": {
+          "lower_achieving_n": 6320,
+          "higher_achieving_n": 6170,
+          "gpa_points": 0.1,
+          "advanced_maths_pp": 3
+        },
+        "outcomes": [
+          {
+            "name": "lower-achieving students",
+            "es": 0.11,
+            "es_kind": "d",
+            "p": 0.001,
+            "stat": "B = 0.10 grade points, 95% CI 0.04 to 0.16, n = 6,320, t = 3.51",
+            "is_claim": true,
+            "quote": "In line with our first major prediction, lower-achieving adolescents earned higher GPAs in core classes at the end of the ninth grade when assigned to the growth mindset intervention, B = 0.10 grade points (95% confidence interval = 0.04, 0.16), s.e. = 0.03, n = 6,320, k = 65, t = 3.51, P = 0.001, standardized mean difference effect size of 0.11, relative to comparable students in the control condition."
+          },
+          {
+            "name": "higher-achieving students",
+            "es": 0.01,
+            "es_kind": "d",
+            "p": 0.634,
+            "stat": "n = 6,170, t = 0.480",
+            "is_claim": true,
+            "quote": "Confirming the predictions in the pre-analysis plan, higher-achieving students demonstrated no significant treatment effects on core course GPAs, B = 0.01 grade points (95% confidence interval = -0.03-0.06), s.e. = 0.02, n = 6,170, k = 65, t = 0.480, P = 0.634, standardized mean difference effect size = 0.01"
+          }
+        ],
+        "targeting_quote": "Following the pre-registered analysis plan, we report results for the targeted group of n = 6,320 students who were lower-achieving relative to peers in the same school.",
+        "verdict_quote": "The National Study of Learning Mindsets showed that a low-cost treatment, delivered in less than an hour, attained a substantial proportion of the effects on grades of the most effective rigorously evaluated adolescent interventions of any cost or duration in the literature within the pre-registered group of lower-achieving students."
+      },
+      "uk_trial": {
+        "year": 2019,
+        "n": 5018,
+        "schools": 101,
+        "doi": null,
+        "no_doi_note": "🔴 EEF 評估報告不是期刊論文,**確認沒有 DOI** —— 照fail-closed 閘門它不能當 test,只能進時間軸與口述。",
+        "quote": "Pupils in schools that received the intervention did not make any additional progress in literacy nor numeracy - as measured by the national Key Stage 2 tests in reading, grammar, punctuation, and spelling (GPS), and maths - compared to pupils in the control group. This finding has high security.",
+        "trap": "🔴 搜尋摘要會拿 2015 年的**先導試驗**冒充這次的效能試驗,回「two additional months' progress」—— 方向完全相反。",
+        "source_name": "Education Endowment Foundation, Changing Mindsets: evaluation report (2019)"
+      },
+      "timeline": [
+        {
+          "year": 2007,
+          "what": "91 students, one school",
+          "es": 0.53,
+          "es_kind": "beta"
+        },
+        {
+          "year": 2019,
+          "what": "5,018 pupils in England, no effect",
+          "es": null
+        },
+        {
+          "year": 2019,
+          "what": "lower-achieving students in the US",
+          "es": 0.11,
+          "es_kind": "d"
+        },
+        {
+          "year": 2019,
+          "what": "higher-achieving students",
+          "es": 0.01,
+          "es_kind": "d"
+        }
+      ],
+      "twist_rows": [
+        {
+          "label": "6,320 students",
+          "what": "lower-achieving",
+          "es": 0.11,
+          "es_kind": "d",
+          "cue": "Lower-achieving students gained a tenth of a grade point"
+        },
+        {
+          "label": "6,170 students",
+          "what": "higher-achieving",
+          "es": 0.01,
+          "es_kind": "d",
+          "hot": true,
+          "cue": "Higher-achieving students: 0.01"
+        },
+        {
+          "label": "in England",
+          "what": "5,018 pupils, no effect",
+          "es": null,
+          "cue": "And a trial in England with 5,018 pupils"
+        }
+      ],
+      "say_spread": "It became a school programme, a bestseller, and a poster in a great many classrooms.",
+      "say_twist": "So they ran it properly. 65 schools, 12,490 students, randomised individually, with the analysis plan registered before the data came in. And they found it. Lower-achieving students earned 0.10 of a grade point more — an effect size of 0.11. Then look at the other half of the sample. Higher-achieving students: 0.01, p equals 0.634. And in England, a trial with 5,018 pupils found no additional progress in reading, in grammar, or in maths.",
+      "say_verdict": "So this is not a debunking, and the people who say growth mindset is dead have not read the biggest test of it. What the evidence supports is much narrower than the poster: a tenth of a grade point, for the students who were already behind, in schools where their classmates made it safe to try something hard.",
+      "reel": {
+        "belief": "Teach a child that intelligence can grow, and their grades go up.",
+        "weight": "It became a school programme, a bestseller, a classroom poster.",
+        "turn": "So they ran it properly: 65 schools, 12,490 students, analysis plan registered in advance. And they found it. Lower-achieving students gained a tenth of a grade point - an effect size of 0.11. The other half: Higher-achieving students: 0.01, p equals 0.634. And a trial in England with 5,018 pupils found no additional progress in reading or maths.",
+        "verdict": "It works, for the students who were already behind. A tenth of a grade point.",
+        "ask": "Is a tenth of a grade point worth an assembly?",
+        "captions": {
+          "belief": "you have heard this one",
+          "weight": "so somebody checked",
+          "turn": "what came back"
+        }
+      },
+      "missing": [
+        "Blackwell 2007 的 Cohen's d(成績那個結果只報 b/t)",
+        "Sisk 2018 兩個統合分析的效果量數值(全文付費牆;流傳的 d = 0.08 是二手,且 k 值跨來源會漂 43 vs 38、273 vs 129 —— **不要唸出這個數字**)",
+        "英國試驗沒有 DOI"
+      ],
+      "missing_public": [
+        "The 2007 study never reported a standardised effect size for its grades result.",
+        "The two 2018 meta-analyses are paywalled; figures quoted elsewhere for them are second-hand and disagree between sources.",
+        "The UK trial is an evaluation report, not a journal paper, so it has no DOI."
+      ],
+      "is_prereg": false
+    },
+    {
+      "slug": "study_techniques",
+      "arm": "B",
+      "prereg_title": "The Only Study Techniques That Actually Work",
+      "story_type_short": "three that were measured, against the way people actually study",
+      "evidence": {
+        "interleaved_pct_30d": 74,
+        "blocked_pct_30d": 42,
+        "interleaved_d": 0.79,
+        "tested_pct_1wk": 61,
+        "restudied_pct_1wk": 40,
+        "self_explanation_g": 0.55,
+        "self_explanation_effect_sizes": 69
+      },
+      "papers": [
+        {
+          "year": 2015,
+          "what": "interleaved vs blocked maths practice",
+          "doi": "10.1037/edu0000001"
+        },
+        {
+          "year": 2006,
+          "what": "repeated testing vs repeated studying",
+          "doi": "10.1111/j.1467-9280.2006.01693.x"
+        },
+        {
+          "year": 2018,
+          "what": "self-explanation meta-analysis",
+          "doi": "10.1007/s10648-018-9434-x"
+        }
+      ],
+      "twist_rows": [
+        {
+          "label": "mixing problem types",
+          "what": "30 days later",
+          "es": 74,
+          "es_kind": "pct",
+          "cue": "74 percent correct a month later"
+        },
+        {
+          "label": "testing yourself",
+          "what": "one week later",
+          "es": 61,
+          "es_kind": "pct",
+          "cue": "61 percent after a week"
+        },
+        {
+          "label": "explaining why",
+          "what": "69 effect sizes pooled",
+          "es": 0.55,
+          "es_kind": "g",
+          "cue": "69 separate effect sizes"
+        }
+      ],
+      "reel": {
+        "captions": {
+          "belief": "here is what actually works",
+          "weight": "and here is who measured it",
+          "turn": "how much it moves"
+        },
+        "belief": "Three study methods that beat what you are probably doing instead.",
+        "weight": "Each one was compared with what students do by default: blocking one topic, rereading, and just reading on.",
+        "turn": "Mixing problem types instead of doing one at a time: 74 percent correct a month later, against 42. Testing yourself instead of rereading: 61 percent after a week, against 40. And stopping to explain why something is true: 69 separate effect sizes, pooled at 0.55.",
+        "verdict": "Two of these were scored a week and a month after the studying stopped. That is where the difference was.",
+        "ask": "Which one are you not doing?"
+      },
+      "is_prereg": true
+    },
+    {
+      "slug": "focus_techniques",
+      "arm": "B",
+      "prereg_title": "Focus Techniques That Actually Work When Your Brain Won't Cooperate",
+      "story_type_short": "three moves, none of them about trying harder",
+      "evidence": {
+        "phone_eta2_exp1": 0.014,
+        "phone_eta2_exp2": 0.026,
+        "todo_list_d": 0.63,
+        "vigilance_break_f": 0.89
+      },
+      "papers": [
+        {
+          "year": 2017,
+          "what": "phone on the desk vs in another room",
+          "doi": "10.1086/691462"
+        },
+        {
+          "year": 2011,
+          "what": "a brief switch away, and the attention decline",
+          "doi": "10.1016/j.cognition.2010.12.007"
+        },
+        {
+          "year": 2018,
+          "what": "writing a to-do list before bed",
+          "doi": "10.1037/xge0000374"
+        }
+      ],
+      "twist_rows": [
+        {
+          "label": "phone in another room",
+          "what": "working memory, replication",
+          "es": 0.026,
+          "es_kind": "eta2",
+          "cue": "in a second one",
+          "display_only": true,
+          "display_only_why": "刻意不唸數值:partial η² 對一般觀眾沒有意義,唸出來只會變成一串沒人能解讀的字。數字留在畫面上,讓看得懂的人查得到、對得上事實庫。⚠️ 旁白對它做的宣稱是「Both effects were small」—— **那是一個量級宣稱**,而它由存下來的值本身支撐(0.014 與 0.026,partial η²,兩個都小)。原本這條理由寫「旁白不對它做任何量級宣稱」,那句話**不真** —— small 就是量級宣稱。宣告不真比影片錯更難發現,因為沒有人會去查宣告。"
+        },
+        {
+          "label": "a brief switch away",
+          "what": "no decline across the task",
+          "cue": "did not decline at all"
+        },
+        {
+          "label": "tomorrow's list, before bed",
+          "what": "time to fall asleep",
+          "es": 0.63,
+          "es_kind": "d",
+          "cue": "fell asleep faster"
+        }
+      ],
+      "reel": {
+        "captions": {
+          "belief": "here is what actually works",
+          "weight": "and here is who measured it",
+          "turn": "how much it moves"
+        },
+        "belief": "When you cannot focus, it may not be willpower. It may be the room.",
+        "weight": "Each one is a comparison somebody actually ran, against a real alternative.",
+        "turn": "Phone on the desk instead of in another room: working memory dropped in the first experiment, and again in a second one that repeated it. Both effects were small. In a long attention task, the group that briefly switched away did not decline at all, while the three groups that worked straight through all did. And people who wrote tomorrow's list before bed fell asleep faster than people who wrote down what they had already finished, 0.63.",
+        "verdict": "None asks you to try harder. All three change the situation instead.",
+        "ask": "Which one could you do tonight?"
+      },
+      "is_prereg": true
+    },
+    {
+      "slug": "if_then_plans",
+      "arm": "B",
+      "prereg_title": "Productivity Methods That Actually Work Without a System",
+      "story_type_short": "one sentence, and it is not a system",
+      "evidence": {
+        "goal_attainment_d": 0.65,
+        "independent_tests": 94,
+        "physical_activity_g": 0.31,
+        "clinical_d": 0.99,
+        "clinical_comparisons": 28
+      },
+      "papers": [
+        {
+          "year": 2006,
+          "what": "implementation intentions meta-analysis",
+          "doi": "10.1016/S0065-2601%2806%2938002-1"
+        },
+        {
+          "year": 2013,
+          "what": "implementation intentions and physical activity",
+          "doi": "10.1080/17437199.2011.560095"
+        },
+        {
+          "year": 2016,
+          "what": "implementation intentions, clinical samples",
+          "doi": "10.1111/bjc.12086"
+        }
+      ],
+      "twist_rows": [
+        {
+          "label": "goal attainment",
+          "what": "94 independent tests",
+          "es": 0.65,
+          "es_kind": "d",
+          "cue": "94 separate tests"
+        },
+        {
+          "label": "actually exercising",
+          "what": "post-intervention",
+          "es": 0.31,
+          "es_kind": "g",
+          "cue": "put it at 0.31"
+        },
+        {
+          "label": "people already struggling",
+          "what": "28 comparisons",
+          "es": 0.99,
+          "es_kind": "d",
+          "cue": "28 comparisons"
+        }
+      ],
+      "reel": {
+        "captions": {
+          "belief": "here is what actually works",
+          "weight": "and here is who measured it",
+          "turn": "how much it moves"
+        },
+        "belief": "You do not need a productivity system. You need one sentence.",
+        "weight": "Psychologists have a name for that sentence. It looks like this: if it is Monday at seven, I will go for a run.",
+        "turn": "Across 94 separate tests, writing that sentence moved goal attainment by 0.65 — a medium to large effect. A separate review of getting people to actually exercise put it at 0.31. And in 28 comparisons with people already struggling with their mental health, 0.99.",
+        "verdict": "One sentence, with a time and a place inside it. That is the entire method.",
+        "ask": "What is the one you would write?"
+      },
+      "is_prereg": true
+    },
+    {
+      "slug": "learning_styles",
+      "arm": "E",
+      "prereg_title": "Learning Styles Are Not Real",
+      "story_type_short": "the matching failed, not the preference",
+      "evidence": {
+        "studies_with_the_right_design": 1,
+        "anatomy_students_surveyed": 426,
+        "uk_teachers_agreeing_pct": 93,
+        "audiobook_interaction_f": 0.42
+      },
+      "papers": [
+        {
+          "year": 2008,
+          "what": "learning styles: concepts and evidence",
+          "doi": "10.1111/j.1539-6053.2009.01038.x"
+        },
+        {
+          "year": 2015,
+          "what": "audiobook vs e-text, matched to preference",
+          "doi": "10.1037/a0037478"
+        },
+        {
+          "year": 2019,
+          "what": "anatomy students, VARK and study strategies",
+          "doi": "10.1002/ase.1777"
+        },
+        {
+          "year": 2014,
+          "what": "prevalence of neuromyths among teachers",
+          "doi": "10.1038/nrn3817"
+        }
+      ],
+      "twist_rows": [
+        {
+          "label": "studies with the right design",
+          "what": "in the whole literature",
+          "es": 1,
+          "es_kind": "count",
+          "cue": "only one study",
+          "display_only": true,
+          "display_only_why": "旁白唸的是 Pashler 自己的原話「found only one study」——英文字 one,不是數字 1。畫面印 1 是同一個值的另一種寫法。"
+        },
+        {
+          "label": "anatomy students surveyed",
+          "what": "own style vs grades",
+          "es": 426,
+          "es_kind": "count",
+          "cue": "426 anatomy students"
+        },
+        {
+          "label": "UK teachers who agree",
+          "what": "with the statement",
+          "es": 93,
+          "es_kind": "pct",
+          "cue": "93 percent of teachers"
+        }
+      ],
+      "reel": {
+        "captions": {
+          "belief": "you have heard this one",
+          "weight": "so somebody checked",
+          "turn": "what came back"
+        },
+        "belief": "You are a visual learner. Teach to that, and you will learn better.",
+        "weight": "To actually test that you need one specific experiment: match some people to their preferred style, mismatch the others, and compare.",
+        "turn": "Reviewing the whole literature, Pashler and colleagues found only one study that even came close to that design. Among 426 anatomy students, studying in your own style did not predict better grades. And 93 percent of teachers surveyed in the UK agree with the idea anyway.",
+        "verdict": "Rogowsky ran the experiment directly, audiobook against e-text. No interaction. What failed is the matching — having a preference was never the claim.",
+        "ask": "Were you told you had a learning style?"
+      },
+      "is_prereg": true
+    },
+    {
+      "slug": "pomodoro",
+      "arm": "E",
+      "prereg_title": "The Pomodoro Technique Does Not Do What You Think",
+      "story_type_short": "the one direct test found no benefit",
+      "evidence": {
+        "students_in_the_only_trial": 94,
+        "pomodoro_arm": 36,
+        "canonical_work_minutes": 25,
+        "canonical_break_minutes": 5,
+        "closest_earlier_trial_work_minutes": 24,
+        "closest_earlier_trial_break_minutes": 6,
+        "trials_on_the_exact_recipe": 1
+      },
+      "papers": [
+        {
+          "year": 2025,
+          "what": "the one trial that tested 25 and 5 by name",
+          "doi": "10.3390/bs15070861"
+        },
+        {
+          "year": 2023,
+          "what": "the closest earlier trial, 24 and 6",
+          "doi": "10.1111/bjep.12593"
+        },
+        {
+          "year": 2011,
+          "what": "a vigilance study that kept coming up in our search",
+          "doi": "10.1016/j.cognition.2010.12.007"
+        }
+      ],
+      "twist_rows": [
+        {
+          "label": "trials on the exact recipe",
+          "what": "that our search found",
+          "es": 1,
+          "es_kind": "count",
+          "cue": "we found one",
+          "display_only": true,
+          "display_only_why": "旁白唸的是「In our own search, we found one」—— 英文字 one,不是數字 1。"
+        },
+        {
+          "label": "people in it",
+          "what": "one two-hour session",
+          "es": 94,
+          "es_kind": "count",
+          "cue": "94 university students"
+        },
+        {
+          "label": "the closest earlier trial",
+          "what": "used a different ratio",
+          "es": 24,
+          "es_kind": "count",
+          "cue": "24 minutes and 6"
+        }
+      ],
+      "reel": {
+        "captions": {
+          "belief": "you have heard this one",
+          "weight": "so somebody checked",
+          "turn": "what came back"
+        },
+        "belief": "Twenty-five minutes of work. Five minutes of break. You have probably tried it.",
+        "weight": "So here is the question: has anyone actually tested that exact recipe?",
+        "turn": "In our own search, we found one: 94 university students, one two-hour session. The closest earlier trial used 24 minutes and 6, not 25 and 5. And a study that kept coming up in that search never used work blocks or break blocks at all.",
+        "verdict": "One trial that our search found tested that exact recipe, against letting people pick their own breaks. It found no benefit. The 25 and the 5 are not the part that was working.",
+        "ask": "How long is your timer set to?"
+      },
+      "is_prereg": true
+    },
+    {
+      "slug": "how_to_remember_what_you_read",
+      "arm": "B",
+      "prereg_title": "How to Remember What You Read: 3 Methods That Actually Work",
+      "story_type_short": "three things to do after you read, none of them rereading",
+      "evidence": {
+        "tested_pct_1wk": 56,
+        "restudied_pct_1wk": 42,
+        "students_who_did_better": 101,
+        "students_total": 120,
+        "students_who_did_better_pct": 84,
+        "optimal_gap_recall_increase_pct": 64,
+        "optimal_gap_d": 1.1
+      },
+      "papers": [
+        {
+          "year": 2006,
+          "what": "a recall test right after reading, vs rereading",
+          "doi": "10.1111/j.1467-9280.2006.01693.x"
+        },
+        {
+          "year": 2011,
+          "what": "practising recall vs building a concept map",
+          "doi": "10.1126/science.1199327"
+        },
+        {
+          "year": 2008,
+          "what": "the optimal gap before you study it again",
+          "doi": "10.1111/j.1467-9280.2008.02209.x"
+        }
+      ],
+      "twist_rows": [
+        {
+          "label": "test yourself, right after",
+          "what": "recalled one week later",
+          "es": 56,
+          "es_kind": "pct",
+          "cue": "56 percent a week later"
+        },
+        {
+          "label": "recall it, do not map it",
+          "what": "students who did better that way",
+          "es": 84,
+          "es_kind": "pct",
+          "cue": "84 percent of the 120"
+        },
+        {
+          "label": "leave a gap, then go back",
+          "what": "best gap vs same day",
+          "es": 64,
+          "es_kind": "pct",
+          "cue": "64 percent more recall"
+        }
+      ],
+      "reel": {
+        "captions": {
+          "belief": "here is what actually works",
+          "weight": "and here is who measured it",
+          "turn": "how much it moves"
+        },
+        "belief": "You just read something. Read it again and nothing else, and in a week more than half of it is gone.",
+        "weight": "Three things change that, and each was compared with a different thing people do instead.",
+        "turn": "Take a recall test right after reading instead of rereading: 56 percent a week later, against 42. Practise recalling it instead of building a concept map: 84 percent of the 120 students did better that way. And leave a gap before you go back: the best gap gave 64 percent more recall than restudying it the same day.",
+        "verdict": "None of them is reading it again. When rereading was tested head to head, it lost.",
+        "ask": "Which one will you try on the next thing you read?"
+      },
+      "is_prereg": true
+    }
+  ],
+  "_do_not_fill_note": "🔴 每一條的 `forbid` 是**不准出現在旁白裡的字串**,不是欄位名。舊版拿 key 尾段(「trimfill corrected d」)去英文稿裡找,永遠不匹配 ——八條沒有一條可能命中,那是一道不會叫的守門。`forbid` 空陣列代表「這個數字產線根本算不出來,沒有東西可禁」,留著是為了記住為什麼不准填。"
+}

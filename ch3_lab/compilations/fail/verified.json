@@ -1,0 +1,15 @@
+{
+ "when": "2026-08-28T18:23:44",
+ "by": "ch3 pipeline operator",
+ "mp4_md5": "e5467ebce746a0d1cfd20f76b8fcafc9",
+ "mp4_seconds": 748.844,
+ "manifest_total": 748.801,
+ "checked": [
+  "intro",
+  "cards",
+  "seams",
+  "outro",
+  "chapters"
+ ],
+ "sheet": "compilations\\fail\\_verify_sheet.jpg"
+}

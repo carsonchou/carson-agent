@@ -1,0 +1,97 @@
+{
+ "day": "2026-09-01",
+ "spent": 5031,
+ "items": [
+  {
+   "at": "18:14",
+   "cost": 1,
+   "what": "channel read"
+  },
+  {
+   "at": "18:14",
+   "cost": 1,
+   "what": "trailer check"
+  },
+  {
+   "at": "18:25",
+   "cost": 1,
+   "what": "privacy check"
+  },
+  {
+   "at": "19:12",
+   "cost": 2,
+   "what": "audit publishedAt"
+  },
+  {
+   "at": "19:12",
+   "cost": 2,
+   "what": "audit ceiling"
+  },
+  {
+   "at": "20:25",
+   "cost": 1606,
+   "what": "cognitive_dissonance"
+  },
+  {
+   "at": "21:44",
+   "cost": 1,
+   "what": "long-form status audit"
+  },
+  {
+   "at": "21:58",
+   "cost": 50,
+   "what": "thumb CJSsNfOux4M"
+  },
+  {
+   "at": "21:58",
+   "cost": 1606,
+   "what": "reel_hot_hand"
+  },
+  {
+   "at": "21:59",
+   "cost": 50,
+   "what": "thumb 70WSNrTxkwE"
+  },
+  {
+   "at": "21:59",
+   "cost": 1606,
+   "what": "reel_marshmallow_test"
+  },
+  {
+   "at": "21:59",
+   "cost": 1,
+   "what": "privacy check"
+  },
+  {
+   "at": "21:59",
+   "cost": 50,
+   "what": "comment reel_false_memory"
+  },
+  {
+   "at": "21:59",
+   "cost": 1,
+   "what": "comment readback"
+  },
+  {
+   "at": "21:59",
+   "cost": 50,
+   "what": "comment reel_hungry_judges"
+  },
+  {
+   "at": "21:59",
+   "cost": 1,
+   "what": "comment readback"
+  },
+  {
+   "at": "22:00",
+   "cost": 1,
+   "what": "comment recheck"
+  },
+  {
+   "at": "22:00",
+   "cost": 1,
+   "what": "comment recheck"
+  }
+ ],
+ "history": []
+}

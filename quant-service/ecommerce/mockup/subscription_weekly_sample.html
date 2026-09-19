@@ -1,0 +1,455 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>量化阿森 個股體檢週報 — SAMPLE</title>
+<style>
+  /* ============================================================
+     量化阿森 · 個股體檢週報 v2 — 視覺系統 mockup
+     所有 token 與 REDESIGN_SPEC_product.md 對齊。
+     台股慣例:漲=紅(.up) / 跌=綠(.down)。
+     此檔為示意樣張,數據標註 SAMPLE / 示意,非真實產線輸出。
+     ============================================================ */
+  :root{
+    --bg:#0B0E14; --bg2:#0D1017;
+    --card:#141922; --card2:#1A2029; --pod:#10151D;
+    --line:#242C38; --line2:#2E3745;
+    --tx:#E6EAF0; --tx2:#9AA5B5; --tx3:#5D6675;
+    --gold:#C9A227; --gold-hi:#E3B93E; --gold-deep:#8A6D1C;
+    --up:#FF5C5C;   /* 漲/正:台股紅 */
+    --dn:#33D69F;   /* 跌/負:台股綠 */
+    --amber:#E3B93E;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{ -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  body{
+    font-family:"Microsoft JhengHei","Noto Sans TC","Segoe UI",-apple-system,sans-serif;
+    color:var(--tx); background:#05070b;
+    font-variant-numeric:tabular-nums;
+  }
+  .num{ font-variant-numeric:tabular-nums; letter-spacing:.2px; }
+  .up{ color:var(--up) } .dn{ color:var(--dn) }
+
+  /* ---- A4 分頁 ---- */
+  .page{
+    position:relative; width:210mm; height:297mm; margin:0 auto;
+    background:
+      radial-gradient(1200px 500px at 78% -8%, rgba(201,162,39,.10), transparent 60%),
+      radial-gradient(900px 600px at -10% 108%, rgba(51,73,110,.14), transparent 60%),
+      linear-gradient(180deg,var(--bg) 0%,var(--bg2) 100%);
+    overflow:hidden; page-break-after:always;
+  }
+  .page:last-child{ page-break-after:auto }
+  /* 極淡點陣紋理,克制不喧賓奪主 */
+  .page::before{
+    content:""; position:absolute; inset:0; pointer-events:none; opacity:.5;
+    background-image:radial-gradient(rgba(148,163,184,.05) 1px, transparent 1px);
+    background-size:22px 22px;
+  }
+  .frame{ position:absolute; inset:9mm; border:1px solid var(--line); border-radius:3px; pointer-events:none }
+  .pad{ position:absolute; inset:9mm; padding:11mm 12mm 14mm; display:flex; flex-direction:column }
+
+  /* ---- 品牌頁眉/頁腳(每頁重複) ---- */
+  .runhead{ display:flex; align-items:center; justify-content:space-between;
+    padding-bottom:7px; border-bottom:1px solid var(--line); margin-bottom:14px }
+  .brand{ display:flex; align-items:center; gap:9px; font-size:11.5px; letter-spacing:.06em; color:var(--tx2) }
+  .brand b{ color:var(--tx); font-weight:600 }
+  .logo{ width:19px; height:19px; border-radius:5px; position:relative;
+    background:linear-gradient(135deg,var(--gold-hi),var(--gold-deep));
+    box-shadow:0 0 10px rgba(227,185,62,.28) }
+  .logo::after{ content:"↗"; position:absolute; inset:0; display:grid; place-items:center;
+    color:#0B0E14; font-weight:900; font-size:12px }
+  .eyebrow{ font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--gold) }
+  .runfoot{ position:absolute; left:12mm; right:12mm; bottom:6mm;
+    display:flex; align-items:center; justify-content:space-between;
+    font-size:9px; color:var(--tx3); letter-spacing:.03em;
+    border-top:1px solid var(--line); padding-top:6px }
+  .runfoot .disc{ color:var(--gold); opacity:.85 }
+
+  /* ============ 封面 ============ */
+  .cover .pad{ justify-content:space-between }
+  .cover-top{ display:flex; justify-content:space-between; align-items:flex-start }
+  .vol{ text-align:right; font-size:11px; color:var(--tx2); line-height:1.7 }
+  .vol b{ color:var(--gold-hi); font-weight:700; font-size:13px }
+  .masthead{ margin-top:auto }
+  .masthead .kick{ font-size:12px; letter-spacing:.34em; color:var(--gold); text-transform:uppercase; margin-bottom:16px }
+  .masthead h1{ font-family:"Noto Serif TC",serif; font-weight:700; font-size:58px; line-height:1.06;
+    letter-spacing:.01em; color:#F3F1EA }
+  .masthead h1 .thin{ color:var(--gold-hi) }
+  .masthead .sub{ margin-top:14px; font-size:15px; color:var(--tx2); letter-spacing:.02em; max-width:150mm; line-height:1.75 }
+  .cover-stats{ display:flex; gap:11px; margin-top:26px }
+  .cstat{ flex:1; background:linear-gradient(180deg,var(--card),var(--pod));
+    border:1px solid var(--line2); border-radius:9px; padding:15px 16px; position:relative; overflow:hidden }
+  .cstat::before{ content:""; position:absolute; left:0; top:0; bottom:0; width:3px;
+    background:linear-gradient(180deg,var(--gold-hi),var(--gold-deep)) }
+  .cstat .k{ font-size:10px; letter-spacing:.12em; color:var(--tx3); text-transform:uppercase }
+  .cstat .v{ font-size:30px; font-weight:700; margin-top:6px; color:var(--tx) }
+  .cstat .v small{ font-size:13px; color:var(--tx2); font-weight:500; margin-left:3px }
+  .cover-strip{ margin-top:26px; display:flex; align-items:center; gap:14px;
+    background:rgba(201,162,39,.07); border:1px solid var(--gold-deep); border-radius:8px; padding:12px 16px }
+  .cover-strip .badge{ font-size:11px; font-weight:700; letter-spacing:.1em; color:#0B0E14;
+    background:var(--gold-hi); padding:4px 10px; border-radius:4px }
+  .cover-strip .txt{ font-size:12px; color:var(--tx2); line-height:1.6 }
+  .cover-strip .txt b{ color:var(--tx) }
+  .stamp{ position:absolute; top:34mm; right:16mm; transform:rotate(9deg);
+    border:2.5px solid rgba(255,92,92,.5); color:rgba(255,92,92,.72);
+    font-weight:800; font-size:26px; letter-spacing:.14em; padding:6px 16px; border-radius:6px;
+    font-family:"Segoe UI",sans-serif }
+
+  /* ============ 本期總覽密表 ============ */
+  .h2{ font-size:19px; font-weight:600; color:var(--tx); display:flex; align-items:baseline; gap:10px; margin-bottom:3px }
+  .h2 .cn{ font-size:11px; color:var(--tx3); letter-spacing:.03em }
+  .lead{ font-size:11.5px; color:var(--tx2); line-height:1.7; margin:6px 0 15px }
+  table.grid{ width:100%; border-collapse:collapse; font-size:11.5px }
+  table.grid thead th{ background:#0E141C; color:var(--gold); font-weight:600; text-align:right;
+    padding:9px 10px; border-bottom:1.5px solid var(--gold-deep); letter-spacing:.02em; white-space:nowrap;
+    font-size:10.5px }
+  table.grid thead th.l{ text-align:left }
+  table.grid thead th .sortcue{ color:var(--tx3); font-size:9px; margin-left:3px }
+  table.grid tbody td{ padding:9px 10px; text-align:right; border-bottom:1px solid var(--line);
+    white-space:nowrap; color:var(--tx) }
+  table.grid tbody td.l{ text-align:left }
+  table.grid tbody tr:nth-child(even){ background:rgba(255,255,255,.014) }
+  .tkr{ font-weight:600 } .tkr .code{ color:var(--tx3); font-size:10px; margin-left:6px;
+    font-family:"Segoe UI",monospace }
+  .dot{ display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:7px; vertical-align:middle;
+    box-shadow:0 0 6px currentColor }
+  .dot.r{ color:var(--up); background:var(--up) }
+  .dot.a{ color:var(--amber); background:var(--amber) }
+  .dot.g{ color:var(--dn); background:var(--dn) }
+  .pctcell{ text-align:left !important; min-width:130px }
+  .pbar{ position:relative; height:6px; background:var(--line); border-radius:3px; margin-top:5px; width:118px }
+  .pbar .band{ position:absolute; top:0; bottom:0; background:rgba(201,162,39,.18); border-radius:3px }
+  .pbar .mk{ position:absolute; top:-3px; width:2px; height:12px; background:var(--gold-hi);
+    box-shadow:0 0 5px var(--gold-hi) }
+  .legend{ display:flex; gap:22px; margin-top:16px; padding:12px 15px;
+    background:var(--card); border:1px solid var(--line); border-radius:8px; font-size:10.5px; color:var(--tx2) }
+  .legend .col b{ color:var(--tx); font-size:11px; display:block; margin-bottom:5px; letter-spacing:.02em }
+  .legend .li{ display:flex; align-items:center; gap:7px; line-height:1.9 }
+
+  /* ============ 個股資料卡 ============ */
+  .card{ background:linear-gradient(180deg,var(--card) 0%,var(--pod) 100%);
+    border:1px solid var(--line2); border-radius:11px; padding:15px 17px; margin-bottom:13px; position:relative }
+  .card::before{ content:""; position:absolute; left:0; top:14px; bottom:14px; width:3px; border-radius:3px;
+    background:linear-gradient(180deg,var(--gold-hi),var(--gold-deep)) }
+  .card-hd{ display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px }
+  .card-hd .name{ font-size:18px; font-weight:700 }
+  .card-hd .name .code{ font-size:11px; color:var(--tx3); font-family:"Segoe UI",monospace; margin-left:8px }
+  .card-hd .tag{ font-size:10px; color:var(--tx2); margin-top:4px; letter-spacing:.02em }
+  .kpis{ display:flex; gap:8px }
+  .kpi{ background:var(--pod); border:1px solid var(--line); border-radius:7px; padding:7px 12px; text-align:right; min-width:78px }
+  .kpi .k{ font-size:9px; color:var(--tx3); letter-spacing:.08em; text-transform:uppercase }
+  .kpi .v{ font-size:20px; font-weight:700; margin-top:2px }
+  .card-body{ display:grid; grid-template-columns:1fr 1fr; gap:13px }
+  .block{ background:rgba(255,255,255,.018); border:1px solid var(--line); border-radius:8px; padding:11px 13px }
+  .block .bt{ font-size:10px; letter-spacing:.13em; text-transform:uppercase; color:var(--gold); margin-bottom:9px }
+  /* 三種買法對照橫條 */
+  .cmp{ display:flex; flex-direction:column; gap:9px }
+  .cmp .row{ display:grid; grid-template-columns:64px 1fr 62px; align-items:center; gap:9px; font-size:11px }
+  .cmp .row .lb{ color:var(--tx2) }
+  .cmp .track{ height:9px; background:var(--line); border-radius:5px; overflow:hidden }
+  .cmp .fill{ height:100%; border-radius:5px }
+  .cmp .fill.gold{ background:linear-gradient(90deg,var(--gold-deep),var(--gold-hi)) }
+  .cmp .fill.mut{ background:linear-gradient(90deg,#3a4557,#59647a) }
+  .cmp .fill.bench{ background:linear-gradient(90deg,#2b4a63,#3d6f96) }
+  .cmp .vn{ text-align:right; font-weight:600; color:var(--up) }
+  /* sparkline */
+  .spark-wrap{ display:flex; align-items:flex-end; justify-content:space-between; margin-top:2px }
+  .spark-meta{ font-size:10px; color:var(--tx2); line-height:1.7 }
+  .spark-meta .big{ font-size:17px; font-weight:700; color:var(--tx) }
+  /* 估值 percentile 大條 */
+  .valbar{ position:relative; height:9px; background:var(--line); border-radius:5px; margin:16px 0 6px }
+  .valbar .iqr{ position:absolute; top:0; bottom:0; background:rgba(201,162,39,.20); border-radius:5px }
+  .valbar .med{ position:absolute; top:-3px; width:2px; height:15px; background:var(--tx3) }
+  .valbar .mk{ position:absolute; top:-4px; width:3px; height:17px; background:var(--gold-hi);
+    box-shadow:0 0 7px var(--gold-hi); border-radius:2px }
+  .valscale{ display:flex; justify-content:space-between; font-size:9px; color:var(--tx3) }
+  /* 崩盤韌性 pods */
+  .pods{ display:flex; gap:9px }
+  .crashpod{ flex:1; background:var(--pod); border:1px solid var(--line); border-radius:8px; padding:9px 10px }
+  .crashpod .y{ font-size:10px; color:var(--tx2); letter-spacing:.04em }
+  .crashpod .dd{ font-size:16px; font-weight:700; margin-top:4px }
+  .crashpod .hold{ font-size:9.5px; color:var(--tx3); margin-top:3px }
+  .crashpod .hold b{ color:var(--up); font-weight:700 }
+  .disc-block{ margin-top:auto; font-size:9.5px; color:var(--tx3); line-height:1.7;
+    border-top:1px solid var(--line); padding-top:9px }
+  .disc-block b{ color:var(--tx2) }
+</style>
+</head>
+<body>
+
+<!-- ============================== 封面 ============================== -->
+<section class="page cover">
+  <div class="frame"></div>
+  <div class="stamp">SAMPLE</div>
+  <div class="pad">
+    <div class="cover-top">
+      <div class="brand"><span class="logo"></span><b>量化阿森</b>&nbsp;Carson Quant</div>
+      <div class="vol">
+        <div class="eyebrow">訂閱週報 · WEEKLY</div>
+        <div style="margin-top:6px">VOL. <b>28</b></div>
+        <div>2026 · 07 · 15</div>
+      </div>
+    </div>
+
+    <div class="masthead">
+      <div class="kick">個股體檢 · 數據週報</div>
+      <h1>台股個股<br><span class="thin">體檢週報</span></h1>
+      <div class="sub">含息還原 20 年總報酬、最長套牢期、腰斬次數、三次崩盤韌性、估值位階與財報趨勢——每一個數字都由程式從公開財報與還原股價算出,只做數據介紹。</div>
+
+      <div class="cover-stats">
+        <div class="cstat"><div class="k">本期覆蓋</div><div class="v">8<small>檔個股</small></div></div>
+        <div class="cstat"><div class="k">數據事實</div><div class="v">96<small>組</small></div></div>
+        <div class="cstat"><div class="k">回溯區間</div><div class="v">20<small>年含息</small></div></div>
+        <div class="cstat"><div class="k">新完成體檢</div><div class="v">2408<small>南亞科</small></div></div>
+      </div>
+
+      <div class="cover-strip">
+        <span class="badge">介紹 ≠ 推薦</span>
+        <span class="txt">本報告為<b>歷史數據體檢</b>,中性陳述、不喊買賣、不給目標價。歷史數據非未來保證,投資有風險。</span>
+      </div>
+    </div>
+  </div>
+  <div class="runfoot"><span>量化阿森 Carson Quant · 個股體檢週報</span><span class="disc">數據示意樣張 SAMPLE</span><span>封面</span></div>
+</section>
+
+<!-- ============================== 本期總覽密表 ============================== -->
+<section class="page">
+  <div class="frame"></div>
+  <div class="pad">
+    <div class="runhead">
+      <div class="brand"><span class="logo"></span><b>量化阿森</b>&nbsp;個股體檢週報</div>
+      <div class="eyebrow">本期總覽 · VOL.28</div>
+    </div>
+
+    <div class="h2">本期總覽 <span class="cn">8 檔個股 · 依年化報酬排序</span></div>
+    <div class="lead">一頁看完本期覆蓋的每一檔:含息還原年化、最大回撤、目前估值位階(於自身近 10 年區間的百分位)、史上最長套牢期。<b style="color:var(--tx)">台股慣例:漲/正報酬為<span class="up">紅</span>、跌/負為<span class="dn">綠</span></b>。燈號僅標示估值位置,非買賣訊號。</div>
+
+    <table class="grid">
+      <thead><tr>
+        <th class="l">個股 <span class="sortcue">A→Z</span></th>
+        <th>年化報酬 <span class="sortcue">▼</span></th>
+        <th>最大回撤</th>
+        <th class="l">估值位階(近10年)</th>
+        <th>最長套牢</th>
+        <th>近5年殖利率</th>
+      </tr></thead>
+      <tbody>
+        <tr>
+          <td class="l tkr">台積電<span class="code">2330</span></td>
+          <td class="num up">+25.1%</td><td class="num dn">−46.5%</td>
+          <td class="pctcell"><span class="dot r"></span>P98 偏高
+            <div class="pbar"><span class="band" style="left:34%;right:24%"></span><span class="mk" style="left:96%"></span></div></td>
+          <td class="num">10.7 年</td><td class="num">2.0%</td>
+        </tr>
+        <tr>
+          <td class="l tkr">聯發科<span class="code">2454</span></td>
+          <td class="num up">+20.4%</td><td class="num dn">−69.4%</td>
+          <td class="pctcell"><span class="dot r"></span>P99 偏高
+            <div class="pbar"><span class="band" style="left:30%;right:22%"></span><span class="mk" style="left:98%"></span></div></td>
+          <td class="num">5.4 年</td><td class="num">6.2%</td>
+        </tr>
+        <tr>
+          <td class="l tkr">長榮<span class="code">2603</span></td>
+          <td class="num up">+15.5%</td><td class="num dn">−70.5%</td>
+          <td class="pctcell"><span class="dot g"></span>P55 中位
+            <div class="pbar"><span class="band" style="left:22%;right:30%"></span><span class="mk" style="left:55%"></span></div></td>
+          <td class="num">9.9 年</td><td class="num">27.6%</td>
+        </tr>
+        <tr>
+          <td class="l tkr">鴻海<span class="code">2317</span></td>
+          <td class="num up">+10.4%</td><td class="num dn">−75.0%</td>
+          <td class="pctcell"><span class="dot a"></span>P92 偏高
+            <div class="pbar"><span class="band" style="left:26%;right:28%"></span><span class="mk" style="left:92%"></span></div></td>
+          <td class="num">9.0 年</td><td class="num">4.5%</td>
+        </tr>
+        <tr>
+          <td class="l tkr">中華電<span class="code">2412</span></td>
+          <td class="num up">+8.5%</td><td class="num dn">−27.4%</td>
+          <td class="pctcell"><span class="dot a"></span>P79 中高
+            <div class="pbar"><span class="band" style="left:36%;right:20%"></span><span class="mk" style="left:79%"></span></div></td>
+          <td class="num">4.8 年</td><td class="num">4.4%</td>
+        </tr>
+        <tr>
+          <td class="l tkr">國泰金<span class="code">2882</span></td>
+          <td class="num up">+7.2%</td><td class="num dn">−72.0%</td>
+          <td class="pctcell"><span class="dot a"></span>P83 中高
+            <div class="pbar"><span class="band" style="left:24%;right:26%"></span><span class="mk" style="left:83%"></span></div></td>
+          <td class="num">10.3 年</td><td class="num">6.0%</td>
+        </tr>
+        <tr>
+          <td class="l tkr">國泰永續高股息<span class="code">00878</span></td>
+          <td class="num up">+22.0%</td><td class="num dn">−22.3%</td>
+          <td class="pctcell"><span class="dot g"></span>資料未滿10年
+            <div class="pbar"><span class="band" style="left:0;right:0;opacity:.35"></span></div></td>
+          <td class="num">1.4 年</td><td class="num">9.4%</td>
+        </tr>
+        <tr>
+          <td class="l tkr">南亞科<span class="code">2408</span></td>
+          <td class="num up">+2.3%</td><td class="num dn">−98.5%</td>
+          <td class="pctcell"><span class="dot r"></span>P98 偏高
+            <div class="pbar"><span class="band" style="left:8%;right:36%"></span><span class="mk" style="left:98%"></span></div></td>
+          <td class="num">25.9 年↗</td><td class="num">3.9%</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="legend">
+      <div class="col">
+        <b>顏色(台股慣例)</b>
+        <div class="li"><span class="dot r" style="box-shadow:none"></span><span class="up">紅=漲/正報酬</span></div>
+        <div class="li"><span class="dot g" style="box-shadow:none"></span><span class="dn">綠=跌/負報酬</span></div>
+      </div>
+      <div class="col">
+        <b>估值位階燈號(僅標位置)</b>
+        <div class="li"><span class="dot g" style="box-shadow:none"></span>≤P60 區間偏低段</div>
+        <div class="li"><span class="dot a" style="box-shadow:none"></span>P60–95 中高段</div>
+        <div class="li"><span class="dot r" style="box-shadow:none"></span>≥P95 區間高段</div>
+      </div>
+      <div class="col">
+        <b>位階條</b>
+        <div class="li">金色標記=目前本益比</div>
+        <div class="li">淡金帶=近10年 P25–P75</div>
+        <div class="li" style="color:var(--tx3)">位置陳述,非貴賤判斷</div>
+      </div>
+    </div>
+  </div>
+  <div class="runfoot"><span>量化阿森 Carson Quant · 個股體檢週報</span><span class="disc">介紹 ≠ 推薦 · SAMPLE</span><span>2 / 4</span></div>
+</section>
+
+<!-- ============================== 個股資料頁 ============================== -->
+<section class="page">
+  <div class="frame"></div>
+  <div class="pad">
+    <div class="runhead">
+      <div class="brand"><span class="logo"></span><b>量化阿森</b>&nbsp;個股體檢週報</div>
+      <div class="eyebrow">個股資料頁 · 半導體</div>
+    </div>
+
+    <!-- 台積電 完整卡 -->
+    <div class="card">
+      <div class="card-hd">
+        <div>
+          <div class="name">台積電<span class="code">2330 · 上市</span></div>
+          <div class="tag">近20年含息還原 · 完整年度資料 27 年 · 卡瑪比率 0.54</div>
+        </div>
+        <div class="kpis">
+          <div class="kpi"><div class="k">20年年化</div><div class="v up">+25.1%</div></div>
+          <div class="kpi"><div class="k">最大回撤</div><div class="v dn">−46.5%</div></div>
+          <div class="kpi"><div class="k">最長套牢</div><div class="v">10.7年</div></div>
+        </div>
+      </div>
+
+      <div class="card-body">
+        <!-- 三種買法對照 -->
+        <div class="block">
+          <div class="bt">三種買法對照 · 近10年含息</div>
+          <div class="cmp">
+            <div class="row"><span class="lb">單筆All-in</span>
+              <div class="track"><div class="fill gold" style="width:100%"></div></div><span class="vn">+1746.9%</span></div>
+            <div class="row"><span class="lb">每月定投</span>
+              <div class="track"><div class="fill mut" style="width:38.3%"></div></div><span class="vn">+669.2%</span></div>
+            <div class="row"><span class="lb">同期0050</span>
+              <div class="track"><div class="fill bench" style="width:43%"></div></div><span class="vn">+751.5%</span></div>
+          </div>
+        </div>
+
+        <!-- EPS sparkline -->
+        <div class="block">
+          <div class="bt">EPS 趨勢 · 近10完整年度(示意序列)</div>
+          <div class="spark-wrap">
+            <svg width="150" height="52" viewBox="0 0 150 52">
+              <defs>
+                <linearGradient id="gf" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stop-color="#E3B93E" stop-opacity=".28"/>
+                  <stop offset="1" stop-color="#E3B93E" stop-opacity="0"/>
+                </linearGradient>
+              </defs>
+              <!-- 12.89 13.23 13.32 13.90 19.97 23.01 39.20 32.34 45.25 66.26 → 正規化 -->
+              <polyline fill="url(#gf)" stroke="none"
+                points="0,44 16,43 33,43 50,42 66,35 83,31 100,17 116,24 133,10 150,2 150,52 0,52"/>
+              <polyline fill="none" stroke="#E3B93E" stroke-width="1.6" stroke-linejoin="round"
+                points="0,44 16,43 33,43 50,42 66,35 83,31 100,17 116,24 133,10 150,2"/>
+              <circle cx="150" cy="2" r="2.6" fill="#E3B93E"/>
+            </svg>
+            <div class="spark-meta">
+              <div><span class="big num">66.26</span> 元</div>
+              <div>2016 · 12.89 元</div>
+              <div style="color:var(--up)">→ 2025 · +414%</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 估值位階 -->
+        <div class="block" style="grid-column:1/3">
+          <div class="bt">目前估值位階 · 本益比於近10年區間(截至 2026-07-14)</div>
+          <div style="display:flex;align-items:center;gap:14px">
+            <div style="font-size:26px;font-weight:700">32.5<span style="font-size:12px;color:var(--tx2);font-weight:500">倍</span></div>
+            <div style="flex:1">
+              <div class="valbar">
+                <div class="iqr" style="left:34%;right:24%"></div>
+                <div class="med" style="left:52%"></div>
+                <div class="mk" style="left:96%"></div>
+              </div>
+              <div class="valscale"><span>P25 · 15.6倍</span><span>中位 19.3倍</span><span>P75 · 25.9倍</span></div>
+            </div>
+            <div style="text-align:right"><span class="dot r" style="box-shadow:none"></span><span style="font-size:12px;color:var(--tx2)">第 <b style="color:var(--tx)">98</b> 百分位</span></div>
+          </div>
+          <div style="font-size:9.5px;color:var(--tx3);margin-top:8px">僅陳述目前本益比落在自身近 10 年區間的相對位置,不判斷貴或便宜、不構成買賣建議。</div>
+        </div>
+
+        <!-- 崩盤韌性 -->
+        <div class="block" style="grid-column:1/3">
+          <div class="bt">三次崩盤韌性 · 跌幅(綠)與抱到現在報酬(紅)</div>
+          <div class="pods">
+            <div class="crashpod"><div class="y">2008 金融海嘯</div><div class="dd dn">−43.8%</div><div class="hold">抱到今 <b>+6414%</b></div></div>
+            <div class="crashpod"><div class="y">2020 新冠</div><div class="dd dn">−27.6%</div><div class="hold">抱到今 <b>+706%</b></div></div>
+            <div class="crashpod"><div class="y">2022 台股熊市</div><div class="dd dn">−44.8%</div><div class="hold">抱到今 <b>+290%</b></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 中華電 精簡卡 -->
+    <div class="card">
+      <div class="card-hd">
+        <div>
+          <div class="name">中華電<span class="code">2412 · 上市</span></div>
+          <div class="tag">防禦型權值 · 近20年含息還原 · 卡瑪比率 0.31</div>
+        </div>
+        <div class="kpis">
+          <div class="kpi"><div class="k">20年年化</div><div class="v up">+8.5%</div></div>
+          <div class="kpi"><div class="k">最大回撤</div><div class="v dn">−27.4%</div></div>
+          <div class="kpi"><div class="k">殖利率</div><div class="v">4.4%</div></div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="block">
+          <div class="bt">三種買法對照 · 近10年含息</div>
+          <div class="cmp">
+            <div class="row"><span class="lb">單筆All-in</span><div class="track"><div class="fill gold" style="width:9%"></div></div><span class="vn">+68.1%</span></div>
+            <div class="row"><span class="lb">每月定投</span><div class="track"><div class="fill mut" style="width:6.4%"></div></div><span class="vn">+48.2%</span></div>
+            <div class="row"><span class="lb">同期0050</span><div class="track"><div class="fill bench" style="width:100%"></div></div><span class="vn">+751.5%</span></div>
+          </div>
+        </div>
+        <div class="block">
+          <div class="bt">套牢/回本體檢</div>
+          <div style="font-size:11.5px;color:var(--tx2);line-height:1.85">
+            史上最長套牢期:自 2000-11-29 創高後,一路等到 2005-09-29 才創新高,整整
+            <b style="color:var(--tx)">等了 4.8 年</b>(1765 天)。近5年平均現金殖利率約
+            <b style="color:var(--tx)">4.4%</b>、連續配息 16 年。
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="disc-block">
+      <b>資料來源:</b>FinMind 免費台股 API(公開財報/月營收/股利/估值原始數據)、Yahoo Finance(含息還原收盤價,已過清洗)。
+      本報告為程式化的歷史數據彙整與教學,只做「事實介紹」,不是投資建議、不喊單、不報明牌;歷史數據非未來保證,投資有風險,據此進出盈虧自負。EPS 趨勢圖為示意序列(端點為真實年度值)。
+    </div>
+  </div>
+  <div class="runfoot"><span>量化阿森 Carson Quant · 個股體檢週報</span><span class="disc">介紹 ≠ 推薦 · SAMPLE</span><span>3 / 4</span></div>
+</section>
+
+</body>
+</html>

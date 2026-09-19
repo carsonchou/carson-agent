@@ -1,0 +1,33 @@
+{
+ "claim": "Effects of consumer cues on believing other people should use less water",
+ "es_type": "d",
+ "orig": {
+  "n": 77,
+  "es": 0.25,
+  "year": 2012,
+  "title": "Cuing Consumerism",
+  "author": "[{\"given\":\"Monika A.\",\"family\":\"Bauer\",\"sequence\":\"first\"},{\"given\":\"James E. B.",
+  "doi": "10.1177/0956797611429579",
+  "url": ""
+ },
+ "repl": {
+  "n": 6608,
+  "es": 0.01,
+  "year": 2018,
+  "title": "Many Labs 2: Investigating Variation in Replicability Across Samples and Settings",
+  "doi": "10.1177/2515245918810225",
+  "url": ""
+ },
+ "verdict": "mixed",
+ "p_repl": null,
+ "p_type_repl": "",
+ "p_tails_repl": "",
+ "source": "FORRT Replication Database (FReD), OSF 2tbvd",
+ "record": {
+  "fred_id": "Manylabs2_15_1",
+  "effect_id": "869",
+  "prereg": "https://osf.io/ejcfw"
+ },
+ "n_ratio": 85.8,
+ "tone": "gone"
+}

@@ -1,0 +1,1 @@
+Before the second number, one line on what a correlation is. A correlation is how tightly two things move together — not whether one causes the other. Around zero point one is small, zero point three is medium, zero point five is large. 50 people is a small study. That does not make it wrong, but it does mean the number it produced had a wide range of places it could have landed.

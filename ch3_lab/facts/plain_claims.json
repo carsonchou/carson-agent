@@ -1,0 +1,443 @@
+{
+ "_why": "縮圖與 Short 開場要放的是『一個一般人相信的說法』,不是論文語言。來源的 claim 欄是摘要剪下來的(「Action identification is positively correlated with mind attribution」),放上去沒有人看得懂,而那兩個位置都是 feed 裡最先被看到的東西。這份是**手寫**的:改寫只做『講人話』,不改變意思、不加任何新宣稱、不放數字。數字與判決字仍然由事實庫與 tone 決定,所以溯源鏈沒有變。",
+ "_lines": "縮圖與 Short 開場卡的兩行大寫。分兩行是因為版面就是兩行;每行盡量 ≤ 24 字元,再長會被自動縮到看不清。",
+ "_spoken": "Short 旁白唸的那一句。**分開手寫**而不是把 lines 接起來加問號 —— 接起來會壞在大小寫(god→God)、標點(ep001 本身就有問號)、和唸不順(缺逗號)。三種都不會報錯,只會唸出一句怪話。",
+ "_rule": "缺一支就不產那支縮圖、也不產那支 Short(fail-closed)—— 寧可少一支,也不要把論文語言放上去。",
+ "eps/ep000": {
+  "lines": [
+   "DOES CONSUMERISM CHANGE",
+   "WHAT YOU EXPECT OF OTHERS?"
+  ],
+  "spoken": "Do reminders of consumerism change whether you think other people should save water?"
+ },
+ "eps/ep001": {
+  "lines": [
+   "FEELING UNSURE OF YOURSELF",
+   "YOU KEEP WHAT DEFINES YOU"
+  ],
+  "spoken": "Feeling unsure of yourself makes you hold on to the things that define you?"
+ },
+ "eps/ep002": {
+  "lines": [
+   "SEEING THE BIG PICTURE",
+   "GOES WITH SEEING MINDS"
+  ],
+  "spoken": "Do people who see the big picture also see more minds?"
+ },
+ "eps/ep003": {
+  "lines": [
+   "AGREEABLE PEOPLE",
+   "COMMIT FEWER CRIMES"
+  ],
+  "spoken": "Agreeable people commit fewer crimes?"
+ },
+ "eps/ep004": {
+  "lines": [
+   "BEING SHORT ON MONEY",
+   "DRAINS YOUR SELF-CONTROL"
+  ],
+  "spoken": "Being short on money drains your self-control?"
+ },
+ "eps/ep005": {
+  "lines": [
+   "A DEEPER-SOUNDING NAME",
+   "MAKES IT FEEL THICKER"
+  ],
+  "spoken": "Does a deeper-sounding brand name make a product feel thicker?"
+ },
+ "eps/ep006": {
+  "lines": [
+   "WE VALUE A LIFE MORE",
+   "WHEN FEWER ARE AT RISK"
+  ],
+  "spoken": "We value a life more when fewer lives are at risk?"
+ },
+ "eps/ep007": {
+  "lines": [
+   "THE MORE USEFUL IT IS",
+   "THE SAFER IT SEEMS"
+  ],
+  "spoken": "The more useful something is, the safer it seems?"
+ },
+ "eps/ep008": {
+  "lines": [
+   "LOOKING FORWARD TO A TRIP",
+   "BEATS LOOKING BACK ON IT"
+  ],
+  "spoken": "Looking forward to a trip beats looking back on it?"
+ },
+ "eps/ep009": {
+  "lines": [
+   "REMINDED OF GOD",
+   "PEOPLE SAY THEY'D RISK MORE"
+  ],
+  "spoken": "Reminded of God, do people say they would take more risks?"
+ },
+ "eps/ep010": {
+  "lines": [
+   "THINK ANALYTICALLY AND",
+   "CONSPIRACY BELIEF DROPS"
+  ],
+  "spoken": "Think analytically, and belief in conspiracies drops?"
+ },
+ "eps/ep011": {
+  "lines": [
+   "WHAT YOU DO REVEALS MORE",
+   "THAN WHAT YOU OWN"
+  ],
+  "spoken": "What you do reveals more about you than what you own?"
+ },
+ "eps/ep012": {
+  "lines": [
+   "JUDGED ON THE DECISION NOT THE RESULT",
+   "YOU STOP DOUBLING DOWN"
+  ],
+  "spoken": "Judged on how you decided rather than how it turned out, you stop doubling down?"
+ },
+ "eps/ep013": {
+  "lines": [
+   "THINKING ABOUT HEAT",
+   "MAKES YOU SEE HOSTILITY"
+  ],
+  "spoken": "Thinking about heat makes you see people as more hostile?"
+ },
+ "eps/ep014": {
+  "lines": [
+   "MORE REFLECTIVE THINKERS",
+   "MAKE COLDER MORAL CHOICES"
+  ],
+  "spoken": "More reflective thinkers make colder moral choices?"
+ },
+ "eps/ep015": {
+  "lines": [
+   "WE PUNISH CRITICISM HARDER",
+   "WHEN IT COMES FROM OUTSIDE"
+  ],
+  "spoken": "Do we punish criticism harder when it comes from an outsider?"
+ },
+ "eps/ep016": {
+  "lines": [
+   "CONCRETE WORDING",
+   "MAKES A CLAIM SEEM TRUER"
+  ],
+  "spoken": "Concrete wording makes a claim seem truer?"
+ },
+ "eps/ep017": {
+  "lines": [
+   "A STEEPER HIERARCHY",
+   "LOOKS MORE CORRUPT"
+  ],
+  "spoken": "A steeper hierarchy looks more corrupt?"
+ },
+ "eps/ep018": {
+  "lines": [
+   "AT EASY THINGS",
+   "EVERYONE THINKS THEY'RE ABOVE AVERAGE"
+  ],
+  "spoken": "At easy things, does everyone think they're above average?"
+ },
+ "eps_famous/ego_depletion": {
+  "lines": [
+   "WILLPOWER",
+   "RUNS OUT AS YOU USE IT"
+  ],
+  "spoken": "Willpower runs out as you use it?"
+ },
+ "eps_famous/bystander_effect": {
+  "lines": [
+   "A CROWD MAKES EACH PERSON",
+   "LESS LIKELY TO HELP"
+  ],
+  "spoken": "Does a crowd make each person less likely to help?"
+ },
+ "eps_famous/implicit_bias_test": {
+  "lines": [
+   "CAN A TEST REVEAL",
+   "YOUR HIDDEN BIAS?"
+  ],
+  "spoken": "Can a reaction-time test reveal your hidden bias?"
+ },
+ "eps_famous/sleep_memory": {
+  "lines": [
+   "A SOUND IN YOUR SLEEP",
+   "STRENGTHENS A MEMORY"
+  ],
+  "spoken": "A sound played while you sleep strengthens a memory?"
+ },
+ "eps_famous/romantic_red": {
+  "lines": [
+   "RED MAKES WOMEN",
+   "MORE ATTRACTIVE"
+  ],
+  "spoken": "Red makes a woman look more attractive?"
+ },
+ "_fidelity": "2026-08-29 逐支對照 episode_queue.csv 的 description 與原始論文標題重讀一次,7 支要改。改的全是**我自己寫的**白話句往外飄:ep008 原文標題就叫「Anticipation is more evocative than retrospection」——比的是「期待 vs 回想」,我寫成「beats the trip itself」(那趟旅行是假設的,根本沒發生);ep012 原文分「究責過程 → 降低追加投入」與「究責結果 → 反而升高」兩半,我只寫「被究責就會停手」,把會反轉的那半丟了;ep015 原文是「用付出代價的懲罰去排斥外團體批評」,我寫成「比較刺痛」——把行為講成感受;ep002 原文是 correlated,我寫成「and you start seeing」帶了因果;ep005 原文是後母音,我寫成循環的「sound thicker → feel thicker」;ep001 丟了「與身分相關的產品」;ep000 丟了「對別人的期待」。縮圖那兩行是壓縮版,允許更模糊但**不允許更強**;spoken 那句要把限定條件帶回來。",
+ "_fidelity2": "2026-08-29 第二輪(獨立驗證回報)。第一輪我自己抓到 7 支,驗證又抓到 5 支我漏的:ep000 我把自變項(消費主義線索)和依變項(對別人的規範信念)**兩邊都換掉**了;ep009 丟了 self-reported(量的是「說自己會冒險」);ep018 縮圖那兩行丟掉 perceive/tend to,把邏輯上不可能的事印成斷言,而 spoken 版本來就有保留 —— 同一支片兩個版本不一致;implicit_bias_test 丟掉「can」;bystander 把「機率降低」寫成「阻止」。通則:壓縮成兩行時最先被丟掉的就是**限定詞**(can / tend to / self-reported / correlated),而限定詞正是把「可能」變成「一定」的那個開關。",
+ "eps_lineup/social_priming": {
+  "lines": [
+   "READ A WORD",
+   "AND BEHAVE DIFFERENTLY"
+  ],
+  "spoken": "Does reading a word change how you behave?"
+ },
+ "eps_lineup/anchoring": {
+  "lines": [
+   "SEE A NUMBER FIRST",
+   "AND YOUR GUESS MOVES TOWARD IT"
+  ],
+  "spoken": "Does seeing a number first pull your guess toward it?"
+ },
+ "_lineup": "效應家族集型的白話主張。單位是**一整條研究路線**不是一篇論文,所以主張要寫成那個路線共同宣稱的東西(social priming = 看一個詞就改變行為),不是某一篇的特定操弄。判決字也不同:單篇是 NOT FOUND / IT HELD UP,家族是「12 個裡 0 個」——那是個數字,所以它必須從 facts 來,不能手寫。",
+ "eps_lineup/ep0": {
+  "lines": [
+   "FAMOUS EXPERIMENTS",
+   "RUN AGAIN"
+  ],
+  "spoken": "What happens when someone runs a famous experiment again?"
+ },
+ "eps_domain/10000_hour_rule": {
+  "lines": [
+   "PRACTICE IS WHAT",
+   "SEPARATES THE BEST"
+  ],
+  "spoken": "Is how much you practise what separates the best?"
+ },
+ "eps_domain/power_posing": {
+  "lines": [
+   "STAND LIKE THIS",
+   "AND BECOME MORE POWERFUL"
+  ],
+  "spoken": "Does standing in a powerful pose make you more powerful?"
+ },
+ "eps_domain/learning_styles": {
+  "lines": [
+   "TEACH ME MY WAY",
+   "AND I LEARN BETTER"
+  ],
+  "spoken": "Do you learn better when you are taught in your own style?"
+ },
+ "eps_domain/cognitive_dissonance": {
+  "lines": [
+   "PAY SOMEONE MORE",
+   "TO LIE, AND THEY BELIEVE IT LESS"
+  ],
+  "spoken": "If you pay someone more to say something they do not believe, do they change their mind less?"
+ },
+ "eps_domain/stereotype_threat": {
+  "lines": [
+   "TELL SOMEONE A TEST",
+   "MEASURES THEIR ABILITY"
+  ],
+  "spoken": "Does being told a test measures your ability make you do worse on it?"
+ },
+ "eps_domain/anchoring": {
+  "lines": [
+   "SHOW A NUMBER FIRST",
+   "AND THE GUESS MOVES"
+  ],
+  "spoken": "Does showing someone a number first pull their estimate toward it?"
+ },
+ "eps_domain/loss_aversion": {
+  "lines": [
+   "LOSING HURTS MORE",
+   "THAN WINNING FEELS GOOD"
+  ],
+  "spoken": "Does losing hurt more than winning the same amount feels good?"
+ },
+ "eps_rechecked/hot_hand": {
+  "lines": [
+   "DOES A BASKETBALL PLAYER",
+   "EVER GET A HOT HAND?"
+  ],
+  "spoken": "Does a basketball player ever really get a hot hand?"
+ },
+ "hot_hand": {
+  "lines": [
+   "DOES A BASKETBALL PLAYER",
+   "EVER GET A HOT HAND?"
+  ],
+  "spoken": "Does a basketball player ever really get a hot hand?"
+ },
+ "eps_rechecked/hungry_judges": {
+  "lines": [
+   "DOES A JUDGE GO EASIER",
+   "RIGHT AFTER LUNCH?"
+  ],
+  "spoken": "Does a judge go easier on you right after lunch?"
+ },
+ "hungry_judges": {
+  "lines": [
+   "DOES A JUDGE GO EASIER",
+   "RIGHT AFTER LUNCH?"
+  ],
+  "spoken": "Does a judge go easier on you right after lunch?"
+ },
+ "eps_rechecked/facial_feedback": {
+  "lines": [
+   "DOES HOLDING A PEN",
+   "IN YOUR TEETH CHEER YOU UP?"
+  ],
+  "spoken": "Does holding a pen in your teeth actually cheer you up?"
+ },
+ "facial_feedback": {
+  "lines": [
+   "DOES HOLDING A PEN",
+   "IN YOUR TEETH CHEER YOU UP?"
+  ],
+  "spoken": "Does holding a pen in your teeth actually cheer you up?"
+ },
+ "eps_rechecked/moral_licensing": {
+  "lines": [
+   "DOES DOING ONE GOOD THING",
+   "LET YOU DO A BAD ONE?"
+  ],
+  "spoken": "Does doing one good thing give you permission to do a bad one?"
+ },
+ "moral_licensing": {
+  "lines": [
+   "DOES DOING ONE GOOD THING",
+   "LET YOU DO A BAD ONE?"
+  ],
+  "spoken": "Does doing one good thing give you permission to do a bad one?"
+ },
+ "eps_rechecked/terror_management": {
+  "lines": [
+   "DOES THINKING ABOUT DEATH",
+   "HARDEN YOUR BELIEFS?"
+  ],
+  "spoken": "Does thinking about your own death harden your beliefs?"
+ },
+ "terror_management": {
+  "lines": [
+   "DOES THINKING ABOUT DEATH",
+   "HARDEN YOUR BELIEFS?"
+  ],
+  "spoken": "Does thinking about your own death harden your beliefs?"
+ },
+ "eps_rechecked/backfire_effect": {
+  "lines": [
+   "DOES CORRECTING SOMEONE",
+   "MAKE THEM BELIEVE IT MORE?"
+  ],
+  "spoken": "Does correcting someone make them believe the wrong thing more?"
+ },
+ "backfire_effect": {
+  "lines": [
+   "DOES CORRECTING SOMEONE",
+   "MAKE THEM BELIEVE IT MORE?"
+  ],
+  "spoken": "Does correcting someone make them believe the wrong thing more?"
+ },
+ "eps_rechecked/false_memory": {
+  "lines": [
+   "CAN SOMEONE PLANT",
+   "A CHILDHOOD MEMORY IN YOU?"
+  ],
+  "spoken": "Can someone plant a childhood memory in you that never happened?"
+ },
+ "false_memory": {
+  "lines": [
+   "CAN SOMEONE PLANT",
+   "A CHILDHOOD MEMORY IN YOU?"
+  ],
+  "spoken": "Can someone plant a childhood memory in you that never happened?"
+ },
+ "eps_rechecked/marshmallow_test": {
+  "lines": [
+   "DOES WAITING FOR A SWEET",
+   "AT FOUR PREDICT YOUR LIFE?"
+  ],
+  "spoken": "Does waiting for a sweet at age four predict how your life goes?"
+ },
+ "marshmallow_test": {
+  "lines": [
+   "DOES WAITING FOR A SWEET",
+   "AT FOUR PREDICT YOUR LIFE?"
+  ],
+  "spoken": "Does waiting for a sweet at age four predict how your life goes?"
+ },
+ "eps_rechecked/grit": {
+  "lines": [
+   "DOES GRIT MATTER MORE",
+   "THAN TALENT?"
+  ],
+  "spoken": "Does grit matter more than raw talent?"
+ },
+ "grit": {
+  "lines": [
+   "DOES GRIT MATTER MORE",
+   "THAN TALENT?"
+  ],
+  "spoken": "Does grit matter more than raw talent?"
+ },
+ "eps_rechecked/dunning_kruger": {
+  "lines": [
+   "ARE THE LEAST COMPETENT",
+   "THE MOST CONFIDENT?"
+  ],
+  "spoken": "Are the least competent people really the most confident?"
+ },
+ "dunning_kruger": {
+  "lines": [
+   "ARE THE LEAST COMPETENT",
+   "THE MOST CONFIDENT?"
+  ],
+  "spoken": "Are the least competent people really the most confident?"
+ },
+ "eps_rechecked/stanford_prison": {
+  "lines": [
+   "DO ORDINARY PEOPLE TURN",
+   "CRUEL IN A UNIFORM?"
+  ],
+  "spoken": "Do ordinary people turn cruel when you put them in a uniform?"
+ },
+ "stanford_prison": {
+  "lines": [
+   "DO ORDINARY PEOPLE TURN",
+   "CRUEL IN A UNIFORM?"
+  ],
+  "spoken": "Do ordinary people turn cruel when you put them in a uniform?"
+ },
+ "eps_rechecked/sugar_hyperactivity": {
+  "lines": [
+   "DOES SUGAR MAKE",
+   "CHILDREN HYPERACTIVE?"
+  ],
+  "spoken": "Does sugar actually make children hyperactive?"
+ },
+ "sugar_hyperactivity": {
+  "lines": [
+   "DOES SUGAR MAKE",
+   "CHILDREN HYPERACTIVE?"
+  ],
+  "spoken": "Does sugar actually make children hyperactive?"
+ },
+ "eps_rechecked/mozart_effect": {
+  "lines": [
+   "DOES LISTENING TO MOZART",
+   "MAKE YOU SMARTER?"
+  ],
+  "spoken": "Does listening to Mozart really make you smarter?"
+ },
+ "mozart_effect": {
+  "lines": [
+   "DOES LISTENING TO MOZART",
+   "MAKE YOU SMARTER?"
+  ],
+  "spoken": "Does listening to Mozart really make you smarter?"
+ },
+ "eps_rechecked/growth_mindset": {
+  "lines": [
+   "DOES BELIEVING YOU CAN",
+   "GROW RAISE YOUR GRADES?"
+  ],
+  "spoken": "Does believing your mind can grow actually raise your grades?"
+ },
+ "growth_mindset": {
+  "lines": [
+   "DOES BELIEVING YOU CAN",
+   "GROW RAISE YOUR GRADES?"
+  ],
+  "spoken": "Does believing your mind can grow actually raise your grades?"
+ }
+}

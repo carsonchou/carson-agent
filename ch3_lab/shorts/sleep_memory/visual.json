@@ -1,0 +1,58 @@
+{
+ "accent": "#FFC23D",
+ "canvas": [
+  1080,
+  1920,
+  30
+ ],
+ "card": "This one held up.",
+ "claim_lines": [
+  "A SOUND IN YOUR SLEEP",
+  "STRENGTHENS A MEMORY"
+ ],
+ "color": "#5FC98A",
+ "end_card": [
+  "Full episode",
+  "on the channel"
+ ],
+ "frames": "f5785b04888e4454",
+ "fs": {
+  "big": 260,
+  "card": 58,
+  "claim": {
+   "fs": 79,
+   "lines": [
+    "A SOUND IN",
+    "YOUR SLEEP",
+    "STRENGTHENS",
+    "A MEMORY"
+   ],
+   "ys": [
+    0.6521,
+    0.5807,
+    0.5093,
+    0.4379
+   ]
+  },
+  "end": 75,
+  "es_o": 210,
+  "es_r2": 210,
+  "head": 77,
+  "kicker": 46,
+  "meas": 50,
+  "n": 58,
+  "src": 34
+ },
+ "kicker": "THE CLAIM",
+ "palette": [
+  "#0E1116",
+  "#E8EAED",
+  "#8A9099"
+ ],
+ "safe": [
+  0.86,
+  0.24,
+  0.9099999999999999
+ ],
+ "source": "Promoting memory consolidation during sleep: A meta-analysis of targeted memory reactivation."
+}

@@ -1,0 +1,35 @@
+{
+ "executed_at": "2026-09-06 04:14:14",
+ "all_private": true,
+ "criterion": "假設句外殼不會把裡面的事實主張變成假設;回指詞「當時」管到後面的子句",
+ "batch3_hypothetical_shape": [
+  "6442",
+  "2379",
+  "3026",
+  "2356"
+ ],
+ "batch4_rescan": [
+  "2891",
+  "6239"
+ ],
+ "rows": [
+  {
+   "code": "2891",
+   "name": "中信金",
+   "videoId": "0EPASuhQti0",
+   "missing_fact": "valuation_position",
+   "quote": "假設你在2008年金融海嘯前買進中信金，當時市場一片樂觀，本益比可能衝到15倍以上",
+   "before": "public",
+   "after": "private"
+  },
+  {
+   "code": "6239",
+   "name": "力成",
+   "videoId": "H3Sk1AfUVT0",
+   "missing_fact": "revenue_trend",
+   "quote": "力成這6.3年其實營收成長百分之四十二，但股價就是不漲",
+   "before": "public",
+   "after": "private"
+  }
+ ]
+}

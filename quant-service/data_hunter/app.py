@@ -78,6 +78,7 @@ def daytrade_worker():
     看板 state.json 仍每 2 分穩定更新（不再凍結）。含盤中掃描＋盤前盤後報告＋到價警示監控。"""
     dt_pool_day: date | None = None
     dt_pool: list = []
+    elig_day: date | None = None          # 當沖適格清單的**獨立**日次守衛(見下方註解)
     pre_day: date | None = None
     post_day: date | None = None
     while True:
@@ -85,13 +86,31 @@ def daytrade_worker():
         try:
             import daytrade_live
             today = date.today()
+            # 🔴 當沖適格清單改成「每日一次、不限盤中」(2026-07-17,Carson 拍板):
+            #   舊版把 refresh() 塞在 `if mh` 裡 → **只有 app 剛好開著且是盤中**才會刷,
+            #   實測因此停在 07-13(Carson 都收盤後才開 app)。但它只是 2 個 TWSE OpenAPI GET +
+            #   寫一個日期為 key 的快取,跟盤中盤後無關;而且抓的是「當日公告」,
+            #   **收盤後抓到的才是當天完整名單**。這份清單同時是 M1 免費磁鐵的資料源。
+            # ⚠️ 守衛必須獨立:`dt_pool_day` 是設在 `if mh` 區塊**裡面**的,若沿用它,
+            #   盤後永遠不會被設 → 每輪(30 分)都打一次 TWSE。故另開 elig_day。
+            if elig_day != today:
+                try:
+                    import daytrade_eligibility
+                    r = daytrade_eligibility.refresh()
+                    if daytrade_eligibility.is_trusted(r):
+                        elig_day = today          # 只有抓成功才記「今天做過了」→ 失敗會在下一輪重試
+                        print(f"[dt] 當沖適格清單已更新:處置 {len(r.get('disposition', []))} 檔、"
+                              f"注意 {len(r.get('attention', []))} 檔")
+                    else:
+                        # 不設 elig_day → 下一輪(盤中 2 分/盤後 30 分)自動重試
+                        print(f"[dt] ⚠️ 當沖適格清單抓取失敗({r.get('reason')}),下一輪重試;"
+                              f"在抓到之前,下游一律以「無法確認」呈現,不會顯示 0 檔。")
+                except Exception as e:  # noqa: BLE001
+                    # 留痕:舊版是 `except: pass`,吞掉的正是 ImportError / API 形狀改變
+                    # 這種「**真的壞了**」的錯(網路錯 _fetch_json 自己已經吞了)→ 靜默 = 永遠不會有人發現。
+                    print(f"[dt] ⚠️ 當沖適格清單更新略過:{type(e).__name__}: {e}")
             if mh:
                 if dt_pool_day != today or not dt_pool:
-                    try:
-                        import daytrade_eligibility
-                        daytrade_eligibility.refresh()
-                    except Exception:
-                        pass
                     dt_pool = daytrade_live.build_universe(full=True, use_cache_only=True)
                     dt_pool_day = today
                     print(f"[dt] 全市場基準已建（{len(dt_pool)} 檔）")

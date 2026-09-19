@@ -1,0 +1,16 @@
+C:\Users\User\AppData\Local\Programs\Python\Python39\lib\site-packages\google\auth\__init__.py:54: FutureWarning: You are using a Python version 3.9 past its end of life. Google will update google-auth with critical bug fixes on a best-effort basis, but not with any other fixes or features. Please upgrade your Python version, and then update google-auth.
+  warnings.warn(eol_message.format("3.9"), FutureWarning)
+C:\Users\User\AppData\Local\Programs\Python\Python39\lib\site-packages\google\api_core\_python_version_support.py:242: FutureWarning: You are using a non-supported Python version (3.9.13). Google will not post any further updates to google.api_core supporting this Python version. Please upgrade to the latest Python version, or at least Python 3.10, and then update google.api_core.
+  warnings.warn(message, FutureWarning)
+C:\Users\User\AppData\Local\Programs\Python\Python39\lib\site-packages\google\oauth2\__init__.py:40: FutureWarning: You are using a Python version 3.9 past its end of life. Google will update google-auth with critical bug fixes on a best-effort basis, but not with any other fixes or features. Please upgrade your Python version, and then update google-auth.
+  warnings.warn(eol_message.format("3.9"), FutureWarning)
+[尺] 9YbTzPfXz6A  有效主體=78(S_ 地板 28) 回聲餘=62(門檻 2) ⇒ 尺A 不叫 / 尺B 不叫
+[videos.list] 送出 2 / 回來 1 / 沒回來 ['ZZZZfake000']
+[9YbTzPfXz6A] privacyStatus=public views=504 duration=PT38S publishedAt=2026-08-01T08:02:42Z
+[9YbTzPfXz6A] status 全欄位 {"embeddable": true, "license": "youtube", "madeForKids": false, "privacyStatus": "public", "publicStatsViewable": true, "selfDeclaredMadeForKids": false, "uploadStatus": "processed"}
+md5 79bbfb5c55eae5f52a2e18b260405eb3 D:\carson-agent\docs\ops\2026-09-11_13支設private_準備\snapshot_9YbT.json
+md5 79bbfb5c55eae5f52a2e18b260405eb3 D:\carson-agent\youtube_channel\STUDIO\desc_backup\private_prep_2026-09-11\snapshot_9YbT.json
+md5 79bbfb5c55eae5f52a2e18b260405eb3 D:\carson-agent-backups\private_prep_2026-09-11\snapshot_9YbT.json
+三份 md5 一致: True
+candidates.json:videos 13 支未動;新增 pending_carson_separate 1 筆
+API 用量:videos.list 1 次 = 1 unit(全程唯讀)

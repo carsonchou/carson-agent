@@ -23,6 +23,12 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
+# 配額計量(全域 patch HttpRequest.execute,只掛一次;壞掉不影響本腳本)
+try:
+    import quota_meter as _qm; _qm.install()
+except Exception:
+    pass
+
 MANAGE_SCOPES = ["https://www.googleapis.com/auth/youtube.force-ssl"]
 CLIENT_SECRETS = PROJECT_ROOT / "client_secrets.json"
 TOKEN = PROJECT_ROOT / "token_manage.json"

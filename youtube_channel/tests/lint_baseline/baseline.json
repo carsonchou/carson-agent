@@ -1,0 +1,215 @@
+{
+ "scripts/_analytics.py": [
+  "50:11: f-string is missing placeholders",
+  "53:11: f-string is missing placeholders"
+ ],
+ "scripts/_ig_poll.py": [
+  "3:1: 'os' imported but unused"
+ ],
+ "scripts/analytics_weekly.py": [
+  "97:14: f-string is missing placeholders",
+  "103:19: f-string is missing placeholders"
+ ],
+ "scripts/apply_repackage.py": [
+  "139:15: f-string is missing placeholders"
+ ],
+ "scripts/belief_buster_engine.py": [
+  "222:9: f-string is missing placeholders",
+  "226:9: f-string is missing placeholders",
+  "236:9: f-string is missing placeholders",
+  "285:9: f-string is missing placeholders",
+  "287:9: f-string is missing placeholders",
+  "290:9: f-string is missing placeholders",
+  "292:9: f-string is missing placeholders",
+  "299:9: f-string is missing placeholders",
+  "354:9: f-string is missing placeholders",
+  "357:9: f-string is missing placeholders",
+  "367:9: f-string is missing placeholders"
+ ],
+ "scripts/brain_alpha_cron.py": [
+  "30:1: 'io' imported but unused",
+  "31:1: 'json' imported but unused"
+ ],
+ "scripts/brain_daily_pick.py": [
+  "32:1: 're' imported but unused"
+ ],
+ "scripts/channel_brand.py": [
+  "37:1: 'json' imported but unused"
+ ],
+ "scripts/cloud_ssh.py": [
+  "12:1: 'stat' imported but unused",
+  "40:5: local variable 'out' is assigned to but never used"
+ ],
+ "scripts/comment_dept.py": [
+  "19:1: 'os' imported but unused"
+ ],
+ "scripts/community_card.py": [
+  "148:19: f-string is missing placeholders"
+ ],
+ "scripts/concept_visuals.py": [
+  "20:1: 'typing.Tuple' imported but unused",
+  "872:5: 'sys' imported but unused"
+ ],
+ "scripts/control_center.py": [
+  "742:20: f-string is missing placeholders",
+  "1468:19: local variable 'YEL' is assigned to but never used",
+  "2644:13: local variable 'e' is assigned to but never used",
+  "2645:78: undefined name 'e'"
+ ],
+ "scripts/daily_check.py": [
+  "17:1: 'subprocess' imported but unused",
+  "154:9: local variable '_fallback_note' is assigned to but never used"
+ ],
+ "scripts/daily_health.py": [
+  "133:9: 're as _re' imported but unused"
+ ],
+ "scripts/daily_publish.py": [
+  "1096:9: f-string is missing placeholders",
+  "1136:31: undefined name 'TW'"
+ ],
+ "scripts/decision_dept.py": [
+  "16:1: 'os' imported but unused"
+ ],
+ "scripts/experiment_series.py": [
+  "13:1: 'os' imported but unused"
+ ],
+ "scripts/fix_caption_drift.py": [
+  "142:5: 'upload_youtube as up' imported but unused"
+ ],
+ "scripts/fix_engage_comments.py": [
+  "35:1: 'json' imported but unused"
+ ],
+ "scripts/fix_series_progress_claim.py": [
+  "34:1: 'os' imported but unused"
+ ],
+ "scripts/gen_mascot.py": [
+  "206:5: 'io' imported but unused"
+ ],
+ "scripts/hotspot_dept.py": [
+  "20:1: 'os' imported but unused"
+ ],
+ "scripts/ig_health_check.py": [
+  "16:1: 'sys' imported but unused"
+ ],
+ "scripts/industry_playlists.py": [
+  "204:15: f-string is missing placeholders"
+ ],
+ "scripts/keyword_winnability.py": [
+  "46:1: 're' imported but unused"
+ ],
+ "scripts/llm.py": [
+  "496:5: redefinition of unused 'sys' from line 23"
+ ],
+ "scripts/make_video.py": [
+  "152:15: f-string is missing placeholders",
+  "840:5: local variable 'md' is assigned to but never used",
+  "928:5: local variable 'ac' is assigned to but never used",
+  "2761:9: 'moviepy.editor' imported but unused",
+  "2768:9: 'PIL' imported but unused"
+ ],
+ "scripts/measure_fact_utilization.py": [
+  "27:1: 'json' imported but unused"
+ ],
+ "scripts/news_dept.py": [
+  "13:1: 'os' imported but unused"
+ ],
+ "scripts/ntfy_command.py": [
+  "111:9: 'pathlib.Path as _P' imported but unused"
+ ],
+ "scripts/outlier_scan.py": [
+  "172:10: f-string is missing placeholders"
+ ],
+ "scripts/parasite_titles.py": [
+  "17:1: 'os' imported but unused"
+ ],
+ "scripts/pinterest_pin_generator.py": [
+  "291:5: local variable 'card_bottom' is assigned to but never used"
+ ],
+ "scripts/playlist_engine.py": [
+  "58:1: 'typing.Callable' imported but unused"
+ ],
+ "scripts/produce_batch.py": [
+  "33:1: 'requests' imported but unused",
+  "1847:14: f-string is missing placeholders"
+ ],
+ "scripts/promo_dept.py": [
+  "18:1: 'os' imported but unused"
+ ],
+ "scripts/recover_promo_blocked.py": [
+  "35:1: 'os' imported but unused"
+ ],
+ "scripts/redo_published_defective.py": [
+  "79:5: local variable 'st' is assigned to but never used"
+ ],
+ "scripts/refresh_search_thumbs.py": [
+  "100:9: local variable 'titles' is assigned to but never used"
+ ],
+ "scripts/remake_rejected.py": [
+  "12:1: 'subprocess' imported but unused"
+ ],
+ "scripts/render_ffmpeg.py": [
+  "471:9: local variable '_gt' is assigned to but never used",
+  "1031:19: f-string is missing placeholders"
+ ],
+ "scripts/rescue_redo.py": [
+  "31:1: 're' imported but unused",
+  "32:1: 'shutil' imported but unused"
+ ],
+ "scripts/retention_probe.py": [
+  "180:15: f-string is missing placeholders"
+ ],
+ "scripts/retention_segments.py": [
+  "25:1: 're' imported but unused"
+ ],
+ "scripts/retro_dept.py": [
+  "17:1: 'os' imported but unused",
+  "260:10: f-string is missing placeholders"
+ ],
+ "scripts/sitecustomize.py": [
+  "28:5: '_llm_shim' imported but unused"
+ ],
+ "scripts/spawn_channel.py": [
+  "182:11: f-string is missing placeholders",
+  "195:11: f-string is missing placeholders"
+ ],
+ "scripts/stall_watchdog.py": [
+  "15:1: 'json' imported but unused"
+ ],
+ "scripts/stock_checkup_facts.py": [
+  "253:5: 'pandas as pd' imported but unused"
+ ],
+ "scripts/thumb_ab.py": [
+  "107:5: 'make_thumbnails as mt' imported but unused"
+ ],
+ "scripts/tiktok_upload.py": [
+  "19:1: 'json' imported but unused"
+ ],
+ "scripts/topic_bank.py": [
+  "346:9: f-string is missing placeholders"
+ ],
+ "scripts/traffic_dept.py": [
+  "29:1: 'studio_common as sc' imported but unused"
+ ],
+ "scripts/train_depts.py": [
+  "71:9: local variable 'wk' is assigned to but never used"
+ ],
+ "scripts/tts_kokoro.py": [
+  "121:5: redefinition of unused 'np' from line 98"
+ ],
+ "scripts/tts_pipeline.py": [
+  "507:11: f-string is missing placeholders"
+ ],
+ "scripts/tw_facts_engine.py": [
+  "352:5: 'pandas as pd' imported but unused"
+ ],
+ "scripts/tw_lab_engine.py": [
+  "30:1: 'hashlib' imported but unused"
+ ],
+ "scripts/web_dashboard.py": [
+  "24:1: 'flask.redirect' imported but unused",
+  "24:1: 'flask.url_for' imported but unused"
+ ],
+ "scripts/zombie_sweep.py": [
+  "55:1: 'time' imported but unused"
+ ]
+}

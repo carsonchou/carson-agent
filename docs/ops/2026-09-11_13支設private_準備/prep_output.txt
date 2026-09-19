@@ -1,0 +1,40 @@
+C:\Users\User\AppData\Local\Programs\Python\Python39\lib\site-packages\google\auth\__init__.py:54: FutureWarning: You are using a Python version 3.9 past its end of life. Google will update google-auth with critical bug fixes on a best-effort basis, but not with any other fixes or features. Please upgrade your Python version, and then update google-auth.
+  warnings.warn(eol_message.format("3.9"), FutureWarning)
+C:\Users\User\AppData\Local\Programs\Python\Python39\lib\site-packages\google\api_core\_python_version_support.py:242: FutureWarning: You are using a non-supported Python version (3.9.13). Google will not post any further updates to google.api_core supporting this Python version. Please upgrade to the latest Python version, or at least Python 3.10, and then update google.api_core.
+  warnings.warn(message, FutureWarning)
+C:\Users\User\AppData\Local\Programs\Python\Python39\lib\site-packages\google\oauth2\__init__.py:40: FutureWarning: You are using a Python version 3.9 past its end of life. Google will update google-auth with critical bug fixes on a best-effort basis, but not with any other fixes or features. Please upgrade your Python version, and then update google-auth.
+  warnings.warn(eol_message.format("3.9"), FutureWarning)
+[儀器1 videos.list] 送出 24 / 回來 23 / 沒回來 ['kk893Wva6c4']
+[儀器1] status 回傳欄位: ['embeddable', 'license', 'madeForKids', 'privacyStatus', 'publicStatsViewable', 'selfDeclaredMadeForKids', 'uploadStatus']
+
+[儀器2 playlistItems.list videoId=] 對照儀器1:
+  videoId      儀器1       儀器2       一致     過濾套用
+  MuXiM5IqVQQ  public    None      False  False  [13]
+  TDbm4XR5pYk  public    None      False  False  [13]
+  cObU5NcFT-I  public    None      False  False  [13]
+  I8F83sPFKWg  public    None      False  False  [13]
+  _Cc49y7ZAeM  public    None      False  False  [13]
+  tN56crKxwJE  public    None      False  False  [13]
+  mvDrUnxEjWs  public    None      False  False  [13]
+  vwEaoo3Txjw  public    None      False  False  [13]
+  UTuMMyvdQ5U  public    None      False  False  [13]
+  DhX2uNzjZ-o  public    None      False  False  [13]
+  OyprNxjrIBQ  public    None      False  False  [13]
+  nHwP_cyy_hc  public    None      False  False  [13]
+  xjQPW3sTY28  public    None      False  False  [13]
+  fYTywq3Ah1c  public    None      False  False  [ctrl]
+  s4jROPETmlE  public    None      False  False  [ctrl]
+  Xmc_qtMqPhk  public    None      False  False  [ctrl]
+  nrIYmQgjHFs  unlisted  None      False  False  [unl]
+  h4vTXYtlQ7I  unlisted  None      False  False  [unl]
+  rgeDJ3vxlxI  unlisted  unlisted  True   True  [unl]
+  oq4I_jtEw3Q  private   None      False  False  [pos]
+  ODN9YzdBopA  private   None      False  False  [pos]
+  7C79mFmnFrE  private   None      False  False  [pos]
+  陽性/陰性對照涵蓋的非 public 值: ['private', 'unlisted']
+md5 01252d371d2572e7cc243d87e8d1c3b2 D:\carson-agent\docs\ops\2026-09-11_13支設private_準備\snapshot.json
+md5 01252d371d2572e7cc243d87e8d1c3b2 D:\carson-agent\youtube_channel\STUDIO\desc_backup\private_prep_2026-09-11\snapshot.json
+md5 01252d371d2572e7cc243d87e8d1c3b2 D:\carson-agent-backups\private_prep_2026-09-11\snapshot.json
+三份 md5 一致: True
+清單 13 支;現況 privacyStatus:['public']
+陰性對照 public: ['fYTywq3Ah1c', 's4jROPETmlE', 'Xmc_qtMqPhk'] | unlisted: [('nrIYmQgjHFs', 'unlisted'), ('h4vTXYtlQ7I', 'unlisted'), ('rgeDJ3vxlxI', 'unlisted')]

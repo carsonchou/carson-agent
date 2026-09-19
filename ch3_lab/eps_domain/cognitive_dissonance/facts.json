@@ -1,0 +1,101 @@
+{
+ "slug": "cognitive_dissonance",
+ "arc": "outcomes",
+ "unit": "d",
+ "claim": "being paid more to say something you do not believe makes you change your mind less",
+ "popular_name": "cognitive dissonance",
+ "search_term": "cognitive dissonance experiment",
+ "scan": {
+  "on_topic": 19,
+  "median_views": 48425,
+  "small_channels": 13,
+  "median_subs": 2230,
+  "score": 33133,
+  "measured": "2026-08-30 effect_scan.py"
+ },
+ "original": {
+  "year": 1959,
+  "title": "Cognitive consequences of forced compliance",
+  "journal": "The Journal of Abnormal and Social Psychology",
+  "doi": "10.1037/h0041593",
+  "n": 60,
+  "n_note": "71 人受試,11 人資料被剔除,分析用 60 人(每組 20)。**用 60 不用 71** —— 71 是招募數,結論是從 60 來的。",
+  "quote": "The prediction [from 3 and 4 above] is that the larger the reward given to the subject, the smaller will be the subsequent opinion change. [Festinger & Carlsmith 1959]",
+  "quote_n": "Seventy-one male students in the introductory psychology course at Stanford University were used in the experiment.",
+  "quote_excl": "The data from 11 of the 71 Ss in the experiment had to be discarded",
+  "quote_result": "In this condition, the average rating was +1.35 ... significantly different from the Control condition at the .02 level (t = 2.48). ... The average rating in this condition is only -.05 ... The difference between the One Dollar and Twenty Dollar conditions is significant at the .03 level (t = 2.22).",
+  "means": {
+   "control": -0.45,
+   "one_dollar": 1.35,
+   "twenty_dollars": -0.05,
+   "scale": "-5 to +5, how enjoyable the tasks were"
+  },
+  "say_origin": "In 1959 two researchers at Stanford paid people to tell a stranger that a boring task had been fun. Some were paid one dollar. Some were paid twenty. The ones paid one dollar came to like the task more. The prediction was that the bigger the reward, the smaller the change of mind. Sixty people."
+ },
+ "test": {
+  "year": 2024,
+  "title": "A Multilab Replication of the Induced-Compliance Paradigm of Cognitive Dissonance",
+  "journal": "Advances in Methods and Practices in Psychological Science 7(1)",
+  "doi": "10.1177/25152459231213375",
+  "n": 3996,
+  "n_recruited": 4898,
+  "k": 39,
+  "k_word": "laboratories",
+  "n_note": "4,898 人招募,初步排除後 **3,996** 人進分析。片裡講 3,996,招募數只在說明欄出現。",
+  "⚠️_scope": "**Vaidis 2024 重測的不是 $1 vs $20。** 它重測的是 Croyle & Cooper 1983 實驗一,操弄的是「選擇自由」而不是「報酬多寡」。Vaidis 自己寫:早期研究操弄報酬(引 F&C 1959),後來研究者從操弄報酬改成操弄選擇。所以片裡**必須明講**這一點 —— 講成「$1/$20 被推翻」是假的。誠實的框架是:這個典範有兩半,被大規模重測的那一半塌了。",
+  "outcomes": [
+   {
+    "name": "choice changed the attitude",
+    "d": -0.03,
+    "p": 0.79,
+    "sig": false,
+    "is_claim": true,
+    "stat": "t(2751.46) = -0.79, 95% CI [-0.10, 0.04]",
+    "quote": "we did not find a significant difference in postessay attitude between the HC-CE condition (M = 2.60, SD = 1.91) and the LC-CE condition (M = 2.66, SD = 1.99), t(2,751.46) = -0.79, p = .79, d = -0.03, 95% CI = [-0.10, 0.04]."
+   },
+   {
+    "name": "writing it at all changed it",
+    "d": 0.26,
+    "p": 0.001,
+    "sig": true,
+    "is_claim": false,
+    "stat": "t(2408.92) = 6.51, 95% CI [0.18, 0.34]",
+    "quote": "we did find a significant difference comparing the postessay attitude between the HC-CE condition and the HC-NE condition, t(2,408.92) = 6.51, p < .001, d = 0.26, 95% CI = [0.18, 0.34]."
+   }
+  ],
+  "verdict_quote": "Overall, the results call into question whether the induced-compliance paradigm provides robust evidence for cognitive dissonance. [Vaidis et al. 2024]",
+  "verdict_quote_2": "Despite a large sample and an improved methodology, we did not observe the expected effect of choice on attitude. We did observe that performing counterattitudinal behavior, regardless of perceived choice, affected attitudes.",
+  "say_test": "In 2024, thirty-nine laboratories in nineteen countries ran the modern version of the same paradigm. Three thousand nine hundred and ninety-six people. One thing you should know: they did not retest the money. Since the sixties researchers stopped varying the reward and started varying how free the person felt to say no. That is the half they retested.",
+  "say_punch": "The thing the theory needs - feeling you chose it - came back at minus zero point zero three. Nothing. It was measured a second way, and that came back at nothing too. But writing the thing at all, whether or not you felt you had a choice, did move people. Zero point two six.",
+  "say_verdict": "The authors put it plainly: freedom of choice, they write, typically considered a vital component of this paradigm, does not reliably produce attitude change. But note what that does and does not say. It is about this way of testing the idea, on this half of it - the money version has not been retested at this scale. And the debate is live: a commentary responding to this replication was published in the same journal later that year. It is linked below.",
+  "missing": [],
+  "missing_note": "agent 讀過全文,每個數字都附原句。",
+  "extra_outcome": {
+   "name": "the same, second measure",
+   "d": 0.017,
+   "p": 0.35,
+   "sig": false,
+   "is_claim": true,
+   "stat": "t(1969.56) = 0.38, 95% CI [-0.071, 0.11]",
+   "quote": "we did not observe a significant difference between the HC-CE condition (M = 1.00, SD = 1.81) and LC-CE condition (M = 0.97, SD = 1.80), t(1,969.56) = 0.38, p = .35, d = 0.017, 95% CI = [-0.071, 0.11]."
+  },
+  "_precision_note": "第二個測量 d = 0.017,畫面用兩位小數會印成 0.02 —— 跟論文對不上。而它跟第一項是同一個檢定的第二個測量,畫面上是冗的。移到說明欄用原句完整呈現(extra_outcome)。**通則:畫面只放能用兩位小數如實表示的數字**,其餘留給說明欄。",
+  "verdict_quote_3": "Freedom of choice, typically considered to be a vital component of the induced-compliance paradigm, does not reliably produce attitude change. Consequently, this raises serious doubts about previous findings that stem from this paradigm and certain interpretations of CDT... Consistent with the core principles of CDT, writing a counterattitudinal essay did lead to attitude change.",
+  "quote_sample": "In a total of 39 labs from 19 countries and 14 languages, participants (N = 4,898) were assigned to one of three conditions: writing a counterattitudinal essay under high choice, writing a counterattitudinal essay under low choice, or writing a neutral essay under high choice.",
+  "quote_paradigm_lineage": "In the first studies using this paradigm, participants were asked to perform a counterattitudinal task in exchange for either a small or sizable reward (e.g., Brehm & Cohen, 1962; Festinger & Carlsmith, 1959)... In later studies, researchers shifted from manipulating reward size to manipulating the choice given to participants as a justification for their counterattitudinal behavior (see Linder et al., 1967). [Vaidis et al. 2024 —— 這是「他們沒有重測報酬」的出處]",
+  "rebuttal": {
+   "year": 2024,
+   "title": "Dissonance in the Induced-Compliance Paradigm: A Commentary on Vaidis et al. (2024)",
+   "authors": "Eddie Harmon-Jones, Cindy Harmon-Jones",
+   "journal": "Advances in Methods and Practices in Psychological Science",
+   "doi": "10.1177/25152459241268308",
+   "verified": "OpenAlex 2026-08-30 核對標題與作者",
+   "⚠️": "**我沒有讀過它的內文。** 所以片裡與說明欄只講「有一篇評論回應了這篇重測」並附 DOI,不宣稱它主張什麼。只講重測不提反駁是選擇性呈現;宣稱它說了什麼而我沒讀過,是更糟的那種錯。"
+  },
+  "_ocr_note": "⚠️ Festinger & Carlsmith 1959 那份 PDF 的 OCR 把句點讀成逗號:「t = 2,48」實際是 2.48、「t = 2,22」是 2.22、「Ss」被讀成「5s」。agent 抓到的。從 OCR 抄數字前要看它有沒有這種系統性錯讀。"
+ },
+ "hook": "Being paid more to say something you do not believe makes you change your mind less?",
+ "hook_short": "Paid more, change your mind less?",
+ "tone": "gone",
+ "tone_manual_why": "要測的那一項(選擇自由 → 態度改變)d = -0.03、p = .79 → gone。但片裡**必須**同時講清楚兩件事:(1) 有一項是顯著的(寫了那篇文章本身 d = 0.26),(2) **被重測的不是 $1/$20 那一半**。少講第二點就是把一個範圍有限的結果講成推翻了整個經典實驗。"
+}

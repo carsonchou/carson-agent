@@ -1,0 +1,1 @@
+Every one of these came from the same public database, one row per finding, with the original paper and the replication both linked. Nothing here was estimated. If a finding survives a larger test, it gets its own video too.

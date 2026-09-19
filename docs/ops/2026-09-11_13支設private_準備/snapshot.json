@@ -1,0 +1,1988 @@
+{
+  "fetched_at": "2026-09-11T08:49:55.016787+00:00",
+  "request": {
+    "part": "snippet,status,statistics,contentDetails",
+    "ids_sent": [
+      "MuXiM5IqVQQ",
+      "TDbm4XR5pYk",
+      "cObU5NcFT-I",
+      "I8F83sPFKWg",
+      "_Cc49y7ZAeM",
+      "tN56crKxwJE",
+      "mvDrUnxEjWs",
+      "vwEaoo3Txjw",
+      "UTuMMyvdQ5U",
+      "DhX2uNzjZ-o",
+      "OyprNxjrIBQ",
+      "nHwP_cyy_hc",
+      "xjQPW3sTY28",
+      "kk893Wva6c4",
+      "fYTywq3Ah1c",
+      "s4jROPETmlE",
+      "Xmc_qtMqPhk",
+      "PEi1jvjhD68",
+      "nrIYmQgjHFs",
+      "h4vTXYtlQ7I",
+      "rgeDJ3vxlxI",
+      "oq4I_jtEw3Q",
+      "ODN9YzdBopA",
+      "7C79mFmnFrE"
+    ],
+    "ids_returned": [
+      "7C79mFmnFrE",
+      "DhX2uNzjZ-o",
+      "I8F83sPFKWg",
+      "MuXiM5IqVQQ",
+      "ODN9YzdBopA",
+      "OyprNxjrIBQ",
+      "PEi1jvjhD68",
+      "TDbm4XR5pYk",
+      "UTuMMyvdQ5U",
+      "Xmc_qtMqPhk",
+      "_Cc49y7ZAeM",
+      "cObU5NcFT-I",
+      "fYTywq3Ah1c",
+      "h4vTXYtlQ7I",
+      "mvDrUnxEjWs",
+      "nHwP_cyy_hc",
+      "nrIYmQgjHFs",
+      "oq4I_jtEw3Q",
+      "rgeDJ3vxlxI",
+      "s4jROPETmlE",
+      "tN56crKxwJE",
+      "vwEaoo3Txjw",
+      "xjQPW3sTY28"
+    ]
+  },
+  "items": {
+    "MuXiM5IqVQQ": {
+      "kind": "youtube#video",
+      "etag": "m-mGI1iD698zAFcxNV9sR7VuqZQ",
+      "id": "MuXiM5IqVQQ",
+      "snippet": {
+        "publishedAt": "2026-08-04T08:02:15Z",
+        "channelId": "UCqP5JQXlQR5ZDLtEiBt4kLA",
+        "title": "台積電暴跌35元，你恐慌殺出會少賺多少？0050回測嚇壞你 #Shorts",
+        "description": "📺 完整策略拆解看這裡 👉 https://www.youtube.com/@CarsonQuant\n\n📚 全系列連播｜0050/ETF 定期定額實驗：https://www.youtube.com/playlist?list=PLJp7y2jl2p64\n\n\n【回測、台積電】用真實歷史回測數字拆解回測，完整過程與數據來源都在影片裡，看完你能自己判斷該怎麼配置。\n\n另外，今天影片中實測使用的工具，我放在資訊欄裡了：\n【派網 Pionex】我自己在用的自動交易平台，新用戶透過連結註冊享手續費優惠（邀請碼 08NAcfvcWna） https://accounts.pionex.com/zh-TW/signUp?r=08NAcfvcWna\n\n（以上為聯盟推薦連結，透過連結註冊不會增加你的成本，並能支持本頻道持續產出真數據內容。要不要使用請自行評估；投資有風險。）\n\n📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」領避雷檢核表\n\n\n**Hashtags：** 回測 台積電 0050\n\n投資有風險，不構成投資建議。\n\n#Shorts #量化交易 #Pionex #自動交易\n\n🔔 我用 Python 把台股 1841 檔全部跑過回測——訂閱看每週全市場實測、拆穿話術陷阱，不誇大只看真數據\n👉 https://www.youtube.com/@CarsonQuant?sub_confirmation=1",
+        "thumbnails": {
+          "default": {
+            "url": "https://i.ytimg.com/vi/MuXiM5IqVQQ/default.jpg",
+            "width": 120,
+            "height": 90
+          },
+          "medium": {
+            "url": "https://i.ytimg.com/vi/MuXiM5IqVQQ/mqdefault.jpg",
+            "width": 320,
+            "height": 180
+          },
+          "high": {
+            "url": "https://i.ytimg.com/vi/MuXiM5IqVQQ/hqdefault.jpg",
+            "width": 480,
+            "height": 360
+          },
+          "standard": {
+            "url": "https://i.ytimg.com/vi/MuXiM5IqVQQ/sddefault.jpg",
+            "width": 640,
+            "height": 480
+          },
+          "maxres": {
+            "url": "https://i.ytimg.com/vi/MuXiM5IqVQQ/maxresdefault.jpg",
+            "width": 1280,
+            "height": 720
+          }
+        },
+        "channelTitle": "Carson Quant",
+        "tags": [
+          "0050",
+          "台積電",
+          "回測"
+        ],
+        "categoryId": "28",
+        "liveBroadcastContent": "none",
+        "defaultLanguage": "zh-Hant",
+        "localized": {
+          "title": "台積電暴跌35元，你恐慌殺出會少賺多少？0050回測嚇壞你 #Shorts",
+          "description": "📺 完整策略拆解看這裡 👉 https://www.youtube.com/@CarsonQuant\n\n📚 全系列連播｜0050/ETF 定期定額實驗：https://www.youtube.com/playlist?list=PLJp7y2jl2p64\n\n\n【回測、台積電】用真實歷史回測數字拆解回測，完整過程與數據來源都在影片裡，看完你能自己判斷該怎麼配置。\n\n另外，今天影片中實測使用的工具，我放在資訊欄裡了：\n【派網 Pionex】我自己在用的自動交易平台，新用戶透過連結註冊享手續費優惠（邀請碼 08NAcfvcWna） https://accounts.pionex.com/zh-TW/signUp?r=08NAcfvcWna\n\n（以上為聯盟推薦連結，透過連結註冊不會增加你的成本，並能支持本頻道持續產出真數據內容。要不要使用請自行評估；投資有風險。）\n\n📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」領避雷檢核表\n\n\n**Hashtags：** 回測 台積電 0050\n\n投資有風險，不構成投資建議。\n\n#Shorts #量化交易 #Pionex #自動交易\n\n🔔 我用 Python 把台股 1841 檔全部跑過回測——訂閱看每週全市場實測、拆穿話術陷阱，不誇大只看真數據\n👉 https://www.youtube.com/@CarsonQuant?sub_confirmation=1"
+        },
+        "defaultAudioLanguage": "zh-Hant"
+      },
+      "contentDetails": {
+        "duration": "PT22S",
+        "dimension": "2d",
+        "definition": "hd",
+        "caption": "false",
+        "licensedContent": false,
+        "contentRating": {},
+        "projection": "rectangular",
+        "hasCustomThumbnail": true
+      },
+      "status": {
+        "uploadStatus": "processed",
+        "privacyStatus": "public",
+        "license": "youtube",
+        "embeddable": true,
+        "publicStatsViewable": true,
+        "madeForKids": false,
+        "selfDeclaredMadeForKids": false
+      },
+      "statistics": {
+        "viewCount": "702",
+        "likeCount": "1",
+        "dislikeCount": "0",
+        "favoriteCount": "0",
+        "commentCount": "0"
+      }
+    },
+    "TDbm4XR5pYk": {
+      "kind": "youtube#video",
+      "etag": "Kw_fEX6Y3vzjKW7TC-OV0mgLkbM",
+      "id": "TDbm4XR5pYk",
+      "snippet": {
+        "publishedAt": "2026-08-07T00:01:46Z",
+        "channelId": "UCqP5JQXlQR5ZDLtEiBt4kLA",
+        "title": "CPI破2.54%你該追高？我用回測資料打臉這句！ | 通膨追高 網格避險 回測 #Shorts",
+        "description": "📺 完整策略拆解看這裡 👉 https://www.youtube.com/@carsonquant\n\n【通膨追高 網格避險 回測】用真實歷史回測數字拆解通膨追高 網格避險 回測，完整過程與數據來源都在影片裡，看完你能自己判斷該怎麼配置。\n\n另外，今天影片中實測使用的工具，我放在資訊欄裡了：\n【派網 Pionex】我自己在用的自動交易平台，新用戶透過連結註冊享手續費優惠（邀請碼 08NAcfvcWna） https://accounts.pionex.com/zh-TW/signUp?r=08NAcfvcWna\n\n（以上為聯盟推薦連結，透過連結註冊不會增加你的成本，並能支持本頻道持續產出真數據內容。要不要使用請自行評估；投資有風險。）\n\n📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」領避雷檢核表\n\n\n**Hashtags：** 回測\n\n⚠️ 投資有風險，本影片為資訊與觀念分享，不構成投資建議。\n\n#Shorts #量化交易 #Pionex #自動交易\n\n🔔 我用 Python 把台股 1841 檔全部跑過回測——訂閱看每週全市場實測、拆穿話術陷阱，不誇大只看真數據\n👉 https://www.youtube.com/@carsonquant?sub_confirmation=1",
+        "thumbnails": {
+          "default": {
+            "url": "https://i.ytimg.com/vi/TDbm4XR5pYk/default.jpg",
+            "width": 120,
+            "height": 90
+          },
+          "medium": {
+            "url": "https://i.ytimg.com/vi/TDbm4XR5pYk/mqdefault.jpg",
+            "width": 320,
+            "height": 180
+          },
+          "high": {
+            "url": "https://i.ytimg.com/vi/TDbm4XR5pYk/hqdefault.jpg",
+            "width": 480,
+            "height": 360
+          },
+          "standard": {
+            "url": "https://i.ytimg.com/vi/TDbm4XR5pYk/sddefault.jpg",
+            "width": 640,
+            "height": 480
+          },
+          "maxres": {
+            "url": "https://i.ytimg.com/vi/TDbm4XR5pYk/maxresdefault.jpg",
+            "width": 1280,
+            "height": 720
+          }
+        },
+        "channelTitle": "Carson Quant",
+        "tags": [
+          "回測"
+        ],
+        "categoryId": "28",
+        "liveBroadcastContent": "none",
+        "defaultLanguage": "zh-Hant",
+        "localized": {
+          "title": "CPI破2.54%你該追高？我用回測資料打臉這句！ | 通膨追高 網格避險 回測 #Shorts",
+          "description": "📺 完整策略拆解看這裡 👉 https://www.youtube.com/@carsonquant\n\n【通膨追高 網格避險 回測】用真實歷史回測數字拆解通膨追高 網格避險 回測，完整過程與數據來源都在影片裡，看完你能自己判斷該怎麼配置。\n\n另外，今天影片中實測使用的工具，我放在資訊欄裡了：\n【派網 Pionex】我自己在用的自動交易平台，新用戶透過連結註冊享手續費優惠（邀請碼 08NAcfvcWna） https://accounts.pionex.com/zh-TW/signUp?r=08NAcfvcWna\n\n（以上為聯盟推薦連結，透過連結註冊不會增加你的成本，並能支持本頻道持續產出真數據內容。要不要使用請自行評估；投資有風險。）\n\n📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」領避雷檢核表\n\n\n**Hashtags：** 回測\n\n⚠️ 投資有風險，本影片為資訊與觀念分享，不構成投資建議。\n\n#Shorts #量化交易 #Pionex #自動交易\n\n🔔 我用 Python 把台股 1841 檔全部跑過回測——訂閱看每週全市場實測、拆穿話術陷阱，不誇大只看真數據\n👉 https://www.youtube.com/@carsonquant?sub_confirmation=1"
+        }
+      },
+      "contentDetails": {
+        "duration": "PT21S",
+        "dimension": "2d",
+        "definition": "hd",
+        "caption": "false",
+        "licensedContent": false,
+        "contentRating": {},
+        "projection": "rectangular",
+        "hasCustomThumbnail": true
+      },
+      "status": {
+        "uploadStatus": "processed",
+        "privacyStatus": "public",
+        "license": "youtube",
+        "embeddable": true,
+        "publicStatsViewable": true,
+        "madeForKids": false,
+        "selfDeclaredMadeForKids": false
+      },
+      "statistics": {
+        "viewCount": "183",
+        "likeCount": "0",
+        "dislikeCount": "0",
+        "favoriteCount": "0",
+        "commentCount": "0"
+      }
+    },
+    "cObU5NcFT-I": {
+      "kind": "youtube#video",
+      "etag": "MCQxL0ISbSJu9LeUY5KO90Ff_BM",
+      "id": "cObU5NcFT-I",
+      "snippet": {
+        "publishedAt": "2026-08-07T05:36:47Z",
+        "channelId": "UCqP5JQXlQR5ZDLtEiBt4kLA",
+        "title": "CPI連破3個月！你的投資組合，正在被『通膨怪獸』悄悄吃掉多少？ #Shorts",
+        "description": "📺 完整策略拆解看這裡 👉 https://www.youtube.com/@carsonquant\n\n量化交易教學與觀念分享。投資有風險，不構成投資建議。\n\n另外，今天影片中實測使用的工具，我放在資訊欄裡了：\n【派網 Pionex】我自己在用的自動交易平台，新用戶透過連結註冊享手續費優惠（邀請碼 08NAcfvcWna） https://accounts.pionex.com/zh-TW/signUp?r=08NAcfvcWna\n\n（以上為聯盟推薦連結，透過連結註冊不會增加你的成本，並能支持本頻道持續產出真數據內容。要不要使用請自行評估；投資有風險。）\n\n📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」領避雷檢核表\n\n\n**Hashtags：** #量化交易 #自動交易\n\n#Shorts #量化交易 #Pionex #自動交易\n\n🔔 我用 Python 把台股 1841 檔全部跑過回測——訂閱看每週全市場實測、拆穿話術陷阱，不誇大只看真數據\n👉 https://www.youtube.com/@carsonquant?sub_confirmation=1",
+        "thumbnails": {
+          "default": {
+            "url": "https://i.ytimg.com/vi/cObU5NcFT-I/default.jpg",
+            "width": 120,
+            "height": 90
+          },
+          "medium": {
+            "url": "https://i.ytimg.com/vi/cObU5NcFT-I/mqdefault.jpg",
+            "width": 320,
+            "height": 180
+          },
+          "high": {
+            "url": "https://i.ytimg.com/vi/cObU5NcFT-I/hqdefault.jpg",
+            "width": 480,
+            "height": 360
+          },
+          "standard": {
+            "url": "https://i.ytimg.com/vi/cObU5NcFT-I/sddefault.jpg",
+            "width": 640,
+            "height": 480
+          },
+          "maxres": {
+            "url": "https://i.ytimg.com/vi/cObU5NcFT-I/maxresdefault.jpg",
+            "width": 1280,
+            "height": 720
+          }
+        },
+        "channelTitle": "Carson Quant",
+        "tags": [
+          "自動交易",
+          "量化交易"
+        ],
+        "categoryId": "28",
+        "liveBroadcastContent": "none",
+        "defaultLanguage": "zh-Hant",
+        "localized": {
+          "title": "CPI連破3個月！你的投資組合，正在被『通膨怪獸』悄悄吃掉多少？ #Shorts",
+          "description": "📺 完整策略拆解看這裡 👉 https://www.youtube.com/@carsonquant\n\n量化交易教學與觀念分享。投資有風險，不構成投資建議。\n\n另外，今天影片中實測使用的工具，我放在資訊欄裡了：\n【派網 Pionex】我自己在用的自動交易平台，新用戶透過連結註冊享手續費優惠（邀請碼 08NAcfvcWna） https://accounts.pionex.com/zh-TW/signUp?r=08NAcfvcWna\n\n（以上為聯盟推薦連結，透過連結註冊不會增加你的成本，並能支持本頻道持續產出真數據內容。要不要使用請自行評估；投資有風險。）\n\n📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」領避雷檢核表\n\n\n**Hashtags：** #量化交易 #自動交易\n\n#Shorts #量化交易 #Pionex #自動交易\n\n🔔 我用 Python 把台股 1841 檔全部跑過回測——訂閱看每週全市場實測、拆穿話術陷阱，不誇大只看真數據\n👉 https://www.youtube.com/@carsonquant?sub_confirmation=1"
+        }
+      },
+      "contentDetails": {
+        "duration": "PT22S",
+        "dimension": "2d",
+        "definition": "hd",
+        "caption": "false",
+        "licensedContent": false,
+        "contentRating": {},
+        "projection": "rectangular",
+        "hasCustomThumbnail": true
+      },
+      "status": {
+        "uploadStatus": "processed",
+        "privacyStatus": "public",
+        "license": "youtube",
+        "embeddable": true,
+        "publicStatsViewable": true,
+        "madeForKids": false,
+        "selfDeclaredMadeForKids": false
+      },
+      "statistics": {
+        "viewCount": "91",
+        "likeCount": "0",
+        "dislikeCount": "0",
+        "favoriteCount": "0",
+        "commentCount": "0"
+      }
+    },
+    "I8F83sPFKWg": {
+      "kind": "youtube#video",
+      "etag": "qMHUly2OIS-sYPTuqkwlvEcS7PI",
+      "id": "I8F83sPFKWg",
+      "snippet": {
+        "publishedAt": "2026-08-07T20:02:22Z",
+        "channelId": "UCqP5JQXlQR5ZDLtEiBt4kLA",
+        "title": "非農資料利空！臺股恐慌殺出，0050定投竟多賺2.3倍？ #Shorts",
+        "description": "📺 完整策略拆解看這裡 👉 https://www.youtube.com/@CarsonQuant\n\n📚 全系列連播｜0050/ETF 定期定額實驗：https://www.youtube.com/playlist?list=PLJp7y2jl2p64\n\n\n【0050定投】用真實歷史回測數字拆解0050定投，完整過程與數據來源都在影片裡，看完你能自己判斷該怎麼配置。\n\n另外，今天影片中實測使用的工具，我放在資訊欄裡了：\n【派網 Pionex】我自己在用的自動交易平台，新用戶透過連結註冊享手續費優惠（邀請碼 08NAcfvcWna） https://accounts.pionex.com/zh-TW/signUp?r=08NAcfvcWna\n\n（以上為聯盟推薦連結，透過連結註冊不會增加你的成本，並能支持本頻道持續產出真數據內容。要不要使用請自行評估；投資有風險。）\n\n📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」領避雷檢核表\n\n\n**Hashtags：** 0050定投 回測 0050 定投\n\n⚠️ 投資有風險，本影片為資訊與觀念分享，不構成投資建議。\n\n#Shorts #量化交易 #Pionex #自動交易\n\n🔔 我用 Python 把台股 1841 檔全部跑過回測——訂閱看每週全市場實測、拆穿話術陷阱，不誇大只看真數據\n👉 https://www.youtube.com/@CarsonQuant?sub_confirmation=1",
+        "thumbnails": {
+          "default": {
+            "url": "https://i.ytimg.com/vi/I8F83sPFKWg/default.jpg",
+            "width": 120,
+            "height": 90
+          },
+          "medium": {
+            "url": "https://i.ytimg.com/vi/I8F83sPFKWg/mqdefault.jpg",
+            "width": 320,
+            "height": 180
+          },
+          "high": {
+            "url": "https://i.ytimg.com/vi/I8F83sPFKWg/hqdefault.jpg",
+            "width": 480,
+            "height": 360
+          },
+          "standard": {
+            "url": "https://i.ytimg.com/vi/I8F83sPFKWg/sddefault.jpg",
+            "width": 640,
+            "height": 480
+          },
+          "maxres": {
+            "url": "https://i.ytimg.com/vi/I8F83sPFKWg/maxresdefault.jpg",
+            "width": 1280,
+            "height": 720
+          }
+        },
+        "channelTitle": "Carson Quant",
+        "tags": [
+          "0050",
+          "0050定投",
+          "回測",
+          "定投"
+        ],
+        "categoryId": "28",
+        "liveBroadcastContent": "none",
+        "defaultLanguage": "zh-Hant",
+        "localized": {
+          "title": "非農資料利空！臺股恐慌殺出，0050定投竟多賺2.3倍？ #Shorts",
+          "description": "📺 完整策略拆解看這裡 👉 https://www.youtube.com/@CarsonQuant\n\n📚 全系列連播｜0050/ETF 定期定額實驗：https://www.youtube.com/playlist?list=PLJp7y2jl2p64\n\n\n【0050定投】用真實歷史回測數字拆解0050定投，完整過程與數據來源都在影片裡，看完你能自己判斷該怎麼配置。\n\n另外，今天影片中實測使用的工具，我放在資訊欄裡了：\n【派網 Pionex】我自己在用的自動交易平台，新用戶透過連結註冊享手續費優惠（邀請碼 08NAcfvcWna） https://accounts.pionex.com/zh-TW/signUp?r=08NAcfvcWna\n\n（以上為聯盟推薦連結，透過連結註冊不會增加你的成本，並能支持本頻道持續產出真數據內容。要不要使用請自行評估；投資有風險。）\n\n📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」領避雷檢核表\n\n\n**Hashtags：** 0050定投 回測 0050 定投\n\n⚠️ 投資有風險，本影片為資訊與觀念分享，不構成投資建議。\n\n#Shorts #量化交易 #Pionex #自動交易\n\n🔔 我用 Python 把台股 1841 檔全部跑過回測——訂閱看每週全市場實測、拆穿話術陷阱，不誇大只看真數據\n👉 https://www.youtube.com/@CarsonQuant?sub_confirmation=1"
+        },
+        "defaultAudioLanguage": "zh"
+      },
+      "contentDetails": {
+        "duration": "PT22S",
+        "dimension": "2d",
+        "definition": "hd",
+        "caption": "false",
+        "licensedContent": false,
+        "contentRating": {},
+        "projection": "rectangular",
+        "hasCustomThumbnail": true
+      },
+      "status": {
+        "uploadStatus": "processed",
+        "privacyStatus": "public",
+        "license": "youtube",
+        "embeddable": true,
+        "publicStatsViewable": true,
+        "madeForKids": false,
+        "selfDeclaredMadeForKids": false
+      },
+      "statistics": {
+        "viewCount": "741",
+        "likeCount": "0",
+        "dislikeCount": "0",
+        "favoriteCount": "0",
+        "commentCount": "0"
+      }
+    },
+    "_Cc49y7ZAeM": {
+      "kind": "youtube#video",
+      "etag": "aa72qaxkMuAXIzT2VFKAG6rnKlc",
+      "id": "_Cc49y7ZAeM",
+      "snippet": {
+        "publishedAt": "2026-08-07T22:01:45Z",
+        "channelId": "UCqP5JQXlQR5ZDLtEiBt4kLA",
+        "title": "Fed恐慌殺！你的資產會少幾成？這招「資金配置」避開大虧！ #Shorts",
+        "description": "📺 完整策略拆解看這裡 👉 https://www.youtube.com/@carsonquant\n\n【回測】用真實歷史回測數字拆解回測，完整過程與數據來源都在影片裡，看完你能自己判斷該怎麼配置。\n\n另外，今天影片中實測使用的工具，我放在資訊欄裡了：\n【派網 Pionex】我自己在用的自動交易平台，新用戶透過連結註冊享手續費優惠（邀請碼 08NAcfvcWna） https://accounts.pionex.com/zh-TW/signUp?r=08NAcfvcWna\n\n（以上為聯盟推薦連結，透過連結註冊不會增加你的成本，並能支持本頻道持續產出真數據內容。要不要使用請自行評估；投資有風險。）\n\n📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」領避雷檢核表\n\n\n**Hashtags：** 網格機器人 回測\n\n⚠️ 投資有風險，本影片為資訊與觀念分享，不構成投資建議。\n\n#Shorts #量化交易 #Pionex #自動交易\n\n🔔 我用 Python 把台股 1841 檔全部跑過回測——訂閱看每週全市場實測、拆穿話術陷阱，不誇大只看真數據\n👉 https://www.youtube.com/@carsonquant?sub_confirmation=1",
+        "thumbnails": {
+          "default": {
+            "url": "https://i.ytimg.com/vi/_Cc49y7ZAeM/default.jpg",
+            "width": 120,
+            "height": 90
+          },
+          "medium": {
+            "url": "https://i.ytimg.com/vi/_Cc49y7ZAeM/mqdefault.jpg",
+            "width": 320,
+            "height": 180
+          },
+          "high": {
+            "url": "https://i.ytimg.com/vi/_Cc49y7ZAeM/hqdefault.jpg",
+            "width": 480,
+            "height": 360
+          },
+          "standard": {
+            "url": "https://i.ytimg.com/vi/_Cc49y7ZAeM/sddefault.jpg",
+            "width": 640,
+            "height": 480
+          },
+          "maxres": {
+            "url": "https://i.ytimg.com/vi/_Cc49y7ZAeM/maxresdefault.jpg",
+            "width": 1280,
+            "height": 720
+          }
+        },
+        "channelTitle": "Carson Quant",
+        "tags": [
+          "回測",
+          "網格機器人"
+        ],
+        "categoryId": "28",
+        "liveBroadcastContent": "none",
+        "defaultLanguage": "zh-Hant",
+        "localized": {
+          "title": "Fed恐慌殺！你的資產會少幾成？這招「資金配置」避開大虧！ #Shorts",
+          "description": "📺 完整策略拆解看這裡 👉 https://www.youtube.com/@carsonquant\n\n【回測】用真實歷史回測數字拆解回測，完整過程與數據來源都在影片裡，看完你能自己判斷該怎麼配置。\n\n另外，今天影片中實測使用的工具，我放在資訊欄裡了：\n【派網 Pionex】我自己在用的自動交易平台，新用戶透過連結註冊享手續費優惠（邀請碼 08NAcfvcWna） https://accounts.pionex.com/zh-TW/signUp?r=08NAcfvcWna\n\n（以上為聯盟推薦連結，透過連結註冊不會增加你的成本，並能支持本頻道持續產出真數據內容。要不要使用請自行評估；投資有風險。）\n\n📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」領避雷檢核表\n\n\n**Hashtags：** 網格機器人 回測\n\n⚠️ 投資有風險，本影片為資訊與觀念分享，不構成投資建議。\n\n#Shorts #量化交易 #Pionex #自動交易\n\n🔔 我用 Python 把台股 1841 檔全部跑過回測——訂閱看每週全市場實測、拆穿話術陷阱，不誇大只看真數據\n👉 https://www.youtube.com/@carsonquant?sub_confirmation=1"
+        }
+      },
+      "contentDetails": {
+        "duration": "PT21S",
+        "dimension": "2d",
+        "definition": "hd",
+        "caption": "false",
+        "licensedContent": false,
+        "contentRating": {},
+        "projection": "rectangular",
+        "hasCustomThumbnail": true
+      },
+      "status": {
+        "uploadStatus": "processed",
+        "privacyStatus": "public",
+        "license": "youtube",
+        "embeddable": true,
+        "publicStatsViewable": true,
+        "madeForKids": false,
+        "selfDeclaredMadeForKids": false
+      },
+      "statistics": {
+        "viewCount": "220",
+        "likeCount": "2",
+        "dislikeCount": "0",
+        "favoriteCount": "0",
+        "commentCount": "0"
+      }
+    },
+    "tN56crKxwJE": {
+      "kind": "youtube#video",
+      "etag": "74jE-eUrzQk03K3I2Y_RO3BzrWA",
+      "id": "tN56crKxwJE",
+      "snippet": {
+        "publishedAt": "2026-08-08T20:04:32Z",
+        "channelId": "UCqP5JQXlQR5ZDLtEiBt4kLA",
+        "title": "台積電飆破800元，你的網格機器人是賺翻還是慘賠？ #Shorts",
+        "description": "📺 完整策略拆解看這裡 👉 https://www.youtube.com/@carsonquant\n\n【網格機器人、回測、台積電】用真實歷史回測數字拆解網格機器人，完整過程與數據來源都在影片裡，看完你能自己判斷該怎麼配置。\n\n另外，今天影片中實測使用的工具，我放在資訊欄裡了：\n【派網 Pionex】我自己在用的自動交易平台，新用戶透過連結註冊享手續費優惠（邀請碼 08NAcfvcWna） https://accounts.pionex.com/zh-TW/signUp?r=08NAcfvcWna\n\n（以上為聯盟推薦連結，透過連結註冊不會增加你的成本，並能支持本頻道持續產出真數據內容。要不要使用請自行評估；投資有風險。）\n\n📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」領避雷檢核表\n\n\n**Hashtags：** 網格機器人 台積電 回測\n\n⚠️ 投資有風險，本影片為資訊與觀念分享，不構成投資建議。\n\n#Shorts #量化交易 #Pionex #自動交易\n\n🔔 我用 Python 把台股 1841 檔全部跑過回測——訂閱看每週全市場實測、拆穿話術陷阱，不誇大只看真數據\n👉 https://www.youtube.com/@carsonquant?sub_confirmation=1",
+        "thumbnails": {
+          "default": {
+            "url": "https://i.ytimg.com/vi/tN56crKxwJE/default.jpg",
+            "width": 120,
+            "height": 90
+          },
+          "medium": {
+            "url": "https://i.ytimg.com/vi/tN56crKxwJE/mqdefault.jpg",
+            "width": 320,
+            "height": 180
+          },
+          "high": {
+            "url": "https://i.ytimg.com/vi/tN56crKxwJE/hqdefault.jpg",
+            "width": 480,
+            "height": 360
+          },
+          "standard": {
+            "url": "https://i.ytimg.com/vi/tN56crKxwJE/sddefault.jpg",
+            "width": 640,
+            "height": 480
+          },
+          "maxres": {
+            "url": "https://i.ytimg.com/vi/tN56crKxwJE/maxresdefault.jpg",
+            "width": 1280,
+            "height": 720
+          }
+        },
+        "channelTitle": "Carson Quant",
+        "tags": [
+          "台積電",
+          "回測",
+          "網格機器人"
+        ],
+        "categoryId": "28",
+        "liveBroadcastContent": "none",
+        "defaultLanguage": "zh-Hant",
+        "localized": {
+          "title": "台積電飆破800元，你的網格機器人是賺翻還是慘賠？ #Shorts",
+          "description": "📺 完整策略拆解看這裡 👉 https://www.youtube.com/@carsonquant\n\n【網格機器人、回測、台積電】用真實歷史回測數字拆解網格機器人，完整過程與數據來源都在影片裡，看完你能自己判斷該怎麼配置。\n\n另外，今天影片中實測使用的工具，我放在資訊欄裡了：\n【派網 Pionex】我自己在用的自動交易平台，新用戶透過連結註冊享手續費優惠（邀請碼 08NAcfvcWna） https://accounts.pionex.com/zh-TW/signUp?r=08NAcfvcWna\n\n（以上為聯盟推薦連結，透過連結註冊不會增加你的成本，並能支持本頻道持續產出真數據內容。要不要使用請自行評估；投資有風險。）\n\n📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」領避雷檢核表\n\n\n**Hashtags：** 網格機器人 台積電 回測\n\n⚠️ 投資有風險，本影片為資訊與觀念分享，不構成投資建議。\n\n#Shorts #量化交易 #Pionex #自動交易\n\n🔔 我用 Python 把台股 1841 檔全部跑過回測——訂閱看每週全市場實測、拆穿話術陷阱，不誇大只看真數據\n👉 https://www.youtube.com/@carsonquant?sub_confirmation=1"
+        }
+      },
+      "contentDetails": {
+        "duration": "PT21S",
+        "dimension": "2d",
+        "definition": "hd",
+        "caption": "false",
+        "licensedContent": false,
+        "contentRating": {},
+        "projection": "rectangular",
+        "hasCustomThumbnail": true
+      },
+      "status": {
+        "uploadStatus": "processed",
+        "privacyStatus": "public",
+        "license": "youtube",
+        "embeddable": true,
+        "publicStatsViewable": true,
+        "madeForKids": false,
+        "selfDeclaredMadeForKids": false
+      },
+      "statistics": {
+        "viewCount": "718",
+        "likeCount": "0",
+        "dislikeCount": "0",
+        "favoriteCount": "0",
+        "commentCount": "0"
+      }
+    },
+    "mvDrUnxEjWs": {
+      "kind": "youtube#video",
+      "etag": "tf4tBS-zvPY9cCIREaiMMwYR8tc",
+      "id": "mvDrUnxEjWs",
+      "snippet": {
+        "publishedAt": "2026-08-09T04:02:04Z",
+        "channelId": "UCqP5JQXlQR5ZDLtEiBt4kLA",
+        "title": "市場狂熱，你的網格機器人是賺翻還是清零？ #Shorts",
+        "description": "📺 完整策略拆解看這裡 👉 https://www.youtube.com/@carsonquant\n\n【網格機器人、回測】用真實歷史回測數字拆解網格機器人，完整過程與數據來源都在影片裡，看完你能自己判斷該怎麼配置。\n\n另外，今天影片中實測使用的工具，我放在資訊欄裡了：\n【派網 Pionex】我自己在用的自動交易平台，新用戶透過連結註冊享手續費優惠（邀請碼 08NAcfvcWna） https://accounts.pionex.com/zh-TW/signUp?r=08NAcfvcWna\n\n（以上為聯盟推薦連結，透過連結註冊不會增加你的成本，並能支持本頻道持續產出真數據內容。要不要使用請自行評估；投資有風險。）\n\n📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」領避雷檢核表\n\n\n**Hashtags：** 網格機器人 回測\n\n⚠️ 投資有風險，本影片為資訊與觀念分享，不構成投資建議。\n\n#Shorts #量化交易 #Pionex #自動交易\n\n🔔 我用 Python 把台股 1841 檔全部跑過回測——訂閱看每週全市場實測、拆穿話術陷阱，不誇大只看真數據\n👉 https://www.youtube.com/@carsonquant?sub_confirmation=1",
+        "thumbnails": {
+          "default": {
+            "url": "https://i.ytimg.com/vi/mvDrUnxEjWs/default.jpg",
+            "width": 120,
+            "height": 90
+          },
+          "medium": {
+            "url": "https://i.ytimg.com/vi/mvDrUnxEjWs/mqdefault.jpg",
+            "width": 320,
+            "height": 180
+          },
+          "high": {
+            "url": "https://i.ytimg.com/vi/mvDrUnxEjWs/hqdefault.jpg",
+            "width": 480,
+            "height": 360
+          },
+          "standard": {
+            "url": "https://i.ytimg.com/vi/mvDrUnxEjWs/sddefault.jpg",
+            "width": 640,
+            "height": 480
+          },
+          "maxres": {
+            "url": "https://i.ytimg.com/vi/mvDrUnxEjWs/maxresdefault.jpg",
+            "width": 1280,
+            "height": 720
+          }
+        },
+        "channelTitle": "Carson Quant",
+        "tags": [
+          "回測",
+          "網格機器人"
+        ],
+        "categoryId": "28",
+        "liveBroadcastContent": "none",
+        "defaultLanguage": "zh-Hant",
+        "localized": {
+          "title": "市場狂熱，你的網格機器人是賺翻還是清零？ #Shorts",
+          "description": "📺 完整策略拆解看這裡 👉 https://www.youtube.com/@carsonquant\n\n【網格機器人、回測】用真實歷史回測數字拆解網格機器人，完整過程與數據來源都在影片裡，看完你能自己判斷該怎麼配置。\n\n另外，今天影片中實測使用的工具，我放在資訊欄裡了：\n【派網 Pionex】我自己在用的自動交易平台，新用戶透過連結註冊享手續費優惠（邀請碼 08NAcfvcWna） https://accounts.pionex.com/zh-TW/signUp?r=08NAcfvcWna\n\n（以上為聯盟推薦連結，透過連結註冊不會增加你的成本，並能支持本頻道持續產出真數據內容。要不要使用請自行評估；投資有風險。）\n\n📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」領避雷檢核表\n\n\n**Hashtags：** 網格機器人 回測\n\n⚠️ 投資有風險，本影片為資訊與觀念分享，不構成投資建議。\n\n#Shorts #量化交易 #Pionex #自動交易\n\n🔔 我用 Python 把台股 1841 檔全部跑過回測——訂閱看每週全市場實測、拆穿話術陷阱，不誇大只看真數據\n👉 https://www.youtube.com/@carsonquant?sub_confirmation=1"
+        }
+      },
+      "contentDetails": {
+        "duration": "PT27S",
+        "dimension": "2d",
+        "definition": "hd",
+        "caption": "false",
+        "licensedContent": false,
+        "contentRating": {},
+        "projection": "rectangular",
+        "hasCustomThumbnail": true
+      },
+      "status": {
+        "uploadStatus": "processed",
+        "privacyStatus": "public",
+        "license": "youtube",
+        "embeddable": true,
+        "publicStatsViewable": true,
+        "madeForKids": false,
+        "selfDeclaredMadeForKids": false
+      },
+      "statistics": {
+        "viewCount": "204",
+        "likeCount": "0",
+        "dislikeCount": "0",
+        "favoriteCount": "0",
+        "commentCount": "0"
+      }
+    },
+    "vwEaoo3Txjw": {
+      "kind": "youtube#video",
+      "etag": "CUcnVaAzrNq0uh16uaMriz_lGoE",
+      "id": "vwEaoo3Txjw",
+      "snippet": {
+        "publishedAt": "2026-08-09T18:02:05Z",
+        "channelId": "UCqP5JQXlQR5ZDLtEiBt4kLA",
+        "title": "CPI爆表，0050定投vs恐慌殺出，十年報酬竟差一倍？ #Shorts",
+        "description": "📺 完整策略拆解看這裡 👉 https://www.youtube.com/@CarsonQuant\n\n📚 全系列連播｜0050/ETF 定期定額實驗：https://www.youtube.com/playlist?list=PLJp7y2jl2p64\n\n\n【0050定投】用真實歷史回測數字拆解0050定投，完整過程與數據來源都在影片裡，看完你能自己判斷該怎麼配置。\n\n另外，今天影片中實測使用的工具，我放在資訊欄裡了：\n【派網 Pionex】我自己在用的自動交易平台，新用戶透過連結註冊享手續費優惠（邀請碼 08NAcfvcWna） https://accounts.pionex.com/zh-TW/signUp?r=08NAcfvcWna\n\n（以上為聯盟推薦連結，透過連結註冊不會增加你的成本，並能支持本頻道持續產出真數據內容。要不要使用請自行評估；投資有風險。）\n\n📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」領避雷檢核表\n\n\n**Hashtags：** 0050定投 0050 定投\n\n⚠️ 投資有風險，本影片為資訊與觀念分享，不構成投資建議。\n\n#Shorts #量化交易 #Pionex #自動交易\n\n🔔 我用 Python 把台股 1841 檔全部跑過回測——訂閱看每週全市場實測、拆穿話術陷阱，不誇大只看真數據\n👉 https://www.youtube.com/@CarsonQuant?sub_confirmation=1",
+        "thumbnails": {
+          "default": {
+            "url": "https://i.ytimg.com/vi/vwEaoo3Txjw/default.jpg",
+            "width": 120,
+            "height": 90
+          },
+          "medium": {
+            "url": "https://i.ytimg.com/vi/vwEaoo3Txjw/mqdefault.jpg",
+            "width": 320,
+            "height": 180
+          },
+          "high": {
+            "url": "https://i.ytimg.com/vi/vwEaoo3Txjw/hqdefault.jpg",
+            "width": 480,
+            "height": 360
+          },
+          "standard": {
+            "url": "https://i.ytimg.com/vi/vwEaoo3Txjw/sddefault.jpg",
+            "width": 640,
+            "height": 480
+          },
+          "maxres": {
+            "url": "https://i.ytimg.com/vi/vwEaoo3Txjw/maxresdefault.jpg",
+            "width": 1280,
+            "height": 720
+          }
+        },
+        "channelTitle": "Carson Quant",
+        "tags": [
+          "0050",
+          "0050定投",
+          "定投"
+        ],
+        "categoryId": "28",
+        "liveBroadcastContent": "none",
+        "defaultLanguage": "zh-Hant",
+        "localized": {
+          "title": "CPI爆表，0050定投vs恐慌殺出，十年報酬竟差一倍？ #Shorts",
+          "description": "📺 完整策略拆解看這裡 👉 https://www.youtube.com/@CarsonQuant\n\n📚 全系列連播｜0050/ETF 定期定額實驗：https://www.youtube.com/playlist?list=PLJp7y2jl2p64\n\n\n【0050定投】用真實歷史回測數字拆解0050定投，完整過程與數據來源都在影片裡，看完你能自己判斷該怎麼配置。\n\n另外，今天影片中實測使用的工具，我放在資訊欄裡了：\n【派網 Pionex】我自己在用的自動交易平台，新用戶透過連結註冊享手續費優惠（邀請碼 08NAcfvcWna） https://accounts.pionex.com/zh-TW/signUp?r=08NAcfvcWna\n\n（以上為聯盟推薦連結，透過連結註冊不會增加你的成本，並能支持本頻道持續產出真數據內容。要不要使用請自行評估；投資有風險。）\n\n📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」領避雷檢核表\n\n\n**Hashtags：** 0050定投 0050 定投\n\n⚠️ 投資有風險，本影片為資訊與觀念分享，不構成投資建議。\n\n#Shorts #量化交易 #Pionex #自動交易\n\n🔔 我用 Python 把台股 1841 檔全部跑過回測——訂閱看每週全市場實測、拆穿話術陷阱，不誇大只看真數據\n👉 https://www.youtube.com/@CarsonQuant?sub_confirmation=1"
+        },
+        "defaultAudioLanguage": "zh-Hant"
+      },
+      "contentDetails": {
+        "duration": "PT22S",
+        "dimension": "2d",
+        "definition": "hd",
+        "caption": "false",
+        "licensedContent": false,
+        "contentRating": {},
+        "projection": "rectangular",
+        "hasCustomThumbnail": true
+      },
+      "status": {
+        "uploadStatus": "processed",
+        "privacyStatus": "public",
+        "license": "youtube",
+        "embeddable": true,
+        "publicStatsViewable": true,
+        "madeForKids": false,
+        "selfDeclaredMadeForKids": false
+      },
+      "statistics": {
+        "viewCount": "290",
+        "likeCount": "0",
+        "dislikeCount": "0",
+        "favoriteCount": "0",
+        "commentCount": "0"
+      }
+    },
+    "UTuMMyvdQ5U": {
+      "kind": "youtube#video",
+      "etag": "12aFNc264yX0UZotrrglSwGThO4",
+      "id": "UTuMMyvdQ5U",
+      "snippet": {
+        "publishedAt": "2026-08-09T20:02:44Z",
+        "channelId": "UCqP5JQXlQR5ZDLtEiBt4kLA",
+        "title": "0050定期定額，臺股回檔竟比「一次全押」少賺一半？ #Shorts",
+        "description": "📺 完整策略拆解看這裡 👉 https://www.youtube.com/@CarsonQuant\n\n📚 全系列連播｜0050/ETF 定期定額實驗：https://www.youtube.com/playlist?list=PLJp7y2jl2p64\n\n\n【定期定額】用真實歷史回測數字拆解定期定額，完整過程與數據來源都在影片裡，看完你能自己判斷該怎麼配置。\n\n另外，今天影片中實測使用的工具，我放在資訊欄裡了：\n【派網 Pionex】我自己在用的自動交易平台，新用戶透過連結註冊享手續費優惠（邀請碼 08NAcfvcWna） https://accounts.pionex.com/zh-TW/signUp?r=08NAcfvcWna\n\n（以上為聯盟推薦連結，透過連結註冊不會增加你的成本，並能支持本頻道持續產出真數據內容。要不要使用請自行評估；投資有風險。）\n\n📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」領避雷檢核表\n\n\n**Hashtags：** 定期定額 0050\n\n⚠️ 投資有風險，本影片為資訊與觀念分享，不構成投資建議。\n\n#Shorts #量化交易 #Pionex #自動交易\n\n🔔 我用 Python 把台股 1841 檔全部跑過回測——訂閱看每週全市場實測、拆穿話術陷阱，不誇大只看真數據\n👉 https://www.youtube.com/@CarsonQuant?sub_confirmation=1",
+        "thumbnails": {
+          "default": {
+            "url": "https://i.ytimg.com/vi/UTuMMyvdQ5U/default.jpg",
+            "width": 120,
+            "height": 90
+          },
+          "medium": {
+            "url": "https://i.ytimg.com/vi/UTuMMyvdQ5U/mqdefault.jpg",
+            "width": 320,
+            "height": 180
+          },
+          "high": {
+            "url": "https://i.ytimg.com/vi/UTuMMyvdQ5U/hqdefault.jpg",
+            "width": 480,
+            "height": 360
+          },
+          "standard": {
+            "url": "https://i.ytimg.com/vi/UTuMMyvdQ5U/sddefault.jpg",
+            "width": 640,
+            "height": 480
+          },
+          "maxres": {
+            "url": "https://i.ytimg.com/vi/UTuMMyvdQ5U/maxresdefault.jpg",
+            "width": 1280,
+            "height": 720
+          }
+        },
+        "channelTitle": "Carson Quant",
+        "tags": [
+          "0050",
+          "定期定額"
+        ],
+        "categoryId": "28",
+        "liveBroadcastContent": "none",
+        "defaultLanguage": "zh-Hant",
+        "localized": {
+          "title": "0050定期定額，臺股回檔竟比「一次全押」少賺一半？ #Shorts",
+          "description": "📺 完整策略拆解看這裡 👉 https://www.youtube.com/@CarsonQuant\n\n📚 全系列連播｜0050/ETF 定期定額實驗：https://www.youtube.com/playlist?list=PLJp7y2jl2p64\n\n\n【定期定額】用真實歷史回測數字拆解定期定額，完整過程與數據來源都在影片裡，看完你能自己判斷該怎麼配置。\n\n另外，今天影片中實測使用的工具，我放在資訊欄裡了：\n【派網 Pionex】我自己在用的自動交易平台，新用戶透過連結註冊享手續費優惠（邀請碼 08NAcfvcWna） https://accounts.pionex.com/zh-TW/signUp?r=08NAcfvcWna\n\n（以上為聯盟推薦連結，透過連結註冊不會增加你的成本，並能支持本頻道持續產出真數據內容。要不要使用請自行評估；投資有風險。）\n\n📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」領避雷檢核表\n\n\n**Hashtags：** 定期定額 0050\n\n⚠️ 投資有風險，本影片為資訊與觀念分享，不構成投資建議。\n\n#Shorts #量化交易 #Pionex #自動交易\n\n🔔 我用 Python 把台股 1841 檔全部跑過回測——訂閱看每週全市場實測、拆穿話術陷阱，不誇大只看真數據\n👉 https://www.youtube.com/@CarsonQuant?sub_confirmation=1"
+        },
+        "defaultAudioLanguage": "zh"
+      },
+      "contentDetails": {
+        "duration": "PT23S",
+        "dimension": "2d",
+        "definition": "hd",
+        "caption": "false",
+        "licensedContent": false,
+        "contentRating": {},
+        "projection": "rectangular",
+        "hasCustomThumbnail": true
+      },
+      "status": {
+        "uploadStatus": "processed",
+        "privacyStatus": "public",
+        "license": "youtube",
+        "embeddable": true,
+        "publicStatsViewable": true,
+        "madeForKids": false,
+        "selfDeclaredMadeForKids": false
+      },
+      "statistics": {
+        "viewCount": "898",
+        "likeCount": "0",
+        "dislikeCount": "0",
+        "favoriteCount": "0",
+        "commentCount": "0"
+      }
+    },
+    "DhX2uNzjZ-o": {
+      "kind": "youtube#video",
+      "etag": "C80Vh1KJQApYPLNZxg8oC-45BuM",
+      "id": "DhX2uNzjZ-o",
+      "snippet": {
+        "publishedAt": "2026-08-10T00:02:00Z",
+        "channelId": "UCqP5JQXlQR5ZDLtEiBt4kLA",
+        "title": "臺股暴漲5000點，你的0050網格反而少賺「一臺賓士」？ #Shorts",
+        "description": "📺 完整策略拆解看這裡 👉 https://www.youtube.com/@CarsonQuant\n\n📚 全系列連播｜0050/ETF 定期定額實驗：https://www.youtube.com/playlist?list=PLJp7y2jl2p64\n\n\n量化交易教學與觀念分享。投資有風險，不構成投資建議。\n\n另外，今天影片中實測使用的工具，我放在資訊欄裡了：\n【派網 Pionex】我自己在用的自動交易平台，新用戶透過連結註冊享手續費優惠（邀請碼 08NAcfvcWna） https://accounts.pionex.com/zh-TW/signUp?r=08NAcfvcWna\n\n（以上為聯盟推薦連結，透過連結註冊不會增加你的成本，並能支持本頻道持續產出真數據內容。要不要使用請自行評估；投資有風險。）\n\n📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」領避雷檢核表\n\n\n**Hashtags：** 大盤 0050\n\n#Shorts #量化交易 #Pionex #自動交易\n\n🔔 我用 Python 把台股 1841 檔全部跑過回測——訂閱看每週全市場實測、拆穿話術陷阱，不誇大只看真數據\n👉 https://www.youtube.com/@CarsonQuant?sub_confirmation=1",
+        "thumbnails": {
+          "default": {
+            "url": "https://i.ytimg.com/vi/DhX2uNzjZ-o/default.jpg",
+            "width": 120,
+            "height": 90
+          },
+          "medium": {
+            "url": "https://i.ytimg.com/vi/DhX2uNzjZ-o/mqdefault.jpg",
+            "width": 320,
+            "height": 180
+          },
+          "high": {
+            "url": "https://i.ytimg.com/vi/DhX2uNzjZ-o/hqdefault.jpg",
+            "width": 480,
+            "height": 360
+          },
+          "standard": {
+            "url": "https://i.ytimg.com/vi/DhX2uNzjZ-o/sddefault.jpg",
+            "width": 640,
+            "height": 480
+          },
+          "maxres": {
+            "url": "https://i.ytimg.com/vi/DhX2uNzjZ-o/maxresdefault.jpg",
+            "width": 1280,
+            "height": 720
+          }
+        },
+        "channelTitle": "Carson Quant",
+        "tags": [
+          "0050",
+          "大盤"
+        ],
+        "categoryId": "28",
+        "liveBroadcastContent": "none",
+        "defaultLanguage": "zh-Hant",
+        "localized": {
+          "title": "臺股暴漲5000點，你的0050網格反而少賺「一臺賓士」？ #Shorts",
+          "description": "📺 完整策略拆解看這裡 👉 https://www.youtube.com/@CarsonQuant\n\n📚 全系列連播｜0050/ETF 定期定額實驗：https://www.youtube.com/playlist?list=PLJp7y2jl2p64\n\n\n量化交易教學與觀念分享。投資有風險，不構成投資建議。\n\n另外，今天影片中實測使用的工具，我放在資訊欄裡了：\n【派網 Pionex】我自己在用的自動交易平台，新用戶透過連結註冊享手續費優惠（邀請碼 08NAcfvcWna） https://accounts.pionex.com/zh-TW/signUp?r=08NAcfvcWna\n\n（以上為聯盟推薦連結，透過連結註冊不會增加你的成本，並能支持本頻道持續產出真數據內容。要不要使用請自行評估；投資有風險。）\n\n📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」領避雷檢核表\n\n\n**Hashtags：** 大盤 0050\n\n#Shorts #量化交易 #Pionex #自動交易\n\n🔔 我用 Python 把台股 1841 檔全部跑過回測——訂閱看每週全市場實測、拆穿話術陷阱，不誇大只看真數據\n👉 https://www.youtube.com/@CarsonQuant?sub_confirmation=1"
+        },
+        "defaultAudioLanguage": "zh"
+      },
+      "contentDetails": {
+        "duration": "PT22S",
+        "dimension": "2d",
+        "definition": "hd",
+        "caption": "false",
+        "licensedContent": false,
+        "contentRating": {},
+        "projection": "rectangular",
+        "hasCustomThumbnail": true
+      },
+      "status": {
+        "uploadStatus": "processed",
+        "privacyStatus": "public",
+        "license": "youtube",
+        "embeddable": true,
+        "publicStatsViewable": true,
+        "madeForKids": false,
+        "selfDeclaredMadeForKids": false
+      },
+      "statistics": {
+        "viewCount": "866",
+        "likeCount": "0",
+        "dislikeCount": "0",
+        "favoriteCount": "0",
+        "commentCount": "0"
+      }
+    },
+    "OyprNxjrIBQ": {
+      "kind": "youtube#video",
+      "etag": "rHiyAJK88qj4xtTzDIE0NEYdElU",
+      "id": "OyprNxjrIBQ",
+      "snippet": {
+        "publishedAt": "2026-08-10T16:01:58Z",
+        "channelId": "UCqP5JQXlQR5ZDLtEiBt4kLA",
+        "title": "市場巨變，你的自動交易設定，會讓你多賠一輛車？ #Shorts",
+        "description": "📺 完整策略拆解看這裡 👉 https://www.youtube.com/@carsonquant\n\n量化交易教學與觀念分享。投資有風險，不構成投資建議。\n\n另外，今天影片中實測使用的工具，我放在資訊欄裡了：\n【派網 Pionex】我自己在用的自動交易平台，新用戶透過連結註冊享手續費優惠（邀請碼 08NAcfvcWna） https://accounts.pionex.com/zh-TW/signUp?r=08NAcfvcWna\n\n（以上為聯盟推薦連結，透過連結註冊不會增加你的成本，並能支持本頻道持續產出真數據內容。要不要使用請自行評估；投資有風險。）\n\n📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」領避雷檢核表\n\n\n**Hashtags：** #量化交易 #自動交易\n\n#Shorts #量化交易 #Pionex #自動交易\n\n🔔 我用 Python 把台股 1841 檔全部跑過回測——訂閱看每週全市場實測、拆穿話術陷阱，不誇大只看真數據\n👉 https://www.youtube.com/@carsonquant?sub_confirmation=1",
+        "thumbnails": {
+          "default": {
+            "url": "https://i.ytimg.com/vi/OyprNxjrIBQ/default.jpg",
+            "width": 120,
+            "height": 90
+          },
+          "medium": {
+            "url": "https://i.ytimg.com/vi/OyprNxjrIBQ/mqdefault.jpg",
+            "width": 320,
+            "height": 180
+          },
+          "high": {
+            "url": "https://i.ytimg.com/vi/OyprNxjrIBQ/hqdefault.jpg",
+            "width": 480,
+            "height": 360
+          },
+          "standard": {
+            "url": "https://i.ytimg.com/vi/OyprNxjrIBQ/sddefault.jpg",
+            "width": 640,
+            "height": 480
+          },
+          "maxres": {
+            "url": "https://i.ytimg.com/vi/OyprNxjrIBQ/maxresdefault.jpg",
+            "width": 1280,
+            "height": 720
+          }
+        },
+        "channelTitle": "Carson Quant",
+        "tags": [
+          "自動交易",
+          "量化交易"
+        ],
+        "categoryId": "28",
+        "liveBroadcastContent": "none",
+        "defaultLanguage": "zh-Hant",
+        "localized": {
+          "title": "市場巨變，你的自動交易設定，會讓你多賠一輛車？ #Shorts",
+          "description": "📺 完整策略拆解看這裡 👉 https://www.youtube.com/@carsonquant\n\n量化交易教學與觀念分享。投資有風險，不構成投資建議。\n\n另外，今天影片中實測使用的工具，我放在資訊欄裡了：\n【派網 Pionex】我自己在用的自動交易平台，新用戶透過連結註冊享手續費優惠（邀請碼 08NAcfvcWna） https://accounts.pionex.com/zh-TW/signUp?r=08NAcfvcWna\n\n（以上為聯盟推薦連結，透過連結註冊不會增加你的成本，並能支持本頻道持續產出真數據內容。要不要使用請自行評估；投資有風險。）\n\n📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」領避雷檢核表\n\n\n**Hashtags：** #量化交易 #自動交易\n\n#Shorts #量化交易 #Pionex #自動交易\n\n🔔 我用 Python 把台股 1841 檔全部跑過回測——訂閱看每週全市場實測、拆穿話術陷阱，不誇大只看真數據\n👉 https://www.youtube.com/@carsonquant?sub_confirmation=1"
+        }
+      },
+      "contentDetails": {
+        "duration": "PT27S",
+        "dimension": "2d",
+        "definition": "hd",
+        "caption": "false",
+        "licensedContent": false,
+        "contentRating": {},
+        "projection": "rectangular",
+        "hasCustomThumbnail": true
+      },
+      "status": {
+        "uploadStatus": "processed",
+        "privacyStatus": "public",
+        "license": "youtube",
+        "embeddable": true,
+        "publicStatsViewable": true,
+        "madeForKids": false,
+        "selfDeclaredMadeForKids": false
+      },
+      "statistics": {
+        "viewCount": "89",
+        "likeCount": "0",
+        "dislikeCount": "0",
+        "favoriteCount": "0",
+        "commentCount": "0"
+      }
+    },
+    "nHwP_cyy_hc": {
+      "kind": "youtube#video",
+      "etag": "7zyvCNpUpTJgfGXtfb-TqEQf06A",
+      "id": "nHwP_cyy_hc",
+      "snippet": {
+        "publishedAt": "2026-08-11T16:01:45Z",
+        "channelId": "UCqP5JQXlQR5ZDLtEiBt4kLA",
+        "title": "CPI資料一公佈，你的網格機器人會不會『被套』到歸零？ #Shorts",
+        "description": "📺 完整策略拆解看這裡 👉 https://www.youtube.com/@carsonquant\n\n【網格機器人】用真實歷史回測數字拆解網格機器人，完整過程與數據來源都在影片裡，看完你能自己判斷該怎麼配置。\n\n另外，今天影片中實測使用的工具，我放在資訊欄裡了：\n【派網 Pionex】我自己在用的自動交易平台，新用戶透過連結註冊享手續費優惠（邀請碼 08NAcfvcWna） https://accounts.pionex.com/zh-TW/signUp?r=08NAcfvcWna\n\n（以上為聯盟推薦連結，透過連結註冊不會增加你的成本，並能支持本頻道持續產出真數據內容。要不要使用請自行評估；投資有風險。）\n\n📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」領避雷檢核表\n\n\n**Hashtags：** 網格機器人\n\n⚠️ 投資有風險，本影片為資訊與觀念分享，不構成投資建議。\n\n#Shorts #量化交易 #Pionex #自動交易\n\n🔔 我用 Python 把台股 1841 檔全部跑過回測——訂閱看每週全市場實測、拆穿話術陷阱，不誇大只看真數據\n👉 https://www.youtube.com/@carsonquant?sub_confirmation=1",
+        "thumbnails": {
+          "default": {
+            "url": "https://i.ytimg.com/vi/nHwP_cyy_hc/default.jpg",
+            "width": 120,
+            "height": 90
+          },
+          "medium": {
+            "url": "https://i.ytimg.com/vi/nHwP_cyy_hc/mqdefault.jpg",
+            "width": 320,
+            "height": 180
+          },
+          "high": {
+            "url": "https://i.ytimg.com/vi/nHwP_cyy_hc/hqdefault.jpg",
+            "width": 480,
+            "height": 360
+          },
+          "standard": {
+            "url": "https://i.ytimg.com/vi/nHwP_cyy_hc/sddefault.jpg",
+            "width": 640,
+            "height": 480
+          },
+          "maxres": {
+            "url": "https://i.ytimg.com/vi/nHwP_cyy_hc/maxresdefault.jpg",
+            "width": 1280,
+            "height": 720
+          }
+        },
+        "channelTitle": "Carson Quant",
+        "tags": [
+          "網格機器人"
+        ],
+        "categoryId": "28",
+        "liveBroadcastContent": "none",
+        "defaultLanguage": "zh-Hant",
+        "localized": {
+          "title": "CPI資料一公佈，你的網格機器人會不會『被套』到歸零？ #Shorts",
+          "description": "📺 完整策略拆解看這裡 👉 https://www.youtube.com/@carsonquant\n\n【網格機器人】用真實歷史回測數字拆解網格機器人，完整過程與數據來源都在影片裡，看完你能自己判斷該怎麼配置。\n\n另外，今天影片中實測使用的工具，我放在資訊欄裡了：\n【派網 Pionex】我自己在用的自動交易平台，新用戶透過連結註冊享手續費優惠（邀請碼 08NAcfvcWna） https://accounts.pionex.com/zh-TW/signUp?r=08NAcfvcWna\n\n（以上為聯盟推薦連結，透過連結註冊不會增加你的成本，並能支持本頻道持續產出真數據內容。要不要使用請自行評估；投資有風險。）\n\n📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」領避雷檢核表\n\n\n**Hashtags：** 網格機器人\n\n⚠️ 投資有風險，本影片為資訊與觀念分享，不構成投資建議。\n\n#Shorts #量化交易 #Pionex #自動交易\n\n🔔 我用 Python 把台股 1841 檔全部跑過回測——訂閱看每週全市場實測、拆穿話術陷阱，不誇大只看真數據\n👉 https://www.youtube.com/@carsonquant?sub_confirmation=1"
+        }
+      },
+      "contentDetails": {
+        "duration": "PT26S",
+        "dimension": "2d",
+        "definition": "hd",
+        "caption": "false",
+        "licensedContent": false,
+        "contentRating": {},
+        "projection": "rectangular",
+        "hasCustomThumbnail": true
+      },
+      "status": {
+        "uploadStatus": "processed",
+        "privacyStatus": "public",
+        "license": "youtube",
+        "embeddable": true,
+        "publicStatsViewable": true,
+        "madeForKids": false,
+        "selfDeclaredMadeForKids": false
+      },
+      "statistics": {
+        "viewCount": "328",
+        "likeCount": "0",
+        "dislikeCount": "0",
+        "favoriteCount": "0",
+        "commentCount": "0"
+      }
+    },
+    "xjQPW3sTY28": {
+      "kind": "youtube#video",
+      "etag": "dCRUJVY0EdkuZMEw2Snc1ukai0Y",
+      "id": "xjQPW3sTY28",
+      "snippet": {
+        "publishedAt": "2026-08-11T18:01:57Z",
+        "channelId": "UCqP5JQXlQR5ZDLtEiBt4kLA",
+        "title": "升息49.9%！你的投資組合，會被「這盲點」多咬掉多少？ #Shorts",
+        "description": "【回測】用真實歷史回測數字拆解回測，完整過程與數據來源都在影片裡，看完你能自己判斷該怎麼配置。\n\n📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」領避雷檢核表\n⭐ 訂閱看每天一檔台股體檢:\nhttps://www.youtube.com/@carsonquant?sub_confirmation=1\n\n\n 回測\n\n⚠️ 投資有風險，本影片為資訊與觀念分享，不構成投資建議。\n\n#Shorts #量化交易 #Pionex #自動交易",
+        "thumbnails": {
+          "default": {
+            "url": "https://i.ytimg.com/vi/xjQPW3sTY28/default.jpg",
+            "width": 120,
+            "height": 90
+          },
+          "medium": {
+            "url": "https://i.ytimg.com/vi/xjQPW3sTY28/mqdefault.jpg",
+            "width": 320,
+            "height": 180
+          },
+          "high": {
+            "url": "https://i.ytimg.com/vi/xjQPW3sTY28/hqdefault.jpg",
+            "width": 480,
+            "height": 360
+          },
+          "standard": {
+            "url": "https://i.ytimg.com/vi/xjQPW3sTY28/sddefault.jpg",
+            "width": 640,
+            "height": 480
+          },
+          "maxres": {
+            "url": "https://i.ytimg.com/vi/xjQPW3sTY28/maxresdefault.jpg",
+            "width": 1280,
+            "height": 720
+          }
+        },
+        "channelTitle": "Carson Quant",
+        "tags": [
+          "回測"
+        ],
+        "categoryId": "28",
+        "liveBroadcastContent": "none",
+        "defaultLanguage": "zh-Hant",
+        "localized": {
+          "title": "升息49.9%！你的投資組合，會被「這盲點」多咬掉多少？ #Shorts",
+          "description": "【回測】用真實歷史回測數字拆解回測，完整過程與數據來源都在影片裡，看完你能自己判斷該怎麼配置。\n\n📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」領避雷檢核表\n⭐ 訂閱看每天一檔台股體檢:\nhttps://www.youtube.com/@carsonquant?sub_confirmation=1\n\n\n 回測\n\n⚠️ 投資有風險，本影片為資訊與觀念分享，不構成投資建議。\n\n#Shorts #量化交易 #Pionex #自動交易"
+        }
+      },
+      "contentDetails": {
+        "duration": "PT22S",
+        "dimension": "2d",
+        "definition": "hd",
+        "caption": "false",
+        "licensedContent": false,
+        "contentRating": {},
+        "projection": "rectangular",
+        "hasCustomThumbnail": true
+      },
+      "status": {
+        "uploadStatus": "processed",
+        "privacyStatus": "public",
+        "license": "youtube",
+        "embeddable": true,
+        "publicStatsViewable": true,
+        "madeForKids": false,
+        "selfDeclaredMadeForKids": false
+      },
+      "statistics": {
+        "viewCount": "186",
+        "likeCount": "0",
+        "dislikeCount": "0",
+        "favoriteCount": "0",
+        "commentCount": "0"
+      }
+    },
+    "fYTywq3Ah1c": {
+      "kind": "youtube#video",
+      "etag": "WdDEYb2oid293AWifWxrEHjizII",
+      "id": "fYTywq3Ah1c",
+      "snippet": {
+        "publishedAt": "2026-07-15T10:44:13Z",
+        "channelId": "UCqP5JQXlQR5ZDLtEiBt4kLA",
+        "title": "2022臺股熊市：0050恐慌賣出 vs 抱到現在？EP1臺股真相實驗室 #Shorts",
+        "description": "🔁 接續看同系列 👉 https://youtu.be/6WdzVW3RaLE\n\n📺 完整策略拆解看這裡 👉 https://youtu.be/J-XhOCBfMhE\n\n0050回測資料揭密｜2022臺股熊市實測：恐慌賣出vs長期持有報酬差254%\n\n另外，今天影片中實測使用的工具，我放在資訊欄裡了：\n【派網 Pionex】我自己在用的自動交易平台，新用戶透過連結註冊享手續費優惠（邀請碼 08NAcfvcWna） https://accounts.pionex.com/zh-TW/signUp?r=08NAcfvcWna\n\n（以上為聯盟推薦連結，透過連結註冊不會增加你的成本，並能支持本頻道持續產出真數據內容。要不要使用請自行評估；投資有風險。）\n\n投資有風險，不構成投資建議\n\n用真實歷史回測資料破解投資迷思，臺股真相實驗室EP1完整公開\n\n📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」，免費領新手回測避雷檢核表\n投資有風險，歷史回測不構成未來獲利保證\n\n**Hashtags：** #Shorts #臺股投資 #0050 #定期定額 #量化交易\n\n🔔 我用 Python 把台股 1841 檔全部跑過回測——訂閱看每週全市場實測、拆穿話術陷阱，不誇大只看真數據",
+        "thumbnails": {
+          "default": {
+            "url": "https://i.ytimg.com/vi/fYTywq3Ah1c/default.jpg",
+            "width": 120,
+            "height": 90
+          },
+          "medium": {
+            "url": "https://i.ytimg.com/vi/fYTywq3Ah1c/mqdefault.jpg",
+            "width": 320,
+            "height": 180
+          },
+          "high": {
+            "url": "https://i.ytimg.com/vi/fYTywq3Ah1c/hqdefault.jpg",
+            "width": 480,
+            "height": 360
+          },
+          "standard": {
+            "url": "https://i.ytimg.com/vi/fYTywq3Ah1c/sddefault.jpg",
+            "width": 640,
+            "height": 480
+          },
+          "maxres": {
+            "url": "https://i.ytimg.com/vi/fYTywq3Ah1c/maxresdefault.jpg",
+            "width": 1280,
+            "height": 720
+          }
+        },
+        "channelTitle": "Carson Quant",
+        "tags": [
+          "0050",
+          "Shorts",
+          "定期定額",
+          "臺股投資",
+          "量化交易"
+        ],
+        "categoryId": "28",
+        "liveBroadcastContent": "none",
+        "defaultLanguage": "zh-Hant",
+        "localized": {
+          "title": "2022臺股熊市：0050恐慌賣出 vs 抱到現在？EP1臺股真相實驗室 #Shorts",
+          "description": "🔁 接續看同系列 👉 https://youtu.be/6WdzVW3RaLE\n\n📺 完整策略拆解看這裡 👉 https://youtu.be/J-XhOCBfMhE\n\n0050回測資料揭密｜2022臺股熊市實測：恐慌賣出vs長期持有報酬差254%\n\n另外，今天影片中實測使用的工具，我放在資訊欄裡了：\n【派網 Pionex】我自己在用的自動交易平台，新用戶透過連結註冊享手續費優惠（邀請碼 08NAcfvcWna） https://accounts.pionex.com/zh-TW/signUp?r=08NAcfvcWna\n\n（以上為聯盟推薦連結，透過連結註冊不會增加你的成本，並能支持本頻道持續產出真數據內容。要不要使用請自行評估；投資有風險。）\n\n投資有風險，不構成投資建議\n\n用真實歷史回測資料破解投資迷思，臺股真相實驗室EP1完整公開\n\n📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」，免費領新手回測避雷檢核表\n投資有風險，歷史回測不構成未來獲利保證\n\n**Hashtags：** #Shorts #臺股投資 #0050 #定期定額 #量化交易\n\n🔔 我用 Python 把台股 1841 檔全部跑過回測——訂閱看每週全市場實測、拆穿話術陷阱，不誇大只看真數據"
+        }
+      },
+      "contentDetails": {
+        "duration": "PT51S",
+        "dimension": "2d",
+        "definition": "hd",
+        "caption": "true",
+        "licensedContent": false,
+        "contentRating": {},
+        "projection": "rectangular",
+        "hasCustomThumbnail": true
+      },
+      "status": {
+        "uploadStatus": "processed",
+        "privacyStatus": "public",
+        "license": "youtube",
+        "embeddable": true,
+        "publicStatsViewable": true,
+        "madeForKids": false,
+        "selfDeclaredMadeForKids": false
+      },
+      "statistics": {
+        "viewCount": "4",
+        "likeCount": "0",
+        "dislikeCount": "0",
+        "favoriteCount": "0",
+        "commentCount": "1"
+      }
+    },
+    "s4jROPETmlE": {
+      "kind": "youtube#video",
+      "etag": "y-xg2EJpbTqJj1UTI9wYEktkADY",
+      "id": "s4jROPETmlE",
+      "snippet": {
+        "publishedAt": "2026-07-10T04:35:57Z",
+        "channelId": "UCqP5JQXlQR5ZDLtEiBt4kLA",
+        "title": "EP2｜加密網格回測年化80%？實測揭穿流動性陷阱｜量化阿森 #Shorts",
+        "description": "🔁 接續看同系列 👉 https://youtu.be/zf2obEQaGsc\n\n📺 完整策略拆解看這裡 👉 https://youtu.be/afe-e28fj3o\n\n加密網格回測年化80%？實測揭穿流動性陷阱｜量化阿森\n\n這支回測EP2揭露：年化80%的加密網格策略，背後竟是流動性陷阱！假設你套在高點，出金時發現價格雖達目標，但沒人接盤，根本賣不掉。看完這支短片，你將學會如何避開這類陷阱，並掌握真實回測資料。\n\n📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」，免費領新手回測避雷檢核表\n\n投資有風險，不構成投資建議\n\n**Hashtags：** #Shorts #量化交易 #加密貨幣 #網格交易 #回測\n\n另外，今天影片中實測使用的工具，我放在資訊欄裡了：\n【派網 Pionex】我自己在用的自動交易平台，新用戶透過連結註冊享手續費優惠（邀請碼 08NAcfvcWna） https://accounts.pionex.com/zh-TW/signUp?r=08NAcfvcWna\n\n（以上為聯盟推薦連結，透過連結註冊不會增加你的成本，並能支持本頻道持續產出真數據內容。要不要使用請自行評估；投資有風險。）",
+        "thumbnails": {
+          "default": {
+            "url": "https://i.ytimg.com/vi/s4jROPETmlE/default.jpg",
+            "width": 120,
+            "height": 90
+          },
+          "medium": {
+            "url": "https://i.ytimg.com/vi/s4jROPETmlE/mqdefault.jpg",
+            "width": 320,
+            "height": 180
+          },
+          "high": {
+            "url": "https://i.ytimg.com/vi/s4jROPETmlE/hqdefault.jpg",
+            "width": 480,
+            "height": 360
+          },
+          "standard": {
+            "url": "https://i.ytimg.com/vi/s4jROPETmlE/sddefault.jpg",
+            "width": 640,
+            "height": 480
+          },
+          "maxres": {
+            "url": "https://i.ytimg.com/vi/s4jROPETmlE/maxresdefault.jpg",
+            "width": 1280,
+            "height": 720
+          }
+        },
+        "channelTitle": "Carson Quant",
+        "tags": [
+          "Shorts",
+          "加密貨幣",
+          "回測",
+          "網格交易",
+          "量化交易"
+        ],
+        "categoryId": "28",
+        "liveBroadcastContent": "none",
+        "defaultLanguage": "zh-Hant",
+        "localized": {
+          "title": "EP2｜加密網格回測年化80%？實測揭穿流動性陷阱｜量化阿森 #Shorts",
+          "description": "🔁 接續看同系列 👉 https://youtu.be/zf2obEQaGsc\n\n📺 完整策略拆解看這裡 👉 https://youtu.be/afe-e28fj3o\n\n加密網格回測年化80%？實測揭穿流動性陷阱｜量化阿森\n\n這支回測EP2揭露：年化80%的加密網格策略，背後竟是流動性陷阱！假設你套在高點，出金時發現價格雖達目標，但沒人接盤，根本賣不掉。看完這支短片，你將學會如何避開這類陷阱，並掌握真實回測資料。\n\n📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」，免費領新手回測避雷檢核表\n\n投資有風險，不構成投資建議\n\n**Hashtags：** #Shorts #量化交易 #加密貨幣 #網格交易 #回測\n\n另外，今天影片中實測使用的工具，我放在資訊欄裡了：\n【派網 Pionex】我自己在用的自動交易平台，新用戶透過連結註冊享手續費優惠（邀請碼 08NAcfvcWna） https://accounts.pionex.com/zh-TW/signUp?r=08NAcfvcWna\n\n（以上為聯盟推薦連結，透過連結註冊不會增加你的成本，並能支持本頻道持續產出真數據內容。要不要使用請自行評估；投資有風險。）"
+        }
+      },
+      "contentDetails": {
+        "duration": "PT50S",
+        "dimension": "2d",
+        "definition": "hd",
+        "caption": "false",
+        "licensedContent": false,
+        "contentRating": {},
+        "projection": "rectangular",
+        "hasCustomThumbnail": true
+      },
+      "status": {
+        "uploadStatus": "processed",
+        "privacyStatus": "public",
+        "license": "youtube",
+        "embeddable": true,
+        "publicStatsViewable": true,
+        "madeForKids": false,
+        "selfDeclaredMadeForKids": false
+      },
+      "statistics": {
+        "viewCount": "5",
+        "likeCount": "0",
+        "dislikeCount": "0",
+        "favoriteCount": "0",
+        "commentCount": "0"
+      }
+    },
+    "Xmc_qtMqPhk": {
+      "kind": "youtube#video",
+      "etag": "M_Z2c3XU3eOvRfdvpvf6zo7d8OM",
+      "id": "Xmc_qtMqPhk",
+      "snippet": {
+        "publishedAt": "2026-07-12T12:33:26Z",
+        "channelId": "UCqP5JQXlQR5ZDLtEiBt4kLA",
+        "title": "EP7 機器人 vs 人工操作 30 天實測：本金 1 萬差多少？答案揭曉！ #Shorts",
+        "description": "🔁 接續看同系列 👉 https://youtu.be/1rXKJ8JCaRc\n\n📺 完整策略拆解看這裡 👉 https://www.youtube.com/@carson-quant\n\n機器人 vs 人工操作 30 天實測：本金 1 萬差多少？答案揭曉！完整回測資料公開，教你避開新手陷阱。📩 私訊 Telegram @CarsonQuant_message_bot 打『回測』，免費領新手回測避雷檢核表。投資有風險，不構成投資建議。\n\n**Hashtags：** #Shorts #量化交易 #機器人交易 #自動交易 #投資新手\n\n另外，今天影片中實測使用的工具，我放在資訊欄裡了：\n【派網 Pionex】我自己在用的自動交易平台，新用戶透過連結註冊享手續費優惠（邀請碼 08NAcfvcWna） https://accounts.pionex.com/zh-TW/signUp?r=08NAcfvcWna\n\n（以上為聯盟推薦連結，透過連結註冊不會增加你的成本，並能支持本頻道持續產出真數據內容。要不要使用請自行評估；投資有風險。）",
+        "thumbnails": {
+          "default": {
+            "url": "https://i.ytimg.com/vi/Xmc_qtMqPhk/default.jpg",
+            "width": 120,
+            "height": 90
+          },
+          "medium": {
+            "url": "https://i.ytimg.com/vi/Xmc_qtMqPhk/mqdefault.jpg",
+            "width": 320,
+            "height": 180
+          },
+          "high": {
+            "url": "https://i.ytimg.com/vi/Xmc_qtMqPhk/hqdefault.jpg",
+            "width": 480,
+            "height": 360
+          },
+          "standard": {
+            "url": "https://i.ytimg.com/vi/Xmc_qtMqPhk/sddefault.jpg",
+            "width": 640,
+            "height": 480
+          },
+          "maxres": {
+            "url": "https://i.ytimg.com/vi/Xmc_qtMqPhk/maxresdefault.jpg",
+            "width": 1280,
+            "height": 720
+          }
+        },
+        "channelTitle": "Carson Quant",
+        "tags": [
+          "Shorts",
+          "投資新手",
+          "機器人交易",
+          "自動交易",
+          "量化交易"
+        ],
+        "categoryId": "28",
+        "liveBroadcastContent": "none",
+        "defaultLanguage": "zh-Hant",
+        "localized": {
+          "title": "EP7 機器人 vs 人工操作 30 天實測：本金 1 萬差多少？答案揭曉！ #Shorts",
+          "description": "🔁 接續看同系列 👉 https://youtu.be/1rXKJ8JCaRc\n\n📺 完整策略拆解看這裡 👉 https://www.youtube.com/@carson-quant\n\n機器人 vs 人工操作 30 天實測：本金 1 萬差多少？答案揭曉！完整回測資料公開，教你避開新手陷阱。📩 私訊 Telegram @CarsonQuant_message_bot 打『回測』，免費領新手回測避雷檢核表。投資有風險，不構成投資建議。\n\n**Hashtags：** #Shorts #量化交易 #機器人交易 #自動交易 #投資新手\n\n另外，今天影片中實測使用的工具，我放在資訊欄裡了：\n【派網 Pionex】我自己在用的自動交易平台，新用戶透過連結註冊享手續費優惠（邀請碼 08NAcfvcWna） https://accounts.pionex.com/zh-TW/signUp?r=08NAcfvcWna\n\n（以上為聯盟推薦連結，透過連結註冊不會增加你的成本，並能支持本頻道持續產出真數據內容。要不要使用請自行評估；投資有風險。）"
+        }
+      },
+      "contentDetails": {
+        "duration": "PT49S",
+        "dimension": "2d",
+        "definition": "hd",
+        "caption": "true",
+        "licensedContent": false,
+        "contentRating": {},
+        "projection": "rectangular",
+        "hasCustomThumbnail": true
+      },
+      "status": {
+        "uploadStatus": "processed",
+        "privacyStatus": "public",
+        "license": "youtube",
+        "embeddable": true,
+        "publicStatsViewable": true,
+        "madeForKids": false,
+        "selfDeclaredMadeForKids": false
+      },
+      "statistics": {
+        "viewCount": "2",
+        "likeCount": "0",
+        "dislikeCount": "0",
+        "favoriteCount": "0",
+        "commentCount": "1"
+      }
+    },
+    "PEi1jvjhD68": {
+      "kind": "youtube#video",
+      "etag": "bXqUlbZsd7_jzv2oE6Zxcg84138",
+      "id": "PEi1jvjhD68",
+      "snippet": {
+        "publishedAt": "2026-07-15T03:16:17Z",
+        "channelId": "UCqP5JQXlQR5ZDLtEiBt4kLA",
+        "title": "EP5｜00918 vs 0050 高股息真的賺？3.7年回測結果顛覆你想像 | 臺股真相實驗室 | 00918 vs 0050 回測比較 #Shorts",
+        "description": "🔁 接續看同系列 👉 https://youtu.be/4wyNuXn01xA\n\n📺 完整策略拆解看這裡 👉 https://youtu.be/ydjxUdBRaIk\n\n【00918 vs 0050 回測比較、填息、存股】本片用真回測拆解00918 vs 0050 回測比較、填息、存股，看完你能自己判斷該怎麼配置。\n\n另外，今天影片中實測使用的工具，我放在資訊欄裡了：\n【派網 Pionex】我自己在用的自動交易平台，新用戶透過連結註冊享手續費優惠（邀請碼 08NAcfvcWna） https://accounts.pionex.com/zh-TW/signUp?r=08NAcfvcWna\n\n（以上為聯盟推薦連結，透過連結註冊不會增加你的成本，並能支持本頻道持續產出真數據內容。要不要使用請自行評估；投資有風險。）\n\n\n00918 vs 0050 3.7年含息回測實戰｜高股息ETF真的比市值型賺？量化資料顛覆傳統認知\n\n揭密臺股最真實的報酬率比較，用歷史回測打破高配息迷思。完整資料證明：長期投資關鍵在總報酬，不是配息率\n\n📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」，免費領新手回測避雷檢核表\n\n投資有風險，歷史回測不保證未來績效，不構成投資建議\n\n**Hashtags：** #Shorts #量化交易 #臺股投資 #ETF #存股 回測 0050 最大回撤 填息\n\n🔔 我用 Python 把台股 1841 檔全部跑過回測——訂閱看每週全市場實測、拆穿話術陷阱，不誇大只看真數據",
+        "thumbnails": {
+          "default": {
+            "url": "https://i.ytimg.com/vi/PEi1jvjhD68/default.jpg",
+            "width": 120,
+            "height": 90
+          },
+          "medium": {
+            "url": "https://i.ytimg.com/vi/PEi1jvjhD68/mqdefault.jpg",
+            "width": 320,
+            "height": 180
+          },
+          "high": {
+            "url": "https://i.ytimg.com/vi/PEi1jvjhD68/hqdefault.jpg",
+            "width": 480,
+            "height": 360
+          },
+          "standard": {
+            "url": "https://i.ytimg.com/vi/PEi1jvjhD68/sddefault.jpg",
+            "width": 640,
+            "height": 480
+          },
+          "maxres": {
+            "url": "https://i.ytimg.com/vi/PEi1jvjhD68/maxresdefault.jpg",
+            "width": 1280,
+            "height": 720
+          }
+        },
+        "channelTitle": "Carson Quant",
+        "tags": [
+          "0050",
+          "ETF",
+          "Shorts",
+          "回測",
+          "填息",
+          "存股",
+          "最大回撤",
+          "臺股投資",
+          "量化交易"
+        ],
+        "categoryId": "28",
+        "liveBroadcastContent": "none",
+        "defaultLanguage": "zh-Hant",
+        "localized": {
+          "title": "EP5｜00918 vs 0050 高股息真的賺？3.7年回測結果顛覆你想像 | 臺股真相實驗室 | 00918 vs 0050 回測比較 #Shorts",
+          "description": "🔁 接續看同系列 👉 https://youtu.be/4wyNuXn01xA\n\n📺 完整策略拆解看這裡 👉 https://youtu.be/ydjxUdBRaIk\n\n【00918 vs 0050 回測比較、填息、存股】本片用真回測拆解00918 vs 0050 回測比較、填息、存股，看完你能自己判斷該怎麼配置。\n\n另外，今天影片中實測使用的工具，我放在資訊欄裡了：\n【派網 Pionex】我自己在用的自動交易平台，新用戶透過連結註冊享手續費優惠（邀請碼 08NAcfvcWna） https://accounts.pionex.com/zh-TW/signUp?r=08NAcfvcWna\n\n（以上為聯盟推薦連結，透過連結註冊不會增加你的成本，並能支持本頻道持續產出真數據內容。要不要使用請自行評估；投資有風險。）\n\n\n00918 vs 0050 3.7年含息回測實戰｜高股息ETF真的比市值型賺？量化資料顛覆傳統認知\n\n揭密臺股最真實的報酬率比較，用歷史回測打破高配息迷思。完整資料證明：長期投資關鍵在總報酬，不是配息率\n\n📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」，免費領新手回測避雷檢核表\n\n投資有風險，歷史回測不保證未來績效，不構成投資建議\n\n**Hashtags：** #Shorts #量化交易 #臺股投資 #ETF #存股 回測 0050 最大回撤 填息\n\n🔔 我用 Python 把台股 1841 檔全部跑過回測——訂閱看每週全市場實測、拆穿話術陷阱，不誇大只看真數據"
+        }
+      },
+      "contentDetails": {
+        "duration": "PT54S",
+        "dimension": "2d",
+        "definition": "hd",
+        "caption": "false",
+        "licensedContent": false,
+        "contentRating": {},
+        "projection": "rectangular",
+        "hasCustomThumbnail": true
+      },
+      "status": {
+        "uploadStatus": "processed",
+        "privacyStatus": "public",
+        "license": "youtube",
+        "embeddable": true,
+        "publicStatsViewable": true,
+        "madeForKids": false,
+        "selfDeclaredMadeForKids": false
+      },
+      "statistics": {
+        "viewCount": "5",
+        "likeCount": "0",
+        "dislikeCount": "0",
+        "favoriteCount": "0",
+        "commentCount": "0"
+      }
+    },
+    "nrIYmQgjHFs": {
+      "kind": "youtube#video",
+      "etag": "OGiktEPWFPNBP2RJLYpuOzA2DBg",
+      "id": "nrIYmQgjHFs",
+      "snippet": {
+        "publishedAt": "2026-08-11T01:16:10Z",
+        "channelId": "UCqP5JQXlQR5ZDLtEiBt4kLA",
+        "title": "【光寶科 2301】20年狂賺1176%！但你確定抱得住『七年套牢』的煎熬，還多賠掉一輛二手車？｜個股體檢EP69",
+        "description": "量化交易教學與觀念分享。投資有風險，不構成投資建議。\n\n━━━━━━━━━━━━\n▶ 接著看下一集:\nhttps://www.youtube.com/watch?v=u-2PyNoTOQk&list=PLMfk2namCCJc\n📺 本系列自動連播:\nhttps://www.youtube.com/playlist?list=PLMfk2namCCJc\n🔔 訂閱不漏接:https://www.youtube.com/@CarsonQuant?sub_confirmation=1\n━━━━━━━━━━━━\n\n\n另外，今天影片中實測使用的工具，我放在資訊欄裡了：\n【派網 Pionex】我自己在用的自動交易平台，新用戶透過連結註冊享手續費優惠（邀請碼 08NAcfvcWna） https://accounts.pionex.com/zh-TW/signUp?r=08NAcfvcWna\n\n（以上為聯盟推薦連結，透過連結註冊不會增加你的成本，並能支持本頻道持續產出真數據內容。要不要使用請自行評估；投資有風險。）\n\n📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」領避雷檢核表\n\n\n #量化交易 #自動交易\n\n🔔 我用 Python 把台股 1841 檔全部跑過回測——訂閱看每週全市場實測、拆穿話術陷阱，不誇大只看真數據\n👉 https://www.youtube.com/@CarsonQuant?sub_confirmation=1",
+        "thumbnails": {
+          "default": {
+            "url": "https://i.ytimg.com/vi/nrIYmQgjHFs/default.jpg",
+            "width": 120,
+            "height": 90
+          },
+          "medium": {
+            "url": "https://i.ytimg.com/vi/nrIYmQgjHFs/mqdefault.jpg",
+            "width": 320,
+            "height": 180
+          },
+          "high": {
+            "url": "https://i.ytimg.com/vi/nrIYmQgjHFs/hqdefault.jpg",
+            "width": 480,
+            "height": 360
+          },
+          "standard": {
+            "url": "https://i.ytimg.com/vi/nrIYmQgjHFs/sddefault.jpg",
+            "width": 640,
+            "height": 480
+          },
+          "maxres": {
+            "url": "https://i.ytimg.com/vi/nrIYmQgjHFs/maxresdefault.jpg",
+            "width": 1280,
+            "height": 720
+          }
+        },
+        "channelTitle": "Carson Quant",
+        "tags": [
+          "自動交易",
+          "量化交易"
+        ],
+        "categoryId": "27",
+        "liveBroadcastContent": "none",
+        "defaultLanguage": "zh-Hant",
+        "localized": {
+          "title": "【光寶科 2301】20年狂賺1176%！但你確定抱得住『七年套牢』的煎熬，還多賠掉一輛二手車？｜個股體檢EP69",
+          "description": "量化交易教學與觀念分享。投資有風險，不構成投資建議。\n\n━━━━━━━━━━━━\n▶ 接著看下一集:\nhttps://www.youtube.com/watch?v=u-2PyNoTOQk&list=PLMfk2namCCJc\n📺 本系列自動連播:\nhttps://www.youtube.com/playlist?list=PLMfk2namCCJc\n🔔 訂閱不漏接:https://www.youtube.com/@CarsonQuant?sub_confirmation=1\n━━━━━━━━━━━━\n\n\n另外，今天影片中實測使用的工具，我放在資訊欄裡了：\n【派網 Pionex】我自己在用的自動交易平台，新用戶透過連結註冊享手續費優惠（邀請碼 08NAcfvcWna） https://accounts.pionex.com/zh-TW/signUp?r=08NAcfvcWna\n\n（以上為聯盟推薦連結，透過連結註冊不會增加你的成本，並能支持本頻道持續產出真數據內容。要不要使用請自行評估；投資有風險。）\n\n📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」領避雷檢核表\n\n\n #量化交易 #自動交易\n\n🔔 我用 Python 把台股 1841 檔全部跑過回測——訂閱看每週全市場實測、拆穿話術陷阱，不誇大只看真數據\n👉 https://www.youtube.com/@CarsonQuant?sub_confirmation=1"
+        },
+        "defaultAudioLanguage": "zh"
+      },
+      "contentDetails": {
+        "duration": "PT1M3S",
+        "dimension": "2d",
+        "definition": "hd",
+        "caption": "true",
+        "licensedContent": false,
+        "contentRating": {},
+        "projection": "rectangular",
+        "hasCustomThumbnail": true
+      },
+      "status": {
+        "uploadStatus": "processed",
+        "privacyStatus": "unlisted",
+        "license": "youtube",
+        "embeddable": true,
+        "publicStatsViewable": true,
+        "madeForKids": false,
+        "selfDeclaredMadeForKids": false
+      },
+      "statistics": {
+        "viewCount": "31",
+        "likeCount": "0",
+        "dislikeCount": "0",
+        "favoriteCount": "0",
+        "commentCount": "1"
+      }
+    },
+    "h4vTXYtlQ7I": {
+      "kind": "youtube#video",
+      "etag": "tdXPht7mezdREvLtXpSjq12rkUU",
+      "id": "h4vTXYtlQ7I",
+      "snippet": {
+        "publishedAt": "2026-08-11T10:31:56Z",
+        "channelId": "UCqP5JQXlQR5ZDLtEiBt4kLA",
+        "title": "0050定期定額『這金額』竟少賺50萬？10年回測揭露最佳投入數字 | 0050 定期定額 10年回測",
+        "description": "【0050 定期定額 10年回測】用真實歷史回測數字拆解0050 定期定額 10年回測，完整過程與數據來源都在影片裡，看完你能自己判斷該怎麼配置。\n\n━━━━━━━━━━━━\n▶ 接著看下一集:\nhttps://www.youtube.com/watch?v=dURMDAu8HYY&list=PLJp7y2jl2p64\n📺 本系列自動連播:\nhttps://www.youtube.com/playlist?list=PLJp7y2jl2p64\n🔔 訂閱不漏接:https://www.youtube.com/@CarsonQuant?sub_confirmation=1\n━━━━━━━━━━━━\n\n\n另外，今天影片中實測使用的工具，我放在資訊欄裡了：\n【派網 Pionex】我自己在用的自動交易平台，新用戶透過連結註冊享手續費優惠（邀請碼 08NAcfvcWna） https://accounts.pionex.com/zh-TW/signUp?r=08NAcfvcWna\n\n（以上為聯盟推薦連結，透過連結註冊不會增加你的成本，並能支持本頻道持續產出真數據內容。要不要使用請自行評估；投資有風險。）\n\n📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」領避雷檢核表\n\n\n 定期定額 回測 0050 10年回測\n⚠️ 投資有風險，本影片為資訊與觀念分享，不構成投資建議。\n\n🔔 我用 Python 把台股 1841 檔全部跑過回測——訂閱看每週全市場實測、拆穿話術陷阱，不誇大只看真數據\n👉 https://www.youtube.com/@CarsonQuant?sub_confirmation=1",
+        "thumbnails": {
+          "default": {
+            "url": "https://i.ytimg.com/vi/h4vTXYtlQ7I/default.jpg",
+            "width": 120,
+            "height": 90
+          },
+          "medium": {
+            "url": "https://i.ytimg.com/vi/h4vTXYtlQ7I/mqdefault.jpg",
+            "width": 320,
+            "height": 180
+          },
+          "high": {
+            "url": "https://i.ytimg.com/vi/h4vTXYtlQ7I/hqdefault.jpg",
+            "width": 480,
+            "height": 360
+          },
+          "standard": {
+            "url": "https://i.ytimg.com/vi/h4vTXYtlQ7I/sddefault.jpg",
+            "width": 640,
+            "height": 480
+          },
+          "maxres": {
+            "url": "https://i.ytimg.com/vi/h4vTXYtlQ7I/maxresdefault.jpg",
+            "width": 1280,
+            "height": 720
+          }
+        },
+        "channelTitle": "Carson Quant",
+        "tags": [
+          "0050",
+          "10年回測",
+          "回測",
+          "定期定額"
+        ],
+        "categoryId": "27",
+        "liveBroadcastContent": "none",
+        "defaultLanguage": "zh-Hant",
+        "localized": {
+          "title": "0050定期定額『這金額』竟少賺50萬？10年回測揭露最佳投入數字 | 0050 定期定額 10年回測",
+          "description": "【0050 定期定額 10年回測】用真實歷史回測數字拆解0050 定期定額 10年回測，完整過程與數據來源都在影片裡，看完你能自己判斷該怎麼配置。\n\n━━━━━━━━━━━━\n▶ 接著看下一集:\nhttps://www.youtube.com/watch?v=dURMDAu8HYY&list=PLJp7y2jl2p64\n📺 本系列自動連播:\nhttps://www.youtube.com/playlist?list=PLJp7y2jl2p64\n🔔 訂閱不漏接:https://www.youtube.com/@CarsonQuant?sub_confirmation=1\n━━━━━━━━━━━━\n\n\n另外，今天影片中實測使用的工具，我放在資訊欄裡了：\n【派網 Pionex】我自己在用的自動交易平台，新用戶透過連結註冊享手續費優惠（邀請碼 08NAcfvcWna） https://accounts.pionex.com/zh-TW/signUp?r=08NAcfvcWna\n\n（以上為聯盟推薦連結，透過連結註冊不會增加你的成本，並能支持本頻道持續產出真數據內容。要不要使用請自行評估；投資有風險。）\n\n📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」領避雷檢核表\n\n\n 定期定額 回測 0050 10年回測\n⚠️ 投資有風險，本影片為資訊與觀念分享，不構成投資建議。\n\n🔔 我用 Python 把台股 1841 檔全部跑過回測——訂閱看每週全市場實測、拆穿話術陷阱，不誇大只看真數據\n👉 https://www.youtube.com/@CarsonQuant?sub_confirmation=1"
+        },
+        "defaultAudioLanguage": "zh"
+      },
+      "contentDetails": {
+        "duration": "PT45S",
+        "dimension": "2d",
+        "definition": "hd",
+        "caption": "true",
+        "licensedContent": false,
+        "contentRating": {},
+        "projection": "rectangular",
+        "hasCustomThumbnail": true
+      },
+      "status": {
+        "uploadStatus": "processed",
+        "privacyStatus": "unlisted",
+        "license": "youtube",
+        "embeddable": true,
+        "publicStatsViewable": true,
+        "madeForKids": false,
+        "selfDeclaredMadeForKids": false
+      },
+      "statistics": {
+        "viewCount": "34",
+        "likeCount": "0",
+        "dislikeCount": "0",
+        "favoriteCount": "0",
+        "commentCount": "1"
+      }
+    },
+    "rgeDJ3vxlxI": {
+      "kind": "youtube#video",
+      "etag": "iVKjEUsc1LCAYa-XhEO9Qu3Z4qE",
+      "id": "rgeDJ3vxlxI",
+      "snippet": {
+        "publishedAt": "2026-08-22T10:32:22Z",
+        "channelId": "UCqP5JQXlQR5ZDLtEiBt4kLA",
+        "title": "0050 定期定額 vs 美股ETF：20年回測竟差這麼多！你以為的穩賺可能少賺一臺賓士",
+        "description": "【定期定額、回測】用真實歷史回測數字拆解定期定額，完整過程與數據來源都在影片裡，看完你能自己判斷該怎麼配置。\n\n━━━━━━━━━━━━\n▶ 接著看下一集:\nhttps://www.youtube.com/watch?v=O4RrqbtFw1A&list=PLJp7y2jl2p64\n📺 本系列自動連播:\nhttps://www.youtube.com/playlist?list=PLJp7y2jl2p64\n🔔 訂閱不漏接:https://www.youtube.com/@CarsonQuant?sub_confirmation=1\n━━━━━━━━━━━━\n\n\n📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」領避雷檢核表\n⭐ 訂閱看每天一檔台股體檢:\nhttps://www.youtube.com/@CarsonQuant?sub_confirmation=1\n投資有風險，不構成投資建議\n\n▶ 這是「0050/ETF 定期定額實驗」連載的其中一集,整個系列照順序看:\nhttps://www.youtube.com/playlist?list=PLJp7y2jl2p64\n\n\n 定期定額 回測 0050 All in",
+        "thumbnails": {
+          "default": {
+            "url": "https://i.ytimg.com/vi/rgeDJ3vxlxI/default.jpg",
+            "width": 120,
+            "height": 90
+          },
+          "medium": {
+            "url": "https://i.ytimg.com/vi/rgeDJ3vxlxI/mqdefault.jpg",
+            "width": 320,
+            "height": 180
+          },
+          "high": {
+            "url": "https://i.ytimg.com/vi/rgeDJ3vxlxI/hqdefault.jpg",
+            "width": 480,
+            "height": 360
+          },
+          "standard": {
+            "url": "https://i.ytimg.com/vi/rgeDJ3vxlxI/sddefault.jpg",
+            "width": 640,
+            "height": 480
+          },
+          "maxres": {
+            "url": "https://i.ytimg.com/vi/rgeDJ3vxlxI/maxresdefault.jpg",
+            "width": 1280,
+            "height": 720
+          }
+        },
+        "channelTitle": "Carson Quant",
+        "tags": [
+          "0050",
+          "All",
+          "in",
+          "回測",
+          "定期定額"
+        ],
+        "categoryId": "27",
+        "liveBroadcastContent": "none",
+        "defaultLanguage": "zh-Hant",
+        "localized": {
+          "title": "0050 定期定額 vs 美股ETF：20年回測竟差這麼多！你以為的穩賺可能少賺一臺賓士",
+          "description": "【定期定額、回測】用真實歷史回測數字拆解定期定額，完整過程與數據來源都在影片裡，看完你能自己判斷該怎麼配置。\n\n━━━━━━━━━━━━\n▶ 接著看下一集:\nhttps://www.youtube.com/watch?v=O4RrqbtFw1A&list=PLJp7y2jl2p64\n📺 本系列自動連播:\nhttps://www.youtube.com/playlist?list=PLJp7y2jl2p64\n🔔 訂閱不漏接:https://www.youtube.com/@CarsonQuant?sub_confirmation=1\n━━━━━━━━━━━━\n\n\n📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」領避雷檢核表\n⭐ 訂閱看每天一檔台股體檢:\nhttps://www.youtube.com/@CarsonQuant?sub_confirmation=1\n投資有風險，不構成投資建議\n\n▶ 這是「0050/ETF 定期定額實驗」連載的其中一集,整個系列照順序看:\nhttps://www.youtube.com/playlist?list=PLJp7y2jl2p64\n\n\n 定期定額 回測 0050 All in"
+        },
+        "defaultAudioLanguage": "zh-Hant"
+      },
+      "contentDetails": {
+        "duration": "PT1M37S",
+        "dimension": "2d",
+        "definition": "hd",
+        "caption": "false",
+        "licensedContent": false,
+        "contentRating": {},
+        "projection": "rectangular",
+        "hasCustomThumbnail": true
+      },
+      "status": {
+        "uploadStatus": "processed",
+        "privacyStatus": "unlisted",
+        "license": "youtube",
+        "embeddable": true,
+        "publicStatsViewable": true,
+        "madeForKids": false,
+        "selfDeclaredMadeForKids": false
+      },
+      "statistics": {
+        "viewCount": "315",
+        "likeCount": "0",
+        "dislikeCount": "2",
+        "favoriteCount": "0",
+        "commentCount": "0"
+      }
+    },
+    "oq4I_jtEw3Q": {
+      "kind": "youtube#video",
+      "etag": "pzh_efRQoFLTFmEnPo3lPKZOuDI",
+      "id": "oq4I_jtEw3Q",
+      "snippet": {
+        "publishedAt": "2026-07-14T10:43:01Z",
+        "channelId": "UCqP5JQXlQR5ZDLtEiBt4kLA",
+        "title": "當沖手續費『多這0.1%』一年竟吃掉38萬？回測揭露驚人成本 #Shorts",
+        "description": "🔁 接續看同系列 👉 https://youtu.be/QBgjhZulDLg\n\n📺 完整策略拆解看這裡 👉 https://www.youtube.com/@carson-quant\n\n當沖手續費0.1%差一年吃掉38萬？臺股真實回測資料大公開\n\n另外，今天影片中實測使用的工具，我放在資訊欄裡了：\n【派網 Pionex】我自己在用的自動交易平台，新用戶透過連結註冊享手續費優惠（邀請碼 08NAcfvcWna） https://accounts.pionex.com/zh-TW/signUp?r=08NAcfvcWna\n\n（以上為聯盟推薦連結，透過連結註冊不會增加你的成本，並能支持本頻道持續產出真數據內容。要不要使用請自行評估；投資有風險。）\n\n投資有風險，不構成投資建議\n\n拆解高頻交易隱形成本陷阱，教你用演算法拆單實戰避雷\n\n📩 私訊 Telegram @CarsonQuant_message_bot 打『回測』，免費領新手成本檢核表\n投資有風險，歷史回測不構成未來獲利保證\n\n**Hashtags：** #Shorts #當沖 #臺股 #量化交易 #手續費陷阱 回測\n\n🔔 訂閱看我每週真金實測交易策略、拆穿話術陷阱，不誇大只看真數據",
+        "thumbnails": {
+          "default": {
+            "url": "https://i9.ytimg.com/vi/oq4I_jtEw3Q/default.jpg?sqp=CIz_jtUG&rs=AOn4CLA13mPWCjwnoukvZHMcFKl5NWnnVQ",
+            "width": 120,
+            "height": 90
+          },
+          "medium": {
+            "url": "https://i9.ytimg.com/vi/oq4I_jtEw3Q/mqdefault.jpg?sqp=CIz_jtUG&rs=AOn4CLCsASNuN4pq-zgwIKXumDpcPIVHPQ",
+            "width": 320,
+            "height": 180
+          },
+          "high": {
+            "url": "https://i9.ytimg.com/vi/oq4I_jtEw3Q/hqdefault.jpg?sqp=CIz_jtUG&rs=AOn4CLD8g9DQvAsz7ARSraM6pBhZTW3pTQ",
+            "width": 480,
+            "height": 360
+          },
+          "standard": {
+            "url": "https://i9.ytimg.com/vi/oq4I_jtEw3Q/sddefault.jpg?sqp=CIz_jtUG&rs=AOn4CLCn0w58QaIUgyZpT1hE9nCjuXybQA",
+            "width": 640,
+            "height": 480
+          },
+          "maxres": {
+            "url": "https://i9.ytimg.com/vi/oq4I_jtEw3Q/maxresdefault.jpg?sqp=CIz_jtUG&rs=AOn4CLBNVtfbi7X7Xp1N7SaAH1fEdWi3AA",
+            "width": 1280,
+            "height": 720
+          }
+        },
+        "channelTitle": "Carson Quant",
+        "tags": [
+          "Shorts",
+          "回測",
+          "手續費陷阱",
+          "當沖",
+          "臺股",
+          "量化交易"
+        ],
+        "categoryId": "28",
+        "liveBroadcastContent": "none",
+        "defaultLanguage": "zh-Hant",
+        "localized": {
+          "title": "當沖手續費『多這0.1%』一年竟吃掉38萬？回測揭露驚人成本 #Shorts",
+          "description": "🔁 接續看同系列 👉 https://youtu.be/QBgjhZulDLg\n\n📺 完整策略拆解看這裡 👉 https://www.youtube.com/@carson-quant\n\n當沖手續費0.1%差一年吃掉38萬？臺股真實回測資料大公開\n\n另外，今天影片中實測使用的工具，我放在資訊欄裡了：\n【派網 Pionex】我自己在用的自動交易平台，新用戶透過連結註冊享手續費優惠（邀請碼 08NAcfvcWna） https://accounts.pionex.com/zh-TW/signUp?r=08NAcfvcWna\n\n（以上為聯盟推薦連結，透過連結註冊不會增加你的成本，並能支持本頻道持續產出真數據內容。要不要使用請自行評估；投資有風險。）\n\n投資有風險，不構成投資建議\n\n拆解高頻交易隱形成本陷阱，教你用演算法拆單實戰避雷\n\n📩 私訊 Telegram @CarsonQuant_message_bot 打『回測』，免費領新手成本檢核表\n投資有風險，歷史回測不構成未來獲利保證\n\n**Hashtags：** #Shorts #當沖 #臺股 #量化交易 #手續費陷阱 回測\n\n🔔 訂閱看我每週真金實測交易策略、拆穿話術陷阱，不誇大只看真數據"
+        }
+      },
+      "contentDetails": {
+        "duration": "PT36S",
+        "dimension": "2d",
+        "definition": "hd",
+        "caption": "true",
+        "licensedContent": false,
+        "contentRating": {},
+        "projection": "rectangular",
+        "hasCustomThumbnail": true
+      },
+      "status": {
+        "uploadStatus": "processed",
+        "privacyStatus": "private",
+        "license": "youtube",
+        "embeddable": true,
+        "publicStatsViewable": true,
+        "madeForKids": false,
+        "selfDeclaredMadeForKids": false
+      },
+      "statistics": {
+        "viewCount": "0",
+        "likeCount": "0",
+        "dislikeCount": "0",
+        "favoriteCount": "0",
+        "commentCount": "0"
+      }
+    },
+    "ODN9YzdBopA": {
+      "kind": "youtube#video",
+      "etag": "Ag_87XoUy6_2eRpGpq_OM9pAUTQ",
+      "id": "ODN9YzdBopA",
+      "snippet": {
+        "publishedAt": "2026-07-14T10:51:03Z",
+        "channelId": "UCqP5JQXlQR5ZDLtEiBt4kLA",
+        "title": "AI交易機器人90%回測虧損？拆穿穩賺神話的真相 #Shorts",
+        "description": "🔁 接續看同系列 👉 https://youtu.be/RPNsIUJZyOY\n\n📺 完整策略拆解看這裡 👉 https://www.youtube.com/@carson-quant\n\nAI交易機器人穩賺是騙局？我用回測資料拆穿真相，教你避開虧損陷阱。📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」，免費領新手回測避雷檢核表。投資有風險，不構成投資建議。\n\n另外，今天影片中實測使用的工具，我放在資訊欄裡了：\n【派網 Pionex】我自己在用的自動交易平台，新用戶透過連結註冊享手續費優惠（邀請碼 08NAcfvcWna） https://accounts.pionex.com/zh-TW/signUp?r=08NAcfvcWna\n\n（以上為聯盟推薦連結，透過連結註冊不會增加你的成本，並能支持本頻道持續產出真數據內容。要不要使用請自行評估；投資有風險。）\n\n\n**Hashtags：** #Shorts #量化交易 #AI交易 #回測 #新手避雷\n\n🔔 訂閱看我每週真金實測交易策略、拆穿話術陷阱，不誇大只看真數據",
+        "thumbnails": {
+          "default": {
+            "url": "https://i9.ytimg.com/vi/ODN9YzdBopA/default.jpg?sqp=CIz_jtUG&rs=AOn4CLBX6WyP8UIcyPca9p35fSbdRyPc_Q",
+            "width": 120,
+            "height": 90
+          },
+          "medium": {
+            "url": "https://i9.ytimg.com/vi/ODN9YzdBopA/mqdefault.jpg?sqp=CIz_jtUG&rs=AOn4CLAegnGFIh1FTqzjyL3mLND4waJH0g",
+            "width": 320,
+            "height": 180
+          },
+          "high": {
+            "url": "https://i9.ytimg.com/vi/ODN9YzdBopA/hqdefault.jpg?sqp=CIz_jtUG&rs=AOn4CLDzXdhbA_ZRc48X1IlCt-ds0hAeAw",
+            "width": 480,
+            "height": 360
+          },
+          "standard": {
+            "url": "https://i9.ytimg.com/vi/ODN9YzdBopA/sddefault.jpg?sqp=CIz_jtUG&rs=AOn4CLCMrFv3ufZielcbm2N8ITivka2e4g",
+            "width": 640,
+            "height": 480
+          },
+          "maxres": {
+            "url": "https://i9.ytimg.com/vi/ODN9YzdBopA/maxresdefault.jpg?sqp=CIz_jtUG&rs=AOn4CLBv7cNsv-MddA7odiGt9ZoIX2Ymsg",
+            "width": 1280,
+            "height": 720
+          }
+        },
+        "channelTitle": "Carson Quant",
+        "tags": [
+          "AI交易",
+          "Shorts",
+          "回測",
+          "新手避雷",
+          "量化交易"
+        ],
+        "categoryId": "28",
+        "liveBroadcastContent": "none",
+        "defaultLanguage": "zh-Hant",
+        "localized": {
+          "title": "AI交易機器人90%回測虧損？拆穿穩賺神話的真相 #Shorts",
+          "description": "🔁 接續看同系列 👉 https://youtu.be/RPNsIUJZyOY\n\n📺 完整策略拆解看這裡 👉 https://www.youtube.com/@carson-quant\n\nAI交易機器人穩賺是騙局？我用回測資料拆穿真相，教你避開虧損陷阱。📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」，免費領新手回測避雷檢核表。投資有風險，不構成投資建議。\n\n另外，今天影片中實測使用的工具，我放在資訊欄裡了：\n【派網 Pionex】我自己在用的自動交易平台，新用戶透過連結註冊享手續費優惠（邀請碼 08NAcfvcWna） https://accounts.pionex.com/zh-TW/signUp?r=08NAcfvcWna\n\n（以上為聯盟推薦連結，透過連結註冊不會增加你的成本，並能支持本頻道持續產出真數據內容。要不要使用請自行評估；投資有風險。）\n\n\n**Hashtags：** #Shorts #量化交易 #AI交易 #回測 #新手避雷\n\n🔔 訂閱看我每週真金實測交易策略、拆穿話術陷阱，不誇大只看真數據"
+        }
+      },
+      "contentDetails": {
+        "duration": "PT38S",
+        "dimension": "2d",
+        "definition": "hd",
+        "caption": "false",
+        "licensedContent": false,
+        "contentRating": {},
+        "projection": "rectangular",
+        "hasCustomThumbnail": true
+      },
+      "status": {
+        "uploadStatus": "processed",
+        "privacyStatus": "private",
+        "license": "youtube",
+        "embeddable": false,
+        "publicStatsViewable": false,
+        "madeForKids": false,
+        "selfDeclaredMadeForKids": false
+      },
+      "statistics": {
+        "viewCount": "1",
+        "likeCount": "0",
+        "dislikeCount": "0",
+        "favoriteCount": "0",
+        "commentCount": "0"
+      }
+    },
+    "7C79mFmnFrE": {
+      "kind": "youtube#video",
+      "etag": "v24Xe2mWaHPTtcK8dSIRX15-inY",
+      "id": "7C79mFmnFrE",
+      "snippet": {
+        "publishedAt": "2026-07-14T10:49:13Z",
+        "channelId": "UCqP5JQXlQR5ZDLtEiBt4kLA",
+        "title": "比特幣ETF單日吸金9千萬！90%小白追高被套？回測揭『這動作』少賺58%｜量化阿森 #Shorts",
+        "description": "🔁 接續看同系列 👉 https://youtu.be/oAc2ZQi_X10\n\n📺 完整策略拆解看這裡 👉 https://www.youtube.com/@carson-quant\n\n比特幣ETF資金流動真相｜量化阿森\n\n另外，今天影片中實測使用的工具，我放在資訊欄裡了：\n【派網 Pionex】我自己在用的自動交易平台，新用戶透過連結註冊享手續費優惠（邀請碼 08NAcfvcWna） https://accounts.pionex.com/zh-TW/signUp?r=08NAcfvcWna\n\n（以上為聯盟推薦連結，透過連結註冊不會增加你的成本，並能支持本頻道持續產出真數據內容。要不要使用請自行評估；投資有風險。）\n\n\n當比特幣ETF單日吸金九千萬美元，散戶瘋狂追高時，量化玩家其實在看這些資料... 用臺股歷史回測驗證，揭穿「熱錢湧入＝穩賺」的迷思，教你用網格交易避開韭菜陷阱。\n\n📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」，免費領新手回測避雷檢核表\n\n投資有風險，歷史回測不保證未來收益，不構成投資建議\n\n**Hashtags：** #Shorts #比特幣 #量化交易 #網格交易 #ETF 回測\n\n🔔 訂閱看我每週真金實測交易策略、拆穿話術陷阱，不誇大只看真數據",
+        "thumbnails": {
+          "default": {
+            "url": "https://i9.ytimg.com/vi/7C79mFmnFrE/default.jpg?sqp=CIz_jtUG&rs=AOn4CLDNrk62h9JbhTwxr_pHeGwe0nC_VQ",
+            "width": 120,
+            "height": 90
+          },
+          "medium": {
+            "url": "https://i9.ytimg.com/vi/7C79mFmnFrE/mqdefault.jpg?sqp=CIz_jtUG&rs=AOn4CLD3fSg3s0jMdo1w9bizGWMl0QGOXw",
+            "width": 320,
+            "height": 180
+          },
+          "high": {
+            "url": "https://i9.ytimg.com/vi/7C79mFmnFrE/hqdefault.jpg?sqp=CIz_jtUG&rs=AOn4CLDxMpRz8NQmPkZLUPShJGdudLbecw",
+            "width": 480,
+            "height": 360
+          },
+          "standard": {
+            "url": "https://i9.ytimg.com/vi/7C79mFmnFrE/sddefault.jpg?sqp=CIz_jtUG&rs=AOn4CLAjX0Oow9MNtj2nBwF1delntq1I5w",
+            "width": 640,
+            "height": 480
+          },
+          "maxres": {
+            "url": "https://i9.ytimg.com/vi/7C79mFmnFrE/maxresdefault.jpg?sqp=CIz_jtUG&rs=AOn4CLBTcVdhCmLOeekIFXP5rZuQm6ayPQ",
+            "width": 1280,
+            "height": 720
+          }
+        },
+        "channelTitle": "Carson Quant",
+        "tags": [
+          "ETF",
+          "Shorts",
+          "回測",
+          "比特幣",
+          "網格交易",
+          "量化交易"
+        ],
+        "categoryId": "28",
+        "liveBroadcastContent": "none",
+        "defaultLanguage": "zh-Hant",
+        "localized": {
+          "title": "比特幣ETF單日吸金9千萬！90%小白追高被套？回測揭『這動作』少賺58%｜量化阿森 #Shorts",
+          "description": "🔁 接續看同系列 👉 https://youtu.be/oAc2ZQi_X10\n\n📺 完整策略拆解看這裡 👉 https://www.youtube.com/@carson-quant\n\n比特幣ETF資金流動真相｜量化阿森\n\n另外，今天影片中實測使用的工具，我放在資訊欄裡了：\n【派網 Pionex】我自己在用的自動交易平台，新用戶透過連結註冊享手續費優惠（邀請碼 08NAcfvcWna） https://accounts.pionex.com/zh-TW/signUp?r=08NAcfvcWna\n\n（以上為聯盟推薦連結，透過連結註冊不會增加你的成本，並能支持本頻道持續產出真數據內容。要不要使用請自行評估；投資有風險。）\n\n\n當比特幣ETF單日吸金九千萬美元，散戶瘋狂追高時，量化玩家其實在看這些資料... 用臺股歷史回測驗證，揭穿「熱錢湧入＝穩賺」的迷思，教你用網格交易避開韭菜陷阱。\n\n📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」，免費領新手回測避雷檢核表\n\n投資有風險，歷史回測不保證未來收益，不構成投資建議\n\n**Hashtags：** #Shorts #比特幣 #量化交易 #網格交易 #ETF 回測\n\n🔔 訂閱看我每週真金實測交易策略、拆穿話術陷阱，不誇大只看真數據"
+        }
+      },
+      "contentDetails": {
+        "duration": "PT43S",
+        "dimension": "2d",
+        "definition": "hd",
+        "caption": "false",
+        "licensedContent": false,
+        "contentRating": {},
+        "projection": "rectangular",
+        "hasCustomThumbnail": true
+      },
+      "status": {
+        "uploadStatus": "processed",
+        "privacyStatus": "private",
+        "license": "youtube",
+        "embeddable": true,
+        "publicStatsViewable": true,
+        "madeForKids": false,
+        "selfDeclaredMadeForKids": false
+      },
+      "statistics": {
+        "viewCount": "3",
+        "likeCount": "0",
+        "dislikeCount": "0",
+        "favoriteCount": "0",
+        "commentCount": "0"
+      }
+    }
+  },
+  "instrument2_T0": {
+    "uploads_playlist": "UUqP5JQXlQR5ZDLtEiBt4kLA",
+    "results": {
+      "MuXiM5IqVQQ": {
+        "n_items": 0,
+        "videoIds_returned": [],
+        "filter_applied": false,
+        "privacyStatus": null
+      },
+      "TDbm4XR5pYk": {
+        "n_items": 0,
+        "videoIds_returned": [],
+        "filter_applied": false,
+        "privacyStatus": null
+      },
+      "cObU5NcFT-I": {
+        "n_items": 0,
+        "videoIds_returned": [],
+        "filter_applied": false,
+        "privacyStatus": null
+      },
+      "I8F83sPFKWg": {
+        "n_items": 0,
+        "videoIds_returned": [],
+        "filter_applied": false,
+        "privacyStatus": null
+      },
+      "_Cc49y7ZAeM": {
+        "n_items": 0,
+        "videoIds_returned": [],
+        "filter_applied": false,
+        "privacyStatus": null
+      },
+      "tN56crKxwJE": {
+        "n_items": 0,
+        "videoIds_returned": [],
+        "filter_applied": false,
+        "privacyStatus": null
+      },
+      "mvDrUnxEjWs": {
+        "n_items": 0,
+        "videoIds_returned": [],
+        "filter_applied": false,
+        "privacyStatus": null
+      },
+      "vwEaoo3Txjw": {
+        "n_items": 0,
+        "videoIds_returned": [],
+        "filter_applied": false,
+        "privacyStatus": null
+      },
+      "UTuMMyvdQ5U": {
+        "n_items": 0,
+        "videoIds_returned": [],
+        "filter_applied": false,
+        "privacyStatus": null
+      },
+      "DhX2uNzjZ-o": {
+        "n_items": 0,
+        "videoIds_returned": [],
+        "filter_applied": false,
+        "privacyStatus": null
+      },
+      "OyprNxjrIBQ": {
+        "n_items": 0,
+        "videoIds_returned": [],
+        "filter_applied": false,
+        "privacyStatus": null
+      },
+      "nHwP_cyy_hc": {
+        "n_items": 0,
+        "videoIds_returned": [],
+        "filter_applied": false,
+        "privacyStatus": null
+      },
+      "xjQPW3sTY28": {
+        "n_items": 0,
+        "videoIds_returned": [],
+        "filter_applied": false,
+        "privacyStatus": null
+      },
+      "fYTywq3Ah1c": {
+        "n_items": 0,
+        "videoIds_returned": [],
+        "filter_applied": false,
+        "privacyStatus": null
+      },
+      "s4jROPETmlE": {
+        "n_items": 0,
+        "videoIds_returned": [],
+        "filter_applied": false,
+        "privacyStatus": null
+      },
+      "Xmc_qtMqPhk": {
+        "n_items": 0,
+        "videoIds_returned": [],
+        "filter_applied": false,
+        "privacyStatus": null
+      },
+      "nrIYmQgjHFs": {
+        "n_items": 0,
+        "videoIds_returned": [],
+        "filter_applied": false,
+        "privacyStatus": null
+      },
+      "h4vTXYtlQ7I": {
+        "n_items": 0,
+        "videoIds_returned": [],
+        "filter_applied": false,
+        "privacyStatus": null
+      },
+      "rgeDJ3vxlxI": {
+        "n_items": 1,
+        "videoIds_returned": [
+          "rgeDJ3vxlxI"
+        ],
+        "filter_applied": true,
+        "privacyStatus": "unlisted"
+      },
+      "oq4I_jtEw3Q": {
+        "n_items": 0,
+        "videoIds_returned": [],
+        "filter_applied": false,
+        "privacyStatus": null
+      },
+      "ODN9YzdBopA": {
+        "n_items": 0,
+        "videoIds_returned": [],
+        "filter_applied": false,
+        "privacyStatus": null
+      },
+      "7C79mFmnFrE": {
+        "n_items": 0,
+        "videoIds_returned": [],
+        "filter_applied": false,
+        "privacyStatus": null
+      }
+    }
+  }
+}

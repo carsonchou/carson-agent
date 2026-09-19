@@ -1,0 +1,688 @@
+[_llm_shim] \u26a0\ufe0f ���] OPENROUTER_API_KEY,shim **������** �X�X �� process �� Anthropic �|���q�u���I(�b�ᦳ���N�|�u���p�O)
+D:\carson-agent\youtube_channel\.venv\lib\site-packages\google\auth\__init__.py:54: FutureWarning: You are using a Python version 3.9 past its end of life. Google will update google-auth with critical bug fixes on a best-effort basis, but not with any other fixes or features. Please upgrade your Python version, and then update google-auth.
+  warnings.warn(eol_message.format("3.9"), FutureWarning)
+D:\carson-agent\youtube_channel\.venv\lib\site-packages\google\api_core\_python_version_support.py:242: FutureWarning: You are using a non-supported Python version (3.9.13). Google will not post any further updates to google.api_core supporting this Python version. Please upgrade to the latest Python version, or at least Python 3.10, and then update google.api_core.
+  warnings.warn(message, FutureWarning)
+D:\carson-agent\youtube_channel\.venv\lib\site-packages\google\oauth2\__init__.py:40: FutureWarning: You are using a Python version 3.9 past its end of life. Google will update google-auth with critical bug fixes on a best-effort basis, but not with any other fixes or features. Please upgrade your Python version, and then update google-auth.
+  warnings.warn(eol_message.format("3.9"), FutureWarning)
+[quota] ⚠️ 已用 16396/19034(86%)
+改寫母體:DONE 名單 86 支(已加過更正的)
+錨:整句逐字取代,出現次數必須恰好 1
+  舊 '之後的影片已改成在同一句標明期間。'
+  新 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+第二份備份 ✅ D:\backup\desc_snapshot_20260911 —— 88 檔 md5 全數相符
+模式:🔴 APPLY(會寫入 YouTube)
+寫入時間戳:D:\carson-agent\docs\ops\2026-09-11_84支更正句改寫_寫入時間戳.jsonl(每支落 sent/ok 兩行,逐行 fsync)
+
+  [ 1/86] -_aUs0oj1o0  public  ★必測7
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1124 字元逐字相同
+         長度 1141 → 1159 字元
+         播放清單行:原封不動 ✅
+           舊 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+           新 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:00:02.469 → 回應 2026-09-18 00:00:03.982）
+  [ 2/86] -dyes0qFE9U  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1022 字元逐字相同
+         長度 1039 → 1057 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:00:04.055 → 回應 2026-09-18 00:00:05.746）
+  [ 3/86] 0EPASuhQti0  private
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1093 字元逐字相同
+         長度 1110 → 1128 字元
+         播放清單行:原封不動 ✅
+           舊 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+           新 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:00:05.803 → 回應 2026-09-18 00:00:06.975）
+  [ 4/86] 0Gy7jec6Agc  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1191 字元逐字相同
+         長度 1208 → 1226 字元
+         播放清單行:原封不動 ✅
+           舊 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+           新 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:00:07.061 → 回應 2026-09-18 00:00:08.014）
+  [ 5/86] 0tc8VKpjfrA  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1017 字元逐字相同
+         長度 1034 → 1052 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:00:08.076 → 回應 2026-09-18 00:00:09.739）
+  [ 6/86] 24Kz-SOtX2o  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 832 字元逐字相同
+         長度 849 → 867 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:00:09.799 → 回應 2026-09-18 00:00:11.101）
+  [ 7/86] 28VsAqNKCZA  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1588 字元逐字相同
+         長度 1605 → 1623 字元
+         播放清單行:原封不動 ✅
+           舊 '📚 全系列連播｜0050/ETF 定期定額實驗：https://www.youtube.com/playlist?list=PLJp7y2jl2p64'
+           新 '📚 全系列連播｜0050/ETF 定期定額實驗：https://www.youtube.com/playlist?list=PLJp7y2jl2p64'
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:00:11.190 → 回應 2026-09-18 00:00:12.678）
+  [ 8/86] 5qLlIj65Rt4  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1436 字元逐字相同
+         長度 1453 → 1471 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:00:12.733 → 回應 2026-09-18 00:00:13.742）
+  [ 9/86] 5xlZ-GgkLoE  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1008 字元逐字相同
+         長度 1025 → 1043 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:00:13.822 → 回應 2026-09-18 00:00:15.172）
+  [10/86] 6HsGEj_jt0Y  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1032 字元逐字相同
+         長度 1049 → 1067 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:00:15.239 → 回應 2026-09-18 00:00:16.506）
+  [11/86] 6TRk1183KbA  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1062 字元逐字相同
+         長度 1079 → 1097 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:00:16.587 → 回應 2026-09-18 00:00:17.916）
+  [12/86] 7DIYyvjQdKY  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1246 字元逐字相同
+         長度 1263 → 1281 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:00:17.979 → 回應 2026-09-18 00:00:19.364）
+  [13/86] 7ixOvHW5aM8  private
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1056 字元逐字相同
+         長度 1073 → 1091 字元
+         播放清單行:原封不動 ✅
+           舊 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+           新 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:00:19.439 → 回應 2026-09-18 00:00:20.864）
+  [14/86] 8NCqx8Zzwu0  private
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1049 字元逐字相同
+         長度 1066 → 1084 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:00:20.915 → 回應 2026-09-18 00:00:22.003）
+  [15/86] 9Ly1duaPucw  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1069 字元逐字相同
+         長度 1086 → 1104 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:00:22.076 → 回應 2026-09-18 00:00:23.353）
+  [16/86] 9Sirsi0ZP9o  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1036 字元逐字相同
+         長度 1053 → 1071 字元
+         播放清單行:原封不動 ✅
+           舊 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+           新 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:00:23.415 → 回應 2026-09-18 00:00:24.566）
+  [17/86] 9_35qFeSCIw  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 813 字元逐字相同
+         長度 830 → 848 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:00:24.617 → 回應 2026-09-18 00:00:25.647）
+  [18/86] Az3gBJzc6q8  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 999 字元逐字相同
+         長度 1016 → 1034 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:00:25.723 → 回應 2026-09-18 00:00:27.262）
+  [19/86] B1VfToi_HdY  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1094 字元逐字相同
+         長度 1111 → 1129 字元
+         播放清單行:原封不動 ✅
+           舊 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+           新 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:00:27.316 → 回應 2026-09-18 00:00:28.746）
+  [20/86] B9mXAplHxYk  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1316 字元逐字相同
+         長度 1333 → 1351 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:00:28.794 → 回應 2026-09-18 00:00:29.947）
+  [21/86] BiGdBpEvI6Q  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1262 字元逐字相同
+         長度 1279 → 1297 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:00:30.005 → 回應 2026-09-18 00:00:30.963）
+  [22/86] BymPJQbC9cU  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1127 字元逐字相同
+         長度 1144 → 1162 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:00:31.021 → 回應 2026-09-18 00:00:31.997）
+  [23/86] Cc6-UL16-CQ  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 965 字元逐字相同
+         長度 982 → 1000 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:00:32.057 → 回應 2026-09-18 00:00:33.350）
+  [24/86] D-IZXExuPmw  private
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1094 字元逐字相同
+         長度 1111 → 1129 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:00:33.409 → 回應 2026-09-18 00:00:34.311）
+  [25/86] DOZcYNsXfjc  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 768 字元逐字相同
+         長度 785 → 803 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:00:34.357 → 回應 2026-09-18 00:00:35.513）
+  [26/86] DQqWOKBFDs8  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1000 字元逐字相同
+         長度 1017 → 1035 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:00:35.625 → 回應 2026-09-18 00:00:37.169）
+  [27/86] EFQGvPDDTRQ  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1102 字元逐字相同
+         長度 1119 → 1137 字元
+         播放清單行:原封不動 ✅
+           舊 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+           新 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:00:37.231 → 回應 2026-09-18 00:00:38.625）
+  [28/86] EaFK-E6_xss  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1014 字元逐字相同
+         長度 1031 → 1049 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:00:38.904 → 回應 2026-09-18 00:00:40.447）
+  [29/86] FYpVo6KawFE  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 999 字元逐字相同
+         長度 1016 → 1034 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:00:40.492 → 回應 2026-09-18 00:00:41.994）
+  [30/86] GNSXluoU1-E  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 838 字元逐字相同
+         長度 855 → 873 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:00:42.061 → 回應 2026-09-18 00:00:43.615）
+  [31/86] H3Sk1AfUVT0  private
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1083 字元逐字相同
+         長度 1100 → 1118 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:00:43.883 → 回應 2026-09-18 00:00:44.872）
+  [32/86] Hgf5C6P0fN4  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1125 字元逐字相同
+         長度 1142 → 1160 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:00:44.982 → 回應 2026-09-18 00:00:46.576）
+  [33/86] I-dZzhEhAAA  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 973 字元逐字相同
+         長度 990 → 1008 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:00:46.640 → 回應 2026-09-18 00:00:48.095）
+  [34/86] IjgIEJo5w7E  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1025 字元逐字相同
+         長度 1042 → 1060 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:00:48.158 → 回應 2026-09-18 00:00:49.036）
+  [35/86] J5pDfPc9w7A  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1074 字元逐字相同
+         長度 1091 → 1109 字元
+         播放清單行:原封不動 ✅
+           舊 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+           新 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:00:49.084 → 回應 2026-09-18 00:00:50.414）
+  [36/86] J_VtZrDPZB8  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 685 字元逐字相同
+         長度 702 → 720 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:00:50.470 → 回應 2026-09-18 00:00:51.727）
+  [37/86] LnbRNwmh7ZA  ⛔ 快照缺這支,拒動
+  [38/86] MTPczTWeZ74  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1296 字元逐字相同
+         長度 1313 → 1331 字元
+         播放清單行:原封不動 ✅
+           舊 '📚 全系列連播｜0050/ETF 定期定額實驗：https://www.youtube.com/playlist?list=PLJp7y2jl2p64'
+           新 '📚 全系列連播｜0050/ETF 定期定額實驗：https://www.youtube.com/playlist?list=PLJp7y2jl2p64'
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:00:51.834 → 回應 2026-09-18 00:00:52.776）
+  [39/86] N_quHN5BBRE  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1005 字元逐字相同
+         長度 1022 → 1040 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:00:52.856 → 回應 2026-09-18 00:00:54.361）
+  [40/86] Nhc7XjmcTLY  private
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 992 字元逐字相同
+         長度 1009 → 1027 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:00:54.426 → 回應 2026-09-18 00:00:55.489）
+  [41/86] OhrPgVP_CR8  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1052 字元逐字相同
+         長度 1069 → 1087 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:00:55.748 → 回應 2026-09-18 00:00:56.948）
+  [42/86] OqjzGFuuuHc  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1064 字元逐字相同
+         長度 1081 → 1099 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:00:56.997 → 回應 2026-09-18 00:00:58.522）
+  [43/86] OtwYzI6XE8Y  private  ★必測7
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 936 字元逐字相同
+         長度 953 → 971 字元
+         播放清單行:原封不動 ✅
+           舊 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+           新 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:00:58.585 → 回應 2026-09-18 00:00:59.839）
+  [44/86] Oy7dux0cBHs  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1145 字元逐字相同
+         長度 1162 → 1180 字元
+         播放清單行:原封不動 ✅
+           舊 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+           新 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:01:00.084 → 回應 2026-09-18 00:01:00.816）
+  [45/86] PJu4zbcZ4Eo  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1047 字元逐字相同
+         長度 1064 → 1082 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:01:00.888 → 回應 2026-09-18 00:01:02.026）
+  [46/86] Qk-o2-ZaV-c  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1079 字元逐字相同
+         長度 1096 → 1114 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:01:02.137 → 回應 2026-09-18 00:01:03.641）
+  [47/86] Qzi-6x9iGj4  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1169 字元逐字相同
+         長度 1186 → 1204 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:01:03.707 → 回應 2026-09-18 00:01:05.096）
+  [48/86] RUZLI4k8OU8  private
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1212 字元逐字相同
+         長度 1229 → 1247 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:01:05.164 → 回應 2026-09-18 00:01:06.581）
+  [49/86] SFk0W_2WqLc  private
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1052 字元逐字相同
+         長度 1069 → 1087 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:01:06.642 → 回應 2026-09-18 00:01:07.967）
+  [50/86] Slty-G_Gdj4  public  ★必測7
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1120 字元逐字相同
+         長度 1137 → 1155 字元
+         播放清單行:原封不動 ✅
+           舊 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+           新 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:01:08.013 → 回應 2026-09-18 00:01:09.160）
+  [51/86] TBMTuaUTd8A  public  ★必測7
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1096 字元逐字相同
+         長度 1113 → 1131 字元
+         播放清單行:原封不動 ✅
+           舊 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+           新 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:01:09.224 → 回應 2026-09-18 00:01:10.532）
+  [52/86] U0Rj9r0jzHg  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1066 字元逐字相同
+         長度 1083 → 1101 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:01:10.573 → 回應 2026-09-18 00:01:11.968）
+  [53/86] UAHNpnF3uqk  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1078 字元逐字相同
+         長度 1095 → 1113 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:01:12.044 → 回應 2026-09-18 00:01:13.338）
+  [54/86] UY0DdkuZrHo  private
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1166 字元逐字相同
+         長度 1183 → 1201 字元
+         播放清單行:原封不動 ✅
+           舊 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+           新 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:01:13.492 → 回應 2026-09-18 00:01:14.558）
+  [55/86] Vd3pOcDFhFQ  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1110 字元逐字相同
+         長度 1127 → 1145 字元
+         播放清單行:原封不動 ✅
+           舊 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+           新 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:01:14.623 → 回應 2026-09-18 00:01:15.807）
+  [56/86] WFJoOC-4izg  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1034 字元逐字相同
+         長度 1051 → 1069 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:01:15.864 → 回應 2026-09-18 00:01:16.715）
+  [57/86] WNrS46cXiQ8  public  ★必測7
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1052 字元逐字相同
+         長度 1069 → 1087 字元
+         播放清單行:原封不動 ✅
+           舊 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+           新 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:01:16.772 → 回應 2026-09-18 00:01:18.033）
+  [58/86] Xdwvq7NEE84  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1004 字元逐字相同
+         長度 1021 → 1039 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:01:18.108 → 回應 2026-09-18 00:01:19.434）
+  [59/86] ZzYz7JrDBK0  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1125 字元逐字相同
+         長度 1142 → 1160 字元
+         播放清單行:原封不動 ✅
+           舊 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+           新 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:01:19.494 → 回應 2026-09-18 00:01:20.437）
+  [60/86] _GgxPgLzsKQ  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1111 字元逐字相同
+         長度 1128 → 1146 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:01:20.488 → 回應 2026-09-18 00:01:21.883）
+  [61/86] aoLWkUDQ0zI  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1225 字元逐字相同
+         長度 1242 → 1260 字元
+         播放清單行:原封不動 ✅
+           舊 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+           新 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:01:21.942 → 回應 2026-09-18 00:01:23.254）
+  [62/86] bJN3uXU9mgo  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 734 字元逐字相同
+         長度 751 → 769 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:01:23.310 → 回應 2026-09-18 00:01:24.997）
+  [63/86] dURMDAu8HYY  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 727 字元逐字相同
+         長度 744 → 762 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:01:25.048 → 回應 2026-09-18 00:01:26.448）
+  [64/86] eXCi6EQ3scI  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1145 字元逐字相同
+         長度 1162 → 1180 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:01:26.500 → 回應 2026-09-18 00:01:27.964）
+  [65/86] gFbecJC41-I  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1003 字元逐字相同
+         長度 1020 → 1038 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:01:28.014 → 回應 2026-09-18 00:01:29.460）
+  [66/86] gXc3LvibBLs  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1059 字元逐字相同
+         長度 1076 → 1094 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:01:29.520 → 回應 2026-09-18 00:01:31.109）
+  [67/86] gv_LsCVxSOw  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1067 字元逐字相同
+         長度 1084 → 1102 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:01:31.168 → 回應 2026-09-18 00:01:32.337）
+  [68/86] gyVqxplDyu8  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1276 字元逐字相同
+         長度 1293 → 1311 字元
+         播放清單行:原封不動 ✅
+           舊 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+           新 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:01:32.396 → 回應 2026-09-18 00:01:33.791）
+  [69/86] h5eH6di_SNA  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1000 字元逐字相同
+         長度 1017 → 1035 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:01:33.846 → 回應 2026-09-18 00:01:35.165）
+  [70/86] hmFTD4Tb4Sg  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 989 字元逐字相同
+         長度 1006 → 1024 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:01:35.215 → 回應 2026-09-18 00:01:36.182）
+  [71/86] jDjuUXeSx98  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1030 字元逐字相同
+         長度 1047 → 1065 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:01:36.248 → 回應 2026-09-18 00:01:37.779）
+  [72/86] jsIt1qA1aj8  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 975 字元逐字相同
+         長度 992 → 1010 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:01:37.846 → 回應 2026-09-18 00:01:39.541）
+  [73/86] l36tPQliBSc  private  ★必測7
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1263 字元逐字相同
+         長度 1280 → 1298 字元
+         播放清單行:原封不動 ✅
+           舊 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+           新 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:01:39.604 → 回應 2026-09-18 00:01:41.037）
+  [74/86] l7bwt2ExKvg  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 693 字元逐字相同
+         長度 710 → 728 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:01:41.124 → 回應 2026-09-18 00:01:42.558）
+  [75/86] m1pqccjG5s8  private
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1189 字元逐字相同
+         長度 1206 → 1224 字元
+         播放清單行:原封不動 ✅
+           舊 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+           新 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:01:42.610 → 回應 2026-09-18 00:01:43.784）
+  [76/86] mvNh7IjgRLY  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1124 字元逐字相同
+         長度 1141 → 1159 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:01:43.837 → 回應 2026-09-18 00:01:45.111）
+  [77/86] otTPyfbKfJ0  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 996 字元逐字相同
+         長度 1013 → 1031 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:01:45.161 → 回應 2026-09-18 00:01:46.468）
+  [78/86] p6Qvg2mC-9w  public  ★必測7
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1197 字元逐字相同
+         長度 1214 → 1232 字元
+         播放清單行:原封不動 ✅
+           舊 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+           新 '📚 全系列連播｜個股體檢｜台股個股歷史數據連載：https://www.youtube.com/playlist?list=PLUYgyV8FsN5c'
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:01:46.576 → 回應 2026-09-18 00:01:48.099）
+  [79/86] p_KCREwmyds  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1067 字元逐字相同
+         長度 1084 → 1102 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:01:48.155 → 回應 2026-09-18 00:01:49.237）
+  [80/86] r4Tegv6PwiU  ⛔ 快照缺這支,拒動
+  [81/86] rwdhTBAfXQI  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1616 字元逐字相同
+         長度 1633 → 1651 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:01:49.351 → 回應 2026-09-18 00:01:50.493）
+  [82/86] tDanOnIWAfo  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1069 字元逐字相同
+         長度 1086 → 1104 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:01:50.556 → 回應 2026-09-18 00:01:52.322）
+  [83/86] u-2PyNoTOQk  private
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1062 字元逐字相同
+         長度 1079 → 1097 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:01:52.388 → 回應 2026-09-18 00:01:53.541）
+  [84/86] u0gWQe1RbNA  private
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 943 字元逐字相同
+         長度 960 → 978 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:01:53.597 → 回應 2026-09-18 00:01:55.151）
+  [85/86] wcqE7dVwkP4  private
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 1017 字元逐字相同
+         長度 1034 → 1052 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:01:55.212 → 回應 2026-09-18 00:01:56.359）
+  [86/86] yKc1SMchkSw  public
+         舊句 '之後的影片已改成在同一句標明期間。'
+         新句 '之後的影片已改進做法,但仍可能有漏的;看到請留言告訴我,我會補上更正。'
+         其餘逐字相同:是 —— 其餘 845 字元逐字相同
+         長度 862 → 880 字元
+         body 欄位:帶齊 ✅ title,tags,categoryId,defaultLanguage,defaultAudioLanguage
+         ✅ 已改寫（送出 2026-09-18 00:01:56.411 → 回應 2026-09-18 00:01:57.948）
+
+====================================================================
+可改寫 84 支(public 69 / private 15)
+已是新措辭 0  /  拒動 2  /  取不到 0
+讀到的隱私分布:public 71, private 15
+帶播放清單行的 23 支,其中 23 支那一行原封不動(必測清單 7 支)
+
+【拒動 / 拒寫】
+  37  LnbRNwmh7ZA  快照裡沒有這支 ⇒ 沒有基準可比
+  80  r4Tegv6PwiU  快照裡沒有這支 ⇒ 沒有基準可比
+
+已改寫 84 支
+[09-18 00:01:57] 期間更正改寫｜改寫尾句 84 支

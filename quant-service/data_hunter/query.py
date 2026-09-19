@@ -145,14 +145,21 @@ def _resolve_code(q: str) -> str | None:
 
 # ── 資料載入(單檔) ───────────────────────────────────────────────────────────
 def _run_bounded(fn, timeout: float, default=None):
-    """在硬性 timeout 內跑 fn；逾時/例外都回 default(逾時的背景執行緒任其自然結束，主線程不等)。
-    互動查詢絕不可被單一慢速網路呼叫無限拖住。"""
+    """在硬性 timeout 內跑 fn；逾時/例外都回 default，主線程真的不等背景執行緒跑完。
+    互動查詢絕不可被單一慢速網路呼叫無限拖住。
+    🔴09-16 修過的坑：`with ThreadPoolExecutor(...) as ex:` 離開 with 區塊時預設
+    shutdown(wait=True)——即使 .result(timeout=...) 已經逾時拋例外，主線程仍會卡在
+    with 區塊出口，等孤兒執行緒**真正跑完**才放行,等於 timeout 參數整個沒生效
+    (雲端上 9→4 個月都還是全部卡到 27~41 秒才回)。改用 shutdown(wait=False)，孤兒
+    執行緒自然結束、丟棄結果,不擋主線程。"""
     from concurrent.futures import ThreadPoolExecutor
+    ex = ThreadPoolExecutor(max_workers=1)
     try:
-        with ThreadPoolExecutor(max_workers=1) as ex:
-            return ex.submit(fn).result(timeout=timeout)
+        return ex.submit(fn).result(timeout=timeout)
     except Exception:
         return default
+    finally:
+        ex.shutdown(wait=False)
 
 
 # 短期 df 記憶化：開一檔詳情前端會同時打 /api/stock + /api/analyst，兩者都 _load_df 同一檔
@@ -161,10 +168,14 @@ _DF_MEMO: dict = {}
 _DF_TTL = 20.0   # 秒；夠涵蓋同一次開窗的並發呼叫，又不至於拿到過時即時價
 
 
-def _load_df(code: str, live: bool, yf_timeout: float = 10.0):
+def _load_df(code: str, live: bool, yf_timeout: float = 18.0):
     """單檔 OHLCV：快取優先(本地、秒回)，缺則 yfinance(.TW→.TWO)但**硬性 ≤yf_timeout 秒**，
     逾時就當抓不到回 None(上層轉 {ok:false,error})，絕不無限等。live=True 再用即時價覆蓋(另有 6s 上限)。
-    含 20 秒 memo：避免同一次開窗的 /api/stock 與 /api/analyst 重複載入同一檔。"""
+    含 20 秒 memo：避免同一次開窗的 /api/stock 與 /api/analyst 重複載入同一檔。
+    冷抓 months_back 刻意壓到 4(非 _bulk_yf 預設的 9)：twstock 官方路徑逐月序列 HTTP，
+    實測約 3 秒/月，9 個月在慢網(如雲端主機)下會超過 timeout 逾時回 None——4 個月(約
+    80 個交易日)仍夠 MA60，4×3s=12s 在 18s 的 timeout 內留了安全邊界。240 日年線等更長
+    窗仍會不足(該處已有 ema200 等退化路徑，非本次修法範圍)。"""
     import time as _t
     key = (code, bool(live))
     hit = _DF_MEMO.get(key)
@@ -184,9 +195,9 @@ def _load_df(code: str, live: bool, yf_timeout: float = 10.0):
     if df is None:
         # 抓官方最新(_bulk_yf 日線已改走 twstock 官方)，包在硬性 timeout 內避免慢網卡死
         def _fetch():
-            got = scan._bulk_yf([code], ".TW")
+            got = scan._bulk_yf([code], ".TW", months_back=4)
             if code not in got:
-                got = scan._bulk_yf([code], ".TWO")
+                got = scan._bulk_yf([code], ".TWO", months_back=4)
             return got.get(code)
         df = _run_bounded(_fetch, timeout=yf_timeout)
     if df is None:

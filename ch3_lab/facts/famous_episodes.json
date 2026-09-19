@@ -1,0 +1,166 @@
+{
+ "_note": "名案事實庫。每個數字都附 quote(它出自哪一句)與 doi。2026-08-25 逐句人工核對。arc=pair 是原始 vs 大規模重測;arc=pooled 是沒有單一原始論文、直接看彙整結果。任何數字若不在本檔,寫稿端的 audit 會擋下來。",
+ "episodes": [
+  {
+   "slug": "ego_depletion",
+   "arc": "pair",
+   "claim": "willpower is a limited resource that runs out as you use it",
+   "title": "A 1998 study said willpower runs out. 23 labs tested it.",
+   "original": {
+    "year": 1998,
+    "title": "Ego depletion: Is the active self a limited resource?",
+    "doi": "10.1037/0022-3514.74.5.1252",
+    "cited_by": 4928,
+    "cited_by_source": "OpenAlex, retrieved 2026-08-25",
+    "cited_by_approx": 4900,
+    "cited_by_approx_note": "文案用的「超過 N 次」。無條件捨去到百位,所以它一定是保守的下界。明確登記在此,否則稿子審核會擋(它只認事實庫裡有的數字)"
+   },
+   "test": {
+    "year": 2016,
+    "kind": "preregistered multilab replication",
+    "title": "A Multilab Preregistered Replication of the Ego-Depletion Effect",
+    "doi": "10.1177/1745691616652873",
+    "k": 23,
+    "k_word": "laboratories",
+    "n": 2141,
+    "es_kind": "d",
+    "es": 0.04,
+    "ci": [
+     -0.07,
+     0.15
+    ],
+    "quote": "Multiple laboratories (k = 23, total N = 2,141) conducted replications of a standardized ego-depletion protocol... the size of the ego-depletion effect was small with 95% confidence intervals (CIs) that encompassed zero ... (d = 0.04, 95% CI [-0.07, 0.15]) [Hagger et al. 2016, Table 1 / abstract]"
+   },
+   "hook": "Willpower runs out as you use it?",
+   "hook_short": "Willpower runs out as you use it?"
+  },
+  {
+   "slug": "romantic_red",
+   "arc": "pair",
+   "claim": "men find women more attractive when they are wearing red",
+   "title": "A 2008 study said red makes women more attractive. It was retested on 602 people.",
+   "original": {
+    "year": 2008,
+    "title": "Romantic red: Red enhances men's attraction to women.",
+    "doi": "10.1037/0022-3514.95.5.1150",
+    "cited_by": 437,
+    "cited_by_source": "OpenAlex, retrieved 2026-08-25",
+    "cited_by_approx": 400,
+    "cited_by_approx_note": "文案用的「超過 N 次」。無條件捨去到百位,所以它一定是保守的下界。明確登記在此,否則稿子審核會擋(它只認事實庫裡有的數字)"
+   },
+   "test": {
+    "year": 2017,
+    "kind": "registered replication",
+    "title": "Is Red Really Romantic?",
+    "doi": "10.1027/1864-9335/a000296",
+    "n": 242,
+    "n_second": 360,
+    "es_kind": "d",
+    "es": 0.09,
+    "es_second": -0.09,
+    "ci": [
+     -0.17,
+     0.34
+    ],
+    "ci_second": [
+     -0.3,
+     0.12
+    ],
+    "quote": "For men, we found a very weak effect in the predicted direction (d = 0.09, 95% CI [-0.17, 0.34], N = 242). For women, we found a very weak effect in the opposite direction (d = -0.09, 95% CI [-0.30, 0.12], N = 360).",
+    "n_total": 602,
+    "n_total_note": "242 men + 360 women, reported separately. 合計值在此明確宣告,否則 audit 會擋(它只認事實庫裡有的數字)",
+    "group_a": "men",
+    "group_b": "women",
+    "doi_note": "⚠️ 建檔時曾誤植為 a000318 —— 那是同期刊同年的另一篇「A Picture Is Worth a Thousand Words」。它**不會 404**,觀眾會乾淨地落在一篇看起來很合理的論文上,比截斷更糟。真值以 facts/famous/red_color_attractiveness.json 為準。"
+   },
+   "hook": "Red makes women more attractive to men?",
+   "hook_short": "Does red make women more attractive?"
+  },
+  {
+   "slug": "bystander_effect",
+   "arc": "pair",
+   "claim": "the more people who witness an emergency, the less likely any one of them is to help",
+   "title": "A 1968 study said crowds stop people from helping. 105 effect sizes later, it is still there.",
+   "original": {
+    "year": 1968,
+    "title": "Bystander intervention in emergencies: Diffusion of responsibility.",
+    "doi": "10.1037/h0025589",
+    "cited_by": 3091,
+    "cited_by_source": "OpenAlex, retrieved 2026-08-25",
+    "cited_by_approx": 3000,
+    "cited_by_approx_note": "文案用的「超過 N 次」。無條件捨去到百位,所以它一定是保守的下界。明確登記在此,否則稿子審核會擋(它只認事實庫裡有的數字)"
+   },
+   "test": {
+    "year": 2011,
+    "kind": "meta-analysis",
+    "title": "The bystander-effect: A meta-analytic review on bystander intervention in dangerous and non-dangerous emergencies",
+    "doi": "10.1037/a0023304",
+    "k": 105,
+    "k_word": "independent effect sizes",
+    "n": 7700,
+    "n_is_floor": true,
+    "es_kind": "g",
+    "es": -0.35,
+    "quote": "In a fixed effects model, data from over 7,700 participants and 105 independent effect sizes revealed an overall effect size of g = -0.35.",
+    "direction_note": "g 為負 = 旁觀者越多、出手相助越少,即效應存在的方向",
+    "tone_manual": "held",
+    "tone_manual_why": "統合分析自己的句子:105 個獨立效果量、超過 7,700 人,g = -0.35;direction_note 記著負號就是「旁觀者越多、出手越少」= 效應存在的方向。方向與原始主張一致、規模在心理學裡屬中等偏上,所以是 held。沒有登記信賴區間,但這裡不是拿區間下存在性斷言 —— 是照 k / n / 方向這三個資料裡有的東西判。"
+   },
+   "hook": "In an emergency, does a crowd make each person less likely to help?",
+   "hook_short": "Does a crowd stop people helping?"
+  },
+  {
+   "slug": "sleep_memory",
+   "arc": "pooled",
+   "claim": "playing a sound during sleep can strengthen the memory you learned it with",
+   "title": "Can you strengthen a memory while you sleep? 91 experiments say yes — by this much.",
+   "test": {
+    "year": 2020,
+    "kind": "meta-analysis",
+    "title": "Promoting memory consolidation during sleep: A meta-analysis of targeted memory reactivation.",
+    "doi": "10.1037/bul0000223",
+    "k": 91,
+    "k_word": "experiments",
+    "n": 2004,
+    "es_kind": "g",
+    "es": 0.29,
+    "ci": [
+     0.21,
+     0.38
+    ],
+    "quote": "Here we present the first meta-analysis of sleep TMR, compiled from 91 experiments with 212 effect sizes (N = 2,004). ... overall sleep TMR was highly effective (Hedges' g = 0.29, 95% CI [0.21, 0.38])"
+   },
+   "hook": "Can a sound you learned with strengthen that memory in your sleep?",
+   "hook_short": "Can a sound replayed in sleep strengthen what you learned?"
+  },
+  {
+   "slug": "implicit_bias_test",
+   "arc": "pooled",
+   "claim": "a reaction-time test can reveal the hidden bias behind how people behave, judge, and react",
+   "title": "The hidden-bias test predicts behaviour at r = .27. The questionnaire does better.",
+   "test": {
+    "year": 2009,
+    "kind": "meta-analysis",
+    "title": "Understanding and using the Implicit Association Test: III. Meta-analysis of predictive validity.",
+    "doi": "10.1037/a0015575",
+    "k": 184,
+    "k_word": "independent samples",
+    "n": 14900,
+    "es_kind": "r",
+    "es": 0.274,
+    "es_second": 0.361,
+    "n_second": 13068,
+    "second_label": "self-report questionnaires",
+    "quote": "This review of 122 research reports (184 independent samples, 14,900 subjects) found average r = .274 for prediction of behavioral, judgment, and physiological measures. Parallel explicit (i.e., self-report) measures, available in 156 of these samples (13,068 subjects), also predicted effectively (average r = .361)",
+    "outcome_note": "r = .274 是 behavioral / judgment / physiological 三類量測的合成,不只是行為",
+    "second_note": "⚠️ .361 來自 156 個樣本 / 13,068 人,與 .274 的 184 個樣本 / 14,900 人**不是同一組**,旁白必須講明,不能直接並排說 Higher",
+    "tone_manual": "shrunk_real",
+    "tone_manual_why": "r = .274(184 個樣本、14,900 人)—— 測得到,但這個主張是「這個測驗揭露你隱藏的偏見」,而 .274 撐不起那麼強的說法。held 會等於背書那個更強的主張,gone 會抹掉一個真的測到的相關。⚠️ 不用「自陳量表 .361 更高」當理由:那是 156 個樣本 / 13,068 人,**不是同一組**(second_note),並排比較要在有版面講清楚的地方做。"
+   },
+   "hook": "Does the hidden-bias test predict what people actually do?",
+   "hook_short": "Does the hidden-bias test predict what you do?"
+  }
+ ],
+ "_hook_note": "hook = 旁白用的完整主張(限定詞要齊,例如 sleep_memory 的「the memory you learned it with」);hook_short = 標題用的短版(100 字元硬上限)。兩者混用會讓「補了限定詞」變成「標題失去主題」——實測 3 集因此靜默退回純數字標題。",
+ "_cited_by_note": "引用數是全片唯一一個觀眾自己去查會查到不同答案的數字(Google Scholar / Crossref / Scopus 差很多),所以一律標明來源與抓取日期,文案用「over N」不用精確值。"
+}

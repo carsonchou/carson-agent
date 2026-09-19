@@ -1,0 +1,85 @@
+# FReD Dataset Changelog
+
+### Current Version
+- **Version:** 2.4.2 (2025-06-25)
+
+## Release Notes
+
+### Latest Release Notes
+- **Notes for Version 2.4.2 (2025-06-25)**
+    - Updated data
+
+### Previous Release Notes
+- **Notes for Version 2.4.1 (2025-06-20)**
+    - Automatically added date to dataset release
+- **Notes for Version 2.4.0**
+    - Added new variables, individual submissions, and contributors
+- **Notes for Version 2.3.0**
+    - Added new individual submissions and a new contributor
+- **Notes for Version 2.2.0**
+    - Added missing reference for a few new entries
+- **Notes for Version 2.1.0**
+    - Added new entries, fixed effect size descriptions for FORRT entries
+- **Notes for Version 2.0.2**
+    - Corrected effect size descriptions (d instead of Cohen's d/D) in new set of FORRT data
+- **Notes for Version 2.0.1**
+    - Corrected errors in new set of FORRT data
+- **Notes for Version 2.0.0**
+    - Added first version of FORRT Replications and Reversals entries (non-validated)
+- **Notes for Version 1.9.0**
+    - Flagged Curatescience entries as erroneous so that they are not shown when validated entries are selected. Correction is underway.
+- **Notes for Version 1.8.0**
+    - Added inclusive language replications.
+- **Notes for Version 1.7.1**
+    - Excluded two entries with non-sensical effect sizes and flagged others as containing errors (see also https://github.com/forrtproject/FReD-data/issues/5).
+- **Notes for Version 1.7.0**
+    - Added studies (with and without statistics).
+- **Notes for Version 1.6.0**
+    - Added a few studies (without statistics).
+- **Notes for Version 1.5.4**
+    - Added a few studies (without statistics).
+- **Notes for Version 1.5.3**
+    - Added JCRe replications (without statistics).
+- **Notes for Version 1.5.2**
+    - Corrected encoding of & symbol in journal names.
+- **Notes for Version 1.5.1**
+    - Corrected Nous/Noûs journal names.
+- **Notes for Version 1.5.0**
+    - Added new entries and Journal names.
+- **Notes for Version 1.4.0**
+    - Added new entries and corrected existing entries.
+- **Notes for Version 1.3.0**
+    - Added new entries.
+- **Notes for Version 1.2.9**
+    - Corrected error in two curatescience entries and updated curatescience-entries validation status.
+- **Notes for Version 1.2.8**
+    - Added new entries.
+- **Notes for Version 1.2.7**
+    - Added new entries, added new variables and corrected entries for references.
+- **Notes for Version 1.2.6**
+    - Added new entries, removed faulty DOIs.
+- **Notes for Version 1.2.5**
+    - Added new entries, contributors, and additional studies to be coded.
+- **Notes for Version 1.2.4**
+    - Added new entries, contributors, and additional studies to be coded.
+- **Notes for Version 1.2.3**
+    - Added new R&R entry and contributor.
+- **Notes for Version 1.2.2**
+    
+- **Notes for Version 1.2.1**
+    - Corrected info on contributors
+- **Notes for Version 1.2.0**
+    - Updated info on contributors
+- **Notes for Version 1.1.1**
+    - Increase robustness of release & changelog update
+- **Notes for Version 1.1.0**
+    - validated ML2 and SSRP
+                                
+    - updated CORE entries (not yet validated, temporary)
+                                
+    - added XPHI data (only partially validated)
+- **Notes for Version 1.0.1**
+    - First automated release
+- **Notes for Version 1.0.0**
+    - Start of automated releases
+

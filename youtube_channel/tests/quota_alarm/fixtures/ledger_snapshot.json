@@ -1,0 +1,721 @@
+{
+  "days": {
+    "2026-08-24": {
+      "spent": 5504,
+      "calls": 63,
+      "by_op": {
+        "videos.post": {
+          "units": 4800,
+          "calls": 3
+        },
+        "thumbnails/set.post": {
+          "units": 150,
+          "calls": 3
+        },
+        "commentThreads.get": {
+          "units": 7,
+          "calls": 7
+        },
+        "videos.get": {
+          "units": 43,
+          "calls": 43
+        },
+        "channels.get": {
+          "units": 2,
+          "calls": 2
+        },
+        "captions.post": {
+          "units": 400,
+          "calls": 1
+        },
+        "commentThreads.post": {
+          "units": 50,
+          "calls": 1
+        },
+        "playlistItems.post": {
+          "units": 50,
+          "calls": 1
+        },
+        "playlists.get": {
+          "units": 1,
+          "calls": 1
+        },
+        "playlistItems.get": {
+          "units": 1,
+          "calls": 1
+        }
+      },
+      "updated": "2026-08-25T14:54:12"
+    },
+    "2026-08-25": {
+      "spent": 18914,
+      "calls": 305,
+      "by_op": {
+        "channels.get": {
+          "units": 7,
+          "calls": 7
+        },
+        "channelSections.get": {
+          "units": 1,
+          "calls": 1
+        },
+        "playlists.get": {
+          "units": 1,
+          "calls": 1
+        },
+        "channelSections.put": {
+          "units": 50,
+          "calls": 1
+        },
+        "thumbnails/set.post": {
+          "units": 850,
+          "calls": 17
+        },
+        "videos.get": {
+          "units": 85,
+          "calls": 85
+        },
+        "videos.put": {
+          "units": 3950,
+          "calls": 79
+        },
+        "commentThreads.get": {
+          "units": 10,
+          "calls": 10
+        },
+        "captions.get": {
+          "units": 450,
+          "calls": 9
+        },
+        "captions.put": {
+          "units": 4050,
+          "calls": 9
+        },
+        "comments.put": {
+          "units": 600,
+          "calls": 12
+        },
+        "comments.post": {
+          "units": 250,
+          "calls": 5
+        },
+        "videos.post": {
+          "units": 8000,
+          "calls": 5
+        },
+        "commentThreads.post": {
+          "units": 100,
+          "calls": 2
+        },
+        "playlistItems.get": {
+          "units": 60,
+          "calls": 60
+        },
+        "captions.post": {
+          "units": 400,
+          "calls": 1
+        },
+        "playlistItems.post": {
+          "units": 50,
+          "calls": 1
+        }
+      },
+      "updated": "2026-08-26T14:00:17",
+      "_note": "⚠️ 此日數字不可信:計量器當時把「配額用罄被拒(quotaExceeded)」的呼叫也算進 spent,而那類請求並不會再扣配額。實測同期 job_stderr 有 463 次真 403 → 18,914 這個數字是被失敗呼叫灌出來的,不可拿來推翻「上限 10,000」。2026-08-26 起已分開記 rejected 桶。",
+      "unreliable": true
+    },
+    "2026-08-26": {
+      "spent": 18760,
+      "calls": 211,
+      "by_op": {
+        "channels.get": {
+          "units": 7,
+          "calls": 7
+        },
+        "channelSections.get": {
+          "units": 1,
+          "calls": 1
+        },
+        "playlists.get": {
+          "units": 1,
+          "calls": 1
+        },
+        "channelSections.put": {
+          "units": 50,
+          "calls": 1
+        },
+        "thumbnails/set.post": {
+          "units": 500,
+          "calls": 10
+        },
+        "videos.get": {
+          "units": 85,
+          "calls": 85
+        },
+        "videos.put": {
+          "units": 250,
+          "calls": 5
+        },
+        "commentThreads.get": {
+          "units": 6,
+          "calls": 6
+        },
+        "comments.post": {
+          "units": 50,
+          "calls": 1
+        },
+        "videos.post": {
+          "units": 14400,
+          "calls": 9
+        },
+        "captions.post": {
+          "units": 2400,
+          "calls": 6
+        },
+        "commentThreads.post": {
+          "units": 300,
+          "calls": 6
+        },
+        "playlistItems.post": {
+          "units": 300,
+          "calls": 6
+        },
+        "playlistItems.get": {
+          "units": 60,
+          "calls": 60
+        },
+        "captions.get": {
+          "units": 350,
+          "calls": 7
+        }
+      },
+      "updated": "2026-08-27T10:45:12"
+    },
+    "2026-08-27": {
+      "spent": 19645,
+      "calls": 287,
+      "by_op": {
+        "channels.get": {
+          "units": 5,
+          "calls": 5
+        },
+        "channelSections.get": {
+          "units": 1,
+          "calls": 1
+        },
+        "playlists.get": {
+          "units": 3,
+          "calls": 3
+        },
+        "channelSections.put": {
+          "units": 50,
+          "calls": 1
+        },
+        "videos.get": {
+          "units": 96,
+          "calls": 96
+        },
+        "videos.put": {
+          "units": 3900,
+          "calls": 78
+        },
+        "commentThreads.get": {
+          "units": 9,
+          "calls": 9
+        },
+        "thumbnails/set.post": {
+          "units": 650,
+          "calls": 13
+        },
+        "captions.get": {
+          "units": 400,
+          "calls": 8
+        },
+        "captions.put": {
+          "units": 2700,
+          "calls": 6
+        },
+        "comments.put": {
+          "units": 600,
+          "calls": 12
+        },
+        "comments.post": {
+          "units": 50,
+          "calls": 1
+        },
+        "videos.post": {
+          "units": 9600,
+          "calls": 6
+        },
+        "captions.post": {
+          "units": 800,
+          "calls": 2
+        },
+        "commentThreads.post": {
+          "units": 100,
+          "calls": 2
+        },
+        "playlistItems.post": {
+          "units": 650,
+          "calls": 13
+        },
+        "playlistItems.get": {
+          "units": 31,
+          "calls": 31
+        }
+      },
+      "updated": "2026-08-28T13:20:19",
+      "rejected_units": 45491,
+      "rejected_calls": 935
+    },
+    "2026-08-28": {
+      "spent": 23341,
+      "calls": 334,
+      "by_op": {
+        "channels.get": {
+          "units": 6,
+          "calls": 6
+        },
+        "channelSections.get": {
+          "units": 1,
+          "calls": 1
+        },
+        "playlists.get": {
+          "units": 1,
+          "calls": 1
+        },
+        "channelSections.put": {
+          "units": 50,
+          "calls": 1
+        },
+        "thumbnails/set.post": {
+          "units": 650,
+          "calls": 13
+        },
+        "videos.get": {
+          "units": 113,
+          "calls": 113
+        },
+        "videos.put": {
+          "units": 3750,
+          "calls": 75
+        },
+        "commentThreads.get": {
+          "units": 10,
+          "calls": 10
+        },
+        "captions.get": {
+          "units": 350,
+          "calls": 7
+        },
+        "captions.post": {
+          "units": 2400,
+          "calls": 6
+        },
+        "captions.put": {
+          "units": 1350,
+          "calls": 3
+        },
+        "comments.put": {
+          "units": 600,
+          "calls": 12
+        },
+        "comments.post": {
+          "units": 100,
+          "calls": 2
+        },
+        "videos.post": {
+          "units": 12800,
+          "calls": 8
+        },
+        "commentThreads.post": {
+          "units": 250,
+          "calls": 5
+        },
+        "playlistItems.post": {
+          "units": 250,
+          "calls": 5
+        },
+        "playlistItems.get": {
+          "units": 60,
+          "calls": 60
+        },
+        "search.get": {
+          "units": 600,
+          "calls": 6
+        }
+      },
+      "updated": "2026-08-29T13:30:17",
+      "rejected_units": 850,
+      "rejected_calls": 2
+    },
+    "2026-08-29": {
+      "spent": 21858,
+      "calls": 440,
+      "by_op": {
+        "channels.get": {
+          "units": 10,
+          "calls": 10
+        },
+        "channelSections.get": {
+          "units": 1,
+          "calls": 1
+        },
+        "playlists.get": {
+          "units": 1,
+          "calls": 1
+        },
+        "channelSections.put": {
+          "units": 50,
+          "calls": 1
+        },
+        "videos.get": {
+          "units": 243,
+          "calls": 243
+        },
+        "videos.put": {
+          "units": 3150,
+          "calls": 63
+        },
+        "commentThreads.get": {
+          "units": 13,
+          "calls": 13
+        },
+        "thumbnails/set.post": {
+          "units": 600,
+          "calls": 12
+        },
+        "captions.get": {
+          "units": 300,
+          "calls": 6
+        },
+        "captions.put": {
+          "units": 1800,
+          "calls": 4
+        },
+        "comments.put": {
+          "units": 600,
+          "calls": 12
+        },
+        "videos.post": {
+          "units": 11200,
+          "calls": 7
+        },
+        "captions.post": {
+          "units": 2400,
+          "calls": 6
+        },
+        "commentThreads.post": {
+          "units": 300,
+          "calls": 6
+        },
+        "playlistItems.post": {
+          "units": 300,
+          "calls": 6
+        },
+        "playlistItems.get": {
+          "units": 40,
+          "calls": 40
+        },
+        "comments.post": {
+          "units": 50,
+          "calls": 1
+        },
+        "search.get": {
+          "units": 800,
+          "calls": 8
+        }
+      },
+      "updated": "2026-08-30T14:01:40",
+      "rejected_units": 16,
+      "rejected_calls": 16
+    },
+    "2026-08-30": {
+      "spent": 22910,
+      "calls": 234,
+      "by_op": {
+        "videos.get": {
+          "units": 95,
+          "calls": 95
+        },
+        "videos.put": {
+          "units": 450,
+          "calls": 9
+        },
+        "captions.get": {
+          "units": 100,
+          "calls": 2
+        },
+        "captions.put": {
+          "units": 450,
+          "calls": 1
+        },
+        "captions.post": {
+          "units": 3600,
+          "calls": 9
+        },
+        "commentThreads.get": {
+          "units": 15,
+          "calls": 15
+        },
+        "comments.put": {
+          "units": 400,
+          "calls": 8
+        },
+        "channels.get": {
+          "units": 5,
+          "calls": 5
+        },
+        "channelSections.get": {
+          "units": 1,
+          "calls": 1
+        },
+        "playlists.get": {
+          "units": 2,
+          "calls": 2
+        },
+        "channelSections.put": {
+          "units": 50,
+          "calls": 1
+        },
+        "playlistItems.get": {
+          "units": 42,
+          "calls": 42
+        },
+        "thumbnails/set.post": {
+          "units": 800,
+          "calls": 16
+        },
+        "videos.post": {
+          "units": 16000,
+          "calls": 10
+        },
+        "commentThreads.post": {
+          "units": 400,
+          "calls": 8
+        },
+        "playlistItems.post": {
+          "units": 400,
+          "calls": 8
+        },
+        "comments.post": {
+          "units": 100,
+          "calls": 2
+        }
+      },
+      "updated": "2026-08-31T14:54:08"
+    },
+    "2026-08-31": {
+      "spent": 26001,
+      "calls": 182,
+      "by_op": {
+        "videos.get": {
+          "units": 60,
+          "calls": 60
+        },
+        "videos.put": {
+          "units": 250,
+          "calls": 5
+        },
+        "commentThreads.get": {
+          "units": 11,
+          "calls": 11
+        },
+        "channels.get": {
+          "units": 5,
+          "calls": 5
+        },
+        "channelSections.get": {
+          "units": 1,
+          "calls": 1
+        },
+        "playlists.get": {
+          "units": 1,
+          "calls": 1
+        },
+        "channelSections.put": {
+          "units": 50,
+          "calls": 1
+        },
+        "playlistItems.get": {
+          "units": 21,
+          "calls": 21
+        },
+        "thumbnails/set.post": {
+          "units": 950,
+          "calls": 19
+        },
+        "comments.post": {
+          "units": 100,
+          "calls": 2
+        },
+        "videos.post": {
+          "units": 16000,
+          "calls": 10
+        },
+        "captions.post": {
+          "units": 3600,
+          "calls": 9
+        },
+        "commentThreads.post": {
+          "units": 400,
+          "calls": 8
+        },
+        "playlistItems.post": {
+          "units": 450,
+          "calls": 9
+        },
+        "captions.get": {
+          "units": 500,
+          "calls": 10
+        },
+        "captions.put": {
+          "units": 3600,
+          "calls": 8
+        },
+        "comments.get": {
+          "units": 2,
+          "calls": 2
+        }
+      },
+      "updated": "2026-09-01T13:44:40",
+      "rejected_units": 325,
+      "rejected_calls": 31
+    },
+    "2026-09-01": {
+      "spent": 25206,
+      "calls": 337,
+      "by_op": {
+        "comments.get": {
+          "units": 6,
+          "calls": 6
+        },
+        "comments.post": {
+          "units": 100,
+          "calls": 2
+        },
+        "videos.get": {
+          "units": 164,
+          "calls": 164
+        },
+        "videos.put": {
+          "units": 600,
+          "calls": 12
+        },
+        "commentThreads.get": {
+          "units": 13,
+          "calls": 13
+        },
+        "channels.get": {
+          "units": 6,
+          "calls": 6
+        },
+        "channelSections.get": {
+          "units": 1,
+          "calls": 1
+        },
+        "playlists.get": {
+          "units": 1,
+          "calls": 1
+        },
+        "channelSections.put": {
+          "units": 50,
+          "calls": 1
+        },
+        "thumbnails/set.post": {
+          "units": 1050,
+          "calls": 21
+        },
+        "playlistItems.get": {
+          "units": 65,
+          "calls": 65
+        },
+        "videos.post": {
+          "units": 17600,
+          "calls": 11
+        },
+        "captions.post": {
+          "units": 4400,
+          "calls": 11
+        },
+        "commentThreads.post": {
+          "units": 550,
+          "calls": 11
+        },
+        "playlistItems.post": {
+          "units": 550,
+          "calls": 11
+        },
+        "comments.delete": {
+          "units": 50,
+          "calls": 1
+        }
+      },
+      "updated": "2026-09-02T14:54:09"
+    },
+    "2026-09-02": {
+      "spent": 24644,
+      "calls": 216,
+      "by_op": {
+        "videos.get": {
+          "units": 85,
+          "calls": 85
+        },
+        "videos.put": {
+          "units": 150,
+          "calls": 3
+        },
+        "commentThreads.get": {
+          "units": 10,
+          "calls": 10
+        },
+        "channels.get": {
+          "units": 5,
+          "calls": 5
+        },
+        "channelSections.get": {
+          "units": 1,
+          "calls": 1
+        },
+        "playlists.get": {
+          "units": 1,
+          "calls": 1
+        },
+        "channelSections.put": {
+          "units": 50,
+          "calls": 1
+        },
+        "playlistItems.get": {
+          "units": 42,
+          "calls": 42
+        },
+        "thumbnails/set.post": {
+          "units": 1100,
+          "calls": 22
+        },
+        "videos.post": {
+          "units": 17600,
+          "calls": 11
+        },
+        "captions.post": {
+          "units": 4400,
+          "calls": 11
+        },
+        "commentThreads.post": {
+          "units": 550,
+          "calls": 11
+        },
+        "playlistItems.post": {
+          "units": 600,
+          "calls": 12
+        },
+        "comments.post": {
+          "units": 50,
+          "calls": 1
+        }
+      },
+      "updated": "2026-09-03T10:10:24"
+    }
+  },
+  "note": "2026-08-25 建置期的測試資料已清除;真正的實測從下一個配額日(台北 08-25 15:00)開始"
+}

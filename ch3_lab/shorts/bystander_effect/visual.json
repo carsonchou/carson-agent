@@ -1,0 +1,58 @@
+{
+ "accent": "#FFC23D",
+ "canvas": [
+  1080,
+  1920,
+  30
+ ],
+ "card": "This one held up.",
+ "claim_lines": [
+  "A CROWD MAKES EACH PERSON",
+  "LESS LIKELY TO HELP"
+ ],
+ "color": "#5FC98A",
+ "end_card": [
+  "Full episode",
+  "on the channel"
+ ],
+ "frames": "c48dcae4620b6ede",
+ "fs": {
+  "big": 233,
+  "card": 58,
+  "claim": {
+   "fs": 66,
+   "lines": [
+    "A CROWD MAKES",
+    "EACH PERSON",
+    "LESS LIKELY",
+    "TO HELP"
+   ],
+   "ys": [
+    0.6345,
+    0.5748,
+    0.5152,
+    0.4555
+   ]
+  },
+  "end": 75,
+  "es_o": 210,
+  "es_r2": 210,
+  "head": 70,
+  "kicker": 46,
+  "meas": 50,
+  "n": 58,
+  "src": 34
+ },
+ "kicker": "A STUDY FOUND",
+ "palette": [
+  "#0E1116",
+  "#E8EAED",
+  "#8A9099"
+ ],
+ "safe": [
+  0.86,
+  0.24,
+  0.9099999999999999
+ ],
+ "source": "The bystander-effect: A meta-analytic review on bystander intervention in dangerous and non-dangerous emergencies"
+}

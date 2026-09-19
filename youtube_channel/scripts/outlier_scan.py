@@ -50,7 +50,8 @@ NICHE = ("交易", "量化", "網格", "网格", "定投", "dca", "派網", "派
          "比特", "以太", "btc", "eth", "crypto", "加密", "合約", "合约", "期貨", "期货", "外匯", "外汇",
          "cfd", "回測", "回测", "策略", "投資", "投资", "理財", "理财", "被動收入", "被动收入", "股",
          "基金", "etf", "ea ", "因子", "機器學習", "机器学习", "套利", "資金費率", "资金费率",
-         "trading", "backtest", "quant", "forex", "黃金", "黄金")
+         "trading", "backtest", "quant", "forex", "黃金", "黄金",
+         "手搓", "程式", "程式碼", "程式交易", "自動化", "腳本", "cursor", "vibe coding")
 
 
 def _is_niche(title):
@@ -137,7 +138,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--days", type=int, default=120, help="只看近 N 天內發布（抓新鮮可搶的爆款）")
     ap.add_argument("--min-ratio", type=float, default=3.0, help="觀看÷訂閱 的最低 outlier 倍率（≥3 衝出訂閱牆）")
-    ap.add_argument("--min-views", type=int, default=20000, help="最低絕對觀看（濾小頻道雜訊）")
+    ap.add_argument("--min-views", type=int, default=3000, help="最低絕對觀看（濾小頻道雜訊；3000=撈中爆款,對齊自家小頻道現實）")
     ap.add_argument("--top", type=int, default=20, help="最多留幾支進 outliers.json")
     ap.add_argument("--kw", type=int, default=8, help="搜尋幾組 niche 關鍵字（每組=100 配額單位，和 intel/上傳共用日配額，故節制）")
     ap.add_argument("--per", type=int, default=25, help="每組關鍵字抓幾筆")

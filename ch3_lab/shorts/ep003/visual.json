@@ -1,0 +1,57 @@
+{
+ "accent": "#FFC23D",
+ "canvas": [
+  1080,
+  1920,
+  30
+ ],
+ "card": "This one held up.",
+ "claim_lines": [
+  "AGREEABLE PEOPLE",
+  "COMMIT FEWER CRIMES"
+ ],
+ "color": "#5FC98A",
+ "end_card": [
+  "Full episode",
+  "on the channel"
+ ],
+ "frames": "9a428d75e3e9df51",
+ "fs": {
+  "big": 233,
+  "card": 58,
+  "claim": {
+   "fs": 77,
+   "lines": [
+    "AGREEABLE",
+    "PEOPLE",
+    "COMMIT",
+    "FEWER CRIMES"
+   ],
+   "ys": [
+    0.6494,
+    0.5798,
+    0.5102,
+    0.4406
+   ]
+  },
+  "end": 75,
+  "es_o": 210,
+  "es_r2": 210,
+  "kicker": 46,
+  "meas": 50,
+  "src": 34,
+  "sub": 38
+ },
+ "kicker": "A STUDY FOUND",
+ "palette": [
+  "#0E1116",
+  "#E8EAED",
+  "#8A9099"
+ ],
+ "safe": [
+  0.86,
+  0.24,
+  0.9099999999999999
+ ],
+ "source": "FORRT Replication Database (FReD), OSF 2tbvd"
+}

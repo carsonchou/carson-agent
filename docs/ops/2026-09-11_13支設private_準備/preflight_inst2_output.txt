@@ -1,0 +1,29 @@
+uploads=UUqP5JQXlQR5ZDLtEiBt4kLA 翻了 23 頁(23 units)| 列 1132 / 唯一 id 1100 | privacyStatus 分佈 {'public': 915, 'private': 212, 'unlisted': 4, 'privacyStatusUnspecified': 1}
+pageInfo.totalResults(最後一頁): 1132
+
+  videoId      組      儀器1       儀器2          判定
+  MuXiM5IqVQQ  13     public    ['public']   一致
+  TDbm4XR5pYk  13     public    ['public']   一致
+  cObU5NcFT-I  13     public    ['public']   一致
+  I8F83sPFKWg  13     public    ['public']   一致
+  _Cc49y7ZAeM  13     public    ['public']   一致
+  tN56crKxwJE  13     public    ['public']   一致
+  mvDrUnxEjWs  13     public    ['public']   一致
+  vwEaoo3Txjw  13     public    ['public']   一致
+  UTuMMyvdQ5U  13     public    ['public']   一致
+  DhX2uNzjZ-o  13     public    ['public']   一致
+  OyprNxjrIBQ  13     public    ['public']   一致
+  nHwP_cyy_hc  13     public    ['public']   一致
+  xjQPW3sTY28  13     public    ['public']   一致
+  fYTywq3Ah1c  ctrl   public    ['public']   一致
+  s4jROPETmlE  ctrl   public    ['public']   一致
+  Xmc_qtMqPhk  ctrl   public    ['public']   一致
+  nrIYmQgjHFs  unl    unlisted  ['unlisted'] 一致
+  h4vTXYtlQ7I  unl    unlisted  ['unlisted'] 一致
+  rgeDJ3vxlxI  unl    unlisted  ['unlisted'] 一致
+  oq4I_jtEw3Q  pos    private   ['private']  一致
+  ODN9YzdBopA  pos    private   ['private']  一致
+  7C79mFmnFrE  pos    private   ['private']  一致
+
+判定分佈: {'一致': 22}
+陽性對照讀得出非 public 的:6/6 ['oq4I_jtEw3Q', 'ODN9YzdBopA', '7C79mFmnFrE', 'nrIYmQgjHFs', 'h4vTXYtlQ7I', 'rgeDJ3vxlxI']

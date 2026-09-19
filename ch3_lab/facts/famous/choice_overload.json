@@ -1,0 +1,22 @@
+{
+ "claim": "Choice overload",
+ "doi": "https://doi.org/10.1086/651235",
+ "title": "Can There Ever Be Too Many Options? A Meta-Analytic Review of Choice Overload",
+ "year": 2010,
+ "journal": "Journal of Consumer Research",
+ "cited_by": 1062,
+ "abstract_chars": 1018,
+ "found": {
+  "n": [
+   {
+    "value": "5,036",
+    "src": "In a meta-analysis of 63 conditions from 50 published and unpublished experiments (N = 5,036), we found a mean effect size of virtually zero but considerable variance between studies."
+   }
+  ],
+  "effect": [],
+  "ci": [],
+  "k": []
+ },
+ "status": "PARTIAL",
+ "abstract": "The choice overload hypothesis states that an increase in the number of options to choose from may lead to adverse consequences such as a decrease in the motivation to choose or the satisfaction with the finally chosen option. A number of studies found strong instances of choice overload in the lab and in the field, but others found no such effects or found that more choices may instead facilitate choice and increase satisfaction. In a meta-analysis of 63 conditions from 50 published and unpublished experiments (N = 5,036), we found a mean effect size of virtually zero but considerable variance between studies. While further analyses indicated several potentially important preconditions for choice overload, no sufficient conditions could be identified. However, some idiosyncratic moderators proposed in single studies may still explain when and why choice overload reliably occurs; we review these studies and identify possible directions for future research. (c) 2010 by JOURNAL OF CONSUMER RESEARCH, Inc.."
+}

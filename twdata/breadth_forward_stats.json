@@ -1,0 +1,69 @@
+{
+  "ok": true,
+  "generated_at": "2026-07-17",
+  "indicator": "站上20日均線的個股佔比(breadth)",
+  "benchmark": "元大台灣50(0050)",
+  "forward_days": 20,
+  "period_start": "2009-01-02",
+  "period_end": "2026-06-15",
+  "n_stocks": 1916,
+  "source": "twdata/cache_adj/*.csv(含息還原收盤價,Close-only)；大盤代理 0050_TW 同源",
+  "method": "每個交易日計算「收盤價 > 自身 20 日均線」的個股佔比(=breadth)，再取 0050 其後 20 個交易日的含息還原報酬，依 breadth 分桶統計。個股需 ≥300 根、當日有效檔數需 ≥200 才採計。",
+  "caveat": "本統計的 breadth 由 cache_adj 的『含息還原收盤價』重算，與週報 S1 當期顯示的 breadth（data_hunter 掃描器以原始價、當日全市場即時計算）**定義與資料源皆不同**，兩者數值不可互相對照；本統計亦不含市場溫度的 RSI/ADR/新高低/量能等其他成分，**不是對『市場溫度』這個指標本身做回測**。",
+  "buckets": [
+    {
+      "lo": 0,
+      "hi": 20,
+      "n_days": 363,
+      "n_independent": 18,
+      "median_fwd_pct": 2.39,
+      "up_rate_pct": 64.2,
+      "insufficient": false
+    },
+    {
+      "lo": 20,
+      "hi": 40,
+      "n_days": 1069,
+      "n_independent": 53,
+      "median_fwd_pct": 1.52,
+      "up_rate_pct": 61.7,
+      "insufficient": false
+    },
+    {
+      "lo": 40,
+      "hi": 60,
+      "n_days": 1437,
+      "n_independent": 71,
+      "median_fwd_pct": 1.49,
+      "up_rate_pct": 61.7,
+      "insufficient": false
+    },
+    {
+      "lo": 60,
+      "hi": 80,
+      "n_days": 1130,
+      "n_independent": 56,
+      "median_fwd_pct": 1.15,
+      "up_rate_pct": 60.5,
+      "insufficient": false
+    },
+    {
+      "lo": 80,
+      "hi": 101,
+      "n_days": 250,
+      "n_independent": 12,
+      "median_fwd_pct": 2.27,
+      "up_rate_pct": 72.4,
+      "insufficient": false
+    }
+  ],
+  "baseline": {
+    "n_days": 4249,
+    "n_independent": 212,
+    "median_fwd_pct": 1.53,
+    "up_rate_pct": 62.2
+  },
+  "spread_pct_points": 11.9,
+  "middle_max_dev_pct_points": 1.7,
+  "n_middle_buckets": 3
+}

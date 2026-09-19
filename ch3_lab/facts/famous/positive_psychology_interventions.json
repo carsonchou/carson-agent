@@ -1,0 +1,27 @@
+{
+ "claim": "Positive psychology interventions",
+ "doi": "https://doi.org/10.1186/1471-2458-13-119",
+ "title": "Positive psychology interventions: a meta-analysis of randomized controlled studies",
+ "year": 2013,
+ "journal": "BMC Public Health",
+ "cited_by": 2019,
+ "abstract_chars": 2065,
+ "found": {
+  "n": [
+   {
+    "value": "6,139",
+    "src": "Forty articles, describing 39 studies, totaling 6,139 participants, met the criteria for inclusion."
+   }
+  ],
+  "effect": [],
+  "ci": [],
+  "k": [
+   {
+    "value": "39",
+    "src": "Forty articles, describing 39 studies, totaling 6,139 participants, met the criteria for inclusion."
+   }
+  ]
+ },
+ "status": "PARTIAL",
+ "abstract": "BACKGROUND: The use of positive psychological interventions may be considered as a complementary strategy in mental health promotion and treatment. The present article constitutes a meta-analytical study of the effectiveness of positive psychology interventions for the general public and for individuals with specific psychosocial problems. METHODS: We conducted a systematic literature search using PubMed, PsychInfo, the Cochrane register, and manual searches. Forty articles, describing 39 studies, totaling 6,139 participants, met the criteria for inclusion. The outcome measures used were subjective well-being, psychological well-being and depression. Positive psychology interventions included self-help interventions, group training and individual therapy. RESULTS: The standardized mean difference was 0.34 for subjective well-being, 0.20 for psychological well-being and 0.23 for depression indicating small effects for positive psychology interventions. At follow-up from three to six months, effect sizes are small, but still significant for subjective well-being and psychological well-being, indicating that effects are fairly sustainable. Heterogeneity was rather high, due to the wide diversity of the studies included. Several variables moderated the impact on depression: Interventions were more effective if they were of longer duration, if recruitment was conducted via referral or hospital, if interventions were delivered to people with certain psychosocial problems and on an individual basis, and if the study design was of low quality. Moreover, indications for publication bias were found, and the quality of the studies varied considerably. CONCLUSIONS: The results of this meta-analysis show that positive psychology interventions can be effective in the enhancement of subjective well-being and psychological well-being, as well as in helping to reduce depressive symptoms. Additional high-quality peer-reviewed studies in diverse (clinical) populations are needed to strengthen the evidence-base for positive psychology interventions."
+}

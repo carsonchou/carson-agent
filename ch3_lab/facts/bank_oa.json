@@ -1,0 +1,302 @@
+[
+ {
+  "claim": "Implicit Association Test",
+  "verdict": "STRONG",
+  "is_oa": true,
+  "pdf": false
+ },
+ {
+  "claim": "Deliberate practice 10000 hours",
+  "verdict": "STRONG",
+  "is_oa": false,
+  "pdf": false
+ },
+ {
+  "claim": "Ego depletion",
+  "verdict": "STRONG",
+  "is_oa": true,
+  "pdf": true
+ },
+ {
+  "claim": "Bystander effect",
+  "verdict": "STRONG",
+  "is_oa": false,
+  "pdf": false
+ },
+ {
+  "claim": "Stereotype accuracy",
+  "verdict": "STRONG",
+  "is_oa": false,
+  "pdf": false
+ },
+ {
+  "claim": "Sleep and memory consolidation",
+  "verdict": "STRONG",
+  "is_oa": true,
+  "pdf": true
+ },
+ {
+  "claim": "Red color attractiveness",
+  "verdict": "STRONG",
+  "is_oa": true,
+  "pdf": true
+ },
+ {
+  "claim": "Placebo open-label",
+  "verdict": "PARTIAL",
+  "is_oa": true,
+  "pdf": true
+ },
+ {
+  "claim": "Positive psychology interventions",
+  "verdict": "PARTIAL",
+  "is_oa": true,
+  "pdf": true
+ },
+ {
+  "claim": "Anchoring",
+  "verdict": "PARTIAL",
+  "is_oa": true,
+  "pdf": true
+ },
+ {
+  "claim": "Priming achievement goals",
+  "verdict": "PARTIAL",
+  "is_oa": true,
+  "pdf": true
+ },
+ {
+  "claim": "Self-esteem and success",
+  "verdict": "PARTIAL",
+  "is_oa": true,
+  "pdf": true
+ },
+ {
+  "claim": "Choice overload",
+  "verdict": "PARTIAL",
+  "is_oa": true,
+  "pdf": false
+ },
+ {
+  "claim": "Serotonin and depression",
+  "verdict": "PARTIAL",
+  "is_oa": true,
+  "pdf": true
+ },
+ {
+  "claim": "Bilingual advantage",
+  "verdict": "PARTIAL",
+  "is_oa": true,
+  "pdf": true
+ },
+ {
+  "claim": "Testosterone and risk taking",
+  "verdict": "PARTIAL",
+  "is_oa": true,
+  "pdf": true
+ },
+ {
+  "claim": "Stereotype threat",
+  "verdict": "PARTIAL",
+  "is_oa": false,
+  "pdf": false
+ },
+ {
+  "claim": "Expressive writing",
+  "verdict": "PARTIAL",
+  "is_oa": false,
+  "pdf": false
+ },
+ {
+  "claim": "Ovulatory cycle preference shifts",
+  "verdict": "PARTIAL",
+  "is_oa": false,
+  "pdf": false
+ },
+ {
+  "claim": "Grit",
+  "verdict": "PARTIAL",
+  "is_oa": false,
+  "pdf": false
+ },
+ {
+  "claim": "Video games and aggression",
+  "verdict": "PARTIAL",
+  "is_oa": false,
+  "pdf": false
+ },
+ {
+  "claim": "Elderly social priming",
+  "verdict": "PARTIAL",
+  "is_oa": true,
+  "pdf": true
+ },
+ {
+  "claim": "Mozart effect",
+  "verdict": "PARTIAL",
+  "is_oa": false,
+  "pdf": false
+ },
+ {
+  "claim": "Mortality salience",
+  "verdict": "PARTIAL",
+  "is_oa": true,
+  "pdf": true
+ },
+ {
+  "claim": "Implicit bias training",
+  "verdict": "PARTIAL",
+  "is_oa": true,
+  "pdf": false
+ },
+ {
+  "claim": "Macbeth effect cleanliness",
+  "verdict": "PARTIAL",
+  "is_oa": true,
+  "pdf": true
+ },
+ {
+  "claim": "Learning styles",
+  "verdict": "WEAK",
+  "is_oa": true,
+  "pdf": true
+ },
+ {
+  "claim": "Brain training",
+  "verdict": "WEAK",
+  "is_oa": false,
+  "pdf": false
+ },
+ {
+  "claim": "Emotional intelligence job performance",
+  "verdict": "WEAK",
+  "is_oa": false,
+  "pdf": false
+ },
+ {
+  "claim": "Nudging effect size",
+  "verdict": "WEAK",
+  "is_oa": true,
+  "pdf": true
+ },
+ {
+  "claim": "Blue light and sleep",
+  "verdict": "WEAK",
+  "is_oa": true,
+  "pdf": true
+ },
+ {
+  "claim": "Social rejection and pain",
+  "verdict": "WEAK",
+  "is_oa": true,
+  "pdf": true
+ },
+ {
+  "claim": "Pygmalion teacher expectancy",
+  "verdict": "WEAK",
+  "is_oa": false,
+  "pdf": false
+ },
+ {
+  "claim": "Marshmallow test",
+  "verdict": "WEAK",
+  "is_oa": false,
+  "pdf": false
+ },
+ {
+  "claim": "Facial feedback",
+  "verdict": "WEAK",
+  "is_oa": true,
+  "pdf": true
+ },
+ {
+  "claim": "Media multitasking",
+  "verdict": "WEAK",
+  "is_oa": true,
+  "pdf": false
+ },
+ {
+  "claim": "Oxytocin and trust",
+  "verdict": "WEAK",
+  "is_oa": false,
+  "pdf": false
+ },
+ {
+  "claim": "Mindfulness meditation",
+  "verdict": "WEAK",
+  "is_oa": false,
+  "pdf": false
+ },
+ {
+  "claim": "Growth mindset",
+  "verdict": "WEAK",
+  "is_oa": true,
+  "pdf": true
+ },
+ {
+  "claim": "Chameleon effect mimicry",
+  "verdict": "WEAK",
+  "is_oa": true,
+  "pdf": true
+ },
+ {
+  "claim": "Money priming",
+  "verdict": "WEAK",
+  "is_oa": false,
+  "pdf": false
+ },
+ {
+  "claim": "Hot hand fallacy",
+  "verdict": "WEAK",
+  "is_oa": true,
+  "pdf": true
+ },
+ {
+  "claim": "Power posing",
+  "verdict": "WEAK",
+  "is_oa": true,
+  "pdf": true
+ },
+ {
+  "claim": "Birth order and personality",
+  "verdict": "WEAK",
+  "is_oa": false,
+  "pdf": false
+ },
+ {
+  "claim": "Stanford Prison Experiment",
+  "verdict": "WEAK",
+  "is_oa": true,
+  "pdf": true
+ },
+ {
+  "claim": "Loss aversion",
+  "verdict": "WEAK",
+  "is_oa": false,
+  "pdf": false
+ },
+ {
+  "claim": "Cognitive dissonance effort justification",
+  "verdict": "WEAK",
+  "is_oa": false,
+  "pdf": false
+ },
+ {
+  "claim": "Dunning-Kruger",
+  "verdict": "WEAK",
+  "is_oa": false,
+  "pdf": false
+ },
+ {
+  "claim": "Weapons effect",
+  "verdict": "WEAK",
+  "is_oa": false,
+  "pdf": false
+ },
+ {
+  "claim": "Sunk cost fallacy",
+  "verdict": "WEAK",
+  "is_oa": false,
+  "pdf": false
+ }
+]

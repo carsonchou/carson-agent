@@ -1,0 +1,33 @@
+{
+ "claim": "Priming analytic thinking using the scrambled sentence task reduces belief in conspiracy theories",
+ "es_type": "d",
+ "orig": {
+  "n": 140,
+  "es": 0.42,
+  "year": 2014,
+  "title": "Analytic thinking reduces belief in conspiracy theories",
+  "author": "[{\"given\":\"Viren\",\"family\":\"Swami\",\"sequence\":\"first\"},{\"given\":\"Martin\",\"family",
+  "doi": "10.1016/j.cognition.2014.08.006",
+  "url": ""
+ },
+ "repl": {
+  "n": 488,
+  "es": 0.06,
+  "year": 2024,
+  "title": "No evidence that priming analytic thinking reduces belief in conspiracy theories: A Registered Report of high-powered di",
+  "doi": "10.1016/j.jesp.2023.104549",
+  "url": "https://osf.io/keahr/"
+ },
+ "verdict": "failed",
+ "p_repl": 0.529,
+ "p_type_repl": "e (=)",
+ "p_tails_repl": "",
+ "source": "FORRT Replication Database (FReD), OSF 2tbvd",
+ "record": {
+  "fred_id": "soscisubmission56",
+  "effect_id": "1985",
+  "prereg": "https://osf.io/keahr/"
+ },
+ "n_ratio": 3.5,
+ "tone": "gone"
+}

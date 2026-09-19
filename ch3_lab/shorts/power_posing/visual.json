@@ -1,0 +1,57 @@
+{
+ "accent": "#FFC23D",
+ "canvas": [
+  1080,
+  1920,
+  30
+ ],
+ "card": "1 of 4 came back.",
+ "claim_lines": [
+  "STAND LIKE THIS",
+  "AND BECOME MORE POWERFUL"
+ ],
+ "color": "#8FA3C8",
+ "end_card": [
+  "Every number",
+  "from the record"
+ ],
+ "frames": "ff0e8cc9bedc1ed5",
+ "fs": {
+  "card": 58,
+  "claim": {
+   "fs": 77,
+   "lines": [
+    "STAND LIKE",
+    "THIS AND",
+    "BECOME MORE",
+    "POWERFUL"
+   ],
+   "ys": [
+    0.6494,
+    0.5798,
+    0.5102,
+    0.4406
+   ]
+  },
+  "end": 75,
+  "es_o": 210,
+  "es_r2": 210,
+  "kicker": 46,
+  "meas": 50,
+  "o_name": 40,
+  "src": 34,
+  "sub": 46
+ },
+ "kicker": "A STUDY FOUND",
+ "palette": [
+  "#0E1116",
+  "#E8EAED",
+  "#8A9099"
+ ],
+ "safe": [
+  0.86,
+  0.24,
+  0.9099999999999999
+ ],
+ "source": "Assessing the Robustness of Power Posing: No Effect on Hormones and Risk Tolerance in a Large Sample of Men and Women"
+}

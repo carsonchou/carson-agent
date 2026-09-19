@@ -1,0 +1,57 @@
+{
+ "accent": "#FFC23D",
+ "canvas": [
+  1080,
+  1920,
+  30
+ ],
+ "card": "The effect did not survive.",
+ "claim_lines": [
+  "SEEING THE BIG PICTURE",
+  "GOES WITH SEEING MINDS"
+ ],
+ "color": "#F5A54E",
+ "end_card": [
+  "Full episode",
+  "on the channel"
+ ],
+ "frames": "4cd01195d9a429bc",
+ "fs": {
+  "big": 260,
+  "card": 58,
+  "claim": {
+   "fs": 79,
+   "lines": [
+    "SEEING THE",
+    "BIG PICTURE",
+    "GOES WITH",
+    "SEEING MINDS"
+   ],
+   "ys": [
+    0.6521,
+    0.5807,
+    0.5093,
+    0.4379
+   ]
+  },
+  "end": 75,
+  "es_o": 210,
+  "es_r2": 210,
+  "kicker": 46,
+  "meas": 50,
+  "src": 34,
+  "sub": 38
+ },
+ "kicker": "A STUDY FOUND",
+ "palette": [
+  "#0E1116",
+  "#E8EAED",
+  "#8A9099"
+ ],
+ "safe": [
+  0.86,
+  0.24,
+  0.9099999999999999
+ ],
+ "source": "FORRT Replication Database (FReD), OSF 2tbvd"
+}

@@ -1,0 +1,109 @@
+{
+ "bucket": "fail",
+ "total": 748.801,
+ "mp4_seconds": 748.844,
+ "n": 6,
+ "title": "6 psychology findings that did not survive a bigger test",
+ "clips": [
+  {
+   "clip": "intro.mp4",
+   "start": 0.0,
+   "dur": 19.499
+  },
+  {
+   "clip": "card1.mp4",
+   "start": 19.499,
+   "dur": 4.437,
+   "row": 13,
+   "kind": "card"
+  },
+  {
+   "clip": "body1.mp4",
+   "start": 23.936,
+   "dur": 105.3,
+   "row": 13,
+   "claim": "Heat-Priming is associated with increased hostile perceptions",
+   "tone": "gone"
+  },
+  {
+   "clip": "card2.mp4",
+   "start": 129.236,
+   "dur": 7.957,
+   "row": 9,
+   "kind": "card"
+  },
+  {
+   "clip": "body2.mp4",
+   "start": 137.193,
+   "dur": 114.9,
+   "row": 9,
+   "claim": "Implicitly priming God using the scrambled-sentence paradigm increases self-reported risk taking",
+   "tone": "gone"
+  },
+  {
+   "clip": "card3.mp4",
+   "start": 252.093,
+   "dur": 7.488,
+   "row": 4,
+   "kind": "card"
+  },
+  {
+   "clip": "body3.mp4",
+   "start": 259.581,
+   "dur": 121.4,
+   "row": 4,
+   "claim": "Scarcity-induced focus leads to cognitive fatigue on subsequent cognitive control task",
+   "tone": "flipped"
+  },
+  {
+   "clip": "card4.mp4",
+   "start": 380.981,
+   "dur": 7.936,
+   "row": 10,
+   "kind": "card"
+  },
+  {
+   "clip": "body4.mp4",
+   "start": 388.917,
+   "dur": 103.0,
+   "row": 10,
+   "claim": "Priming analytic thinking using the scrambled sentence task reduces belief in conspiracy theories",
+   "tone": "gone"
+  },
+  {
+   "clip": "card5.mp4",
+   "start": 491.917,
+   "dur": 4.928,
+   "row": 12,
+   "kind": "card"
+  },
+  {
+   "clip": "body5.mp4",
+   "start": 496.845,
+   "dur": 106.0,
+   "row": 12,
+   "claim": "Whether holding decision makers accountable for the decision process decreases escalating commitment, while accountability for the decision outcomes increases it",
+   "tone": "gone"
+  },
+  {
+   "clip": "card6.mp4",
+   "start": 602.845,
+   "dur": 6.592,
+   "row": 14,
+   "kind": "card"
+  },
+  {
+   "clip": "body6.mp4",
+   "start": 609.437,
+   "dur": 107.833,
+   "row": 14,
+   "claim": "individuals who reflected more on the CRT made more utilitarian judgments",
+   "tone": "gone"
+  },
+  {
+   "clip": "outro.mp4",
+   "start": 717.27,
+   "dur": 31.531
+  }
+ ]
+}

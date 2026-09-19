@@ -1,0 +1,57 @@
+# set_private_13  2026-09-11T18:01:50+08:00  模式=DRY-RUN  允許 13 支  include_9ybt=False
+# candidates md5=747699bc6e3f1c6ccf0b1d0c0a2e15b1(已核)  log=D:\carson-agent\docs\ops\2026-09-11_13支設private_準備\apply_log.jsonl
+# quota_meter(唯讀):ENFORCE=False RESERVE=0 remaining=23221
+[01] MuXiM5IqVQQ  台積電暴跌35元，你恐慌殺出會少賺多少？0050回測嚇壞你 #Shorts
+  body = {"id": "MuXiM5IqVQQ", "status": {"embeddable": true, "license": "youtube", "madeForKids": false, "privacyStatus": "private", "publicStatsViewable": true, "selfDeclaredMadeForKids": false, "uploadStatus": "processed"}}
+  diff  privacyStatus            'public' → 'private'
+  DRY-RUN:不送
+[02] TDbm4XR5pYk  CPI破2.54%你該追高？我用回測資料打臉這句！ | 通膨追高 網格避險 回測 #Shorts
+  body = {"id": "TDbm4XR5pYk", "status": {"embeddable": true, "license": "youtube", "madeForKids": false, "privacyStatus": "private", "publicStatsViewable": true, "selfDeclaredMadeForKids": false, "uploadStatus": "processed"}}
+  diff  privacyStatus            'public' → 'private'
+  DRY-RUN:不送
+[03] cObU5NcFT-I  CPI連破3個月！你的投資組合，正在被『通膨怪獸』悄悄吃掉多少？ #Shorts
+  body = {"id": "cObU5NcFT-I", "status": {"embeddable": true, "license": "youtube", "madeForKids": false, "privacyStatus": "private", "publicStatsViewable": true, "selfDeclaredMadeForKids": false, "uploadStatus": "processed"}}
+  diff  privacyStatus            'public' → 'private'
+  DRY-RUN:不送
+[04] I8F83sPFKWg  非農資料利空！臺股恐慌殺出，0050定投竟多賺2.3倍？ #Shorts
+  body = {"id": "I8F83sPFKWg", "status": {"embeddable": true, "license": "youtube", "madeForKids": false, "privacyStatus": "private", "publicStatsViewable": true, "selfDeclaredMadeForKids": false, "uploadStatus": "processed"}}
+  diff  privacyStatus            'public' → 'private'
+  DRY-RUN:不送
+[05] _Cc49y7ZAeM  Fed恐慌殺！你的資產會少幾成？這招「資金配置」避開大虧！ #Shorts
+  body = {"id": "_Cc49y7ZAeM", "status": {"embeddable": true, "license": "youtube", "madeForKids": false, "privacyStatus": "private", "publicStatsViewable": true, "selfDeclaredMadeForKids": false, "uploadStatus": "processed"}}
+  diff  privacyStatus            'public' → 'private'
+  DRY-RUN:不送
+[06] tN56crKxwJE  台積電飆破800元，你的網格機器人是賺翻還是慘賠？ #Shorts
+  body = {"id": "tN56crKxwJE", "status": {"embeddable": true, "license": "youtube", "madeForKids": false, "privacyStatus": "private", "publicStatsViewable": true, "selfDeclaredMadeForKids": false, "uploadStatus": "processed"}}
+  diff  privacyStatus            'public' → 'private'
+  DRY-RUN:不送
+[07] mvDrUnxEjWs  市場狂熱，你的網格機器人是賺翻還是清零？ #Shorts
+  body = {"id": "mvDrUnxEjWs", "status": {"embeddable": true, "license": "youtube", "madeForKids": false, "privacyStatus": "private", "publicStatsViewable": true, "selfDeclaredMadeForKids": false, "uploadStatus": "processed"}}
+  diff  privacyStatus            'public' → 'private'
+  DRY-RUN:不送
+[08] vwEaoo3Txjw  CPI爆表，0050定投vs恐慌殺出，十年報酬竟差一倍？ #Shorts
+  body = {"id": "vwEaoo3Txjw", "status": {"embeddable": true, "license": "youtube", "madeForKids": false, "privacyStatus": "private", "publicStatsViewable": true, "selfDeclaredMadeForKids": false, "uploadStatus": "processed"}}
+  diff  privacyStatus            'public' → 'private'
+  DRY-RUN:不送
+[09] UTuMMyvdQ5U  0050定期定額，臺股回檔竟比「一次全押」少賺一半？ #Shorts
+  body = {"id": "UTuMMyvdQ5U", "status": {"embeddable": true, "license": "youtube", "madeForKids": false, "privacyStatus": "private", "publicStatsViewable": true, "selfDeclaredMadeForKids": false, "uploadStatus": "processed"}}
+  diff  privacyStatus            'public' → 'private'
+  DRY-RUN:不送
+[10] DhX2uNzjZ-o  臺股暴漲5000點，你的0050網格反而少賺「一臺賓士」？ #Shorts
+  body = {"id": "DhX2uNzjZ-o", "status": {"embeddable": true, "license": "youtube", "madeForKids": false, "privacyStatus": "private", "publicStatsViewable": true, "selfDeclaredMadeForKids": false, "uploadStatus": "processed"}}
+  diff  privacyStatus            'public' → 'private'
+  DRY-RUN:不送
+[11] OyprNxjrIBQ  市場巨變，你的自動交易設定，會讓你多賠一輛車？ #Shorts
+  body = {"id": "OyprNxjrIBQ", "status": {"embeddable": true, "license": "youtube", "madeForKids": false, "privacyStatus": "private", "publicStatsViewable": true, "selfDeclaredMadeForKids": false, "uploadStatus": "processed"}}
+  diff  privacyStatus            'public' → 'private'
+  DRY-RUN:不送
+[12] nHwP_cyy_hc  CPI資料一公佈，你的網格機器人會不會『被套』到歸零？ #Shorts
+  body = {"id": "nHwP_cyy_hc", "status": {"embeddable": true, "license": "youtube", "madeForKids": false, "privacyStatus": "private", "publicStatsViewable": true, "selfDeclaredMadeForKids": false, "uploadStatus": "processed"}}
+  diff  privacyStatus            'public' → 'private'
+  DRY-RUN:不送
+[13] xjQPW3sTY28  升息49.9%！你的投資組合，會被「這盲點」多咬掉多少？ #Shorts
+  body = {"id": "xjQPW3sTY28", "status": {"embeddable": true, "license": "youtube", "madeForKids": false, "privacyStatus": "private", "publicStatsViewable": true, "selfDeclaredMadeForKids": false, "uploadStatus": "processed"}}
+  diff  privacyStatus            'public' → 'private'
+  DRY-RUN:不送
+RESULT: {"already_ok": 0, "ok": 0, "skip": 0, "would_send": 13}
+# quota_meter remaining(事後,唯讀)=23220

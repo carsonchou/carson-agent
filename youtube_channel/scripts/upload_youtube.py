@@ -58,12 +58,20 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import random
 import re
+import shutil
 import sys
 import time
 from pathlib import Path
 from typing import Any, Optional
+
+# 配額計量(全域 patch HttpRequest.execute/next_chunk,只掛一次;壞掉不影響本腳本)
+try:
+    import quota_meter as _qm; _qm.install()
+except Exception:
+    pass
 
 # Windows 主控台預設常是 cp950（Big5），直接 print 中文標題/描述會
 # UnicodeEncodeError 而中斷上傳。把 stdout/stderr 重設為 UTF-8（errors="replace"
@@ -86,6 +94,62 @@ DEFAULT_CONFIG_PATH = PROJECT_ROOT / "channel_config.json"
 DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "output"
 DEFAULT_CLIENT_SECRETS = PROJECT_ROOT / "client_secrets.json"
 DEFAULT_TOKEN_PATH = PROJECT_ROOT / "token.json"
+
+
+# --------------------------------------------------------------------------- #
+# 資產檔名 SEO：把上傳到平台的檔名從內部 slug(L_/S_ 前綴)改成關鍵字檔名。
+# 誠實定調:檔名是弱訊號(未經官方證實),零成本零風險的微優化;真正帶量的是標題/縮圖/完播。
+# 影片 mp4、縮圖 jpg、字幕 srt、跨平台 都共用這支。任何失敗一律降級回原檔名,絕不擋上傳。
+# --------------------------------------------------------------------------- #
+def seo_asset_name(title: str, tags=None, ext: str = "mp4", fallback_slug: str = "") -> str:
+    """標題 → 關鍵字檔名(乾淨、連字號分隔、英文小寫、去 L_/S_/#/｜/括號、結尾品牌詞)。
+    tags 目前保留供日後熱搜詞前置增強;核心版不動排序,直接沿用已 SEO 過的標題。"""
+    ext = str(ext).lstrip(".") or "mp4"
+    try:
+        s = title or fallback_slug or "video"
+        s = re.sub(r"#\S+", " ", s)                                  # 去 hashtag(如 #Shorts)
+        s = re.sub(r"[^0-9A-Za-z一-鿿]+", " ", s)           # 只留中英數,其餘(括號/標點/符號/空白)→空白
+        s = "".join(c.lower() if ("a" <= c <= "z" or "A" <= c <= "Z") else c for c in s)  # 英文轉小寫
+        s = re.sub(r"\s+", "-", s.strip())                          # 空白 runs → 連字號
+        s = re.sub(r"-{2,}", "-", s).strip("-")
+        if "量化阿森" not in s:
+            s += "-量化阿森"
+        s = re.sub(r"-{2,}", "-", s).strip("-")
+        if len(s) > 70:                                             # 長度上限,切在連字號邊界
+            s = s[:70].rsplit("-", 1)[0] or s[:70]
+        s = s.strip("-")
+        if not s:
+            s = re.sub(r"[^0-9a-z一-鿿]+", "-", (fallback_slug or "video").lower()).strip("-") or "video"
+        return f"{s}.{ext}"
+    except Exception:  # noqa: BLE001
+        return f"{fallback_slug or 'video'}.{ext}"
+
+
+def link_as(src, upload_name: str):
+    """回 (target_path, cleanup)。在 src 同目錄建 .seoname/<upload_name> 硬連結供上傳(YouTube 讀 basename);
+    硬連結失敗→copy→原檔 三層降級。零複製、上傳後 cleanup()。任何失敗都回原檔,絕不擋上傳。"""
+    src = Path(src)
+    try:
+        d = src.parent / ".seoname"
+        d.mkdir(exist_ok=True)
+        target = d / upload_name
+        try:
+            if target.exists():
+                target.unlink()
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            os.link(str(src), str(target))                  # 硬連結:零複製、瞬間、同 inode
+        except Exception:  # noqa: BLE001
+            shutil.copy2(str(src), str(target))             # 跨檔案系統/不支援 → 複製
+        def _cleanup():
+            try:
+                target.unlink()
+            except Exception:  # noqa: BLE001
+                pass
+        return target, _cleanup
+    except Exception:  # noqa: BLE001
+        return src, (lambda: None)                          # 任何失敗 → 用原檔,不擋上傳
 
 # OAuth scope：上傳需要 youtube.upload；加 readonly 方便日後查頻道資訊。
 SCOPES = [
@@ -247,6 +311,87 @@ def build_affiliate_block(channel_config: dict[str, Any]) -> tuple[str, list[str
     return "\n".join(parts), unreplaced
 
 
+# 系列播放清單(2026-08-12 成長包裝):把單片觀眾導進系列連看=session time+訂閱動機。
+# ID 已於 2026-08-12 用 playlists().list(mine=True) 線上驗證存在且有片。順序=先中先贏。
+_SERIES_PLAYLISTS = [
+    (("個股體檢", "體檢"), "PLUYgyV8FsN5c", "個股體檢｜台股個股歷史數據連載"),
+    (("真相實驗室",), "PLVsS_a65Tqfw", "台股真相實驗室｜真回測連載"),
+    (("定期定額", "0050", "0056", "ETF", "存股", "定投"), "PLJp7y2jl2p64", "0050/ETF 定期定額實驗"),
+    (("迷思", "拆穿", "打臉", "避雷", "真相"), "PLRzEVFXw1kT8", "新手避雷·迷思拆穿"),
+]
+
+
+def build_series_block(title: str, slug: str) -> str:
+    """依標題/slug 題材配對系列播放清單,回「整個系列連著看」引導行;配不到回空。"""
+    probe = f"{title} {slug}"
+    for kws, pid, name in _SERIES_PLAYLISTS:
+        if any(k in probe for k in kws):
+            # URL 獨立成行、後面不黏任何字元(黏了會干擾 YouTube 的自動連結解析)
+            return (f"▶ 這是「{name}」連載的其中一集,整個系列照順序看:\n"
+                    f"https://www.youtube.com/playlist?list={pid}")
+    return ""
+
+
+def build_chapters_block(slug: str, md_path: Path) -> str:
+    """長片自動章節:md 段落小標 × wordtimes 句時間戳 → 描述章節行。
+
+    時間對映:每段旁白的前 12 字去 wordtimes 找該句的真實開始秒數(TTS 的 normalize
+    會把 % 轉口語但一般數字保留,段首句通常對得到);對不到的段退回等分估算。
+    YouTube 章節規則:第一個必須 0:00、至少 3 個、每章 ≥10 秒——不滿足回空字串。
+    重用 make_video.parse_script_md(產線同一份解析器,不重刻;閘門兩份=歷史血案)。
+    任何例外回空字串(fail-open,章節是加分項不是必需品)。
+
+    ## 2026-08-17 內部實作換掉,修兩個真 bug(對外可見)
+    ①**漏了片頭位移**:wordtimes 的 t 是**旁白**時間軸,成品前面還有 INTRO_DURATION
+      秒片頭。舊版直接拿 t 當章節秒數 → 每一章都早 3 秒。這跟同日抓到的 CC 字幕不同步
+      是**同一個根因**(觀眾在留言區回報後才發現),同一份漏算在兩個地方各犯一次。
+    ②**對不到就等分估算**:舊版 `total*(i+0.6)/(len+1)` 是**編出來的時間點**,
+      觀眾點章節會跳到不相干的地方——比沒有章節更糟。新版對不齊就整組不出(fail-open)。
+    另外改用單調遞增搜尋:個股體檢腳本常有連續兩段旁白開頭相同(「這意味著,如果你…」),
+    舊版各段獨立找會對到同一句,再被 ≥10s 規則丟掉 → 白白少好幾章。
+    對齊邏輯與 render_ffmpeg 的卡片邊界共用 chapters.align_segment_starts,單一實作。"""
+    try:
+        if not slug.startswith("L_"):
+            return ""
+        from chapters import build as _build
+        blk = _build(slug)
+        return ("📖 章節\n" + blk.rstrip()) if blk else ""
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def build_funnel_block() -> str:
+    """組裝確定性附加的『導流漏斗＋風險聲明』區塊（比照 build_affiliate_block 的設計）。
+
+    ① Telegram 導流 CTA（把觀眾沉澱到私域）
+    ② 風險聲明（誠信鐵則，不可移除）
+    回傳純文字；是否去重由 assemble_metadata 依描述現況判斷。
+    """
+    return (
+        "📩 私訊 Telegram @CarsonQuant_message_bot 打「回測」領避雷檢核表\n"
+        # 一鍵訂閱確認連結(2026-08-12):?sub_confirmation=1 點開直接彈訂閱確認框,
+        # 搜尋型頻道標配——搜尋觀眾看完就走,給他一個零摩擦的訂閱入口。
+        "⭐ 訂閱看每天一檔台股體檢:\nhttps://www.youtube.com/@carsonquant?sub_confirmation=1\n"
+        "投資有風險，不構成投資建議"
+    )
+
+
+def _insert_near_top(original: str, block: str) -> str:
+    """把 block 插進描述『第一行之後』，絕不刪改原內容一字（手法比照 desc_backfill.apply_promo）。
+
+    背景（2026-07-14 變現漏斗審計實測抽查 5 支近期發布片發現）：Pionex 聯盟連結／TG CTA
+    原本是在 assemble_metadata 尾端「附加」，落在描述 62-86% 深度——YouTube（尤其 Shorts）
+    描述框「顯示更多」折疊點極早，實測這個深度幾乎不可能被看到。改成插入第一行之後，
+    落點提前到前 ~150-250 字，且完全保留原有全部內容（含 hashtags／訂閱句尾）在插入點之後。
+    """
+    if not block:
+        return original
+    first, sep, rest = (original or "").partition("\n")
+    if sep:
+        return f"{first}\n\n{block}\n\n{rest}"
+    return f"{first}\n\n{block}" if original else block
+
+
 def assemble_metadata(
     *,
     slug: str,
@@ -288,12 +433,78 @@ def assemble_metadata(
             seen.add(t.lower())
             clean_tags.append(t)
 
-    # 附聯盟連結到描述末尾
+    # 聯盟連結／導流漏斗：插進描述『第一行之後』（近頂端），不再附加到最尾端——
+    # 2026-07-14 變現漏斗審計實測：舊法「附加末尾」讓 Pionex 連結落在描述 62-86% 深度，
+    # YouTube（尤其 Shorts）「顯示更多」折疊點很早，等於幾乎沒人看得到；改插入近頂端
+    # 大幅縮短到折疊點的距離，且用 _insert_near_top 的「還原比對」安全手法，原內容一字不刪。
+    base_description = description  # 去重判斷要用『插入前』的原始描述，語意不變
     unreplaced: list[str] = []
+    top_blocks: list[str] = []
     if append_affiliate:
         block, unreplaced = build_affiliate_block(channel_config)
         if block:
-            description = f"{description}\n\n{block}"
+            top_blocks.append(block)
+
+    # 確定性附加『導流漏斗＋風險聲明』（不受 append_affiliate 影響，誠信/導流一律要在）。
+    # 去重：描述已含該 bot 名就不重覆加 CTA、已含該聲明就不重覆加風險聲明。
+    try:
+        desc_now = base_description or ""
+        add_lines: list[str] = []
+        for ln in build_funnel_block().split("\n"):
+            key = ln.strip()
+            if not key:
+                continue
+            if "CarsonQuant_message_bot" in key and "CarsonQuant_message_bot" in desc_now:
+                continue  # 已有 Telegram CTA，不重覆
+            if "不構成投資建議" in key and "不構成投資建議" in desc_now:
+                continue  # 已有風險聲明，不重覆
+            add_lines.append(ln)
+        if add_lines:
+            top_blocks.append("\n".join(add_lines))
+    except Exception:  # noqa: BLE001  漏斗附加失敗不可影響 metadata 組裝
+        pass
+
+    # 個股搜尋 tag 補強(2026-08-12):近 28 天搜尋詞 Top25 幾乎全是裸股名/代號(金像電/
+    # 6147/世芯ky)——觀眾就是這樣找到我們。標題帶股名+代號的片自動補齊變體 tags。
+    # 只認兩種高置信 pattern:【股名 代號】(體檢系列標準格式)或標題開頭「股名代號」緊鄰;
+    # 通用 CJK+4碼數字會誤抓「報酬4714」這種,不用。
+    try:
+        # (?!\d) 不用 \b:CJK 也是 word char,「2330體」之間沒有 \b 邊界,match 會靜默失敗
+        _m = (re.search(r"【([一-鿿A-Za-z\-]{2,8})\s+(\d{4,6})】", str(title))
+              or re.match(r"^([一-鿿]{2,6})(\d{4})(?!\d)", str(title)))
+        if _m:
+            _nm, _cd = _m.group(1), _m.group(2)
+            for _t in (_nm, _cd, f"{_nm}{_cd}", f"{_cd}{_nm}", f"{_nm}股價", f"{_nm}分析"):
+                if _t.lower() not in seen:
+                    seen.add(_t.lower())
+                    clean_tags.append(_t)
+    except Exception:  # noqa: BLE001
+        pass
+
+    # 系列連看引導(2026-08-12):放 top_blocks 尾(仍在折疊點上方),配不到題材就沒有
+    try:
+        _sb = build_series_block(str(title), slug)
+        if _sb and "playlist?list=" not in (base_description or ""):
+            top_blocks.append(_sb)
+    except Exception:  # noqa: BLE001
+        pass
+
+    if top_blocks:
+        description = _insert_near_top(description, "\n\n".join(top_blocks))
+
+    # 描述整形(2026-08-12 包裝稽核):①YouTube 不渲染 markdown,「**Hashtags：**」會原字面
+    # 露出在描述裡;②長片描述/tags 帶 #Shorts 是 md 模板殘留的格式誤標,會干擾分類與搜尋。
+    description = description.replace("**Hashtags：**", "").replace("**Hashtags:**", "")
+    if slug.startswith("L_"):
+        description = re.sub(r"#[Ss]horts\s*", "", description)
+        clean_tags = [t for t in clean_tags if t.lower() != "shorts"]
+
+    # 自動章節(2026-08-12 成長包裝):長片描述附「0:00 開場」章節行——YouTube 會把章節
+    # 切成 key moments 進搜尋索引(Google 搜尋直接深連到某一章),對搜尋型頻道是免費曝光面;
+    # 觀眾也能跳著看,對長片留存是加分不是扣分。任何失敗回空字串,不影響上傳。
+    ch_block = build_chapters_block(slug, md_path)
+    if ch_block and "0:00" not in description:
+        description = (description.rstrip() + "\n\n" + ch_block)
 
     return {
         "title": str(title),
@@ -370,27 +581,35 @@ def build_request_body(
 
 
 def upload_captions(youtube, video_id: str, srt_path, *,
-                    language: str = "zh-Hant", name: str = "中文（精準字幕）") -> bool:
+                    language: str = "zh-Hant", name: str = "中文（精準字幕）",
+                    upload_name: str = "") -> bool:
     """上傳 SRT 字幕軌到指定影片（captions.insert）。
 
     需 youtube.force-ssl scope（本產線 token 已含）。提供「人工精準」字幕軌，
     幫演算法判定主題、且中文金融術語(夏普/回撤/網格)正確，勝過自動字幕。
     非致命：任何錯誤回 False、不中斷上架流程。
+    upload_name 有值時 → 用關鍵字檔名硬連結送檔(檔名 SEO;失敗降級回原檔)。
     """
     try:
         from googleapiclient.http import MediaFileUpload
     except ImportError:
         return False
+    _cleanup = lambda: None
     try:
+        _path = Path(srt_path)
+        if upload_name:
+            _path, _cleanup = link_as(_path, upload_name)
         body = {"snippet": {
             "videoId": video_id, "language": language, "name": name, "isDraft": False}}
-        media = MediaFileUpload(str(srt_path), mimetype="application/octet-stream", resumable=False)
+        media = MediaFileUpload(str(_path), mimetype="application/octet-stream", resumable=False)
         youtube.captions().insert(part="snippet", body=body, media_body=media).execute()
         print(f"[caption] 已上傳精準字幕軌 {video_id}（{language}）")
         return True
     except Exception as exc:  # noqa: BLE001
         print(f"[caption] 字幕上傳略過：{str(exc)[:80]}", file=sys.stderr)
         return False
+    finally:
+        _cleanup()
 
 
 # --------------------------------------------------------------------------- #
@@ -707,8 +926,19 @@ def run(args) -> int:
         print(f"[error] 認證失敗：{exc}", file=sys.stderr)
         return 3
 
-    # 上傳。
-    video_id = resumable_upload(youtube, body, video_path)
+    # 上傳（檔名 SEO：送關鍵字檔名而非內部 slug;失敗降級回原檔,絕不擋上傳）。
+    _snip = body.get("snippet", {})
+    _seo = seo_asset_name(_snip.get("title", ""), _snip.get("tags"), "mp4", video_path.stem)
+    # 🔴 捏造閘門(2026-09-06 補)。這條是**人工 CLI 路徑**,連 find_candidates 都不經過,
+    # 原本零保護。被漏掉的第三條路(前兩條:daily_publish.upload_one、schedule_publish)。
+    import per_stock_fact_gate as _psfg
+    _psfg.gate_or_raise(video_path.stem)
+
+    _p, _cleanup = link_as(video_path, _seo)
+    try:
+        video_id = resumable_upload(youtube, body, _p)
+    finally:
+        _cleanup()
     if not video_id:
         print("[error] 上傳失敗。", file=sys.stderr)
         return 4

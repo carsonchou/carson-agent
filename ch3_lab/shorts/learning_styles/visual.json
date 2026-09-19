@@ -1,0 +1,55 @@
+{
+ "accent": "#FFC23D",
+ "canvas": [
+  1080,
+  1920,
+  30
+ ],
+ "card": "2 of 3 came back.",
+ "claim_lines": [
+  "TEACH ME MY WAY",
+  "AND I LEARN BETTER"
+ ],
+ "color": "#F5A54E",
+ "end_card": [
+  "Every number",
+  "from the record"
+ ],
+ "frames": "49cb2fe20287ea60",
+ "fs": {
+  "card": 58,
+  "claim": {
+   "fs": 79,
+   "lines": [
+    "TEACH ME MY",
+    "WAY AND I",
+    "LEARN BETTER"
+   ],
+   "ys": [
+    0.6164,
+    0.545,
+    0.4736
+   ]
+  },
+  "end": 75,
+  "es_o": 210,
+  "es_r2": 210,
+  "kicker": 46,
+  "meas": 50,
+  "o_name": 35,
+  "src": 34,
+  "sub": 46
+ },
+ "kicker": "A STUDY FOUND",
+ "palette": [
+  "#0E1116",
+  "#E8EAED",
+  "#8A9099"
+ ],
+ "safe": [
+  0.86,
+  0.24,
+  0.9099999999999999
+ ],
+ "source": "Providing Instruction Based on Students' Learning Style Preferences Does Not Improve Learning"
+}

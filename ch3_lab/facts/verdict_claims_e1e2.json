@@ -1,0 +1,190 @@
+{
+  "E1": {
+    "slug": "learning_styles",
+    "topic": "學習風格(meshing hypothesis)不成立",
+    "claims": [
+      {
+        "id": "c1",
+        "label": "Studies meeting the crossover-interaction design criterion for the learning-styles hypothesis",
+        "value": 1,
+        "unit": "count",
+        "what_it_means": "Across the entire published literature reviewed in 2008, only one study even potentially used a design rigorous enough (learners sorted by style, randomly assigned to methods, same final test, checking for a crossover interaction) to test whether matching teaching to a learning style helps -- and even that one study's evidence was weak.",
+        "what_it_does_not_say": "This does NOT say learning styles / learning preferences don't exist, and it does NOT say meshing has been disproven in every possible form. Pashler et al. explicitly say it would be an error to conclude 'all possible versions of learning styles have been tested and found wanting; many have simply not been tested at all.' The claim is narrowly about the near-total ABSENCE of adequate tests, not a positive disproof.",
+        "source": {
+          "authors": "Harold Pashler, Mark McDaniel, Doug Rohrer, Robert Bjork",
+          "year": 2008,
+          "title": "Learning Styles",
+          "venue": "Psychological Science in the Public Interest, 9(3), 105-119",
+          "doi": "10.1111/j.1539-6053.2009.01038.x",
+          "doi_verified_via_crossref": true,
+          "url": "https://bjorklab.psych.ucla.edu/wp-content/uploads/sites/13/2016/07/Pashler_McDaniel_Rohrer_Bjork_2009_PSPI.pdf",
+          "verbatim": "Remarkably, despite the vast size of the literature on learning styles and classroom instruction, we found only one study that could be described as even potentially meeting the criteria described earlier, and as we report in the following text, even that study provided less than compelling evidence.",
+          "secondhand": false
+        },
+        "value_in_verbatim_as": "only one study"
+      },
+      {
+        "id": "c2",
+        "label": "Interaction between instructional condition (audiobook vs e-text) and learning-style preference on comprehension",
+        "value": 0.42,
+        "unit": "F statistic (df=1,37), not significant",
+        "what_it_means": "When researchers directly built the exact experiment the meshing hypothesis requires -- sort adults into auditory vs visual learners, randomly assign half to audiobook and half to e-text, give everyone the same comprehension test -- there was no significant interaction: matching the format to the person's stated style did not produce better comprehension.",
+        "what_it_does_not_say": "This is one study (n=around 40 in this specific analysis) of college-educated adults learning from one nonfiction book via audiobook vs e-text. It does not test every possible learning-style framework (only an auditory/visual-word dimension) and does not claim people have no preferences at all -- preference and comprehension were measured as different things, and the paper is only about whether MATCHING them helps.",
+        "source": {
+          "authors": "Beth A. Rogowsky, Barbara M. Calhoun, Paula Tallal",
+          "year": 2015,
+          "title": "Matching Learning Style to Instructional Method: Effects on Comprehension",
+          "venue": "Journal of Educational Psychology, 107(1), 64-78",
+          "doi": "10.1037/a0037478",
+          "doi_verified_via_crossref": true,
+          "url": "https://www.apa.org/pubs/journals/features/edu-a0037478.pdf",
+          "verbatim": "Finally, the interaction between instructional condition (audiobook, e-text) and learning style preference (auditory, visual word) was not significant, F(1, 37) = 0.42; p > .05, indicating that providing instruction in a mode that matched an individual's learning style preference did not result in significantly better learning.",
+          "secondhand": false
+        }
+      },
+      {
+        "id": "c3",
+        "label": "Anatomy students surveyed for VARK-style/study-strategy alignment vs course performance",
+        "value": 426,
+        "unit": "students",
+        "what_it_means": "In a real undergraduate course (not a lab task), 426 students' actual study habits were checked against their self-reported VARK learning style, and their final course grade. Most students did not even study in a way that matched their own stated style, and matching (or not matching) had no relationship to how well they did in the class.",
+        "what_it_does_not_say": "This does not say study strategies don't matter at all -- the same paper found some specific strategies (e.g. using a virtual microscope) DID correlate with grades, regardless of VARK category. It only says the VARK-alignment part of the meshing idea showed no benefit, in one anatomy course at one university.",
+        "source": {
+          "authors": "Polly R. Husmann, Valerie Dean O'Loughlin",
+          "year": 2019,
+          "title": "Another Nail in the Coffin for Learning Styles? Disparities among Undergraduate Anatomy Students' Study Strategies, Class Performance, and Reported VARK Learning Styles",
+          "venue": "Anatomical Sciences Education, 12(1), 6-19",
+          "doi": "10.1002/ase.1777",
+          "doi_verified_via_crossref": true,
+          "url": "https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=DOI:10.1002/ase.1777&format=json&resultType=core",
+          "verbatim": "A total of 426 anatomy students from the 2015 and 2016 Fall semesters completed a study strategies survey and an online VARK questionnaire. Results demonstrated that most students did not report study strategies that correlated with their VARK assessment, and that student performance in anatomy was not correlated with their score in any VARK categories.",
+          "secondhand": false
+        }
+      },
+      {
+        "id": "c4",
+        "label": "UK teachers who agreed with the learning-styles neuromyth statement",
+        "value": 93,
+        "unit": "percent",
+        "what_it_means": "In a survey of practising teachers, 93% of UK teachers (n=137) agreed with the statement 'Individuals learn better when they receive information in their preferred learning style (for example, visual, auditory or kinaesthetic)' -- a statement the field treats as an unsupported neuromyth. The same table shows even higher agreement elsewhere: Netherlands 96% (n=105), Turkey 97% (n=278), Greece 96% (n=174), China 97% (n=238).",
+        "what_it_does_not_say": "This is a belief/attitude survey, not evidence about whether meshing works or not -- it only shows how widespread the belief is among teachers. It does not measure whether those teachers actually practice learning-styles-based teaching, nor does it measure any effect on their students' outcomes.",
+        "source": {
+          "authors": "Paul A. Howard-Jones",
+          "year": 2014,
+          "title": "Neuroscience and education: myths and messages",
+          "venue": "Nature Reviews Neuroscience, 15(12), 817-824",
+          "doi": "10.1038/nrn3817",
+          "doi_verified_via_crossref": true,
+          "url": "http://www.educationalneuroscience.org.uk/wordpress/wp-content/uploads/2016/01/Howard-Jones-Neuromyth-nature14.pdf",
+          "verbatim": "Table 1 | Prevalence of neuromyths amongst practising teachers in five different international contexts ... Individuals learn better when they receive information in their preferred learning style (for example, visual, auditory or kinaesthetic) [row values:] United Kingdom (n=137) 93 | The Netherlands (n=105) 96 | Turkey (n=278) 97 | Greece (n=174) 96 | China (n=238) 97",
+          "secondhand": false
+        }
+      }
+    ]
+  },
+  "E2": {
+    "slug": "pomodoro",
+    "topic": "番茄鐘(固定25分鐘工作/5分鐘休息)沒有你以為的那個效果",
+    "search_log": [
+      {
+        "query": "Pomodoro Technique 25 minutes 5 minutes randomized controlled trial experiment evidence",
+        "where": "WebSearch (general web)",
+        "result": "Surfaced multiple SEO/blog pages (getpeakflow.pro, nerdsip.com, brainflow.co) citing an unsourced 'three RCTs, n=87, 24 min/6 min and 12 min/3 min, ~20% lower fatigue' claim and a separate unsourced '94 university students, 25/5' claim with no citable primary source given. Treated as unverified until traced to primary literature."
+      },
+      {
+        "query": "Pomodoro Technique 25 minutes 5 minutes randomized controlled trial exact parameter study tested",
+        "where": "WebSearch (general web)",
+        "result": "Same unsourced '94 students' and '20% lower fatigue across RCTs' phrasing repeated verbatim across unrelated queries/sites -- treated as a red flag (recycled/fabricated-looking marketing copy, memory 'paper-fact-extraction-traps'), not used as evidence."
+      },
+      {
+        "query": "getpeakflow.pro/blog/pomodoro-technique-science (direct fetch, checking citations)",
+        "where": "WebFetch on the specific blog page",
+        "result": "Page cites Biwer et al. (2023) and a 2025 scoping review among others, but explicitly does NOT contain any RCT that tested the 25/5 duration itself; it only cites research on time-management/vigilance generally. Confirms the blog's '25/5 RCT' framing was not actually supported by its own citations."
+      },
+      {
+        "query": "Biwer Understanding effort regulation Pomodoro breaks self-regulated breaks British Journal of Educational Psychology",
+        "where": "WebSearch + PubMed/EuropePMC API (europepmc.org, DOI 10.1111/bjep.12593)",
+        "result": "Found a real RCT (n=87) that explicitly labels its 24-min-study/6-min-break condition 'Pomodoro technique' -- i.e., even this peer-reviewed 'Pomodoro' RCT does NOT use the canonical 25/5 ratio, it uses 24/6 (and a 12/3 condition)."
+      },
+      {
+        "query": "Investigating the Effectiveness of Self-Regulated Pomodoro Flowtime Break-Taking Techniques Among Students (Crossref bibliographic search, then EuropePMC full-text)",
+        "where": "Crossref API (api.crossref.org) -> DOI 10.3390/bs15070861 -> EuropePMC abstract + PMC full text (PMC12292963)",
+        "result": "Found one RCT that DOES test the exact 25 min work / 5 min break parameter by name ('Pomodoro condition ... 5 min breaks after every 25 min of studying', n=36 of 94 total). This directly overturns the assumption that no one has tested 25/5 -- someone has (2025), and found no benefit over self-regulated or Flowtime breaks in productivity, task completion, or flow."
+      },
+      {
+        "query": "Ariga Lleras 2011 Cognition Brief and rare mental breaks keep you focused",
+        "where": "PubMed / EuropePMC API (DOI 10.1016/j.cognition.2010.12.007)",
+        "result": "Confirmed this frequently-cited-as-'Pomodoro-evidence' paper is actually a lab vigilance/attention task with brief digit-recall interruptions -- it never uses study/break blocks of any duration, let alone 25/5. It is evidence for 'brief breaks help sustained attention' in general, not for the specific Pomodoro ratio."
+      },
+      {
+        "query": "Francesco Cirillo Pomodoro Technique origin book tomato timer university",
+        "where": "WebSearch (general web, incl. pomodorotechnique.com, Wikipedia)",
+        "result": "Confirmed the technique originates from Cirillo's own personal method/book (developed as a student in the late 1980s, published as a guide/book), not from a peer-reviewed study -- the 25/5 numbers were chosen by Cirillo himself, not derived from an experiment."
+      }
+    ],
+    "claims": [
+      {
+        "id": "c1",
+        "label": "First identified RCT directly testing the exact 25-minute-work/5-minute-break Pomodoro parameter, and its result",
+        "value": 94,
+        "unit": "participants",
+        "what_it_means": "A 2025 study put the literal Pomodoro recipe (25 min study, 5 min break) head-to-head against self-regulated breaks and 'Flowtime' breaks in a real 2-hour study session. Result: Pomodoro breaks led to a FASTER increase in fatigue and a faster decrease in motivation than self-regulated breaks, and there were no differences between any of the three conditions in overall productivity, task completion, or flow.",
+        "what_it_does_not_say": "This is one study, one 2-hour session, self-report 4-point scales, university students only (n=94, Pomodoro arm n=36). It does not prove the technique is useless for everyone in every context (e.g., much longer projects, different task types, or people who simply like the structure) -- it shows no measured objective/subjective benefit in THIS specific test, and even a possible downside (faster fatigue/motivation decline) during the session.",
+        "source": {
+          "authors": "Eva J. C. Smits, Niklas Wenzel, Anique de Bruin",
+          "year": 2025,
+          "title": "Investigating the Effectiveness of Self-Regulated, Pomodoro, and Flowtime Break-Taking Techniques Among Students",
+          "venue": "Behavioral Sciences, 15(7), 861",
+          "doi": "10.3390/bs15070861",
+          "doi_verified_via_crossref": true,
+          "url": "https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=DOI:10.3390/bs15070861&format=json&resultType=core",
+          "verbatim": "Ninety-four university students participated in an online intervention that provided instruction on how to take breaks in a 2 h authentic study session. In the self-regulated break condition (n = 25) ... In the Pomodoro condition (n = 36), students took 5 min breaks after every 25 min of studying. In the Flowtime group (n = 33) ... Results showed that Pomodoro breaks led to a faster increase in fatigue, and Pomodoro and Flowtime breaks led to a faster decrease in motivation compared with self-regulated breaks; however, these differences did not result in overall differences in fatigue or motivation levels between conditions. Similarly, no differences were found in productivity levels, task completion, and flow.",
+          "secondhand": false
+        },
+        "value_in_verbatim_as": "Ninety-four"
+      },
+      {
+        "id": "c2",
+        "label": "Closest earlier peer-reviewed 'Pomodoro' RCT actually used a different ratio (24/6), not 25/5",
+        "value": 24,
+        "unit": "minutes (study block length used, vs the canonical 25)",
+        "what_it_means": "Before 2025, the main peer-reviewed study people point to as 'the Pomodoro RCT' did not test 25/5 at all -- it tested a 24-minute-study/6-minute-break block (calling it the 'Pomodoro technique') against a 12-minute/3-minute block and self-regulated breaks. It found no difference in invested mental effort or task completion between groups, though the systematic-break groups (24/6 and 12/3) had better mood (less fatigue/distractedness, more concentration/motivation) than the self-regulated group, who took longer, less-structured breaks.",
+        "what_it_does_not_say": "Because the ratio tested (24/6) is not the canonical 25/5, this study cannot be cited as direct evidence for or against the specific 25/5 recipe -- only for 'taking short systematic breaks on roughly that scale' versus letting people choose their own break timing. It also does not measure long-term learning outcomes, only same-day mood/effort/completion.",
+        "source": {
+          "authors": "Felicitas Biwer, Wisnu Wiradhany, Mirjam G. A. oude Egbrink, Anique B. H. de Bruin",
+          "year": 2023,
+          "title": "Understanding effort regulation: Comparing 'Pomodoro' breaks and self-regulated breaks",
+          "venue": "British Journal of Educational Psychology, 93(S2), 353-367",
+          "doi": "10.1111/bjep.12593",
+          "doi_verified_via_crossref": true,
+          "url": "https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=DOI:10.1111/bjep.12593&format=json&resultType=core",
+          "verbatim": "In the self-regulated-break condition (n = 35), students self-decided when to take a break; in the systematic break conditions, students took either a 6-min break after every 24-min study block (systematic-long or 'Pomodoro technique', n = 25) or a 3-min break after every 12-min study block (systematic-short, n = 27) ... We found no difference between groups in invested mental effort or task completion.",
+          "secondhand": false
+        }
+      },
+      {
+        "id": "c3",
+        "label": "The other paper commonly cited as 'Pomodoro evidence' is a vigilance-task study that never used study/break time blocks",
+        "value": 0,
+        "unit": "count of 25/5-style work-break blocks used in this study",
+        "what_it_means": "A widely-cited 2011 paper ('Brief and rare mental breaks keep you focused') is often invoked to justify Pomodoro. It really showed that briefly and occasionally disengaging attention from a repetitive vigilance task (by recalling memorized digits) prevented performance from declining over time, compared to staying focused on the task the whole time with no interruption.",
+        "what_it_does_not_say": "This study used a lab vigilance task with brief, irregular memory-recall interruptions -- it never tested study/work sessions, never used any fixed work-length or break-length (let alone 25 and 5 minutes), and was not about studying or productivity at all. It supports the general idea that brief breaks can help sustained attention, but it is not evidence for the specific Pomodoro ratio and citing it as such overstates what it measured.",
+        "source": {
+          "authors": "Atsunori Ariga, Alejandro Lleras",
+          "year": 2011,
+          "title": "Brief and rare mental \"breaks\" keep you focused: Deactivation and reactivation of task goals preempt vigilance decrements",
+          "venue": "Cognition, 118(3), 439-443",
+          "doi": "10.1016/j.cognition.2010.12.007",
+          "doi_verified_via_crossref": true,
+          "url": "https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=DOI:10.1016/j.cognition.2010.12.007&format=json&resultType=core",
+          "verbatim": "We asked observers to perform a visual vigilance task while maintaining digits in-memory. When observers retrieved the digits at the end of the vigilance task, their vigilance performance steeply declined over time. However, when observers were asked to sporadically recollect the digits during the vigilance task, the vigilance decrement was averted.",
+          "secondhand": false
+        },
+        "value_is_derived": true,
+        "derivation": "Ariga & Lleras 2011 是視覺警戒(vigilance)實驗,全文沒有任何「工作區塊 / 休息區塊」的設計 ⇒ 25/5 式區塊數 = 0。這是從『沒有』推導出來的,不是論文報出來的數字。",
+        "do_not_speak": true,
+        "do_not_speak_why": "🔴 旁白不准把它當成論文報出來的數字唸。要講這件事,只能用『這篇從頭到尾沒有用過工作與休息的區塊』這種不帶數字的講法 —— 把推導值講成量測值,就是這條線出過三次的那個錯。"
+      }
+    ]
+  }
+}

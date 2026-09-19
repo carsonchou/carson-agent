@@ -21,6 +21,7 @@ except Exception:
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
+from studio_common import save_json_atomic, load_json_safe
 STUDIO = ROOT / "STUDIO"
 DESIGN = STUDIO / "design_system.json"
 DIRECTIVES = STUDIO / "boss_directives.json"
@@ -72,12 +73,9 @@ def _run(args, timeout=900):
 
 
 def _set_paused(val):
-    try:
-        d = json.loads(DIRECTIVES.read_text(encoding="utf-8")) if DIRECTIVES.exists() else {}
-    except Exception:
-        d = {}
+    d = load_json_safe(DIRECTIVES, default={})
     d["paused"] = val
-    DIRECTIVES.write_text(json.dumps(d, ensure_ascii=False, indent=2), encoding="utf-8")
+    save_json_atomic(DIRECTIVES, d)
     return "已暫停全自動（補產/上架今天先停）" if val else "已恢復全自動"
 
 

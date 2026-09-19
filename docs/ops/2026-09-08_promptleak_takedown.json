@@ -1,0 +1,57 @@
+{
+ "executed_at": "2026-09-08 04:43:00",
+ "all_private": true,
+ "criterion": "A 層(規則本體)中洩漏秒數×首次出現最早的五支",
+ "kept_public_A": "其餘 10 支洩漏 8~36 秒且多在 2 分鐘後,不動",
+ "removed_from_list_C": [
+  "J3aQKKL6vMI 玉晶光",
+  "NIHiQLR6odQ 漢磊"
+ ],
+ "rows": [
+  {
+   "videoId": "5NaySHCy6oQ",
+   "name": "譜瑞-KY 4966",
+   "leak_seconds": 110,
+   "first_at": "2:14",
+   "views_before": 253,
+   "before": "public",
+   "after": "private"
+  },
+  {
+   "videoId": "SFk0W_2WqLc",
+   "name": "愛普 6531",
+   "leak_seconds": 108,
+   "first_at": "1:25",
+   "views_before": 698,
+   "before": "public",
+   "after": "private"
+  },
+  {
+   "videoId": "uXXKI6XP63Y",
+   "name": "宜特 3289",
+   "leak_seconds": 91,
+   "first_at": "0:26",
+   "views_before": 150,
+   "before": "public",
+   "after": "private"
+  },
+  {
+   "videoId": "o_O4N2nsoac",
+   "name": "立隆電 2472",
+   "leak_seconds": 52,
+   "first_at": "0:17",
+   "views_before": 356,
+   "before": "public",
+   "after": "private"
+  },
+  {
+   "videoId": "gxEVQ4KuSJE",
+   "name": "華城 1519",
+   "leak_seconds": 75,
+   "first_at": "1:57",
+   "views_before": 1016,
+   "before": "public",
+   "after": "private"
+  }
+ ]
+}

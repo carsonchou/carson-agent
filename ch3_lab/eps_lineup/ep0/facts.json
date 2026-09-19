@@ -1,0 +1,194 @@
+{
+ "rows": [
+  {
+   "slug": "ep000",
+   "tone": "gone",
+   "bucket": "fail",
+   "es_r": 0.01,
+   "n_r": 6608
+  },
+  {
+   "slug": "ep001",
+   "tone": "gone",
+   "bucket": "fail",
+   "es_r": -0.07,
+   "n_r": 1283
+  },
+  {
+   "slug": "ep002",
+   "tone": "gone",
+   "bucket": "fail",
+   "es_r": 0.08,
+   "n_r": 1086
+  },
+  {
+   "slug": "ep003",
+   "tone": "held",
+   "bucket": "held",
+   "es_r": -0.23,
+   "n_r": 1550
+  },
+  {
+   "slug": "ep004",
+   "tone": "flipped_tiny",
+   "bucket": "fail",
+   "es_r": 0.128,
+   "n_r": 997
+  },
+  {
+   "slug": "ep005",
+   "tone": "shrunk_real",
+   "bucket": "mixed",
+   "es_r": 0.222,
+   "n_r": 823
+  },
+  {
+   "slug": "ep006",
+   "tone": "shrunk_real",
+   "bucket": "mixed",
+   "es_r": 0.4,
+   "n_r": 723
+  },
+  {
+   "slug": "ego_depletion",
+   "tone": "gone",
+   "bucket": "fail",
+   "es_r": 0.04,
+   "n_r": 2141
+  },
+  {
+   "slug": "romantic_red",
+   "tone": "gone",
+   "bucket": "fail",
+   "es_r": 0.09,
+   "n_r": 242
+  },
+  {
+   "slug": "bystander_effect",
+   "tone": "held",
+   "bucket": "held",
+   "es_r": -0.35,
+   "n_r": 7700
+  },
+  {
+   "slug": "sleep_memory",
+   "tone": "held",
+   "bucket": "held",
+   "es_r": 0.29,
+   "n_r": 2004
+  },
+  {
+   "slug": "implicit_bias_test",
+   "tone": "shrunk_real",
+   "bucket": "mixed",
+   "es_r": 0.274,
+   "n_r": 14900
+  },
+  {
+   "slug": "ep007",
+   "tone": "stronger",
+   "bucket": "held",
+   "es_r": -0.87,
+   "n_r": 776
+  },
+  {
+   "slug": "ep008",
+   "tone": "shrunk_real",
+   "bucket": "mixed",
+   "es_r": 0.18,
+   "n_r": 564
+  },
+  {
+   "slug": "ep009",
+   "tone": "gone",
+   "bucket": "fail",
+   "es_r": 0.14,
+   "n_r": 556
+  },
+  {
+   "slug": "ep010",
+   "tone": "gone",
+   "bucket": "fail",
+   "es_r": 0.06,
+   "n_r": 488
+  },
+  {
+   "slug": "ep011",
+   "tone": "stronger",
+   "bucket": "held",
+   "es_r": 0.65,
+   "n_r": 743
+  },
+  {
+   "slug": "ep012",
+   "tone": "gone",
+   "bucket": "fail",
+   "es_r": 0.03,
+   "n_r": 404
+  },
+  {
+   "slug": "ep013",
+   "tone": "gone",
+   "bucket": "fail",
+   "es_r": 0.0,
+   "n_r": 331
+  },
+  {
+   "slug": "ep014",
+   "tone": "gone",
+   "bucket": "fail",
+   "es_r": 0.08,
+   "n_r": 316
+  },
+  {
+   "slug": "ep015",
+   "tone": "held",
+   "bucket": "held",
+   "es_r": 0.342,
+   "n_r": 740
+  },
+  {
+   "slug": "ep016",
+   "tone": "gone",
+   "bucket": "fail",
+   "es_r": 0.073,
+   "n_r": 246
+  },
+  {
+   "slug": "ep017",
+   "tone": "held",
+   "bucket": "held",
+   "es_r": 0.36,
+   "n_r": 321
+  },
+  {
+   "slug": "ep018",
+   "tone": "held",
+   "bucket": "held",
+   "es_r": -0.85,
+   "n_r": 240
+  },
+  {
+   "slug": "social_priming",
+   "tone": "gone",
+   "bucket": "fail",
+   "es_r": 0.07,
+   "n_r": 12871
+  }
+ ],
+ "k": 25,
+ "n_sum": 58653,
+ "counts": {
+  "gone": 12,
+  "held": 6,
+  "flipped_tiny": 1,
+  "shrunk_real": 4,
+  "stronger": 2
+ },
+ "gone": 12,
+ "shrunk": 4,
+ "flipped": 1,
+ "survived": 8,
+ "held": 6,
+ "stronger": 2
+}

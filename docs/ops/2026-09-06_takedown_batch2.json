@@ -1,0 +1,87 @@
+{
+ "executed_at": "2026-09-06 03:48:19",
+ "all_private": true,
+ "rows": [
+  {
+   "code": "3090",
+   "name": "日電貿",
+   "videoId": "u0gWQe1RbNA",
+   "missing_fact": "dividend_history",
+   "quote": "近五年的平均殖利率約為百分之四點五",
+   "before": "public",
+   "after": "private"
+  },
+  {
+   "code": "3149",
+   "name": "正達",
+   "videoId": "l36tPQliBSc",
+   "missing_fact": "valuation_position",
+   "quote": "本益比在自己近十年歷史區間的百分之六十七點三百分位",
+   "before": "public",
+   "after": "private"
+  },
+  {
+   "code": "5425",
+   "name": "台半",
+   "videoId": "0Gy7jec6Agc",
+   "missing_fact": "eps_trend",
+   "quote": "EPS在2013年衝到三塊五，但2008年卻只剩兩毛六",
+   "before": "public",
+   "after": "private"
+  },
+  {
+   "code": "2376",
+   "name": "技嘉",
+   "videoId": "8NCqx8Zzwu0",
+   "missing_fact": "gross_margin",
+   "quote": "當時技嘉毛利率從百分之十八暴跌到百分之九",
+   "before": "public",
+   "after": "private"
+  },
+  {
+   "code": "6282",
+   "name": "康舒",
+   "videoId": "m1pqccjG5s8",
+   "missing_fact": "valuation_position",
+   "quote": "本益比經常衝到30倍以上（同業平均約15倍）",
+   "before": "public",
+   "after": "private"
+  },
+  {
+   "code": "3491",
+   "name": "昇達科",
+   "videoId": "UY0DdkuZrHo",
+   "missing_fact": "valuation_position",
+   "quote": "當時本益比都掉到10倍以下，而近五年平均是22倍",
+   "before": "public",
+   "after": "private"
+  },
+  {
+   "code": "6213",
+   "name": "聯茂",
+   "videoId": "PjBxIco2FIo",
+   "missing_fact": "valuation_position",
+   "quote": "聯茂當時的本益比曾飆到40倍以上",
+   "before": "public",
+   "after": "private"
+  },
+  {
+   "code": "2383",
+   "name": "台光電",
+   "videoId": "Nhc7XjmcTLY",
+   "missing_fact": "valuation_position",
+   "quote": "臺光電在2008年金融海嘯時本益比跌到剩8倍",
+   "before": "public",
+   "after": "private"
+  },
+  {
+   "code": "2377",
+   "name": "微星",
+   "videoId": "D-IZXExuPmw",
+   "missing_fact": "dividend_history",
+   "quote": "微星這二十年配了超過四十次股息",
+   "before": "public",
+   "after": "private"
+  }
+ ]
+}

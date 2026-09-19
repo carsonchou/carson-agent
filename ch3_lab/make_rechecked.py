@@ -1,0 +1,1052 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""make_rechecked.py — 第五種集型:**故事類型不是「又倒了一個」**。
+
+## 為什麼要第五種
+前四種集型講的都是同一個形狀:原始研究說 X,大規模重測說沒有。那個形狀
+講到第二十支就是 YPP `inauthentic` 定義裡點名的「模板化、變化極小、可
+大規模複製」—— 那是人工審查的否決項,不是文青堅持。
+
+`facts/rechecked_episodes.json` 那八題**每一題的形狀都不一樣**:
+
+| slug | 形狀 |
+|---|---|
+| hot_hand | 原始分析有可證明的偏誤,修正後結論**反過來** |
+| facial_feedback | 方法倒了,假說還活著(原作者是翻案那篇的共同作者) |
+| moral_licensing | 效果隨樣本變大一路縮水,最後翻到反方向 |
+| terror_management | 原作者**親自參與設計**,仍然沒重現 |
+| backfire_effect | 原作者出面說「你們讀錯了」 |
+| false_memory | 重測做出**更高**的比率,然後被重新編碼砍到 4% |
+| marshmallow_test | 效果是真的,但三分之二是家庭背景 |
+| hungry_judges | 識別假設被質疑,但**沒有**被判定死刑 |
+
+## 這支片為什麼是長片
+2026-08-30 實測:16:9 的片 15 支、總觀看 3 次、中位數 0。而其中 14 支
+片長是 58 秒到 2 分 14 秒 —— 它們卡在一個沒有出口的格式裡(進不了
+Shorts feed、零訂閱沒有推薦流量、標題沒有搜尋量),而**每支照樣燒
+1,600 配額**。
+
+即使流量來了算式也不成立:YPP 要 240,000 分鐘,90 秒的片每次觀看最多
+給 1.5 分 → 需要 16 萬次觀看;12 分鐘的片每次給 3.5 分 → 6.8 萬次。
+同一批內容差 2.4 倍,而**片長是這裡唯一完全由我決定的變數**。
+
+所以這一支的目標長度是 4~5 分鐘(七段,每段 80~110 字),再由
+`make_compilation` 把三支併成 15 分鐘的長片。不是把一件事講久一點——
+每一段都是這一題**真的多出來的東西**(時間軸的下一步、原作者自己的話)。
+
+## 分工:機器管數字,我管那一段故事
+`build_script` 從**結構化欄位**生成骨架(年份、樣本、效果量),那部分
+可驗證。而每一題真正的轉折不一樣,所以 `say_twist` 必須逐集手寫,而且
+**fail-closed:沒有就不出片**(理由見 make_domains._need —— 這條線出過
+「A 集的預設值變成 B 集的結論」)。手寫的那段照樣過數字溯源。
+
+用法:
+  python make_rechecked.py --list
+  python make_rechecked.py --slug hot_hand --script-only
+  python make_rechecked.py --slug hot_hand
+"""
+import argparse
+import json
+import pathlib
+import re
+import sys
+
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+ROOT = pathlib.Path(__file__).resolve().parent
+SRC = ROOT / "facts" / "rechecked_episodes.json"
+
+W, H, FPS = 1920, 1080, 30
+BG, FG, DIM = "#0E1116", "#E8ECF1", "#8A94A6"
+ACCENT, REST, GOOD = "#FFC23D", "#252C36", "#5FC98A"
+
+#: 效果量符號跟著論文走。**不要為了版面統一而換單位。**
+#: 🔴 這條線踩過:印 `d = 1.12` 而論文報的是 Hedges' g = 1.125 —— 符號錯、
+#:    精度也被砍,觀眾拿畫面上的東西去論文裡 grep 兩個都找不到。
+UNIT_SYM = {
+    "d": "d", "g": "g", "r": "r", "beta": "β", "lambda": "λ",
+    "pct": "%", "percentage_points": "pp",
+    # 🔴 **兩把不同的尺不可以印同一個符號。** facial feedback 的表格四列
+    #    同一欄印 `pts = 0.03 / 0.49 / 0.40 / 0.04`,而第一列是十點量表、
+    #    後三列是七點量表 —— 觀眾讀到的是「差 16 倍」,那個比較不成立。
+    #    timeline_rows 的 docstring 自己寫著「放在同一根軸上等於發明一個
+    #    觀眾無法解讀的比例尺」,但那條規則只寫在註解裡,沒有寫進這張表。
+    "raw_diff_10pt_likert": "pts/10", "raw_diff_7pt_scale": "pts/7",
+    "meta_regression_b": "b", "count": "", "iq_points": "IQ",
+}
+#: 🔴 **百分位不是百分比。** 論文寫「scored in the 12th percentile」,
+#:    印成「12%」是換掉了那個數字的意思(一個是排名位置、一個是比例),
+#:    而觀眾拿 12% 去論文裡是找不到的。抽幀才看到,因為兩者都是「12」。
+#:    同型:η² = 0.20 用 `pct` 渲成「0.2%」—— 0.20 的 η² 是**大**效果
+#:    (解釋掉兩成變異),印成 0.2% 看起來微不足道,**整列的意思反了**。
+#: 🔴 掃描稿子用的正則**必須吃小數點**。不吃的話 `0.08` 會被切成 `0` 與
+#:    `08` 兩個 token,而 `0` 幾乎不可能在白名單裡 —— 於是每一句帶小數的
+#:    旁白都被自己的閘門擋下,看起來像閘門太嚴,其實是切錯了。
+#:    反過來更危險:切碎之後 `08` 這種碎片很容易「剛好」在白名單裡,
+#:    等於放行一個沒人檢查過的數字。**閘門的解析度必須跟被檢查的東西一致。**
+NUM_RE = re.compile(r"\d(?:[\d,]*\d)?(?:\.\d+)?")
+#: 中日韓字元。旁白與畫面用的欄位一律不准出現(理由見 audit)。
+CJK = re.compile(r"[　-鿿＀-￯]")
+#: 這些單位是「幾個」不是「多大」,寫等號會讓它看起來像效果量。
+COUNT_KINDS = {
+    "count_of_labs_out_of_17", "count_of_bayes_factors_out_of_34",
+    "count_of_backfire_effects", "count_of_groups_moving_backwards",
+    "count", "proportion_of_issues_improved",
+}
+#: 自由文字欄位 —— 它們是給人看的證據與警告,**不供給數字溯源白名單**。
+#: 🔴 這是本檔最重要的一條規則。事實庫裡每個 quote 都塞滿數字,如果讓
+#:    quote 餵白名單,那 audit 等於全通過(隨便講一個數字都「在事實庫裡」)。
+#:    只有**結構化欄位**能餵白名單 —— 想講的數字沒過,就把它升格成欄位。
+#: 🔴 `say_` 開頭的必須在這裡面,而且這是本檔最容易寫錯的一行。
+#:    say_twist / say_verdict / say_spread **就是稿子本身**。讓它們餵白名單,
+#:    等於「我寫的數字證明我寫的數字是對的」—— 我實測過:在 say_twist 裡
+#:    插一個憑空捏造的 27,閘門回報「數字溯源 ✓」。那正是這條線出過三次的
+#:    形狀(測試判斷式永遠不成立 / 完成標記不等於成功),只是這次藏在
+#:    「哪些欄位算證據」這個問題裡。**證據和被檢查的東西不能是同一份文字。**
+PROSE_KEYS = re.compile(
+    r"(^say_|^reel$|quote|note|warning|trap|traps|"
+    r"missing|_detail|story_type|hook|"
+    r"claim|title|authors|journal|doi|kind|name|stat|slug|why|source|"
+    r"summary|_words|_check|_limits|final_quote|best_visual|nuance)",
+    re.I)
+
+
+def load(slug):
+    d = json.loads(SRC.read_text(encoding="utf-8"))
+    for e in d["episodes"]:
+        if e["slug"] == slug:
+            return e
+    have = ", ".join(x["slug"] for x in d["episodes"])
+    raise SystemExit(f"⛔ {slug} 不在 {SRC.name} 裡。有:{have}")
+
+
+def _need(E, field, why):
+    raise SystemExit(
+        f"⛔ {E['slug']} 缺 `{field}` —— {why}\n"
+        f"   這一段沒有可以安全共用的預設值:模板化的產線裡,一個看似無害的 "
+        f"fallback 就是一句別人的話。不出片。")
+
+
+# ─────────────────────────────── 唸法 ───────────────────────────────
+
+def say_exact(x):
+    """唸出**存進事實庫的那個精度**,不要自作主張四捨五入。
+
+    這條線唯一的資產是「觀眾自己查得到」。論文寫 1.125,唸成
+    「one point one three」之後觀眾 grep 不到,那個資產就磨掉了。
+    """
+    from make_episode import say_num
+    s = f"{abs(x):.6f}".rstrip("0").rstrip(".")
+    if "." not in s or len(s.split(".")[1]) <= 2:
+        return say_num(x)
+    whole, frac = s.split(".")
+    words = {"0": "zero", "1": "one", "2": "two", "3": "three", "4": "four",
+             "5": "five", "6": "six", "7": "seven", "8": "eight", "9": "nine"}
+    out = ("minus " if x < 0 else "") + (words.get(whole) or whole)
+    return out + " point " + " ".join(words[c] for c in frac)
+
+
+def say_int(n):
+    return f"{int(n):,}"
+
+
+def say_es(kind, v):
+    """把效果量唸成人話,**單位跟著論文**。
+
+    🔴 百分點不能唸成「zero point one three」。hot hand 的 +13 是十三個
+       百分點,唸成小數就變成另一個數量級 —— 而且畫面上寫 13pp、旁白唸
+       0.13,同一支片自己對不起來。
+    """
+    if kind == "pct":
+        return f"{v:g} percent"
+    if kind == "percentile":
+        return f"the {_ordinal(int(v))} percentile"
+    if kind == "eta2":
+        return f"{say_exact(v)}, in eta squared"
+    if kind == "iq_points":
+        return f"{v:g} I Q points"
+    if kind == "percentage_points":
+        # 🔴 正號要唸出來。畫面印 `+4pp` 和 `-8pp`,對比一眼看得到;旁白
+        #    唸「four percentage points」和「minus eight percentage points」,
+        #    第一個聽起來像沒有方向 —— 而這一集整個論證就是那兩個符號。
+        return f"{'minus' if v < 0 else 'plus'} {abs(v):g} percentage points"
+    if kind in COUNT_KINDS:
+        return say_int(v) if abs(v) >= 1 or v == 0 else say_exact(v)
+    if kind == "raw_diff_10pt_likert":
+        return f"{say_exact(v)} points on a ten point scale"
+    if kind == "raw_diff_7pt_scale":
+        return f"{say_exact(v)} points on a seven point scale"
+    # 🔴 **裸數字在旁白裡是有歧義的,而畫面上不是。** 畫面印 `r = 0.57` 和
+    #    `β = 0.08`,單位看得一清二楚;旁白唸「zero point five seven」和
+    #    「zero point zero eight」,聽起來就是同一把尺上的兩個點,而觀眾
+    #    會直接得出「掉了 86%」這個我沒有講、也不成立的結論
+    #    (一個是相關係數、一個是標準化迴歸係數)。
+    #    這正是主頻道「A vs B 兩個數字必須同一組事實」那條的聽覺版本。
+    if kind == "r":
+        return f"a correlation of {say_exact(v)}"
+    if kind == "beta":
+        return f"a standardised coefficient of {say_exact(v)}"
+    if kind == "g":
+        return f"{say_exact(v)}, in Hedges' g"
+    if kind == "d":
+        return f"an effect size of {say_exact(v)}"
+    return say_exact(v)
+
+
+def _ordinal(n):
+    if 10 <= n % 100 <= 20:
+        suf = "th"
+    else:
+        suf = {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+    return f"{n}{suf}"
+
+
+def val_str(kind, v, is_max=False):
+    """畫面上的效果量:符號跟著論文、精度跟著存的值。
+
+    🔴 `is_max`:原文寫的是**上限**而不是值。stanford_prison 的原句是
+       「less than 15% have been recorded」,而畫面印 `15%` —— 把上限
+       當成值報,偏誤方向剛好是往「更嚴重」走,也就是往我想要的方向走。
+       那是最該擋的一種。
+    """
+    if kind == "pct":
+        return f"{'<' if is_max else ''}{v:g}%"
+    if kind == "percentile":
+        return _ordinal(int(v))
+    if kind == "eta2":
+        # 🔴 這裡本來寫死 `.2f`,而**本函式的 docstring 就寫著「精度跟著存的值」**
+        #    (一般分支是 max(2, min(dec, 3)))。eta2 的值天生小:
+        #    0.026 被印成 0.03 —— 而且方向**往上**,也就是往「效果比較大」走,
+        #    正是本函式 `is_max` 註解說的那一種最該擋的偏誤。
+        #    全 20 集只有一集用 eta2 ⇒ **這條路徑從來沒被跑過**,
+        #    所以「一般分支已經對了」不代表這裡也對。
+        _s = f"{abs(v):.6f}".rstrip("0").rstrip(".")
+        _dec = len(_s.split(".")[1]) if "." in _s else 0
+        return f"η² = {v:.{max(2, min(_dec, 3))}f}"
+    if kind == "iq_points":
+        # 🔴 裸的 9 在畫面上沒有意義,而原文寫的是 "8-9 points" 的 IQ 等值。
+        return f"+{v:g} IQ"
+    if kind == "percentage_points":
+        return f"{v:+g}pp"
+    if kind in COUNT_KINDS:
+        return f"{v:g}"
+    # 🔴 **沒登記的單位要 fail-closed,不是預設成 d。**
+    #    terror management 有一列 `es_kind: "meta-regression b"`(調節係數),
+    #    它不在表裡,而 `UNIT_SYM.get(kind, "d")` 把它靜默印成 `d = 0.01`
+    #    —— 正上方就是真的 `d = 1.34`,觀眾會把「兩組之間的差」讀成同一把
+    #    尺上的效果量。`_need()` 只守「es_kind 缺席」那一格,沒守「寫錯」那格。
+    if kind not in UNIT_SYM:
+        raise SystemExit(
+            f"⛔ 沒登記的效果量單位「{kind}」—— 預設成 d 會把別種係數印成"
+            f"效果量。把它加進 UNIT_SYM,或改用已登記的單位。")
+    s = f"{abs(v):.6f}".rstrip("0").rstrip(".")
+    dec = len(s.split(".")[1]) if "." in s else 0
+    sym = UNIT_SYM[kind]
+    return f"{v:.{max(2, min(dec, 3))}f}" if not sym         else f"{sym} = {v:.{max(2, min(dec, 3))}f}"
+
+
+# ─────────────────────────────── 時間軸 ───────────────────────────────
+
+def timeline_rows(E):
+    """時間軸的列。有 `timeline` 就用它,沒有就從 original + test 推。
+
+    🔴 **不要畫成有共同刻度的長條圖。** 這八題的單位有 d / g / r / β /
+       百分點 / 十點量表原始差 —— 把它們放在同一根軸上,等於發明一個
+       觀眾無法解讀的比例尺,而且會暗示「1.34 比 0.57 大兩倍多」這種
+       跨單位比較。畫成**逐年的列**,每一列自己帶單位,是唯一誠實的畫法。
+    """
+    if E.get("timeline"):
+        rows = []
+        for t in E["timeline"]:
+            # 沒有數字的那一列(例如「三次重測全部沒複製出來」)本來就
+            # 不需要單位 —— 對它要求單位會把一個正確的事實庫擋在門外,
+            # 而那種「閘門對的事情發脾氣」正是後來被放寬的原因。
+            # **只在真的要印數字的時候才 fail-closed。**
+            rows.append({
+                "year": t["year"],
+                "what": t["what"],
+                "es": t.get("es"),
+                "es_kind": (t.get("es_kind") or _tl_kind(E, t))
+                           if t.get("es") is not None else None,
+                "n": t.get("n"),
+            })
+        return rows
+    o, t = E["original"], E["test"]
+    rows = [{"year": o["year"], "what": "the original study",
+             "es": o.get("es"), "es_kind": o.get("es_kind"), "n": o.get("n")},
+            {"year": t["year"], "what": t.get("kind") or "the retest",
+             "es": t.get("es"), "es_kind": t.get("es_kind"), "n": t.get("n")}]
+    if E.get("test2"):
+        t2 = E["test2"]
+        rows.append({"year": t2["year"], "what": t2.get("kind") or "and again",
+                     "es": t2.get("es"), "es_kind": t2.get("es_kind"),
+                     "n": t2.get("n")})
+    if E.get("author_recantation"):
+        r = E["author_recantation"]
+        rows.append({"year": r["year"], "what": "the original author responds",
+                     "es": None, "es_kind": None, "n": None})
+    return rows
+
+
+def twist_rows(E):
+    """`twist` 那一段自己的列。
+
+    🔴 為什麼不共用 timeline:twist 是全片最長的一段(hot hand 那集 50 秒),
+       而 timeline 只有兩三列 —— 五十秒盯著一張幾乎不動的畫面。更糟的是
+       那張畫面講的是**別的東西**:twist 在講「隨機球員應該是 -8」,
+       畫面卻停在年份表。旁白與畫面講不同的事,是這條線最貴的那種錯。
+
+    每一列 {label, what, es, es_kind};沒填就退回時間軸(對 backfire /
+    hungry judges 這種轉折不是數字的集,時間軸反而是對的)。
+    """
+    out = []
+    for r in E.get("twist_rows") or []:
+        if r.get("es") is not None and not r.get("es_kind"):
+            _need(E, f"twist_rows[{r.get('label')}].es_kind",
+                  "有數字就必須有單位,畫面上百分點與 d 長得一樣。")
+        out.append(r)
+    return out
+
+
+def _tl_kind(E, t):
+    """timeline 那一列沒寫單位時,跟同年份的主欄位對齊 —— **不要猜**。"""
+    for src in (E.get("original") or {}, E.get("test") or {}):
+        if src.get("year") == t["year"] and src.get("es_kind"):
+            return src["es_kind"]
+    return _need(E, f"timeline[{t['year']}].es_kind",
+                 "那一列有數字卻沒有單位,而 d / g / β / 百分點畫在一起"
+                 "只要標錯一個,整條時間軸就是誤導。")
+
+
+# ─────────────────────────────── 稿 ───────────────────────────────
+
+def build_script(E):
+    o, t = E["original"], E["test"]
+    rows = timeline_rows(E)
+
+    if not t.get("doi"):
+        _need(E, "test.doi",
+              "重測論文沒有 DOI,觀眾就沒辦法自己查 —— 而那是這條線唯一的資產。")
+    if not t.get("verdict_quote"):
+        _need(E, "test.verdict_quote",
+              "沒有作者自己的結論句,收尾就只能由我來下判斷。")
+
+    segs = []
+    segs.append(("hook", E["hook"]))
+
+    # 原始研究:年份、樣本、它報了多大。**只講結構化欄位有的東西。**
+    origin = f"It starts in {o['year']}. {E['claim'].capitalize()}. "
+    if o.get("n"):
+        origin += (f"That conclusion came from {say_int(o['n'])} "
+                   f"{o.get('n_word', 'people')}. ")
+    if o.get("es") is not None and o.get("es_kind"):
+        origin += (f"The effect they reported was "
+                   f"{say_es(o['es_kind'], o['es'])}. ")
+    segs.append(("origin", origin))
+
+    # 它後來去了哪裡。**引用數講「超過 N」不講精確值** —— 那是全片唯一一個
+    # 觀眾自己去查會得到不同答案的數字(Scholar / Crossref / Scopus 差很多),
+    # 而事實庫存的 approx 是無條件捨去到百位的下界。
+    spread = ""
+    if o.get("cited_by_approx"):
+        spread += (f"That paper has been cited more than "
+                   f"{say_int(o['cited_by_approx'])} times. ")
+    spread += E.get("say_spread") or _need(
+        E, "say_spread",
+        "這一段講的是這個宣稱後來被拿去做什麼 —— 每一題都不一樣,"
+        "共用一句就是替另外七題編一個它們沒有的傳播史。")
+    segs.append(("spread", spread))
+
+    # 重測:誰、多少人、怎麼做的。k 有沒有決定講法。
+    # 🔴 `k_word` 有兩類,而句型只對其中一類成立:
+    #      · **行為者**(laboratories / teams)→「17 個實驗室回頭做了一次」✔
+    #      · **被數的東西**(comparisons / issues)→「91 個比較回頭做了一次」
+    #        —— 比較不會回頭做任何事。實測產出「52 issues went back to it」
+    #        和「91 comparisons went back to it」,兩句都不是英文。
+    #    這種錯不會有任何守門叫,因為數字全對、版面也沒問題;
+    #    只有**把稿子唸出來**才聽得到。
+    ACTORS = {"laboratories", "labs", "teams", "research groups", "sites"}
+    k, kw = t.get("k"), (t.get("k_word") or "").lower()
+    if k and kw in ACTORS:
+        test_txt = f"In {t['year']}, {say_int(k)} {kw} went back to it"
+    else:
+        # k 是「被數的東西」時**不要塞進這一句** —— 它屬於方法那一句
+        # (「52 個議題」是怎麼測的一部分,不是誰去測的)。
+        test_txt = f"In {t['year']}, somebody went back to it"
+    if t.get("n"):
+        floor = "more than " if t.get("n_is_floor") else ""
+        # 🔴 「people」不是每一集都對。hungry judges 的 227 是**裁決**
+        #    (不是人也不是天數 —— 那三個數字在原文裡是分開的),
+        #    marshmallow 的 918 是**兒童**。單位寫錯就是換掉了樣本的意義,
+        #    而說明欄那邊我已經為了同一件事修過一次(`_people`)——
+        #    第二個表面。
+        # 重分析用的就是原始那批人 —— 講「26 players」聽起來像是**另外**
+        # 26 個人。
+        # 🔴 這裡一度寫 `"reanalysis" in kind`,而 hungry judges 的 kind 是
+        #    「letter — reanalysis **with a different dataset**」—— 於是旁白
+        #    說「the same 227 decisions」,意思正好相反。**我在同一個小時內
+        #    為了同一個字串比對錯了兩次**(前一次是方法那一句)。
+        #    關鍵字比對在「描述裡同時出現兩個方法」時必定挑錯,
+        #    而這件事只有兩種狀態、事實庫寫得出來 → 改成明確欄位。
+        same = bool(t.get("same_sample"))
+        w = t.get("n_word") or (o.get("n_word") if same else None) or "people"
+        test_txt += (f" — {'the same ' if same else floor}{say_int(t['n'])} {w}")
+    test_txt += ". "
+    # 🔴 **這一段一度是關鍵字比對,而它答錯了。** `kind` 寫的是
+    #    「letter — reanalysis with a different dataset plus interviews」,
+    #    我的 `elif "reanalysis" in kind` 命中,於是旁白說「同一份資料,
+    #    重算了一次」—— 而那篇用的是**完全不同的一批聽證資料**,
+    #    同一支片的 twist 段兩分鐘後自己說「他們拿到了另一批聽證紀錄」。
+    #    片子自己跟自己打架,而每個數字都是對的,所以沒有任何守門會叫。
+    #    → 改成**明列**:對得上就用,對不上就要求事實庫寫清楚。
+    #      關鍵字比對在「描述裡同時出現兩個方法」時一定會挑錯一個。
+    METHOD = {
+        "many-labs replication":
+            "Many labs, one shared protocol, and every prediction registered "
+            "before the data came in. ",
+        "preregistered replication and extension":
+            "Every prediction was registered before the data came in, so "
+            "nobody could decide afterwards what counted. ",
+        "registered replication report":
+            "Every prediction was registered before the data came in, so "
+            "nobody could decide afterwards what counted. ",
+        "large-scale replication and extension":
+            "Not one retest but five, across {k} separate {k_word}, on a "
+            "scale the original could not have afforded. ",
+        "conceptual replication":
+            "Not the same experiment — the same question, asked of a very "
+            "much larger group of children, with far more known about each "
+            "of them. ",
+        "meta-analysis":
+            "Not a new experiment — everything that had already been run, "
+            "added up: {k} {k_word} of it. ",
+        "reanalysis of the original data":
+            "Not a new experiment. The same data, run through the arithmetic "
+            "a second time. ",
+        "letter — reanalysis with a different dataset plus interviews":
+            "Not a retest. A different set of hearings, plus interviews with "
+            "the people who were actually in the room. ",
+        "archival reinvestigation":
+            "Not a retest. Somebody went into the archive and listened to "
+            "what was actually said at the time. ",
+        "randomised controlled trial":
+            "A trial: students randomised one by one, with the analysis plan "
+            "registered before any data came in. ",
+        "simulation":
+            "Not a new experiment, and not new data either. A simulation of "
+            "what the numbers would look like if nothing were going on. ",
+    }
+    kind = (t.get("kind") or "").strip().lower()
+    if kind not in METHOD:
+        _need(E, f"test.kind(「{kind}」不在 METHOD 表裡)",
+              "旁白要用一句話講清楚這是哪一種檢驗,而『重測』『重算』"
+              "『模擬』對觀眾是三件完全不同的事。把它加進 METHOD,"
+              "不要讓關鍵字去猜。")
+    test_txt += METHOD[kind].format(k=say_int(k) if k else "",
+                                    k_word=t.get("k_word", ""))
+    segs.append(("test", test_txt))
+
+    # 時間軸:每一步的數字。
+    # 🔴 **單位混不混,講法不一樣。** 全部同單位時每一列都重複一次單位名
+    #    很囉唆(「an effect size of…」講五遍);但**單位混著的時候不重複
+    #    就是誤導** —— facial feedback 的時間軸上有十點量表的原始差、
+    #    Cohen's d、七點量表的原始差三種,裸數字唸出來聽起來就是同一把尺
+    #    上的三個點,而觀眾會自己算出一個不存在的降幅。
+    #    → 混就逐列標,不混就開頭講一次。
+    kinds = {r["es_kind"] for r in rows if r["es"] is not None}
+    # 🔴 **同一個 es_kind 不代表同一把尺。** grit 的四列都是 `r`,於是
+    #    旁白自動加上「all of these are effect sizes, measured the same way」
+    #    —— 但 0.25 / 0.77 是單一研究的**觀察**相關,0.18 / 0.84 是後設分析
+    #    **校正測量誤差後**的 true-score 相關。宣稱它們一樣,是一句方法論
+    #    宣稱,而方法論宣稱正是守門結構上看不見的那一類。
+    mixed = len(kinds) > 1 or E.get("same_scale") is False
+    tl = "Here is what happened to the number. "
+    if not mixed and kinds:
+        only = next(iter(kinds))
+        if only in ("d", "g", "r", "beta"):
+            tl = ("Here is what happened to the number — all of these are "
+                  "effect sizes, measured the same way. ")
+    for r in rows:
+        if r["es"] is None:
+            tl += f"{r['year']}, {r['what']}. "
+        elif mixed:
+            tl += (f"{r['year']}, {r['what']} — "
+                   f"{say_es(r['es_kind'], r['es'])}. ")
+        else:
+            tl += f"{r['year']}, {r['what']} — {say_exact(r['es'])}. " \
+                if r["es_kind"] in ("d", "g", "r", "beta") \
+                else f"{r['year']}, {r['what']} — {say_es(r['es_kind'], r['es'])}. "
+    segs.append(("timeline", tl))
+
+    # 這一集真正的轉折。**逐集手寫,沒有就不出片。**
+    segs.append(("twist", E.get("say_twist") or _need(
+        E, "say_twist",
+        f"這一集的故事類型是「{E['story_type']}」,而那個轉折沒有辦法從"
+        f"結構化欄位生成 —— 生成出來的會是上一集的形狀。")))
+
+    # 作者自己的話。有 recantation 用 recantation,否則用 verdict_quote。
+    if E.get("author_recantation"):
+        r = E["author_recantation"]
+        segs.append(("authors",
+                     f"In {r['year']}, {r['who'].split('(')[0].strip()} "
+                     f"wrote this. "))
+    segs.append(("verdict", E.get("say_verdict") or _need(
+        E, "say_verdict",
+        "收尾要說清楚這一集到底證明了什麼、沒有證明什麼,而那取決於"
+        "故事類型 —— 共用一句就是把八種結局講成同一種。")))
+
+    segs.append(("close",
+                 "Every paper is linked below, with the sentence each "
+                 "number came from. One claim, the numbers behind it, "
+                 "no adjectives."))
+    return segs
+
+
+# ─────────────────────────────── 溯源 ───────────────────────────────
+
+#: `timeline` 與 `twist_rows` 是**畫面要畫什麼**,不是證據。
+#: 🔴 它們的 `es` 一度餵進白名單,於是 moral_licensing 的 -0.05 通過了
+#:    數字溯源 —— 而那個值沒有任何 outcome 或 key_numbers 撐著,它只存在於
+#:    「稿子自己要畫的那張表」裡。**稿子的表格在當自己的證據**,這是
+#:    PROSE_KEYS 註解防的那件事(證據和被檢查的東西不能是同一份),
+#:    只是這次藏在結構化欄位裡,所以守門結構上看不見。
+#:    年份與樣本數留著(那些本來就是事實),只擋 `es`。
+_OUTPUT_ONLY = {"timeline", "twist_rows"}
+_OUTPUT_DROP = {"es", "es_kind"}
+
+
+def _collect(node, out, key="", in_output=False):
+    """把**結構化欄位**裡的數字收進白名單;自由文字欄位一律跳過。"""
+    if isinstance(node, dict):
+        for k, v in node.items():
+            if PROSE_KEYS.search(k):
+                continue
+            if in_output and k in _OUTPUT_DROP:
+                continue
+            _collect(v, out, k, in_output or k in _OUTPUT_ONLY)
+    elif isinstance(node, list):
+        for v in node:
+            _collect(v, out, key, in_output)
+    elif isinstance(node, bool):
+        return
+    elif isinstance(node, (int, float)):
+        out.add(f"{node:g}")
+        out.add(f"{abs(node):g}")
+        out.add(say_int(node) if float(node).is_integer() else f"{node:g}")
+        if float(node).is_integer():
+            out.add(str(int(node)))
+        s = f"{abs(node):.6f}".rstrip("0").rstrip(".")
+        out.add(s)
+        # 🔴 `0.10` 與 `0.1` 是同一個值的兩種寫法,而論文原文寫的是
+        #    「B = 0.10 grade points」—— 唸成 0.1 就跟原文對不上,
+        #    寫 0.10 又被自己的閘門擋下。補的是**同一個值的格式變體**,
+        #    不是新的值,所以白名單沒有變鬆。
+        # 🔴 上面那句「補的是同一個值的格式變體,不是新的值」**對小數多的值是假的**。
+        #    `0.10` vs `0.1` 確實是同一個值;但 `0.026` 補進 2 位小數就變成
+        #    **`0.03` —— 那是另一個數字**,而且是四捨五入後**往上**的那個。
+        #    後果:白名單自己把捨入後的寫法收了進去,於是
+        #    「事實庫存 0.026、畫面印 0.03」在溯源上**恆為合法** ——
+        #    這正是 2026-09-09 eta2 那個偏差躲過所有閘門的原因,
+        #    也是「量錯對象」之外更深的一層:**尺自己有刻度誤差**。
+        #    ⇒ 只收**無損**的定小數位寫法。這是收緊,不是放寬。
+        for dp in (2, 3):
+            for cand in (f"{abs(node):.{dp}f}", f"{node:.{dp}f}"):
+                if float(cand) == float(f"{node:g}") or                         float(cand) == abs(float(f"{node:g}")):
+                    out.add(cand)
+        if "." in s:
+            out.add(s.split(".")[1])          # 「p equals .017」抓到的是 017
+        # 帶千分位與不帶,兩種都可能出現在稿子裡
+        if float(node).is_integer():
+            out.add(f"{int(node):,}")
+    elif isinstance(node, str) and not PROSE_KEYS.search(key):
+        for tok in NUM_RE.findall(node):
+            out.add(tok)
+
+
+def _collect_top(E, out):
+    _collect(E, out)
+
+
+def audit(E, segs):
+    """稿子裡每個數字都要在**結構化欄位**找得到。fail-closed。
+
+    ⚠️ 用數字邊界比對,不是子字串 —— `"1" in "12"` 成立過一次,給了
+       假綠燈,那支片已經發出去了。
+    """
+    ok = set()
+    _collect(E, ok)
+    # 唸出來的年份、樣本數必然來自上面;唸法產生的變體補進去
+    for v in list(ok):
+        ok.add(v.replace(",", ""))
+    bad = []
+    for name, txt in segs:
+        for num in NUM_RE.findall(txt):
+            if num not in ok and num.replace(",", "") not in ok:
+                bad.append((name, num))
+    if bad:
+        raise SystemExit(
+            f"⛔ 稿子裡有溯源不到的數字:{bad}\n"
+            f"   白名單只收**結構化欄位**(quote / note / trap 那些自由文字"
+            f"不算)。想講這個數字,就把它升格成一個欄位。")
+
+    # `_do_not_fill` 點名的東西,稿子裡不准出現。
+    top = json.loads(SRC.read_text(encoding="utf-8"))
+    # 🔴 這道守門**從來沒有可能叫過**。舊版兩個問題各自就足以讓它全盲:
+    #    ① 兩條的前綴不是 slug(「marshmallow.」對 marshmallow_test、
+    #       「backfire.」對 backfire_effect)—— startswith 恆假。
+    #    ② 其餘六條是拿 key 的尾段拆成「trimfill corrected d」這種字串,
+    #       去**英文旁白**裡找 —— 那種字串不會出現在任何一句人話裡。
+    #    八條沒有一條可能命中。記憶裡 `verification-that-cannot-fail` 的
+    #    第一種:不會叫的守門,而它看起來跟通過一模一樣。
+    #    改成明講「不准出現的是哪幾個字串」,而且**沒登記就中止**。
+    slug_pre = E["slug"] + "."
+    for k, spec in top.get("_do_not_fill", {}).items():
+        if not k.startswith(slug_pre):
+            continue
+        if not isinstance(spec, dict) or "forbid" not in spec:
+            raise SystemExit(
+                f"⛔ _do_not_fill 的 {k} 沒有 `forbid` —— 沒有要找的字串,"
+                f"這條就只是一句註解,不是守門。")
+        why = spec.get("why", "")
+        for bad_s in spec["forbid"]:
+            for name, txt in segs:
+                if bad_s in txt:
+                    raise SystemExit(
+                        f"⛔ {name} 講了 _do_not_fill 禁止的「{bad_s}」"
+                        f"({k}):{why}")
+    print(f"  數字溯源 ✓（{len(ok)} 個結構化可用值）")
+
+    # 🔴 **這是英文頻道,旁白裡不准有中文。** 聽起來像廢話,但實測發生了:
+    #    事實庫是我跟中文 fact agent 一起建的,`timeline[].what` 那些欄位
+    #    直接抄了 agent 的中文描述,而 build_script 把它們接進旁白 ——
+    #    Kokoro 照著唸,`seg_timeline.wav` 產出 **107.6 秒**的雜音
+    #    (整支片其他七段加起來才 138 秒),而且畫面上那一欄也是中文。
+    #    現有的每一道守門都放行:數字溯源只看數字(數字是對的)、版面守門
+    #    只看有沒有出界跟重疊(中文字排得下)、時長比對只看影音對不對得上
+    #    (對得上,因為兩邊都是同一份爛稿)。
+    #    → 「輸出語言」這件事沒有任何一道既有守門在管,它需要自己一道。
+    bad_lang = [(n, CJK.search(t).group())
+                for n, t in segs if CJK.search(t)]
+    if bad_lang:
+        raise SystemExit(
+            f"⛔ 旁白裡有中文:{bad_lang} —— 這是英文頻道,TTS 會照著唸。\n"
+            f"   事實庫裡給人看的欄位(quote_location / note / trap)可以是"
+            f"中文,但**會進旁白或畫面的欄位**(timeline[].what、"
+            f"twist_rows[].label/what、say_*)必須是英文。")
+    print("  輸出語言 ✓")
+
+    # DOI 陷阱:被撤稿/印錯的那些,不准出現在這一集的任何欄位裡。
+    blob = json.dumps(E, ensure_ascii=False)
+    for bad_doi, why in top.get("_doi_traps", {}).items():
+        # 事實庫自己的警告欄位會提到它(那是正確的),所以只擋 doi 欄位
+        for m in re.finditer(r'"doi"\s*:\s*"([^"]+)"', blob):
+            if m.group(1) == bad_doi:
+                raise SystemExit(f"⛔ {E['slug']} 的 doi 欄位用了 "
+                                 f"{bad_doi} —— {why}")
+    print("  DOI 陷阱 ✓")
+
+
+# ─────────────────────────────── 畫面 ───────────────────────────────
+
+#: 量出來的字級快取。
+#: 🔴 **一定要快取。** `fit_w` 每次呼叫都開一張 1920×1080 的 matplotlib
+#:    figure 再關掉,而我把它放在 `render_scene` 裡 —— 也就是**每一格畫面**
+#:    都重量一次,四列的話一格就是八張 figure。實測後果:facial_feedback
+#:    渲到一半,九分鐘沒有產出任何一格,CPU 吃滿一核、記憶體以每秒 9 MB
+#:    往上爬(16 GB 的機器只剩 2.2 GB),整台機器開始換頁。
+#:    看起來像當掉,其實是「對的答案算了一千五百遍」。
+#:    量測結果只跟 (字串, 字級, 欄寬, 粗細) 有關,而那四個在一段裡不變。
+_FIT_CACHE = {}
+
+
+def fit_w(plt, text, base, max_frac, weight="bold"):
+    """字級用量的,不是挑的 —— 文案長度會變,一個字級不可能同時對。"""
+    ck = (text, base, round(max_frac, 4), weight)
+    if ck in _FIT_CACHE:
+        return _FIT_CACHE[ck]
+    fig = plt.figure(figsize=(W / 100, H / 100), dpi=100)
+    ax = fig.add_axes([0, 0, 1, 1]); ax.axis("off")
+    ax.set_xlim(0, 1); ax.set_ylim(0, 1)
+    t = ax.text(0.5, 0.5, text, ha="center", va="center",
+                fontsize=base, weight=weight)
+    fig.canvas.draw()
+    frac = t.get_window_extent(
+        renderer=fig.canvas.get_renderer()).width / W
+    plt.close(fig)
+    out = (base if (frac <= max_frac or frac == 0)
+           else max(20, int(base * max_frac / frac)))
+    _FIT_CACHE[ck] = out
+    return out
+
+
+_MW_CACHE = {}
+
+
+def measure_w(plt, text, fs, weight="bold"):
+    """這段字在這個字級下**實際**佔畫面寬度的幾分之幾。
+
+    🔴 不要拿 `fit_w` 的回傳值去反推寬度:它回的是**字級**,而且字串本來
+       就塞得下時它原封不動回傳 base —— 反推出來的「寬度」永遠等於上限。
+       (make_reel 已經踩過一次,這裡是同一個坑的第二個現場。)
+    """
+    ck = (text, fs, weight)
+    if ck in _MW_CACHE:
+        return _MW_CACHE[ck]
+    fig = plt.figure(figsize=(W / 100, H / 100), dpi=100)
+    ax = fig.add_axes([0, 0, 1, 1]); ax.axis("off")
+    ax.set_xlim(0, 1); ax.set_ylim(0, 1)
+    t = ax.text(0.5, 0.5, text, ha="center", va="center", fontsize=fs,
+                weight=weight)
+    fig.canvas.draw()
+    w = t.get_window_extent(renderer=fig.canvas.get_renderer()).width / W
+    plt.close(fig)
+    _MW_CACHE[ck] = w
+    return w
+
+
+def wrap(s, n):
+    out, line = [], ""
+    for w in s.split():
+        if len(line) + len(w) + 1 > n:
+            out.append(line); line = w
+        else:
+            line = (line + " " + w).strip()
+    if line:
+        out.append(line)
+    return out
+
+
+def ease(x):
+    return 1 - (1 - max(0.0, min(1.0, x))) ** 3
+
+
+def _quote_lines(plt, q):
+    """引言斷行:**寧可多一行也不要截斷**。
+
+    🔴 這條線出過的形狀是 `wrap(...)[:2]` —— 把論文名切成半句而畫面上
+       看起來像正常結尾。這裡改成放寬每行字數直到行數塞得下,一個字都
+       不丟;真的塞不下就中止,不要偷偷少講半句。
+    """
+    for width in (46, 52, 58, 64, 70):
+        lines = wrap(q, width)
+        if len(lines) <= 7:
+            return lines
+    raise SystemExit(
+        f"⛔ 引言 {len(q)} 字元,七行放不下,而截斷是不准的:{q[:60]}…\n"
+        f"   正解不是縮小字級硬塞(一面牆的小字沒有人會讀),是在事實庫加\n"
+        f"   `verdict_display`:從同一段原文裡挑**一個完整的句子**,逐字,\n"
+        f"   完整版留在說明欄。挑句子跟砍句子是兩件事。")
+
+
+def display_quote(E, full):
+    """畫面上要顯示的那一段引文。
+
+    🔴 **挑一個完整的句子 ≠ 把句子砍掉一半。** 前者是引用,後者是造假,
+       而這條線出過後者(縮圖主標「個股體檢【元大金」、章節「vs 0050,
+       誰是贏」)。所以 `verdict_display` 一定要能在完整原文裡逐字找到 ——
+       找不到就中止,不給任何「大概是這樣」的空間。
+    """
+    d = (E.get("verdict_display") or "").strip()
+    if not d:
+        return full, full
+    # 🔴 原本只比對 `test.verdict_quote` 一個欄位 —— **對的東西被擋掉了**。
+    #    dunning_kruger 的顯示句是從同一篇論文的 `honesty_quote` 逐字抄的
+    #    (「mostly the result of statistical artefacts, rather than entirely
+    #    so」—— 那個 mostly 正是這一集不能丟的分寸),而閘門看不到那個欄位,
+    #    於是整支長片渲不出來。
+    #    放寬的是**看哪裡**,不是**要不要逐字**:仍然必須在某一段原文裡
+    #    一字不差地找到,找不到照樣中止。
+    if d not in full:
+        found = None
+        stack = [E]
+        while stack:
+            o = stack.pop()
+            if isinstance(o, dict):
+                for k, v in o.items():
+                    if isinstance(v, str) and "quote" in k.lower() and d in v:
+                        found = v
+                        break
+                    stack.append(v)
+            elif isinstance(o, list):
+                stack.extend(o)
+            if found:
+                break
+        if not found:
+            raise SystemExit(
+                f"⛔ {E['slug']} 的 verdict_display 在**任何一段原文**裡都"
+                f"逐字找不到 —— 那就不是引用了:\n   顯示「{d[:70]}」")
+        full = found
+    return (d if d.rstrip().endswith((".", "!", "?")) else d + " …"), full
+
+
+def render_scene(name, t_now, dur, ctx):
+    plt, E = ctx["plt"], ctx["E"]
+    o, T = E["original"], E["test"]
+    rows = ctx["rows"]
+    fig = plt.figure(figsize=(W / 100, H / 100), dpi=100)
+    fig.patch.set_facecolor(BG)
+    ax = fig.add_axes([0, 0, 1, 1]); ax.axis("off")
+    ax.set_xlim(0, 1); ax.set_ylim(0, 1)
+    a = ease(t_now / 0.7)
+
+    def txt(y, s, fs, col=FG, w="bold", al=None, x=0.5, ha="center"):
+        if not s:
+            return
+        ax.text(x, y, s, ha=ha, va="center", fontsize=fs, color=col,
+                weight=w, alpha=a if al is None else al)
+
+    if name == "hook":
+        # 🔴 原本是 `wrap(...)[:4]` —— **溢出的那一行被靜默丟掉**。
+        #    實測 sugar_hyperactivity 斷成 5 行,第 5 行「behaved themselves.」
+        #    整行消失:配音唸完整句,畫面停在「and changed how they」。
+        #    截斷從來不是選項,放不下就中止。
+        lines = wrap(E["hook"], 34)
+        if len(lines) > 4:
+            raise SystemExit(
+                f"⛔ {E['slug']} 的 hook 斷成 {len(lines)} 行,開場卡只放得下 4 行。"
+                f"截掉第 5 行 = 配音唸完整句而畫面停在半句。\n"
+                f"   要縮的是事實庫裡的 hook,不是畫面上的行數:{E['hook'][:70]}")
+        # 最長的一行不一定是最寬的那一行 —— 每一行都量,取最小字級。
+        fs = min(fit_w(plt, ln, 74, 0.86) for ln in lines if ln.strip())
+        for i, ln in enumerate(lines):
+            txt(0.66 - i * 0.115, ln, fs)
+        if t_now > 2.2:
+            txt(0.20, E["story_type_short"] if E.get("story_type_short")
+                else "they ran it again", 40, ACCENT, "bold",
+                ease((t_now - 2.2) / 0.7))
+
+    elif name == "origin":
+        txt(0.70, str(o["year"]), 150, DIM)
+        cl = wrap(E["claim"], 46)[:3]
+        fs = fit_w(plt, max(cl, key=len), 50, 0.88, "normal")
+        for i, ln in enumerate(cl):
+            txt(0.50 - i * 0.085, ln, fs, FG, "normal")
+        if t_now > 2.2 and o.get("n"):
+            # 🔴 這行原本也是單行硬畫 56pt。dunning_kruger 的 n_word 是
+            #    「Cornell undergraduates in the first study」,整行變成
+            #    「sixty-five Cornell undergraduates in the first study」,
+            #    左緣 -0.005 —— 越界守門擋下,而它擋對了。
+            #    **修法 20 行以下的 `test` 場景早就寫好了**(斷行 + 量字級)。
+            #    我卻在這裡重新寫了一個會爆的版本 —— 同一個函式裡的兩段。
+            nl = wrap(f"{say_int(o['n'])} {o.get('n_word', 'people')}", 30)[:2]
+            nfs = fit_w(plt, max(nl, key=len), 56, 0.84, "bold")
+            for i, ln in enumerate(nl):
+                txt(0.20 - i * 0.075, ln, nfs, ACCENT, "bold",
+                    ease((t_now - 2.2) / 0.7))
+
+    elif name == "spread":
+        if o.get("cited_by_approx"):
+            _c = f"cited more than {say_int(o['cited_by_approx'])} times"
+            txt(0.66, _c, fit_w(plt, _c, 62, 0.86, "normal"), ACCENT)
+        sp = wrap(E.get("say_spread", ""), 48)[:4]
+        if sp:
+            fs = fit_w(plt, max(sp, key=len), 44, 0.86, "normal")
+            for i, ln in enumerate(sp):
+                txt(0.44 - i * 0.085, ln, fs, DIM, "normal")
+
+    elif name == "test":
+        txt(0.68, str(T["year"]), 150, DIM)
+        # 🔴 這一行原本單行硬畫:hungry judges 的 kind 是
+        #    「letter — reanalysis with a different dataset plus interviews」,
+        #    52pt 單行寬到左緣 -0.051 —— 越界守門擋下,而它擋對了。
+        #    修法是斷行 + 量字級,不是把字級寫小一點(下一個更長的還是會爆)。
+        lab = (f"{say_int(T['k'])} {T['k_word']}" if T.get("k")
+               and T.get("k_word") else (T.get("kind") or "the retest"))
+        ll = wrap(lab, 34)[:2]
+        lfs = fit_w(plt, max(ll, key=len), 52, 0.84, "normal")
+        for i, ln in enumerate(ll):
+            txt(0.50 - i * 0.085, ln, lfs, FG, "normal")
+        if t_now > 1.8 and T.get("n"):
+            floor = "more than " if T.get("n_is_floor") else ""
+            _np = f"{floor}{say_int(T['n'])} people"
+            txt(0.28, _np, fit_w(plt, _np, 62, 0.86, "bold"), ACCENT,
+                "bold", ease((t_now - 1.8) / 0.7))
+
+    elif name in ("timeline", "twist"):
+        # 逐列。**沒有共同刻度** —— 單位不同就不畫共同刻度,那會暗示
+        # 「1.34 比 0.57 大兩倍多」這種跨單位比較。
+        # timeline 走年份,twist 走這一集自己的關鍵數字(twist_rows)。
+        use = ctx["twist_rows"] if (name == "twist" and ctx["twist_rows"]) \
+            else rows
+        head = ("what happened to the number" if use is rows
+                else "the part that gets left out")
+        txt(0.93, head, 42, DIM, "normal")
+        # 🔴 版面要**置中**,不要從固定的 top_y 往下排。兩列的時候
+        #    top-anchored 會把東西全擠在上緣、下面空掉半個畫面 ——
+        #    抽幀才看得到,而守門看不到(沒出界也沒重疊)。
+        n = max(1, len(use))
+        gap = min(0.145, 0.62 / n)
+        top_y = 0.50 + (n - 1) * gap / 2
+        step = (dur - 1.4) / n
+        lefts = [str(r.get("year") or r.get("label", "")) for r in use]
+        whats = [r["what"] for r in use] or [""]
+        # 左欄 0.08→0.30、中欄 0.32→0.76、數值欄右對齊收在 0.94。
+        # 🔴 左欄寬度給太窄(0.13)時,fit_w 會把「a random shooter」縮到
+        #    28pt,而中欄還是 40pt —— 抽幀看出來像兩種字級硬拼在一起。
+        #    欄寬是版面決定的,不是「塞得下就好」。
+        lf = min(fit_w(plt, w, 44, 0.20) for w in lefts if w) if any(lefts) else 44
+        # 🔴 中欄寬度原本寫死 0.42(0.32→0.74),而數值欄是右對齊收在 0.94、
+        #    字級 46 —— 兩欄各自「差不多塞得下」,合起來就撞。實測
+        #    facial_feedback 的「osing a happy expression」× 「pts/7 = 0.31」
+        #    重疊 24×40 畫素,被重疊守門擋下(它擋對了)。
+        #    欄寬要從**數值欄實際佔多寬**倒推,不是挑一個看起來夠用的數字。
+        _vals = [val_str(r["es_kind"], r["es"], r.get("es_is_max", False))
+                 for r in use
+                 if r.get("es") is not None and r.get("es_kind")] or ["x"]
+        _vw = max(measure_w(plt, v, 46) for v in _vals)
+        _mid_max = max(0.24, 0.94 - _vw - 0.04 - 0.32)   # 0.04 欄間淨空
+        nf = min(fit_w(plt, w, 40, _mid_max, "normal") for w in whats if w)
+        for i, r in enumerate(use):
+            if t_now < 0.4 + i * step:
+                continue
+            b = ease((t_now - 0.4 - i * step) / 0.6)
+            y = top_y - i * gap
+            hot = bool(r.get("hot")) or (use is rows and name == "twist"
+                                         and i == len(use) - 1)
+            ax.text(0.08, y, lefts[i], ha="left", va="center",
+                    fontsize=lf, color=ACCENT if hot else DIM,
+                    weight="bold", alpha=b)
+            ax.text(0.32, y, r["what"], ha="left", va="center",
+                    fontsize=nf, color=FG if hot else DIM,
+                    weight="normal", alpha=b)
+            if r.get("es") is not None and r.get("es_kind"):
+                ax.text(0.94, y, val_str(r["es_kind"], r["es"], r.get("es_is_max", False)),
+                        ha="right", va="center", fontsize=46,
+                        color=ACCENT if hot else FG, weight="bold", alpha=b)
+
+    elif name in ("authors", "verdict"):
+        # 引號卡:作者自己的話。**逐字,不改寫** —— 改寫就不是引用了。
+        if name == "authors":
+            r = E["author_recantation"]
+            q, by = r["quotes"][0], f"— {r['who'].split('(')[0].strip()}, {r['year']}"
+            bycol = ACCENT
+        else:
+            q, _src = display_quote(E, T["verdict_quote"])
+            by, bycol = "— the authors, in the paper", DIM
+        lines = _quote_lines(plt, q)
+        fs = fit_w(plt, max(lines, key=len), 44, 0.84, "normal")
+        # 整塊置中,署名貼在塊的正下方 —— 不是釘在畫面底部。
+        # (釘底部的版本:四行引言收在 0.42,署名在 0.14,中間空一大條。)
+        lh = 0.098
+        top = 0.56 + (len(lines) - 1) * lh / 2
+        for i, ln in enumerate(lines):
+            txt(top - i * lh, ln, fs, FG, "normal")
+        txt(top - len(lines) * lh - 0.06, by, 38, bycol,
+            "bold" if name == "authors" else "normal")
+        # 🔴 引句是**逐字**的,不能為了好懂改字 —— 改了就不是引用了。
+        #    但逐字也會留下圈內縮寫:hot hand 那句寫「GVT's data」,
+        #    而觀眾不知道 GVT 是誰(是三位原作者姓氏的縮寫)。
+        #    解法是加一行**注解**,不是動引文:引文照抄,旁邊說明它。
+        g = E.get("verdict_gloss") if name == "verdict" else None
+        if g:
+            txt(top - len(lines) * lh - 0.135, g, 30, DIM, "normal")
+
+    else:
+        txt(0.60, "THEY RAN IT AGAIN", 92)
+        txt(0.42, "one claim · the numbers behind it", 42, DIM, "normal")
+
+    # ── 三道守門 ──
+    # 1) 內容存在性:守門只看「有沒有出界」「有沒有重疊」,對**該畫的
+    #    東西根本沒畫**是全盲的。這條線出過:修「名稱被畫兩次」時拿掉了
+    #    無條件那一行,只在一個分支補回來,於是整排標籤消失。
+    if name in ("timeline", "twist"):
+        # 🔴 檢查的必須是**這一段真的畫了哪一組列**。原本這裡寫死 rows,
+        #    而 twist 改成畫 twist_rows 之後,守門拿 A 的內容去查 B 的畫面
+        #    —— 於是它對一張完全正確的畫面報錯。斷言看錯對象和斷言太鬆
+        #    一樣糟:前者讓人把守門關掉。
+        checked = ctx["twist_rows"] if (name == "twist"
+                                        and ctx["twist_rows"]) else rows
+        shown = [ob.get_text() for ob in ax.texts
+                 if (ob.get_alpha() or 1) >= 0.5]
+        for r in checked:
+            if r["es"] is None or not r.get("es_kind"):
+                continue
+            v = val_str(r["es_kind"], r["es"], r.get("es_is_max", False))
+            if v in shown and r["what"] not in shown:
+                raise SystemExit(
+                    f"⛔ {name}:{r['year']} 的數字畫上去了但**說明沒有** "
+                    f"—— 觀眾會看到一排沒有標籤的數字。")
+
+    fig.canvas.draw()
+    rend = fig.canvas.get_renderer()
+    boxes = []
+    for ob in list(ax.texts):
+        bb = ob.get_window_extent(renderer=rend)
+        for v, lo, hi, side in ((bb.x0 / W, 0.02, 0.98, "左"),
+                                (bb.x1 / W, 0.02, 0.98, "右"),
+                                (bb.y0 / H, 0.03, 0.97, "下"),
+                                (bb.y1 / H, 0.03, 0.97, "上")):
+            if not (lo - 1e-9 <= v <= hi + 1e-9):
+                raise SystemExit(f"⛔ {name} 越界:「{ob.get_text()[:24]}」"
+                                 f"{side}緣 {v:.3f}")
+        if (ob.get_alpha() or 1) >= 0.35:
+            boxes.append((ob.get_text()[:24], bb))
+    # 2) 兩兩相交 —— 出界守門對「兩個都在界內但壓在一起」結構上全盲,
+    #    而那個形狀讓 16 支已上線的 Shorts 全中。
+    for i in range(len(boxes)):
+        for j in range(i + 1, len(boxes)):
+            (ta, A), (tb, B) = boxes[i], boxes[j]
+            ox = min(A.x1, B.x1) - max(A.x0, B.x0)
+            oy = min(A.y1, B.y1) - max(A.y0, B.y0)
+            if ox > 2 and oy > 2:
+                raise SystemExit(f"⛔ {name} 文字重疊:「{ta}」×「{tb}」"
+                                 f"{ox:.0f}×{oy:.0f} 畫素")
+    import numpy as np
+    buf = np.asarray(fig.canvas.buffer_rgba())[:, :, :3].copy()
+    plt.close(fig)
+    return buf
+
+
+def _plt():
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    plt.rcParams["font.family"] = ["DejaVu Sans"]
+    return plt
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--slug")
+    ap.add_argument("--list", action="store_true")
+    ap.add_argument("--script-only", action="store_true")
+    a = ap.parse_args()
+
+    if a.list or not a.slug:
+        d = json.loads(SRC.read_text(encoding="utf-8"))
+        for e in d["episodes"]:
+            ready = "✓" if (e.get("say_twist") and e.get("say_verdict")) \
+                else "缺 say_twist/say_verdict"
+            print(f"  {e['slug']:20s} {ready:24s} {e['story_type']}")
+        return 0
+
+    E = load(a.slug)
+    segs = build_script(E)
+    rows = timeline_rows(E)
+    print(f"[{a.slug}] {E['story_type']}")
+    audit(E, segs)
+    words = sum(len(t.split()) for _, t in segs)
+    print(f"  稿 {words} 字 ≈ {words / 2.6:.0f} 秒")
+    if a.script_only:
+        for n, t in segs:
+            print(f"  --- {n} ---\n  {t}")
+        return 0
+
+    out = ROOT / "eps_rechecked" / a.slug
+    out.mkdir(parents=True, exist_ok=True)
+    for n, t in segs:
+        (out / f"narr_{n}.txt").write_text(t, encoding="utf-8")
+    (out / "facts.json").write_text(
+        json.dumps(E, ensure_ascii=False, indent=1), encoding="utf-8")
+    from render_pipeline import tts, render_and_mux
+    tts(out, segs)
+    mp4, dur = render_and_mux(out, segs, render_scene, f"{a.slug}.mp4",
+                              W, H, FPS,
+                              ctx={"plt": _plt(), "E": E, "rows": rows,
+                                   "twist_rows": twist_rows(E)})
+    print(f"完成 → {mp4}  ({dur:.0f}s)")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

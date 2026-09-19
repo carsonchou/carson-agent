@@ -1,0 +1,32 @@
+[_llm_shim] \u26a0\ufe0f ���] OPENROUTER_API_KEY,shim **������** �X�X �� process �� Anthropic �|���q�u���I(�b�ᦳ���N�|�u���p�O)
+[ffmpeg後端] 首幀=大數字衝擊卡 (hook_card)
+[ffmpeg後端] 卡片邊界對齊旁白:6 段錨到真實時間
+[換視角] 第0段 原圖=dca 換到=['history', 'fundamentals'] 缺資料跳過=(無)
+[換視角] 第1段 原圖=fundamentals 換到=['valuation', 'drawdown'] 缺資料跳過=(無)
+[換視角] 第2段 原圖=drawdown 換到=['trend', 'valuation'] 缺資料跳過=(無)
+[換視角] 第3段 原圖=dca 換到=['drawdown', 'trend'] 缺資料跳過=(無)
+[換視角] 第4段 原圖=valuation 換到=['trend', 'dca'] 缺資料跳過=(無)
+[換視角] 第5段 原圖=dca 換到=['history', 'fundamentals'] 缺資料跳過=(無)
+[數字閘門] 1560 看過 33 句 → {'④': 20, '放行': 3, '②': 6, '①': 4};印出 [('numpop_0.png', 7.65), ('numpop_1.png', 25.77), ('numpop_2.png', 91.12), ('numpop_cta.png', 11.59)]
+[ffmpeg後端] 數字爆現:4 個 overlay
+[隔離] make_video <- D:\_sandbox_wFp8_B\youtube_channel\scripts\make_video.py
+[隔離] render_ffmpeg <- D:\_sandbox_wFp8_B\youtube_channel\scripts\render_ffmpeg.py
+[隔離] concept_visuals <- D:\_sandbox_wFp8_B\youtube_channel\scripts\concept_visuals.py
+[隔離] PROJECT_ROOT = D:\_sandbox_wFp8_B\youtube_channel
+================================================================
+開始組片：L_個股體檢中砂1560誰說個股一定贏大盤中砂近10年定
+  標題     : 個股體檢【中砂 1560】誰說個股一定贏大盤？中砂近10年定期定額賺744.8%，卻只比0050多賺一點點！ | 中砂 1560 定期定額 0050 回測
+  配音長   : 703.2s（6 段）
+  素材來源 : 字卡降級（無 PEXELS_API_KEY）
+  解析度   : 1920x1080 @ 24fps
+  [note] 未設定 PEXELS_API_KEY，全程使用字卡投影片（仍可產出完整測試片）。
+================================================================
+[ffmpeg後端] 編碼器=libx264  切片=258段  字幕=251  BGM=有  總長=710.8s
+[ffmpeg後端] ✅ 完成 L_個股體檢中砂1560誰說個股一定贏大盤中砂近10年定.mp4（24.1 MB）
+================================================================
+[OK] 影片完成（ffmpeg 後端·快）！
+  檔案     : D:\_sandbox_wFp8_A\after\L_個股體檢中砂1560誰說個股一定贏大盤中砂近10年定.mp4
+  大小     : 24.1 MB
+================================================================
+[渲染] rc=0 耗時=337.6s -> D:/_sandbox_wFp8_A/after/L_個股體檢中砂1560誰說個股一定贏大盤中砂近10年定.mp4
+[渲染] mp4存在=True 大小=25306437

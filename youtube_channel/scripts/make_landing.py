@@ -1,0 +1,309 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""make_landing.py — 產 bio landing 轉換樞紐(IG/TikTok bio 連這頁·三方同步營利入口)。
+
+暗色·手機優先·自足 HTML。讀 channel_config.affiliates 動態產(只列 url 有填的聯盟)。
+區塊:YT訂閱 / 免費檢核表(TG) / 多聯盟(誠實揭露) / 產品(私訊索取) /
+      🛒 數位商品鋪 v2(旗艦訂閱週報為主位的四層漏斗) / 接案詢價 / 風險聲明。
+
+v2 商品鋪(2026-07 重做,對齊 docs/ecommerce/REDESIGN_SPEC_*):
+  視覺同 quant-service/ecommerce/mockup/subscription_weekly_sample.html「血統」——
+  暗金鎖色(#C9A227/#E3B93E)+ 台股漲紅跌綠 + 數據卡左緣金 bar,克制發光。
+  漏斗四層:L0 免費磁鐵 → L1 tripwire → L2 core 數據包 → 旗艦訂閱週報(視覺主位)。
+  定價/名稱單一事實來源 = quant-service/ecommerce/config.py(此檔手動同步該表,改價改那邊)。
+
+誠信:零保證收益、零逼單;「介紹≠推薦」;聯盟附「不增加你成本+可能虧+抽手續費%」揭露;
+      商品卡不放捏造績效/勝率數字,只放商品內容與真實售價。
+
+placeholder 紀律(勿破壞):商店連結走 env,未設則落回字面 placeholder(不外發)——
+  PRODUCT_STORE_URL → [PORTALY_URL_PLACEHOLDER](訂閱牆/台灣一次性 SKU)
+  GUMROAD_STORE_URL → [GUMROAD_URL_PLACEHOLDER](國際 EN 數據包)
+  同 autopost.py / tg_magnet.py 既有慣例;Carson 設好 env 再重跑本腳本即帶入真連結。
+
+輸出完整 HTML 文件(含 charset+viewport,手機優先)。已托管 GitHub Pages:
+https://carsonchou.github.io/carson-quant-link/(公開 repo carsonchou/carson-quant-link 只含此 index.html)。
+更新:重跑本腳本後,把 assets/landing/index.html 覆蓋到該 repo clone 再 git push 即重新部署。
+"""
+from __future__ import annotations
+import json
+import os
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+DEST = ROOT / "assets" / "landing" / "index.html"
+CFG = ROOT / "channel_config.json"
+YT = "https://www.youtube.com/@carsonquant"
+TG = "https://t.me/CarsonQuant_message_bot"
+
+# 定價一律讀 quant-service/ecommerce/config.py 這個**單一事實來源**,不在本檔寫死。
+# 為什麼(2026-07-16):本檔原本把 NT$99/149/1290 直接寫死在 HTML 裡,而 listing_templates
+# 已經在讀 config —— 兩邊各自為政。Carson 把 basic 降成 49 時,若只改 config,
+# **landing 會繼續對買家顯示 99 而系統實收 49**:買家看到的價格 ≠ 實際收的價格。
+# 這跟本專案反覆中招的病同型(單一事實來源沒貫徹 + 不同步時零告警)。
+_QS_ECOM = ROOT.parent / "quant-service" / "ecommerce"
+if str(_QS_ECOM) not in sys.path:
+    sys.path.insert(0, str(_QS_ECOM))
+try:
+    import config as _ecom_cfg
+    SUB = _ecom_cfg.SUBSCRIPTION
+except Exception as e:  # noqa: BLE001
+    # 讀不到就**炸**,不要落回寫死的舊價 —— 對外顯示錯的價格比不出頁面嚴重。
+    raise SystemExit(f"[make_landing] 讀不到定價單一事實來源 {_QS_ECOM/'config.py'}: {e}")
+
+
+def _load_env():
+    """直跑時把 youtube_channel/.env 併進 os.environ。同 make_thumbnails.py/quality_score.py 的作法。
+
+    為什麼(2026-07-16 修):本腳本**不在 crontab 裡**,只會被手動重跑——而唯一會載
+    youtube_channel/.env 的是排程器 local_cron(且只餵給它自己排的 job)。所以手冊叫
+    Carson「設好 PRODUCT_STORE_URL 再重跑 make_landing」時,手動 shell 沒有那些變數 →
+    下面兩行落回 placeholder → landing 四個購買按鈕全是死連結,而腳本正常結束不報錯。
+    (VERIFY_REPORT_runbook B2)
+
+    setdefault = 已存在的環境變數優先,.env 不覆蓋它。必須在下面 PORTALY/GUMROAD 兩行**之前**跑。
+    """
+    envf = ROOT / ".env"
+    if envf.exists():
+        for ln in envf.read_text(encoding="utf-8", errors="replace").splitlines():
+            s = ln.strip()
+            if s and not s.startswith("#") and "=" in s:
+                k, v = s.split("=", 1)
+                os.environ.setdefault(k.strip(), v.strip())
+
+
+_load_env()
+
+# 商店連結:env 優先,未設落回字面 placeholder(不外發紀律,同 autopost/tg_magnet)。
+PORTALY = os.environ.get("PRODUCT_STORE_URL", "[PORTALY_URL_PLACEHOLDER]").strip() or "[PORTALY_URL_PLACEHOLDER]"
+GUMROAD = os.environ.get("GUMROAD_STORE_URL", "[GUMROAD_URL_PLACEHOLDER]").strip() or "[GUMROAD_URL_PLACEHOLDER]"
+
+
+def _cfg():
+    try:
+        return json.loads(CFG.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def _btn(href, main, sub="", accent="#C9A227"):
+    sub_html = f'<span class="sub">{sub}</span>' if sub else ""
+    return (f'<a class="btn" href="{href}" target="_blank" rel="noopener" '
+            f'style="border-color:{accent}33">{main}{sub_html}</a>')
+
+
+def _tiers_html() -> str:
+    """訂閱層級價格 —— 一律從 config.SUBSCRIPTION 組,不在 HTML 寫死。
+
+    年繳受 enabled 旗標控制:Carson 已拍板暫緩年繳(續訂殺手會在第 2–3 個月暴露,
+    年繳=把不滿意的客戶鎖 12 個月)。旗標關著就不對買家顯示這個選項——
+    「config 說停售、landing 還在賣」正是這個 codebase 反覆中招的不同步病。
+    """
+    parts = []
+    for key, unit in (("basic", "/月"), ("full", "/月"), ("annual", "/年")):
+        t = SUB.get(key) or {}
+        if t.get("enabled") is False:
+            continue
+        price = t.get("ntd_month") or t.get("ntd_year")
+        if not price:
+            continue
+        parts.append(f'<span class="tier"><b>{t.get("name_zh", key)}</b>'
+                     f'<span class="p">NT${price}<i>{unit}</i></span></span>')
+    return "".join(parts)
+
+
+TIERS = _tiers_html()
+
+
+def _shop_section() -> str:
+    """🛒 數位商品鋪 v2 —— 旗艦訂閱週報為視覺主位的四層漏斗(暗金數據卡血統)。
+
+    連結:訂閱/台灣一次性 → PORTALY(env or placeholder);EN → GUMROAD;免費磁鐵 → TG bot。
+    """
+    return f"""
+    <section class="shop">
+      <div class="shop-hd">
+        <span class="eyebrow">數位商品 · DATA SHOP</span>
+        <h2 class="shop-title">量化阿森 數據鋪</h2>
+        <p class="shop-note">數據事實整理 · <b>介紹 ≠ 推薦</b> · 不喊單、不保證收益</p>
+      </div>
+
+      <!-- 旗艦訂閱(視覺主位) -->
+      <a class="pcard hero" href="{PORTALY}" target="_blank" rel="noopener">
+        <div class="pc-eyebrow">★ 旗艦訂閱 · WEEKLY</div>
+        <div class="pc-title">台股全市場週報</div>
+        <div class="pc-desc">每週掃 <b>1900+ 檔</b>:市場溫度體質 · 34 板塊輪動 · 全市場強弱榜 · 法人週籌碼 · <b class="hl">真實訊號追蹤(含輸單)</b></div>
+        <div class="tiers">{TIERS}</div>
+        <div class="pc-foot"><span class="badge">介紹 ≠ 推薦</span><span class="go">前往訂閱 →</span></div>
+      </a>
+
+      <!-- 漏斗階梯 -->
+      <div class="ladder">
+        <span class="rung">免費磁鐵</span><span class="arr">→</span>
+        <span class="rung">NT$99 入門</span><span class="arr">→</span>
+        <span class="rung">數據包</span><span class="arr">→</span>
+        <span class="rung on">訂閱週報</span>
+      </div>
+
+      <!-- L0 免費磁鐵 -->
+      <a class="pcard" href="{TG}" target="_blank" rel="noopener">
+        <div class="pc-row"><span class="pc-name">🎁 免費磁鐵</span><span class="price free">免費</span></div>
+        <div class="pc-sub">台股當沖適格快照:處置/注意股名單(每日更新)＋ 盤前防呆 5 點 · 私訊打「當沖」直接領</div>
+      </a>
+
+      <!-- L1 tripwire -->
+      <a class="pcard" href="{PORTALY}" target="_blank" rel="noopener">
+        <div class="pc-row"><span class="pc-name">📊 入門工具</span><span class="price">NT$99 起</span></div>
+        <div class="pc-sub">台股定投追蹤模板(附 10 年 All-in vs 定投 vs 0050 真對照)· 個股體檢單檔報告 NT$149</div>
+      </a>
+
+      <!-- L2 core -->
+      <a class="pcard" href="{PORTALY}" target="_blank" rel="noopener">
+        <div class="pc-row"><span class="pc-name">📦 全市場數據包</span><span class="price">NT$990 起</span></div>
+        <div class="pc-sub">1770 檔回測合併 CSV(adaptive＋多空＋sharpe)· 權值股體檢合輯 NT$1280 · 一次買斷</div>
+      </a>
+
+      <!-- 國際 EN -->
+      <a class="pcard en" href="{GUMROAD}" target="_blank" rel="noopener">
+        <div class="pc-row"><span class="pc-name">🌐 TW Quant Data Pack</span><span class="price">US$35</span></div>
+        <div class="pc-sub">Full-market Taiwan backtest workbook (EN) · rare data for global quants</div>
+      </a>
+
+      <p class="shop-foot">所有商品為歷史數據彙整與教學,只做事實介紹;數字皆綁公開資料來源(FinMind / Yahoo 含息還原),不喊單、不報明牌。歷史數據非未來保證,投資有風險。</p>
+    </section>"""
+
+
+def build() -> Path:
+    c = _cfg()
+    affs = c.get("affiliates", {}) or {}
+    tips = c.get("tips_url", "")
+    rows = [_btn(YT, "▶️ 訂閱 YouTube「量化阿森」", "完整版+每日更新", "#c83232")]
+    rows.append(_btn(TG, "🎯 免費領「新手回測避雷檢核表」", "私訊打「回測」", "#4a9"))
+    # 聯盟(只列 url 有填的·誠實揭露)
+    for k, a in affs.items():
+        if k == "_note" or not isinstance(a, dict) or not a.get("url"):
+            continue
+        rows.append(_btn(a["url"], f'🔗 {a.get("label", k)}', a.get("rate", a.get("note", "")), "#C9A227"))
+    # 產品(私訊索取·不放帳號/金流)
+    rows.append(_btn(TG, "🤝 合作/接案詢價", "自動化AI頻道·量化系統搭建", "#8a8"))
+    if tips:
+        rows.append(_btn(tips, "☕ 請我喝杯咖啡(打賞)", "", "#c9a"))
+
+    html = f"""<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>量化阿森｜Carson Quant · 連結中心</title>
+<meta name="description" content="量化阿森 Carson Quant：不喊單、只認數據、幫你避雷。訂閱 YouTube、免費領回測避雷檢核表、台股全市場週報訂閱制。">
+<style>
+  :root{{
+    color-scheme:dark;
+    --bg:#0B0E14; --bg2:#0D1017;
+    --card:#141922; --card2:#1A2029; --pod:#10151D;
+    --line:#242C38; --line2:#2E3745;
+    --tx:#E6EAF0; --tx2:#9AA5B5; --tx3:#5D6675;
+    --gold:#C9A227; --gold-hi:#E3B93E; --gold-deep:#8A6D1C;
+    --up:#FF5C5C; --dn:#33D69F;
+  }}
+  *{{box-sizing:border-box}}
+  body{{margin:0;color:var(--tx);font-variant-numeric:tabular-nums;
+    font-family:-apple-system,"Noto Sans TC","Microsoft JhengHei",sans-serif;
+    background:
+      radial-gradient(900px 480px at 82% -6%, rgba(201,162,39,.08), transparent 60%),
+      radial-gradient(760px 520px at -12% 106%, rgba(51,73,110,.12), transparent 60%),
+      linear-gradient(180deg,var(--bg) 0%,var(--bg2) 100%);
+    background-attachment:fixed;}}
+  .wrap{{max-width:520px;margin:0 auto;padding:32px 20px 48px}}
+  header{{text-align:center;margin-bottom:26px}}
+  .logo{{font-size:34px;font-weight:800;color:var(--gold-hi);letter-spacing:2px}}
+  .tag{{color:var(--tx2);font-size:15px;margin-top:6px}}
+  main{{display:flex;flex-direction:column;gap:13px}}
+  .btn{{display:flex;flex-direction:column;align-items:center;gap:3px;padding:16px 18px;
+    background:var(--card);border:1px solid var(--line2);border-radius:16px;color:var(--tx);
+    text-decoration:none;font-size:17px;font-weight:600;transition:transform .1s,border-color .15s}}
+  .btn:active{{transform:scale(.98)}}
+  .btn:hover{{border-color:var(--gold-deep)}}
+  .btn .sub{{font-size:12.5px;color:var(--tx2);font-weight:400}}
+
+  /* ============ 🛒 數位商品鋪 v2(暗金數據卡血統) ============ */
+  .shop{{margin-top:26px;border-top:1px solid var(--line);padding-top:24px}}
+  .shop-hd{{text-align:center;margin-bottom:16px}}
+  .eyebrow{{font-size:10.5px;letter-spacing:.28em;text-transform:uppercase;color:var(--gold)}}
+  .shop-title{{font-size:22px;font-weight:800;margin:7px 0 4px;color:var(--tx);letter-spacing:.02em}}
+  .shop-note{{font-size:12px;color:var(--tx2);margin:0;line-height:1.6}}
+  .shop-note b{{color:var(--gold-hi);font-weight:700}}
+
+  .pcard{{display:block;text-decoration:none;position:relative;overflow:hidden;
+    background:linear-gradient(180deg,var(--card) 0%,var(--pod) 100%);
+    border:1px solid var(--line2);border-radius:14px;padding:15px 17px 15px 19px;
+    margin-bottom:12px;transition:transform .1s,border-color .15s}}
+  .pcard::before{{content:"";position:absolute;left:0;top:13px;bottom:13px;width:3px;border-radius:3px;
+    background:linear-gradient(180deg,var(--gold-hi),var(--gold-deep))}}
+  .pcard:active{{transform:scale(.985)}}
+  .pcard:hover{{border-color:var(--gold-deep)}}
+
+  /* 旗艦訂閱主位卡 */
+  .hero{{padding:19px 20px 17px 22px;border-color:var(--gold-deep);
+    background:linear-gradient(180deg,#171b24 0%,#10141c 100%);
+    box-shadow:0 0 0 1px rgba(201,162,39,.10) inset}}
+  .hero::before{{width:4px;box-shadow:0 0 9px rgba(227,185,62,.28)}}
+  .pc-eyebrow{{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--gold);font-weight:700}}
+  .pc-title{{font-size:23px;font-weight:800;color:var(--tx);margin:6px 0 8px;letter-spacing:.01em}}
+  .pc-desc{{font-size:12.5px;line-height:1.7;color:var(--tx2);margin-bottom:14px}}
+  .pc-desc b{{color:var(--tx);font-weight:600}}
+  .pc-desc b.hl{{color:var(--gold-hi)}}
+  .tiers{{display:flex;gap:8px;margin-bottom:14px}}
+  .tier{{flex:1;background:var(--pod);border:1px solid var(--line);border-radius:9px;
+    padding:9px 6px;text-align:center;line-height:1.35}}
+  .tier b{{display:block;font-size:11px;color:var(--tx2);font-weight:600}}
+  .tier .p{{display:block;font-size:16px;font-weight:800;color:var(--gold-hi);margin-top:3px}}
+  .tier .p i{{font-size:10px;font-style:normal;color:var(--tx3);font-weight:500;margin-left:1px}}
+  .pc-foot{{display:flex;align-items:center;justify-content:space-between}}
+  .badge{{font-size:10.5px;font-weight:700;letter-spacing:.06em;color:#0B0E14;
+    background:var(--gold-hi);padding:4px 10px;border-radius:5px}}
+  .go{{font-size:13px;font-weight:700;color:var(--gold-hi)}}
+
+  /* 一般商品卡(單行:名稱 + 價) */
+  .pc-row{{display:flex;align-items:baseline;justify-content:space-between;gap:10px}}
+  .pc-name{{font-size:16px;font-weight:700;color:var(--tx)}}
+  .price{{font-size:14px;font-weight:800;color:var(--gold-hi);white-space:nowrap}}
+  .price.free{{color:var(--dn)}}
+  .pc-sub{{font-size:12px;color:var(--tx2);line-height:1.6;margin-top:5px}}
+  .en .pc-sub{{font-family:-apple-system,"Segoe UI",sans-serif}}
+
+  /* 漏斗階梯 */
+  .ladder{{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:5px 7px;
+    margin:2px 0 14px;font-size:11px}}
+  .rung{{color:var(--tx3);background:var(--pod);border:1px solid var(--line);
+    border-radius:20px;padding:4px 11px}}
+  .rung.on{{color:#0B0E14;background:var(--gold-hi);border-color:var(--gold-hi);font-weight:700}}
+  .arr{{color:var(--gold-deep);font-weight:700}}
+
+  .shop-foot{{font-size:10.5px;color:var(--tx3);line-height:1.7;margin:6px 2px 0}}
+
+  footer{{margin-top:30px;text-align:center;color:var(--tx3);font-size:11.5px;line-height:1.7}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">量化阿森</div>
+    <p class="tag">不喊單 · 只認數據 · 幫你避雷</p>
+  </header>
+  <main>
+    {"".join(rows)}
+  </main>
+  {_shop_section()}
+  <footer>投資有風險,本頁內容為教學/資訊,不構成投資建議、不保證收益。聯盟連結:透過它註冊不增加你的成本,也支持頻道做真數據內容。</footer>
+</div>
+</body>
+</html>"""
+    DEST.parent.mkdir(parents=True, exist_ok=True)
+    DEST.write_text(html, encoding="utf-8")
+    return DEST
+
+
+if __name__ == "__main__":
+    p = build()
+    print(f"[landing] 產出 {p}（{p.stat().st_size // 1024} KB）· 托管到 GitHub Pages 後設 IG/TikTok bio")

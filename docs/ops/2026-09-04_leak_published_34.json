@@ -1,0 +1,230 @@
+{
+  "generated": "2026-09-04 14:08 (督導 wF:p1)",
+  "warning": "⚠️ 不可對 Carson 講「34 支唸出內部指令」——prompt_leak 那軸至少 H8PCbwUQfRE 是灰區偽陽性(「如果你把一百萬一次All in 0050。」是正常旁白,只是與 prompt 常數 60~90% 像)。要分層報(誠信級/尷尬級/疑似)。此數字已被更正三次(53.5%→200.9h→44.2h;20→22→34)。",
+  "axes": {
+    "prompt_leak": "12-gram 相似度;來源 STUDIO/_leak_published_ids.json(裡面存的是 slug 不是 video_id)",
+    "stage_direction": "_long_stage_direction;原普查沒掃這條軸",
+    "skeleton_label": "兩支偵測器都回 None,只有人工讀出來",
+    "paren_stage": "誰都抓不到 —— 閘門把括號當豁免區;tests/paren_stage/known_gap.py 現在故意 FAIL"
+  },
+  "todo_after_1500": [
+    "逐支取 estimatedMinutesWatched —— 不要用觀看次數外推(會高估 4~5 倍)。⚠️ Analytics 走**另一個配額池**,帳本 by_op 裡一筆 Analytics 都沒有 —— 不吃 Data API 的 26,001。",
+    "videos.list(part=status) 確認是否仍 public(uploaded_ledger 是 append-only,本機證不出來)。🔴 成本是 **1 unit**(帳本實測 videos.get 單價 = 1.0,1239 calls/1239 units),批次 50 個 id 一次呼叫。我先前寫的「2~3 units」是錯的,而且不必掛 YT_QUOTA_RESERVE —— 加沒必要的約束會讓下一個人以為這批很貴。",
+    "⚠️ 名單裡有 Shorts,觀看時數口徑與長片不同,分開報不要加總"
+  ],
+  "items": [
+    {
+      "video_id": "H3Sk1AfUVT0",
+      "slug": "L_個股體檢力成6239存20年賺1417但685暴跌風",
+      "axis": "paren_stage",
+      "fmt": "long"
+    },
+    {
+      "video_id": "OhrPgVP_CR8",
+      "slug": "L_個股體檢友達2409存20年含息報酬僅73你還敢存股",
+      "axis": "paren_stage",
+      "fmt": "long"
+    },
+    {
+      "video_id": "ULkaLj4d_tA",
+      "slug": "L_個股體檢健策3653存16年賺56倍但暴跌78你敢抱",
+      "axis": "paren_stage",
+      "fmt": "long"
+    },
+    {
+      "video_id": "WFJoOC-4izg",
+      "slug": "L_群創3481存20年報酬僅598長期投資的隱藏風險個",
+      "axis": "paren_stage",
+      "fmt": "long"
+    },
+    {
+      "video_id": "jsIt1qA1aj8",
+      "slug": "L_個股體檢順達3211存18年報酬1523但暴跌728",
+      "axis": "paren_stage",
+      "fmt": "long",
+      "verdict": "false_positive",
+      "verdict_reason": "voice.txt 共 11 個括號,全部是正常說明(年化算式、歷史回測揭露),分鏡指示 0 個 —— paren_stage 這軸在它身上是誤判。"
+    },
+    {
+      "video_id": "0PgAPoGXE98",
+      "slug": "L_個股體檢群翊6664抱88年賺5727為何最大回撤-",
+      "axis": "prompt_leak",
+      "fmt": "long"
+    },
+    {
+      "video_id": "1Jh5GYIU9mQ",
+      "slug": "L_個股體檢華邦電234420年暴賺1803先問自己能忍",
+      "axis": "prompt_leak",
+      "fmt": "long"
+    },
+    {
+      "video_id": "5NaySHCy6oQ",
+      "slug": "L_個股體檢譜瑞-KY4966長抱譜瑞-KY149年總報",
+      "axis": "prompt_leak",
+      "fmt": "long"
+    },
+    {
+      "video_id": "5wMjRp8bSRU",
+      "slug": "S_比特幣飆破65萬追高網格回測揭參數設錯竟少賺40量化",
+      "axis": "prompt_leak",
+      "fmt": "short"
+    },
+    {
+      "video_id": "A6NMKUlmqPQ",
+      "slug": "L_個股體檢瑞昱2379存20年暴漲3127但84暴跌你",
+      "axis": "prompt_leak",
+      "fmt": "long"
+    },
+    {
+      "video_id": "A9BdHx-HxO0",
+      "slug": "L_個股體檢盟立246420年暴賺1498這檔冷門股套牢",
+      "axis": "prompt_leak",
+      "fmt": "long"
+    },
+    {
+      "video_id": "GNSXluoU1-E",
+      "slug": "L_個股體檢慧洋-KY2637抱15年賺746小心腰斬5",
+      "axis": "prompt_leak",
+      "fmt": "long"
+    },
+    {
+      "video_id": "H8PCbwUQfRE",
+      "slug": "L_0050定期定額vs一次Allin十年回測哪個賺更多",
+      "axis": "prompt_leak",
+      "fmt": "long"
+    },
+    {
+      "video_id": "HQrvN9zu-cs",
+      "slug": "L_個股體檢富鼎826118年總報酬233但-816最大",
+      "axis": "prompt_leak",
+      "fmt": "long"
+    },
+    {
+      "video_id": "J3aQKKL6vMI",
+      "slug": "L_個股體檢玉晶光3406340620年報酬3297竟伴",
+      "axis": "prompt_leak",
+      "fmt": "long"
+    },
+    {
+      "video_id": "NIHiQLR6odQ",
+      "slug": "L_個股體檢漢磊37073707漢磊抱11年賺267這背",
+      "axis": "prompt_leak",
+      "fmt": "long"
+    },
+    {
+      "video_id": "O6gzpYZNzjU",
+      "slug": "L_個股體檢竑騰7751毛利率雪崩式下滑股價竟還飆漲這檔",
+      "axis": "prompt_leak",
+      "fmt": "long"
+    },
+    {
+      "video_id": "OZXDull5-90",
+      "slug": "L_個股體檢至上811218年報酬2114最大回撤-78",
+      "axis": "prompt_leak",
+      "fmt": "long"
+    },
+    {
+      "video_id": "SFk0W_2WqLc",
+      "slug": "L_個股體檢愛普6531愛普6531長抱11年暴賺216",
+      "axis": "prompt_leak",
+      "fmt": "long"
+    },
+    {
+      "video_id": "TBMTuaUTd8A",
+      "slug": "L_個股體檢緯穎6669暴漲54倍年化588背後的代價6",
+      "axis": "prompt_leak",
+      "fmt": "long"
+    },
+    {
+      "video_id": "_SeLof6bHAc",
+      "slug": "L_個股體檢品安8088抱股18年賺6398小心-776",
+      "axis": "prompt_leak",
+      "fmt": "long"
+    },
+    {
+      "video_id": "e9Wn7n6MvgY",
+      "slug": "L_個股體檢昇陽半導體802811年報酬930竟有48年",
+      "axis": "prompt_leak",
+      "fmt": "long"
+    },
+    {
+      "video_id": "gxEVQ4KuSJE",
+      "slug": "L_個股體檢華城151920年暴漲179倍年化報酬297",
+      "axis": "prompt_leak",
+      "fmt": "long"
+    },
+    {
+      "video_id": "hrh5pnaGZxU",
+      "slug": "L_個股體檢聯強2347長抱聯強2347二十年總報酬破1",
+      "axis": "prompt_leak",
+      "fmt": "long"
+    },
+    {
+      "video_id": "oXdLZy3SioA",
+      "slug": "L_個股體檢矽力-KY641512年賺10倍但最大回撤8",
+      "axis": "prompt_leak",
+      "fmt": "long"
+    },
+    {
+      "video_id": "o_O4N2nsoac",
+      "slug": "L_個股體檢立隆電247220年暴賺32399但847最",
+      "axis": "prompt_leak",
+      "fmt": "long"
+    },
+    {
+      "video_id": "qDCp3V5UqJk",
+      "slug": "L_個股體檢天二科技6834報酬165這-58腰斬的代價",
+      "axis": "prompt_leak",
+      "fmt": "long"
+    },
+    {
+      "video_id": "tfIE-MNeDKo",
+      "slug": "L_美股大跌撿便宜回測打臉危機入市平均多套牢X個月",
+      "axis": "prompt_leak",
+      "fmt": "long"
+    },
+    {
+      "video_id": "uXXKI6XP63Y",
+      "slug": "L_個股體檢宜特3289長期持有報酬248這檔個股腰斬3",
+      "axis": "prompt_leak",
+      "fmt": "long"
+    },
+    {
+      "video_id": "g0yJpK3ZZmI",
+      "slug": "L_個股體檢東元150420年總報酬1152年化135的",
+      "axis": "skeleton_label",
+      "fmt": "long",
+      "verdict": "false_positive",
+      "verdict_reason": "唸的是「你知道嗎」= 濫用開場骨架,不是 prompt 洩漏。逐支讀 output/<slug>.voice.txt 判定(09-04 主頻道線)。"
+    },
+    {
+      "video_id": "l6eqd84Enfk",
+      "slug": "L_個股體檢海華3694單一個股真的能贏過大盤嗎海華36",
+      "axis": "skeleton_label",
+      "fmt": "long",
+      "verdict": "false_positive",
+      "verdict_reason": "唸的是「很多人都想知道,到底單一個股有沒有可能長期跑贏大盤」= 正常開場,不是 prompt 洩漏。同上判法。"
+    },
+    {
+      "video_id": "Oy7dux0cBHs",
+      "slug": "L_個股體檢聯詠3034存20年暴賺1145但暴跌84你",
+      "axis": "stage_direction",
+      "fmt": "long"
+    },
+    {
+      "video_id": "_GgxPgLzsKQ",
+      "slug": "L_個股體檢凱美2375存15年賺289年化91背後的7",
+      "axis": "stage_direction",
+      "fmt": "long"
+    },
+    {
+      "video_id": "o_W_gtKNY9U",
+      "slug": "L_個股體檢台玻1802臺玻1802存20年賺340長期",
+      "axis": "stage_direction",
+      "fmt": "long"
+    }
+  ],
+  "canonical_path": "docs/ops/2026-09-04_leak_published_34.json(**刻意不放 STUDIO/ —— 那整個目錄被 gitignore,而這是決策輸入不是產線資料**)",
+  "quota_note": "帳本實測單價(units/call):videos.get 1 · channels.get 1 · playlistItems.get 1 · commentThreads.get 1 · search.get 100 · videos.post 1600 · captions.post 400 · videos.put/thumbnails/playlistItems.post 各 50。配額飽和分析見 docs/ops/2026-09-04_quota_saturation.md。",
+  "verdict_note": "09-04 15:xx 主頻道線逐支讀原文後的分層:誠信級 16 / 尷尬級 14(含 1 支 Shorts)/ 偽陽性 3。原本 34 支全部被當成命中,實測有 3 支不是。分層與逐支數值見 2026-09-04_leak_published_34_measured.json 的 layer 欄位。"
+}

@@ -1,0 +1,130 @@
+[
+ {
+  "claim": "Power posing",
+  "doi": "https://doi.org/10.1080/23743603.2017.1326760",
+  "title": "A Bayesian model-averaged meta-analysis of the power pose effect w",
+  "year": 2017,
+  "is_oa": true,
+  "status": "NOT_PDF"
+ },
+ {
+  "claim": "Growth mindset",
+  "doi": "https://doi.org/10.1186/s40594-020-00227-2",
+  "title": "Growing a growth mindset: characterizing how and why undergraduate",
+  "year": 2020,
+  "is_oa": true,
+  "chars": 90112,
+  "n_effect": 1,
+  "n_sample": 3,
+  "n_ci": 0,
+  "sample_effects": [
+   0.08
+  ],
+  "sample_Ns": [
+   "7,871",
+   "216",
+   "659"
+  ],
+  "sample_CIs": [],
+  "status": "PARTIAL"
+ },
+ {
+  "claim": "Facial feedback",
+  "doi": "https://doi.org/10.1177/1745691616674458",
+  "title": "Registered Replication Report",
+  "year": 2016,
+  "is_oa": true,
+  "status": "FETCH_FAIL",
+  "err": "HTTP Error 403: Forbidden"
+ },
+ {
+  "claim": "Stereotype threat",
+  "doi": "https://doi.org/10.1111/cdev.13039",
+  "title": "The Development of Children's Gender-Science Stereotypes: A Meta-a",
+  "year": 2018,
+  "is_oa": true,
+  "status": "FETCH_FAIL",
+  "err": "HTTP Error 403: Forbidden"
+ },
+ {
+  "claim": "Grit",
+  "doi": "https://doi.org/10.1007/s10964-019-00998-0",
+  "title": "Building Grit: The Longitudinal Pathways between Mindset, Commitme",
+  "year": 2019,
+  "is_oa": true,
+  "chars": 66104,
+  "n_effect": 0,
+  "n_sample": 9,
+  "n_ci": 0,
+  "sample_effects": [],
+  "sample_Ns": [
+   "2018",
+   "1,209",
+   "684",
+   "411"
+  ],
+  "sample_CIs": [],
+  "status": "PARTIAL"
+ },
+ {
+  "claim": "Bilingual advantage",
+  "doi": "https://doi.org/10.1037/bul0000142",
+  "title": "Is bilingualism associated with enhanced executive functioning in ",
+  "year": 2018,
+  "is_oa": true,
+  "chars": 201618,
+  "n_effect": 42,
+  "n_sample": 0,
+  "n_ci": 0,
+  "sample_effects": [
+   0.3,
+   0.29,
+   -0.03,
+   -0.3,
+   0.3,
+   -1.5
+  ],
+  "sample_Ns": [],
+  "sample_CIs": [],
+  "status": "PARTIAL"
+ },
+ {
+  "claim": "Mozart effect",
+  "doi": "https://doi.org/10.3389/fpsyg.2014.00646",
+  "title": "The influence of deliberate practice on musical achievement: a met",
+  "year": 2014,
+  "is_oa": true,
+  "chars": 72290,
+  "n_effect": 6,
+  "n_sample": 6,
+  "n_ci": 4,
+  "sample_effects": [
+   0.63,
+   0.48,
+   0.63,
+   0.48,
+   0.56,
+   0.01
+  ],
+  "sample_Ns": [
+   "788",
+   "13",
+   "788",
+   "788"
+  ],
+  "sample_CIs": [
+   "[0.54, 0.67]",
+   "[0.54, 0.67]",
+   "[0.54, 0.67]"
+  ],
+  "status": "USABLE"
+ },
+ {
+  "claim": "Choice overload",
+  "doi": "https://doi.org/10.1086/651235",
+  "title": "Can There Ever Be Too Many Options? A Meta-Analytic Review of Choi",
+  "year": 2010,
+  "is_oa": true,
+  "status": "NOT_PDF"
+ }
+]

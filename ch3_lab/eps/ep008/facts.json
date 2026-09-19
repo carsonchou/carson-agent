@@ -1,0 +1,33 @@
+{
+ "claim": "Participants reported more intense positive emotion during anticipation of the hypothetical future ski vacation",
+ "es_type": "d",
+ "orig": {
+  "n": 95,
+  "es": 0.43,
+  "year": 2007,
+  "title": "Looking forward, looking back: Anticipation is more evocative than retrospection.",
+  "author": "[{\"given\":\"Leaf\",\"family\":\"Van Boven\",\"sequence\":\"first\"},{\"given\":\"Laurence\",\"f",
+  "doi": "10.1037/0096-3445.136.2.289",
+  "url": ""
+ },
+ "repl": {
+  "n": 564,
+  "es": 0.18,
+  "year": 2025,
+  "title": "Revisiting the past-future emotional asymmetry: Replication and extensions of Van Boven and Ashworth (2007)",
+  "doi": "",
+  "url": "https://osf.io/ns26x"
+ },
+ "verdict": "mixed",
+ "p_repl": 0.033,
+ "p_type_repl": "e (=)",
+ "p_tails_repl": "2 (two)",
+ "source": "FORRT Replication Database (FReD), OSF 2tbvd",
+ "record": {
+  "fred_id": "CORE_203",
+  "effect_id": "1746",
+  "prereg": "https://osf.io/jb5hf/"
+ },
+ "n_ratio": 5.9,
+ "tone": "shrunk_real"
+}

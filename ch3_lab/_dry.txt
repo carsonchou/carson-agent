@@ -1,0 +1,18 @@
+D:\carson-agent\youtube_channel\.venv\lib\site-packages\google\oauth2\__init__.py:40: FutureWarning: You are using a Python version 3.9 past its end of life. Google will update google-auth with critical bug fixes on a best-effort basis, but not with any other fixes or features. Please upgrade your Python version, and then update google-auth.
+  warnings.warn(eol_message.format("3.9"), FutureWarning)
+D:\carson-agent\youtube_channel\.venv\lib\site-packages\google\auth\__init__.py:54: FutureWarning: You are using a Python version 3.9 past its end of life. Google will update google-auth with critical bug fixes on a best-effort basis, but not with any other fixes or features. Please upgrade your Python version, and then update google-auth.
+  warnings.warn(eol_message.format("3.9"), FutureWarning)
+D:\carson-agent\youtube_channel\.venv\lib\site-packages\google\api_core\_python_version_support.py:242: FutureWarning: You are using a non-supported Python version (3.9.13). Google will not post any further updates to google.api_core supporting this Python version. Please upgrade to the latest Python version, or at least Python 3.10, and then update google.api_core.
+  warnings.warn(message, FutureWarning)
+  ⚠️ 這幾支長片目前不是 public,Short 不會連過去:implicit_bias_test
+⛔ 這幾支片子自己會說「完整版在本頻道」,但那句話現在不成立:
+   implicit_bias_test    長片發過但目前不是 public
+   → 先跳過它們,改發下一批。長片轉回 public 之後那句話自己就成立了,不必重渲。
+要上傳 5 支,估算配額 8,030
+  ep002               Do people who see the big picture also see more minds? Retested on 1,0
+  ep003               Agreeable people commit fewer crimes? Retested on 1,550 people.
+  ep004               Being short on money drains your self-control? Retested on 997 people.
+  ep005               Does a deeper-sounding brand name make a product feel thicker? Reteste
+  ep006               We value a life more when fewer lives are at risk? Retested on 723 peo
+
+--dry-run:未連網、未上傳。

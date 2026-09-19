@@ -1,0 +1,90 @@
+# 項目②(最小字級)實測讀數與現況 —— 2026-09-11 11:5x(本機)
+
+作者:wB:p1(session 145218d5)。這份是**讀數 + 現況**,不是閘門。
+🔴 這份文件本身證不了任何產物是好的;它只說明「現在有什麼、還缺什麼」。
+
+## 0. 一句話
+
+六支的最小字級落在 20.0~30.0 pt(全距 50%),**沒有任何一段被 fit() 的
+20pt 地板夾住 ⇒ 現在沒有溢出**;但最緊的那一段餘裕是 **+0 pt**,
+而且**沒有任何閘門在看這件事** —— 下一支只要文案再長一點就會靜默溢出。
+
+## 1. 每支的最小字級(儀器 A:fs_probe.py)
+
+| slug | 最小字級 | 佔幀高 | 出現在 | 那段字 |
+|---|---|---|---|---|
+| study_techniques | 30.0 pt | 1.56% | turn | 'explaining why' |
+| how_to_remember_what_you_read | 27.0 pt | 1.41% | turn | 'And leave a gap before you go back: the' |
+| focus_techniques | **20.0 pt** | **1.04%** | turn | 'a brief switch away' |
+| if_then_plans | 25.0 pt | 1.30% | turn | 'actually exercising' |
+| learning_styles | 29.0 pt | 1.51% | turn | 'UK teachers who agree' |
+| pomodoro | 30.0 pt | 1.56% | ask | 'THEY RAN IT AGAIN' |
+
+兩次量(09-11 02:5x 與 11:5x)讀數逐字相同;期間六支 mp4 的 mtime 全部停在
+2026-09-10 19:01~19:12,產物沒有被動過。
+
+## 2. 20pt 不是「最小字級」,是**夾子**(儀器 B:floor_probe.py)
+
+make_reel.py:142-143
+    out = base if (frac <= max_frac or frac == 0) else max(20, int(base*max_frac/frac))
+
+那個 `max(20, ...)` 一旦生效,回傳的字級就**不足以**把字塞進 max_frac
+⇒ 該段字實際寬度 > 設計上限 = 溢出,而 fit() 不會報錯、不會回傳任何訊號。
+
+⇒ 「量到 20.0pt」有兩種完全不同的意思,儀器 A 分不出來:
+   (a) 按比例算出來剛好是 20 —— 沒事;
+   (b) 實際需要 <20 被夾上來 —— **現在就在溢出**。
+
+儀器 B 把 fit() 包起來,對每一次縮字事件同時算「未夾的值」:
+
+    六支合計 **153 筆**縮字事件,被地板夾住 **0 筆**。⇒ 是 (a),沒有溢出。
+
+最接近地板的前六名(未夾字級由小到大):
+
+| slug | 未夾算出 | 實回 | 距地板餘裕 | 那段字 |
+|---|---|---|---|---|
+| focus_techniques | 20 pt | 20 pt | **+0 pt** | "tomorrow's list, before bed" |
+| focus_techniques | 22 pt | 22 pt | +2 pt | 'working memory, replication' |
+| focus_techniques | 24 pt | 24 pt | +4 pt | 'phone in another room' |
+| focus_techniques | 24 pt | 24 pt | +4 pt | 'no decline across the task' |
+| if_then_plans | 25 pt | 25 pt | +5 pt | 'people already struggling' |
+| how_to_remember_what_you_read | 27 pt | 27 pt | +7 pt | 'And leave a gap before you go back: the' |
+
+前四名有三名在 focus_techniques —— 版面最擠的是它,和督導點名的那一支一致。
+
+## 3. 陽性對照(否則「0 筆」和「儀器恆回 0」分不開)
+
+拿六支裡最緊的那一段刻意加長,餵同一組參數:
+
+| 樣本 | 未夾算出 | 實回 | 判定 | 溢出 |
+|---|---|---|---|---|
+| "tomorrow's list, before bed" | 21 pt | 21 pt | 未被夾 | −5.2 px |
+| 同上 + " and also the three things you promised yourself last Tuesday" | **6 pt** | 20 pt | **被夾住** | **+943.1 px** |
+
+⇒ 判準會翻面,不是恆回 0。
+⚠️ 這一格用的是我隨手挑的 base=44 / max_frac=0.42,**和 render_scene 真實呼叫
+   的參數不同**,所以第一列是 21pt 而第 2 節的同一段字是 20pt(差一格是 int()
+   截斷 + 參數不同)。這一格只證「偵測器會翻面」,不是重量一次字級。
+
+## 4. 🔴 還缺什麼(這就是項目②未完成的部分)
+
+1. **規則還沒寫進清單**。docs/ops/2026-09-10_ch3_image_layer_checklist.md
+   裡沒有任何一節在講最小字級;要新增一節、並把現行的 6→7、7→8 重編。
+   規則要寫成兩條,因為上面證明了它們是兩件事:
+   - 硬條件:**任何一段字都不准被 max(20,...) 夾住**(夾住 = 已經溢出);
+   - 軟條件:**距地板的餘裕**要有下限(現況最緊 +0 pt,下一支就會踩穿)。
+2. **沒有任何腳本會檢查它**。floor_probe.py 現在還在 scratchpad,
+   不是 ch3_lab 裡的常駐對照,排程也不會跑它。
+3. ⇒ 現況是「量過了」,不是「有閘門」。下一次渲染沒有東西會擋。
+
+🔴 依總督導令,**不重渲 focus_techniques**,本輪產物一律不動。
+   上面全部是唯讀量測 —— reels/ 底下一個位元組都沒有被改。
+
+## 5. 這兩支儀器證不了什麼
+
+- 兩支量的都是 **fit() 的回傳字級**,走的是「就地重畫」那條路,
+  **不是**送出去的那份 mp4 的畫素。重畫和成片不同步的話,這裡看不出來。
+  (影像層的畫素證據在 _control_pixel_ink.py 與總督導 09-11 的親跑紀錄。)
+- 「沒有被夾住」不等於「字夠大」。1.04% 幀高在手機上讀不讀得動,
+  這兩支儀器**一句話都沒有回答**,那要人眼看。
+- 153 筆是**縮字事件**數,不是畫面上字串的總數;沒觸發縮字的字沒有進統計。

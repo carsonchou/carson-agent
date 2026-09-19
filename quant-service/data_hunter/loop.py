@@ -43,6 +43,7 @@ def main():
     from datetime import date as _date
     zones_day = None
     dt_pool_day = None
+    elig_day = None                                   # 當沖適格清單的獨立日次守衛(同 app.py)
     dt_pool = []
     while True:
         mh = _is_market_hours()
@@ -56,12 +57,23 @@ def main():
                     zones_day = _date.today()
                 except Exception as e:
                     print(f"[loop] 交易專區略過：{type(e).__name__}: {e}")
+            # 當沖適格清單:每日一次、**不限盤中**(它只是 TWSE 當日公告,收盤後抓才完整;
+            # 且是 M1 免費磁鐵的資料源)。守衛獨立於 dt_pool_day —— 沿用它會讓盤後每輪都打 TWSE。
+            if elig_day != _date.today():
+                try:
+                    import daytrade_eligibility
+                    r = daytrade_eligibility.refresh()
+                    if daytrade_eligibility.is_trusted(r):
+                        elig_day = _date.today()      # 只有抓成功才記,失敗下輪自動重試
+                        print(f"[loop] 當沖適格清單已更新:處置 {len(r.get('disposition', []))} 檔")
+                    else:
+                        print(f"[loop] ⚠️ 當沖適格清單抓取失敗({r.get('reason')}),下一輪重試。")
+                except Exception as e:  # noqa: BLE001
+                    print(f"[loop] ⚠️ 當沖適格清單略過：{type(e).__name__}: {e}")
             if mh:                                    # 盤中即時當沖
                 try:
                     import daytrade_live
                     if dt_pool_day != _date.today() or not dt_pool:
-                        import daytrade_eligibility
-                        daytrade_eligibility.refresh()
                         dt_pool = daytrade_live.build_universe(full=True, use_cache_only=True)
                         dt_pool_day = _date.today()
                     daytrade_live.scan_live(dt_pool, push=not args.no_push)

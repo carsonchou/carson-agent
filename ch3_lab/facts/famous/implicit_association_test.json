@@ -1,0 +1,42 @@
+{
+ "claim": "Implicit Association Test",
+ "doi": "https://doi.org/10.1037/a0015575",
+ "title": "Understanding and using the Implicit Association Test: III. Meta-analysis of predictive validity.",
+ "year": 2009,
+ "journal": "Journal of Personality and Social Psychology",
+ "cited_by": 3280,
+ "abstract_chars": 995,
+ "found": {
+  "n": [
+   {
+    "value": "14,900",
+    "src": "This review of 122 research reports (184 independent samples, 14,900 subjects) found average r = .274 for prediction of behavioral, judgment, and physiological measures by Implicit Association Test (IAT) measures."
+   },
+   {
+    "value": "13,068",
+    "src": "Parallel explicit (i.e., self-report) measures, available in 156 of these samples (13,068 subjects), also predicted effectively (average r = .361), but with much greater variability of effect size."
+   }
+  ],
+  "effect": [
+   {
+    "kind": "r",
+    "value": ".274",
+    "src": "This review of 122 research reports (184 independent samples, 14,900 subjects) found average r = .274 for prediction of behavioral, judgment, and physiological measures by Implicit Association Test (IAT) measures."
+   },
+   {
+    "kind": "r",
+    "value": ".361",
+    "src": "Parallel explicit (i.e., self-report) measures, available in 156 of these samples (13,068 subjects), also predicted effectively (average r = .361), but with much greater variability of effect size."
+   }
+  ],
+  "ci": [],
+  "k": [
+   {
+    "value": "32",
+    "src": "For 32 samples with criterion measures involving Black-White interracial behavior, predictive validity of IAT measures significantly exceeded that of self-report measures."
+   }
+  ]
+ },
+ "status": "USABLE",
+ "abstract": "This review of 122 research reports (184 independent samples, 14,900 subjects) found average r = .274 for prediction of behavioral, judgment, and physiological measures by Implicit Association Test (IAT) measures. Parallel explicit (i.e., self-report) measures, available in 156 of these samples (13,068 subjects), also predicted effectively (average r = .361), but with much greater variability of effect size. Predictive validity of self-report was impaired for socially sensitive topics, for which impression management may distort self-report responses. For 32 samples with criterion measures involving Black-White interracial behavior, predictive validity of IAT measures significantly exceeded that of self-report measures. Both IAT and self-report measures displayed incremental validity, with each measure predicting criterion variance beyond that predicted by the other. The more highly IAT and self-report measures were intercorrelated, the greater was the predictive validity of each."
+}

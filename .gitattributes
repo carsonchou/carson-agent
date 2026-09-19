@@ -1,0 +1,3 @@
+# 只釘具名路徑。🔴 不准加 `* text=auto` 或任何全域規則(會讓整個 repo 重新正規化)。
+# 這支工具會印出「磁碟上本檔位元組」自算的 blob,行尾一漂三值核對就會無故失敗。
+youtube_channel/scripts/restore_desc_pre_rewrite.py text eol=lf

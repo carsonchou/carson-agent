@@ -67,7 +67,10 @@ node_modules/
 #  資料快取（可重新下載，668M，不進版控）
 # ============================================================
 twdata/cache/
+twdata/cache_adj/
 **/cache/*.csv
+# 全市場事實引擎抓取進度紀錄（可重跑重生，見 tw_universe_facts.py）
+twdata/universe_facts_fetch_log.csv
 # 三大法人籌碼本地快取（每交易日一檔 JSON，可由 TWSE/TPEX 重抓）
 twdata/chips/
 # 融資融券/當沖本地快取（每交易日一檔 JSON，可由 TWSE MI_MARGN/TWTB4U 重抓）
@@ -97,6 +100,10 @@ youtube_channel/STUDIO/
 **/output/*.mp3
 **/output/*.mp4
 **/output/*.wav
+# 純副產物,由渲染/配音管線重生(各 0 個被追蹤,列出時已驗證):字幕、字級時間軸、抽幀/縮圖jpg
+**/output/*.srt
+**/output/*.wordtimes.json
+**/output/*.jpg
 **/assets/cache/
 !**/output/*.md
 !**/output/*.voice.txt
@@ -156,3 +163,52 @@ quant-service/data_hunter/state_research.json
 quant-service/data_hunter/state_filing_*.json
 quant-service/data_hunter/state_valuation_*.json
 quant-service/data_hunter/stock_ratios_*.json
+
+# 電商生成物(10 SKU 成品,可由 quant-service/ecommerce/product_factory.py 重生)
+quant-service/output/ecommerce_ready/
+
+# 編輯備份檔
+*.bak-*
+
+# 電商 v2 mockup 生成物(可由 mockup/render.py、xlsx_dashboard_sample.py 重生)
+quant-service/ecommerce/mockup/*.pdf
+quant-service/ecommerce/mockup/*.png
+quant-service/ecommerce/mockup/*.xlsx
+
+# 根目錄散落的 session 抓圖/暫存(正式圖都在子目錄且已追蹤;root 這些 0 個被追蹤=全是 scratch)
+# 只擋 repo 根層(前導 /),不影響任何子目錄的圖。防未來 git add -A 誤把截圖推進共用私有 repo。
+/*.png
+/*.jpeg
+/*.jpg
+/*.webp
+.mcp.full.json
+.mcp.*.json
+
+# ch3_lab 的批次渲染暫存(每輪重產都會生一批;內容全部可從產生器重建)
+ch3_lab/_*.sh
+ch3_lab/*.log
+ch3_lab/_thumb_ab/
+ch3_lab/_lint_tmp/
+ch3_lab/*.tmp
+
+# 校準基準:量測用的舊版產物,不進版控但**不能刪**——
+# 沒有它,下次校準會拿不到對照組(ep013 就是這樣消失的)
+ch3_lab/_baseline/
+
+# 渲染中途的暫存幀,會在渲完後刪掉
+ch3_lab/shorts/*/frames/
+ch3_lab/eps/*/frames/
+
+# 編排/校準用的暫存清單,跟 _*.sh 同一類
+ch3_lab/_*.txt
+ch3_lab/*.lock
+
+# quota ceiling watch (daily runtime output, not source)
+docs/ops/quota-ceiling-watch.log
+docs/ops/quota-ceiling-watch.state.json
+docs/ops/quota-ceiling-watch.state.selftest.json
+
+# BRAIN 平台快照:每日重抓的快取(3.7MB),不進版控
+quant-service/brain_alpha/platform_alphas.json
+quant-service/brain_alpha/platform_alphas.json.tmp
+scratchpad/

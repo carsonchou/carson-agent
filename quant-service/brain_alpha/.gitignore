@@ -1,0 +1,21 @@
+.env
+search_ledger.jsonl
+
+# 挖礦執行產物：每天長好幾 MB,重建成本只是重跑,不進版控
+auto_ledger.jsonl
+score_history.jsonl
+# /check 回應裡非全 PASS 的 body(brain_auto.log_check_body)。
+# 用來累積資料回答「/check 的 PENDING 會不會是永久的」—— 觀測記錄,不是原始碼。
+check_bodies.jsonl
+sweep_results.jsonl
+miner_*.log
+miner_*.err
+watchdog_restart.log
+*.bak-*
+*.bak2-*
+miner.lock
+pnl_cache.json
+hybrid.log
+hybrid.err
+uni_sweep.log
+uni_sweep.err

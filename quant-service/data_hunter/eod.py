@@ -34,6 +34,28 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+
+# 排程改用 pythonw.exe 跑(2026-08-11,原本 python.exe 每次觸發都彈一個黑窗)。
+# 逐步進度是這條管線失敗時唯一的線索 → 用 pythonw 跑就導進 logs/,手動 python 跑照印螢幕。
+#
+# 🔴 2026-09-09 更正下面這行原本的註解。原文寫:
+#   「實測坑:pythonw 下 sys.stdout 非 None、GetConsoleWindow() 也非零,兩者都測不出來。」
+# 那是**在終端機裡手動跑 pythonw** 量到的——那個條件下子程序繼承了呼叫端的標準控制代碼,
+# 所以 stdout 當然不是 None。**排程工作底下不是這樣**。三條件實測(同一支探針):
+#   A. shell 裡跑 pythonw        → stdout/stderr 是真物件(handle 1996/2664)
+#   B. **排程工作 + pythonw**    → stdout/stderr **都是 None**、STD_*_HANDLE 都是 0
+#   C. 排程工作 + python.exe     → 真物件 + 真 console 視窗(但視窗隨程序消失,一樣沒讀者)
+# ⇒ 原文的「非 None」只在 A 成立,而這支腳本的排程跑的是 B。
+# ⇒ 下面用**執行檔名**判斷(`stem.endswith("w")`)而不是判斷 stdout/handle,**這是對的**:
+#    它在 A/B 兩個條件下都成立,不受標準控制代碼繼承與否影響。判準沒錯,是註解的理由寫錯了。
+# 詳見 docs/ops/2026-09-09_pythonw_stdio_correction.md。
+if Path(sys.executable).stem.lower().endswith("w"):
+    _lgdir = HERE / "logs"
+    _lgdir.mkdir(exist_ok=True)
+    sys.stdout = open(_lgdir / f"eod_{datetime.now():%Y%m%d}.log", "a",
+                      encoding="utf-8", buffering=1)
+    sys.stderr = sys.stdout
+
 try:
     sys.stdout.reconfigure(encoding="utf-8")
 except Exception:
@@ -144,9 +166,12 @@ def run_eod(no_post: bool = False, as_of: date | None = None, push: bool = False
         if st.get("ok"):
             g = st["gauge"]
             temp_txt = f"{g['temperature']}（{g['label']}）"
+            # ⚠️ 2026-09-09:原本這裡寫 `'已推播' if push else '未推'` —— 那是拿**旗標**當結果報。
+            # 帶了 --push 就一律寫「已推播」,而推播其實可能整批失敗(見 scan.push_new_signals)。
+            # 真實結果由 run_once 印的「[hunter] 推播 N 個新訊號」那行負責,這裡只講我們要求了什麼。
             return (f"溫度 {temp_txt}｜漲{g['adv']}/跌{g['dec']}"
                     f"｜做多{len(st['signals']['long'])} 做空{len(st['signals']['short'])}"
-                    f"｜{'已推播' if push else '未推'}")
+                    f"｜{'已要求推播(結果見上面 [hunter] 那行)' if push else '未推'}")
         return f"state 非正常：{st.get('error')}"
     step("5/6 掃描出 state", _scan)
 

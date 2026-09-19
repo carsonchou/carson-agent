@@ -1,0 +1,22 @@
+{
+ "claim": "Ovulatory cycle preference shifts",
+ "doi": "https://doi.org/10.1037/a0035438",
+ "title": "Do women’s mate preferences change across the ovulatory cycle? A meta-analytic review.",
+ "year": 2014,
+ "journal": "Psychological Bulletin",
+ "cited_by": 377,
+ "abstract_chars": 1796,
+ "found": {
+  "n": [],
+  "effect": [],
+  "ci": [],
+  "k": [
+   {
+    "value": "50",
+    "src": "Consistent with the hypothesis, analyses revealed robust cycle shifts that were specific to women's preferences for hypothesized cues of (ancestral) genetic quality (96 effects in 50 studies)."
+   }
+  ]
+ },
+ "status": "PARTIAL",
+ "abstract": "Scientific interest in whether women experience changes across the ovulatory cycle in mating-related motivations, preferences, cognitions, and behaviors has surged in the past 2 decades. A prominent hypothesis in this area, the ovulatory shift hypothesis, posits that women experience elevated immediate sexual attraction on high- relative to low-fertility days of the cycle to men with characteristics that reflected genetic quality ancestrally. Dozens of published studies have aimed to test this hypothesis, with some reporting null effects. We conducted a meta-analysis to quantitatively evaluate support for the pattern of cycle shifts predicted by the ovulatory shift hypothesis in a total sample of 134 effects from 38 published and 12 unpublished studies. Consistent with the hypothesis, analyses revealed robust cycle shifts that were specific to women's preferences for hypothesized cues of (ancestral) genetic quality (96 effects in 50 studies). Cycle shifts were present when women evaluated men's \"short-term\" attractiveness and absent when women evaluated men's \"long-term\" attractiveness. More focused analyses identified specific characteristics for which cycle shifts were or were not robust and revealed areas in need of more research. Finally, we used several methods to assess potential bias due to an underrepresentation of small effects in the meta-analysis sample or to \"researcher degrees of freedom\" in definitions of high- and low-fertility cycle phases. Neither type of bias appeared to account for the observed cycle shifts. The existence of robust relationship context-dependent cycle shifts in women's mate preferences has implications for understanding the role of evolved psychological mechanisms and the ovulatory cycle in women's attractions and social behavior."
+}

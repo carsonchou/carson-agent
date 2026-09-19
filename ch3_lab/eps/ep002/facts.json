@@ -1,0 +1,33 @@
+{
+ "claim": "Action identification is positively correlated with mind attribution",
+ "es_type": "r",
+ "orig": {
+  "n": 50,
+  "es": 0.3,
+  "year": 2006,
+  "title": "What do i think you're doing? Action identification and mind attribution.",
+  "author": "[{\"given\":\"Megan N.\",\"family\":\"Kozak\",\"sequence\":\"first\"},{\"given\":\"Abigail A.\",",
+  "doi": "10.1037/0022-3514.90.4.543",
+  "url": ""
+ },
+ "repl": {
+  "n": 1086,
+  "es": 0.08,
+  "year": null,
+  "title": "Kozak et al 2006 replication and extension",
+  "doi": "10.17605/osf.io/j9mfn",
+  "url": "https://osf.io/8mqx5"
+ },
+ "verdict": "failed",
+ "p_repl": 0.291,
+ "p_type_repl": "e (=)",
+ "p_tails_repl": "2 (two)",
+ "source": "FORRT Replication Database (FReD), OSF 2tbvd",
+ "record": {
+  "fred_id": "CORE_214",
+  "effect_id": "1920",
+  "prereg": "https://osf.io/j9mfn/files/8mqx5"
+ },
+ "n_ratio": 21.7,
+ "tone": "gone"
+}

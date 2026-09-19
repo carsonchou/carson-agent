@@ -18,8 +18,21 @@ except Exception:
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 STUDIO = ROOT / "STUDIO"; REPORTS = STUDIO / "REPORTS"; LEDGER = STUDIO / "uploaded_ledger.json"
-API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
-MODEL = "claude-haiku-4-5-20251001"
+
+
+def _load_env():
+    """直跑時把專案根 .env 併進 os.environ(cron 由 local_cron 載;直跑沒有→llm.complete 拿不到
+    OPENROUTER key→A/B 建議鉤子靜默失敗)。同 make_thumbnails.py/quality_score.py 的作法。"""
+    envf = ROOT / ".env"
+    if envf.exists():
+        for ln in envf.read_text(encoding="utf-8", errors="replace").splitlines():
+            s = ln.strip()
+            if s and not s.startswith("#") and "=" in s:
+                k, v = s.split("=", 1)
+                os.environ.setdefault(k.strip(), v.strip())
+
+
+_load_env()
 try:
     from ops import log_ops
 except Exception:
@@ -58,19 +71,20 @@ def main() -> int:
     missing = [r for r in rows if not r["has_hi"]]
     cover = (len(rows) - len(missing)) / len(rows) * 100 if rows else 0
 
-    # 對前段低觀看者給 A/B 建議
+    # 對前段低觀看者給 A/B 建議（走共用 llm.py 路由：OpenRouter 等任一供應商 key 存在才嘗試，
+    # 全失敗才留空——根因：舊版直打 api.anthropic.com + 讀 ANTHROPIC_API_KEY，工作室早改
+    # OpenRouter，Anthropic key 已失效，導致這支的 LLM 建議鉤子一直靜默失敗）
     suggestions = ""
-    if API_KEY and rows:
+    has_any_key = any(os.environ.get(k, "").strip() for k in
+                      ("OPENROUTER_API_KEY", "GROQ_API_KEY", "DEEPSEEK_API_KEY",
+                       "GEMINI_API_KEY", "ANTHROPIC_API_KEY"))
+    if has_any_key and rows:
         worst = rows[-5:]
-        import requests
         prompt = "你是 YouTube 縮圖/標題優化顧問（量化交易頻道，繁中）。針對以下表現較弱的影片，各給 1 組更高點擊的『新標題 + 縮圖主視覺文案(≤6字大字)』建議。誠信：不誇大不保證。只輸出條列：\n" + \
                  "\n".join(f"- {w['title']}（{w['views']} 觀看）" for w in worst)
         try:
-            rr = requests.post("https://api.anthropic.com/v1/messages",
-                               headers={"x-api-key": API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json"},
-                               json={"model": MODEL, "max_tokens": 900, "messages": [{"role": "user", "content": prompt}]}, timeout=90)
-            rr.raise_for_status()
-            suggestions = rr.json()["content"][0]["text"]
+            import llm  # 共用路由：主供應商(OpenRouter)→失敗退回 fallback，換模型只改 env
+            suggestions = llm.complete(prompt, max_tokens=900)
         except Exception as e:
             suggestions = f"（建議生成失敗：{e}）"
 
@@ -101,7 +115,7 @@ def main() -> int:
         L.append(f"    - {m['title']}")
     if not missing:
         L.append("    -（看起來都有縮圖，讚）")
-    L += ["", "## 二、A/B 標題＋縮圖文案建議（針對較弱影片）", suggestions or "（需 ANTHROPIC_API_KEY 才生成）"]
+    L += ["", "## 二、A/B 標題＋縮圖文案建議（針對較弱影片）", suggestions or "（需任一 LLM 供應商 key 才生成）"]
     (REPORTS / f"{date}_縮圖CTR.md").write_text("\n".join(L), encoding="utf-8")
     log_ops("縮圖CTR", f"覆蓋率{cover:.0f}% 待補{len(missing)}支")
     print(f"[ok] 縮圖/CTR 報告完成：覆蓋率 {cover:.0f}%，待補 {len(missing)} 支。")

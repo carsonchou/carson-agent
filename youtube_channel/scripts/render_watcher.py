@@ -39,6 +39,10 @@ ROOT = Path(__file__).resolve().parent.parent
 PY = ROOT / ".venv" / "Scripts" / "python.exe"
 if not PY.exists():  # Linux/其他環境退回當前直譯器
     PY = Path(sys.executable)
+# 黑窗彈跳修復(2026-08-07,同 hybrid_render.py 的說明):父程序無主控台時,子程序
+# 沒帶這個旗標會自己新開一個可見主控台。這支目前沒在排程裡,但同一模式先修掉,
+# 避免哪天重新啟用又踩一次。
+_NO_WINDOW = {"creationflags": 0x08000000} if os.name == "nt" else {}
 OUT = ROOT / "output"
 
 try:
@@ -57,22 +61,47 @@ except Exception:  # noqa: BLE001
 
 
 def pending_slugs():
-    """有腳本+配音但還沒成片的 slug（去重、排序）。"""
+    """有腳本+配音但還沒成片、或成片已過期(比配音舊)的 slug（去重、排序）。
+
+    P0 止血(2026-07-13)：舊版只看『mp4 存在與否』，一旦 mp3 在 mp4 渲染完之後又被
+    重新產生(例如 A4 字數不足 gate 重生/補寫，同一 slug 的配音被覆寫成更長版本)，
+    這裡會誤判成『已完成』永遠跳過——04_0056 事故(旁白218.9s／成品僅61.7s)的時間序
+    高度吻合這個 race:ops_log 顯示「渲染完成」發生在同一 slug 的「已備妥待渲染」
+    (=TTS 剛寫完 mp3)之前。改成同時比對 mtime：mp3 比 mp4 新，視為過期需重渲。"""
     out = []
     for vt in sorted(OUT.glob("*.voice.txt")):
         slug = vt.name[:-len(".voice.txt")]
         if not slug.startswith(("S_", "L_")):
             continue
-        if (OUT / f"{slug}.mp4").exists():
-            continue
-        if not (OUT / f"{slug}.mp3").exists():
+        mp3 = OUT / f"{slug}.mp3"
+        if not mp3.exists():
             continue  # 配音還沒好，跳過（雲端 TTS 可能還在跑）
+        mp4 = OUT / f"{slug}.mp4"
+        if mp4.exists():
+            try:
+                if mp3.stat().st_mtime <= mp4.stat().st_mtime:
+                    continue  # 成片不比配音舊，視為已完成
+            except Exception:  # noqa: BLE001
+                continue
+            print(f"[watcher] {slug} 的配音比成片新(疑似重生後未重渲)，排入重渲。")
         out.append(slug)
     return out
 
 
 def render_one(slug: str) -> bool:
     """渲染單一 slug。S_=直式概念圖（無 Pexels）；L_=橫式（用 Pexels）。"""
+    # 🔴 2026-08-22 事故:本函式原本**沒有任何鎖**,只要「有 voice+mp3 沒 mp4」就派工,
+    #    而 hybrid_render 另有自己的 output/{slug}.lock ——兩邊互不知情。實況:泰藝 8289
+    #    同時跑著兩個 make_video(239 分鐘 + 165 分鐘),各帶 4 個凍住的 b-roll ffmpeg,
+    #    全機可用記憶體被吃到剩 749MB,之後每支渲染都 MemoryError(那支片自己也失敗三次)。
+    #    改用 studio_common 的 PID 感知認領鎖:活著的渲染永遠不會被搶走,不管渲多久。
+    try:
+        import studio_common as _sc
+        if not _sc.claim_render(slug):
+            print(f"[watcher] {slug} 已被其他程序認領(渲染中),跳過。")
+            return False
+    except Exception:  # noqa: BLE001
+        _sc = None      # 鎖模組壞掉不擋渲染(fail-open:寧可偶爾重工,不要整條停產)
     env = os.environ.copy()
     if slug.startswith("S_"):
         env.pop("PEXELS_API_KEY", None)
@@ -94,7 +123,12 @@ def render_one(slug: str) -> bool:
                 pass
         args = ["--slug", slug]
     mp4 = OUT / f"{slug}.mp4"
-    subprocess.run([str(PY), "scripts/make_video.py", *args], cwd=str(ROOT), env=env)
+    try:
+        subprocess.run([str(PY), "scripts/make_video.py", *args], cwd=str(ROOT), env=env,
+                       **_NO_WINDOW)
+    finally:
+        if _sc is not None:
+            _sc.release_render(slug)     # 成功失敗都要放,否則這支片從此渲不了
     ok = mp4.exists() and mp4.stat().st_size > 100 * 1024
     log_ops("渲染看守", f"{'渲染完成' if ok else '渲染失敗'}：{slug}")
     return ok
@@ -104,7 +138,7 @@ def git(*cmd) -> bool:
     """執行 git 指令；非 git 倉庫或失敗時回 False（不中斷）。"""
     try:
         r = subprocess.run(["git", *cmd], cwd=str(ROOT),
-                           capture_output=True, text=True, timeout=120)
+                           capture_output=True, text=True, timeout=120, **_NO_WINDOW)
         if r.returncode != 0:
             print(f"[git] {' '.join(cmd)} → {r.stderr.strip()[:120]}")
             return False
@@ -112,6 +146,22 @@ def git(*cmd) -> bool:
     except Exception as e:  # noqa: BLE001
         print(f"[git] 略過（{e}）")
         return False
+
+
+def _maybe_daily_qa():
+    """檢測部門：每天最多巡檢決策中心一次（PC 端跑到就順便測，抓壞按鈕/沒反應）。"""
+    try:
+        import time as _t
+        mark = ROOT / "STUDIO" / ".qa_last"
+        today = _t.strftime("%Y-%m-%d")
+        if mark.exists() and mark.read_text(encoding="utf-8").strip() == today:
+            return
+        print("[watcher] 執行每日決策中心巡檢（檢測部門）…")
+        subprocess.run([str(PY), "scripts/web_center/qa_check.py", "--port", "8795"],
+                       cwd=str(ROOT), timeout=120, **_NO_WINDOW)
+        mark.write_text(today, encoding="utf-8")
+    except Exception as exc:  # noqa: BLE001
+        print(f"[watcher] 巡檢略過（{exc}）", file=sys.stderr)
 
 
 def run_once(sync: bool) -> int:
@@ -139,7 +189,9 @@ def run_once(sync: bool) -> int:
     except Exception:
         pass
     subprocess.run([str(PY), "scripts/daily_publish.py", "--max", "6", "--privacy", priv],
-                   cwd=str(ROOT))
+                   cwd=str(ROOT), **_NO_WINDOW)
+
+    _maybe_daily_qa()
 
     if sync:
         git("add", "-A")

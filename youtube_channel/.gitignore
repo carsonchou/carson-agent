@@ -1,8 +1,24 @@
 # ===== 機密憑證／金鑰：絕對不要進版控 =====
 client_secrets.json
 token.json
+token_manage.json
+token_manage.json.bak
+token_analytics.json
+token_*.json
 .env
 *.key
+tunnel_url.json
+payment_info.json
+STUDIO/payment_info.json
+tiktok_state.json
+STUDIO/tiktok_state.json
+
+# ===== 備份/暫存檔(regenerable，別進版控；含 STUDIO 原子寫 .bak)=====
+*.bak
+_cover_tmp/
+_thumb_preview/
+assets/_cover_tmp/
+assets/thumbnails/ab/
 
 # ===== Python =====
 .venv/
@@ -15,6 +31,8 @@ output/*.mp4
 # 保留腳本與配音稿（純文字、可進版控）
 !output/*.md
 !output/*.voice.txt
+# set_private_leaks.py 等維運腳本自動產出的報告，重生成即可，不進版控
+output/privacy_reports/
 
 # ===== 暫存 =====
 assets/cache/

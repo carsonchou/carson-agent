@@ -1,0 +1,34 @@
+[
+ {
+  "topic": "power_posing",
+  "doi": "10.1177/0956797614553946",
+  "pmid": "25810452",
+  "title": "Assessing the robustness of power posing: no effect on hormones and risk tolerance in a large sample of men and women.",
+  "abstract": "",
+  "title_ok": true,
+  "status": "NO_ABSTRACT"
+ },
+ {
+  "topic": "stereotype_threat",
+  "doi": "10.1016/j.jsp.2014.10.002",
+  "pmid": "25636259",
+  "title": "Does stereotype threat influence performance of girls in stereotyped domains? A meta-analysis.",
+  "abstract": "Although the effect of stereotype threat concerning women and mathematics has been subject to various systematic reviews, none of them have been performed on the sub-population of children and adolescents. In this meta-analysis we estimated the effects of stereotype threat on performance of girls on math, science and spatial skills (MSSS) tests. Moreover, we studied publication bias and four moderators: test difficulty, presence of boys, gender equality within countries, and the type of control group that was used in the studies. We selected study samples when the study included girls, samples had a mean age below 18years, the design was (quasi-)experimental, the stereotype threat manipulation was administered between-subjects, and the dependent variable was a MSSS test related to a gender stereotype favoring boys. To analyze the 47 effect sizes, we used random effects and mixed effects models. The estimated mean effect size equaled -0.22 and significantly differed from 0. None of the moderator variables was significant; however, there were several signs for the presence of publication bias. We conclude that publication bias might seriously distort the literature on the effects of stereotype threat among schoolgirls. We propose a large replication study to provide a less biased effect size estimate.",
+  "title_ok": true,
+  "status": "OK"
+ },
+ {
+  "topic": "learning_styles",
+  "doi": "10.1037/a0037478",
+  "status": "NO_PMID"
+ },
+ {
+  "topic": "10000_hour_rule",
+  "doi": "10.1177/0956797614535810",
+  "pmid": "24986855",
+  "title": "Deliberate practice and performance in music, games, sports, education, and professions: a meta-analysis.",
+  "abstract": "More than 20 years ago, researchers proposed that individual differences in performance in such domains as music, sports, and games largely reflect individual differences in amount of deliberate practice, which was defined as engagement in structured activities created specifically to improve performance in a domain. This view is a frequent topic of popular-science writing-but is it supported by empirical evidence? To answer this question, we conducted a meta-analysis covering all major domains in which deliberate practice has been investigated. We found that deliberate practice explained 26% of the variance in performance for games, 21% for music, 18% for sports, 4% for education, and less than 1% for professions. We conclude that deliberate practice is important, but not as important as has been argued.",
+  "title_ok": true,
+  "status": "OK"
+ }
+]

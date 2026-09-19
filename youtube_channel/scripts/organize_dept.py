@@ -64,7 +64,9 @@ def main() -> int:
         for it in resp.get("items", []):
             pl_map[it["snippet"]["title"]] = it["id"]
     except Exception as e:
-        print(f"[warn] 取播放清單失敗：{e}", file=sys.stderr)
+        # 2026-07-16 配額預算輪值制:list 失敗絕不可帶空 pl_map 繼續跑，否則每支片都會誤觸
+        # playlists().insert() 被拒（quotaExceeded 連環噴）。失敗就提早結束，等下次排程重試。
+        print(f"[FATAL] 取播放清單失敗，中止整理：{e}", file=sys.stderr); return 2
 
     def ensure_playlist(name):
         if name in pl_map:

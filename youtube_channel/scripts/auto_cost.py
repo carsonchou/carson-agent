@@ -40,8 +40,11 @@ except Exception:  # noqa: BLE001
     def log_ops(stage, msg): pass
 
 # 預設固定成本（依雲端主機 2vCPU/4GB ≈ DigitalOcean $24/mo 推估；金額請用 --set 校正）
+# 2026-07：雲端 droplet 已欠費停權、沒在付費，該筆停用(enabled:false)避免帳面虛增虧損；
+# 之後真的復開雲端付費再用 --set 手動改回 enabled。
 DEFAULT = {"items": [
-    {"name": "DigitalOcean 主機(2vCPU/4GB)", "amount": 756, "note": "≈US$24/mo，請以實際帳單校正"},
+    {"name": "DigitalOcean 主機(2vCPU/4GB)", "amount": 756, "enabled": False,
+     "note": "≈US$24/mo；2026-07已欠費停權未在付費，停用"},
 ]}
 
 
@@ -75,6 +78,8 @@ def run_auto():
     existing = {e.get("note", "") for e in d.get("entries", [])}
     added, total = 0, 0.0
     for it in cfg.get("items", []):
+        if it.get("enabled", True) is False:
+            continue  # 已停用(如雲端欠費停權)，不再新增
         name = it.get("name", "").strip()
         amt = float(it.get("amount", 0) or 0)
         if not name or amt <= 0:
@@ -109,7 +114,8 @@ def main() -> int:
         cfg = load_cfg()
         print("固定成本設定：")
         for it in cfg.get("items", []):
-            print(f"  - {it['name']}：NT$ {it.get('amount',0):.0f}　{it.get('note','')}")
+            tag = "" if it.get("enabled", True) else "　[已停用]"
+            print(f"  - {it['name']}：NT$ {it.get('amount',0):.0f}{tag}　{it.get('note','')}")
         return 0
     if args.set:
         name, amount = args.set[0].strip(), float(args.set[1])

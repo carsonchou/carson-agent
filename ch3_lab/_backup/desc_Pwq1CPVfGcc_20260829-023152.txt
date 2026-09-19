@@ -1,0 +1,15 @@
+Effects of consumer cues on believing other people should use less water.
+
+Original study (2012): Cuing Consumerism
+  77 participants — effect size 0.25 (d)
+  doi:10.1177/0956797611429579
+
+Replication: Many Labs 2: Investigating Variation in Replicability Across Samples and Settings
+  6,608 participants — effect size 0.01
+  doi:10.1177/2515245918810225
+
+
+How this channel works
+Every number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.
+
+Replication data: FORRT Replication Database (FReD), osf.io/2tbvd

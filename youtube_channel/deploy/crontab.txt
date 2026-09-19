@@ -1,40 +1,457 @@
-# Carson Quant 全自動雲端排程（伺服器時區 Asia/Taipei，台灣時間 UTC+8）
+# [!] YT_QUOTA_RESERVE 的數字 = 當天還沒發的片數 × **2,150**（不是 2,200）。
+#   2026-09-05 修正：這行原本寫 2,200，而它跟下面自己的數字就對不起來 --
+#   現行 YT_QUOTA_RESERVE=23650 不是 2,200 的倍數（23650/2200=10.75），它是 11 x 2,150。
+#   下面那句「改發布支數就要同步改這個數字」是對的，但乘數要用 2,150。
+#   [撤回 2026-09-05] 上一版這裡寫過「實測是 2,100、PUBLISH_UNIT_COST=2150
+#   多算了一筆 playlistItems」—— **那是錯的，2,150 是對的，不要把它改小**。
+#   每支長片確實有一筆 playlistItems.insert 50：daily_publish.py:1273-1276 呼叫
+#   `playlist_engine.add_to_playlists()`，真正的 insert 在 playlist_engine.py:498。
+#   我錯在兩個地方，兩個疊起來看起來像兩條獨立證據：
+#     (1) grep 打的是 `playlistItem`，而 :1276 寫的是 `_ple.add_to_playlists` ——
+#         一個字都不含。**呼叫在中間被截斷不是證據，是「還沒看」**。
+#     (2) 對照組用錯分母：videos.post calls **含 Shorts**，
+#         playlistItems 只有長片，兩者本來就不該相等。
+#   反證（乾淨對照）：Pacific 08-30 發 8 支長片、當天沒有任何 playlist 排程，
+#   playlistItems.post = **8 calls**，一支一筆。
+#   2026-08-30:發布量從 6 支/天(09:15 max1 + 18:30 max5)改成 **7 支**(18:30 max6),
+#   所以保留額度 13,200 → **15,400**。**改發布支數就要同步改這個數字**,
+#   否則最後一支會撞到額度線(補件先把配額吃掉,發布反而發不出去——
+#   memory yt-longform-yield-and-quota-order 記的「不是用太多是順序反了」就是這個)。
+#   23:00 那條用 2,200 是因為當天發布已完成,只需留隔天早班那 1 支。
+﻿# Carson Quant 全自動雲端排程（伺服器時區 Asia/Taipei，台灣時間 UTC+8）
+# ⚠️ 此檔＝雲端 `crontab -l` 的真實同步版(2026-07-04 對齊)。動 cron 前先 `crontab -l` 抓雲端 diff,
+#    絕不要 `crontab deploy/crontab.txt` 直接覆蓋(雲端可能有此檔沒有的行);改雲端請外科手術式 patch。
+# 2026-08-30 發布量 7 → 8 支/天(18:30 那輪 --max 6→7,加上 09:15 那支 checkup)
+#   依據:每多發一支長片 = 4.3 觀看小時(中位,全樣本;memory yt-marginal-value-per-video)。
+#   配額騰法:fix_captions_sync 3→2、desc_chapters_backfill 15→8、fix_engage_comments 12→8,
+#   合計省 1,000 units。**刻意不動 fix_period_disclaimer(誠信)與 fix_caption_drift
+#   (觀眾抱怨過的字幕不同步)** —— 寧可少發一支也不停這兩支。
+#   🔴 同日撤回:配額日在台北 15:00 換日,所以隔天 09:15 那支發布跟**前一晚 18:30 那批**
+#   算同一個配額日 —— 一日實際是 維運3,950 + 7支15,400 + 1支2,200 = 21,550 > 上限 20,000。
+#   要發 8 支就得把維運砍到 2,400(等於停掉字幕同步),不值得。--max 維持 6(全日 7 支),
+#   RESERVE 維持 15,400。維運的削減與重排保留 —— 那是純賺的餘裕,本週已吃兩次 403。
+#   真正的增量來自「評分排程提前」:發布端不再讀早上的舊分數,預期 5~6 支 → 7 支。
+# 2026-08-30 維運重排:配額不夠時該先做什麼 —— **誠信 > 觀眾看得見的缺陷 > 純美化**。
+#
+# 🔴 **2026-11-01 之後這批時間會失效,而且不會報錯** ——
+#   配額日在**太平洋午夜**重置。現在(夏令時 PDT, UTC-7)= 台北 15:00,
+#   所以 15:05 起的維運落在新配額日、額度最滿。
+#   但 11/01 換回冬令時(PST, UTC-8)後,重置會變成台北 **16:00** ——
+#   15:05~15:50 這批就落回**舊配額日的尾端**,被 YT_QUOTA_RESERVE 擋掉。
+#   後果不是壞掉,是**靜靜地不跑**(RESERVE 擋下不算失敗),很難察覺。
+#   ⇒ 2026-11-01 當週把 15:0x~15:5x 這批整批 +1 小時(16:0x~16:5x),
+#     quality_score 15:30→16:30,並確認 18:00/18:30 兩輪發布仍在其後。
+#   驗算法:python -c "import zoneinfo,datetime as d; \
+#     print(d.datetime.now(zoneinfo.ZoneInfo('Asia/Taipei')).astimezone(\
+#     zoneinfo.ZoneInfo('America/Los_Angeles')))" —— 太平洋 00:00 對應的台北時刻就是重置點。
+#   舊順序把 fix_period_disclaimer(誠信)排在 16:55 最後面,RESERVE 一提高它第一個死。
+#   配額日在台北 15:00~16:00 重置,所以 15:05 起額度最滿,最該做的放最前面。
+# 🔴 2026-08-30 下午:發布量 7 → 8 支/天,方法是停掉「對觀看時數零貢獻」的舊片維護。
+#   帳:上限實測約 19,645(08-26 花 18,760 零被拒、08-29 在 20,190 吃到真 403)。
+#   維運 4,050 → 2,350(停 fix_captions_sync 900 / desc_chapters 400 / fix_engage 400),
+#   剩 17,295 給發布 = 7.86 支。上限設 8,由 RESERVE 決定當天塞 7 還是 8 支
+#   (RESERVE 是在呼叫前擋,不會浪費一次失敗的上傳)。
+#   ⚠️ 刻意**不**再砍發布時的自動留言等 50 units 小項 —— 那些效果未驗證,
+#      今天已經因為堆疊未驗證的改動被打臉一次,不再犯。
+#   收益:+1 支/天 = +4.3 觀看小時/天(實測中位)= 基準 26.6 的 +16%
+#         → YPP 長片路徑 115 天 → 99 天,提前 16 天。
+#   代價:舊片的字幕不同步(積欠 82 支)、章節、互動留言不再修。
+#         字幕不同步是觀眾抱怨過的真缺陷 —— 這是拿已發布片的體驗換 YPP 進度。
+#         **YPP 過了之後把那三行的註解拿掉即可復原。**
+#   保留的:誠信修補(紅線)、新片縮圖補件(裸片沒人點)、追劇鏈(帶 session time)。
+# 🔴 2026-08-30 停 binge_chain:它的目標指標有天花板,而天花板比成本低一個數量級。
+#   實測近 30 天各來源觀看分鐘:搜尋 47.1% / 訂閱源 34.9% / 相關影片 7.3% /
+#   Shorts 4.3% / **播放清單 0.3%(共 160 分鐘)** / **片尾畫面 0.0%(0 分鐘)**。
+#   binge_chain 花 400 units/天 = 0.19 支片 = 0.8 觀看小時/天;
+#   而播放清單流量就算翻倍也只多 0.09 小時/天。差一個數量級。
+#   ⚠️ 上線 9 天的前後對照被整體下滑污染(那段所有來源都跌 31%,發布量低),
+#      所以不是靠對照下的結論,是靠**天花板**。
+#   同理:片尾畫面(memory yt-endscreen-ui-automation)實測 0 分鐘,那條線不要再投入。
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-# 金融時事優先：每 2 小時掃即時財經/加密新聞，有大事立刻產片（繞過排程，每日上限 3 支）
-0 * * * * /root/yt/run.sh scripts/news_dept.py >> /root/yt/logs/cron.log 2>&1
+# ── [2026-09-05 停產·時事部] 督導代 Carson 裁示,理由與復原方式寫在下面 ──────────────
+#   為什麼停:時事片是 Short,videos.post 一樣要 **1,600 units**(和一支長片的 insert 同價),
+#   但綁定約束是 YPP 的 4,000 小時(現在 430),幣別是**分鐘**不是觀看,而匯率差 9.6 倍
+#   (YT_SEARCH 1.52 分鐘/觀看 vs SHORTS 0.16)。同樣 1,600 units 換一支長片值 4~7 觀看小時,
+#   換一支時事 Short 值 0。
+#   🔴 這裡不要用「時事片表現差」當理由,那個說法已被推翻(news_dept.py:56 有全文):
+#     時事片其實是全頻道**最好**的 Shorts —— 進 Analytics Top-200 的機率 26.8% vs
+#     其他 Shorts 10.1%(2.65 倍),已逼近長片 35.7%。
+#     真正的理由是**它贏在觸及、不贏在分鐘**:進榜者每支觀看分鐘中位 105.9 vs 108.0
+#     (幾乎相同),因為 Shorts 的 avg_dur 被格式鎖死在 18~19 秒而長片是 118 秒。
+#     ⇒ **時事片是好 Shorts,而好 Shorts 換不到 YPP 分鐘。**
+#   🔴 但**不要**把這讀成「省下 1,600 units/天」——那句話我原本寫錯了,已就地更正:
+#     時事部的 videos.post 近四天(09-02~09-05)是 **0**,它早就被自家配額閘全數擋下,
+#     一個 unit 都沒花(帳本 by_op 的 videos.post 四天恆為 11 calls = daily_publish 的 11 支)。
+#     14 天實際只發成功 25 支 = 40,000 units,而其中近 5 天只有 1 支。
+#   ⇒ 停產真正省下的是**產能**:每天 3 支 Short 的 LLM + 渲染 + 庫存堆積(MAX_PER_DAY=3
+#     是天花板而且 14 天裡 13 天打滿),不是額度。
+#   ⇒ 而且釋出的短片名額**不會馬上變成長片**:daily_publish.py:755 的
+#     LONG_PER_CYCLE, SHORT_PER_CYCLE = 5, 1,那 1 個 Short 名額會從庫存挑,
+#     而待發 Shorts 有 75 支(過門檻 59)。以每天消耗 1~2 支算,這批夠燒一個多月。
+#     「名額換長片」的收益要另外處理庫存才拿得到,不會自己發生。
+#   為什麼不改成長片化:時事內容會衰減,而本頻道的成長引擎是個股搜尋佔位 ——
+#   常青內容會累積搜尋位置,時事不會。長片化的時事片仍然輸給多一支個股體檢。
+#   ⚠️ 這不是「因為它發不出去所以停」。它發不出去是症狀(近三天連續配額不足);
+#   停它的理由是**就算發得出去也不該發**。釋出的額度**先補現況超載**,不要立刻加發布量:
+#   11 支 × 2,150 + 非發布安全值 2,400 = 26,050 > 天花板 26,001,現況本身就沒有餘裕。
+#   復原:把下面兩行前面的 `# [2026-09-05 停產·時事部] ` 拿掉即可(local_cron 每分鐘重讀,
+#   約 60 秒生效,不必重啟)。復原前請先確認 YPP 幣別的結論有沒有改變。
+# 金融時事優先：每 3 小時掃即時財經/加密新聞，有大事立刻產片（繞過排程，每日上限 3 支）
+# [2026-09-05 停產·時事部] 0 */2 * * * /root/yt/run.sh scripts/news_dept.py >> /root/yt/logs/cron.log 2>&1
 # 05:30 情報 → 05:37 決策 → 06:07 製作(渲染) → 09:07 發布 → 09:3x~09:5x 後處理各部門
-# 競品深度學習(看100支/天)改在本機跑(雲端IP會被YouTube 429限流)，本機 QuantArsen_IntelLearn 學完SFTP推playbook回來；雲端這支只做輕量情報報告。
-30 5 * * * /root/yt/run.sh scripts/intel_dept.py --no-learn >> /root/yt/logs/cron.log 2>&1
+# 2026-07-17 合規清理:競品「深度學習」(下載他人字幕/音訊轉錄)已整段移除,違反 YouTube ToS。
+# 本機 QuantArsen_IntelLearn 排程已 Disabled、intel_sync.py 已 no-op。這支只走官方 Data API
+# search.list/videos.list 讀公開 metadata(標題/頻道/觀看數)產輕量情報報告,不下載任何影片內容。
+# ⚠️ 不要加回下載能力——「產線不下載/不儲存他人頻道內容」是送 Google 配額稽核的承諾。
+# 2026-07-16 配額預算輪值制:每6h→週六一次(重置前吃剩飯),省 2,400→週均 ~343/天
+30 13 * * 6 YT_QUOTA_RESERVE=23650 /root/yt/run.sh scripts/intel_dept.py --no-learn >> /root/yt/logs/cron.log 2>&1
 35 5 * * * /root/yt/run.sh scripts/traffic_dept.py >> /root/yt/logs/cron.log 2>&1
-37 5 * * * /root/yt/run.sh scripts/decision_dept.py >> /root/yt/logs/cron.log 2>&1
+37 5 * * * YT_QUOTA_RESERVE=23650 /root/yt/run.sh scripts/decision_dept.py >> /root/yt/logs/cron.log 2>&1
 # 白帽流量四招（都在製作 06:07 前跑完，產的題目當天就做成片；錯開 5 分避免同時寫 topic_bank.json）：
 # ⓪異常爆款偵測(1of10自架,餵寄生彈藥) ①搶首發熱點(插隊題庫最前) ②寄生競品爆款 ③長片切片漏斗
-40 5 * * * /root/yt/run.sh scripts/outlier_scan.py --top 20 >> /root/yt/logs/cron.log 2>&1
-45 5 * * * /root/yt/run.sh scripts/hotspot_dept.py --max 5 >> /root/yt/logs/cron.log 2>&1
-50 5 * * * /root/yt/run.sh scripts/parasite_titles.py --count 6 >> /root/yt/logs/cron.log 2>&1
-55 5 * * * /root/yt/run.sh scripts/shorts_funnel.py --max 1 --per 4 >> /root/yt/logs/cron.log 2>&1
-7 6 * * * /root/yt/run.sh scripts/produce_batch.py --manual --shorts 7 --long 1 --target 99999 --no-render >> /root/yt/logs/cron.log 2>&1
+# 2026-07-16 配額預算輪值制:每天→週日一次(週日只有4支發布有餘裕)
+43 5 * * 0 YT_QUOTA_RESERVE=23650 /root/yt/run.sh scripts/outlier_scan.py --top 20 --min-views 3000 --min-ratio 3 --days 150 >> /root/yt/logs/cron.log 2>&1
+20 */3 * * * /root/yt/run.sh scripts/hotspot_dept.py --max 8 >> /root/yt/logs/cron.log 2>&1
+47 5 * * * /root/yt/run.sh scripts/parasite_titles.py --count 8 >> /root/yt/logs/cron.log 2>&1
+# 🔴 2026-08-25 停產新 Shorts(不是停發,存量照發)。實測依據:
+#   ·未發布 Shorts 已積 **510 支**,而發布端是 1 支/天 → 照現況要 510 天才消化得完,
+#     再產新的等於憑空丟掉。
+#   ·Shorts 佔 34% 觀看卻只有 **3.7% 觀看時數**,而且**不計入 YPP 的 4000 小時**(政策事實)。
+#   ·同日拉真 Analytics 驗出:時數 ≈ 佔位數 × 每檔搜尋量 × 每次觀看 ~150 秒,
+#     而個股覆蓋率只有 81/1925 = 4.2% → **產能該全部給長片**。
+#   切片漏斗是新 Shorts 的最大來源(每天把 1 支長片裂變成 5~6 支)。要恢復把註解拿掉即可。
+# [停產 2026-08-25] 55 5 * * * /root/yt/run.sh scripts/shorts_funnel.py --max 1 --per 6 >> /root/yt/logs/cron.log 2>&1
+# TradingView 全攻略課程:--next 依序餵下2個課程EP(由淺入深)、--review 挖2支熱門腳本拆穿(永動題源);都在製作前餵
+56 5 * * * /root/yt/run.sh scripts/tv_curriculum.py --next 2 >> /root/yt/logs/cron.log 2>&1
+54 5 * * * /root/yt/run.sh scripts/tv_curriculum.py --review 2 >> /root/yt/logs/cron.log 2>&1
+40 5 * * * /root/yt/run.sh scripts/topics_from_facts.py --min-tw 60 >> /root/yt/logs/cron.log 2>&1
+# 個股體檢每日出集(2026-07-15任務，Carson拍板：台股1900多檔一隻發一集)：backlog依成交值排序
+# 撈下一檔→算基本面(FinMind)+價格體檢事實→種高優先長片題目進題庫，排在補題(05:40)之後、
+# 決策(05:37前)之後、製作(06:07)之前，讓當天製作能自然抽到新種的題。
+# 🔴 2026-07-17 實測解封 --count 1 → 8(這是長片供給的命脈:一檔=一個**綁 fact_key、結構上不可能
+#   編造**的長片題,而長片是唯一計入 YPP 4000 小時的格式;backlog 尚有 1911 檔 ≈ 240 天)。
+#   舊註解寫「FinMind免費層每天只處理1檔，絕不暴衝rate limit」是**沒實測過的保守假設**,兩點錯:
+#   ①限制是 **300 requests/小時**不是每天(官方 finmind.github.io/quickstart:無token 300/hr、
+#     有token 600/hr、超量回 HTTP 402;本專案未設 FINMIND_TOKEN → 300/hr 這層)。
+#   ②**一檔只打 4 個 call**(MonthRevenue/FinancialStatements/Dividend/PER;財報那支被 EPS 與
+#     毛利率共用靠快取只打1次。TaiwanStockInfo 全市場表7天快取共用;價格走 yfinance 不吃 FinMind)。
+#   實測(2/3/8 檔各跑一輪,累計 52 個 call):**全 HTTP 200、零 402、零限流**,單次請求 avg 0.31s,
+#   且第52個call與第1個一樣快(無退化)。--count 8 = 32 call = 每小時額度的 **11%**;最壞情況
+#   (8成功+5失敗)=52 call=17%。耗時實測 8 檔 **5.4 分**(05:50→約05:55),離 06:07 製作批 11 分餘裕。
+#   ⚠️ 配套:同時修好 stock_checkup_daily.py 的 MAX_ATTEMPTS(原本把成功也算進「嘗試」預算,
+#      --count>5 會無聲只做5檔,改成 MAX_FAILS 失敗預算)——沒那個修,這裡寫 8 只會拿到 5。
+# 2026-08-05 --count 8 → 16(Carson 拍板方向 A:長片只做「有真實事實」的題目)。
+# 事故經過:一夜產 10 支長片把 43 個未使用的 checkup 題**全部消耗光**(剩 0 個),
+# 產線只好退去抽「網格穩賺嗎」這種**沒有 fact_key 的通用題**——模型沒素材可講就
+# 重複同一組數字灌水撐長度,被資訊密度閘門擋下 → 重生 → 再灌水。今天的燒錢、變慢、
+# 產不出來,全是這條的下游症狀(實測 `--long 1` 連燒 4 次大呼叫仍無成品)。
+# 每天 16 個有事實的長片題,供 6 支/日發布仍有餘裕。backlog 尚有 1,778 檔可做。
+# ⚠️ 別再往上加太多:每檔要打 yfinance 約 5 次,實測 42 檔連跑會被 Yahoo 限流
+#    (見 checkup_fundamentals_backfill.py 的重試說明)。
+# 🔴 2026-09-09 事實庫 key 歸屬健檢(方案書 docs/ops/2026-09-09_design_fact_key_ownership.md)。
+#   排 05:45 的唯一理由:在日班 50 5(上一行)之前、週日 rank 40 6 * * 0(:622)之後一整天
+#   ⇒ B 永遠讀到沒有寫入端在跑的靜止檔。
+#   ⚠️ 不要用「B 開檔會讓 os.replace 撞 PermissionError」當理由,那條實測不成立:
+#      B 全程 0.21s、read_text 0.05s,併發壓測 28 輪 B x 10 次真寫入,需要退避 0 次。
+#   為什麼需要它:merge_and_write 的總數比對對「單一前綴整批蒸發」是盲的(那些 key 對
+#   被合併的代號前後都算「自己的」)。這支按前綴分組量覆蓋率,才看得見。
+#   exit code 實務上沒人看得到(cron.log 一天幾百行)⇒ 它的告警走 ops.log_ops,落 STUDIO/ops_log.txt。
+45 5 * * * /root/yt/run.sh scripts/checkup_facts_prefix_health.py >> /root/yt/logs/cron.log 2>&1
+50 5 * * * /root/yt/run.sh scripts/stock_checkup_daily.py --count 16 >> /root/yt/logs/cron.log 2>&1
+# 🔴 2026-08-29 題庫補種:上面那行只做「backlog 隊伍最前面的**下一檔新股票**」,從不回頭。
+#   實測落差:事實庫涵蓋 522 檔,題庫只種過 207 檔 → **315 檔有事實、沒種題**(1,896 組事實
+#   躺著沒用)。那批的 FinMind 額度與運算成本早就付過了,只差一次 LLM 生題。
+#   而題庫見底的後果不是「少產幾支」:抽不到題 → 模型自由生題(沒有事實可依據)→ 灌水
+#   → 密度閘門擋下 → 整條長片產線 fail-closed(08-28 18:11 起連續 7 小時零產出)。
+#   這行不打 FinMind(事實已在檔),只花 LLM,所以放在 checkup_daily 之後不搶 yfinance 額度。
+#   水位由 daily_health._supplies() 每天 09:00 監看,低於 20 題會 ntfy。
+20 6 * * * /root/yt/run.sh scripts/seed_checkup_backfill.py --apply --max 25 >> /root/yt/logs/cron.log 2>&1
+# 2026-08-01 需求偵測(週三 06:10,週三是排程最空的一天)。只做一件事:讀自己 Analytics 的
+#   真實搜尋詞,若出現「有人在搜、但 backlog 還沒做」的股票,就把那幾檔提到最前面。
+#   依據:近28天只有搜尋在漲(+95%),而搜尋詞前25名裡個股名/代號佔 64%(459/718 觀看);
+#   最大叢集頎邦6147合計122觀看,其中「頎邦檢調」洩漏機制=**新聞事件把人推去搜**,
+#   這種需求有時效性,錯過就沒了。首次實測 10 檔被搜的股票全部已做過 → 回報「不需重排」,
+#   證明這條線本來就在運作;此排程是為了接住**未來新出現**的需求尖峰。
+#   只在有未做的熱門股時才動 backlog,否則零改動;成交值排序仍是預設。
+# 2026-08-22 週三一次 → 每日:「頎邦檢調」實證新聞事件會把人推去搜特定股票,
+#   時效只有幾天,週三掃等於平均延遲 3.5 天=錯過尖峰。腳本本身冪等且便宜
+#   (讀自己的 Analytics 搜尋詞 + 重排 backlog,無熱門新需求時零改動)。
+10 6 * * * /root/yt/run.sh scripts/checkup_demand_sort.py --apply >> /root/yt/logs/cron.log 2>&1
+# 2026-08-02 跳過名單複查(每月 1 號 06:20)。publish_skip.json 是**只進不出**的名單:
+#   片子有缺陷就加進去,但缺陷修好後沒有機制回頭複查。實際踩到:5 支高分片
+#   (94/89/86/84/79,含中華電/鴻海這種搜尋量最大的權值股)被「渲染期把機器人假數字燒進畫面」
+#   的理由擋著——那理由當時是真的,但 bug 07-17 就修好、檔案 07-29 已重渲,**沒人回頭看**,
+#   於是白躺四天。這支只負責「叫出來」,**不自動解鎖**(放行必須人工抽幀驗證)。
+#   誠信類的擋(捏數/禁語/洗版骨架)一律不列入——重渲不會讓假數字變真。
+20 6 1 * * /root/yt/run.sh scripts/skip_list_review.py >> /root/yt/logs/cron.log 2>&1
+# 2026-08-02 個股體檢流失回收(每週日 06:30)。題目一旦標 used 就不會再被抽到,
+#   而**產片失敗不會把 used 退回**——渲染逾時/MemoryError/稿子壞掉,那一檔就永久消失,零告警。
+#   首次實測:已消耗 115 題裡有 **51 檔**既無成品也未發布,而事實檔全部還在;
+#   名單全是搜尋量最大的名字(聯發科2454/國泰金2882/國巨2327/大立光3008/日月光3711…)。
+#   而搜尋是本頻道唯一在成長的來源(+95%)、個股名佔搜尋詞 64% → 等於 51 個永久流失的入口。
+#   本支只把 used 退回讓產線重抽(不重新種題,避免與既有題目重複);
+#   偵測條件是「無成品且未發布」,片子產出後條件即不成立 → 天生冪等,可安全重跑。
+# 2026-08-30 週日 → 每天:產片 fail-closed 會把題目燒掉(used 不會退回),
+#   而回收一週只跑一次 = 失敗的題最久要等 7 天才回得來。實測今天 06:30 跑過之後,
+#   07:35 又燒掉大立光3008、穩懋3105、南茂8150、仁寶2324 —— 那些要等到下週日。
+#   被燒掉的偏偏是**最有新聞熱度的大型股**(聯發科2454、大立光3008、國泰金2882),
+#   而新聞事件正是把人推去搜股票名的機制。這支跑 1 秒、不吃配額,沒有理由一週只跑一次。
+#   排在補產批次(06:07/12:30)之後,讓當天燒掉的當天就回得來。
+30 13 * * * /root/yt/run.sh scripts/checkup_recover_lost.py --apply >> /root/yt/logs/cron.log 2>&1
+# 2026-07-17 格式翻轉:產出配比 5短3長 -> 3短5長。**承重理由是政策事實,不是統計**:
+#   ①【硬事實】Shorts 觀看**不計入** YPP 的 4,000 watch hours。標準路徑 66hr/4000=1.7%
+#     已比 Shorts 路徑 25k/1000萬=0.25% 近 7 倍 → 長片是唯一同時餵訂閱與觀看時數的格式。
+#   ②【參考·n小勿當定論】Analytics 90d:Shorts 訂閱轉換約 0.080%、長片 0.43–0.96%
+#     (n=13 且單片佔長片訂閱 64%);方向顯著(z=3.81)但倍數不穩 5–12x。
+#   Shorts 留 3 支當曝光/導流(short_to_long 363 筆配對在跑),不再指望它轉換。
+#   target 150 已於 produce_batch 內按格式切(短40%/長60%),不足就補、達標才停,自我調節。
+# 2026-08-11 產製配比 3短5長 → 1短6長。依據(近30天 per-video 實測):
+#   長片   129支:每支帶 **0.60 訂閱 / 152 觀看分鐘**
+#   Shorts 200支:每支帶 **0.04 訂閱 /  12 觀看分鐘**
+#   → 長片訂閱效率是 Shorts 的 **15 倍**、YPP 分鐘 **12.7 倍**。
+# 四週趨勢更明確:Shorts 觀看 9683→6875→2486→3459(跌 64%),四週合計只帶 9 個訂閱;
+# 同期長片 1757→3259→2175→6328(漲 260%)、帶 86 個訂閱。
+# 而歷史成品是 816 支 Shorts vs 146 支長片 —— 算力長期押在幾乎零回報的那邊。
+# ⚠️ 保留 1 支 Shorts 不歸零:Shorts 仍是頻道的探路/曝光面(佔總觀看仍過半),
+#    完全砍掉會失去這個發現題材的管道,但不該再是主力。
+# 🔬 2026-08-12 節奏實驗配套:發布 3/天,生產同步 --long 6→3(庫存 39 支已夠 2 週,
+#   續產 6 支/天會無限堆積;省下的 LLM 額度讓密度規則(段落留存ⓕ~ⓙ)有更多重生預算)。
+7 6 * * * /root/yt/run.sh scripts/produce_batch.py --manual --format-focus --shorts 0 --long 8 --target 150 --no-render >> /root/yt/logs/cron.log 2>&1
+# 🔴 2026-07-17 長片保底補產:06:07 主批若被外力中斷(07-16 實錄 exit 1073807364 =
+#   DBG_TERMINATE_PROCESS,疑似電腦睡眠;07-17 又因 queue_size bug 整批跳過)→ 已連兩天零長片,
+#   而長片可發庫存只剩 9 支 = 3 天。再失敗一次就斷炊,發布端會無聲退化成全短片(不崩但翻轉白做)。
+#   這支只補長片(--shorts 0)且用低 target 30(→長片門檻 18 ≈ 6 天緩衝):長片夠就乾淨跳過(冪等,
+#   不會超產),不夠才補。produce_batch **不吃 YouTube 配額**(只走 LLM/OpenRouter),故可安全加班。
+#   注意:電腦真的睡著時這支也不會跑——根治要禁睡眠,那是 Carson 的機器設定,不擅自改。
+30 12 * * * /root/yt/run.sh scripts/produce_batch.py --manual --format-focus --shorts 0 --long 3 --target 30 --no-render >> /root/yt/logs/cron.log 2>&1
+# 🔴 2026-08-31 產能補差額:上面那支 12:30 保底看的是**庫存**(--target 30),
+#   今天庫存 52 早就超過門檻 → 它幫不上忙,而且上限只有 3 支,補不了 8 支的缺口。
+#   當天實錄:清晨網路層斷線,所有 LLM 供應商連不上(HTTPSConnectionPool),
+#   06:07 那批「long 連續失敗,跳過」一支沒產;09:00 網路早就好了,但**沒有任何重試**,
+#   整天排程只拿到 2 支長片 vs 發布 8 支/天 = 淨流失。
+#   stall_watchdog 補不到:它看「最後一次有動」的時戳,門檻是好幾天,單批掛掉它不會叫。
+#   produce_catchup 看的是**今天實際成稿幾支**(數 ops_log 的「已備妥待渲染」),只補差額;
+#   達標就安靜結束(零成本),偵測到 produce_batch 還在跑就跳過(免得兩個實例互搶題目
+#   —— 每支題抽中當下就標 used)。跑兩次是因為 06:07 那批可能跑好幾小時才收工。
+45 8 * * * /root/yt/run.sh scripts/produce_catchup.py --target 11 >> /root/yt/logs/cron.log 2>&1
+0 11 * * * /root/yt/run.sh scripts/produce_catchup.py --target 11 >> /root/yt/logs/cron.log 2>&1
+# 🔴 2026-08-11 EP0 常態化:EP0/系列說明片是實測訂閱轉換最高格式(3-5%,tw_lab EP0
+#   17.5訂閱/千觀看=均值3倍),但先前**沒有任何排程**——只有 session 想到才手動產,產了又
+#   卡品質門檻(67<75,已豁免)+數字過期(已加汰舊),3 支 stale 疊庫存 11 天、最大系列
+#   checkup 的 EP0 從未發布過。每週一支、兩系列隔週輪替(週三 07:20,錯開主產批 06:07):
+#   數字由 ep0_engine 從 ledger/題庫當場算(fail-closed),產新自動汰舊未發布舊版。
+#   ⚠️ 輪替不可用 shell 條件寫(`[ $((週數%2)) ] &&`):local_cron 的解析 regex 只抽
+#   `scripts/X.py args`,前綴條件會被**靜默丟棄**→兩支同天全跑。改用純 cron 欄位:
+#   checkup=每月第1/3個週三,tw_lab=第2/4個週三。
+#   ⚠️ 語義注意:local_cron.due() 對全欄位取 AND(日窗∧週三=第N個週三,正確);
+#   標準 cron 對「日+週」同時限定是 **OR**(會變成 1-7 每天+每週三都跑)——若未來搬回
+#   真 crontab,這兩行要改寫(如日窗+腳本內判週幾),不能照搬。現行產線=本機 local_cron。
+20 7 1-7,15-21 * 3 /root/yt/run.sh scripts/produce_batch.py --ep0 checkup --no-render >> /root/yt/logs/cron.log 2>&1
+20 7 8-14,22-28 * 3 /root/yt/run.sh scripts/produce_batch.py --ep0 tw_lab --no-render >> /root/yt/logs/cron.log 2>&1
+# 節奏實驗自動評估(2026-08-28 一次性):7→3/天實驗的前後窗對照報告(BROWSE/中位/訂閱/
+#   分鐘)。實驗期到 08-25,+2 天等 Analytics 延遲清空才可比(memory 假警報教訓)。
+#   工具只報告不動產線;產出 STUDIO/REPORTS/<date>_節奏實驗對照.md。
+40 6 28 8 * YT_QUOTA_RESERVE=23650 /root/yt/run.sh scripts/cadence_experiment_report.py >> /root/yt/logs/cron.log 2>&1 # ONESHOT=2026-08-28
+# 描述章節回填餘量(2026-08-12 建;2026-08-17 改為 --fix-existing):
+#   ⚠️ 08-12 那批用的舊 build_chapters_block 產出的章節**時間是錯的**——實測 90 支
+#   已補的片裡 63 支有真實錯位、最大偏 -64 秒,且集中在流量最高的片(台半1934觀看
+#   0:54 實際該是 2:02)。兩個根因:漏加片頭 INTRO_DURATION(-3s,無感)、旁白對不到
+#   句子時用等分估算**編出時間點**(要命,觀眾點章節跳錯一分鐘)。產生端已換成
+#   chapters.build(對不齊就整組不出)。--fix-existing 會先移除線上舊章節再貼新的,
+#   同時仍接住「還沒有章節」的漏網件。用獨立 done 名單 desc_chapters_fixed.json
+#   (舊名單那 90 支正是要修的對象,共用會全被跳過)。
+#   每支更新前原 snippet 原封備份到 STUDIO/desc_backup/<vid>.json,可還原。
+#   已實測驗證:台半 5425 逐欄位比對 title/tags(13→13)/categoryId 全未動、
+#   非章節行 16→16 未動;新時間用旁白內容比對確認精確命中段落開頭。
+#   --max 15(約 765 units)給每日發布留配額;首批 21 支已完成,冪等續跑。
+# [2026-08-30 暫停·換發布額度] 40 15 * * * YT_QUOTA_RESERVE=23650 /root/yt/run.sh scripts/desc_chapters_backfill.py --fix-existing --apply --max 8 >> /root/yt/logs/cron.log 2>&1
+# 灘頭指標(2026-08-13):每日記錄「非訂閱者來源觀看」(取4天前單日,避開Analytics延遲)。
+#   依據memory yt-subscriber-feed-pollution:總觀看被157訂閱者重複觀看污染,
+#   外部分發≈0是頻道真瓶頸——這個數字才是北極星。
+35 6 * * * /root/yt/run.sh scripts/beachhead_tracker.py >> /root/yt/logs/cron.log 2>&1
+# 字幕同步修復續跑(2026-08-17,觀眾實際回報「字幕跟解說不同步」):
+#   舊字幕用mp4總長(含片頭3s+片尾)估算分佈且無片頭位移→全片系統性早3秒、越後偏差越大。
+#   產生端已改用wordtimes真實時間戳;這支把已上傳的錯字幕換掉,依近30天觀看排序(搜尋
+#   常青片優先),每天12支(約6000 units),冪等done名單,全部做完自動no-op。118支約10天。
+# 2026-08-24 配額稽核:captions.update 每支 **450 units**(videos.update 的 9 倍),
+#   --max 12 = 每天 ~5,400 units,**吃掉半個以上的每日配額(上限 10,000)**。
+#   加上 daily_publish(videos.insert 1600×2=3200)、binge_chain(50×40=2000)、
+#   desc_chapters_backfill(750)、fix_period_disclaimer(750)、fix_engage_comments(600),
+#   固定排程估算 ~12,700 > 10,000 = **結構性超支,每天必爆**,retro_dept 那 19 units 被擠死。
+#   12→3 一天省 4,050,總量回到 ~8,650 有餘裕。已完成 67 支,剩餘照 3 支/天續修。
+#   配額恢復健康(或提額核准)後可調回。
+# [2026-08-30 暫停·換發布額度] 20 15 * * * YT_QUOTA_RESERVE=23650 /root/yt/run.sh scripts/fix_captions_sync.py --apply --max 2 >> /root/yt/logs/cron.log 2>&1
+# 每週人眼抽檢(2026-08-12):抽3支近期發布片產contact sheet(6格畫面+語速/音畫比探針)
+#   → STUDIO/REPORTS/<date>_每週抽檢.jpg,Carson掃10秒抓黑畫面/字幕錯位/圖表崩版。
+#   起因=字幕錯位事故證明「渲染完成≠片是好的」,機器閘門總有下一種靜默失敗。
+0 8 * * 0 /root/yt/run.sh scripts/weekly_qa_sample.py >> /root/yt/logs/cron.log 2>&1
+# 留存×段落對映月更(2026-08-12):83支實測得出風險句1.60x/說教句懸崖等規則已進LONG_RULES,
+#   每月重跑刷新洞察(新片累積後樣本更大,規則要跟著數據走)。
+40 7 1 * * /root/yt/run.sh scripts/retention_segments.py >> /root/yt/logs/cron.log 2>&1
+# Short→長片精準連看:建 short_to_long.json(bigram題材相似度對應已發布短→長),發布前跑
+50 6 * * * /root/yt/run.sh scripts/build_short_to_long.py >> /root/yt/logs/cron.log 2>&1
+# Short→Short 同系列/同題材連看:建 short_to_short.json(EP實測系列接上一集、其餘bigram題材相似度
+# 對應待上架短→已發布短),發布前跑,與 short_to_long 錯開1分避免同時寫 STUDIO
+# [停產 2026-08-25] 51 6 * * * /root/yt/run.sh scripts/build_short_to_short.py >> /root/yt/logs/cron.log 2>&1
+# 台股火力:真回測數據引擎(每天更新真數字)+ 四軌台股系列連載(產片前餵)
+# 🔴 2026-07-17 事實庫退役第1步:tw_facts_engine.py(產 tw_facts_computed.json,50組)本來**零排程**,
+#   只能手動跑,結果越放越舊(as_of 落後 2 天);而它是產線唯一該信的事實庫——固定起點(period="max")、
+#   每筆帶 period/start/end/method/source、有 _sanitize_series 砍假跳空。排在 03:50:
+#   ①早於 topics_from_facts(05:40)/tw_lab 種題與 produce_batch(06:07),當天產的片就吃到新數字
+#   ②早於 snapshot_studio(04:05)與 backups(04:15),新事實庫當天就有快照可回溯
+#   成本實測:單標的走快取 0.8 秒/12 組;全 15 標的主要成本是 yfinance 下載 ~1 分鐘。
+#   **不吃 YouTube 配額、不走 LLM/OpenRouter**(純 yfinance+pandas),故可安全每天跑。
+#   縮水保險:抓取異常(新結果<既有60%)會保留舊檔不覆蓋,見 tw_facts_engine.py main()。
+50 3 * * * /root/yt/run.sh scripts/tw_facts_engine.py >> /root/yt/logs/cron.log 2>&1
+# 🔴 2026-07-17 事實庫退役第3步:tw_stock_data.py(產 legacy tw_stock_facts.json)**已停排程**。
+#   它算的 5 組事實 tw_facts_engine 全都有(50組⊃5組),但它用 `today - years*366` 的**滾動窗**,
+#   每天 04:00 重算 → **同一個 key 的數字每天漂移**。兩個實害:
+#     ①已發布片的數字事後對不回來(-jnJRZUvUzA 講 0050 十年 All-in「813%」,今天同key已變 804.5%;
+#       apply_repackage3.py:34 記錄過同症狀「823.1% 全對不上現行 tw_stock_facts」)。
+#     ②fact_source_guard 的「有憑據」數字池直接從這份檔攤平(fact_source_guard.py:298),
+#       池每天變 → **守門在用一把每天變長度的尺**,今天放行的數字明天就不存在。
+#   停掉這行 = 檔案凍結在 2026-07-17 的值(仍是真回測、仍可被守門當憑據,只是不再變動),
+#   尺就固定了。**故意保留檔案不刪**:已發布/待發布、以及 make_thumbnails.py:284 仍在讀它,
+#   刪檔會讓那些片變「查無憑據」被 fail-closed 擋掉 = 產線停擺。
+#   要復活(不建議)就把下一行的 # 拿掉;真正該做的是讓 make_thumbnails 也改讀 computed。
+# 0 4 * * * /root/yt/run.sh scripts/tw_stock_data.py >> /root/yt/logs/cron.log 2>&1
+52 5 * * * /root/yt/run.sh scripts/tw_stock_series.py --next 3 >> /root/yt/logs/cron.log 2>&1
 # 安全雙模式：雲端每15分渲染待辦(PC開著時平行加速,鎖防雙渲染)
+# 2026-08-30 補排:backfill_tts 是今早為了解「渲染迴圈空轉 11 小時」寫的補洞工具,
+#   但寫完沒排進來 = 同一個洞會再破一次。根因:hybrid_render.cloud_pending() 對
+#   「mp3 不存在」直接 continue —— 稿子備妥卻沒配音的片,渲染端當它不存在,
+#   既不渲染也不報錯。本支負責把那些片補上配音,讓它們重新進得了渲染佇列。
+#   不吃 YouTube 配額(本機 TTS),--max 4 避免跟渲染搶 CPU,flock 防疊跑。
+*/30 * * * * flock -n /tmp/bftts.lock /root/yt/run.sh scripts/backfill_tts.py --apply --max 4 >> /root/yt/logs/cron.log 2>&1
 */15 * * * * flock -n /tmp/hr_cloud.lock /root/yt/run.sh scripts/hybrid_render.py --cloud --max 20 >> /root/yt/logs/cron.log 2>&1
 # 片庫品管評分（produce 後跑，供決策中心『🎬 片庫評分』分頁檢視＋退件重做）
-40 6 * * * /root/yt/run.sh scripts/quality_score.py >> /root/yt/logs/cron.log 2>&1
+40 6 * * * YT_QUOTA_RESERVE=23650 /root/yt/run.sh scripts/quality_score.py >> /root/yt/logs/cron.log 2>&1
+# 🔴 2026-07-17 加第二班(18:00,發布前30分):管線本來是 produce(06:07)→render(*/15)
+#   →評分(隔天06:40)→可發 = **~27h 延遲**。這代表 12:30 的長片保底補產要等到隔天才評得到分,
+#   救不了當天的斷炊(長片可發庫存一度只剩 3 天)。這一班讓 12:30 補的長片當天 18:30 就能發。
+#   成本安全:quality_score 冪等(:273 只評「沒有有效 ai 分數」的片,既有片走快取不重評),
+#   且走 OpenRouter **不吃 YouTube 配額**。
+# 2026-08-30 從 18:00 提前到 15:30:實測每輪要 44~121 分鐘,18:00 開跑會到 18:46~20:03
+# 才寫完分數,而 daily_publish 排在 18:30 —— 等於每天發布用的都是早上那輪的舊分數,
+# 當天新渲好的片一律「未評分 fail-closed」發不出去。提前到 15:30,最壞 17:31 完成。
+30 15 * * * YT_QUOTA_RESERVE=23650 /root/yt/run.sh scripts/quality_score.py >> /root/yt/logs/cron.log 2>&1
 # 自動記帳·固定成本（每天跑、同月只記一筆，冪等）
 10 3 * * * /root/yt/run.sh scripts/auto_cost.py >> /root/yt/logs/cron.log 2>&1
-# 黃金時段發布：台灣 Shorts 互動高峰＝午餐 12:30 + 晚間 20:30（取代原 09:07/21:07）
-30 12 * * * /root/yt/run.sh scripts/daily_publish.py --max 6 >> /root/yt/logs/cron.log 2>&1
-30 20 * * * /root/yt/run.sh scripts/daily_publish.py --max 6 >> /root/yt/logs/cron.log 2>&1
-37 9 * * * /root/yt/run.sh scripts/retro_dept.py >> /root/yt/logs/cron.log 2>&1
-42 9 * * * /root/yt/run.sh scripts/hr_dept.py >> /root/yt/logs/cron.log 2>&1
-45 9 * * * /root/yt/run.sh scripts/organize_dept.py >> /root/yt/logs/cron.log 2>&1
+# 本機每日快照關鍵 STUDIO json → STUDIO/_snapshots/日期/(留7天;補雲端 backups 被 SKIP 的安全網)
+5 4 * * * /root/yt/run.sh scripts/snapshot_studio.py >> /root/yt/logs/cron.log 2>&1
+# 贏家自動放大迴路(每天10:40，排在09:15前後的數據更新之後、11:00發布批之前)：
+# 掃近72h發布片的即時觀看(Data API,非Analytics——Analytics 2-3天延遲會漏掉剛發布的贏家)，
+# 跟同齡片比(age-normalized velocity)找出真正跑贏同齡的贏家，派生同題材不同切角的新題目
+# 高優先寫回 topic_bank，隔天 produce_batch 自然抽到。冪等：同一支贏家72h內只放大一次。
+40 10 * * * YT_QUOTA_RESERVE=23650 /root/yt/run.sh scripts/winner_amplifier.py >> /root/yt/logs/cron.log 2>&1
+# 本機模式:每天發布前對帳 ledger(比對頻道實際已發布,防重複發片)——隨下面 daily_publish 提早到
+# 11:00,對帳也跟著提早到 10:45,維持「發布前對帳」順序不變
+45 10 * * * YT_QUOTA_RESERVE=23650 /root/yt/run.sh scripts/reconcile_ledger.py >> /root/yt/logs/cron.log 2>&1
+# 黃金時段發布 2026-07-13 依 best_publish_times.json 實測校正(見 STUDIO/best_publish_times.json)：
+# 本頻道歷史 publishedAt×成熟片(>=14天)views/day + Analytics retention 交叉驗證,樣本數最大(n=51/86)
+# 的區間集中在 09:00-12:00,20:30 舊晚間檔在兩指標都明顯偏弱(views/day僅0.5、retention35.9%,對照
+# 18:00 有1.26/41.2%);故：午段 12:30→11:00(提前於12:00-13:00觀看高峰前索引推播),
+# 晚段 20:30→18:30(提前於晚間黃金時段、貼齊18:00實測最佳晚間桶,取代原12:30/20:30)
+# 🔴 2026-07-15 配額重編:YouTube Data API 每日 10,000 quota、台灣 15:00 重置,upload=1600/支。
+# 原三班 6+12+12=30 支嘗試=48,000 quota → 89 次 videos.insert 403、66 支片裸奔沒縮圖。
+# 新預算(配額日 15:00→次日15:00):15:10 縮圖補掛≤2000 → 18:30 發3支(4,950) → 22:00 清單500
+# → 02:00 封面400 → 09:15 發1支 → 11:00 發1支(共5支/日全成功有縮圖) → 13:40-14:20 維運吃剩飯。
+# 想加量先申請 quota 提額(Google audit 表單),別改回大 --max:超額的部分 100% 白打還擋別的 job。
+# 2026-08-02 這格從「發佇列最前面的」改成「專發個股體檢」。**總發布量不變**,只換組成。
+#   依據(近28天實測):流量來源只有搜尋在漲(+95%),Shorts 推薦流 -54%、其他來源全漲;
+#   而搜尋詞前25名裡**個股名/代號佔 64%**(459/718 觀看)。個股體檢正是接這個需求的系列,
+#   而且它是長片——不會去 Shorts feed 那個正在降權我們的地方競爭。
+#   **每發一支個股體檢 = 多一個永久的搜尋入口**,這是順風;搶救 Shorts feed 是逆風。
+#   當下庫存有 25 支已過門檻的個股體檢片(約兩週積壓),而發布速度只有 1 支/日。
+#   ⚠️ 刻意**不加新時段**:配額實測上限約 18,000/日,目前已用到約 16,000,再加量會撞頂,
+#      撞頂的代價是隔天完全發不出去。所以只做組成轉移,不做增量。
+#   ⚠️ 若哪天個股體檢庫存見底,這格會空手(--series 濾不到候選)→ 那時應改回無 --series。
+# 🔬 2026-08-12 節奏實驗:11:00 checkup 檔位停用 14 天(總量 7→3/天,證據見
+#   daily_publish.LONG_PER_CYCLE 註解;09:15 檔位保留=訂閱鉤「每天一檔體檢」承諾不破壞)。
+#   回滾=取消下行註解。
+# 0 11 * * * /root/yt/run.sh scripts/daily_publish.py --series checkup --max 1 >> /root/yt/logs/cron.log 2>&1
+# 2026-08-04 --max 3 → 5:配額實測上限 >=18,000、單支約 2,050,原本一天只發 5 支(約
+# 10,250)有近 3 支的餘裕閒置。改後一天 09:15(1長)+11:00(1長)+18:30(4長1短)=6長1短,
+# 約 14,350 units 仍在上限內。理由與 per-video 實測數字見 daily_publish.py 的
+# LONG_PER_CYCLE 註解(長片每支訂閱產出是 Shorts 的 7.7 倍,且只有長片算 YPP 分鐘)。
+# 🔬 2026-08-12 節奏實驗:max 5→2(配 LONG_PER_CYCLE=1,1 → 1長1短)。回滾=改回 --max 5。
+# 🔴 2026-08-24 提量 2→5(當日總計 09:15 體檢1 + 18:30 五支 = 6/天):
+#   依片齡控制後的實測,「同日發布支數 vs 每支中位觀看」= 4-8支:116 / 9-15支:96 / 16+支:44。
+#   單日**總**觀看在 9-15 支最高(9×96=864 遠大於 3×116=348),而 16+ 才是真的崩(暴發日詛咒)。
+#   目前通過所有閘門的長片候選只有 9 支,所以實際發得掉的就在這個安全帶內。
+#   配額試算:6 支上傳 ≈ 9,600 units + 音軌 3,000 + 追劇鏈 2,000 + 加註 765 ≈ 15,400 < 18,000。
+#   ⚠️ 這是在節奏實驗(7→3/天,至 08-26)最後兩天**刻意加量**,08-28 報告要記這個偏離。
+# 🔴 2026-08-30 --max 5 → 6。上面兩條省下約 2,350 units ≈ 1 支片的發布成本。
+#   產能 10 支/天 > 發布 6.5 支/天,庫存 32 支持續累積 —— **沒發布的片對觀看時數貢獻是零**,
+#   而觀看時數正是 YPP 的卡點(912/4000 小時)。把省下的配額換成多發一支。
+#   配額試算:現況 18,017/19,645(只發 5 支);省 2,350 + 多發 1 支 2,200 → 約 17,867,仍在上限內。
+#   ⚠️ 不再往上加:memory yt-search-entry-decides-views 記著「單日 >=21 支那 16 天觀看中位 3
+#   vs 其他日 37」——一次倒太多會互相稀釋。7 支/天離那個水位還很遠,但別再試探。
+# 🔴 2026-08-31 8→9 支/天。配額實測:今天發 8 支用 17,200、雜項 850、剩 1,475,
+#   而 refresh_search_thumbs 的積壓今天歸零(「還剩 0」)→ 明天起自動省下約 500,
+#   9 支需要 19,350,對上天花板 ~19,645 剛好塞得下。
+#   **多要是安全的**:超額呼叫由 quota_meter 在客戶端擋下(不送出、不浪費 units),
+#   所以配額不夠時會自然停在 8 支,不會有失敗的上傳燒掉 1,600。
+#   每支長片實測值 4.3 觀看小時(全樣本中位),所以第 9 支 = +4.3 小時/天。
+# 🔴 2026-09-01 9→11 支/天。09-01 撞 403 量到真天花板 **24,374**(不是一直用的 19,645,
+#   低估 24%),加上停用 fix_caption_drift 省回 4,100 → 11 × 2,150 = 23,650,留 724 給維運。
+#   多要仍然安全:超額呼叫由 quota_meter 客戶端擋下,配額不夠就自然停在較少支數。
+30 18 * * * /root/yt/run.sh scripts/daily_publish.py --max 10 >> /root/yt/logs/cron.log 2>&1
+# 台股收盤後覆盤情緒黃金窗口 —— 2026-07-13 依實測改停靠早盤強桶(09:00 時段 retention 49.75%/
+# n=26,views_per_day 2.34/n=27,樣本夠大且表現佳,優於原 13:40)
+# 2026-07-17 由「只交易日 1-5」改成每天:新的 interleave 讓三批取到 L,L,(L,S,S),但這批只在
+# 平日跑 → 週末退化成 2長2短。長片是唯一計入 YPP 4,000 watch hours 的格式,沒理由週末少發一支。
+# 配額檢查:週末 5支×1650=8,250,加當日輪值維運(週六 intel 600 / 週日 outlier 800)
+# = 8,850 / 9,050,均 <10,000 有餘裕。
+# 2026-07-19 Carson 要「一天一部個股體檢連載」:用早上這個既有名額專發 checkup(不增總上傳數=不超
+# quota),EP 號發布時自動連號(d2fca80 --series checkup + 596c088 發布時挂号),供給 11 支 pending
+# 夠發 10 天+、後面 38 檔已種+1900 backlog。晚間 18:30×3 + 11:00×1 照發流言終結者/一般片(4 名額)。
+# 2026-08-30 09:15 → 17:30:09:15 位在配額日尾端(配額日在台北 15:00~16:00 重置),
+#   實測 daily_publish 因配額失敗 7/33 次、其中 09 點就佔 5 次 = 5 支片沒發出去。
+#   18:00 = 維運跑完(最後一支 binge_chain 17:05)、配額日才過 3 小時、額度最足,
+#   而且 quality_score 15:30 開跑最壞 121 分鐘 → 17:31 寫完分數,18:00 一定讀得到新分
+#   (17:30 會踩到同一個「評分還沒寫完就發布」的坑,那正是今天修掉的那個 bug),
+#   而且排在 18:30 批次之前 —— 個股體檢是頻道引擎,額度不足時該讓它先發。
+#   查過沒有「早上發比較好」的證據:best_publish_times.json 長片區塊 n=3/12/12 且
+#   avg_age_days 全是 0.0,不能用。
+0 18 * * * /root/yt/run.sh scripts/daily_publish.py --series checkup --max 1 >> /root/yt/logs/cron.log 2>&1
+# 播放清單自動化(每日一次,排在當天最後一批上架之後,把新發布的片依三主軸建/補進 YT 播放清單):
+# --max 40 跟 daily_publish 共用同一組每日 quota,設上限防一次跑光擋到隔天上架;冪等(items_in
+# 跳過已加過的),沒加完下次自動接續
+# 2026-07-16 配額預算輪值制:每天→週四一次
+0 22 * * 4 YT_QUOTA_RESERVE=23650 /root/yt/run.sh scripts/build_playlists.py --max 10 >> /root/yt/logs/cron.log 2>&1
+# 台股盤中盯盤即時撃(交易日多掃幾次財經新聞)
+# [2026-09-05 停產·時事部] 理由見本檔上方(搜字串 `停產·時事部`)與 scripts/news_dept.py:56
+# [2026-09-05 停產·時事部] 35 9,11,13 * * 1-5 /root/yt/run.sh scripts/news_dept.py >> /root/yt/logs/cron.log 2>&1
+# 2026-08-24 配額時區錯配修正:YouTube 配額日在**太平洋午夜重置=台北 15:00~16:00**,
+# 但排程表照台北日曆日設計(早上分析/晚上發布)→每天早上跑的都是「昨天配額日的殘渣」。
+# job_stderr.log 實測 403 分布:09:00 179 次(全天最高)、05:00 98 次,而 15:00 後幾乎為 0。
+# retro_dept 原排 09:37 正中最高峰,9 次執行爆掉 4 次(44%),害 metrics_history 斷檔、
+# northstar 趨勢算出 -98.5% 假崩盤,再害 growth_agent(:336 每2小時)連續對假訊號出手。
+# retro_dept 本身只燒 ~19 units(videos.list 每塊 1 unit),不是兇手是被餓死的 → 挪到重置後。
+# hr_dept 讀 metrics_history 做考核=retro 的下游,一起挪(維持原本相隔 5 分鐘的配對)。
+30 16 * * * /root/yt/run.sh scripts/retro_dept.py >> /root/yt/logs/cron.log 2>&1
+35 16 * * * /root/yt/run.sh scripts/hr_dept.py >> /root/yt/logs/cron.log 2>&1
+# 2026-07-28 配額稽核:organize_dept 每天燒 **267 units**(playlists.list + playlistItems.list×16
+# + playlistItems.insert×5),是每日固定維運 382 units 裡的最大宗,也是歷史頭號配額兇手
+# (07-16 一天噴 713 次 quotaExceeded)。而它產出的播放清單實測近7天只帶來 **9 次觀看(全站 0.19%)**。
+# 最壞日配額已用到 9,940/10,000(99.4%),這 267 是可回收的最大一筆。
+# 不砍功能(它是第三套分類法:網格/定投/回測數據/觀念風控,與 build_playlists、playlist_engine
+# 的分類軸不同),改成每週一次:成本 267/日 → 38/日均(-86%),整理功能仍在、只是慢一週。
+# 排**週五**:週輪值稽核出各日負擔為 六601/日808/二510/三765/四507/一64/**五0**,五最空,
+# 把這 267 放進唯一沒有輪值 job 的日子,不疊加到任何一個尖峰。
+45 9 * * 5 YT_QUOTA_RESERVE=23650 /root/yt/run.sh scripts/organize_dept.py >> /root/yt/logs/cron.log 2>&1
+# 2026-07-28 合規控制(Developer Policies III.E.4.d:API 取得的資料須 30 天內刷新或刪除)。
+# 稽核發現舊清除只掛在週六的 intel_dept、且只掃 *_競品情報.md,導致 outlier_scan 產出的
+# *_異常爆款.md(同樣含他人頻道標題/名稱)從未被清 —— 實測有 17 份逾 30 天、最舊到 06-16。
+# 改成獨立**每日**控制,與產生資料的部門解耦(產生的人不負責刪 = 原本那個洞的根因)。
+# 純本機檔案刪除,不耗任何 API 配額;保留 25 天(政策上限 30,留 5 天安全邊際)。
+20 4 * * * /root/yt/run.sh scripts/purge_api_data.py >> /root/yt/logs/cron.log 2>&1
 48 9 * * * /root/yt/run.sh scripts/promo_dept.py >> /root/yt/logs/cron.log 2>&1
-51 9 * * * /root/yt/run.sh scripts/thumbnail_dept.py >> /root/yt/logs/cron.log 2>&1
-# 留言部門：安全模板自動回覆(白名單句型,去重) + 仍產草稿
-54 9 * * * /root/yt/run.sh scripts/comment_dept.py --auto-reply-safe --max 10 >> /root/yt/logs/cron.log 2>&1
-# 完播率週報→回寫 completion_signals.json 餵決策(雲端現役:週一 00:30)
-30 0 * * 1 /root/yt/run.sh scripts/analytics_weekly.py >> /root/yt/logs/cron.log 2>&1
-# 舊片封面批次重生(make_cover 高質感封面):每天 02:00 補 60 支直到清空(配額安全)
-0 2 * * * /root/yt/run.sh scripts/cover_backfill.py --max 60 >> /root/yt/logs/cron.log 2>&1
+51 9 * * * YT_QUOTA_RESERVE=23650 /root/yt/run.sh scripts/thumbnail_dept.py >> /root/yt/logs/cron.log 2>&1
+# 2026-07-16 配額預算輪值制:每小時→每2小時,降無上限曝險
+54 */2 * * * YT_QUOTA_RESERVE=23650 /root/yt/run.sh scripts/comment_dept.py --auto-reply-safe --max 5 >> /root/yt/logs/cron.log 2>&1
 57 9 * * * /root/yt/run.sh scripts/finance_dept.py >> /root/yt/logs/cron.log 2>&1
 5 10 * * * /root/yt/run.sh scripts/multipost_dept.py --max 50 >> /root/yt/logs/cron.log 2>&1
 # 跨平台真上傳(TikTok/IG via upload-post)：無 UPLOAD_POST_API_KEY 會優雅跳過，金鑰一到即生效
@@ -43,13 +460,441 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 30 10 * * * /root/yt/run.sh scripts/daily_check.py >> /root/yt/logs/cron.log 2>&1
 # 手機遠端指令台(Telegram，只聽授權對話)：每5分鐘讀指令，老闆出國用手機指揮全工作室
 */5 * * * * /root/yt/run.sh scripts/telegram_command.py >> /root/yt/logs/cron.log 2>&1
+# 公開名單磁鐵 bot(@CarsonQuant_message_bot,獨立於指令 bot):觀眾私訊→送回測檢核表+記名單
+*/5 * * * * /root/yt/run.sh scripts/tg_magnet.py >> /root/yt/logs/cron.log 2>&1
+# 名單磁鐵週報:每週一 10:00 群發「避雷雷達」給全名單(0 名單時自動空轉;把漏斗接上)
+0 10 * * 1 /root/yt/run.sh scripts/tg_magnet.py --digest >> /root/yt/logs/cron.log 2>&1
 30 4 * * 0 /root/yt/run.sh scripts/train_depts.py >> /root/yt/logs/cron.log 2>&1
 0 5 * * 0 /root/yt/run.sh scripts/topic_bank.py >> /root/yt/logs/cron.log 2>&1
 # 實驗格式招牌系列：每週一/四補一批已驗證會爆的骨架題目（我給機器人$X跑Y天 / A vs B）
-15 5 * * 1,4 /root/yt/run.sh scripts/experiment_series.py --count 6 >> /root/yt/logs/cron.log 2>&1
-# 爆款獵手：每天輕量盯爆款(出現破門檻就即時全押)，每週日完整拆解贏點回寫心法(贏點要週數據才準)
-45 10 * * * /root/yt/run.sh scripts/breakout_hunter.py --watch >> /root/yt/logs/cron.log 2>&1
+15 5 * * 1,4 /root/yt/run.sh scripts/experiment_series.py --count 8 >> /root/yt/logs/cron.log 2>&1
+# 爆款獵手：每2小時輕量盯爆款(破動態門檻即時全押)，每週日完整拆解贏點回寫心法(贏點要週數據才準)
+45 */2 * * * /root/yt/run.sh scripts/breakout_hunter.py --watch >> /root/yt/logs/cron.log 2>&1
 0 11 * * 0 /root/yt/run.sh scripts/breakout_hunter.py >> /root/yt/logs/cron.log 2>&1
+# 自我修復守護(每5分檢查關鍵服務/程序)
+*/5 * * * * /root/yt/self_heal.sh > /dev/null 2>&1
+# EP 實測系列預告(導流正片,每天2支)
 20 6 * * * /root/yt/run.sh scripts/ep_teaser.py --count 2 >> /root/yt/logs/cron.log 2>&1
+# EP 全自動：每天抓 Pionex 真實帳戶(funded 即自動帶真數字)
+18 6 * * * /root/yt/run.sh scripts/pionex_account.py >> /root/yt/logs/cron.log 2>&1
+# tunnel 自癒(每10分:cloudflared公網URL不健康就detached重啟常駐,IG跨發命脈)
+# 2026-07-14 退役(IG已走litterbox直傳,tunnel廢棄備援每小時失敗洗log): */10 * * * * /root/yt/run.sh scripts/tunnel_up.py --ensure >> /root/yt/logs/cron.log 2>&1
+# 殭屍清理安全網(每30分:tunnel/fileserver/決策中心server 若重複累積只留最新,砍舊的;不碰排程器/產片job)
+0,30 * * * * /root/yt/run.sh scripts/reap_orphans.py >> /root/yt/logs/cron.log 2>&1
+# 公開檔案伺服器(供 IG/多平台抓 mp4)：每3分保活
 */3 * * * * /bin/bash /root/yt/fileserver.sh >/dev/null 2>&1
+# IG token 週更(避免 60 天過期)
 10 5 * * 1 /root/yt/run.sh scripts/ig_token_refresh.py
+# IG 舊片回填(每天補15支到 IG)
+# 回填近期 on-brand 舊片到 IG(策略:新片優先,舊片小量回填避洗版;預設 RENDER_CUTOFF 只補近期渲染、只打 ig)
+# 2026-07-13 依平台特性(IG Reels 晚間互動高於清晨)由 06:30 早晨改 21:15 晚間黃金時段;
+# 避開 21:00 整點的 ig_health_check,間隔 15 分不搶跑
+15 21 * * * /root/yt/run.sh scripts/ig_backfill.py --max 15
+# 完播率週報→回寫 completion_signals.json 餵決策(週一 00:30)
+30 0 * * 1 YT_QUOTA_RESERVE=23650 /root/yt/run.sh scripts/analytics_weekly.py
+# IG 健康檢查(每天 08:00/21:00 探 token+發布狀態)
+0 8,21 * * * /root/yt/run.sh scripts/ig_health_check.py >> /root/yt/logs/cron.log 2>&1
+# 舊片封面批次重生(make_cover 高質感封面):每天 02:00 補 60 支直到清空(配額安全)
+# 2026-07-16 配額預算輪值制:每天→週五一次
+0 2 * * 5 YT_QUOTA_RESERVE=23650 /root/yt/run.sh scripts/cover_backfill.py --max 8 >> /root/yt/logs/cron.log 2>&1
+# 放大飛輪：贏家全押/好問題即產/輸家汰(每3小時,只動內部可逆檔)
+30 */3 * * * /root/yt/run.sh scripts/auto_loop.py >> /root/yt/logs/cron.log 2>&1
+# A/B 建議產生器(只產建議+本地變體圖,套用 live 需決策中心一鍵;絕不自動改標題/縮圖)
+# 2026-08-12 降頻每天→每週一:53輪建議零套用(迴圈裡沒有人),且抽查發現8支裡7支
+#   變體為空、唯一有貨的含「我花20年回測」不實自述——重修變體品質前禁用--auto-apply,
+#   每週產一輪供決策中心人工圈選即可,省每日LLM成本。
+0 3 * * 1 YT_QUOTA_RESERVE=23650 /root/yt/run.sh scripts/ab_title.py >> /root/yt/logs/cron.log 2>&1
+# 2026-07-16 配額預算輪值制:每天→週五一次
+20 3 * * 5 YT_QUOTA_RESERVE=23650 /root/yt/run.sh scripts/ab_thumbnail.py --limit 6 >> /root/yt/logs/cron.log 2>&1
+# 每日工作室健檢(每天 09:00:憑證/json完整性/cron失敗/名單/洗版洩漏 → ntfy)
+0 9 * * * /root/yt/run.sh scripts/daily_health.py --notify >> /root/yt/logs/cron.log 2>&1
+# 🔬 早段訂閱邀請 A/B 的判讀提醒(每天 09:05,樣本夠了才推 ntfy;不夠就只印不吵)。
+#   為什麼要排這行:2026-08-29 發現節奏實驗 08-26 就到期,結果**三天沒有人去讀**——
+#   實驗做完沒人讀 = 那段期間的產能白花。實驗一開始就把「何時該讀」一起排進去。
+5 9 * * * YT_QUOTA_RESERVE=23650 /root/yt/run.sh scripts/early_cta_report.py --notify >> /root/yt/logs/cron.log 2>&1
+# 北極星整合(每天 09:05:訂閱/觀看/各源收入/YPP缺口/飛輪贏家 → northstar.json + ntfy)
+5 9 * * * /root/yt/run.sh scripts/northstar.py --notify >> /root/yt/logs/cron.log 2>&1
+# E2 低報校正確認(每天 09:07,排北極星之後:純讀當天northstar.json,不打API;RECORRECT_AFTER
+# 前/低報窗未完全滾出7d28d視窗前皆no-op;一旦確認滾出→ntfy給Carson一次+寫marker,之後idempotent不重推)
+7 9 * * * /root/yt/run.sh scripts/analytics_recorrect.py >> /root/yt/logs/cron.log 2>&1
+# 🧠 24/7智慧成長守衛(每2小時·OpenRouter當腦·關Claude也活):蒐集脈絡→LLM判真下滑vs正常退潮+根因→
+# 安全出手(偏產贏家題/告警);紅線對外/動錢/寫YT不自動做。真.持續下滑或產線出包才動,不追單日噪音。
+41 */2 * * * /root/yt/run.sh scripts/growth_agent.py >> /root/yt/logs/cron.log 2>&1
+# 收入儀表板(C2·每天 09:06,排北極星之後:各平台×各收入線進帳/名單來源/名單→付費轉換率 → revenue.json,併入 northstar)
+6 9 * * * /root/yt/run.sh scripts/revenue_dashboard.py >> /root/yt/logs/cron.log 2>&1
+# D1 趨勢劫持(每4h:抓競品爆款題型→改寫成誠實同型片,騎演算法)
+25 */4 * * * /root/yt/run.sh scripts/trend_hijack.py >> /root/yt/logs/cron.log 2>&1
+# D3 pre-YPP 贊助觸發(每天 09:10:達觸及門檻才提醒可接贊助)+ 媒體包週更(週一)
+10 9 * * * /root/yt/run.sh scripts/sponsor_trigger.py --notify >> /root/yt/logs/cron.log 2>&1
+30 4 * * 1 YT_QUOTA_RESERVE=23650 /root/yt/run.sh scripts/gen_media_kit.py >> /root/yt/logs/cron.log 2>&1
+# 捏造史實守門(每天 11:30·發佈前:掃產片有無編個股價位/史實→旗標+ntfy人工複查)
+30 11 * * * /root/yt/run.sh scripts/fact_guard.py --notify >> /root/yt/logs/cron.log 2>&1
+# TikTok 補發安全網(2026-07-13起：daily_publish.py 每支 YT(+IG)發布成功後已自動同步跨發
+# TikTok，見 scripts/daily_publish.py 的 _tiktok_crosspost；正常情況這兩行不會再撿到新東西)。
+# 保留當「漏網補發」用：daily_publish 那步若逾時/session過期/例外而跳過，這裡定時補上；
+# 去重靠 STUDIO/tiktok_ledger.json(tiktok_upload.py --max 模式本身就跳過已在 ledger 的 slug)，
+# 不會與 daily_publish 整合那條造成雙發。不要移除、不要改時間——只是角色從「主力」降級為「安全網」。
+30 15 * * * /root/yt/run.sh scripts/tiktok_upload.py --max 6 >> /root/yt/logs/cron.log 2>&1
+30 9 * * * /root/yt/run.sh scripts/tiktok_upload.py --max 6 >> /root/yt/logs/cron.log 2>&1
+# 數位產品 upsell(每天 11:00:對領檢核表滿24h的名單送低價試算表;未設 WORKSHEET_URL 只 dry 不實送)
+0 11 * * * /root/yt/run.sh scripts/tg_magnet.py --upsell >> /root/yt/logs/cron.log 2>&1
+# YPP 進度追蹤(每週一 00:50 誠實顯示四門檻距離 + ntfy)
+# 2026-07-16 配額預算輪值制:週一→每天,恢復訂閱數日更(成本僅1 unit)
+50 0 * * * YT_QUOTA_RESERVE=23650 /root/yt/run.sh scripts/ypp_tracker.py --notify >> /root/yt/logs/cron.log 2>&1
+# 三平台原生變現門檻追蹤(E1;每週一 00:55:YouTube 重用 ypp_progress/TikTok 待人工查/IG Graph API →
+# platform_monetization.json + 新達標才 ntfy)
+55 0 * * 1 /root/yt/run.sh scripts/platform_monetization.py --notify >> /root/yt/logs/cron.log 2>&1
+# 每週贏家自動分析(每週一 01:10:觀看×完播×標題模式→回灌 traffic_signals 餵 prompt + 洗版洩漏監控)
+10 1 * * 1 /root/yt/run.sh scripts/weekly_winners.py --notify >> /root/yt/logs/cron.log 2>&1
+# 逐段留存分析(每週一 01:20:找觀眾在影片幾成處流失→鉤子還是節奏問題→retention_insights.json)
+20 1 * * 1 /root/yt/run.sh scripts/retention_dept.py --top 10 --notify >> /root/yt/logs/cron.log 2>&1
+# 每週電商營運迴圈(每週一 01:30:回收本週銷售→SKU排名→連4週零銷量標待淘汰(只建議不刪檔)→
+# 訂閱週報範例dry_run→ntfy推Carson內部摘要;數字全來自 STUDIO/ecommerce_sales.json+output/ecommerce_ready)
+30 1 * * 1 /root/yt/run.sh scripts/ecommerce_weekly.py --notify >> /root/yt/logs/cron.log 2>&1
+# 每日備份 STUDIO/token/ledger 到 backups/日期/(留最近7天)
+15 4 * * * cd /root/yt && d=backups/$(date +\%Y\%m\%d) && mkdir -p $d && cp STUDIO/*.json token_manage.json token_analytics.json uploaded_ledger.json $d/ 2>/dev/null; ls -dt backups/*/ 2>/dev/null | tail -n +8 | xargs -r rm -rf
+# 🔴 停擺偵測守衛(每天10:12·治「壞了不吭聲」):各管道最後活動超過門檻=疑似靜默停擺→ntfy推Carson
+12 10 * * * /root/yt/run.sh scripts/stall_watchdog.py >> /root/yt/logs/cron.log 2>&1
+# 🔴 2026-07-15 維運三兄弟從 15:05-15:30 挪到 13:40-14:20:quota 台灣 15:00 重置,排在重置
+# 「後」等於一開門就把新糧燒光(80×50+30×50+150×50≈13,000),18:30 發布批因此天天撞牆。
+# 挪到重置「前」的最後一段=吃當日剩飯,撞牆就優雅停(三支都會停),完全不影響發布主線。
+# 2026-07-16 配額預算輪值制:每天→週二一次,--max 20→10
+40 13 * * 2 YT_QUOTA_RESERVE=23650 /root/yt/run.sh scripts/playlist_engine.py --sync --max 10 >> /root/yt/logs/cron.log 2>&1
+# 存量片描述回填「系列連播」導流連結(每天14:00,吃剩飯):
+# 觀看數最高的舊片優先,冪等(已含清單連結就跳過),只插入不刪改原描述,見 scripts/desc_backfill.py
+# 2026-07-16 配額預算輪值制:每天→週三一次
+0 14 * * 3 YT_QUOTA_RESERVE=23650 /root/yt/run.sh scripts/desc_backfill.py --max 15 >> /root/yt/logs/cron.log 2>&1
+# 殭屍片(0觀看舊片)清理引擎(每天14:20,吃剩飯):
+# 0觀看+滿14天+非台股真相實驗室/EP系列+非優先清單→設private(可逆)，見 scripts/zombie_sweep.py
+# 2026-07-16 配額預算輪值制:每天→週一一次,--max 30→15
+20 14 * * 1 YT_QUOTA_RESERVE=23650 /root/yt/run.sh scripts/zombie_sweep.py --apply --max 15 >> /root/yt/logs/cron.log 2>&1
+# 縮圖補掛引擎(每天15:10,quota重置後第一個job:把發布時縮圖403的裸奔片補上門面;
+# 佇列空=0 quota,有欠帳最多40支=2,000,見 scripts/thumb_backfill.py + STUDIO/pending_thumbs.json)
+20 16 * * * YT_QUOTA_RESERVE=23650 /root/yt/run.sh scripts/thumb_backfill.py --scavenge >> /root/yt/logs/cron.log 2>&1
+
+# 產業播放清單(週五 13:20):個股體檢系列依 twstock 產業別自動歸進 27 條清單之一
+# 為什麼要有第三套分類:build_playlists=雙主軸3桶、playlist_engine=真相實驗室4條、本支=產業27條
+#   三支各用各的狀態檔(本支 STUDIO/industry_playlists.json)——build_playlists 會整檔覆寫
+#   STUDIO/playlists.json,共用狀態檔會被它砍掉(playlist_engine 註解記過同一個坑)
+# 只建有片的清單,不預先掛 27 條空殼;配額 --max 10 約 500 units(insert 50/支)
+# 產業對照表 STUDIO/industry_map.json 由 data_hunter/universe.load_full_universe 匯出(1925檔→27類)
+# 2026-08-30 週五 13:20 -> 16:50:實測這支兩次執行兩次 403 配額用罄(100% 失敗率),
+#   等於這個功能從來沒被排程推進過。根因同樣是配額日在台北 15:00~16:00 重置,
+#   13:20 位在配額日尾端。挪到重置後,排在誠信/字幕維運之後、純美化之前。
+50 16 * * 5 YT_QUOTA_RESERVE=23650 /root/yt/run.sh scripts/industry_playlists.py --apply --max 10 >> /root/yt/logs/cron.log 2>&1
+
+# 失信互動留言改寫(2026-08-17):產線 07-18／08-12 兩度砍掉「產線兌現不了的承諾」句型
+#   (「留言『數據』我私你」「夠多我就出深度版」「我統計結果下支公布」…),但兩次都
+#   **只改產生端**,線上已發的 135 則沒人回頭清——其中「我私你」「我發你」承諾私訊交付
+#   回測資料,而 comment_dept 自己記著 tg_leads 累計 0 筆,那個交付從來沒運作過。
+#   用 comments.update 改寫而非 delete:問題在內容不在留言,刪掉會連互動訊號一起丟。
+#   新文案從該片標題的真數字生成(標題數字已過溯源閘門),順帶治重複——舊池 15 句配
+#   357 則留言,單一句型重複到 28 次,那是 spam 偵測看得到的機器人特徵。
+#   原文全備份 STUDIO/engage_backup/;每則 50 units,--max 12 約 600 units。
+# [2026-08-30 暫停·換發布額度] 50 15 * * * YT_QUOTA_RESERVE=23650 /root/yt/run.sh scripts/fix_engage_comments.py --apply --max 8 >> /root/yt/logs/cron.log 2>&1
+
+# 2026-08-19 長片產能 3 → 6/天。為什麼:
+#   ①題源剛修好(Groq 模型下架導致種題連續十天 0 題,見 llm.py 的三層修復),
+#     修好後單日補種 16/16 檔,供給不再是瓶頸。
+#   ②YPP 缺口 3,309 小時,一支長片 ≈ 4.3 小時 → 還需 769 支。
+#     每天發 3 支要 8.5 個月、6 支 5.1 個月、8 支 3.2 個月,這是目前最大的單一槓桿。
+#   ③短片對 YPP 幾乎零貢獻:近 45 天 354 支 Shorts 的觀看分鐘**中位是 0**、平均 5.3 分,
+#     同期 127 支長片中位 144 分。Shorts 佔 45% 觀看但每次只看 6.6 秒。
+#   ⚠️ 只動**產能**不動發布量:節奏實驗跑到 08-26,發布參數在那之前不能碰
+#     (memory yt-cadence-experiment-2026-08)。這幾天先讓庫存累積,
+#     實驗結束後才有本錢把發布量從 3 支提到 6-8 支。
+#   ⚠️ 發布端另有每日硬上限 12(daily_publish),擋的是單日 ≥21 支的暴發日
+#     ——那 16 天發掉 52% 的內容、觀看中位只有 3。產能提高不會繞過那道閘。
+
+# 開場結構 A/B 實驗報告(每週一 07:40,只報告不動產線)
+#   為什麼要做實驗:長片留存中位 22.3%、平均只看 115 秒,是 BROWSE 基線為 0 的直接原因。
+#   留存曲線把斷崖定位在第 15~25 秒,逐字對照就是「節目預告+頻道自我介紹」那三句。
+#   但同一天我用觀察性數據驗了四個同樣「看起來很清楚」的假說,三個被推翻
+#   (「前 40 秒端出對比數字」甚至是反向的)——真長片的混淆變數比效果本身大,
+#   觀察性數據切不出因果。所以改用隨機分組:A=現行規則、B=鉤子後禁止鋪陳。
+#   分組寫在 output/<slug>.ab.txt(產片當下寫,不是事後貼);報告只取片長 >5 分鐘、
+#   每組 n<8 拒絕下結論。實驗結束後把 produce_batch 的 _ab_arm 整段拿掉,別留著長灰。
+# 2026-09-13 一次性:複驗 08-30 那批改動的預測(發布量/良率/長片時數日增)。
+#   靠人記得去驗是不可靠的 —— cadence 實驗就是處置沒實測就下結論。
+#   跑完會推播結果並自己判斷三個推翻條件,之後可以刪掉這行。
+30 9 13 9 * /root/yt/run.sh scripts/verify_0830_prediction.py --notify >> /root/yt/logs/cron.log 2>&1 # ONESHOT=2026-09-13
+40 7 * * 1 /root/yt/run.sh scripts/ab_report.py >> /root/yt/logs/cron.log 2>&1
+
+# 同產業相對位置事實(每週日 06:40,零 API 成本純本地再計算)
+#   為什麼:個股體檢給的是 13 組**孤立**數字,觀眾看完不知道「這樣算好還算壞」。
+#   真觀眾留言正是打在這:「20年才1145%也叫爆賺喔==」。vs 0050 是跟大盤比,
+#   同產業排名是另一個維度,而且是我們獨有的——沒有別的頻道有 377 檔用同一份
+#   體檢表算出來的資料,而且體檢越多這份資產越值錢(會複利)。
+#   附帶效果:每檔在產業裡的位置都不同 → 敘事自然分岔,緩解模板化的 YPP 風險。
+#   誠實設計:同產業已體檢 <8 檔不算(排名無意義);claim 寫明母體是「已體檢的 N 檔」
+#   而非全台股(我們只做了 377/1925)。排名隨體檢數變動,每週重算覆蓋。
+40 6 * * 0 /root/yt/run.sh scripts/checkup_industry_rank.py --apply >> /root/yt/logs/cron.log 2>&1
+
+# 期間偷換更正說明(每天 16:55,冪等,做完自動 no-op)
+#   個股體檢的事實有兩組期間不同的資料:long_horizon(上市以來/近20年,**沒有** 0050 對照)
+#   與 three_way(近10年,0050 數字只在這組)。旁白很自然拿前者的個股報酬配後者的
+#   0050 報酬寫「同期」——數字都真但期間被偷換,效果是**低估 0050**、讓個股顯得比實際好,
+#   正好和「誠實實測」的定位相反,也正好是觀眾最會檢查的地方
+#   (真留言:「0050 相同期間的含息報酬率差不多」)。
+#   掃 95 支旁白有 77 支(81%)犯這條,62 支已發布、合計 13,233 觀看。
+#   產生端已修(LONG_RULES 規則ⓜ + _long_mixed_period 閘門);本支負責已發布存量。
+#   選加註不下架的理由:數字本身都真、來源都在事實庫,錯的是期間標示;
+#   重製會失去 videoId 與搜尋排名(唯一在成長的來源),不划算。Carson 08-20 拍板。
+#   ⚠️ 描述欄不渲染 Markdown,更正文案是純文字(第一版寫 **近十年** 被觀眾看成星號,已修)。
+5 15 * * * YT_QUOTA_RESERVE=23650 /root/yt/run.sh scripts/fix_period_disclaimer.py --apply --max 15 >> /root/yt/logs/cron.log 2>&1
+
+# ══ 2026-08-21 Carson 指令:頻道突破——看到就訂閱、一部接一部 ══
+# 追劇鏈(每天 17:05,配額重置後):個股體檢 EP1~87 完美連號但**沒有任何一集連到下一集**,
+#   觀眾看完就斷了。每集描述第一行放「▶ 下一集(EPn):youtu.be/…」——影片播完打開描述
+#   第一眼就是下一集。EP 對映走 checkup_ep_ledger 的正式編號;最新一集沒有下一集,
+#   隔天新集發布後這支自動補上(so 這是常駐排程不是一次性)。冪等;51 units/支。
+#   API 沒有 end screen 端點,描述連結+播放清單是能自動化的最強替代。
+# 門面改造(每天 15:05,冪等,全部完成後自動 no-op):
+#   ①發布 checkup EP0(377檔版)——EP0 是實測轉化最高格式(5.81%/8.33% vs 一般 0.67%)
+#   ②非訂閱者 trailer 換成它(現任 tw_lab EP0 實測 1.79%;主力系列的說明片才該當門面)
+#   ③首頁貨架把個股體檢連載排到位置 1(追劇入口要在第一屏)
+5 16 * * * YT_QUOTA_RESERVE=23650 /root/yt/run.sh scripts/channel_facelift.py --apply >> /root/yt/logs/cron.log 2>&1
+
+# 連播鏈維護(週三 13:40,quota 剩飯):新發布的長片補「▶ 接著看下一集」區塊、
+# 系列有新片時舊片的 next 指向自動更新(state 檔比對,只更新有變的,50 quota/支)
+# 解的問題:實測 50 支長片 0 支互相連結、播放清單來源 137秒/次(最高)卻 28 天只有 49 次
+# 見 scripts/binge_chain.py;首輪 225 支已於 2026-08-21 手動跑完
+# 🔴 2026-08-30 --max 40 → 8。配額實測:連播鏈每天燒 **2,000 units**(40 支 × 50),
+#   而它帶來的流量是 PLAYLIST 10 觀看/週 + END_SCREEN 1 觀看/週。
+#   同樣 2,000 units 幾乎等於**再發一支長片**(每支 2,200),而一支長片一生約 10 小時觀看時數。
+#   狀態檔顯示它已處理 241/255 支卻天天跑滿 40 = 目標一直在變的 churn,不是在收尾。
+#   降到 8 仍會照「流量優先序」更新最重要的那幾支,只是不再每天重排整條鏈。
+# [2026-08-30 暫停·換發布額度] 5 17 * * * YT_QUOTA_RESERVE=23650 /root/yt/run.sh scripts/binge_chain.py --apply --max 8 >> /root/yt/logs/cron.log 2>&1
+
+# 櫥窗一次性重建(⚠️ 只該跑 2026-08-22 這一次,跑完請刪本行):08-21 兩實例互洗+facelift
+#   同日改門面,櫥窗翻倍到 10 個。storefront 已改成不碰 trailer、個股體檢排位置 1,
+#   與 facelift 分工不再衝突。排 15:20 = facelift(15:05)之後,單實例。
+
+# 追劇鏈成效報告(每天 07:50,只報告不動產線):對比佈署(08-21)前後的
+#   PLAYLIST/RELATED/每觀看秒數三軸——沒有對比報告,一週後只能憑感覺說「好像有用」。
+#   口徑寫死在腳本裡:不等長視窗換算每日、Analytics 錨 today-3、不足 4 天直說不能比。
+50 7 * * * /root/yt/run.sh scripts/binge_report.py >> /root/yt/logs/cron.log 2>&1
+
+# 社群貼文(每天 07:40,Playwright 走系統 python——local_cron 的 PLAYWRIGHT_SCRIPTS 分流):
+#   訂閱者 feed 的第二觸點,YouTube API 沒有社群貼文端點只能 UI 自動化(同片尾)。
+#   內容=community_card 從當日體檢片的 fact 庫產的數據卡(溯源鐵律照舊,不另寫文案)。
+#   登入態重用 MCP Chrome profile(片尾自動化同款);profile 被佔用會優雅跳過。
+#   一天一篇冪等;發布前後都截圖留證(UI 自動化的「已發布」判定脆弱,片尾教訓)。
+40 7 * * * /root/yt/run.sh scripts/community_post.py --apply >> /root/yt/logs/cron.log 2>&1
+
+# 未回覆留言偵測(每天 15:30 配額新鮮時,1~2 units 幾乎免費):
+#   2026-08-22 Carson 親自發現「留言沒有回」(兩則好問題擱置 23h/8min 系統毫無知覺)。
+#   只偵測+ntfy 推播,不自動回——真問題要帶數據的真回答,模板回不了,亂承諾風險大於晚回。
+33 15 * * * YT_QUOTA_RESERVE=23650 /root/yt/run.sh scripts/comment_watchdog.py >> /root/yt/logs/cron.log 2>&1
+
+# 音軌語言回填(2026-08-22 建):產線上傳從沒設 defaultAudioLanguage,YouTube 自己猜——
+# 全頻道 946 支裡 213 支被猜成 en-US(旁白是中文)、595 支空著隨時會被猜錯。這欄決定
+# 自動翻譯字幕來源、自動配音資格與**語言別推薦對象**,標成英語=把中文台股片推給英語觀眾。
+# 上傳端已修(daily_publish),存量 808 支分批補:每日 60 支 ≈ 3,000 units,約 14 天補完。
+# 冪等(已是 zh* 就跳過),補完會自己變成 no-op,不必記得回來刪。
+# 🔴 2026-08-30 --max 20 → 5。每天 1,000 units 補舊片的音訊語言 metadata,還剩 574 檔
+#   (照 20/天要 29 天)。那是舊片的長尾 metadata,而同樣的配額拿去發片是 0.45 支/天。
+#   新片在上傳時就會帶正確語言,這條只影響舊片;降到 5 讓它慢慢補,不跟發布搶配額。
+25 15 * * * YT_QUOTA_RESERVE=23650 /root/yt/run.sh scripts/fix_audio_language.py --apply --max 3 >> /root/yt/logs/cron.log 2>&1
+
+# 搜尋縮圖翻新(2026-08-23 建):近28天 YT_SEARCH 佔 40% 觀看時數,搜尋詞全是赤裸股票名
+# → 體檢片是「台股個股的搜尋佔位」,搜尋結果那張縮圖就是點擊決策點,而且是常青的。
+# 實查線上縮圖抓到:08-17 排版修復之前產的還掛著舊圖(藥華藥主標印「【藥華藥」括號沒關)。
+# thumbnails.set 只換圖、保留 videoId/觀看/排名 = 純賺。每日 30 支(1,500 units),
+# 自檢不過就跳過(寧可留舊圖也不換上更糟的);換過的記檔,換完自動 no-op。
+35 16 * * * YT_QUOTA_RESERVE=23650 /root/yt/run.sh scripts/refresh_search_thumbs.py --apply --max 60 >> /root/yt/logs/cron.log 2>&1
+
+# 字幕漂移重傳(2026-08-24 Carson 看片回報「聲音跟字幕對不上」):
+#   write_srt_for_slug 在 08-17 修好(改吃 TTS 逐句真實時戳 + 補片頭 3s 位移),但那只影響
+#   之後發布的片。之前發布的 167 支,YouTube 上掛的仍是舊估算版字幕軌,實測偏差最大
+#   2.6~4.9 秒;而燒進畫面的字幕早就用真實時戳 → 同一支片兩條字幕差好幾秒,看起來就是對不上。
+#   依觀看數由高到低修(最多人看到的先修好);自檢不過(沒有真實時戳)就跳過,不浪費配額
+#   換一個一樣爛的估算版。list 50 + update 450 ≈ 500 units/支。
+#   排在最後,用當天剩下的配額;冪等(修過的記檔),139 支約兩週補完。
+# 🔴 2026-09-01 停用(可逆,把下一行的 # 拿掉就恢復)。算天花板的結果:
+#   修一支 = captions.list 50 + captions.update 450 = 500 units = 0.23 支新片 = 1.0 觀看小時
+#   剩 69 支 × 500 = 34,500 units = 16 支新片 = 69 觀看小時
+#   而剩下的積壓觀看數只有 127~167(它依觀看數由高到低修,高價值的早修完了)。
+# 更關鍵:**字幕漂移是時間軸問題不是內容問題** —— 字全都在、搜尋索引照樣吃得到,
+#   燒錄在畫面上的字幕本來就是準的(那條走真實時戳)。壞的只有「開 CC 的人看到早 3 秒」。
+#   根因 08-17 已修,新片分毫不差,這純粹是舊片清理。
+# 08-31 實測它一天吃掉 4,100 units = 1.9 支片 = 8.2 觀看小時。
+# 拿 69 觀看小時換 69 支舊片的 CC 對齊,不划算。
+# 0 23 * * * YT_QUOTA_RESERVE=23650 /root/yt/run.sh scripts/fix_caption_drift.py --apply --max 10 >> /root/yt/logs/cron.log 2>&1
+
+# 配額預算靜態預估(從 crontab 反推每日總量,超標推 ntfy)。與 quota_meter 互補:
+# 這支是**事前估上限**,quota_meter 是**事後量實際**。兩邊對不上就是價目表或 --max 估錯了。
+2 15 * * * /root/yt/run.sh scripts/quota_budget.py --notify >> /root/yt/logs/cron.log 2>&1
+# 2026-08-25 YPP 進度計量(每日 16:40)。建立原因:盤點發現**主頻道的 YPP 進度沒有可信單一來源**
+#   ——memory 兩份數字互相衝突(430/4000 vs 月時數695),而整個 repo `grep estimatedMinutesWatched`
+#   **零命中**=從來沒落檔過。於是「還差多遠」這個決定要不要繼續全押的問題沒有人能回答。
+#   首次實測(08-25):長片 824/4000 小時(20.6%)、訂閱 288/1000(28.8%)、Analytics 資料到 08-22。
+#   ⚠️ 閘門只認**長片**(creatorContentType==videoOnDemand):總時數 936hr 比長片 824hr 高 13%,
+#      拿總量當進度就是畫大餅(memory `yt-shorts-not-converting-2026-08`:Shorts 不計入 4000 小時)。
+#   成本:Analytics API **走自己的配額池**不吃 Data API 的 10000/天;只有訂閱數走 channels.list
+#   =**單價 1**,由 quota_meter 自動記帳。排在 16:40=台北配額重置(15:00~16:00)之後,避開早上
+#   09:00 那波 403(memory `yt-api-quota-structural-overrun`)。
+#   fail-closed:任何欄位拿不到就寫 null+partial=true,**絕不寫一個看起來正常的數字**
+#   (memory `yt-quota-partial-failure-silent-bad-data` 的同型壞值曾重複三次沒人發現)。
+#   看歷史與 ETA:`python scripts/ypp_meter.py --show`(不打 API)。帳本 STUDIO/ypp_meter.jsonl
+40 16 * * * YT_QUOTA_RESERVE=23650 /root/yt/run.sh scripts/ypp_meter.py >> /root/yt/logs/cron.log 2>&1
+
+# ── 副頻道 They Ran It Again 每日發布(2026-08-26 起)─────────────────
+#   ch3_lab 的 24 集已產好並通過獨立驗證,這支只負責按配額分天送出,
+#   **它自己不生成任何內容**。upload.py 裡有三道 fail-closed 閘門會在每次
+#   上傳前重跑:陳舊檢查(mp4 必須比程式碼與資料新)、語意閘門(講「效應
+#   存在/不存在」時 p 值要撐得住)、頻道 ID 白名單 + 缺縮圖硬中止。
+#   任何一道擋下來那一集就不發,並印出理由。
+#   配額:每支約 1,691 單位(insert 1600 + 縮圖 50 + 輪詢 41),ch2 是獨立
+#   GCP 專案一天 10,000 → **上限 5 支**。排 16:25 = 台北配額重置
+#   (15:00~16:00)之後,避開早上 09:00 那波 403。
+#   發完會自己停(待發歸零時只印一行不打 API)。
+# ── ch3(They Ran It Again)——照主頻道的節奏:兩個發片時段 + 監控 ──
+#
+# 為什麼分兩段:配額是硬上限(一天約 5 支),分段**不增加產能**,增加的是
+# **時區覆蓋**。16:25 台北 = 09:25 中歐 = 03:25 美東;22:25 台北 = 15:25
+# 中歐 = 09:25 美東。這個頻道是英文內容,兩個時段各抓一個英語圈的早上。
+# 配額:16:25 用 1 長 + 2 短 = 4,973;22:25 用 2 短 = 3,282;合計 8,255。
+# 一天 6 支 = 1 長 + 5 短。配額算式(ch3_lab/quota.py 是唯一來源):
+#   長片 1,663(insert 1,600 + 縮圖 50 + 輪詢 13)
+#   Short 1,606(insert 1,600 + 輪詢 6,不設縮圖)
+#   1×1,663 + 5×1,606 = 9,693 / 可用 9,700(總額 10,000 − 預留 300)
+# ⚠️ 只剩 7 單位餘裕 —— 6 支是**天花板不是舒適區**。維運工作
+#    (播放清單、縮圖補件)在那種日子會被共用帳擋下並讓路,那是設計好的:
+#    它們明天補得回來,而發片的 1,600 花掉就拿不回來。
+# 2026-08-30 改:一天 12 支(6 長 + 6 短),**一次只發 2 支**,分六個時段。
+# 依據(實測 n=19 支 Short、6 個批次,每支每 24 小時觀看中位數):
+#     一批 2 支 →  9.7      一批 4 支 →  2.7
+#     一批 3 支 →  5.6      一批 5 支 →  0.0
+# 四個層級單調遞減。⚠️ 批次大小跟時段**完全糾纏**(那批 5 支發在凌晨
+# 03:03,同時是最大批和最爛時段),所以不能斷言是批次造成的 —— 但固定成
+# 「每批 2 支、時段固定」之後,下週的資料就能把兩者分開。
+# 每個時段刻意是 **1 長 + 1 短**:長片實測 12/14 零觀看、每 24h 中位 0.00,
+# 而 Shorts 是 3.15。兩者配成對送出 → 拿到完全一樣的時段分布,下週才分得出
+# 「長片沒人看」是格式問題還是時段問題。上一版兩者時段不同,比較不乾淨。
+# 配額:每時段 1,663 + 1,606 = 3,269,六次 = 19,614;可用 20,500
+#       (quota.DAILY 20,800 − 預留 300)。08-30 實測單日花 19,802 未被擋。
+# 🔴 2026-08-31 從 12 支/天砍到 6 支/天。理由是量出來的,不是節省配額:
+#   28 支舊 Short 拿到 289 次觀看、**0 留言 0 分享 1 個讚**。Analytics 顯示
+#   Shorts feed 有在推(佔流量 131/141)、平均看完 64.6~79.3% 也不差 ——
+#   **沒有人有理由反應**才是問題。而 Shorts 的分發靠前一批曝光回收的訊號
+#   決定要不要放大,所以再發一批同樣不會被回應的片,不會改變任何事。
+#   供給從來不是這條線的瓶頸:45 支換到 289 次觀看,再發 45 支就是再換 289 次。
+#   一天 6 支 = 3 短(reels/,35~45 秒的新格式)+ 3 長。
+# [ch3 收線 2026-09-02] 25 8 * * * /root/yt/run.sh scripts/ch3_publish.py --limit 1 --shorts 1 >> /root/yt/logs/cron.log 2>&1
+# [ch3 收線 2026-09-02] 25 14 * * * /root/yt/run.sh scripts/ch3_publish.py --limit 1 --shorts 1 >> /root/yt/logs/cron.log 2>&1
+# [ch3 收線 2026-09-02] 25 20 * * * /root/yt/run.sh scripts/ch3_publish.py --limit 1 --shorts 1 >> /root/yt/logs/cron.log 2>&1
+#
+# 健檢:排在早上,回報的是前一天發得如何。只在**有事**時推播 ——
+# 每天都響的警報等於沒有警報(判準見 ch3_lab/health.py)。
+# ⚠️ local_cron **只認 scripts/ 底下的 python**,寫 ../ch3_lab/health.py 或
+#    原始 shell 指令都不會被解析、而且是**靜默**不跑。所以包成 wrapper。
+#    順帶備份三本帳(uploaded*.json)——那是唯一防止重傳的東西。
+30 9 * * * /root/yt/run.sh scripts/ch3_health.py >> /root/yt/logs/cron.log 2>&1
+# 2026-08-27 BRAIN alpha 自動搜尋(每 2 小時一批 15 條)。Carson 指示:全自動、他只按提交。
+#   · **永遠不自動提交**——WorldQuant 競賽條款寫明偵測到「gaming/作弊/不誠實行為」會
+#     **終止帳號恕不另行通知並可能通報**,而參數網格大量自動提交正中該條;帳號沒了=季付獎金歸零。
+#   · 通過全部檢查時走 ntfy 推播通知 Carson(2026-08-26 實發驗證過通道可用,非靜默 no-op)。
+#   · 策略:Phase1 已找出最佳骨架=dual_frame 反向短窗(Sharpe 1.31 已過 1.25 門檻),
+#     Phase2 專攻降週轉——fitness ≈ sharpe × sqrt(|returns|/max(turnover,0.125)),
+#     那條要 fitness>=1.0 需把 turnover 從 57.5% 壓到 22.8% 而守住 13.3% 報酬。
+#   · ⚠️ 降週轉要用表達式內的 hump()/ts_decay_linear,**不能拉平台 decay**——
+#     實測 decay 15 把該骨架 Sharpe 從 1.31 砍到 0.70,淨效果反而更差。
+#   · 併發上限 2(第3條回429已內建退避);帳本 auto_ledger.jsonl 去重可續跑。
+#   · 轉接器 scripts/brain_alpha_cron.py 只負責呼叫 quant-service/brain_alpha/brain_auto.py
+#     (local_cron 的解析器只認 `scripts/X.py` 格式,量化程式不搬家)
+#   · 2026-08-27 改兩段式:一階 field_miner 把實測模板(Sharpe 2.25 那條)套遍 4,367 個欄位
+#     (先前手寫模板只用 15 個=覆蓋率 0.34%),掃完才進二階做參數變化。跑完自動接續。
+#   · 實測硬限:併發 2(第3條429)、region 只有 USA(其餘 9 個全 400)、每日積分 2,000。
+0 */2 * * * /root/yt/run.sh scripts/brain_alpha_cron.py --run 60 >> /root/yt/logs/cron.log 2>&1
+# 2026-08-28 BRAIN 分數盯哨。平台**一天只結算一次**:ET 03:00 = 台北 15:00,
+#   而計分日的分界是 ET 00:00 = 台北中午 12:00(台北的一天橫跨平台兩個計分日)。
+#   Carson 在等第一筆分數(08-27 交了 2 條,score 仍為 0),排在刷新後 15 分跑,
+#   有變動就 Telegram 推播。score_watch 只讀不寫,不影響搜尋。
+15 15 * * * /root/yt/run.sh scripts/brain_score_watch.py >> /root/yt/logs/cron.log 2>&1
+# 🔴 2026-08-29 實測推翻「結算 = 台北 15:00」。score_history 的唯一一次落帳：
+#     08-28 15:15  score 0.0     ← 上面那條盯哨量到的
+#     08-28 16:00  score 2000.0
+#   → 真正落帳在 **15:15~16:00 之間**,15:15 那條永遠早一步、然後回報「無變動」。
+#   官方文件寫的 ET 03:00 是**開始刷新**的時間,不是算完的時間。
+#   只有 n=1,所以不是把 15:15 挪走而是**加點**:多跑幾次成本是零(沒變動就靜默),
+#   漏掉一天的結算卻要等 24 小時才知道。
+10 16 * * * /root/yt/run.sh scripts/brain_score_watch.py >> /root/yt/logs/cron.log 2>&1
+10 17 * * * /root/yt/run.sh scripts/brain_score_watch.py >> /root/yt/logs/cron.log 2>&1
+
+# LLM 儲值餘額看門(2026-08-28 事故:餘額用完 → 長片完全產不出來,而且零警訊)。
+# 每支長片約 US$0.025,每天 10 支 ≈ 7 美元/月;剩不到約 120 支(3 天量)就推 ntfy。
+# 免費層(gemini/groq)吃不下 14k tokens 的長片提示,所以這條是**單點故障**。
+40 8 * * * /root/yt/run.sh scripts/llm_credit_watch.py --notify >> /root/yt/logs/cron.log 2>&1
+# 2026-08-28 挖礦守門:每 20 分檢查,沒在跑就拉起來。
+#   事故=二階跑完就停,cron 每 2 小時才接手 → 最長 2 小時空窗,而且**安靜地死掉沒有訊號**。
+#   只補不搶:已有程序就什麼都不做(併發上限 2 是帳號層級,開兩個只會互相 429)。
+*/20 * * * * /root/yt/run.sh scripts/brain_miner_watchdog.py >> /root/yt/logs/cron.log 2>&1
+# 2026-08-29 每日挑片並通知 Carson 去按提交(自動化的最後一哩)。
+#   在此之前「挑哪兩條交」還卡在我手動跑 pick_next.py 再把 id 貼給他,
+#   等於整條線每天要等我開一次 session —— 而我不是排程的一部分。
+#   ⏰ 12:20 的理由:計分日分界 = ET 00:00 = **台北中午 12:00**。
+#      這時候交才算進今天,且離 15:00 結算還有 2.6 小時緩衝。
+#      (15:15 的 brain_score_watch 量的是**昨天**的結果,兩支不衝突。)
+#   會花模擬額度跑 6 條實測 check:self-correlation 只有平台算得出來,
+#   而它是遞減資源(交越多後面越難不相關),挑錯的成本遠高於多跑幾次 check。
+#   **仍然不自動提交**——那是 CLAUDE.md 對外發布紅線,綁 Carson 真實身分(CT30034)。
+20 12 * * * /root/yt/run.sh scripts/brain_daily_pick.py >> /root/yt/logs/cron.log 2>&1
+# 🔴 2026-09-01 事故：08-31 是拿 Gold 的最後一天，那天**一條都沒交**，而監控全綠。
+#   12:20 挑片有跑、挖礦守門有跑、15:15/16:10/17:10 三班盯哨全部回報「無變動」
+#   —— 因為分數確實沒變動。到台北 21:13 Carson 自己問才發現。
+#   根因：上面每一支都在看**已發生的事**（跑了幾條/程序活著/分數變了），
+#   沒有一支在問「**該發生而沒發生**」。而每日上限 2,000 分是用掉就沒有的，
+#   漏一天不是延後一天，是那 2,000 分永遠拿不回來。
+#   ⏰ ET 計分日 = 台北中午 12:00 → 隔天中午 12:00，所以補交機會橫跨台北兩天：
+#      18:00(ET 06:00,還剩18h,輕聲)　22:00(還剩14h)
+#      09:00(ET 21:00,剩3h,🚨)　　　11:00(ET 23:00,剩1h,最後一次)
+#   達標就靜默；API 掛掉會推「無法確認」而不是安靜略過（fail-closed）。
+0 18 * * * /root/yt/run.sh scripts/brain_submit_watch.py >> /root/yt/logs/cron.log 2>&1
+0 22 * * * /root/yt/run.sh scripts/brain_submit_watch.py >> /root/yt/logs/cron.log 2>&1
+0 9 * * * /root/yt/run.sh scripts/brain_submit_watch.py >> /root/yt/logs/cron.log 2>&1
+0 11 * * * /root/yt/run.sh scripts/brain_submit_watch.py >> /root/yt/logs/cron.log 2>&1
+
+# 稽核涵蓋率(每天 19:10,發布兩輪之後):量「已發布長片還留著旁白稿的比例」。
+#   為什麼要有:2026-09-06 翻出 47 支已發布長片因為旁白不在而**結構上永遠查不了**。
+#   根因是 07-05 droplet 欠費停權那批一起沒了(不是腳本刪的),缺口沒在長大;
+#   但**沒有任何人在量這個數字** —— 哪天開始掉,現在不會有任何東西不一樣。
+#   判準只看「遷移後」那一群(應為 100%);全歷史 83.4% 含已知不可回復的 droplet 遺失,
+#   拿它當告警值會永遠紅、然後沒人看。零 API 配額,純讀本機檔。見 scripts/auditability_coverage.py
+10 19 * * * /root/yt/run.sh scripts/auditability_coverage.py >> /root/yt/logs/cron.log 2>&1
+# numerus 同段可驗算檢查(每天 11:45·**只報告不阻斷**:掃稿內金額能不能用同段自己
+# 給的數字算出來→寫 STUDIO/numerus_flags.json。不擋不搬,設計上任何失敗都吞掉回 exit 0。
+# ⚠️ 這句話 2026-09-09 的第一版是**錯的**(旗標迴圈和寫檔寫在 try 外面,輸出目錄不存在
+#   或帳本缺欄位就 exit 1),獨立驗證抓到才修。你在 cron.log 看到它非 0,那是 numerus
+#   自己的 bug,不是產線的問題 —— 不要為它停任何東西。
+# 它到底有沒有跑,看 numerus_flags.json 的 scanned 欄(≈900),**它是 0 才叫壞了**;
+# 別用 flagged 空不空判斷,空有兩種讀法。升級成阻斷的判準見
+# solo_saas/GATE_UPGRADE_CRITERIA.md —— 現在一條都不滿足,別自己接 --gate。)
+45 11 * * * /root/yt/run.sh scripts/numerus_watch.py >> /root/yt/logs/cron.log 2>&1
+
+# ch3 非授權原始快照到期守衛(每天 08:20,只告警不刪除):D:\yt_nonauth_data\ch3_remeasure_2026-09-12\
+#   的 r1/r2/r3 raw json + run_r*.log 依 YouTube API Services ToS III.E.4.d(他人公開資料保存
+#   上限30天)必須在 2026-10-12 前刪除,但 ch3 副線(wA:p2)已於 2026-09-16 結案關閉,原本盯著
+#   這個期限的 pane 不會再存在——之前只靠一份跨 session memory 檔提醒(memory
+#   ch3-nonauth-data-deletion-deadline-2026-10-12),沒有排程/硬性閘門。
+#   2026-10-05 起(到期前7天)才開始檢查,之前完全 no-op;檔案還在就寫一行
+#   [MM-DD HH:MM:SS] ch3非授權資料到期守衛｜... 進 ops_log.txt(比照停擺守衛格式),
+#   讓每天看 ops_log.txt 的人/agent會撞到。刪除本身不自動做——那是不可逆操作,
+#   留給人工或當時的督導確認再動手。見 scripts/check_ch3_nonauth_deadline.py。
+20 8 * * * /root/yt/run.sh scripts/check_ch3_nonauth_deadline.py >> /root/yt/logs/cron.log 2>&1
+
+# 84支period disclaimer改寫T2獨立回讀(一次性,09-11事後回讀計畫§7步驟5):
+#   2026-09-18 00:01 已執行 fix_period_disclaimer.py --rewrite-note --apply,84/84改寫成功(commit
+#   94c1c381後續);同日00:08 T1(verify_desc_rewrite.py --check)已跑過,兩儀器(ch2/main)合計
+#   84/84 PASS、0 FAIL、0需人判,exit code 0。裁示要求T2(≥24小時後)用同一支獨立工具、同一份
+#   baseline再驗一次,T2結果出來前84支campaign不算完成。
+#   ⚠️ 依裁示明文指定走這個crontab.txt管道(local_cron每分鐘讀、跨session/跨機器睡眠持久,見
+#   scripts/local_cron.py :446-459的心跳補跑),不用CronCreate(session-only、session結束即消失,
+#   9-11到9-17這條線正是因為排程管道斷過才6天沒人接手--apply)。
+#   排在2026-09-19 06:00(距--apply完成2026-09-18 00:01約30小時,足額超過24小時下限,且避開
+#   05:00~06:07那批發布/評分/題庫重排的密集時段,不搶資源、也不受它們影響)。
+#   不帶--expect-written/--expect-none ⇒ 預設「應已改寫全部84支」的判準(load_written回None)。
+#   零YouTube配額寫入(只呼叫videos.list,ch2 2次+main 2次≈4 units),落檔到
+#   docs/ops/2026-09-11_84支描述欄改寫_事後回讀計畫/(預設自動命名,不覆蓋既有檔)。
+#   ONESHOT:過了2026-09-19不會再誤跑;跑完這行留著當紀錄即可,不用回來刪。
+0 6 19 9 * /root/yt/run.sh scripts/verify_desc_rewrite.py --check ../docs/ops/2026-09-11_84支描述欄改寫_事後回讀計畫/baseline_20260917T235735.json --label T2 >> /root/yt/logs/cron.log 2>&1 # ONESHOT=2026-09-19

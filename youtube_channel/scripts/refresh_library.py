@@ -135,7 +135,7 @@ def main() -> int:
     ap.add_argument("--restore", default=None, help="從備份檔還原標題")
     ap.add_argument("--limit", type=int, default=0, help="只處理前 N 支（0=全部）")
     args = ap.parse_args()
-    if not API_KEY and not args.restore:
+    if not any(os.environ.get(_k,"").strip() for _k in ("OPENROUTER_API_KEY","ANTHROPIC_API_KEY","DEEPSEEK_API_KEY","GEMINI_API_KEY","GROQ_API_KEY")) and not args.restore:
         print("[FATAL] 無 ANTHROPIC_API_KEY", file=sys.stderr); return 2
 
     from daily_publish import get_service

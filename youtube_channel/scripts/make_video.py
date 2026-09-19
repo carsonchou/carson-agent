@@ -107,9 +107,11 @@ SUBTITLE_MAX_SECONDS = 6.0
 PEXELS_VIDEO_SEARCH = "https://api.pexels.com/videos/search"
 PEXELS_TIMEOUT = 30
 
-# 預設背景漸層色盤（深色科技風，符合量化頻道調性）。RGB。
-GRADIENT_TOP = (12, 18, 32)      # 深藍黑
-GRADIENT_BOTTOM = (28, 44, 78)   # 靛藍
+# 預設背景漸層色盤（暗金 cinematic：近黑深藍底，壓暗低調高級）。RGB。
+GRADIENT_TOP = (7, 10, 18)       # 近黑深藍（電影感頂部，比舊 (12,18,32) 更沉）
+GRADIENT_BOTTOM = (18, 28, 50)   # 深靛藍（壓暗，發光克制）
+# 暗金 cinematic 暖色（光暈/網格的金調來源；紅=警示/虧、綠=獲利 等語意色不受此影響）
+GOLD = (255, 209, 102)
 
 # 概念圖引擎（每段依旁白主題畫對應數據圖）；缺套件時優雅降級回 K 線卡。
 try:
@@ -343,6 +345,74 @@ def build_subtitle_cues(units: List[str], total_duration: float) -> List[Subtitl
     return cues
 
 
+_SUB_PUNCT = set("。！？!?…，、；,;：:「」『』（）()「」《》\"' 　\n\t.")
+
+
+def load_word_cues(slug_paths: "SlugPaths", vt: str, total_duration: float):
+    """用 TTS 真實時間戳(<slug>.wordtimes.json)精準對齊字幕，解決「按字數估算、假設語速恆定」造成的漂移。
+    文字取原始 voice.txt(乾淨標點)、時間取 SentenceBoundary 句級真實時戳(按句序對齊，句內依字數分配)。
+    無 sidecar / 句數對不上太多 / 任何例外 → 回 None(呼叫端退回 build_subtitle_cues 估算法)。"""
+    try:
+        wt_path = slug_paths.audio.parent / f"{slug_paths.audio.stem}.wordtimes.json"
+        if not wt_path.exists():
+            return None
+        import json as _json
+        marks = _json.loads(wt_path.read_text(encoding="utf-8"))
+        if not marks or total_duration <= 0:
+            return None
+        sents = [m for m in marks if m.get("type") == "SentenceBoundary" and float(m.get("d", 0)) > 0]
+        if not sents:
+            return None
+        # 原始 voice.txt 依句末標點切句(保留原文/標點)，按順序對齊到 TTS 的句級時戳
+        orig = [s.strip() for s in re.split(r"(?<=[。！？!?])", vt) if s.strip()]
+        if not orig:
+            return None
+        cues: List[SubtitleCue] = []
+        m = min(len(orig), len(sents))
+        for i in range(m):
+            ts = float(sents[i]["t"])
+            te = ts + float(sents[i]["d"])
+            if te <= ts:
+                continue
+            units = split_subtitle_units(orig[i])
+            if not units:
+                continue
+            weights = [max(len(u), 1) for u in units]
+            tw = sum(weights)
+            t = ts
+            for u, w in zip(units, weights):
+                d = (te - ts) * (w / tw)
+                cues.append(SubtitleCue(start=round(t, 3), end=round(t + d, 3), text=u))
+                t += d
+        # 原文句數 > TTS 句數(罕見)→ 剩餘句用「末句尾→總長」估時補上，不漏字幕
+        if len(orig) > len(sents) and cues:
+            rest = []
+            for s in orig[len(sents):]:
+                rest += split_subtitle_units(s)
+            if rest:
+                t0 = cues[-1].end
+                span = max(0.6, total_duration - t0)
+                weights = [max(len(u), 1) for u in rest]
+                tw = sum(weights)
+                t = t0
+                for u, w in zip(rest, weights):
+                    d = span * (w / tw)
+                    cues.append(SubtitleCue(start=round(t, 3), end=round(t + d, 3), text=u))
+                    t += d
+        if not cues:
+            return None
+        # 單調化 + 末句對齊總長
+        for i in range(1, len(cues)):
+            if cues[i].start < cues[i - 1].end:
+                cues[i].start = cues[i - 1].end
+            if cues[i].end <= cues[i].start:
+                cues[i].end = cues[i].start + 0.4
+        cues[-1].end = max(cues[-1].end, min(total_duration, cues[-1].start + 0.4))
+        return cues
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def _srt_ts(sec: float) -> str:
     """秒 → SRT 時間碼 HH:MM:SS,mmm。"""
     if sec < 0:
@@ -360,7 +430,12 @@ def _srt_ts(sec: float) -> str:
 def write_srt_for_slug(slug: str, out_dir=None):
     """為 output/<slug> 產生 .srt 字幕軌（上傳 YouTube 用，非燒錄）。
 
-    重用既有 split_subtitle_units()+build_subtitle_cues()（估算時間軸）。
+    ⚠️ 2026-08-24 更正這句 docstring:它原本寫「重用既有 split_subtitle_units()+
+    build_subtitle_cues()(**估算時間軸**)」——那是 2026-08-17 修復**之前**的行為,
+    註解沒跟著改。現在的實作是「**優先吃 TTS 逐句真實時戳 + 補 INTRO 位移**,
+    沒有 wordtimes 才退回估算(且改用旁白 mp3 長度而非 mp4 總長)」,見下方那段紅字註解。
+    過時的註解比沒有註解更糟:2026-08-24 查「字幕跟聲音對不上」時,我就是被這句
+    帶去以為程式沒修,繞了一圈才發現真正的問題是**存量字幕軌沒重傳**。
     來源：<slug>.voice.txt（優先）或 <slug>.md 的「**旁白：**」行；時長取自 <slug>.mp4（ffprobe）。
     價值＝中文金融術語(夏普/回撤/網格)字幕 100% 正確，勝過 YouTube 自動字幕亂猜。
     成功回傳 srt 路徑，失敗回 None（非致命）。
@@ -397,12 +472,45 @@ def write_srt_for_slug(slug: str, out_dir=None):
         return None
     if dur <= 0:
         return None
-    cues = build_subtitle_cues(split_subtitle_units(voice), dur)
-    if not cues:
+    # 🔴 2026-08-17 觀眾實際回報「字幕跟解說不同步」,追出兩個疊加的錯:
+    #   ①用 **mp4 總長度**(含片頭 INTRO 3s + 片尾 OUTRO)去分配字幕,但旁白只佔中間那段
+    #     → 字幕被拉長攤平,越到後面偏差越大。
+    #   ②**完全沒有片頭位移**:字幕從 0s 起跑,而語音 3s 後才開始 → 全片系統性早 3 秒。
+    # 而且它用的是 build_subtitle_cues(**估算**時間軸),明明 TTS 已經產出逐句真實時間戳
+    # ({slug}.wordtimes.json,燒錄字幕早就在用)。改成:有 wordtimes 就用真值+位移;
+    # 沒有才退回估算,但改用**旁白 mp3 的長度**並補上位移。
+    _rows = []
+    _wt = base / f"{slug}.wordtimes.json"
+    if _wt.exists():
+        try:
+            import json as _json
+            _d = _json.loads(_wt.read_text(encoding="utf-8"))
+            for w in _d:
+                _t, _dur2 = float(w.get("t", 0)), float(w.get("d", 0))
+                _tx = (w.get("text") or "").strip()
+                if _tx and _dur2 > 0:
+                    _rows.append((_t + INTRO_DURATION, _t + _dur2 + INTRO_DURATION, _tx))
+        except Exception:  # noqa: BLE001
+            _rows = []
+    if not _rows:
+        _adur = dur
+        _mp3 = base / f"{slug}.mp3"
+        if _mp3.exists():
+            try:
+                _o = subprocess.run(
+                    ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+                     "-of", "default=nw=1:nk=1", str(_mp3)],
+                    capture_output=True, text=True, timeout=30)
+                _adur = float((_o.stdout or "").strip()) or dur
+            except Exception:  # noqa: BLE001
+                pass
+        for c in build_subtitle_cues(split_subtitle_units(voice), _adur):
+            _rows.append((c.start + INTRO_DURATION, c.end + INTRO_DURATION, c.text))
+    if not _rows:
         return None
     blocks = []
-    for i, c in enumerate(cues, 1):
-        blocks.append(f"{i}\n{_srt_ts(c.start)} --> {_srt_ts(c.end)}\n{c.text}\n")
+    for i, (_s, _e, _tx) in enumerate(_rows, 1):
+        blocks.append(f"{i}\n{_srt_ts(_s)} --> {_srt_ts(_e)}\n{_tx}\n")
     srt = base / f"{slug}.srt"
     try:
         srt.write_text("\n".join(blocks), encoding="utf-8")
@@ -440,6 +548,19 @@ def fetch_pexels_clip(
 
     query = " ".join(keywords[:3])
     orientation = "landscape" if width >= height else "portrait"
+    # ── b-roll 快取:跨影片相同情境詞(trading/market/bitcoin…)免重抓 API+重下載,省配額/頻寬/時間 ──
+    import hashlib as _hl
+    _cache_dir = PROJECT_ROOT / "assets" / "broll_cache"
+    _ck = _hl.md5(f"{query.lower()}|{orientation}|{width}x{height}".encode("utf-8")).hexdigest()[:16]
+    _cf = _cache_dir / f"{_ck}.mp4"
+    dest = dest_dir / f"broll_{index:02d}.mp4"
+    if _cf.exists() and _cf.stat().st_size > 0 and not os.environ.get("BROLL_NO_CACHE"):
+        try:
+            import shutil as _sh
+            _sh.copy2(_cf, dest)
+            return dest
+        except Exception:  # noqa: BLE001
+            pass
     params = {
         "query": query,
         "per_page": 5,
@@ -484,7 +605,6 @@ def fetch_pexels_clip(
     best = sorted(mp4s, key=score)[0]
     link = best["link"]
 
-    dest = dest_dir / f"broll_{index:02d}.mp4"
     try:
         with requests.get(link, stream=True, timeout=PEXELS_TIMEOUT) as r:
             if r.status_code != 200:
@@ -500,6 +620,12 @@ def fetch_pexels_clip(
 
     if not dest.exists() or dest.stat().st_size == 0:
         return None
+    try:  # 存進快取供之後相同情境詞的影片直接複用
+        _cache_dir.mkdir(parents=True, exist_ok=True)
+        import shutil as _sh
+        _sh.copy2(dest, _cf)
+    except Exception:  # noqa: BLE001
+        pass
     return dest
 
 
@@ -577,10 +703,20 @@ except Exception:
     pass
 
 
+# 語意警示詞：命中則 accent 鎖珊瑚紅（虧損/爆倉/風險調性），否則鎖暗金 cinematic
+_WARN_ACCENT_RE = re.compile(r"虧|賠|崩|爆倉|暴跌|套牢|歸零|腰斬|割|韭菜|翻車|騙|風險|警示|畢業")
+
+
 def pick_accent(seed: str):
-    import hashlib
-    h = int(hashlib.md5((seed or "x").encode("utf-8")).hexdigest(), 16)
-    return ACCENT_PALETTE[h % len(ACCENT_PALETTE)]
+    """暗金 cinematic 鎖色：中性/預設一律鎖金（全片色調一致、電影感），
+    只有 seed 命中語意警示詞才切珊瑚紅。紅綠語意色由各圖表(K線/概念圖)自行處理、不受此影響。"""
+    s = seed or "x"
+    try:
+        if _WARN_ACCENT_RE.search(s):
+            return (239, 113, 122)     # 珊瑚紅（警示/虧損調性）
+        return tuple(ACCENT_PALETTE[0])  # 鎖金（design_system 首色＝品牌金 (255,209,102)）
+    except Exception:  # noqa: BLE001
+        return (255, 209, 102)
 
 
 def _ken_burns(clip, width: int, height: int, zoom: float = 0.06):
@@ -591,8 +727,12 @@ def _ken_burns(clip, width: int, height: int, zoom: float = 0.06):
     return CompositeVideoClip([zoomed], size=(width, height)).set_duration(dur)
 
 
-def _card_background(width: int, height: int, accent, seed: str = "x"):
-    """品牌動態字卡背景：漸層 + 光暈 + 網格 + 發光價格走勢線（量化頻道識別）。回傳 PIL RGB Image。"""
+def _card_background(width: int, height: int, accent, seed: str = "x", decor_line: bool = True):
+    """品牌動態字卡背景：漸層 + 光暈 + 網格 (+ 選配發光走勢線)。回傳 PIL RGB Image。
+
+    decor_line=False：不畫那條發光「價格走勢線」。誠信用途——當這張卡是「concept 沒真資料
+    才退下來的 fallback」時,底圖不能有一條 rng.randn() 走勢線(它有端點光點、像真行情,
+    對量化頻道等於又擺一張假圖)。一般品牌卡/縮圖維持 True(那條線是品牌紋理、不宣稱標的)。"""
     import hashlib
 
     import numpy as np
@@ -605,6 +745,9 @@ def _card_background(width: int, height: int, accent, seed: str = "x"):
     r = np.sqrt(((xx - cx) / (width * 0.62)) ** 2 + ((yy - cy) / (height * 0.42)) ** 2)
     glow = np.clip(1.0 - r, 0.0, 1.0) ** 2.2
     acc = np.array(accent, dtype=np.float32)
+    # 暗金 cinematic：先鋪一層極淡金色暖光暈（克制），即使 accent 是警示紅、底仍帶電影金調
+    gold = np.array(GOLD, dtype=np.float32)
+    bg = bg + glow[:, :, None] * (gold - bg) * 0.06
     bg = bg + glow[:, :, None] * (acc - bg) * 0.15
     img = Image.fromarray(np.clip(bg, 0, 255).astype("uint8"), mode="RGB")
     draw = ImageDraw.Draw(img, "RGBA")
@@ -619,25 +762,27 @@ def _card_background(width: int, height: int, accent, seed: str = "x"):
         draw.line([(0, gy), (width, gy)], fill=(*ac, 16), width=1)
 
     # 2) 發光價格走勢線（上半部，形狀依 seed 變化）→ 每支影片不同、像真的交易圖
-    rng = np.random.RandomState(int(hashlib.md5(seed.encode("utf-8")).hexdigest(), 16) % (2 ** 32))
-    npt = 24
-    xs = np.linspace(width * 0.03, width * 0.97, npt)
-    walk = rng.randn(npt).cumsum()
-    walk = (walk - walk.min()) / ((walk.max() - walk.min()) or 1)  # 0..1
-    base_y = height * 0.30
-    amp = height * 0.17
-    ys = base_y - walk * amp
-    pts = [(int(a), int(b)) for a, b in zip(xs, ys)]
-    # 線下漸層面積
-    poly = pts + [(int(xs[-1]), int(base_y + amp * 0.6)), (int(xs[0]), int(base_y + amp * 0.6))]
-    draw.polygon(poly, fill=(*ac, 26))
-    # 走勢線本體
-    draw.line(pts, fill=(*ac, 220), width=max(3, int(md * 0.005)), joint="curve")
-    # 端點光點
-    ex, ey = pts[-1]
-    rr = int(md * 0.013)
-    draw.ellipse([ex - rr, ey - rr, ex + rr, ey + rr], fill=(255, 255, 255, 235),
-                 outline=(*ac, 255), width=max(2, int(md * 0.004)))
+    #    decor_line=False 時跳過:見 fn docstring(fallback 卡不擺這條 rng 假走勢線)。
+    if decor_line:
+        rng = np.random.RandomState(int(hashlib.md5(seed.encode("utf-8")).hexdigest(), 16) % (2 ** 32))
+        npt = 24
+        xs = np.linspace(width * 0.03, width * 0.97, npt)
+        walk = rng.randn(npt).cumsum()
+        walk = (walk - walk.min()) / ((walk.max() - walk.min()) or 1)  # 0..1
+        base_y = height * 0.30
+        amp = height * 0.17
+        ys = base_y - walk * amp
+        pts = [(int(a), int(b)) for a, b in zip(xs, ys)]
+        # 線下漸層面積
+        poly = pts + [(int(xs[-1]), int(base_y + amp * 0.6)), (int(xs[0]), int(base_y + amp * 0.6))]
+        draw.polygon(poly, fill=(*ac, 26))
+        # 走勢線本體
+        draw.line(pts, fill=(*ac, 220), width=max(3, int(md * 0.005)), joint="curve")
+        # 端點光點
+        ex, ey = pts[-1]
+        rr = int(md * 0.013)
+        draw.ellipse([ex - rr, ey - rr, ex + rr, ey + rr], fill=(255, 255, 255, 235),
+                     outline=(*ac, 255), width=max(2, int(md * 0.004)))
     return img
 
 
@@ -685,6 +830,10 @@ def _render_candles_strip(strip_w: int, height: int, accent, seed: str = "x"):
     bot = np.array(GRADIENT_BOTTOM, dtype=np.float32)
     ratios = np.linspace(0, 1, height, dtype=np.float32)[:, None]
     col = top[None, :] * (1 - ratios) + bot[None, :] * ratios
+    # 暗金 cinematic：頂端極淡金色暖化（僅最頂、克制），與字卡底同調
+    gold = np.array(GOLD, dtype=np.float32)
+    warm = (1.0 - ratios) ** 3 * 0.05
+    col = col + warm * (gold[None, :] - col)
     img = Image.fromarray(np.repeat(col[:, None, :], strip_w, axis=1).astype("uint8"), "RGB")
     draw = ImageDraw.Draw(img, "RGBA")
     ac = (int(accent[0]), int(accent[1]), int(accent[2]))
@@ -817,12 +966,33 @@ def render_text_overlay(width: int, height: int, *, big_text: str, watermark: st
         pad = int(md * 0.012)
         bx2 = width - int(width * 0.03)
         by2 = height - int(height * 0.03)
-        draw.rounded_rectangle([bx2 - w - pad * 2, by2 - h - pad * 2, bx2, by2], radius=int(md * 0.012), fill=(255, 255, 255, 30))
+        _safe_round_rect(draw, [bx2 - w - pad * 2, by2 - h - pad * 2, bx2, by2], int(md * 0.012), fill=(255, 255, 255, 30))
         draw.text((bx2 - w - pad, by2 - h - pad - 2), watermark, fill=(228, 234, 247, 240), font=wm_font)
 
     dest.parent.mkdir(parents=True, exist_ok=True)
     img.save(dest, format="PNG")
     return dest
+
+
+def _safe_round_rect(draw, box, radius, **kw):
+    """Pillow 9.5 的 rounded_rectangle 對 radius 接近框高/寬會拋 y1>=y0；此包裝 clamp 半徑，
+    再失敗就退回普通矩形，確保雲端(Pillow 9.5)不因圓角崩掉整張卡。"""
+    x0, y0, x1, y1 = box
+    if x1 < x0:
+        x0, x1 = x1, x0
+    if y1 < y0:
+        y0, y1 = y1, y0
+    r = max(0, min(int(radius), (x1 - x0) // 2 - 1, (y1 - y0) // 2 - 1))
+    try:
+        if r >= 2:
+            draw.rounded_rectangle([x0, y0, x1, y1], radius=r, **kw)
+        else:
+            draw.rectangle([x0, y0, x1, y1], **kw)
+    except Exception:  # noqa: BLE001
+        try:
+            draw.rectangle([x0, y0, x1, y1], **kw)
+        except Exception:  # noqa: BLE001
+            pass
 
 
 def render_candle_card(width: int, height: int, *, big_text: str, watermark: str, accent, seed: str, dest: Path) -> Path:
@@ -860,8 +1030,8 @@ def render_candle_card(width: int, height: int, *, big_text: str, watermark: str
     for rr_, a_ in ((int(md * 0.50), 14), (int(md * 0.38), 20), (int(md * 0.27), 28)):
         draw.ellipse([gcx - rr_, gcy - int(rr_ * 0.62), gcx + rr_, gcy + int(rr_ * 0.62)], fill=(*ac, a_))
     # 深色玻璃面板 + accent 細邊框
-    draw.rounded_rectangle([px, py, width - px, pyb], radius=int(md * 0.03),
-                           fill=(9, 13, 26, 205), outline=(*ac, 140), width=2)
+    _safe_round_rect(draw, [px, py, width - px, pyb], int(md * 0.03),
+                     fill=(9, 13, 26, 205), outline=(*ac, 140), width=2)
     y = (height - block_h) // 2 - int(md * 0.01)
     last_w = 0
     for ln in lines:
@@ -877,15 +1047,16 @@ def render_candle_card(width: int, height: int, *, big_text: str, watermark: str
     ux = (width - uw) // 2
     uy = y + int(md * 0.014)
     uh = max(5, int(md * 0.016))
-    draw.rounded_rectangle([ux - 6, uy - 4, ux + uw + 6, uy + uh + 4], radius=uh, fill=(*ac, 70))
-    draw.rounded_rectangle([ux, uy, ux + uw, uy + uh], radius=uh // 2, fill=accent)
+    # _safe_round_rect：雲端 Pillow 9.5 對 radius 接近框高會崩（K 線卡失敗退字卡的元兇）
+    _safe_round_rect(draw, [ux - 6, uy - 4, ux + uw + 6, uy + uh + 4], uh, fill=(*ac, 70))
+    _safe_round_rect(draw, [ux, uy, ux + uw, uy + uh], uh // 2, fill=accent)
 
     if watermark:
         w, h = tsize(watermark, wm_font)
         pad = int(md * 0.012)
         bx2 = width - int(width * 0.03)
         by2 = height - int(height * 0.03)
-        draw.rounded_rectangle([bx2 - w - pad * 2, by2 - h - pad * 2, bx2, by2], radius=int(md * 0.012), fill=(255, 255, 255, 30))
+        _safe_round_rect(draw, [bx2 - w - pad * 2, by2 - h - pad * 2, bx2, by2], int(md * 0.012), fill=(255, 255, 255, 30))
         draw.text((bx2 - w - pad, by2 - h - pad - 2), watermark, fill=(228, 234, 247, 240), font=wm_font)
 
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -893,22 +1064,162 @@ def render_candle_card(width: int, height: int, *, big_text: str, watermark: str
     return dest
 
 
+_SEG_KEY_RULES = (
+    # 橫斷面分佈(2026-09-06,旗艦片《抱得住嗎》):走 heading 而不是 classify(),
+    # 因為 classify() 是全頻道共用的,加關鍵字會影響每一支片;heading 只影響指定的段。
+    ("crosssec",     ("分佈", "橫斷面", "全市場攤開", "一支一支比")),
+    # (概念圖 key, 段落標題裡出現任一詞就採用)。順序＝優先序,越專一越前面。
+    ("valuation",    ("估值", "本益比", "貴還是便宜", "評價")),
+    ("fundamentals", ("基本面", "財報", "營收", "eps", "獲利", "毛利", "配息", "股利")),
+    ("dca",          ("買法", "定期定額", "定投", "分批", "all in", "all-in")),
+    ("drawdown",     ("價格體檢", "回撤", "套牢", "腰斬", "崩")),
+    ("history",      ("公司是誰", "這家公司", "做什麼", "什麼公司", "長期走勢", "這檔是")),
+)
+
+
+def _seg_concept_key(heading: str) -> Optional[str]:
+    """依**段落標題**判這段該畫哪張圖;判不出來回 None(交回原本的 classify 鏈)。
+
+    只看 heading 不看 narration:旁白會順口提到別的主題(「估值位置」那段講到回撤就被搶走),
+    標題才是這一段的主題宣告。
+
+    安全性:就算非體檢影片誤中規則也不會出事——valuation/fundamentals 這兩張圖沒有該檔的
+    真實事實就回 None、自動往下退;trend/drawdown/dca 本來就只吃真 CSV。所以最壞情況是
+    「換一張同樣真實的圖」,不會生出假資料。"""
+    h = (heading or "").strip().lower()
+    if not h:
+        return None
+    for key, words in _SEG_KEY_RULES:
+        if any(w in h for w in words):
+            return key
+    return None
+
+
+# 2026-09-15 擴大 force_key 覆蓋(個股體檢以外的系列):force_key 這個參數鏈路早就打通到
+# render_concept_card(見上方 docstring),但目前全頻道沒有任何呼叫端真的傳非 None 值進來——
+# 純屬已接好卻沒插電的線。_SEG_KEY_RULES/_seg_concept_key 完全不動(個股體檢、旗艦《抱得住嗎》
+# 的 crosssec 兩者都繼續吃這張表,行為 100% 不變)。以下兩張表各自獨立、只服務各自系列,
+# 不併進 _SEG_KEY_RULES 也不進 concept_visuals.classify() 的全域關鍵字表。
+
+# 台股流言終結者(belief_buster_engine.py):固定稿,3 個 belief_id、每個 belief 的段落標題
+# 都是寫死的字面字串(不是 LLM 生的),所以用「整句 heading 精準比對」——比子字串比對更保守,
+# 不會因為某個詞剛好也出現在別的系列而誤中。「風險聲明」段刻意不列:那段是免責聲明,不是
+# 事實內容,沒有對應圖是合理的(維持既有「判不到主題就沒有強制圖」的退回行為)。
+_BELIEF_BUSTER_HEADING_KEY = {
+    # belief_id=stop_profit(L_0050存股停利...)
+    "你從小聽到大的那句話": "trend",
+    "0050 停利：報酬定格 10.1%": "trend",
+    "0050 抱到底：一路噴出十二年": "trend",
+    "停利點設高，一樣": "trend",
+    "台積電 2330：一路噴出二十年": "trend",
+    "報酬來自你沒賣的那些年": "compound",
+    "停利不是錯，是用錯地方": "trend",
+    "你落的是安心，還是落後": "trend",
+    # belief_id=hidiv(高股息 vs 0050)
+    "領息養老，最安穩？": "trend",
+    "0050 一路噴出、0056 跟不上": "trend",
+    "每一檔高股息、每一次都輸": "trend",
+    "0050 這十二年單邊上漲": "trend",
+    "換個對照組,結論會翻嗎": "trend",
+    "代價:年化與最大回撤攤開": "drawdown",
+    "買法:定期定額 vs 單筆": "dca",
+    "配息是從你股價裡扣的": "fundamentals",
+    "高股息不是垃圾": "trend",
+    "錯在用得太早": "trend",
+    "我給你的是位置,不是建議": "trend",
+    "怎麼算的:含息還原與共同起點": "trend",
+    "我沒算進去的三件事": "trend",
+    "贏在感覺，還是真報酬": "trend",
+    # belief_id=crash_dip(崩盤恐慌賣出 vs 抱到底)
+    "崩盤，第一件事是快逃？": "drawdown",
+    "0050 新冠：回撤到阱底": "drawdown",
+    "0050 崩到阱底、回撤見底": "drawdown",
+    "0050 二零二二熊市：又一次回撤": "drawdown",
+    "崩盤殺的是價格，不是價值": "drawdown",
+    "但書一：買大盤不是買個股": "drawdown",
+    "但書三：你撐得過回撤嗎": "drawdown",
+    "逃掉的是報酬，不是風險": "drawdown",
+}
+
+
+def _belief_buster_force_key(heading: str) -> Optional[str]:
+    """belief_buster 系列專用查表；查不到回 None(交回原本 _seg_concept_key/classify 鏈)。"""
+    return _BELIEF_BUSTER_HEADING_KEY.get((heading or "").strip())
+
+
+# 台股真相實驗室(tw_lab_engine.py):FRANCHISE_FORMAT="long"、旁白由 LLM 自由生成,沒有固定
+# heading 模板(不像個股體檢/belief_buster 逐字可列舉),所以無法比照上面做「整句精準比對」。
+# 改用「段落標題關鍵字」比對(只看 heading,理由同 _seg_concept_key 的 docstring:旁白常常
+# 順口帶到別的主題,標題才是這段真正要講的事)。關鍵字取自 output/ 目錄下實際產出的長片
+# script.md(如 L_0050vs00631L十年定投實測…、L_0050定期定額月初vs月中vs月底扣款…、
+# L_0050新冠崩盤恐慌賣出vs抱到底…),逐一核對過**不會**命中個股體檢的固定五段模板
+# (公司是誰/基本面資料/價格體檢/套牢期實測/估值位置)或 belief_buster 上面那 30 條 heading。
+_TW_LAB_HEADING_RULES = (
+    ("dca",      ("扣款日", "扣款", "月初", "月底", "月中")),
+    ("compound", ("槓桿", "兩倍", "數學陷阱")),
+    ("drawdown", ("股災", "恐慌賣出")),
+    ("trend",    ("擇時", "錯過最佳", "錯失反彈", "長期持有的")),
+)
+
+
+def _tw_lab_force_key(heading: str) -> Optional[str]:
+    """tw_lab 系列專用查表(heading 關鍵字);查不到回 None。"""
+    h = (heading or "").strip()
+    if not h:
+        return None
+    for key, words in _TW_LAB_HEADING_RULES:
+        if any(w in h for w in words):
+            return key
+    return None
+
+
+def _series_force_key(heading: str) -> Optional[str]:
+    """belief_buster / tw_lab 兩張新表的合併入口，餵給既有但目前全頻道恆為 None 的
+    force_key 參數。兩系列 heading 彼此不重疊(見上方兩張表的核對註記)，也不會誤中
+    個股體檢/旗艦的固定模板，順序無關緊要；exact-match 表先查純粹是比較便宜。"""
+    return _belief_buster_force_key(heading) or _tw_lab_force_key(heading)
+
+
 def render_concept_card(width: int, height: int, *, heading: str, narration: str,
                         watermark: str, accent, seed: str, dest: Path,
-                        default_key: Optional[str] = None) -> Optional[Path]:
+                        default_key: Optional[str] = None,
+                        force_key: Optional[str] = None,
+                        fallback_ticker: Optional[str] = None,
+                        reveal: float = 1.0,
+                        variant: int = 0,
+                        out_meta: Optional[dict] = None) -> Optional[Path]:
     """主題數據圖卡：依旁白選一張對得上的圖（網格/複利/回撤…），
     標題放頂部小條（不蓋圖），下方留給字幕。
-    段落判不到主題時，改用 default_key（整支影片主題）；仍為 None 才回 None（退回 K 線卡）。"""
+    force_key 有值＝硬指定該圖（用於強制回測對比 beat，不管旁白分類）；
+    否則段落判不到主題時改用 default_key（整支影片主題）；仍為 None 才回 None（退回 K 線卡）。"""
     if _concept is None:
         return None
     from PIL import ImageDraw
     text = f"{heading} {narration}"
-    key = _concept.classify(text) or default_key
-    if key is None:
+    # 段落標題優先(2026-08-03):個股體檢是固定五段模板,靠關鍵字猜旁白本來就猜不到——
+    # 實測一支 9 分 08 秒的體檢片,五段裡有四段 classify() 回 None、全部退回**整片共用的
+    # 同一張圖**,結果整片視覺只有 5 張不同畫面,其中一張佔 67%(從 15s 播到 540s)。
+    # 標題才是那一段真正的主題,拿它決定畫什麼比讀旁白可靠。
+    keys = [k for k in (force_key, _seg_concept_key(heading), _concept.classify(text), default_key) if k]
+    if not keys:
         return None
-    img = _concept.render_concept_chart(width, height, text, accent, seed, dest=None, force=key)
+    # 依序試:指定的圖畫不出來(那檔沒有對應真資料 → drawer 回 None)就往下退,
+    # 不可以讓某一段從「重複的圖」變成「完全沒有圖」——那是把畫面問題換成另一個畫面問題。
+    img = key = None
+    _meta = {}   # 2026-08-12:圖表層把 caption/關鍵數字經 out-param 傳出(誠信安全數字來源)
+    for k in keys:
+        img = _concept.render_concept_chart(width, height, text, accent, seed, dest=None, force=k,
+                                            fallback_ticker=fallback_ticker, reveal=reveal,
+                                            variant=variant, meta=_meta)
+        if img is not None:
+            key = k
+            break
     if img is None:
         return None
+    # 2026-09-19 換視角用:回報**實際畫出來的**是哪種圖。呼叫端不能自己重算 keys 鏈——
+    # 上面那個 for 迴圈會因為「指定的圖沒真資料」往下退,重算的那份看不到這件事。
+    if out_meta is not None:
+        out_meta["key"] = key
     img = img.convert("RGB")
     draw = ImageDraw.Draw(img, "RGBA")
     md = min(width, height)
@@ -963,6 +1274,19 @@ def render_concept_card(width: int, height: int, *, heading: str, narration: str
 
     dest.parent.mkdir(parents=True, exist_ok=True)
     img.save(dest, format="PNG")
+    # 關鍵數字 sidecar(2026-08-12 v2 地基):渲染端(數字爆現 overlay)之後從這裡拿真數字,
+    # 絕不從旁白的中文數字模糊轉換。寫失敗不影響出卡。
+    # ⚠️ 教訓:第一版用「存檔樣板字串」做 replace 打到別的函式還被 try 吞掉 NameError——
+    # 同款存檔樣板全檔有 4 處,錨點必須含所屬函式特有內容。
+    try:
+        # 只要有圖說就寫 sidecar:閘門的形態① 要比對「這一幀圖說自己的數字」,
+        # 而有數字的圖說不一定抽得出 key_numbers,只看 key_numbers 會整類漏掉。
+        if _meta.get("key_numbers") or _meta.get("caption"):
+            import json as _json
+            Path(str(dest) + ".meta.json").write_text(
+                _json.dumps({**_meta, "concept_key": key}, ensure_ascii=False), encoding="utf-8")
+    except Exception:  # noqa: BLE001
+        pass
     return dest
 
 
@@ -975,11 +1299,14 @@ def render_card_image(
     watermark: str = "",
     dest: Path,
     accent=(255, 210, 63),
+    decor_line: bool = True,
 ) -> Path:
-    """精緻字卡：漸層+強調色光暈底 + 粗體大標(置中, 強調底線) + 簡潔副文 + 浮水印 pill。"""
+    """精緻字卡：漸層+強調色光暈底 + 粗體大標(置中, 強調底線) + 簡潔副文 + 浮水印 pill。
+    decor_line=False：底圖不畫 rng 走勢線(concept 無真資料的 fallback 卡用,見 _card_background)。"""
     from PIL import ImageDraw
 
-    img = _card_background(width, height, accent, seed=big_text or watermark or "x")
+    img = _card_background(width, height, accent, seed=big_text or watermark or "x",
+                           decor_line=decor_line)
     draw = ImageDraw.Draw(img, "RGBA")
 
     md = min(width, height)
@@ -1118,6 +1445,62 @@ def probe_audio_duration(audio_path: Path) -> float:
 
 
 # --------------------------------------------------------------------------- #
+# 輸出驗證（P5-a 產線止血：絕不讓 0KB/無視訊軌/超短片悄悄留在 output/）
+# --------------------------------------------------------------------------- #
+
+
+def _probe_render_output(path: Path, min_duration: float = 1.0):
+    """輕量 ffprobe 驗證輸出 mp4：檔案存在且非空、有視訊軌、有音軌、片長 >= min_duration。
+    回傳 (ok: bool, reason: str)；探測本身失敗一律視為不合格（保守，寧可誤殺重試也不留壞檔）。
+    呼叫端應把 min_duration 設成「旁白時長*0.95」等貼近真實預期值，而非放任預設的 1.0s——
+    04_0056 事故(旁白218.9s/成品僅61.7s)就是靠這道下限形同虛設才闖關成功並發布出去的。"""
+    try:
+        if not path.exists():
+            return False, "檔案不存在"
+        size = path.stat().st_size
+        if size <= 0:
+            return False, "0 bytes"
+        import subprocess as _sp
+        import imageio_ffmpeg as _iio
+        ff = _iio.get_ffmpeg_exe()
+        out = _sp.run([ff, "-i", str(path)], capture_output=True, text=True,
+                      encoding="utf-8", errors="replace", timeout=20)
+        txt = out.stderr or ""
+        m = re.search(r"Duration:\s*(\d+):(\d+):(\d+\.?\d*)", txt)
+        dur = (int(m.group(1)) * 3600 + int(m.group(2)) * 60 + float(m.group(3))) if m else 0.0
+        has_v, has_a = ("Video:" in txt), ("Audio:" in txt)
+        if dur < min_duration:
+            return False, f"片長過短（{dur:.1f}s，預期至少{min_duration:.1f}s，疑似旁白截斷）"
+        if not has_v:
+            return False, "無視訊軌"
+        if not has_a:
+            return False, "無音軌"
+        return True, ""
+    except Exception as exc:  # noqa: BLE001
+        return False, f"探測失敗（{exc}）"
+
+
+def _cleanup_bad_output(path: Path) -> None:
+    """渲染徹底失敗（重試過仍不合格）時，主動清掉殘留在 output/ 的壞檔——
+    別讓 0KB/無視訊軌/超短片留到 audit_video 事後才發現、白算一次有效產量。"""
+    try:
+        if path.exists():
+            path.unlink()
+            print(f"[cleanup] 已清除壞檔殘留：{path}", file=sys.stderr)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[warn] 清除壞檔失敗（{exc}）：{path}", file=sys.stderr)
+
+
+def _log_render_ops(stage: str, msg: str) -> None:
+    """寫進既有 STUDIO/ops_log.txt 心跳時間軸；ops 模組不可用時安靜略過，絕不影響渲染主流程。"""
+    try:
+        import ops
+        ops.log_ops(stage, msg)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+# --------------------------------------------------------------------------- #
 # 影片組裝（moviepy）
 # --------------------------------------------------------------------------- #
 
@@ -1141,6 +1524,651 @@ def _fit_clip(clip, width: int, height: int, duration: float):
     clip = clip.resize(scale)
     clip = clip.set_position(("center", "center"))
     return clip.set_duration(duration)
+
+
+def _fmt_money(v) -> str:
+    """金額口語化：>=1萬顯示『X.X萬』，否則千分位。"""
+    try:
+        v = float(v)
+    except Exception:  # noqa: BLE001
+        return str(v)
+    if abs(v) >= 10000:
+        s = f"{v/10000:.1f}".rstrip("0").rstrip(".")
+        return s + "萬"
+    return f"{int(round(v)):,}"
+
+
+_CN_DIGIT = {"零": 0, "〇": 0, "一": 1, "二": 2, "兩": 2, "三": 3, "四": 4,
+             "五": 5, "六": 6, "七": 7, "八": 8, "九": 9}
+_CN_UNIT_SMALL = {"十": 10, "百": 100, "千": 1000}   # 小節內單位（<萬）
+_CN_UNIT_BIG = {"萬": 10 ** 4, "億": 10 ** 8}        # 小節結算單位
+
+
+def _cn_int(s: str) -> Optional[int]:
+    """中文整數→int（個/十/百/千/萬/億）。**算不出來回 None，絕不回猜的值。**
+
+    🔴 2026-07-17 修：舊版只支援到「百」，且對看不懂的寫法**靜默回錯值而非丟例外**——
+    「一千」→0、「一千零五十」→10、「兩千三百」→100、「一千兩百三十四」→134。
+    根因有二：①完全沒有「千/萬/億」分支；②收尾 `return _CN_DIGIT.get(s, 0)` 把整串
+    當單字查表，查無就回 **0**——一個「查不到」被當成「答案是零」。
+    本頻道稿子一律用中文唸法寫數字餵 TTS（見 produce_batch._LONG_DATA_DISCIPLINE ③），
+    千量級是常態不是邊緣案例，而這條是 EP HUD **燒進畫面的「真數字」**來源。
+    誠信優先於產能：算不出來就回 None 讓 HUD 不顯示該欄，不要猜一個數字燒上畫面。
+    """
+    s = (s or "").strip()
+    if not s:
+        return None
+    if re.fullmatch(r"[0-9]+", s):
+        return int(s)
+    total = 0        # 已被 萬/億 結算掉的部分
+    section = 0      # 當前小節（<萬）累計
+    cur: Optional[int] = None   # 待搭配單位的數字
+    got = False
+    for ch in s:
+        if ch in _CN_DIGIT:
+            cur = _CN_DIGIT[ch]
+            got = True
+        elif ch in _CN_UNIT_SMALL:
+            unit = _CN_UNIT_SMALL[ch]
+            # 「十五」= 15：十 開頭省略的一才補 1；百/千 前面沒數字是壞寫法，別猜。
+            n = cur if cur is not None else (1 if unit == 10 else None)
+            if n is None:
+                return None
+            section += n * unit
+            cur = None
+            got = True
+        elif ch in _CN_UNIT_BIG:
+            section += cur or 0
+            total += (section or 1) * _CN_UNIT_BIG[ch]
+            section = 0
+            cur = None
+            got = True
+        else:
+            return None   # 看不懂的字 → 回 None（舊版是回 0，那正是靜默錯值的來源）
+    if cur is not None:
+        section += cur
+    return total + section if got else None
+
+
+def _cn_num(s: str) -> Optional[float]:
+    """中文數字（含『點』小數）→ float，如 八點二→8.2、一千零五十→1050。
+    **算不出來回 None**（呼叫端必須用 `is not None` 判斷，不可用真假值——0 是合法值）。"""
+    s = (s or "").strip()
+    if re.fullmatch(r"[0-9]+(?:\.[0-9]+)?", s):
+        return float(s)
+    ip_s, dot, fr_s = s.partition("點")
+    ip = _cn_int(ip_s) if ip_s else 0
+    if ip is None:
+        return None
+    if not dot:
+        return float(ip)
+    frac = ""
+    for ch in fr_s:
+        if ch not in _CN_DIGIT:
+            return None   # 小數部分混進十/百/千（「八點二十」）→ 語意不明，別猜
+        frac += str(_CN_DIGIT[ch])
+    # 「百分之二十點，」這種吊尾的點：整數部分仍然確定，回整數不算猜。
+    return float(ip) if not frac else float(f"{ip}.{frac}")
+
+
+# 🔴 2026-07-17 §7：pct 語境守門。HUD 的「報酬」欄位語意是**這個帳戶/這段實測的報酬率**，
+# 但旁白裡的百分比大多**不是報酬**——實測掃 88 支 HUD 片、113 個百分比子句，出現的有：
+# 勝率、存活率、虧損率、爆倉率、「90%的策略都輸給大盤」（輸家佔比）、「單網格不超總資金5%」
+# （部位控管）、「手續費吃掉15%利潤」（被吃掉的獲利佔比）……全都是百分比，全都不是報酬。
+# 舊版「取最後一個百分比」把這些直接當報酬燒 → **畫面把影片的結論反轉**：
+#   ·「90%的加密網格策略都輸給大盤」→ HUD 燒「報酬 +90%」（整支片在拆穿網格神話）
+#   ·「三十天內被吃掉百分之八十七」→ HUD 燒「+87%」綠字（旁白講的是被吃掉）
+# 兩支都是已發布片。這比數字算錯更傷：它讓片子自己打自己的臉。
+#
+# ⚠️ 沒有沿用 fact_source_guard.PERF_CTX（本來的構想）：那組的用途是「這數字算不算需要溯源的
+# 績效宣稱」，所以**刻意同時收「報酬/獲利/年化」和「勝率/機率/比例/佔比」**——而這裡要的正好是
+# **把這兩類分開**。借過來會讓「90%都輸大盤」照樣過關，等於沒守。故另立兩張表。
+# （也因此不需要 import fact_source_guard 或抽 studio_common：常數不同用途、不是同一個東西。）
+#
+# allowlist：子句要明確在講「帳戶/報酬/年化」才可能是報酬。實測真機器人 EP 片的報酬句高度一致，
+# **每一句都有「帳戶」**：「帳戶報酬1.76%」「帳戶虧百分之零點四五」「帳戶報酬率負1.19%」。
+_PCT_RETURN_CTX = ("帳戶", "報酬", "年化", "總報酬", "複利", "終值")
+# veto：命中就**不填**——這些是「率/佔比」不是報酬。含「獲利/利潤」被吃掉的講法也在此擋下，
+# 那描述的是「獲利的多少比例被吃掉」，不是帳戶報酬。
+_PCT_RATIO_VETO = ("勝率", "成功率", "命中率", "存活率", "虧損率", "爆倉率", "機率", "比例",
+                   "佔比", "都輸", "輸給", "的人", "人都", "人在", "策略都", "資金", "利潤",
+                   "手續費", "滑價", "間距", "成功", "都設錯", "做錯", "被套",
+                   # 比較句：「總報酬比單純持有少了整整23%」講的是**差距**不是本片報酬，
+                   # 但含「總報酬」會過 allowlist → 必須擋（實案 S_每月3萬定投BTC…）。
+                   "比")
+# 損失講法：子句在講賠，但號誌詞沒貼著數字時 → **號誌不明就不填**，絕不把「輸」印成「贏」。
+# 這張表是**掃 corpus 實際出現過的**寫法收進來的（不是憑想像列）：吃掉/虧/輸/賠/跌/虧光…
+_PCT_LOSS_WORDS = ("吃掉", "侵蝕", "蒸發", "縮水", "回吐", "倒賠", "少賺", "多賠", "虧光",
+                   "虧損", "損失", "腰斬", "被割", "爆倉", "虧", "賠", "輸", "負")
+
+
+def _pct_clause(text: str, i: int, j: int) -> str:
+    """百分比命中點所在的子句（以 。！？，、\\n 分界）。語境判定只看同一子句，不跨句攀。"""
+    seps = "。！？\n，、；"
+    left = max((text.rfind(c, 0, i) for c in seps), default=-1)
+    cands = [p for p in (text.find(c, j) for c in seps) if p != -1]
+    right = min(cands) if cands else len(text)
+    return text[left + 1:right]
+
+
+def _pct_is_return(clause: str) -> bool:
+    """這個子句裡的百分比，是不是在講「帳戶／這段實測的報酬」？判不出來一律 False（fail-closed）。"""
+    if any(w in clause for w in _PCT_RATIO_VETO):
+        return False
+    return any(w in clause for w in _PCT_RETURN_CTX)
+
+
+def _parse_experiment_numbers(text: str) -> dict:
+    """從旁白抓實測數字：本金/餘額/報酬%/天數。相容口語念法（百分之八點二、本金十萬、三十天）。
+    抓不到的留空 → HUD 不顯示該欄（不硬湊、守誠實紅線）。"""
+    out: dict = {}
+    if not text:
+        return out
+    t = text
+    _num = r"[0-9]+(?:\.[0-9]+)?"
+    # 🔴 2026-07-17：字元類補上「千」。舊版漏千 → 「百分之一千七百四十六」只吃到「一」，
+    # HUD 燒 +1%（實案 S_EP6 台積電 All in，旁白講的是 1746%，畫面印 1%，差 1746 倍）。
+    # 「萬」不進字元類：它是量級錨點，在群組外被 `\s*萬` 收掉再乘 10000（「十萬」= _cn「十」×萬）。
+    _cn = r"[零〇一二兩三四五六七八九十百千點]+"
+    _gap = r"[^萬0-9零〇一二兩三四五六七八九十百千]{0,3}"  # 填充但不吞數字（含千，免得吃掉量級）
+    # 本金：X萬（阿拉伯或中文）
+    m = re.search(rf"(?:本金|丟|投入|拿|押){_gap}({_num})\s*萬", t)
+    if m:
+        out["principal"] = int(float(m.group(1)) * 10000)
+    else:
+        m = re.search(rf"(?:本金|丟|投入|拿|押){_gap}({_cn})\s*萬", t)
+        if m:
+            _v = _cn_num(m.group(1))
+            if _v is not None:   # 轉不出來就不填 → HUD 不顯示本金（不猜）
+                out["principal"] = int(_v * 10000)
+    # 報酬%（口語『百分之X』優先；退回『X%』）取最後一個（通常是結果），含正負語意
+    # 正負詞與數字間允許短填充詞（「虧『了』百分之二十」「賠『掉』20%」）：舊版只允許空白，
+    # 導致 t="虧了百分之二十" 抓不到『虧』→ HUD 燒 +20% 綠字,但旁白講的是倒賠 20%（號誌翻轉）。
+    # 填充詞不得含數字/百（否則會跨過數字或吃掉「百分之」）,長度上限 2 避免亂攀遠處的正負詞。
+    # 🔴 2026-07-17：號誌詞補上實掃 corpus 找到的損失講法（吃掉/侵蝕/蒸發/縮水/回吐/倒賠）。
+    # ⚠️ 捕捉群**只放負向詞**：把正向/中性詞（報酬/獲利/賺/正）放進來會反過來**吃掉真正的號誌**——
+    # 「帳戶報酬率負1.19%」會先被 (報酬)+填充「率負」匹配走 → group(1)=報酬 → 號誌 negative 丟失，
+    # 畫面把 -1.19% 印成 +1.19%（2026-07-17 我自己改出來的回歸，被 corpus diff 當場抓到）。
+    # 預設就是正值，正向詞本來就不需要捕捉；只需要問「有沒有負向號誌貼著這個數字」。
+    # 多字詞排在單字前（倒賠 在 賠 前、虧光 在 虧 前），否則 regex 交替會先中短的那個。
+    # 🔴 號誌也可能是**符號**不是詞：稿子實際寫「帳戶報酬-1.19%」「帳戶現在-百分之零點四五」
+    # （全是 ASCII hyphen 0x2d）。舊版號誌詞表只有中文字 → 這三支把 -1.19% 印成 **+1.19% 綠字**，
+    # 帳戶明明在賠、畫面說在賺。這是「把輸印成贏」的最後一條漏網路徑（2026-07-17 掃 corpus 抓到）。
+    _sgap = r"[^0-9零〇一二兩三四五六七八九十百千%]{0,2}"
+    _neg_sgn = r"倒賠|少賺|多賠|虧光|吃掉|侵蝕|蒸發|縮水|回吐|負|虧|賠|跌|少|-|－|−|–"
+    pcs = list(re.finditer(rf"(?:({_neg_sgn}){_sgap})?\s*百分之\s*({_num}|{_cn})", t))
+    if not pcs:
+        pcs = list(re.finditer(rf"(?:({_neg_sgn}){_sgap})?\s*({_num})\s*%", t))
+    _cands = []
+    for g in pcs:
+        cl = _pct_clause(t, *g.span())
+        if not _pct_is_return(cl):
+            continue          # 勝率/佔比/資金比例/比較句…不是報酬 → 不列入
+        val = _cn_num(g.group(2))
+        if val is None:
+            continue
+        if g.group(1):
+            _cands.append(-val)          # 負向號誌貼著數字 → 轉負
+        elif any(w in cl for w in _PCT_LOSS_WORDS):
+            continue          # 子句在講賠、但號誌詞沒貼著數字 → 號誌不明，寧可不填也不印成綠字
+        else:
+            _cands.append(val)
+    # **全片的報酬語境百分比要一致才填**。舊版無條件取最後一個 → 會把「舉例/假設」當本片成績燒。
+    # 實案 S_比特幣爆倉6億…：「帳戶只要跌百分之十(舉例槓桿)」「帳戶跌百分之五十(假設)」，
+    # 真結果其實是「賺了百分之零點八三」——三個數字打架，挑哪個都是猜。不一致 → 不填。
+    if _cands and len(set(_cands)) == 1:
+        out["pct"] = _cands[0]
+    # 天數：第X天 / Day X / X天（阿拉伯或中文）；取最大值（結局天數，避免「第一天」蓋過「第三十天」）
+    _days = [int(float(x)) for x in re.findall(rf"(?:第|[Dd]ay)\s*({_num})", t)]
+    _days += [int(float(x)) for x in re.findall(rf"({_num})\s*天", t)]
+    for x in re.findall(rf"(?:第)?({_cn})\s*天", t):
+        _v = _cn_num(x)
+        if _v is not None:   # 轉不出來就跳過這筆（不猜；別讓錯值進 max()）
+            _days.append(int(_v))
+    if _days:
+        out["days"] = max(_days)
+    # 餘額：剩[下]X萬（阿拉伯或中文）
+    m = re.search(rf"剩[下]?{_gap}({_num})\s*萬", t)
+    if m:
+        out["balance"] = int(float(m.group(1)) * 10000)
+    else:
+        m = re.search(rf"剩[下]?{_gap}({_cn})\s*萬", t)
+        if m:
+            _v = _cn_num(m.group(1))
+            if _v is not None:   # 轉不出來就不填 → HUD 不顯示餘額（不猜）
+                out["balance"] = int(_v * 10000)
+    return out
+
+
+def _ep_data_numbers() -> dict:
+    """讀 STUDIO/ep_data.json 的實測真數字（EP 引擎/真實帳戶權威來源），映射成 HUD 欄位。
+    優先於旁白 regex：ep_data 是引擎狀態，比口播順口提及可信。抓不到檔或欄位就回空 dict。"""
+    out: dict = {}
+    try:
+        data = json.loads((PROJECT_ROOT / "STUDIO" / "ep_data.json").read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return out
+    if not isinstance(data, dict):
+        return out
+
+    def _pick(*keys):
+        for k in keys:
+            v = data.get(k)
+            if v is not None:
+                return v
+        return None
+
+    _pr = _pick("investment", "principal")
+    _bal = _pick("account_value", "balance")
+    _pct = _pick("return_pct", "pct")
+    _days = _pick("day", "days")
+    try:
+        if _pr is not None:
+            out["principal"] = float(_pr)
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        if _bal is not None:
+            out["balance"] = float(_bal)
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        if _pct is not None:
+            out["pct"] = float(_pct)
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        if _days is not None:
+            out["days"] = int(float(_days))
+    except Exception:  # noqa: BLE001
+        pass
+    return out
+
+
+# ep_data.json 只描述「自動交易機器人實測企劃」那一個真錢帳戶（Pionex，本金約 101 美元）。
+# 這組是「系列識別」特徵詞——用來確認本片真的是那個系列，而不是只看標題有沒有 EP/實測/實驗。
+_ROBOT_SERIES_RE = re.compile(r"機器人|網格|派網|Pionex|自動交易|交易機器|\bbots?\b", re.IGNORECASE)
+_RACE_TITLE_RE = re.compile(r"vs|VS|對決|對打|賽跑")
+
+
+def _hud_applies(title: str, slug: str = "", narration: str = "") -> bool:
+    """本片該不該上 EP 招牌 HUD（本金／餘額／報酬／天數那一組）？**片型判定的單一真相來源。**
+
+    🔴 2026-07-17：舊判定是 `re.search(r"EP|實測|實驗", title)`——那是「題材泛用詞」不是「片型」。
+    「個股體檢EP1」只因標題有 EP 就上 HUD，四個欄位全錯（本金抓到旁白「每月投入一萬」但該片
+    實驗本金是一百萬、餘額少 5000、報酬率抓到的是最大跌幅、天數抓到的是最長套牢天數）——
+    根因不是抓取 regex 不夠準，是**這組欄位對「個股體檢」這種片型本來就沒有意義**，
+    抓得再準也只是把不相干的數字燒得更精確。這與「賽跑條整條拆除」是同一個判準。
+
+    收窄成三道（與 _ep_data_applies 共用，不各寫一份）：
+      1. A vs B 對比片不上：那組欄位描述「一個帳戶隨時間推進」，對「兩個標的比大小」沒有語意。
+      2. 必須是自動交易機器人實測系列：只有那個片型真的有「本金→餘額→第N天」這條時間軸。
+      3. **稿子裡真的要有「帳戶」**：②只看標題，但標題有「網格」的**新聞鉤子評論片**根本沒有
+         自己的帳戶——`S_EP2加密網格回測年化80` 燒 +80%，而那個 80% 是**它正在揭穿的別人的宣稱**。
+         這組欄位的語意是「一個帳戶在時間軸上的狀態」，**沒有帳戶的片，HUD 出現在那裡本身就是錯的，
+         不管數字對不對**。這不是為了保守犧牲視覺，是把元件放回它有意義的地方（同賽跑條拆除案）。
+
+    ⚠️ narration 省略時**跳過第 3 道**（不是預設放行整個判定）：`_ep_data_applies` 拿不到逐字稿，
+    但兩個渲染端都是先過 `_hud_applies(含 narration)` 才會問 `_ep_data_applies`，故實際不可能放寬。
+    判不出來就不上 HUD——寧可少一個視覺元素，也不要燒錯數字（誠信 fail-closed）。
+    """
+    if _RACE_TITLE_RE.search(title or ""):
+        return False
+    if not _ROBOT_SERIES_RE.search(f"{title or ''} {slug or ''}"):
+        return False
+    if narration and "帳戶" not in narration:
+        return False
+    return True
+
+
+def _ep_data_applies(title: str, slug: str = "", narr_nums: Optional[dict] = None) -> bool:
+    """本片是否真的屬於 ep_data.json 描述的那個真錢帳戶系列？只有 True 才可把 ep_data 數字燒上 HUD。
+
+    為什麼不能沿用舊判定（標題命中 EP|實測|實驗|vs 就套）：那些是「題材泛用詞」不是「系列識別」。
+    「臺股真相實驗室」整個系列含『實驗』、大量台股題含『實測』、長片標題大量是『A vs B』，
+    全被灌上機器人帳戶的本金/餘額/報酬——畫面對觀眾說謊（已發布 32 支受害，見 scratchpad/hud_fix.md）。
+
+    ⚠️ 本函式與 `_hud_applies` **不是同一個問題**，不可互相取代（2026-07-17 複驗）：
+      - `_hud_applies`：這片型該不該有 HUD（片型問題）
+      - 本函式：HUD 的數字該不該改用 ep_data 的權威值蓋掉旁白值（資料來源問題）
+    本函式 = `_hud_applies` **再加**三道資料面門檻。反過來把 `_hud_applies` 綁成本函式會出事：
+    ep_data.json 讀不到／series_name 改字／本金量級漂移時，**真機器人 EP 片會整個 HUD 消失**
+    ——讓一個資料檔的內容去決定視覺元素存不存在。故只共用片型判定，資料面門檻留在這裡：
+      1. ep_data 必須自稱機器人帳戶系列（series_name）：否則不知道那些數字在講什麼，不套。
+      2. 旁白明講的本金與帳戶本金量級不符（差 5 倍以上）→ 這支不是那個帳戶的片，不套；
+         避免 HUD 燒「本金 101」但旁白在講「丟十萬」這種畫面與口白自相矛盾。
+    判不出來就退回 _parse_experiment_numbers 的旁白數字——那本來就是本片的正確來源，
+    寧可漏套也絕不可誤套。
+    """
+    if not _hud_applies(title, slug):   # 片型判定共用同一份（含 A vs B 一律不套）
+        return False
+    try:
+        data = json.loads((PROJECT_ROOT / "STUDIO" / "ep_data.json").read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return False
+    if not isinstance(data, dict):
+        return False
+    if not _ROBOT_SERIES_RE.search(str(data.get("series_name") or "")):
+        return False
+    _np, _ep = (narr_nums or {}).get("principal"), _ep_data_numbers().get("principal")
+    try:
+        if _np and _ep and _np > 0 and _ep > 0 and (_np / _ep > 5 or _ep / _np > 5):
+            return False
+    except Exception:  # noqa: BLE001
+        pass
+    return True
+
+
+def _mascot_enabled() -> bool:
+    """吉祥物總開關（design_system.mascot_enabled，預設 False）。False 時完全不改變渲染輸出。"""
+    try:
+        return bool(_design_system().get("mascot_enabled", False))
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _mascot_path_for(pct, *, closing: bool = False) -> Optional[str]:
+    """依報酬正負/收官選吉祥物表情檔（正→happy／負→panic／收官→smug／中性→neutral）。不存在回 None。"""
+    if closing:
+        name = "smug"
+    elif pct is None:
+        name = "neutral"
+    elif pct > 0:
+        name = "happy"
+    elif pct < 0:
+        name = "panic"
+    else:
+        name = "neutral"
+    p = PROJECT_ROOT / "assets" / "mascot" / f"{name}.png"
+    return str(p) if p.exists() else None
+
+
+# 逐段旁白情緒 → 吉祥物表情關鍵字（比整片單一 pct 更貼合當下畫面）
+_MASCOT_PANIC_RE = re.compile(r"虧|賠|崩|爆倉|套牢|歸零|腰斬|畢業")
+_MASCOT_HAPPY_RE = re.compile(r"賺|贏|獲利|暴賺|賺爛|翻倍|回本")
+_MASCOT_SMUG_RE = re.compile(r"拆穿|識破|避雷|看穿|揭穿|戳破")
+
+
+def _mascot_expr_for_text(text: str) -> Optional[str]:
+    """依單段旁白情緒選吉祥物表情檔（smug/panic/happy/neutral）。
+    smug(拆穿/戳破…) > panic(虧/爆倉…) > happy(賺/翻倍…) > neutral。
+    找不到對應圖退回 neutral；neutral 也不存在回 None。任何情況不拋例外。"""
+    t = text or ""
+    try:
+        if _MASCOT_SMUG_RE.search(t):
+            name = "smug"
+        elif _MASCOT_PANIC_RE.search(t):
+            name = "panic"
+        elif _MASCOT_HAPPY_RE.search(t):
+            name = "happy"
+        else:
+            name = "neutral"
+        p = PROJECT_ROOT / "assets" / "mascot" / f"{name}.png"
+        if p.exists():
+            return str(p)
+        neu = PROJECT_ROOT / "assets" / "mascot" / "neutral.png"
+        return str(neu) if neu.exists() else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def paste_mascot(base_png, mascot_path, position: str = "br", scale: float = 0.18):
+    """把吉祥物 PNG 以 alpha_composite 貼到 base 的指定角落。
+    base_png 可為 PNG 路徑或 PIL Image；回傳合成後的 RGBA PIL Image（不落檔，由呼叫端存）。
+    position: br/bl/tr/tl；scale: 吉祥物寬佔畫面寬比例。任何失敗回原輸入（不炸渲染）。"""
+    try:
+        from PIL import Image
+    except Exception:  # noqa: BLE001
+        return base_png
+    try:
+        base = base_png if hasattr(base_png, "alpha_composite") else Image.open(base_png)
+        base = base.convert("RGBA")
+    except Exception:  # noqa: BLE001
+        return base_png
+    try:
+        m = Image.open(mascot_path).convert("RGBA")
+    except Exception:  # noqa: BLE001
+        return base
+    W, H = base.size
+    mw = max(1, int(W * float(scale)))
+    mh = max(1, int(m.height * mw / max(1, m.width)))
+    m = m.resize((mw, mh))
+    pad = int(min(W, H) * 0.03)
+    # 🔴 2026-07-28:底部兩個位置要**再往上讓出浮水印帶**。燒入的浮水印基線在 height*0.97
+    # (見 _draw_watermark),而吉祥物底部原本也是 H-pad(1080p 時同樣落在 ~1048)→ 兩者重疊,
+    # 實測成片機器人的腳直接壓在「量化阿森｜Carson Quant」上,把品牌字擋成「…Carso? Quan?」。
+    # 抬高 5.5% 畫面高(1080p ≈ 59px),足以完整讓開浮水印膠囊(字高+內距約 40px)且不吃到字幕帶。
+    _wm_band = int(H * 0.055)
+    pos = {
+        "br": (W - mw - pad, H - mh - pad - _wm_band),
+        "bl": (pad, H - mh - pad - _wm_band),
+        "tr": (W - mw - pad, pad),
+        "tl": (pad, pad),
+    }.get(position, (W - mw - pad, H - mh - pad - _wm_band))
+    try:
+        base.alpha_composite(m, pos)
+    except Exception:  # noqa: BLE001
+        pass
+    return base
+
+
+def render_brand_intro(width, height, *, title, dest: Path, tagline=None,
+                       logo_path=None, mascot_path=None) -> Optional[str]:
+    """品牌固定片頭：讀 assets/brand/intro_template.png 當底（不存在則用 _card_background 生），
+    _load_font 壓標題（+選配標語），Image.alpha_composite 貼 logo（右上）/吉祥物（右下），存 PNG。
+    回傳 PNG 路徑；當無任何品牌素材（template 不存在且無 logo/mascot）時回 None
+    → 呼叫端退回既有片頭降級鏈，確保沒鋪品牌素材時輸出完全不變。"""
+    try:
+        from PIL import Image, ImageDraw
+    except Exception:  # noqa: BLE001
+        return None
+    tmpl = PROJECT_ROOT / "assets" / "brand" / "intro_template.png"
+    has_tmpl = tmpl.exists()
+    has_logo = bool(logo_path) and Path(logo_path).exists()
+    has_mascot = bool(mascot_path) and Path(mascot_path).exists()
+    if not (has_tmpl or has_logo or has_mascot):
+        return None  # 無品牌素材：不改變現有輸出
+    accent = pick_accent(title or "x")
+    ac = (int(accent[0]), int(accent[1]), int(accent[2]))
+    try:
+        if has_tmpl:
+            base = Image.open(tmpl).convert("RGBA")
+            if base.size != (width, height):
+                base = base.resize((width, height))
+        else:
+            base = _card_background(width, height, accent, seed=title or "intro").convert("RGBA")
+    except Exception:  # noqa: BLE001
+        try:
+            base = _card_background(width, height, accent, seed=title or "intro").convert("RGBA")
+        except Exception:  # noqa: BLE001
+            return None
+    draw = ImageDraw.Draw(base, "RGBA")
+    md = min(width, height)
+    tfont = _load_font(int(md * 0.088), bold=True)
+    max_w = width - int(width * 0.14)
+    lines = _wrap_to_width(draw, (title or "").strip(), tfont, max_w) if tfont else [title or ""]
+    try:
+        _a, _d = tfont.getmetrics()
+        lh = int((_a + _d) * 1.2)
+    except Exception:  # noqa: BLE001
+        lh = int(md * 0.12)
+    block_h = lh * len(lines)
+    y = (height - block_h) // 2 - int(height * 0.04)
+    last_w = 0
+    for ln in lines:
+        try:
+            w = int(draw.textlength(ln, font=tfont))
+        except Exception:  # noqa: BLE001
+            w = len(ln) * 12
+        x = (width - w) // 2
+        last_w = w
+        for dx, dy in ((-2, 0), (2, 0), (0, -2), (0, 2), (2, 2)):
+            draw.text((x + dx, y + dy), ln, fill=(0, 0, 0, 235), font=tfont)
+        draw.text((x, y), ln, fill=(245, 248, 255, 255), font=tfont)
+        y += lh
+    uw = min(int(width * 0.34), max(last_w // 2, int(width * 0.14)))
+    ux = (width - uw) // 2
+    draw.rectangle([ux, y + int(md * 0.012), ux + uw, y + int(md * 0.012) + max(4, int(md * 0.013))], fill=ac)
+    if tagline:
+        sf = _load_font(int(md * 0.034), bold=False)
+        try:
+            tw = int(draw.textlength(tagline, font=sf))
+        except Exception:  # noqa: BLE001
+            tw = len(tagline) * 10
+        sx = (width - tw) // 2
+        sy = y + int(md * 0.06)
+        for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+            draw.text((sx + dx, sy + dy), tagline, fill=(0, 0, 0, 200), font=sf)
+        draw.text((sx, sy), tagline, fill=(198, 212, 234, 240), font=sf)
+    if has_logo:
+        try:
+            logo = Image.open(logo_path).convert("RGBA")
+            lw = int(width * 0.13)
+            logo = logo.resize((lw, max(1, int(logo.height * lw / max(1, logo.width)))))
+            base.alpha_composite(logo, (width - lw - int(width * 0.04), int(height * 0.05)))
+        except Exception:  # noqa: BLE001
+            pass
+    if has_mascot:
+        try:
+            base = paste_mascot(base, mascot_path, position="br", scale=0.20)
+        except Exception:  # noqa: BLE001
+            pass
+    try:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        base.convert("RGB").save(str(dest), format="PNG")
+    except Exception:  # noqa: BLE001
+        return None
+    return str(dest)
+
+
+def render_hud_strip(width, height, *, dest: Path, day=None, principal=None,
+                     balance=None, pct=None, accent=(255, 210, 63)):
+    """實測 EP 招牌 HUD：頂部深色條顯示 DAY／餘額／報酬%（透明底全幀 PNG，供合成）。"""
+    try:
+        from PIL import Image, ImageDraw
+    except Exception:  # noqa: BLE001
+        return None
+    f_lbl = _load_font(int(min(width, height) * 0.026), bold=True)
+    f_val = _load_font(int(min(width, height) * 0.042), bold=True)
+    if not f_val:
+        return None
+    md = min(width, height)
+    img = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img, "RGBA")
+
+    def _txt(x, y, s, font, fill, anchor):
+        for dx, dy in ((-2, 0), (2, 0), (0, -2), (0, 2)):
+            d.text((x + dx, y + dy), s, font=font, fill=(0, 0, 0, 220), anchor=anchor)
+        d.text((x, y), s, font=font, fill=fill, anchor=anchor)
+
+    barh = int(height * 0.072)
+    bary = int(height * 0.185)  # 避開概念卡頂部標題條(0~0.165)
+    bx1, bx2 = int(width * 0.05), width - int(width * 0.05)
+    # 全不透明(255)：這條 HUD 帶會疊在概念圖(concept_visuals)軸圖正上方，
+    # 半透明(舊 205)會讓底下的折線穿出來變成「長條/字疊在線圖上」的破圖感(A6-b)；
+    # 248 仍會漏一絲亮線(浮點/抗鋸齒殘留)，全不透明才是真的乾淨。
+    d.rounded_rectangle([bx1, bary, bx2, bary + barh], radius=int(barh * 0.28),
+                        fill=(10, 14, 26, 255),
+                        outline=(accent[0], accent[1], accent[2], 150), width=max(2, int(md * 0.004)))
+    cy = bary + barh // 2
+    up, dn = cy - int(md * 0.026), cy + int(md * 0.004)
+    # 依有值欄位動態均分排版（DAY／本金／餘額／報酬），置中不重疊；本金欄仿 DAY 欄補上。
+    cols = []
+    if day is not None:
+        cols.append(("DAY", str(day), (accent[0], accent[1], accent[2], 255), (245, 248, 255, 255)))
+    if principal is not None:
+        cols.append(("本金", _fmt_money(principal), (180, 196, 222, 255), (245, 248, 255, 255)))
+    if balance is not None:
+        cols.append(("餘額", _fmt_money(balance), (180, 196, 222, 255), (245, 248, 255, 255)))
+    if pct is not None:
+        _pcol = (46, 204, 113, 255) if pct >= 0 else (231, 76, 60, 255)
+        _sign = "+" if pct >= 0 else ""
+        cols.append(("報酬", f"{_sign}{pct:g}%", (180, 196, 222, 255), _pcol))
+    if cols:
+        inner_x1 = bx1 + int(width * 0.035)
+        inner_x2 = bx2 - int(width * 0.035)
+        span = inner_x2 - inner_x1
+        for ci, (lbl, val, lbl_col, val_col) in enumerate(cols):
+            cxp = inner_x1 + int(span * (ci + 0.5) / len(cols))
+            _txt(cxp, up, lbl, f_lbl, lbl_col, "mm")
+            _txt(cxp, dn, val, f_val, val_col, "mm")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    img.save(str(dest), format="PNG")
+    return dest
+
+
+def render_race_split(width, height, *, dest: Path, labelA="A", labelB="B",
+                      progA=0.5, progB=0.5, accent=(255, 210, 63)):
+    """A vs B 賽跑對比：頂部自帶深色面板的計分板（兩條並排進度條），不侵入中央標題/字幕區。
+
+    ⚠️ 目前沒有呼叫端，是刻意的——不要因為「有函式沒人用」就把它接回去。
+
+    這塊不是裝飾：兩條條子掛的是本片比較的兩個標的名，條尾還印百分比，觀眾只會讀成
+    「A 拿到 100%、B 只拿到 82%」。所以餵進來的 progA/progB 必須是本片真實數據，
+    禁止餵段落進度、常數、或任何「看起來會動」的合成值。
+
+    以前的呼叫端餵的是 progA=frac, progB=frac*0.82（段落進度 × 常數），畫面因此對每支
+    對比片都宣稱「B 落後 A 18 個百分點」，與本片數據無關：0050 vs 00878 那支旁白講的是
+    815% vs 387%（B 只有 A 的 47%），畫面卻印 82%；AI選股 vs 0050 那支真實是 A 輸，
+    畫面卻讓 A 滿格贏——連輸贏方向都相反。已發布 46 支中鏢，故整條路已拆除。
+
+    要接回去，先有「帶單位的結構化事實來源」給出兩側可比的真值（見 STUDIO fact_pool
+    無單位池待辦）。實測結論：從旁白 regex 硬抓不可行——旁白裡總報酬/年化/最大回撤/
+    配息稅/手續費全是百分比且長得一樣，實測 5 支綁到的有 4 支綁錯（把「手續費吃掉15%」、
+    「最慘賠22.6%」、「配息稅30%」、「第一年賺20%」當成某一側的成績），而且有些片旁白
+    根本沒講到那一側的總報酬——資料不存在，再好的 parser 也生不出來。
+    """
+    try:
+        from PIL import Image, ImageDraw
+    except Exception:  # noqa: BLE001
+        return None
+    md = min(width, height)
+    f_lbl = _load_font(int(md * 0.030), bold=True)
+    f_val = _load_font(int(md * 0.030), bold=True)
+    if not f_lbl:
+        return None
+    img = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img, "RGBA")
+    # 面板（頂部 HUD 區，避開中央）
+    px1, px2 = int(width * 0.05), width - int(width * 0.05)
+    py1, py2 = int(height * 0.185), int(height * 0.365)  # 避開概念卡頂部標題條
+    # 全不透明(255)：這塊面板會疊在概念圖(concept_visuals)軸圖正上方，
+    # 半透明(舊 205)會讓底下的折線穿出來變成「長條疊在線圖上」的破圖感(A6-b)；
+    # 248 仍會漏一絲亮線(浮點/抗鋸齒殘留)，全不透明才是真的乾淨。
+    d.rounded_rectangle([px1, py1, px2, py2], radius=int(md * 0.03),
+                        fill=(10, 14, 26, 255),
+                        outline=(accent[0], accent[1], accent[2], 150), width=max(2, int(md * 0.004)))
+    tx1, tx2 = px1 + int(width * 0.05), px2 - int(width * 0.05)
+    tw = tx2 - tx1
+    barh = int(height * 0.030)
+    rad = max(2, barh // 3)  # Pillow 9.5 嚴格：radius 必須 << 高/寬，避免 y1<y0
+    rows = ((py1 + int(height * 0.052), labelA, max(0.0, min(1.0, progA)), (46, 204, 113)),
+            (py1 + int(height * 0.115), labelB, max(0.0, min(1.0, progB)), (52, 152, 219)))
+    for yy, lbl, prog, col in rows:
+        for dx, dy in ((-2, 0), (2, 0), (0, -2), (0, 2)):
+            d.text((tx1 + dx, yy - int(md * 0.042) + dy), lbl[:10], font=f_lbl, fill=(0, 0, 0, 220))
+        d.text((tx1, yy - int(md * 0.042)), lbl[:10], font=f_lbl, fill=(245, 248, 255, 255))
+        # 軌道/填色都要全不透明：這兩塊疊在概念圖軸圖正上方，半透明會讓底下折線
+        # 從軌道裡透出來(A6-b 的真正根因——不是面板本身漏，是軌道那層漏)。
+        d.rounded_rectangle([tx1, yy, tx2, yy + barh], radius=rad, fill=(20, 26, 40, 255))
+        fw = int(tw * prog)
+        if fw >= 2 * rad + 2:
+            d.rounded_rectangle([tx1, yy, tx1 + fw, yy + barh], radius=rad, fill=(col[0], col[1], col[2], 255))
+        # 數值標籤（A6-b：長條「驚人差距」沒數字看不出差多少，補上百分比錨在條尾）
+        vtxt = f"{prog * 100:.0f}%"
+        vy = yy + barh // 2
+        try:
+            vx = tx1 + fw - int(md * 0.010) if fw >= int(md * 0.06) else tx1 + fw + int(md * 0.010)
+            vanchor = "rm" if fw >= int(md * 0.06) else "lm"
+            vcol = (10, 14, 26, 255) if fw >= int(md * 0.06) else (245, 248, 255, 255)
+            for dx, dy in ((-2, 0), (2, 0), (0, -2), (0, 2)):
+                d.text((vx + dx, vy + dy), vtxt, font=f_val, fill=(0, 0, 0, 160), anchor=vanchor)
+            d.text((vx, vy), vtxt, font=f_val, fill=vcol, anchor=vanchor)
+        except Exception:  # noqa: BLE001
+            pass
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    img.save(str(dest), format="PNG")
+    return dest
 
 
 def build_video(
@@ -1194,6 +2222,42 @@ def build_video(
         except Exception:  # noqa: BLE001
             video_concept = None
 
+    # 🔴 2026-08-23:本迴圈**從來沒有算過整片代號、也沒把它往下傳**,而 `_drawdown`/`_dca`/
+    # `_trend` 這些真資料圖沒有代號就 return None → 整支片退純文字卡。
+    # 實測後果(金像電 2368,649 秒):ffprobe 連 scene 閾值 0.01 都測不到任何畫面變化,
+    # 抽幀看到的是「公司是誰」「基本面資料」這種**一個數字都沒有**的標題卡;
+    # 而該檔的真實 26 年價格 CSV 就躺在 STUDIO/tw_facts_cache/2368.csv,
+    # 硬指定 force+ticker 立刻畫得出「實際最大回撤 -82.6%(2007-11-07→2012-11-16)」那張圖。
+    # render_ffmpeg 那條路徑 2026-07-28 就修好了(見該檔「解封 video_ticker」那段),
+    # **這條 moviepy 路徑漏修** —— 又是「兩份實作只修一份」(memory yt-duplicate-impl-gate-bypass)。
+    # 代號取自標題(整片主題),不取旁白:旁白順口提到 0050 不該蓋掉整片標的。
+    video_ticker = None
+    if _concept is not None:
+        try:
+            video_ticker = _concept.resolve_ticker(title or "")
+        except Exception:  # noqa: BLE001
+            video_ticker = None
+    # 認不出主題但有真標的 → 退 "trend"(攤開該檔真實走勢,是最保守的誠實選項)。
+    # 「認不出主題」不該等於「整支片沒有畫面」。
+    if video_concept is None and video_ticker:
+        video_concept = "trend"
+
+    # 同圖輪播防治:同一個概念 key 第 n 次出現就給 variant=n,concept_visuals 會據此
+    # 換時間窗(完整歷史 → 近 45% → 近 25%),同一檔的同種圖呈現「長期全景→近期特寫」。
+    _seen_key: dict = {}
+    _variants = []
+    for _sg in segments:
+        _k = None
+        if _concept is not None:
+            try:
+                _k = _concept.classify((_sg.heading or "") + " " + (_sg.narration or "")) or video_concept
+            except Exception:  # noqa: BLE001
+                _k = None
+        _n = _seen_key.get(_k, 0) if _k else 0
+        _variants.append(_n)
+        if _k:
+            _seen_key[_k] = _n + 1
+
     body_clips = []
     seg_cards = []  # 每段靜態卡 PNG 路徑(broll 段=None)，供靜態切片快路徑
     for i, seg in enumerate(segments):
@@ -1222,22 +2286,53 @@ def build_video(
         if clip is None:
             card_png = None
             try:
+                _fkey = _series_force_key(seg.heading or "")
                 card_png = render_concept_card(
                     width, height, heading=seg.heading or title, narration=seg.narration,
                     watermark=watermark, accent=accent, seed=f"{vid_seed}_{i}",
                     dest=tmp_dir / f"concept_{i:02d}.png", default_key=video_concept,
+                    force_key=_fkey, fallback_ticker=video_ticker, variant=_variants[i],
                 )
                 if card_png is not None:
                     stats["concept_used"] = stats.get("concept_used", 0) + 1
+                    # 漸進揭露(2026-08-12 抽檢後啟用):reveal/variant 參數管線早就接到
+                    # render_concept_card 卻從沒被主迴圈用過——長段落(≥18s)一張靜態圖
+                    # 掛整段,畫面死死不動(每週抽檢 6 格裡 4 格同圖)。改成前半段先給
+                    # reveal=0.55 的「畫到一半」版,後半段換完整版:同一份真數據、兩張
+                    # 靜態幀,零額外素材、渲染成本只多一張 PNG,但畫面有了「圖在長出來」
+                    # 的推進感。任何失敗就維持單卡(fail-open,不影響出片)。
+                    if per_seg >= 18:
+                        try:
+                            half_png = render_concept_card(
+                                width, height, heading=seg.heading or title,
+                                narration=seg.narration, watermark=watermark, accent=accent,
+                                seed=f"{vid_seed}_{i}",
+                                dest=tmp_dir / f"concept_{i:02d}_half.png",
+                                default_key=video_concept, force_key=_fkey, reveal=0.55,
+                                fallback_ticker=video_ticker, variant=_variants[i],
+                            )
+                            # 有些 drawer 忽略 reveal → 兩張內容一樣,比 bytes 不比路徑
+                            if (half_png is not None and Path(half_png).exists()
+                                    and Path(half_png).read_bytes() != Path(card_png).read_bytes()):
+                                _h = ImageClip(str(half_png)).set_duration(per_seg * 0.45)
+                                _f = ImageClip(str(card_png)).set_duration(per_seg * 0.55)
+                                clip = concatenate_videoclips([_h, _f])
+                        except Exception:  # noqa: BLE001
+                            clip = None  # 漸進版失敗 → 走原本單卡路徑
             except Exception as exc:  # noqa: BLE001
                 print(f"[warn] 概念圖失敗，退回 K 線卡：{exc}", file=sys.stderr)
                 card_png = None
         if clip is None:
             try:
                 if card_png is None:
-                    card_png = render_candle_card(
-                        width, height, big_text=seg.heading or title, watermark=watermark,
-                        accent=accent, seed=f"{vid_seed}_{i}", dest=tmp_dir / f"kcard_{i:02d}.png",
+                    # ⚠️ 2026-07-17 誠信:concept 沒真資料回 None 時,**不再退 render_candle_card**
+                    #   (那張是 _render_candles_strip 的 rng 隨機漫步假 K 線,見 concept_visuals.py:47)。
+                    #   退純文字卡(decor_line=False 連底圖 rng 走勢線都不畫),與 render_ffmpeg
+                    #   ._make_seg_card 的降級鏈一致(兩條路徑同步)。
+                    card_png = render_card_image(
+                        width, height, big_text=seg.heading or title, small_text="",
+                        watermark=watermark, dest=tmp_dir / f"card_{i:02d}.png", accent=accent,
+                        decor_line=False,
                     )
                 clip = ImageClip(str(card_png)).set_duration(per_seg)  # 純靜態，渲染快
             except Exception as exc:  # noqa: BLE001 - 失敗退回字卡，不影響出片
@@ -1252,6 +2347,93 @@ def build_video(
         seg_cards.append(str(card_png) if card_png else None)
         body_clips.append(clip)
 
+    # ── 實測EP招牌HUD：靜態逐段推進；非實測片零影響 ──
+    # A vs B 賽跑計分板已整條拆除（理由見 render_race_split docstring）：它印在畫面上的
+    # 百分比是「段落進度 × 0.82」的合成值，與本片數據無關，已發布 46 支中鏢。對比片現在
+    # 不上任何 HUD——這裡不要退回去改用 render_hud_strip 補位：那組是本金/餘額/天數，
+    # 對「A vs B」沒有意義，硬套就是剛修掉的那個 HUD bug（見 _ep_data_applies）。
+    hud_overlays = []
+    _title = title or ""
+    # 片型判定與 _ep_data_applies 共用 _hud_applies（不各寫一份）：非機器人實測片不上 HUD。
+    # 逐字稿要先讀出來才判得了「這片有沒有帳戶」（_hud_applies 第 3 道）→ 讀稿移到判定之前。
+    try:
+        _vt = read_voice_text(slug_paths) or " ".join(s.narration for s in segments if s.narration)
+    except Exception:  # noqa: BLE001
+        _vt = ""
+    _is_exp = _hud_applies(_title, getattr(slug_paths, "slug", ""), _vt)
+    if _is_exp:
+        try:
+            _nums = _parse_experiment_numbers(_vt)
+        except Exception:  # noqa: BLE001
+            _nums = {}
+        # ep_data 是該系列真實帳戶的權威數字，但「只在本片真的屬於那個系列」時才蓋（見 _ep_data_applies）。
+        # 舊版無條件 update → 台股/對比片被灌上不相干的帳戶數字。
+        try:
+            if _ep_data_applies(_title, getattr(slug_paths, "slug", ""), _nums):
+                _nums.update(_ep_data_numbers())
+        except Exception:  # noqa: BLE001
+            pass
+        _pr, _pct = _nums.get("principal"), _nums.get("pct")
+        _bal, _dtot = _nums.get("balance"), _nums.get("days")
+        if _bal is None and _pr is not None and _pct is not None:
+            _bal = int(_pr * (1 + _pct / 100.0))
+        _has_data = any(v is not None for v in (_pr, _pct, _bal, _dtot))
+        _n = max(1, len(seg_cards) or len(segments))
+        if _has_data:
+            from PIL import Image as _PIH
+            for i in range(_n):
+                frac = (i + 1) / _n
+                hud_png = None
+                try:
+                    _day = int(round((_dtot or _n) * frac)) if (_dtot or _is_exp) else None
+                    _bal_i = int(_pr + (_bal - _pr) * frac) if (_pr is not None and _bal is not None) else _bal
+                    _pct_i = round(_pct * frac, 2) if _pct is not None else None
+                    hud_png = render_hud_strip(width, height, dest=tmp_dir / f"hud_{i:02d}.png",
+                                               day=_day, principal=_pr, balance=_bal_i, pct=_pct_i, accent=accent)
+                except Exception:  # noqa: BLE001
+                    hud_png = None
+                if hud_png is None:
+                    continue
+                # 靜態路徑：把 HUD 烤進該段卡（存新檔，不覆蓋原檔）
+                if i < len(seg_cards) and seg_cards[i]:
+                    try:
+                        _b = _PIH.open(seg_cards[i]).convert("RGBA")
+                        _h = _PIH.open(str(hud_png)).convert("RGBA")
+                        _b.alpha_composite(_h)
+                        _outp = tmp_dir / f"cardhud_{i:02d}.png"
+                        _b.convert("RGB").save(str(_outp))
+                        seg_cards[i] = str(_outp)
+                    except Exception:  # noqa: BLE001
+                        pass
+                # 逐幀路徑：備一份 overlay
+                try:
+                    hud_overlays.append(ImageClip(str(hud_png)).set_start(i * per_seg)
+                                        .set_duration(per_seg).set_position((0, 0)))
+                except Exception:  # noqa: BLE001
+                    pass
+
+    # ── 吉祥物 IP（預設關閉：design_system.mascot_enabled=true 才貼；false 時此區完全跳過、輸出不變）──
+    #    依整支實測報酬正負選表情，收官段用 smug；比照 HUD 烤卡手法貼進段卡角落（僅靜態切片路徑）。
+    if _mascot_enabled():
+        try:
+            _mpct = _ep_data_numbers().get("pct")
+            _mn = len(seg_cards)
+            for i in range(_mn):
+                if not seg_cards[i]:
+                    continue
+                _mp = _mascot_path_for(_mpct, closing=(i == _mn - 1))
+                if not _mp:
+                    continue
+                try:
+                    _mimg = paste_mascot(seg_cards[i], _mp, position="br", scale=0.16)
+                    _mout = tmp_dir / f"cardmas_{i:02d}.png"
+                    _mimg.convert("RGB").save(str(_mout))
+                    seg_cards[i] = str(_mout)
+                except Exception:  # noqa: BLE001
+                    pass
+        except Exception:  # noqa: BLE001
+            pass
+
     # intro / outro 字卡
     def _candle_segment(big_text_, suffix, dur):
         try:
@@ -1264,7 +2446,18 @@ def build_video(
                                       watermark=watermark, dest=tmp_dir / f"card_{suffix}.png", accent=accent)
             return ImageClip(str(cardp)).set_duration(dur)
 
-    intro_clip = _candle_segment(title, "intro", INTRO_DURATION)
+    # 品牌固定片頭：有品牌素材（intro_template/logo/mascot）才啟用；否則 None→退回既有 K 線標題卡降級鏈
+    intro_clip = None
+    try:
+        _mpath_i = _mascot_path_for(_ep_data_numbers().get("pct")) if _mascot_enabled() else None
+        _bi = render_brand_intro(width, height, title=title, dest=tmp_dir / "brand_intro.png",
+                                 tagline=branding.get("intro_tagline"), mascot_path=_mpath_i)
+        if _bi:
+            intro_clip = ImageClip(str(_bi)).set_duration(INTRO_DURATION)
+    except Exception as _bie:  # noqa: BLE001
+        print(f"[warn] 品牌片頭略過，退回 K 線卡：{str(_bie)[:70]}", file=sys.stderr)
+    if intro_clip is None:
+        intro_clip = _candle_segment(title, "intro", INTRO_DURATION)
     # Shorts 開場改用高質感封面（取代 K 線標題卡；同一張供縮圖重用，失敗則沿用 K 線卡不影響渲染）
     _slug = str(getattr(slug_paths, "slug", "") or "")
     if _slug.startswith("S_"):
@@ -1291,7 +2484,8 @@ def build_video(
         voice_text = read_voice_text(slug_paths)
         if not voice_text:
             voice_text = " ".join(s.narration for s in segments if s.narration).strip()
-        cues = build_subtitle_cues(split_subtitle_units(voice_text), audio_duration)
+        cues = (load_word_cues(slug_paths, voice_text, audio_duration)
+                or build_subtitle_cues(split_subtitle_units(voice_text), audio_duration))
         stats["subtitle_count"] = len(cues)
 
     _all_static = bool(seg_cards) and all(p is not None for p in seg_cards) and len(seg_cards) == len(segments)
@@ -1362,14 +2556,25 @@ def build_video(
                 except Exception:  # noqa: BLE001
                     pass
                 sub_overlays.append(ov)
-            if sub_overlays:
-                body = CompositeVideoClip([body, *sub_overlays], size=(width, height))
+            if sub_overlays or hud_overlays:
+                body = CompositeVideoClip([body, *hud_overlays, *sub_overlays], size=(width, height))
 
     # 配上音訊（只在 body 段落，intro/outro 無聲）
     audio = AudioFileClip(str(slug_paths.audio))
     body = body.set_audio(audio).set_duration(audio_duration)
 
-    final = concatenate_videoclips([intro_clip, body, outro_clip], method="compose")
+    # 無縫 loop 尾(item9):片尾淡回片頭首幀(Shorts 開場=封面),讓重播無縫→拉高 loop 完播
+    # (2026 演算法:結尾 2 秒內重看算部分新觀看)。純加法+try 防呆:失敗只是不加尾,concat 照跑,絕不弄壞產線。
+    # MV_NO_LOOP_TAIL=1 可一鍵關。
+    _clips = [intro_clip, body, outro_clip]
+    if os.environ.get("MV_NO_LOOP_TAIL") != "1":
+        try:
+            _loop_dur = 0.6
+            _tail = intro_clip.to_ImageClip(0).set_duration(_loop_dur).crossfadein(min(0.4, _loop_dur))
+            _clips.append(_tail)
+        except Exception as _lte:  # noqa: BLE001
+            print(f"[warn] loop 尾略過,用標準結尾:{str(_lte)[:60]}", file=sys.stderr)
+    final = concatenate_videoclips(_clips, method="compose")
     final = final.set_fps(fps)
 
     slug_paths.out_mp4.parent.mkdir(parents=True, exist_ok=True)
@@ -1395,9 +2600,15 @@ def build_video(
             pass
     print(f"[編碼] 使用 {_codec}（preset={_preset}）", file=sys.stderr)
 
+    # 直接寫真正輸出路徑很危險：moviepy 中途被殺（batch timeout kill 整組子行程）或編碼中途炸掉，
+    # 會在 output/ 留一個 0KB/截斷的 mp4，audit_video 事後才抓到、白算一次有效產量。
+    # 改成先寫暫存檔，探測(視訊軌/音軌/片長)過了才搬進正式路徑；沒過 raise 讓外層重試迴圈接手，
+    # 正式路徑要嘛不動、要嘛是已驗證的完整檔，絕不留半成品。
+    _tmp_out = tmp_dir / f"_render_{getattr(slug_paths, 'slug', 'out')}.mp4"
+
     def _write(cv, pr, extra):
         final.write_videofile(
-            str(slug_paths.out_mp4),
+            str(_tmp_out),
             fps=fps,
             codec=cv,
             audio_codec="aac",
@@ -1433,25 +2644,52 @@ def build_video(
             except Exception:  # noqa: BLE001
                 pass
 
+    # P0 止血(2026-07-13)：成品長度必須 ≥ 旁白長度(0.95 容錯)，不再只查 >=1.0s 這種形同虛設
+    # 的下限——04_0056 事故的斷尾片(旁白218.9s/成品61.7s)靠舊下限一樣能 PASS。
+    _expected_min = max(1.0, (INTRO_DURATION + audio_duration + OUTRO_DURATION) * 0.95)
+    _ok, _reason = _probe_render_output(_tmp_out, min_duration=_expected_min)
+    if not _ok:
+        try:
+            _tmp_out.unlink(missing_ok=True)
+        except Exception:  # noqa: BLE001
+            pass
+        _log_render_ops("make_video/moviepy驗證失敗", f"{getattr(slug_paths, 'slug', '?')}: {_reason}")
+        raise RuntimeError(f"moviepy 輸出驗證失敗：{_reason}")
+    slug_paths.out_mp4.parent.mkdir(parents=True, exist_ok=True)
+    import shutil as _sh_move
+    _sh_move.move(str(_tmp_out), str(slug_paths.out_mp4))
+
     stats["total_duration"] = INTRO_DURATION + audio_duration + OUTRO_DURATION
     return stats
 
 
 def _wrap_to_width(draw, text: str, font, max_w: int) -> list:
-    """依像素寬度把字串折成多行（適合中文逐字折行），每行不超過 max_w。"""
+    """依像素寬度把字串折成多行（中文逐字折行），每行不超過 max_w。
+
+    2026-08-12 抽檢抓到:純逐字折行會把英文單字從中間切開——結尾卡的
+    「量化阿森｜Carson Quant」被折成「…Carson Qua / nt」。改成英數詞
+    (Carson/Quant/0050/ETF/28.5%)當**不可分割 token**,中文仍逐字。"""
+    def _w(s):
+        try:
+            return draw.textlength(s, font=font)
+        except Exception:  # noqa: BLE001
+            return len(s) * 12
+
     lines: list = []
     cur = ""
-    for ch in text:
-        test = cur + ch
-        try:
-            w = draw.textlength(test, font=font)
-        except Exception:  # noqa: BLE001
-            w = len(test) * 12
-        if w <= max_w or not cur:
-            cur = test
-        else:
-            lines.append(cur)
-            cur = ch
+    for tk in re.findall(r"[0-9A-Za-z%.]+|.", text):
+        # 🔴 2026-09-19:英數 token 當不可分割是對的,但它自己可能就比一整行還寬
+        # (一長串沒有空格的英數)。舊版靠 `not cur` 硬把它收進來,那一行於是超過 max_w
+        # ——而呼叫端一律 x=(width-w)//2 置中,w>width 時 x 變負數,標題左右兩端被畫到
+        # 畫面外。折行函式的契約(每行不超過 max_w)在這條路徑上是破的。
+        # 修法:token 自己就超寬時退回逐字切,契約才對所有輸入成立。
+        for piece in ([tk] if _w(tk) <= max_w else list(tk)):
+            test = cur + piece
+            if _w(test) <= max_w or not cur:
+                cur = test
+            else:
+                lines.append(cur)
+                cur = piece
     if cur:
         lines.append(cur)
     return lines or [text]
@@ -1464,7 +2702,7 @@ def _render_subtitle_image(width: int, height: int, text: str, tmp_dir: Path, ac
     except Exception:  # noqa: BLE001
         return None
 
-    fsize = max(40, min(int(height * 0.052), int(width * 0.072)))
+    fsize = max(44, min(int(height * 0.060), int(width * 0.082)))
     font = _load_font(fsize, bold=True)
     side = int(width * 0.045)
     max_w = width - 2 * side
@@ -1492,7 +2730,9 @@ def _render_subtitle_image(width: int, height: int, text: str, tmp_dir: Path, ac
     img = Image.new("RGBA", (max(iw, 1), max(ih, 1)), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
     rad = int(min(iw, ih) * 0.22)
-    draw.rounded_rectangle([0, 0, iw - 1, ih - 1], radius=rad, fill=(8, 12, 24, 185),
+    # 全不透明(255)：字幕框常跟概念圖的圖說/圖例同一 y 帶(A6-b)，半透明(舊 185)會讓
+    # 底下文字「穿透」變殘影字；248 仍會漏一絲字跡，拉到全不透明才是真的完全蓋掉。
+    draw.rounded_rectangle([0, 0, iw - 1, ih - 1], radius=rad, fill=(8, 12, 24, 255),
                            outline=(accent[0], accent[1], accent[2], 150), width=max(2, int(fsize * 0.045)))
 
     y = pad_y
@@ -1669,6 +2909,19 @@ def run(args: argparse.Namespace) -> int:
     # 手動建暫存夾，改用「容忍 Windows 檔案鎖」的清理，避免 moviepy/ffmpeg 尚未釋放
     # 的 B-roll 檔 handle 在自動清理時拋 PermissionError，連帶把已產出的 mp4 也判成失敗。
     # 自我修復：渲染失敗自動重試一次（吸收 ffmpeg/網路抖動等暫時性錯誤）
+    # 🔴 2026-08-02 旁白/語速健檢:兩條渲染路徑**都要**擋,不能只擋 ffmpeg 那條。
+    # 血淚:先只在 render_ffmpeg 加健檢,結果壞片被擋出 ffmpeg 路徑後**掉進下面的 moviepy 備案**
+    # ——那條是逐幀 PIL(float32 1080x1920),更吃記憶體,實測直接噴
+    # `MemoryError: Unable to allocate 23.7 MiB ... (1080,1920,3) float32`。
+    # 也就是說「只擋一條路」比不擋更糟:把壞片推去了更危險的那一條。
+    try:
+        import render_ffmpeg as _rf_gate
+        if not _rf_gate._speech_rate_sane(slug_paths):
+            print("[make_video] 旁白健檢未過 → 兩條渲染路徑都不跑"
+                  "(避免掉進更吃記憶體的 moviepy 備案)。", file=sys.stderr)
+            return 1
+    except Exception:  # noqa: BLE001  健檢自己壞掉不可以擋住產線
+        pass
     # ── 純 ffmpeg 後端優先(本機/雲端都快 ~10x):純字卡 + b-roll 都走它;
     #    任何失敗自動回 moviepy 備案(Phase 2:b-roll 已支援) ──
     if not os.environ.get("MV_FORCE_MOVIEPY"):
@@ -1676,16 +2929,27 @@ def run(args: argparse.Namespace) -> int:
             import render_ffmpeg
             if render_ffmpeg.render(slug_paths, branding, width=width, height=height,
                                     fps=fps, no_subtitles=args.no_subtitles):
-                size_mb = slug_paths.out_mp4.stat().st_size / (1024 * 1024) if slug_paths.out_mp4.exists() else 0
-                print("=" * 64)
-                print("[OK] 影片完成（ffmpeg 後端·快）！")
-                print(f"  檔案     : {slug_paths.out_mp4}")
-                print(f"  大小     : {size_mb:.1f} MB")
-                print("=" * 64)
-                return 0
-            print("[info] ffmpeg 後端不適用此片，改用 moviepy 備案。", file=sys.stderr)
+                # 二次防呆：render_ffmpeg 內部已驗證過，這裡再探一次（成本極低），
+                # 徹底堵死「回傳 True 但正式路徑其實是壞檔」的任何殘餘縫隙。
+                # P0 止血(2026-07-13)：一併查長度與旁白是否匹配(≥95%)，別只查 >=1.0s。
+                _expected_min = max(1.0, (INTRO_DURATION + duration + OUTRO_DURATION) * 0.95)
+                _ok, _reason = _probe_render_output(slug_paths.out_mp4, min_duration=_expected_min)
+                if _ok:
+                    size_mb = slug_paths.out_mp4.stat().st_size / (1024 * 1024)
+                    print("=" * 64)
+                    print("[OK] 影片完成（ffmpeg 後端·快）！")
+                    print(f"  檔案     : {slug_paths.out_mp4}")
+                    print(f"  大小     : {size_mb:.1f} MB")
+                    print("=" * 64)
+                    return 0
+                print(f"[warn] ffmpeg 後端輸出驗證未過（{_reason}），清除壞檔改用 moviepy 備案。", file=sys.stderr)
+                _cleanup_bad_output(slug_paths.out_mp4)
+                _log_render_ops("make_video/ffmpeg後端驗證失敗", f"{slug_paths.slug}: {_reason}")
+            else:
+                print("[info] ffmpeg 後端不適用此片，改用 moviepy 備案。", file=sys.stderr)
         except Exception as _ff_exc:  # noqa: BLE001
             print(f"[warn] ffmpeg 後端失敗（{_ff_exc}），改用 moviepy 備案。", file=sys.stderr)
+            _cleanup_bad_output(slug_paths.out_mp4)
 
     stats = None
     last_exc = None
@@ -1713,6 +2977,14 @@ def run(args: argparse.Namespace) -> int:
             _gc.collect()
             _shutil.rmtree(tmp_dir, ignore_errors=True)
     if stats is None:
+        # 兩次都沒過：正式路徑本身這次沒被寫壞（build_video 只搬「已驗證」的檔），
+        # 但保險起見仍探一次——若殘留舊壞檔（例如舊版程式留下的），一併清掉，
+        # 別讓 audit_video 事後才發現、白算一次有效產量。
+        _expected_min = max(1.0, (INTRO_DURATION + duration + OUTRO_DURATION) * 0.95)
+        _ok, _reason = _probe_render_output(slug_paths.out_mp4, min_duration=_expected_min)
+        if not _ok:
+            _cleanup_bad_output(slug_paths.out_mp4)
+        _log_render_ops("make_video/總失敗", f"{slug_paths.slug}: {type(last_exc).__name__}: {last_exc}")
         print(f"[FATAL] 影片組裝失敗（{type(last_exc).__name__}: {last_exc}）", file=sys.stderr)
         print("  常見原因：ffmpeg 未安裝或不在 PATH（winget install Gyan.FFmpeg）。", file=sys.stderr)
         return 4

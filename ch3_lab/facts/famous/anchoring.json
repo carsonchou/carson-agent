@@ -1,0 +1,22 @@
+{
+ "claim": "Anchoring",
+ "doi": "https://doi.org/10.1027/1864-9335/a000178",
+ "title": "Investigating Variation in Replicability",
+ "year": 2014,
+ "journal": "Social Psychology",
+ "cited_by": 1271,
+ "abstract_chars": 844,
+ "found": {
+  "n": [
+   {
+    "value": "6,344",
+    "src": "This research tested variation in the replicability of 13 classic and contemporary effects across 36 independent samples totaling 6,344 participants."
+   }
+  ],
+  "effect": [],
+  "ci": [],
+  "k": []
+ },
+ "status": "PARTIAL",
+ "abstract": "Although replication is a central tenet of science, direct replications are rare in psychology. This research tested variation in the replicability of 13 classic and contemporary effects across 36 independent samples totaling 6,344 participants. In the aggregate, 10 effects replicated consistently. One effect – imagined contact reducing prejudice – showed weak support for replicability. And two effects – flag priming influencing conservatism and currency priming influencing system justification – did not replicate. We compared whether the conditions such as lab versus online or US versus international sample predicted effect magnitudes. By and large they did not. The results of this small sample of effects suggest that replicability is more dependent on the effect itself than on the sample and setting used to investigate the effect."
+}

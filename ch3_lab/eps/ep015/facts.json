@@ -1,0 +1,33 @@
+{
+ "claim": "We investigated the hypothesis that group members would reject outgroup criticism (as compared to the same criticism from the ingroup) using costly punishment",
+ "es_type": "d",
+ "orig": {
+  "n": 135,
+  "es": 0.35,
+  "year": 2018,
+  "title": "Beyond motivated reasoning: Hostile reactions to critical comments from the outgroup.",
+  "author": "[{\"given\":\"J. Lukas\",\"family\":\"Thürmer\",\"sequence\":\"first\"},{\"given\":\"Sean M.\",\"",
+  "doi": "10.1037/mot0000097",
+  "url": ""
+ },
+ "repl": {
+  "n": 740,
+  "es": 0.34,
+  "year": 2021,
+  "title": "Disentangling the intergroup sensitivity effect: Defending the ingroup or enforcing general norms?",
+  "doi": "10.1002/ejsp.2748",
+  "url": ""
+ },
+ "verdict": "successful",
+ "p_repl": 0.001,
+ "p_type_repl": "l (<)",
+ "p_tails_repl": "",
+ "source": "FORRT Replication Database (FReD), OSF 2tbvd",
+ "record": {
+  "fred_id": "soscisubmission45",
+  "effect_id": "1069",
+  "prereg": "https://osf.io/49yza"
+ },
+ "n_ratio": 5.5,
+ "tone": "held"
+}

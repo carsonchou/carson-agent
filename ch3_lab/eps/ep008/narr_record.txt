@@ -1,0 +1,1 @@
+None of this is my reading of the papers. It is one row of a public database, and this is the row. The replication was preregistered and it is not small: 564 people, with the design and the analysis both filed before anyone was recruited. Both papers are linked below, so you can check it yourself.

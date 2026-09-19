@@ -1,0 +1,57 @@
+{
+ "accent": "#FFC23D",
+ "canvas": [
+  1080,
+  1920,
+  30
+ ],
+ "card": "The effect did not survive.",
+ "claim_lines": [
+  "THINK ANALYTICALLY AND",
+  "CONSPIRACY BELIEF DROPS"
+ ],
+ "color": "#F5A54E",
+ "end_card": [
+  "Every number",
+  "from the record"
+ ],
+ "frames": "3b32565f2ab09072",
+ "fs": {
+  "big": 260,
+  "card": 58,
+  "claim": {
+   "fs": 64,
+   "lines": [
+    "THINK",
+    "ANALYTICALLY",
+    "AND CONSPIRACY",
+    "BELIEF DROPS"
+   ],
+   "ys": [
+    0.6318,
+    0.5739,
+    0.5161,
+    0.4582
+   ]
+  },
+  "end": 75,
+  "es_o": 210,
+  "es_r2": 210,
+  "kicker": 46,
+  "meas": 50,
+  "src": 34,
+  "sub": 41
+ },
+ "kicker": "A STUDY FOUND",
+ "palette": [
+  "#0E1116",
+  "#E8EAED",
+  "#8A9099"
+ ],
+ "safe": [
+  0.86,
+  0.24,
+  0.9099999999999999
+ ],
+ "source": "FORRT Replication Database (FReD), OSF 2tbvd"
+}

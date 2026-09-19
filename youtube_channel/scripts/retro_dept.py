@@ -30,6 +30,9 @@ ROOT = Path(__file__).resolve().parent.parent
 SCR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCR))
 
+import studio_common as sc          # 共用地基：PERSONA / has_llm_key
+import llm                          # 共用 LLM 路由
+
 STUDIO = ROOT / "STUDIO"
 REPORTS = STUDIO / "REPORTS"
 OUT = ROOT / "output"
@@ -39,8 +42,6 @@ DIRECTIVES = STUDIO / "boss_directives.json"
 HISTORY = STUDIO / "metrics_history.json"
 DAILY = STUDIO / "metrics_daily.json"   # 乾淨每日快照（不被 GUI 每分鐘汙染）
 OPS = STUDIO / "ops_log.txt"
-API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
-MODEL = "claude-haiku-4-5-20251001"
 RETRO_TAG = "【自省優化】"
 
 try:
@@ -114,14 +115,34 @@ def collect():
     stats = None
     try:
         from decision_dept import yt_service, gather_stats
-        rows = gather_stats(yt_service())
-        stats = {
-            "total_views": sum(r["views"] for r in rows),
-            "n_videos": len(rows),
-            "top": [{"title": r["title"], "views": r["views"], "is_short": r["is_short"]} for r in rows[:5]],
-            "bottom": [{"title": r["title"], "views": r["views"], "is_short": r["is_short"]}
-                       for r in rows[-5:] if r["views"] >= 0][::-1] if len(rows) > 5 else [],
-        }
+        fetch = {}
+        rows = gather_stats(yt_service(), report=fetch)
+        # 2026-08-24 fail-closed:分塊查詢只要有任何一塊失敗(多半是 403 quotaExceeded),
+        # 回來的 rows 就是殘缺的,len(rows) 不等於頻道影片數。以前這種殘缺資料照樣寫進
+        # 快照,害趨勢算出 -98.5% 假崩盤(07-11/07-15/08-22 三次都是)。
+        # 判準用「有沒有失敗塊」這個結構事實,不用跌幅門檻——門檻要校準又擋不住 07-11 的 -53.5%。
+        if not fetch.get("complete", True):
+            sig["stats_err"] = ("抓取殘缺:%s/%s 塊失敗,只回 %s/%s 筆(多半是配額耗盡)"
+                                % (fetch.get("chunks_failed"), fetch.get("chunks_total"),
+                                   fetch.get("returned"), fetch.get("requested")))
+            print("[retro_dept][ABORT] %s → 本次不寫快照,避免污染趨勢" % sig["stats_err"],
+                  file=sys.stderr)
+            try:
+                from notify import push
+                push("量化阿森·數據抓取殘缺",
+                     sig["stats_err"] + "\n本次不寫 metrics 快照(fail-closed)。"
+                     "配額耗盡的話趨勢會停在前一天,不是真的沒成長。",
+                     tag="warning")
+            except Exception:  # noqa: BLE001
+                pass
+        else:
+            stats = {
+                "total_views": sum(r["views"] for r in rows),
+                "n_videos": len(rows),
+                "top": [{"title": r["title"], "views": r["views"], "is_short": r["is_short"]} for r in rows[:5]],
+                "bottom": [{"title": r["title"], "views": r["views"], "is_short": r["is_short"]}
+                           for r in rows[-5:] if r["views"] >= 0][::-1] if len(rows) > 5 else [],
+            }
     except Exception as e:  # noqa: BLE001
         sig["stats_err"] = str(e)[:80]
     sig["stats"] = stats
@@ -173,7 +194,7 @@ def rule_optimizations(sig):
         reasons = sorted({r for f in sig["audit_fail"] for r in f.get("reasons", [])})
         opt.append(f"審核未過 {len(sig['audit_fail'])} 支，腳本下輪務必避免：{ '；'.join(reasons)[:160] }")
     if nprod == 0 and not paused:
-        opt.append("今日零產出 → 檢查補產流程（ANTHROPIC_API_KEY／配音／make_video）是否中斷。")
+        opt.append("今日零產出 → 檢查補產流程（LLM 供應商 key／配音／make_video）是否中斷。")
     elif len(sig["shorts_today"]) < 3 and not paused:
         opt.append(f"Shorts 今日只產 {len(sig['shorts_today'])} 支（KPI≥3）→ 下輪加碼 Shorts 衝量。")
     if sig.get("stats") and sig["stats"]["total_views"] == 0:
@@ -201,15 +222,19 @@ def rule_optimizations(sig):
 # 3) Claude 加強分析（有金鑰才跑）→ 補充優化 + 生產偏好
 # --------------------------------------------------------------------------- #
 def claude_optimizations(sig, report_md):
-    if not API_KEY:
+    if not sc.has_llm_key():
         return None
     try:
-        import requests
-        prompt = f"""你是量化阿森 YouTube 工作室的【回顧檢討部門】總監。以下是本輪自動產線的回顧報告。
-請做**冷靜的自我檢討**並只輸出 JSON（不要多餘字）：
+        prompt = f"""{sc.PERSONA}
+
+你是量化阿森 YouTube 工作室的【回顧檢討部門】總監。以下是本輪自動產線的回顧報告。
+請做**冷靜的自我檢討**。除了流量/完播/CTR，這輪特別要檢視兩個定位維度：
+ (A) 小白白話化程度——內容夠不夠白話、術語有沒有翻成人話，別讓怕被割的新手看不懂；
+ (B) 避雷角度覆蓋率——有沒有站在「我先幫你試、別自己送死」戳恐懼再給安心的避雷角度。
+只輸出 JSON（不要多餘字）：
 {{
- "diagnosis":"一句話本輪總體判斷",
- "optimizations":["2-4 條具體、可執行的優化動作（給各部門下輪照做）"],
+ "diagnosis":"一句話本輪總體判斷（含白話化程度、避雷角度覆蓋率的觀察）",
+ "optimizations":["2-4 條具體可執行的優化動作（含如何更白話、該補哪種避雷角度；給各部門下輪照做）"],
  "produce_more":["建議多做的題材/角度(可空)"],
  "avoid_topics":["建議少做的題材(可空)"]
 }}
@@ -218,13 +243,7 @@ def claude_optimizations(sig, report_md):
 
 === 回顧報告 ===
 {report_md[:3500]}"""
-        r = requests.post("https://api.anthropic.com/v1/messages",
-                          headers={"x-api-key": API_KEY, "anthropic-version": "2023-06-01",
-                                   "content-type": "application/json"},
-                          json={"model": MODEL, "max_tokens": 1200,
-                                "messages": [{"role": "user", "content": prompt}]}, timeout=120)
-        r.raise_for_status()
-        txt = r.json()["content"][0]["text"]
+        txt = llm.complete(prompt, 1200, json_mode=True)
         m = re.search(r"\{.*\}", txt, re.S)
         return json.loads(m.group(0)) if m else None
     except Exception as e:  # noqa: BLE001
@@ -300,7 +319,7 @@ def apply_optimizations(sig, rule_opt, ai):
         ds.append(f"{RETRO_TAG}{sig['date']}｜{a}")
     d["directives"] = ds
     DIRECTIVES.parent.mkdir(parents=True, exist_ok=True)
-    DIRECTIVES.write_text(json.dumps(d, ensure_ascii=False, indent=2), encoding="utf-8")
+    sc.save_json_atomic(DIRECTIVES, d)
 
     # 4b) 生產偏好 → production_orders（合併 avoid/多做，去重）
     if ai and (ai.get("avoid_topics") or ai.get("produce_more")):
@@ -316,7 +335,7 @@ def apply_optimizations(sig, rule_opt, ai):
         merge("avoid_topics", ai.get("avoid_topics"))
         merge("produce_more", ai.get("produce_more"))
         orders["retro_updated"] = sig["date"]
-        ORDERS.write_text(json.dumps(orders, ensure_ascii=False, indent=2), encoding="utf-8")
+        sc.save_json_atomic(ORDERS, orders)
 
     # 4c) 訊號注入題庫：把 produce_more 推進 topic_bank（優先製作）
     try:
@@ -332,7 +351,10 @@ def apply_optimizations(sig, rule_opt, ai):
 
 def save_snapshot(sig):
     st = sig.get("stats") or {}
-    entry = {"date": sig["date"], "total_views": st.get("total_views"),
+    tv = st.get("total_views")
+    if not tv:  # total_views 為 0/None 多半是抓取失敗的降級寫入 → 別寫,避免污染趨勢成假歸零鋸齒
+        return
+    entry = {"date": sig["date"], "total_views": tv,
              "n_videos": st.get("n_videos"), "uploaded": sig["total_uploaded"],
              "shorts_today": len(sig["shorts_today"]), "longs_today": len(sig["longs_today"]),
              "audit_fail": len(sig["audit_fail"])}
@@ -340,6 +362,7 @@ def save_snapshot(sig):
     hist = _load(HISTORY, [])
     if not isinstance(hist, list):
         hist = []
+    hist = [x for x in hist if x.get("date") != sig["date"]]  # 同日去重(留最新一筆)
     hist.append(entry)
     HISTORY.write_text(json.dumps(hist[-120:], ensure_ascii=False, indent=2), encoding="utf-8")
     # 新：寫乾淨的每日快照（retro 優先讀這份算 delta，不被 GUI 汙染）

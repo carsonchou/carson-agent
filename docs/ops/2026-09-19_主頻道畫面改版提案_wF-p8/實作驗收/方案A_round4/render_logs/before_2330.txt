@@ -1,0 +1,33 @@
+[_llm_shim] \u26a0\ufe0f ���] OPENROUTER_API_KEY,shim **������** �X�X �� process �� Anthropic �|���q�u���I(�b�ᦳ���N�|�u���p�O)
+[ffmpeg後端] 首幀=大數字衝擊卡 (hook_card)
+[換視角] 第0段 原圖=dca 換到=['history', 'fundamentals'] 缺資料跳過=(無)
+[換視角] 第1段 原圖=dca 換到=['valuation', 'drawdown'] 缺資料跳過=(無)
+[換視角] 第2段 原圖=drawdown 換到=['trend', 'valuation'] 缺資料跳過=(無)
+[換視角] 第3段 原圖=dca 換到=['drawdown', 'trend'] 缺資料跳過=(無)
+[換視角] 第4段 原圖=dca 換到=['trend', 'history'] 缺資料跳過=(無)
+[換視角] 第5段 原圖=drawdown 換到=['dca', 'history'] 缺資料跳過=(無)
+[換視角] 第6段 原圖=drawdown 換到=['history', 'fundamentals'] 缺資料跳過=(無)
+[換視角] 第7段 原圖=drawdown 換到=['fundamentals', 'valuation'] 缺資料跳過=(無)
+[數字閘門] 2330 看過 125 句 → {'④': 79, '放行': 4, '②': 32, '①': 9, '③': 1};印出 [('numpop_0.png', 31.92), ('numpop_1.png', 340.5), ('numpop_2.png', 417.27), ('numpop_cta.png', 41.99)]
+[ffmpeg後端] 數字爆現:4 個 overlay
+[隔離] make_video <- D:\_sandbox_wFp8_B\youtube_channel\scripts\make_video.py
+[隔離] render_ffmpeg <- D:\_sandbox_wFp8_B\youtube_channel\scripts\render_ffmpeg.py
+[隔離] concept_visuals <- D:\_sandbox_wFp8_B\youtube_channel\scripts\concept_visuals.py
+[隔離] PROJECT_ROOT = D:\_sandbox_wFp8_B\youtube_channel
+================================================================
+開始組片：L_個股體檢EP1台積電233020年翻84倍但你要先熬
+  標題     : 台積電2330體檢報告：20年翻84倍，但你要先熬過10.7年套牢｜個股體檢 EP1
+  配音長   : 566.6s（8 段）
+  素材來源 : 字卡降級（無 PEXELS_API_KEY）
+  解析度   : 1920x1080 @ 24fps
+  [note] 未設定 PEXELS_API_KEY，全程使用字卡投影片（仍可產出完整測試片）。
+================================================================
+[ffmpeg後端] 編碼器=libx264  切片=190段  字幕=193  BGM=有  總長=574.2s
+[ffmpeg後端] ✅ 完成 before_2330.mp4（20.4 MB）
+================================================================
+[OK] 影片完成（ffmpeg 後端·快）！
+  檔案     : D:\_sandbox_wFp8_B\after\before_2330.mp4
+  大小     : 20.4 MB
+================================================================
+[渲染] rc=0 耗時=307.5s -> D:\_sandbox_wFp8_B\after\before_2330.mp4
+[渲染] mp4存在=True 大小=21429111

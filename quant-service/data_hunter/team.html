@@ -30,6 +30,12 @@ header{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 14p
 #scan-btn:hover{background:#5ba0ff}
 #scan-btn:disabled{opacity:.5;cursor:default}
 
+/* ── 分頁切換 ── */
+.tab-bar{background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:4px;padding:0 14px;height:36px;flex-shrink:0}
+.tab-btn{padding:6px 16px;border-radius:6px 6px 0 0;font-size:13px;font-weight:600;cursor:pointer;border:none;background:transparent;color:var(--text2);transition:.15s;text-decoration:none;display:flex;align-items:center;gap:6px}
+.tab-btn:hover{color:var(--text);background:var(--bg3)}
+.tab-btn.active{color:var(--cyan);background:var(--bg3);border-bottom:2px solid var(--cyan)}
+
 /* ── 拖曳三欄 ── */
 .main{display:flex;flex:1;overflow:hidden}
 .col{overflow-y:auto;overflow-x:hidden;padding:14px}
@@ -123,6 +129,23 @@ header{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 14p
 .view-note.neg{color:var(--red)}
 .view-note.warn{color:var(--orange)}
 
+/* ── 操作區間 ── */
+.zone-box{background:var(--bg4);border:1px solid var(--border2);border-radius:7px;padding:9px 12px;margin-top:8px;display:flex;flex-direction:column;gap:5px}
+.zone-title{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:2px}
+.zone-row{display:flex;align-items:center;gap:8px}
+.zone-label{font-size:11px;color:var(--text3);width:28px;flex-shrink:0}
+.zone-val{font-size:14px;font-weight:700}
+.zone-val.entry{color:var(--cyan)}
+.zone-val.stop{color:var(--red)}
+.zone-val.target{color:var(--green)}
+.zone-rr{font-size:11px;color:var(--text2);margin-left:auto}
+.zone-bar{height:6px;background:var(--bg);border-radius:3px;overflow:visible;position:relative;margin:2px 0 4px}
+.zone-bar-stop{position:absolute;height:100%;background:var(--red);border-radius:3px 0 0 3px;opacity:.6}
+.zone-bar-entry{position:absolute;height:100%;background:var(--cyan);opacity:.8}
+.zone-bar-t1{position:absolute;height:100%;background:var(--green);border-radius:0 3px 3px 0;opacity:.5}
+.zone-bar-marker{position:absolute;top:-3px;width:2px;height:12px;border-radius:1px;background:var(--text)}
+.zone-no{font-size:12px;color:var(--text3);font-style:italic;margin-top:6px}
+
 .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:260px;color:var(--text3);gap:12px}
 .empty-icon{font-size:44px;opacity:.3}
 .empty-txt{font-size:15px}
@@ -145,6 +168,11 @@ header{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 14p
   <span class="ts" id="ts">—</span>
   <button id="scan-btn" onclick="triggerScan()">⚡ 掃描宇宙</button>
 </header>
+
+<div class="tab-bar">
+  <a class="tab-btn" href="/market">📡 數據獵手</a>
+  <a class="tab-btn active" href="/">🧑‍💼 分析團隊</a>
+</div>
 
 <div class="main" id="main">
   <!-- 左欄 -->
@@ -370,6 +398,45 @@ function setPanel(key, score, items, emptyMsg){
   }
 }
 
+// ── 操作區間視覺化 ─────────────────────────────────────────────
+function buildZoneHtml(zone){
+  if(!zone) return '<div class="zone-no">此維度分數不足，不建議操作</div>';
+  const {entry_lo, entry_hi, stop, target1, target2, rr} = zone;
+  // 計算相對位置（用 stop~target2 為全距）
+  const lo = Math.min(stop, entry_lo) * 0.995;
+  const hi = Math.max(target2, target1) * 1.005;
+  const span = hi - lo;
+  const pct = v => span > 0 ? Math.max(0, Math.min(100, (v - lo) / span * 100)) : 0;
+  const stopPct   = pct(stop);
+  const entryLoPct = pct(entry_lo);
+  const entryHiPct = pct(entry_hi);
+  const t1Pct     = pct(target1);
+  const t2Pct     = pct(target2);
+
+  return `<div class="zone-box">
+    <div class="zone-title">操作區間</div>
+    <div style="position:relative;height:6px;background:var(--bg);border-radius:3px;margin:2px 0 6px">
+      <div class="zone-bar-stop"    style="left:0;width:${stopPct}%"></div>
+      <div class="zone-bar-entry"   style="left:${stopPct}%;width:${entryHiPct-stopPct}%"></div>
+      <div class="zone-bar-t1"      style="left:${entryHiPct}%;width:${t2Pct-entryHiPct}%"></div>
+      <div class="zone-bar-marker"  style="left:${entryLoPct}%"></div>
+    </div>
+    <div class="zone-row">
+      <span class="zone-label">進場</span>
+      <span class="zone-val entry">${entry_lo} ～ ${entry_hi}</span>
+      <span class="zone-rr">風報比 1:${rr}</span>
+    </div>
+    <div class="zone-row">
+      <span class="zone-label">停損</span>
+      <span class="zone-val stop">${stop}</span>
+    </div>
+    <div class="zone-row">
+      <span class="zone-label">目標</span>
+      <span class="zone-val target">${target1} &nbsp;/&nbsp; ${target2}</span>
+    </div>
+  </div>`;
+}
+
 // ── 個股分析 ────────────────────────────────────────────────
 async function doAnalyze(){
   const code = document.getElementById('code-input').value.trim().toUpperCase();
@@ -414,6 +481,7 @@ function renderResult(bd, res, cached){
   Object.entries(res.views).forEach(([key,v])=>{
     const card=document.createElement('div'); card.className='view-card';
     const col=COLORS[key]||'var(--blue)';
+    const zoneHtml = buildZoneHtml(v.zone);
     card.innerHTML=`
       <div class="view-hd">
         <div class="view-dot" style="background:${col}"></div>
@@ -424,7 +492,8 @@ function renderResult(bd, res, cached){
       <div class="view-notes">${(v.notes||[]).map(n=>{
         const cls=n.startsWith('✅')?'pos':n.startsWith('❌')?'neg':n.startsWith('⚠')||n.startsWith('⚡')?'warn':'';
         return `<div class="view-note ${cls}">${n}</div>`;
-      }).join('')}</div>`;
+      }).join('')}</div>
+      ${zoneHtml}`;
     bd.appendChild(card);
   });
 }

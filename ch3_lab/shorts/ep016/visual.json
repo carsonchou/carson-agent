@@ -1,0 +1,57 @@
+{
+ "accent": "#FFC23D",
+ "canvas": [
+  1080,
+  1920,
+  30
+ ],
+ "card": "The effect did not survive.",
+ "claim_lines": [
+  "CONCRETE WORDING",
+  "MAKES A CLAIM SEEM TRUER"
+ ],
+ "color": "#F5A54E",
+ "end_card": [
+  "Every number",
+  "from the record"
+ ],
+ "frames": "a51d7717b9c5a016",
+ "fs": {
+  "big": 260,
+  "card": 58,
+  "claim": {
+   "fs": 71,
+   "lines": [
+    "CONCRETE",
+    "WORDING",
+    "MAKES A CLAIM",
+    "SEEM TRUER"
+   ],
+   "ys": [
+    0.6413,
+    0.5771,
+    0.5129,
+    0.4487
+   ]
+  },
+  "end": 75,
+  "es_o": 210,
+  "es_r2": 210,
+  "kicker": 46,
+  "meas": 50,
+  "src": 34,
+  "sub": 41
+ },
+ "kicker": "A STUDY FOUND",
+ "palette": [
+  "#0E1116",
+  "#E8EAED",
+  "#8A9099"
+ ],
+ "safe": [
+  0.86,
+  0.24,
+  0.9099999999999999
+ ],
+ "source": "FORRT Replication Database (FReD), OSF 2tbvd"
+}

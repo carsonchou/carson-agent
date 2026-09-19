@@ -1,0 +1,534 @@
+{
+ "frozen_at": "2026-09-09T19:17:27.793027+08:00",
+ "channel": "UCbo4EytWhZ7zAGSoIPioJ5g",
+ "lifetime_start": "2026-01-01",
+ "as_of": "2026-09-09",
+ "denominator_rule": "帶 dimensions=insightTrafficSourceType 那條的加總;與分子同源",
+ "ledger_ids": 60,
+ "fetched": 60,
+ "per_video": {
+  "-2E64pHRP5M": {
+   "views": 0,
+   "engagedViews": 0,
+   "estimatedMinutesWatched": 0,
+   "by_source": {}
+  },
+  "-dGQaD-gHZk": {
+   "views": 0,
+   "engagedViews": 0,
+   "estimatedMinutesWatched": 0,
+   "by_source": {}
+  },
+  "0E6LOVYAKZ0": {
+   "views": 29,
+   "engagedViews": 5,
+   "estimatedMinutesWatched": 0,
+   "by_source": {
+    "YT_OTHER_PAGE": 3,
+    "SHORTS": 26
+   }
+  },
+  "2-Ryad86At4": {
+   "views": 1,
+   "engagedViews": 1,
+   "estimatedMinutesWatched": 0,
+   "by_source": {
+    "SHORTS": 1
+   }
+  },
+  "3vUzBrM5Xak": {
+   "views": 10,
+   "engagedViews": 1,
+   "estimatedMinutesWatched": 0,
+   "by_source": {
+    "YT_SEARCH": 2,
+    "YT_OTHER_PAGE": 1,
+    "SHORTS": 7
+   }
+  },
+  "4hUXaiRQVgw": {
+   "views": 2,
+   "engagedViews": 1,
+   "estimatedMinutesWatched": 1,
+   "by_source": {
+    "SHORTS": 2
+   }
+  },
+  "6P6mfht_t50": {
+   "views": 0,
+   "engagedViews": 0,
+   "estimatedMinutesWatched": 0,
+   "by_source": {
+    "NO_LINK_OTHER": 0
+   }
+  },
+  "6ab_RzBqv4E": {
+   "views": 1,
+   "engagedViews": 1,
+   "estimatedMinutesWatched": 1,
+   "by_source": {
+    "NO_LINK_OTHER": 0,
+    "SUBSCRIBER": 1
+   }
+  },
+  "6veI2gvZARI": {
+   "views": 36,
+   "engagedViews": 10,
+   "estimatedMinutesWatched": 2,
+   "by_source": {
+    "YT_SEARCH": 2,
+    "YT_OTHER_PAGE": 0,
+    "SHORTS": 34
+   }
+  },
+  "7-FMdHPyoYo": {
+   "views": 0,
+   "engagedViews": 0,
+   "estimatedMinutesWatched": 0,
+   "by_source": {}
+  },
+  "70WSNrTxkwE": {
+   "views": 14,
+   "engagedViews": 8,
+   "estimatedMinutesWatched": 1,
+   "by_source": {
+    "YT_SEARCH": 5,
+    "SHORTS": 9
+   }
+  },
+  "7Ye0Bq1f3QY": {
+   "views": 0,
+   "engagedViews": 0,
+   "estimatedMinutesWatched": 0,
+   "by_source": {}
+  },
+  "7_fO-ua5S70": {
+   "views": 0,
+   "engagedViews": 0,
+   "estimatedMinutesWatched": 0,
+   "by_source": {}
+  },
+  "8JpFJ1HwXZk": {
+   "views": 7,
+   "engagedViews": 0,
+   "estimatedMinutesWatched": 0,
+   "by_source": {
+    "SHORTS": 7
+   }
+  },
+  "CJSsNfOux4M": {
+   "views": 20,
+   "engagedViews": 7,
+   "estimatedMinutesWatched": 2,
+   "by_source": {
+    "YT_OTHER_PAGE": 1,
+    "SHORTS": 19
+   }
+  },
+  "CJdPBbB-lP0": {
+   "views": 5,
+   "engagedViews": 2,
+   "estimatedMinutesWatched": 0,
+   "by_source": {
+    "YT_SEARCH": 1,
+    "SHORTS": 4
+   }
+  },
+  "G0v9lm2OSJE": {
+   "views": 5,
+   "engagedViews": 0,
+   "estimatedMinutesWatched": 0,
+   "by_source": {
+    "NO_LINK_OTHER": 0,
+    "YT_SEARCH": 1,
+    "SHORTS": 4
+   }
+  },
+  "GL9VrDhZ-YA": {
+   "views": 2,
+   "engagedViews": 1,
+   "estimatedMinutesWatched": 0,
+   "by_source": {
+    "YT_SEARCH": 2
+   }
+  },
+  "HPt1ApEOQOA": {
+   "views": 3,
+   "engagedViews": 1,
+   "estimatedMinutesWatched": 0,
+   "by_source": {
+    "SHORTS": 3
+   }
+  },
+  "He6f89Q7n9Q": {
+   "views": 0,
+   "engagedViews": 0,
+   "estimatedMinutesWatched": 0,
+   "by_source": {}
+  },
+  "J4ZJ37jom-o": {
+   "views": 1,
+   "engagedViews": 0,
+   "estimatedMinutesWatched": 0,
+   "by_source": {
+    "SHORTS": 1
+   }
+  },
+  "KCamTDf4ghk": {
+   "views": 0,
+   "engagedViews": 0,
+   "estimatedMinutesWatched": 0,
+   "by_source": {}
+  },
+  "LjFyZRTOkU0": {
+   "views": 3,
+   "engagedViews": 0,
+   "estimatedMinutesWatched": 0,
+   "by_source": {
+    "YT_SEARCH": 1,
+    "SHORTS": 2
+   }
+  },
+  "M81Ls0uXXT4": {
+   "views": 2,
+   "engagedViews": 0,
+   "estimatedMinutesWatched": 0,
+   "by_source": {
+    "SHORTS": 2
+   }
+  },
+  "MW_XoKidwdA": {
+   "views": 4,
+   "engagedViews": 0,
+   "estimatedMinutesWatched": 0,
+   "by_source": {
+    "NO_LINK_OTHER": 0,
+    "YT_SEARCH": 4
+   }
+  },
+  "MppclyzgAkY": {
+   "views": 3,
+   "engagedViews": 0,
+   "estimatedMinutesWatched": 0,
+   "by_source": {
+    "YT_OTHER_PAGE": 1,
+    "SHORTS": 2
+   }
+  },
+  "MuCFl66-dbc": {
+   "views": 1,
+   "engagedViews": 0,
+   "estimatedMinutesWatched": 0,
+   "by_source": {
+    "YT_SEARCH": 1
+   }
+  },
+  "MyJiJWfGex4": {
+   "views": 0,
+   "engagedViews": 0,
+   "estimatedMinutesWatched": 0,
+   "by_source": {}
+  },
+  "PGptAV8wg1A": {
+   "views": 0,
+   "engagedViews": 0,
+   "estimatedMinutesWatched": 0,
+   "by_source": {}
+  },
+  "Pwq1CPVfGcc": {
+   "views": 6,
+   "engagedViews": 2,
+   "estimatedMinutesWatched": 0,
+   "by_source": {
+    "NO_LINK_OTHER": 2,
+    "YT_SEARCH": 4
+   }
+  },
+  "PyPJLek2qgQ": {
+   "views": 8,
+   "engagedViews": 2,
+   "estimatedMinutesWatched": 1,
+   "by_source": {
+    "YT_SEARCH": 8
+   }
+  },
+  "QEK_hAc_KuY": {
+   "views": 1,
+   "engagedViews": 0,
+   "estimatedMinutesWatched": 0,
+   "by_source": {
+    "YT_SEARCH": 1
+   }
+  },
+  "QwUV3MEdd9g": {
+   "views": 1,
+   "engagedViews": 1,
+   "estimatedMinutesWatched": 0,
+   "by_source": {
+    "SHORTS": 1
+   }
+  },
+  "R-Ho0wb6w9s": {
+   "views": 5,
+   "engagedViews": 3,
+   "estimatedMinutesWatched": 0,
+   "by_source": {
+    "NO_LINK_OTHER": 0,
+    "YT_SEARCH": 1,
+    "SHORTS": 4
+   }
+  },
+  "SCcdDwHTHsE": {
+   "views": 5,
+   "engagedViews": 1,
+   "estimatedMinutesWatched": 0,
+   "by_source": {
+    "YT_SEARCH": 3,
+    "SHORTS": 2
+   }
+  },
+  "UwEqGzvOlXM": {
+   "views": 5,
+   "engagedViews": 0,
+   "estimatedMinutesWatched": 0,
+   "by_source": {
+    "YT_SEARCH": 1,
+    "SHORTS": 4
+   }
+  },
+  "X-N0kjO3NUQ": {
+   "views": 3,
+   "engagedViews": 0,
+   "estimatedMinutesWatched": 0,
+   "by_source": {
+    "NO_LINK_OTHER": 0,
+    "YT_SEARCH": 3
+   }
+  },
+  "X9xuy02icWQ": {
+   "views": 0,
+   "engagedViews": 0,
+   "estimatedMinutesWatched": 0,
+   "by_source": {}
+  },
+  "YPMBTeGefog": {
+   "views": 1,
+   "engagedViews": 0,
+   "estimatedMinutesWatched": 0,
+   "by_source": {
+    "YT_SEARCH": 1
+   }
+  },
+  "_jSrEYCgU8E": {
+   "views": 34,
+   "engagedViews": 6,
+   "estimatedMinutesWatched": 1,
+   "by_source": {
+    "YT_OTHER_PAGE": 4,
+    "SHORTS": 30
+   }
+  },
+  "argFKYMKsO4": {
+   "views": 0,
+   "engagedViews": 0,
+   "estimatedMinutesWatched": 0,
+   "by_source": {}
+  },
+  "bB-ZdA-v8Gs": {
+   "views": 107,
+   "engagedViews": 8,
+   "estimatedMinutesWatched": 4,
+   "by_source": {
+    "NO_LINK_OTHER": 0,
+    "YT_SEARCH": 1,
+    "SHORTS": 106
+   }
+  },
+  "bvU1mY4bzX0": {
+   "views": 30,
+   "engagedViews": 7,
+   "estimatedMinutesWatched": 7,
+   "by_source": {
+    "NO_LINK_OTHER": 0,
+    "YT_OTHER_PAGE": 4,
+    "SHORTS": 26
+   }
+  },
+  "cSVaeH0cjXc": {
+   "views": 0,
+   "engagedViews": 0,
+   "estimatedMinutesWatched": 0,
+   "by_source": {}
+  },
+  "e8f4LpCQ0o4": {
+   "views": 0,
+   "engagedViews": 0,
+   "estimatedMinutesWatched": 0,
+   "by_source": {}
+  },
+  "fIYty4wlXsw": {
+   "views": 0,
+   "engagedViews": 0,
+   "estimatedMinutesWatched": 0,
+   "by_source": {
+    "SHORTS": 0
+   }
+  },
+  "g1LxglXynH4": {
+   "views": 0,
+   "engagedViews": 0,
+   "estimatedMinutesWatched": 0,
+   "by_source": {
+    "NO_LINK_OTHER": 0
+   }
+  },
+  "hqkIbEFhua0": {
+   "views": 4,
+   "engagedViews": 0,
+   "estimatedMinutesWatched": 0,
+   "by_source": {
+    "YT_SEARCH": 3,
+    "SHORTS": 1
+   }
+  },
+  "ipAG83pBeS0": {
+   "views": 2,
+   "engagedViews": 0,
+   "estimatedMinutesWatched": 0,
+   "by_source": {
+    "SUBSCRIBER": 2
+   }
+  },
+  "jk5uMKeaSSQ": {
+   "views": 0,
+   "engagedViews": 0,
+   "estimatedMinutesWatched": 0,
+   "by_source": {}
+  },
+  "lXP_UIc20nU": {
+   "views": 3,
+   "engagedViews": 0,
+   "estimatedMinutesWatched": 0,
+   "by_source": {
+    "SHORTS": 3
+   }
+  },
+  "m-xbVNVjhUs": {
+   "views": 1,
+   "engagedViews": 1,
+   "estimatedMinutesWatched": 0,
+   "by_source": {
+    "YT_SEARCH": 1
+   }
+  },
+  "m14CWlRhpvA": {
+   "views": 1,
+   "engagedViews": 0,
+   "estimatedMinutesWatched": 0,
+   "by_source": {
+    "YT_SEARCH": 1
+   }
+  },
+  "onS7nv6nXeM": {
+   "views": 2,
+   "engagedViews": 0,
+   "estimatedMinutesWatched": 0,
+   "by_source": {
+    "YT_SEARCH": 1,
+    "SHORTS": 1
+   }
+  },
+  "q8wXedDJqGc": {
+   "views": 11,
+   "engagedViews": 5,
+   "estimatedMinutesWatched": 1,
+   "by_source": {
+    "YT_SEARCH": 11
+   }
+  },
+  "rkqCiW6uCU0": {
+   "views": 0,
+   "engagedViews": 0,
+   "estimatedMinutesWatched": 0,
+   "by_source": {}
+  },
+  "tsR95vUUiWY": {
+   "views": 0,
+   "engagedViews": 0,
+   "estimatedMinutesWatched": 0,
+   "by_source": {}
+  },
+  "un0peWAUAuA": {
+   "views": 0,
+   "engagedViews": 0,
+   "estimatedMinutesWatched": 0,
+   "by_source": {}
+  },
+  "v3pfhzDIrfU": {
+   "views": 0,
+   "engagedViews": 0,
+   "estimatedMinutesWatched": 0,
+   "by_source": {
+    "YT_SEARCH": 0,
+    "SHORTS": 0
+   }
+  },
+  "zfC-TYUNM6k": {
+   "views": 0,
+   "engagedViews": 0,
+   "estimatedMinutesWatched": 0,
+   "by_source": {}
+  }
+ },
+ "failed": {},
+ "views_dist": {
+  "n": 60,
+  "P50": 1,
+  "P75": 5,
+  "P90": 14,
+  "max": 107,
+  "sum": 379
+ },
+ "engagedViews_dist": {
+  "n": 60,
+  "P50": 0,
+  "P75": 1,
+  "P90": 5,
+  "max": 10,
+  "sum": 74
+ },
+ "pre_window": {
+  "window": [
+   "2026-08-27",
+   "2026-09-09"
+  ],
+  "by_source": {
+   "NO_LINK_OTHER": 0,
+   "SUBSCRIBER": 3,
+   "YT_SEARCH": 61,
+   "YT_OTHER_PAGE": 14,
+   "SHORTS": 294
+  },
+  "total_views": 372
+ },
+ "population_note": {
+  "expected_n": 60,
+  "actual_n": 60,
+  "ledger_ids": 60,
+  "public_n": 57,
+  "unlisted_n": 3,
+  "why_this_matters": "最近秩 P90 直接由 n 決定。實測:一支撞到暫時性 HTTP 500 讓 n 從 60 變 59,engagedViews 的 P90 就從 5 跳到 6 —— 門檻被一次網路抖動改掉,而殘缺母體算出來的基線和完整母體算出來的長得一模一樣。",
+  "rule": "引用 P90 時一律連 n 一起引。actual_n != expected_n 時這份基線不可用,freeze_baseline.py 已 fail-closed 不寫檔。",
+  "chosen_for_criterion_A": {
+   "population": "public_only",
+   "n": 57,
+   "engagedViews_P90": 6,
+   "rejected": {
+    "population": "all_ledger",
+    "n": 60,
+    "engagedViews_P90": 5,
+    "why": "含 3 支已下架低觀看片,會把分佈往下拉、門檻變簡單"
+   }
+  }
+ }
+}

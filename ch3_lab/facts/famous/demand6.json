@@ -1,0 +1,242 @@
+[
+ {
+  "claim": "Ericsson, Krampe & Tesch-Romer 1993 deliberate practice",
+  "doi": "10.1037/0033-295X.100.3.363",
+  "title": "The role of deliberate practice in the acquisition of expert performance.",
+  "year": 1993,
+  "journal": "Psychological Review",
+  "cited_by": 8990,
+  "abstract_chars": 759,
+  "found": {
+   "n": [],
+   "effect": [],
+   "ci": [],
+   "k": []
+  },
+  "status": "PARTIAL",
+  "abstract": "The theoretical framework presented in this article explains expert performance as the end result of individuals' prolonged efforts to improve performance while negotiating motivational and external constraints. In most domains of expertise, individuals begin in their childhood a regimen of effortful activities (deliberate practice) designed to optimize improvement. Individual differences, even among elite performers, are closely related to assessed amounts of deliberate practice. Many characteristics once believed to reflect innate talent are actually the result of intense practice extended for a minimum of 10 years. Analysis of expert performance provides unique evidence on the potential and limits of extreme environmental adaptation and learning.",
+  "topic": "10000_hour_rule",
+  "role": "original"
+ },
+ {
+  "claim": "Macnamara, Hambrick & Oswald 2014 meta-analysis",
+  "doi": "10.1177/0956797614535810",
+  "title": "Deliberate Practice and Performance in Music, Games, Sports, Education, and Professions: A Meta-Analysis",
+  "year": 2014,
+  "journal": "Psychological Science",
+  "cited_by": 652,
+  "abstract_chars": 816,
+  "found": {
+   "n": [],
+   "effect": [],
+   "ci": [],
+   "k": []
+  },
+  "status": "PARTIAL",
+  "abstract": "More than 20 years ago, researchers proposed that individual differences in performance in such domains as music, sports, and games largely reflect individual differences in amount of deliberate practice, which was defined as engagement in structured activities created specifically to improve performance in a domain. This view is a frequent topic of popular-science writing-but is it supported by empirical evidence? To answer this question, we conducted a meta-analysis covering all major domains in which deliberate practice has been investigated. We found that deliberate practice explained 26% of the variance in performance for games, 21% for music, 18% for sports, 4% for education, and less than 1% for professions. We conclude that deliberate practice is important, but not as important as has been argued.",
+  "topic": "10000_hour_rule",
+  "role": "test"
+ },
+ {
+  "claim": "Kahneman & Tversky 1979 prospect theory",
+  "doi": "10.2307/1914185",
+  "title": "Prospect Theory: An Analysis of Decision under Risk",
+  "year": 1979,
+  "journal": "Econometrica",
+  "cited_by": 47857,
+  "abstract_chars": 1358,
+  "found": {
+   "n": [],
+   "effect": [],
+   "ci": [],
+   "k": []
+  },
+  "status": "PARTIAL",
+  "abstract": "This paper presents a critique of expected utility theory as a descriptive model of decision making under risk, and develops an alternative model, called prospect theory. Choices among risky prospects exhibit several pervasive effects that are inconsistent with the basic tenets of utility theory. In particular, people underweight outcomes that are merely probable in comparison with outcomes that are obtained with certainty. This tendency, called the certainty effect, contributes to risk aversion in choices involving sure gains and to risk seeking in choices involving sure losses. In addition, people generally discard components that are shared by all prospects under consideration. This tendency, called the isolation effect, leads to inconsistent preferences when the same choice is presented in different forms. An alternative theory of choice is developed, in which value is assigned to gains and losses rather than to final assets and in which probabilities are replaced by decision weights. The value function is normally concave for gains, commonly convex for losses, and is generally steeper for losses than for gains. Decision weights are generally lower than the corresponding probabilities, except in the range of low prob-abilities. Overweighting of low probabilities may contribute to the attractiveness of both insurance and gambling. 1.",
+  "topic": "loss_aversion",
+  "role": "original"
+ },
+ {
+  "claim": "Gal & Rucker 2018 the loss of loss aversion",
+  "doi": "10.1002/jcpy.1047",
+  "title": "The Loss of Loss Aversion: Will It Loom Larger Than Its Gain?",
+  "year": 2018,
+  "journal": "Journal of Consumer Psychology",
+  "cited_by": 17,
+  "abstract_chars": 1032,
+  "found": {
+   "n": [],
+   "effect": [],
+   "ci": [],
+   "k": []
+  },
+  "status": "PARTIAL",
+  "abstract": "Loss aversion, the principle that losses loom larger than gains, is among the most widely accepted ideas in the social sciences. The first part of this article introduces and discusses the construct of loss aversion. The second part of this article reviews evidence in support of loss aversion. The upshot of this review is that current evidence does not support that losses, on balance, tend to be any more impactful than gains. The third part of this article aims to address the question of why acceptance of loss aversion as a general principle remains pervasive and persistent among social scientists, including consumer psychologists, despite evidence to the contrary. This analysis aims to connect the persistence of a belief in loss aversion to more general ideas about belief acceptance and persistence in science. The final part of the article discusses how a more contextualized perspective of the relative impact of losses versus gains can open new areas of inquiry that are squarely in the domain of consumer psychology.",
+  "topic": "loss_aversion",
+  "role": "test"
+ },
+ {
+  "claim": "Carney, Cuddy & Yap 2010 power posing",
+  "doi": "10.1177/0956797610383437",
+  "title": "Power Posing",
+  "year": 2010,
+  "journal": "Psychological Science",
+  "cited_by": 868,
+  "abstract_chars": 1003,
+  "found": {
+   "n": [],
+   "effect": [],
+   "ci": [],
+   "k": []
+  },
+  "status": "PARTIAL",
+  "abstract": "Humans and other animals express power through open, expansive postures, and they express powerlessness through closed, contractive postures. But can these postures actually cause power? The results of this study confirmed our prediction that posing in high-power nonverbal displays (as opposed to low-power nonverbal displays) would cause neuroendocrine and behavioral changes for both male and female participants: High-power posers experienced elevations in testosterone, decreases in cortisol, and increased feelings of power and tolerance for risk; low-power posers exhibited the opposite pattern. In short, posing in displays of power caused advantaged and adaptive psychological, physiological, and behavioral changes, and these findings suggest that embodiment extends beyond mere thinking and feeling, to physiology and subsequent behavioral choices. That a person can, by assuming two simple 1-min poses, embody power and instantly become more powerful has real-world, actionable implications.",
+  "topic": "power_posing",
+  "role": "original"
+ },
+ {
+  "claim": "Ranehill et al. 2015 assessing the robustness of power posing",
+  "doi": "10.1177/0956797614553946",
+  "title": "Assessing the Robustness of Power Posing",
+  "year": 2015,
+  "journal": "Psychological Science",
+  "cited_by": 242,
+  "abstract_chars": 0,
+  "found": {
+   "n": [],
+   "effect": [],
+   "ci": [],
+   "k": []
+  },
+  "status": "NO_ABSTRACT",
+  "topic": "power_posing",
+  "role": "test"
+ },
+ {
+  "claim": "Pashler et al. 2008 learning styles concepts and evidence",
+  "doi": "10.1111/j.1539-6053.2009.01038.x",
+  "title": "Learning Styles",
+  "year": 2008,
+  "journal": "Gothic.net",
+  "cited_by": 2103,
+  "abstract_chars": 4205,
+  "found": {
+   "n": [],
+   "effect": [],
+   "ci": [],
+   "k": []
+  },
+  "status": "PARTIAL",
+  "abstract": "The term \"learning styles\" refers to the concept that individuals differ in regard to what mode of instruction or study is most effective for them. Proponents of learning-style assessment contend that optimal instruction requires diagnosing individuals' learning style and tailoring instruction accordingly. Assessments of learning style typically ask people to evaluate what sort of information presentation they prefer (e.g., words versus pictures versus speech) and/or what kind of mental activity they find most engaging or congenial (e.g., analysis versus listening), although assessment instruments are extremely diverse. The most common-but not the only-hypothesis about the instructional relevance of learning styles is the meshing hypothesis, according to which instruction is best provided in a format that matches the preferences of the learner (e.g., for a \"visual learner,\" emphasizing visual presentation of information). The learning-styles view has acquired great influence within the education field, and is frequently encountered at levels ranging from kindergarten to graduate school. There is a thriving industry devoted to publishing learning-styles tests and guidebooks for teachers, and many organizations offer professional development workshops for teachers and educators built around the concept of learning styles. The authors of the present review were charged with determining whether these practices are supported by scientific evidence. We concluded that any credible validation of learning-styles-based instruction requires robust documentation of a very particular type of experimental finding with several necessary criteria. First, students must be divided into groups on the basis of their learning styles, and then students from each group must be randomly assigned to receive one of multiple instructional methods. Next, students must then sit for a final test that is the same for all students. Finally, in order to demonstrate that optimal learning requires that students receive instruction tailored to their putative learning style, the experiment must reveal a specific type of interaction between learning style and instructional method: Students with one learning style achieve the best educational outcome when given an instructional method that differs from the instructional method producing the best outcome for students with a different learning style. In other words, the instructional method that proves most effective for students with one learning style is not the most effective method for students with a different learning style. Our review of the literature disclosed ample evidence that children and adults will, if asked, express preferences about how they prefer information to be presented to them. There is also plentiful evidence arguing that people differ in the degree to which they have some fairly specific aptitudes for different kinds of thinking and for processing different types of information. However, we found virtually no evidence for the interaction pattern mentioned above, which was judged to be a precondition for validating the educational applications of learning styles. Although the literature on learning styles is enormous, very few studies have even used an experimental methodology capable of testing the validity of learning styles applied to education. Moreover, of those that did use an appropriate method, several found results that flatly contradict the popular meshing hypothesis. We conclude therefore, that at present, there is no adequate evidence base to justify incorporating learning-styles assessments into general educational practice. Thus, limited education resources would better be devoted to adopting other educational practices that have a strong evidence base, of which there are an increasing number. However, given the lack of methodologically sound studies of learning styles, it would be an error to conclude that all possible versions of learning styles have been tested and found wanting; many have simply not been tested at all. Further research on the use of learning-styles assessment in instruction may in some cases be warranted, but such research needs to be performed appropriately.",
+  "topic": "learning_styles",
+  "role": "original"
+ },
+ {
+  "claim": "Rogowsky, Calhoun & Tallal 2015 matching learning style to instruction",
+  "doi": "10.1037/edu0000013",
+  "title": "The instructor’s face in video instruction: Evidence from two large-scale field studies.",
+  "year": 2015,
+  "journal": "Journal of Educational Psychology",
+  "cited_by": 218,
+  "abstract_chars": 1897,
+  "found": {
+   "n": [
+    {
+     "value": "2,951",
+     "src": "In an 8-week observational field study (N = 2,951), online learners chose to watch video lectures either with or without the instructor’s face."
+    },
+    {
+     "value": "12,468",
+     "src": "A 10-week field experiment (N = 12,468) compared the constant with the strategic presentation of the face and provided evidence consistent with the image principle."
+    }
+   ],
+   "effect": [],
+   "ci": [],
+   "k": []
+  },
+  "status": "PARTIAL",
+  "abstract": "[Correction Notice: An Erratum for this article was reported in Vol 107(3) of Journal of Educational Psychology (see record 2015-17245-001). In the article, “value” was inadvertently included after “p” in the first column of both Tables 2 and 3.] Multimedia learning research has established several principles for the effective design of audiovisual instruction. The image principle suggests that showing the instructor’s face in multimedia instruction does not promote learning, because the potential benefits from inducing social responses are outweighed by the cost of additional cognitive processing. In an 8-week observational field study (N = 2,951), online learners chose to watch video lectures either with or without the instructor’s face. Although learners who saw the face reported having a better lecture experience than those who chose not to see the face, 35% watched videos without the face for self-reported reasons including avoiding distraction. Building on these insights, the authors developed a video presentation style that strategically shows the face to reduce distraction while preserving occasional social cues. A 10-week field experiment (N = 12,468) compared the constant with the strategic presentation of the face and provided evidence consistent with the image principle. Cognitive load and perceived social presence were higher in the strategic than in the constant condition, but learning outcomes and attrition did not differ. Learners who expressed a verbal learning preference experienced substantially lower attrition and cognitive load with the constant than the strategic presentation. The findings highlight the value of social cues for motivation and caution against one-size-fits-all approaches to instructional design that fail to account for individual differences in multimedia instruction. (PsycINFO Database Record (c) 2016 APA, all rights reserved)",
+  "topic": "learning_styles",
+  "role": "test"
+ },
+ {
+  "claim": "Tversky & Kahneman 1974 judgment under uncertainty",
+  "doi": "10.1126/science.185.4157.1124",
+  "title": "Judgment under Uncertainty: Heuristics and Biases",
+  "year": 1974,
+  "journal": "Science",
+  "cited_by": 28491,
+  "abstract_chars": 810,
+  "found": {
+   "n": [],
+   "effect": [],
+   "ci": [],
+   "k": []
+  },
+  "status": "PARTIAL",
+  "abstract": "This article described three heuristics that are employed in making judgments under uncertainty: (i) representativeness, which is usually employed when people are asked to judge the probability that an object or event A belongs to class or process B; (ii) availability of instances or scenarios, which is often employed when people are asked to assess the frequency of a class or the plausibility of a particular development; and (iii) adjustment from an anchor, which is usually employed in numerical prediction when a relevant value is available. These heuristics are highly economical and usually effective, but they lead to systematic and predictable errors. A better understanding of these heuristics and of the biases to which they lead could improve judgments and decisions in situations of uncertainty.",
+  "topic": "anchoring",
+  "role": "original"
+ },
+ {
+  "claim": "Klein et al. 2014 Many Labs 1",
+  "doi": "10.1027/1864-9335/a000178",
+  "title": "Investigating Variation in Replicability",
+  "year": 2014,
+  "journal": "Social Psychology",
+  "cited_by": 1272,
+  "abstract_chars": 844,
+  "found": {
+   "n": [
+    {
+     "value": "6,344",
+     "src": "This research tested variation in the replicability of 13 classic and contemporary effects across 36 independent samples totaling 6,344 participants."
+    }
+   ],
+   "effect": [],
+   "ci": [],
+   "k": []
+  },
+  "status": "PARTIAL",
+  "abstract": "Although replication is a central tenet of science, direct replications are rare in psychology. This research tested variation in the replicability of 13 classic and contemporary effects across 36 independent samples totaling 6,344 participants. In the aggregate, 10 effects replicated consistently. One effect – imagined contact reducing prejudice – showed weak support for replicability. And two effects – flag priming influencing conservatism and currency priming influencing system justification – did not replicate. We compared whether the conditions such as lab versus online or US versus international sample predicted effect magnitudes. By and large they did not. The results of this small sample of effects suggest that replicability is more dependent on the effect itself than on the sample and setting used to investigate the effect.",
+  "topic": "anchoring",
+  "role": "test"
+ },
+ {
+  "claim": "Steele & Aronson 1995 stereotype threat",
+  "doi": "10.1037/0022-3514.69.5.797",
+  "title": "Stereotype threat and the intellectual test performance of African Americans.",
+  "year": 1995,
+  "journal": "Journal of Personality and Social Psychology",
+  "cited_by": 8125,
+  "abstract_chars": 1050,
+  "found": {
+   "n": [],
+   "effect": [],
+   "ci": [],
+   "k": []
+  },
+  "status": "PARTIAL",
+  "abstract": "Stereotype threat is being at risk of confirming, as self-characteristic, a negative stereotype about one's group. Studies 1 and 2 varied the stereotype vulnerability of Black participants taking a difficult verbal test by varying whether or not their performance was ostensibly diagnostic of ability, and thus, whether or not they were at risk of fulfilling the racial stereotype about their intellectual ability. Reflecting the pressure of this vulnerability, Blacks underperformed in relation to Whites in the ability-diagnostic condition but not in the nondiagnostic condition (with Scholastic Aptitude Tests controlled). Study 3 validated that ability-diagnosticity cognitively activated the racial stereotype in these participants and motivated them not to conform to it, or to be judged by it. Study 4 showed that mere salience of the stereotype could impair Blacks' performance even when the test was not ability diagnostic. The role of stereotype vulnerability in the standardized test performance of ability-stigmatized groups is discussed.",
+  "topic": "stereotype_threat",
+  "role": "original"
+ },
+ {
+  "claim": "Flore & Wicherts 2015 meta-analysis girls stereotyped domains",
+  "doi": "10.1016/j.jsp.2014.10.002",
+  "title": "Does stereotype threat influence performance of girls in stereotyped domains? A meta-analysis",
+  "year": 2014,
+  "journal": "Journal of School Psychology",
+  "cited_by": 406,
+  "abstract_chars": 0,
+  "found": {
+   "n": [],
+   "effect": [],
+   "ci": [],
+   "k": []
+  },
+  "status": "NO_ABSTRACT",
+  "topic": "stereotype_threat",
+  "role": "test"
+ }
+]

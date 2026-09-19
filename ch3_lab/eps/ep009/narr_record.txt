@@ -1,0 +1,1 @@
+None of this is my reading of the papers. It is one row of a public database, and this is the row. The replication was preregistered. That matters most here, because the original ran on 61 people — at that size, there are a lot of ways to slice a result, and writing the analysis down first removes all of them. You do not have to take my word for any of it.

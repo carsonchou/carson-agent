@@ -1,0 +1,1 @@
+The idea is older, but the version that got retested is from 1995. You are asked whether something is more or less than a specific number - how many babies are born in the United States each day, how tall is Mount Everest - and then asked to estimate it. The number you were shown first pulls your answer toward it.

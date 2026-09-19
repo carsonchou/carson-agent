@@ -1,0 +1,26 @@
+{
+ "claim": "Self-esteem and success",
+ "doi": "https://doi.org/10.1111/j.1467-6494.2008.00537.x",
+ "title": "Self‐Compassion Versus Global Self‐Esteem: Two Different Ways of Relating to Oneself",
+ "year": 2008,
+ "journal": "Journal of Personality",
+ "cited_by": 1231,
+ "abstract_chars": 1161,
+ "found": {
+  "n": [
+   {
+    "value": "2,187",
+    "src": "Study 1 (N=2,187) compared self-compassion and global self-esteem as they relate to ego-focused reactivity."
+   },
+   {
+    "value": "165",
+    "src": "Study 2 (N=165) compared global self-esteem and self-compassion with regard to positive mood states."
+   }
+  ],
+  "effect": [],
+  "ci": [],
+  "k": []
+ },
+ "status": "PARTIAL",
+ "abstract": "This research examined self-compassion and self-esteem as they relate to various aspects of psychological functioning. Self-compassion entails treating oneself with kindness, recognizing one's shared humanity, and being mindful when considering negative aspects of oneself. Study 1 (N=2,187) compared self-compassion and global self-esteem as they relate to ego-focused reactivity. It was found that self-compassion predicted more stable feelings of self-worth than self-esteem and was less contingent on particular outcomes. Self-compassion also had a stronger negative association with social comparison, public self-consciousness, self-rumination, anger, and need for cognitive closure. Self-esteem (but not self-compassion) was positively associated with narcissism. Study 2 (N=165) compared global self-esteem and self-compassion with regard to positive mood states. It was found that the two constructs were statistically equivalent predictors of happiness, optimism, and positive affect. Results from these two studies suggest that self-compassion may be a useful alternative to global self-esteem when considering what constitutes a healthy self-stance."
+}

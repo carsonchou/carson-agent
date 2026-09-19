@@ -1,0 +1,15 @@
+Action identification is positively correlated with mind attribution.
+
+Original study (2006): What do i think you're doing? Action identification and mind attribution.
+  50 participants — effect size 0.30 (r)
+  doi:10.1037/0022-3514.90.4.543
+
+Replication: Kozak et al 2006 replication and extension
+  1,086 participants — effect size 0.08
+  doi:10.17605/osf.io/j9mfn
+
+
+How this channel works
+Every number in this video comes from the published record, and both papers are cited above with their DOIs. Nothing is estimated or rounded for effect — the narration is generated from the same data fields you see on screen. Not every finding fails: replications that held up get their own episodes.
+
+Replication data: FORRT Replication Database (FReD), osf.io/2tbvd
