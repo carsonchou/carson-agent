@@ -47,3 +47,27 @@ def test_empty_content_raises_vision_error():
     import pytest
     with pytest.raises(vision.VisionError):
         _run("")
+
+
+def test_draft_fence_then_real_fence_uses_last():
+    content = (
+        "這是格式範例:\n```json\n這不是合法JSON\n```\n\n"
+        "實際結果:\n```json\n{\"codes\": [\"2330\"]}\n```"
+    )
+    assert _run(content) == ["2330"]
+
+
+def test_two_valid_json_fences_uses_last_not_first():
+    content = (
+        "草稿:\n```json\n{\"codes\": [\"9999\"]}\n```\n\n"
+        "修正:\n```json\n{\"codes\": [\"2330\"]}\n```"
+    )
+    assert _run(content) == ["2330"]
+
+
+def test_prose_mentions_fence_syntax_before_real_fence():
+    content = (
+        "我通常會用```json```格式回答。\n\n"
+        "實際結果:```json\n{\"codes\": [\"2330\"]}\n```"
+    )
+    assert _run(content) == ["2330"]

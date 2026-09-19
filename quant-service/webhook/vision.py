@@ -21,6 +21,12 @@ fence」。實測發現模型有時會在 fence 前面先加一段中文說明(�
 ```json```,錨定版本比對失敗,退回把整段(含說明文字)丟給 json.loads(),得到
 `Expecting value: line 1 column 1 (char 0)`。改成不錨定的 search()、再加一層「沒 fence
 就找 {...}」的備援,兩種情況都能剝出乾淨的 JSON。
+
+2026-09-19 同日第二次:獨立驗證抓到上面那版只處理「一個 fence」,沒處理「多個
+fence」——模型偶爾會先給範例/草稿 fence 才接真正答案,`.search()` 非貪婪比對只抓
+到第一個,一樣炸出跟修復前一模一樣的錯誤;更壞的是如果草稿 fence 剛好也是合法
+JSON,會**靜默回傳錯的股票代號**、完全不報錯。改成 `_parse_codes_payload()`:蒐集
+全部 fence,由後往前找第一個能成功解析的——模型的自我修正一律是後面蓋掉前面。
 """
 from __future__ import annotations
 
@@ -59,6 +65,28 @@ _PROMPT = (
 
 class VisionError(RuntimeError):
     """辨識失敗(缺金鑰/API 錯誤/回應格式不對)。呼叫端轉成 HTTP 錯誤給前端,不靜默吞掉。"""
+
+
+def _parse_codes_payload(txt: str) -> dict:
+    """從模型回應裡挑出「最終答案」那段 JSON。
+
+    模型常常不是只給一個 fence:可能先給格式範例、草稿、思考過程,才接真正答案,
+    甚至前面的草稿也剛好是合法 JSON(見 vision.py 2026-09-19 補記)。一律採用
+    「由後往前找,第一個能成功解析成 dict 的 fence」——模型的自我修正永遠是後面
+    蓋掉前面,不會反過來。找不到任何合法 fence 才退回全文找 {...} 或整段硬解。
+    """
+    fences = list(_FENCE_RE.finditer(txt))
+    for m in reversed(fences):
+        try:
+            data = json.loads(m.group(1).strip())
+        except (json.JSONDecodeError, ValueError):
+            continue
+        if isinstance(data, dict):
+            return data
+    obj = _JSON_OBJ_RE.search(txt)
+    if obj:
+        return json.loads(obj.group(0))
+    return json.loads(txt)
 
 
 def _model() -> str:
@@ -114,14 +142,7 @@ def extract_codes(image_bytes: bytes, content_type: str, max_codes: int) -> list
 
     try:
         txt = (r.json()["choices"][0]["message"]["content"] or "").strip()
-        fence = _FENCE_RE.search(txt)  # 有些模型(如 claude 系列)即使指定 json_object
-        if fence:                      # 還是會把 JSON 包在說明文字 + ```json ... ``` 裡
-            txt = fence.group(1).strip()
-        else:
-            obj = _JSON_OBJ_RE.search(txt)  # 沒 fence 但混了說明文字的情況
-            if obj:
-                txt = obj.group(0)
-        raw_codes = json.loads(txt).get("codes") or []
+        raw_codes = _parse_codes_payload(txt).get("codes") or []
     except Exception as exc:  # noqa: BLE001
         raise VisionError(f"辨識結果格式不正確,無法解析:{exc}") from exc
 
