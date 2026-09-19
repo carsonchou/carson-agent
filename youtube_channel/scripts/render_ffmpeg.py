@@ -642,6 +642,18 @@ def _build_num_pops(pop_ctx, seg_cards, tmp_dir, width, height, accent, ticker=N
     return sorted(specs, key=lambda s: s[1])
 
 
+def _reveal_view_buckets(view, views, buckets):
+    """換視角(方案 A):第 view 個子段涵蓋哪幾個 bucket。views=3、buckets=8 →
+    [0,1,2] / [3,4,5] / [6,7]。
+
+    不變量:每個 bucket 一定在**自己算出來的那個 view** 的清單裡。破了的話
+    `_reveal_base` 的 `.index(bucket)` 會丟 ValueError、被外層 except 吞掉 →
+    整片的揭露圖靜默退回原卡(沒有人會看到錯誤)。所以這條不變量必須有會叫的檢查:
+    docs/ops/2026-09-19_主頻道畫面改版提案_wF-p8/實作驗收/方案A/check_子段切分不變量.py
+    """
+    return [b for b in range(buckets) if b * views // buckets == view]
+
+
 def _narration_seg_starts(segments, cues, audio_duration):
     """各段旁白在音軌上的真實起點(秒),供卡片邊界對齊旁白(2026-08-12 留存工程)。
 
@@ -1204,7 +1216,65 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
         # fail-safe:reveal 圖只來自真 CSV(render_concept_card 拿不到真資料→回 None)→退回 seg_cards
         #   原卡,**絕不畫亂數**;文字卡段落 render_concept_card 也回 None → 一樣退原卡,不受影響。
         _REVEAL_BUCKETS = 8
+        # ③ 2026-09-19 方案 A(同段內換視角):上面 8 個 bucket 揭露的是**同一張圖**,
+        # 一段 ~126s 於是只有一張真正不同的圖 —— Carson 講的「單調」剩下的那一塊。
+        # 改法:把段落再切成 _VIEWS_PER_SEG 個子段,子段之間換成**同一檔股票的另一種圖**
+        # (走勢 → 營收/EPS → 估值位置),子段內各自從 35% 揭露長到 100%。
+        # 🔴 硬規則:換過去的視圖只准用事實庫真資料。候選圖種全是「拿不到真 CSV /
+        # 真財報就回 None」的 drawer,而且要**實跑一次 drawer** 才算數(_view_probe)——
+        # 不另寫一份「這檔有沒有這組資料」的檢查,免得它和真正畫圖的那份分岔。
+        # 缺資料 → 那個視角不採用 → 該段退回「一張圖連續揭露 8 格」,與換視角前同行為。
+        _VIEWS_PER_SEG = 3
+        # 機制示意圖(grid/compound/martingale)刻意不列入候選:它們對任何標的都畫得出來,
+        # 換過去等於「圖變了但沒多給這一檔的資訊」,而且與本段旁白無關。
+        _ALT_VIEW_KEYS = ("history", "fundamentals", "valuation", "drawdown", "trend", "dca")
+
         reveal_base_cache = {}   # (seg_idx, bucket) -> png 路徑 或 None(該段非真資料圖,退回 seg_cards)
+        seg_primary_key = {}     # seg_idx -> 這一段原本畫的是哪種圖(render_concept_card 回報的)
+        seg_view_plan = {}       # seg_idx -> [None, key或None, key或None](None=這個子段不換)
+        used_view_keys = set()   # 全片已出現過的圖種。換到別段已經有的圖種 = 觀眾看到重複畫面,
+                                 # 「不重複來源圖張數」不會增加,所以沒出現過的優先。
+
+        def _view_probe(seg_idx, key):
+            """這一段換成 key 這種圖,事實庫畫得出來嗎?用縮圖實跑同一支正式 drawer;
+            回 None = 這檔沒有那組真資料 → 不換(絕不為了換圖而畫假圖)。"""
+            try:
+                seg = segments[seg_idx]
+                return mv._concept.render_concept_chart(
+                    480, 270, f"{seg.heading or ''} {seg.narration}", accent,
+                    f"{vid_seed}_{seg_idx}", dest=None, force=key,
+                    fallback_ticker=video_ticker, reveal=1.0) is not None
+            except Exception:  # noqa: BLE001
+                return False
+
+        def _view_plan(seg_idx):
+            """這一段的換視角計畫。只有 view>0 會用到,所以不會和 _reveal_base 互相遞迴。"""
+            if seg_idx in seg_view_plan:
+                return seg_view_plan[seg_idx]
+            _reveal_base(seg_idx, 0)     # 先畫第 0 格(有快取不浪費),順便得知原圖是哪種
+            primary, picked, rejected = seg_primary_key.get(seg_idx), [], []
+            if primary is not None:
+                # 起點按段錯開:否則全片每一段都換到同樣的第二/第三視角
+                cands = [_ALT_VIEW_KEYS[(seg_idx + i) % len(_ALT_VIEW_KEYS)]
+                         for i in range(len(_ALT_VIEW_KEYS))]
+                cands = [c for c in cands if c != primary]
+                cands.sort(key=lambda c: c in used_view_keys)   # 穩定排序:沒出現過的排前面
+                for cand in cands:
+                    if len(picked) >= _VIEWS_PER_SEG - 1:
+                        break
+                    if _view_probe(seg_idx, cand):
+                        picked.append(cand)
+                    else:
+                        rejected.append(cand)     # 事實庫沒這組資料 → 不換過去
+                used_view_keys.update([primary] + picked)
+            plan = [None] * _VIEWS_PER_SEG
+            plan[1:1 + len(picked)] = picked
+            # 這一行是這條規則的**輸出**:沒有它,「缺資料所以沒換」和「根本沒在換」
+            # 事後分不出來(dispatch.md:規則要嘛是檢查,要嘛是期望)。
+            print(f"[換視角] 第{seg_idx}段 原圖={primary} 換到={picked or '(無→整段留原圖)'} "
+                  f"缺資料跳過={rejected or '(無)'}", file=sys.stderr)
+            seg_view_plan[seg_idx] = plan
+            return plan
 
         def _reveal_base(seg_idx, bucket):
             """回傳該段揭露到 bucket 級別的底卡(concept@reveal + 同段 HUD/吉祥物重合成);
@@ -1219,19 +1289,29 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
                 # 最左邊約 3 年 → **每一段開頭都是一條細線、畫面近乎空白**(抽幀實測第 1、9 幀都是)。
                 # 漸進揭露的用意是「講到哪畫到哪」,不是「開場什麼都沒有」。改成從 35% 起跳:
                 # 一開場就有看得懂的圖,之後仍持續長到 100%(生長感保留,只是不再從近乎零開始)。
-                r = 0.35 + 0.65 * (bucket + 1) / _REVEAL_BUCKETS
+                # 2026-09-19 換視角:沒換到視角(事實庫缺資料)時,揭露比例用**整段連續**
+                # 那把尺 —— 與換視角前完全一致;有換才在子段內自己從 35% 長到 100%。
+                view = bucket * _VIEWS_PER_SEG // _REVEAL_BUCKETS
+                fkey = _view_plan(seg_idx)[view] if view > 0 else None
+                _bs = (_reveal_view_buckets(view, _VIEWS_PER_SEG, _REVEAL_BUCKETS)
+                       if fkey else list(range(_REVEAL_BUCKETS)))
+                r = 0.35 + 0.65 * (_bs.index(bucket) + 1) / len(_bs)
                 # 🔴 2026-08-12:必須帶 variant——漏帶時 variant≥1 的段落(同概念第二段=
                 # 近期窗圖)揭露版會畫回**全歷史窗**,和原卡/sidecar 的數字不一致(實測
                 # 卡說 -57.0% 揭露版畫 -69.3%,數字爆現樣張當場對不上被抓包)。
+                _m = {}
                 card = mv.render_concept_card(
                     width, height, heading=seg.heading or "", narration=seg.narration,
                     watermark=watermark, accent=accent, seed=f"{vid_seed}_{seg_idx}",
                     dest=tmp_dir / f"reveal_{seg_idx:02d}_{bucket}.png",
                     default_key=video_concept,
-                    force_key=(mv._series_force_key(seg.heading or "")
-                               if getattr(mv, "_series_force_key", None) else None),
+                    force_key=(fkey or (mv._series_force_key(seg.heading or "")
+                                        if getattr(mv, "_series_force_key", None) else None)),
                     fallback_ticker=video_ticker, reveal=r,
-                    variant=(_variants[seg_idx] if seg_idx < len(_variants) else 0))
+                    variant=(_variants[seg_idx] if seg_idx < len(_variants) else 0),
+                    out_meta=_m)
+                if view == 0:   # 第 0 個子段畫的就是「原圖」,把圖種記下來給 _view_plan 用
+                    seg_primary_key[seg_idx] = _m.get("key")
                 if card is not None:
                     bimg = Image.open(str(card)).convert("RGBA")
                     if seg_hud_png[seg_idx]:            # 疊回同段那張 HUD 條(段內不變)

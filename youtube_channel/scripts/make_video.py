@@ -1186,7 +1186,8 @@ def render_concept_card(width: int, height: int, *, heading: str, narration: str
                         force_key: Optional[str] = None,
                         fallback_ticker: Optional[str] = None,
                         reveal: float = 1.0,
-                        variant: int = 0) -> Optional[Path]:
+                        variant: int = 0,
+                        out_meta: Optional[dict] = None) -> Optional[Path]:
     """主題數據圖卡：依旁白選一張對得上的圖（網格/複利/回撤…），
     標題放頂部小條（不蓋圖），下方留給字幕。
     force_key 有值＝硬指定該圖（用於強制回測對比 beat，不管旁白分類）；
@@ -1215,6 +1216,10 @@ def render_concept_card(width: int, height: int, *, heading: str, narration: str
             break
     if img is None:
         return None
+    # 2026-09-19 換視角用:回報**實際畫出來的**是哪種圖。呼叫端不能自己重算 keys 鏈——
+    # 上面那個 for 迴圈會因為「指定的圖沒真資料」往下退,重算的那份看不到這件事。
+    if out_meta is not None:
+        out_meta["key"] = key
     img = img.convert("RGB")
     draw = ImageDraw.Draw(img, "RGBA")
     md = min(width, height)
