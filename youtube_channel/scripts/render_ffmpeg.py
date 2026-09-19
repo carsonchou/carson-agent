@@ -1225,9 +1225,26 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
         # 不另寫一份「這檔有沒有這組資料」的檢查,免得它和真正畫圖的那份分岔。
         # 缺資料 → 那個視角不採用 → 該段退回「一張圖連續揭露 8 格」,與換視角前同行為。
         _VIEWS_PER_SEG = 3
-        # 機制示意圖(grid/compound/martingale)刻意不列入候選:它們對任何標的都畫得出來,
-        # 換過去等於「圖變了但沒多給這一檔的資訊」,而且與本段旁白無關。
-        _ALT_VIEW_KEYS = ("history", "fundamentals", "valuation", "drawdown", "trend", "dca")
+        # 🔴 2026-09-19 第四輪(語意白名單):上一版的候選是六種圖按 (seg_idx+i)%len 輪,
+        # **完全不看這一段的標題在講什麼** —— 實測 1560「估值現況:本益比相對位置與產業排名」
+        # 那段換到的是回撤紅圖與定期定額圖:標題講估值,畫面沒有估值。圖是真的,但答非所問,
+        # 損害的是 Carson 三個抱怨裡的「不直觀」。
+        # 改法:段落標題先過**既有的** heading→圖種分類器(mv._series_force_key /
+        # mv._seg_concept_key,不另發明一套平行分類),用分出來的主題查白名單;只有白名單內
+        # 的圖種才准換進來,不在白名單內的候選就算事實庫有資料也不換。
+        # 標題分不出主題 → 白名單未知 → **整段維持原圖**(照舊一張圖從 35% 揭露到 100%),
+        # 不為了換而換。
+        # 機制示意圖(grid/compound/martingale)不在任何一份白名單裡,理由同前:它們對任何
+        # 標的都畫得出來,換過去等於「圖變了但沒多給這一檔的資訊」。
+        # crosssec(全市場分佈)也不列:它畫的不是這一檔,沒有同主題的第二視角可換。
+        _VIEW_ALLOW = {
+            "history":      ("history", "trend"),          # 這檔是誰/長期走勢 → 價格族
+            "trend":        ("trend", "history", "drawdown"),
+            "drawdown":     ("drawdown", "trend", "history"),   # 回撤/套牢 → 價格族
+            "dca":          ("dca", "trend"),              # 買法/定期定額 → 走勢是定投的底
+            "fundamentals": ("fundamentals", "valuation"),  # 營收/EPS ↔ 本益比的分母
+            "valuation":    ("valuation", "fundamentals"),
+        }
 
         reveal_base_cache = {}   # (seg_idx, bucket) -> png 路徑 或 None(該段非真資料圖,退回 seg_cards)
         seg_primary_key = {}     # seg_idx -> 這一段原本畫的是哪種圖(render_concept_card 回報的)
@@ -1253,11 +1270,12 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
                 return seg_view_plan[seg_idx]
             _reveal_base(seg_idx, 0)     # 先畫第 0 格(有快取不浪費),順便得知原圖是哪種
             primary, picked, rejected = seg_primary_key.get(seg_idx), [], []
-            if primary is not None:
-                # 起點按段錯開:否則全片每一段都換到同樣的第二/第三視角
-                cands = [_ALT_VIEW_KEYS[(seg_idx + i) % len(_ALT_VIEW_KEYS)]
-                         for i in range(len(_ALT_VIEW_KEYS))]
-                cands = [c for c in cands if c != primary]
+            _head = segments[seg_idx].heading or ""
+            topic = ((mv._series_force_key(_head) if getattr(mv, "_series_force_key", None) else None)
+                     or mv._seg_concept_key(_head))
+            allow = _VIEW_ALLOW.get(topic or "", ())
+            if primary is not None and allow:
+                cands = [c for c in allow if c != primary]
                 cands.sort(key=lambda c: c in used_view_keys)   # 穩定排序:沒出現過的排前面
                 for cand in cands:
                     if len(picked) >= _VIEWS_PER_SEG - 1:
@@ -1271,8 +1289,10 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
             plan[1:1 + len(picked)] = picked
             # 這一行是這條規則的**輸出**:沒有它,「缺資料所以沒換」和「根本沒在換」
             # 事後分不出來(dispatch.md:規則要嘛是檢查,要嘛是期望)。
-            print(f"[換視角] 第{seg_idx}段 原圖={primary} 換到={picked or '(無→整段留原圖)'} "
-                  f"缺資料跳過={rejected or '(無)'}", file=sys.stderr)
+            print(f"[換視角] 第{seg_idx}段 標題主題={topic or '(判不出)'} "
+                  f"白名單={allow or '(空→整段留原圖)'} 原圖={primary} "
+                  f"換到={picked or '(無→整段留原圖)'} 缺資料跳過={rejected or '(無)'} "
+                  f"標題={_head[:24]}", file=sys.stderr)
             seg_view_plan[seg_idx] = plan
             return plan
 
