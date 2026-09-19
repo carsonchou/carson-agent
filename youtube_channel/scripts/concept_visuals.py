@@ -678,8 +678,27 @@ def _valuation(ax, ctx):
     if None in (p25, p50, p75, cur, rank):
         return None
     code = ctx.real[0]
-    lo = min(p25, cur) * 0.85
-    hi = max(p75, cur) * 1.12
+    # 🔴 2026-09-19 P0:舊版 lo=min(p25,cur)*0.85 / hi=max(p75,cur)*1.12 —— cur 是離群值時
+    # (EPS 趨近 0 或虧損的個股,本益比會噴到幾百上千倍)整條軸被 cur 一個點撐開,
+    # 這張圖真正要傳達的 P25~P75 箱型被壓成一條髮絲:3714 實測只佔畫布寬 1.65%,
+    # 三個刻度標籤疊成「P2位數1 20」完全不可讀,而這張圖在成片裡停留 155 秒。
+    # 母體:stock_checkup_facts.json 全 693 檔有估值資料的個股,142 檔(20.5%)箱型 <30% 畫布。
+    # 修法:x 軸視窗只由箱型區間決定,cur 落在窗外就釘在邊緣、改用箭頭標記並明寫「超出區間」。
+    # 不選對數軸的理由:這張圖 set_xticks([]) 本來就沒有 x 刻度,對數軸的壓縮比例在畫面上
+    # 無從辨識 = 視覺上把 992 倍畫得像 30 倍,那是誤導;且受眾是新手(見 _maybe_log_y 註解),
+    # 對數軸讀不出來。釘邊 + 把真實數值原樣寫出來,是唯一不犧牲誠信的選項。
+    # pad 用「箱寬」當基準,不用中位數尺度 —— 用 p50*0.15 當 pad 會讓區間很窄的個股
+    # (如中華電 2412,P25~P75 只差 4 倍)反過來被自己的中位數尺度稀釋到 35% 畫布。
+    # max(..., 1.0) 只是退化保護(p25==p75 時不讓 lo==hi 讓 matplotlib 爆掉)。
+    _box = max(p75 - p25, 1.0)
+    pad = _box * 0.35
+    lo, hi = max(p25 - pad, 0.0), p75 + pad
+    off_scale = not (lo <= cur <= hi)
+    if off_scale:
+        cx = lo + (hi - lo) * (0.06 if cur < lo else 0.94)
+    else:
+        cx = cur
+        lo, hi = min(lo, cur - pad * 0.25), max(hi, cur + pad * 0.25)
     ax.set_xlim(lo, hi)
     ax.set_ylim(0, 1)
     ax.axhspan(0.36, 0.64, xmin=(p25 - lo) / (hi - lo), xmax=(p75 - lo) / (hi - lo),
@@ -690,14 +709,21 @@ def _valuation(ax, ctx):
     # 漸進揭露:區間先出現,目前值最後才落點(reveal=1.0 時與舊行為一致)。
     if ctx.reveal >= 0.55:
         colr = RED if rank >= 50 else GREEN
-        ax.scatter([cur], [0.5], s=340, color=colr, edgecolors="white",
-                   linewidths=1.2, zorder=6)
-        ax.annotate(f"目前 {cur:.0f} 倍", xy=(cur, 0.5), xytext=(0, 46),
-                    textcoords="offset points", ha="center", va="bottom", color=colr,
+        # 釘邊時改用三角箭頭:圓點釘在右緣會被讀成「就在 P75 右邊一點」,箭頭才看得出「還在畫面外」。
+        ax.scatter([cx], [0.5], s=420 if off_scale else 340, color=colr, edgecolors="white",
+                   linewidths=1.2, zorder=6,
+                   marker=("<" if cur < lo else ">") if off_scale else "o")
+        # 標籤釘在畫布邊緣時 ha 必須跟著換邊,否則 ha="center" 會讓「目前 992 倍（超出區間）」
+        # 往畫布外長出去被切掉(同 _drawdown 谷底標註的處置:依位置選,不靠 autoscale)。
+        _ha = "center" if not off_scale else ("right" if cur > hi else "left")
+        _dx = 0 if _ha == "center" else (-14 if _ha == "right" else 14)
+        ax.annotate(f"目前 {cur:,.0f} 倍" + ("（超出區間）" if off_scale else ""),
+                    xy=(cx, 0.5), xytext=(_dx, 46),
+                    textcoords="offset points", ha=_ha, va="bottom", color=colr,
                     fontsize=32, fontweight="bold",
                     path_effects=[_pe.withStroke(linewidth=4, foreground=BG)], zorder=7)
-        ax.annotate(f"落在自身歷史第 {rank:.0f} 百分位", xy=(cur, 0.5), xytext=(0, -46),
-                    textcoords="offset points", ha="center", va="top", color=FG,
+        ax.annotate(f"落在自身歷史第 {rank:.0f} 百分位", xy=(cx, 0.5), xytext=(_dx, -46),
+                    textcoords="offset points", ha=_ha, va="top", color=FG,
                     fontsize=19, zorder=7)
     ax.set_xticks([])
     ax.grid(False)
