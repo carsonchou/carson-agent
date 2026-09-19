@@ -544,53 +544,102 @@ def _broll_query(seg, title, idx):
     return [GENERIC[idx % len(GENERIC)]]
 
 
-def _build_num_pops(segments, seg_cards, seg_starts, tmp_dir, width, height, accent):
-    """數字爆現 overlay 素材(2026-08-12 v2 原型):每段的關鍵數字(來自卡片 sidecar=
-    圖表層印在圖上的真實數字,見 concept_visuals meta out-param)畫成透明 PNG,
-    回 [(png, t_start_秒)],供 filter_complex 疊 overlay。最多 3 個;任何缺料就跳過該段。"""
+def _build_num_pops(pop_ctx, seg_cards, tmp_dir, width, height, accent, ticker=None):
+    """數字爆現 overlay 素材 —— 素材是**旁白當下這一句唸出來的數字**(方案 B,2026-09-19)。
+
+    ## 舊版錯在哪(不是實作 bug,是素材選錯)
+    舊版拿「該段圖表 sidecar 的 key_numbers[0]」,印在**段落起點**。段落起點那一刻
+    旁白在唸什麼,全檔沒有任何一行查過 —— 圖上印 -69.8% 而嘴巴正在講 -28.1% 是完全
+    可能的,而且沒有任何東西會擋。舊版註解寫「樣張四方一致(pop=圖=圖說=旁白)」,
+    那是上線當下抽樣看過,不是程式保證的性質(memory verification-claims-in-commit-messages)。
+
+    ## 新版
+    素材改成 cue 本身;每個數字都要過 narration_number_gate 的**精確比對**
+    (事實庫欄位 + 這一幀圖說),比不中就不印,改出一張**不帶任何數字**的 CTA 字卡。
+
+    fail-closed 的範圍:沒有代號、事實庫沒這檔、閘門模組載不進來 → 一個數字都不印。
+    「驗不了就不印」比「印了再說」保守且可解釋(memory fail-closed-criterion-is-explainability)。
+
+    回 [(png, t_start_秒)]。數字最多 3 個、CTA 最多 1 張。
+    """
     import json as _json
     from PIL import Image, ImageDraw
-    specs = []
-    seen_nums = set()
-    for i in range(1, len(segments)):
-        if len(specs) >= 3:
-            break
-        card = seg_cards[i] if i < len(seg_cards) else None
-        if not card:
-            continue
-        mp = Path(str(card) + ".meta.json")
-        if not mp.exists():
+
+    try:
+        import narration_number_gate as _gate
+    except Exception:  # noqa: BLE001
+        return []
+    if not ticker:
+        return []
+    try:
+        _all = mv._concept._checkup_facts()
+    except Exception:  # noqa: BLE001
+        return []
+    facts = {k: (v or {}).get("data") for k, v in (_all or {}).items()
+             if k.endswith(f"__{ticker}") and (v or {}).get("data")}
+    if not facts:
+        return []
+
+    def _caption(seg_idx, bucket):
+        """此刻螢幕上那張圖自己的圖說。拿不到回 ""(閘門就只剩事實庫那一關)。"""
+        cands = []
+        if bucket >= 0:
+            cands.append(tmp_dir / f"reveal_{seg_idx:02d}_{bucket}.png.meta.json")
+        card = seg_cards[seg_idx] if seg_idx < len(seg_cards) else None
+        if card:
+            cands.append(Path(str(card) + ".meta.json"))
             # 吉祥物合成會把 seg_cards[i] 換成 cardmas_XX.png,sidecar 在原始 concept_XX.png 旁
-            mp = Path(str(card).replace("cardmas_", "concept_") + ".meta.json")
-        if not mp.exists():
-            continue
-        try:
-            meta = _json.loads(mp.read_text(encoding="utf-8"))
-            num = (meta.get("key_numbers") or [None])[0]
-        except Exception:  # noqa: BLE001
-            continue
-        if not num or num in seen_nums:
-            continue
-        seen_nums.add(num)
-        # 透明底大數字:負數紅、正數金;粗描邊保任何底圖上可讀
+            cands.append(Path(str(card).replace("cardmas_", "concept_") + ".meta.json"))
+        for p in cands:
+            try:
+                if p.exists():
+                    return _json.loads(p.read_text(encoding="utf-8")).get("caption") or ""
+            except Exception:  # noqa: BLE001
+                continue
+        return ""
+
+    def _card(text, fs_ratio, color, name):
         w, h = int(width * 0.62), int(height * 0.30)
         img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
         dr = ImageDraw.Draw(img)
-        fs = int(height * 0.185)
+        fs = int(height * fs_ratio)
         font = mv._load_font(fs, bold=True)
-        col = (255, 92, 92, 255) if num.startswith("-") else (255, 210, 63, 255)
         try:
-            tw = dr.textlength(num, font=font)
+            tw = dr.textlength(text, font=font)
         except Exception:  # noqa: BLE001
             tw = w * 0.8
-        x = (w - tw) / 2
-        y = (h - fs) / 2
-        dr.text((x, y), num, font=font, fill=col,
+        dr.text(((w - tw) / 2, (h - fs) / 2), text, font=font, fill=color,
                 stroke_width=max(3, fs // 22), stroke_fill=(8, 10, 16, 235))
-        outp = tmp_dir / f"numpop_{i}.png"
+        outp = tmp_dir / name
         img.save(outp, "PNG")
-        specs.append((outp, mv.INTRO_DURATION + seg_starts[i] + 0.10))
-    return specs
+        return outp
+
+    specs, seen_nums, cta = [], set(), None
+    tally = {}
+    for t, seg_idx, bucket, text in sorted(pop_ctx):
+        if len(specs) >= 3:
+            break
+        d = _gate.decide(text, facts, caption=_caption(seg_idx, bucket))
+        tally[d.reason[:1] if not d.ok else "放行"] = \
+            tally.get(d.reason[:1] if not d.ok else "放行", 0) + 1
+        if d.ok and d.number not in seen_nums:
+            seen_nums.add(d.number)
+            col = (255, 92, 92, 255) if d.number.startswith("-") else (255, 210, 63, 255)
+            specs.append((_card(d.number, 0.185, col, f"numpop_{len(specs)}.png"),
+                          mv.INTRO_DURATION + t + 0.10))
+        elif cta is None and d.reason[:1] in ("①", "②", "③"):
+            # 有數字、但驗不過 → 這一刻正是「退版面」該出現的地方。CTA 一個數字都不帶。
+            cta = mv.INTRO_DURATION + t + 0.10
+    if cta is not None and all(abs(cta - ts) > 2.5 for _p, ts in specs):
+        specs.append((_card("完整系列在頻道上．記得訂閱",
+                            0.062, (228, 234, 247, 255), "numpop_cta.png"), cta))
+    # 閘門「擋下了什麼」必須留在渲染記錄裡:只印放行的那幾個,事後沒有任何方法區分
+    # 「沒有數字可印」和「有數字但被擋掉」——不可解釋的閘門等於沒有閘門
+    # (memory fail-closed-criterion-is-explainability)。
+    print(f"[數字閘門] {ticker} 看過 {sum(tally.values())} 句 → {tally}"
+          f";印出 {[(Path(p).name, round(ts, 2)) for p, ts in specs]}",
+          file=sys.stderr)
+    return sorted(specs, key=lambda s: s[1])
 
 
 def _narration_seg_starts(segments, cues, audio_duration):
@@ -1204,6 +1253,11 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
             return out
 
         sub_cache = {}
+        # 🔴 數字爆現的素材來源。這是全檔唯一同時知道「旁白當下這一句」與
+        # 「此刻螢幕上是哪一張揭露圖」的地方——兩者在別處各自重算一定會走鐘
+        # (見 _narration_seg_starts 的教訓)。同一個 cue 只收第一次出現。
+        pop_ctx = []          # (t, seg_idx, bucket, cue_text)
+        _pop_seen = set()
         timeline = [(intro_png, mv.INTRO_DURATION)]  # (png, dur)
         for a, b in zip(bounds, bounds[1:]):
             dur = b - a
@@ -1220,6 +1274,9 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
                 if rb is not None:                           # 只有真資料圖段落才換;否則保留原卡
                     base = rb
             cue = next((c for c in cues if c.start <= mid < c.end), None)
+            if cue is not None and cue.start not in _pop_seen:
+                _pop_seen.add(cue.start)
+                pop_ctx.append((float(cue.start), seg_idx, bucket, cue.text))
             png = base
             if cue is not None:
                 key = (seg_idx, bucket, cue.text)  # bucket 進 key:同段不同揭露級別的字幕卡要分開快取
@@ -1364,10 +1421,11 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
         # 2026-08-12 Carson授權自行決策→預設開(opt-out:RENDER_NUM_POP=0 可關)。
         # 上線前已過:樣張四方一致(pop=圖=圖說=旁白)、fail-open、每週抽檢兜底。
         if (os.environ.get("RENDER_NUM_POP", "1") != "0" and width > height
-                and seg_starts is not None):
+                and pop_ctx):
             try:
-                pop_specs = _build_num_pops(segments, seg_cards, seg_starts,
-                                            tmp_dir, width, height, accent)
+                pop_specs = _build_num_pops(pop_ctx, seg_cards, tmp_dir,
+                                            width, height, accent,
+                                            ticker=video_ticker)
                 if pop_specs:
                     print(f"[ffmpeg後端] 數字爆現:{len(pop_specs)} 個 overlay", file=sys.stderr)
             except Exception as _npe:  # noqa: BLE001

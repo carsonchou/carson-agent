@@ -1274,7 +1274,9 @@ def render_concept_card(width: int, height: int, *, heading: str, narration: str
     # ⚠️ 教訓:第一版用「存檔樣板字串」做 replace 打到別的函式還被 try 吞掉 NameError——
     # 同款存檔樣板全檔有 4 處,錨點必須含所屬函式特有內容。
     try:
-        if _meta.get("key_numbers"):
+        # 只要有圖說就寫 sidecar:閘門的形態① 要比對「這一幀圖說自己的數字」,
+        # 而有數字的圖說不一定抽得出 key_numbers,只看 key_numbers 會整類漏掉。
+        if _meta.get("key_numbers") or _meta.get("caption"):
             import json as _json
             Path(str(dest) + ".meta.json").write_text(
                 _json.dumps({**_meta, "concept_key": key}, ensure_ascii=False), encoding="utf-8")
