@@ -15,6 +15,12 @@ Claude Code 本身的登入/OAuth,那條路只給互動用、拿來跑後端服�
 markdown code fence 裡,舊的 json.loads(txt) 直接炸掉被誤判成失敗——修好 fence 剝除後
 兩種案例(名稱推算/畫面本來就印代號)各測 3 次全部正確,改用它當預設模型。
 之後要再換模型只改 STOCK_CHECKUP_VISION_MODEL 環境變數。
+
+2026-09-19 再出包:上面那次修的 _FENCE_RE 是錨定 ^```...```$,只涵蓋「整段回應就是
+fence」。實測發現模型有時會在 fence 前面先加一段中文說明(「這是XX,代號是XX」)才接
+```json```,錨定版本比對失敗,退回把整段(含說明文字)丟給 json.loads(),得到
+`Expecting value: line 1 column 1 (char 0)`。改成不錨定的 search()、再加一層「沒 fence
+就找 {...}」的備援,兩種情況都能剝出乾淨的 JSON。
 """
 from __future__ import annotations
 
@@ -27,7 +33,10 @@ import requests
 
 _OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 _CODE_RE = re.compile(r"^[0-9A-Z]{4,6}$")
-_FENCE_RE = re.compile(r"^```[a-zA-Z]*\n(.*)\n```$", re.DOTALL)
+# 不能錨定 ^...$:模型有時會在 fence 前面加一段說明文字(例如「這是XX,代號是XX」)
+# 才接 ```json ... ```,錨定版本會整段連說明文字一起丟給 json.loads() 而炸掉。
+_FENCE_RE = re.compile(r"```(?:[a-zA-Z]*)\s*\n?(.*?)\n?```", re.DOTALL)
+_JSON_OBJ_RE = re.compile(r"\{.*\}", re.DOTALL)
 
 _PROMPT = (
     "這是一張台股券商 App 的庫存(持股)畫面截圖。請找出畫面中每一檔股票的「股票代號」"
@@ -105,9 +114,13 @@ def extract_codes(image_bytes: bytes, content_type: str, max_codes: int) -> list
 
     try:
         txt = (r.json()["choices"][0]["message"]["content"] or "").strip()
-        fence = _FENCE_RE.match(txt)   # 有些模型(如 claude 系列)即使指定 json_object
-        if fence:                      # 還是會把 JSON 包在 ```json ... ``` 裡
+        fence = _FENCE_RE.search(txt)  # 有些模型(如 claude 系列)即使指定 json_object
+        if fence:                      # 還是會把 JSON 包在說明文字 + ```json ... ``` 裡
             txt = fence.group(1).strip()
+        else:
+            obj = _JSON_OBJ_RE.search(txt)  # 沒 fence 但混了說明文字的情況
+            if obj:
+                txt = obj.group(0)
         raw_codes = json.loads(txt).get("codes") or []
     except Exception as exc:  # noqa: BLE001
         raise VisionError(f"辨識結果格式不正確,無法解析:{exc}") from exc
