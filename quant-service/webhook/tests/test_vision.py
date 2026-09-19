@@ -71,3 +71,26 @@ def test_prose_mentions_fence_syntax_before_real_fence():
         "實際結果:```json\n{\"codes\": [\"2330\"]}\n```"
     )
     assert _run(content) == ["2330"]
+
+
+def test_last_valid_json_without_codes_key_falls_back_to_earlier():
+    content = (
+        "```json\n{\"codes\": [\"2330\", \"2603\"]}\n```\n\n"
+        "備註:```json\n{\"foo\": \"bar\"}\n```"
+    )
+    assert _run(content) == ["2330", "2603"]
+
+
+def test_last_valid_json_with_null_codes_falls_back_to_earlier():
+    content = (
+        "```json\n{\"codes\": [\"2330\"]}\n```\n\n"
+        "```json\n{\"codes\": null}\n```"
+    )
+    assert _run(content) == ["2330"]
+
+
+def test_nested_backticks_inside_fence_content_still_parses():
+    content = (
+        "```json\n{\"codes\": [\"2330\"], \"note\": \"a ```nested``` backtick\"}\n```"
+    )
+    assert _run(content) == ["2330"]

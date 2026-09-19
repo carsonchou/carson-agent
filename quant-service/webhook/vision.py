@@ -27,6 +27,20 @@ fence」——模型偶爾會先給範例/草稿 fence 才接真正答案,`.sear
 到第一個,一樣炸出跟修復前一模一樣的錯誤;更壞的是如果草稿 fence 剛好也是合法
 JSON,會**靜默回傳錯的股票代號**、完全不報錯。改成 `_parse_codes_payload()`:蒐集
 全部 fence,由後往前找第一個能成功解析的——模型的自我修正一律是後面蓋掉前面。
+
+2026-09-19 同日第三次:獨立驗證又抓到兩個洞——① 「由後往前找第一個能解析成 dict
+的」沒檢查那個 dict 有沒有 `codes` 欄位,如果最後一個 fence 剛好是不相關的合法
+JSON(例如 `{"foo":"bar"}`),會靜默回傳 `[]`,把前面真正的答案丟掉;② fence 內容
+如果自己包含巢狀反引號,`_FENCE_RE` 的邊界比對會被打亂,連帶讓「由後往前」在有更
+早草稿 fence 存在時選錯。兩個洞都是同一種病:**用正規式猜 fence 邊界,本質上猜不
+完**。改用「直接掃大括號配對(字串內的括號不計)抓出所有語法完整的 JSON 物件」,
+完全不管有沒有 ``` 包住,並且只接受「有 `codes` 欄位且是 list」的候選——不相關的
+合法 JSON 不會再被誤選。同時在 prompt 加一句明講「只能輸出一個 JSON、不要草稿」,
+從源頭降低模型輸出多個候選的機率(見 `_PROMPT`)。
+
+殘留風險(有意接受、非漏改):如果模型真的先給完整正確答案、又在後面加一段同樣
+帶 `codes` 欄位的不相關內容,「取最後一個」仍可能選錯——這是內容本身有歧義,不是
+正規式能解的問題,靠上面加的 prompt 限制降低發生率,而非在解析層強行消歧。
 """
 from __future__ import annotations
 
@@ -39,10 +53,6 @@ import requests
 
 _OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 _CODE_RE = re.compile(r"^[0-9A-Z]{4,6}$")
-# 不能錨定 ^...$:模型有時會在 fence 前面加一段說明文字(例如「這是XX,代號是XX」)
-# 才接 ```json ... ```,錨定版本會整段連說明文字一起丟給 json.loads() 而炸掉。
-_FENCE_RE = re.compile(r"```(?:[a-zA-Z]*)\s*\n?(.*?)\n?```", re.DOTALL)
-_JSON_OBJ_RE = re.compile(r"\{.*\}", re.DOTALL)
 
 _PROMPT = (
     "這是一張台股券商 App 的庫存(持股)畫面截圖。請找出畫面中每一檔股票的「股票代號」"
@@ -59,7 +69,9 @@ _PROMPT = (
     "- 只列股票代號,不要公司名稱、不要其他文字。\n"
     "- 不管是直接看到還是靠名稱推算出來的代號,只要不確定就不要瞎猜,寧可漏掉不要編造。\n"
     "- 依畫面由上到下的順序列出,去除重複。\n"
-    "- 若完全看不出任何股票代號,回傳 {\"codes\": []}。"
+    "- 若完全看不出任何股票代號,回傳 {\"codes\": []}。\n"
+    "- 直接給最終答案,只能輸出一個 JSON 物件:不要先給格式範例、不要草稿、不要展示"
+    "「修正前/修正後」兩個版本——如果你需要重新確認答案,把舊的答案丟掉,只留最終這一份。"
 )
 
 
@@ -67,25 +79,63 @@ class VisionError(RuntimeError):
     """辨識失敗(缺金鑰/API 錯誤/回應格式不對)。呼叫端轉成 HTTP 錯誤給前端,不靜默吞掉。"""
 
 
-def _parse_codes_payload(txt: str) -> dict:
-    """從模型回應裡挑出「最終答案」那段 JSON。
+def _iter_json_objects(txt: str):
+    """依序找出 txt 裡所有語法完整的最外層 {...} 物件(字串內的括號不計)。
 
-    模型常常不是只給一個 fence:可能先給格式範例、草稿、思考過程,才接真正答案,
-    甚至前面的草稿也剛好是合法 JSON(見 vision.py 2026-09-19 補記)。一律採用
-    「由後往前找,第一個能成功解析成 dict 的 fence」——模型的自我修正永遠是後面
-    蓋掉前面,不會反過來。找不到任何合法 fence 才退回全文找 {...} 或整段硬解。
+    不靠 ``` fence 邊界定位——fence 內容如果自己包含巢狀反引號,正規式對 fence
+    邊界的猜測會被打亂(見 vision.py 2026-09-19 第三次補記)。直接掃大括號配對,
+    對字串本身有沒有被 fence 包住完全不敏感。
     """
-    fences = list(_FENCE_RE.finditer(txt))
-    for m in reversed(fences):
+    n = len(txt)
+    i = 0
+    while i < n:
+        if txt[i] == "{":
+            depth = 0
+            in_str = False
+            escape = False
+            start = i
+            j = i
+            while j < n:
+                c = txt[j]
+                if in_str:
+                    if escape:
+                        escape = False
+                    elif c == "\\":
+                        escape = True
+                    elif c == '"':
+                        in_str = False
+                else:
+                    if c == '"':
+                        in_str = True
+                    elif c == "{":
+                        depth += 1
+                    elif c == "}":
+                        depth -= 1
+                        if depth == 0:
+                            yield txt[start:j + 1]
+                            i = j
+                            break
+                j += 1
+            else:
+                break
+        i += 1
+
+
+def _parse_codes_payload(txt: str) -> dict:
+    """從模型回應裡挑出「最終答案」那個 JSON 物件。
+
+    掃出全部語法完整的 JSON 物件候選,由後往前找第一個「能解析成 dict 且有
+    codes 欄位(list)」的——模型的自我修正一律是後面蓋掉前面,而且只認有
+    codes 欄位的,排除掉跟答案無關但剛好也合法的 JSON(例如格式範例本身)。
+    找不到任何合格候選時,退回整段硬解,讓原始例外訊息說明真正壞在哪。
+    """
+    for candidate in reversed(list(_iter_json_objects(txt))):
         try:
-            data = json.loads(m.group(1).strip())
+            data = json.loads(candidate)
         except (json.JSONDecodeError, ValueError):
             continue
-        if isinstance(data, dict):
+        if isinstance(data, dict) and isinstance(data.get("codes"), list):
             return data
-    obj = _JSON_OBJ_RE.search(txt)
-    if obj:
-        return json.loads(obj.group(0))
     return json.loads(txt)
 
 
