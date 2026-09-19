@@ -1,0 +1,33 @@
+[_llm_shim] \u26a0\ufe0f ���] OPENROUTER_API_KEY,shim **������** �X�X �� process �� Anthropic �|���q�u���I(�b�ᦳ���N�|�u���p�O)
+[ffmpeg後端] 首幀=大數字衝擊卡 (hook_card)
+[換視角] 第0段 標題主題=(判不出) 白名單=(空→整段留原圖) 原圖=dca 換到=(無→整段留原圖) 缺資料跳過=(無) 標題=系列規則與方法論公開（誠信底線）
+[換視角] 第1段 標題主題=(判不出) 白名單=(空→整段留原圖) 原圖=dca 換到=(無→整段留原圖) 缺資料跳過=(無) 標題=20年總報酬揭曉——對猜數字遊戲的答案
+[換視角] 第2段 標題主題=drawdown 白名單=('drawdown', 'trend', 'history') 原圖=drawdown 換到=['trend', 'history'] 缺資料跳過=(無) 標題=最大回撤與卡瑪比率——報酬的另一面
+[換視角] 第3段 標題主題=(判不出) 白名單=(空→整段留原圖) 原圖=dca 換到=(無→整段留原圖) 缺資料跳過=(無) 標題=最猛一年 vs 最慘一年（27年年度報酬全樣本）
+[換視角] 第4段 標題主題=dca 白名單=('dca', 'trend') 原圖=dca 換到=['trend'] 缺資料跳過=(無) 標題=三種買法對決——All-in / 定期定額 / 
+[換視角] 第5段 標題主題=drawdown 白名單=('drawdown', 'trend', 'history') 原圖=drawdown 換到=['trend', 'history'] 缺資料跳過=(無) 標題=持有體驗①——史上最長套牢期10.7年（差異化核
+[換視角] 第6段 標題主題=drawdown 白名單=('drawdown', 'trend', 'history') 原圖=drawdown 換到=['trend', 'history'] 缺資料跳過=(無) 標題=持有體驗②——腰斬-52.4%事件
+[換視角] 第7段 標題主題=(判不出) 白名單=(空→整段留原圖) 原圖=drawdown 換到=(無→整段留原圖) 缺資料跳過=(無) 標題=歷史風暴三段對照——若持有至今
+[數字閘門] 2330 看過 125 句 → {'④': 79, '放行': 4, '②': 32, '①': 9, '③': 1};印出 [('numpop_0.png', 31.92), ('numpop_1.png', 340.5), ('numpop_2.png', 417.27), ('numpop_cta.png', 41.99)]
+[ffmpeg後端] 數字爆現:4 個 overlay
+[隔離] make_video <- D:\_sandbox_wFp8_R4\youtube_channel\scripts\make_video.py
+[隔離] render_ffmpeg <- D:\_sandbox_wFp8_R4\youtube_channel\scripts\render_ffmpeg.py
+[隔離] concept_visuals <- D:\_sandbox_wFp8_R4\youtube_channel\scripts\concept_visuals.py
+[隔離] PROJECT_ROOT = D:\_sandbox_wFp8_R4\youtube_channel
+================================================================
+開始組片：L_個股體檢EP1台積電233020年翻84倍但你要先熬
+  標題     : 台積電2330體檢報告：20年翻84倍，但你要先熬過10.7年套牢｜個股體檢 EP1
+  配音長   : 566.6s（8 段）
+  素材來源 : 字卡降級（無 PEXELS_API_KEY）
+  解析度   : 1920x1080 @ 24fps
+  [note] 未設定 PEXELS_API_KEY，全程使用字卡投影片（仍可產出完整測試片）。
+================================================================
+[ffmpeg後端] 編碼器=libx264  切片=190段  字幕=193  BGM=有  總長=574.2s
+[ffmpeg後端] ✅ 完成 after_2330.mp4（21.0 MB）
+================================================================
+[OK] 影片完成（ffmpeg 後端·快）！
+  檔案     : D:\_sandbox_wFp8_R4\after\after_2330.mp4
+  大小     : 21.0 MB
+================================================================
+[渲染] rc=0 耗時=282.2s -> D:\_sandbox_wFp8_R4\after\after_2330.mp4
+[渲染] mp4存在=True 大小=22005324

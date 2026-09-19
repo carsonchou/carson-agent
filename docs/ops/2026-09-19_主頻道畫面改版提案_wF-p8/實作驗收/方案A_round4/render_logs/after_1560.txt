@@ -1,0 +1,32 @@
+[_llm_shim] \u26a0\ufe0f ���] OPENROUTER_API_KEY,shim **������** �X�X �� process �� Anthropic �|���q�u���I(�b�ᦳ���N�|�u���p�O)
+[ffmpeg後端] 首幀=大數字衝擊卡 (hook_card)
+[ffmpeg後端] 卡片邊界對齊旁白:6 段錨到真實時間
+[換視角] 第0段 標題主題=(判不出) 白名單=(空→整段留原圖) 原圖=dca 換到=(無→整段留原圖) 缺資料跳過=(無) 標題=個股高報酬的錯覺：中砂 vs 0050 真實對比
+[換視角] 第1段 標題主題=fundamentals 白名單=('fundamentals', 'valuation') 原圖=fundamentals 換到=['valuation'] 缺資料跳過=(無) 標題=中砂基本面體檢：營收、EPS、毛利率與股利資料
+[換視角] 第2段 標題主題=drawdown 白名單=('drawdown', 'trend', 'history') 原圖=drawdown 換到=['trend', 'history'] 缺資料跳過=(無) 標題=個股持有真實體驗：最大回撤與長套牢的代價
+[換視角] 第3段 標題主題=dca 白名單=('dca', 'trend') 原圖=dca 換到=['trend'] 缺資料跳過=(無) 標題=三種買法對決：All-in、定期定額與 0050
+[換視角] 第4段 標題主題=valuation 白名單=('valuation', 'fundamentals') 原圖=valuation 換到=['fundamentals'] 缺資料跳過=(無) 標題=中砂估值現況：本益比相對位置與產業排名
+[換視角] 第5段 標題主題=(判不出) 白名單=(空→整段留原圖) 原圖=dca 換到=(無→整段留原圖) 缺資料跳過=(無) 標題=量化投資的核心：資料與風險管理
+[數字閘門] 1560 看過 60 句 → {'④': 42, '放行': 3, '②': 10, '①': 5};印出 [('numpop_0.png', 7.65), ('numpop_1.png', 25.77), ('numpop_2.png', 162.12), ('numpop_cta.png', 11.59)]
+[ffmpeg後端] 數字爆現:4 個 overlay
+[隔離] make_video <- D:\_sandbox_wFp8_R4\youtube_channel\scripts\make_video.py
+[隔離] render_ffmpeg <- D:\_sandbox_wFp8_R4\youtube_channel\scripts\render_ffmpeg.py
+[隔離] concept_visuals <- D:\_sandbox_wFp8_R4\youtube_channel\scripts\concept_visuals.py
+[隔離] PROJECT_ROOT = D:\_sandbox_wFp8_R4\youtube_channel
+================================================================
+開始組片：L_個股體檢中砂1560誰說個股一定贏大盤中砂近10年定
+  標題     : 個股體檢【中砂 1560】誰說個股一定贏大盤？中砂近10年定期定額賺744.8%，卻只比0050多賺一點點！ | 中砂 1560 定期定額 0050 回測
+  配音長   : 703.2s（6 段）
+  素材來源 : 字卡降級（無 PEXELS_API_KEY）
+  解析度   : 1920x1080 @ 24fps
+  [note] 未設定 PEXELS_API_KEY，全程使用字卡投影片（仍可產出完整測試片）。
+================================================================
+[ffmpeg後端] 編碼器=libx264  切片=258段  字幕=251  BGM=有  總長=710.8s
+[ffmpeg後端] ✅ 完成 after_1560.mp4（24.4 MB）
+================================================================
+[OK] 影片完成（ffmpeg 後端·快）！
+  檔案     : D:\_sandbox_wFp8_R4\after\after_1560.mp4
+  大小     : 24.4 MB
+================================================================
+[渲染] rc=0 耗時=326.6s -> D:\_sandbox_wFp8_R4\after\after_1560.mp4
+[渲染] mp4存在=True 大小=25617536
