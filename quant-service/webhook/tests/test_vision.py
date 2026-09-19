@@ -94,3 +94,8 @@ def test_nested_backticks_inside_fence_content_still_parses():
         "```json\n{\"codes\": [\"2330\"], \"note\": \"a ```nested``` backtick\"}\n```"
     )
     assert _run(content) == ["2330"]
+
+
+def test_orphan_unmatched_brace_before_real_object_still_parses():
+    content = 'note { \n\n{"codes": ["2330"]}'
+    assert _run(content) == ["2330"]
