@@ -1,0 +1,26 @@
+[_llm_shim] \u26a0\ufe0f ���] OPENROUTER_API_KEY,shim **������** �X�X �� process �� Anthropic �|���q�u���I(�b�ᦳ���N�|�u���p�O)
+[ffmpeg後端] 首幀=大數字衝擊卡 (hook_card)
+[ffmpeg後端] 卡片邊界對齊旁白:5 段錨到真實時間
+[數字閘門] 2891 看過 99 句 → {'②': 14, '④': 76, '放行': 3, '①': 6};印出 [('numpop_0.png', 9.5), ('numpop_1.png', 17.76), ('numpop_2.png', 268.68), ('numpop_cta.png', 3.2)]
+[ffmpeg後端] 數字爆現:4 個 overlay
+[隔離] make_video <- D:\_sandbox_wFp8_A\youtube_channel\scripts\make_video.py
+[隔離] render_ffmpeg <- D:\_sandbox_wFp8_A\youtube_channel\scripts\render_ffmpeg.py
+[隔離] concept_visuals <- D:\_sandbox_wFp8_A\youtube_channel\scripts\concept_visuals.py
+[隔離] PROJECT_ROOT = D:\_sandbox_wFp8_A\youtube_channel
+================================================================
+開始組片：L_個股體檢中信金289120年暴賺964但暴跌72你敢
+  標題     : 個股體檢【中信金 2891】20年暴賺964%！但暴跌72%你敢抱嗎？三種買法殘酷對決 | 中信金 20年回測
+  配音長   : 614.5s（5 段）
+  素材來源 : 字卡降級（無 PEXELS_API_KEY）
+  解析度   : 1920x1080 @ 24fps
+  [note] 未設定 PEXELS_API_KEY，全程使用字卡投影片（仍可產出完整測試片）。
+================================================================
+[ffmpeg後端] 編碼器=libx264  切片=229段  字幕=222  BGM=有  總長=622.1s
+[ffmpeg後端] ✅ 完成 L_個股體檢中信金289120年暴賺964但暴跌72你敢.mp4（20.6 MB）
+================================================================
+[OK] 影片完成（ffmpeg 後端·快）！
+  檔案     : D:\_sandbox_wFp8_A\before\L_個股體檢中信金289120年暴賺964但暴跌72你敢.mp4
+  大小     : 20.6 MB
+================================================================
+[渲染] rc=0 耗時=302.0s -> D:/_sandbox_wFp8_A/before/L_個股體檢中信金289120年暴賺964但暴跌72你敢.mp4
+[渲染] mp4存在=True 大小=21599085
