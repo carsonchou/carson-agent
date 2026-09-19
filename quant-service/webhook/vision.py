@@ -261,9 +261,13 @@ def extract_codes(image_bytes: bytes, content_type: str, max_codes: int) -> list
             code, name = str(c.get("code") or "").strip().upper(), str(c.get("name") or "").strip()
         else:
             code, name = str(c or "").strip().upper(), ""
-        if code and _CODE_RE.match(code) and code not in seen:
+        valid = bool(code) and bool(_CODE_RE.match(code))
+        if (valid and code in seen) or (not valid and not name):
+            continue
+        if valid:
             seen.append(code)
-            out.append({"code": code, "name": name})
+        # 代號缺/格式不對但有名稱 → 保留(code 清空),讓 gate_codes 列進「無法辨識」給使用者看到
+        out.append({"code": code if valid else "", "name": name})
         if len(out) >= max_codes:
             break
     return out

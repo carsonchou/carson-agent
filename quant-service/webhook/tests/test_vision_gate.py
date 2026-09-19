@@ -70,6 +70,17 @@ class TestVisionGate(unittest.TestCase):
             codes, unrec = _gate({"code": "009816", "name": TOP50})
         assert codes == [] and len(unrec) == 1
 
+    def test_extract_codes_keeps_name_from_model_json(self):
+        content = '{"codes": [{"code": "009816", "name": "凱基台灣TOP50"}, {"code": "", "name": "某檔"}]}'
+        resp = mock.Mock(status_code=200)
+        resp.json.return_value = {"choices": [{"message": {"content": content}}]}
+        with mock.patch("webhook.vision._key", return_value="fake-key"), \
+                mock.patch("webhook.vision.requests.post", return_value=resp):
+            items = vision.extract_codes(b"x", "image/png", max_codes=5)
+        assert items == [{"code": "009816", "name": TOP50}, {"code": "", "name": "某檔"}]
+        codes, unrec = vision.gate_codes(items)
+        assert codes == ["009816"] and _unrec_names(unrec) == ["某檔"]
+
     def test_route_never_returns_unverified_code(self):
         from fastapi.testclient import TestClient
         from webhook.app import build_app
