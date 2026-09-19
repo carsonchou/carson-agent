@@ -67,7 +67,8 @@ _REPORT_KEYS: list[tuple[str, list[str]]] = [
     ("平台密鑰", ["GUMROAD_SELLER_ID", "GUMROAD_PING_TOKEN", "PORTALY_WEBHOOK_SECRET",
                   "LEMONSQUEEZY_WEBHOOK_SECRET", "WHOP_WEBHOOK_SECRET"]),
     ("交付信 SMTP", ["SMTP_USER", "SMTP_PASS"]),
-    ("下載連結", ["ECOMMERCE_DL_T1", "ECOMMERCE_DL_T2", "ECOMMERCE_DL_C1", "ECOMMERCE_DL_C2"]),
+    ("下載連結", ["ECOMMERCE_DL_T1", "ECOMMERCE_DL_T2", "ECOMMERCE_DL_T3", "ECOMMERCE_DL_T4",
+                  "ECOMMERCE_DL_C1", "ECOMMERCE_DL_C2"]),
 ]
 
 
@@ -97,6 +98,14 @@ SKU_CATALOG: list[dict] = [
     {"sku_id": "T2_single_checkup",  "kind": "one_time",
      "match": ["單檔體檢", "單檔", "single-stock health", "single stock health"],
      "dl_env": "ECOMMERCE_DL_T2"},
+    # T4 必須排在 T3 前面:resolve_sku 是子字串比對,T4 商品名「個股體檢多檔組合(最多50檔)」
+    # 也含 T3 的「多檔組合」,排後面會被 T3 先吃掉。
+    {"sku_id": "T4_multi_checkup_50", "kind": "one_time",
+     "match": ["最多50檔", "50檔", "multi-stock health 50", "up to 50"],
+     "dl_env": "ECOMMERCE_DL_T4"},
+    {"sku_id": "T3_multi_checkup",   "kind": "one_time",
+     "match": ["多檔體檢", "多檔組合", "multi-stock health", "multi stock health"],
+     "dl_env": "ECOMMERCE_DL_T3"},
     {"sku_id": "C1_fullmarket_pack", "kind": "one_time",
      "match": ["全市場回測", "回測數據包", "backtest pack", "full-market backtest"],
      "dl_env": "ECOMMERCE_DL_C1"},

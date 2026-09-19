@@ -88,6 +88,8 @@
 |---|---|---|
 | `ECOMMERCE_DL_T1` | T1 定投模板下載連結 | `webhook/config.py` → `SKU_CATALOG` 的 `dl_env` → `download_url_for()` → `delivery.py` |
 | `ECOMMERCE_DL_T2` | T2 單檔體檢 | 同上 |
+| `ECOMMERCE_DL_T3` | T3 個股體檢多檔組合(最多5檔,NT$100) | 同上 |
+| `ECOMMERCE_DL_T4` | T4 個股體檢多檔組合(最多50檔,NT$500) | 同上 |
 | `ECOMMERCE_DL_C1` | C1 全市場回測包 | 同上 |
 | `ECOMMERCE_DL_C2` | C2 體檢合輯 | 同上 |
 

@@ -58,6 +58,11 @@ ONE_OFF = {
            "ntd": 99, "usd": 5, "langs": ["zh"], "platform_zh": "shopee", "platform_en": "gumroad"},
     "T2": {"name_zh": "個股體檢單檔報告", "name_en": "Single-Stock Health-Check",
            "ntd": 149, "usd": 7, "langs": ["zh"], "platform_zh": "shopee", "platform_en": "gumroad"},
+    "T3": {"name_zh": "個股體檢多檔組合(最多5檔)", "name_en": "Multi-Stock Health-Check Bundle (up to 5)",
+           "ntd": 100, "usd": 4, "langs": ["zh"], "platform_zh": "ecpay", "platform_en": "gumroad"},
+    # T4:09-18 Carson 拍板的 50 檔大量方案,NT$500。只走 ECPay 中文站,USD 價未定案 → None。
+    "T4": {"name_zh": "個股體檢多檔組合(最多50檔)", "name_en": "Multi-Stock Health-Check Bundle (up to 50)",
+           "ntd": 500, "usd": None, "langs": ["zh"], "platform_zh": "ecpay", "platform_en": None},
     "C1": {"name_zh": "台股全市場回測數據包", "name_en": "Taiwan Full-Market Backtest Pack",
            "ntd": 990, "usd": 35, "langs": ["zh", "en"], "platform_zh": "portaly", "platform_en": "gumroad"},
     "C2": {"name_zh": "台股權值股體檢合輯", "name_en": "Taiwan Blue-Chip Health-Check Bundle",
