@@ -225,6 +225,14 @@ def alert(title: str, body: str) -> None:
     _push_and_trace(push, title, body)
 
 
+def _disproven_walls(qm) -> list:
+    """帳本裡被 `_scan()` 判為反證(之後有更高成功花費)而不採用的撞牆日。"""
+    days = qm._load().get("days") or {}
+    ceil_day = qm._scan(days)[3]
+    return sorted(d for d, b in days.items()
+                  if qm._is_wall(b) and d != ceil_day and (ceil_day is None or d > ceil_day))
+
+
 def main() -> int:
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
     try:
@@ -303,6 +311,13 @@ def main() -> int:
     elif base is None:
         verdict = f"基準建立:watch={cur:,}(effective={eff:,}, floor={floor}, ceiling={ceil})"
         changed = False
+    elif cur > base and _disproven_walls(qm):
+        # 🔴 2026-09-20(38efa116 驗收):被反證的牆不再當上限,上移可能只是舊假牆失效,
+        # 那不是提額。反覆出現「撞牆→隔天被反證」= 有帳外消耗(同專案別台機器/臨時腳本)。
+        verdict = (f"ℹ️ 天花板回升 {base:,} → {cur:,} —— 撞牆日 {', '.join(_disproven_walls(qm))} "
+                   f"之後被更高的成功花費反證,**不是提額證據**;若反覆發生,查同 Cloud 專案的帳外消耗"
+                   f"(effective={eff:,}, floor={floor}, ceiling={ceil})")
+        changed = True
     elif cur > base:
         verdict = (f"🎉 天花板上移 {base:,} → {cur:,} —— 依 premises.md 第 3 條,"
                    f"這就是提額核准的證據(effective={eff:,}, floor={floor}, ceiling={ceil})")
