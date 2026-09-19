@@ -36,6 +36,11 @@ FG = (0.82, 0.86, 0.95)
 MUTED = (0.55, 0.60, 0.72)
 RED = (255 / 255, 96 / 255, 96 / 255)
 GREEN = (88 / 255, 220 / 255, 140 / 255)
+# 2026-09-19 方案C 暗金:Carson 反覆嫌成品「太亮/刺眼」(memory carson-prefers-dark-ui),
+# 而飽和亮綠 (88,220,140) 配在 (10,14,26) 的純黑底上,是整張圖亮度最高的東西。
+# 暗金同樣看得清,但亮度與飽和度各退一階;glow 只鋪兩層低 alpha,不做霓虹。
+GOLD = (0.82, 0.64, 0.27)        # 柱頂/主色
+GOLD_DARK = (0.30, 0.22, 0.09)   # 柱底(漸層另一端),幾乎融進底色
 
 
 def _seeded_rng(seed: str) -> np.random.RandomState:
@@ -187,6 +192,84 @@ def _year_ticks(ax, dates, n_max=6):
         _lbl.set_zorder(20)
 
 
+def _y_ticks(ax, suffix=""):
+    """真實 y 刻度 + 細格線。
+
+    render_concept_chart 一開場就 `set_yticks([])`,所以它下一行的
+    `ax.grid(axis="y", ...)` **一條線都畫不出來**(沒有刻度就沒有格線)——改版前那張
+    「只有一條線浮在全黑畫布上」的觀感,根因在這裡,不在顏色。這裡把刻度加回來,格線才生效。
+
+    只給**真資料**圖用:rng 概念示意圖(_compound/_dca/_range…)加上數值刻度,
+    等於替一條亂數線背書成「這是量出來的數字」。"""
+    from matplotlib.ticker import FuncFormatter, MaxNLocator
+    ax.yaxis.set_major_locator(MaxNLocator(nbins=4, prune="both"))
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _p: f"{v:,.0f}{suffix}"))
+    ax.tick_params(axis="y", colors=MUTED, labelsize=15, length=0, pad=2)
+    ax.set_axisbelow(True)
+    ax.grid(axis="y", color=(1, 1, 1, 0.05), lw=0.8)
+    # 🔴 最低的那個刻度會和年份標籤撞在左下角——實測 3714 回撤圖 r=0.625 的「40」壓在「2021」上。
+    # prune="both" 只砍掉「剛好等於視窗邊界」的刻度,這種「靠近但不等於邊界」的它擋不到
+    # (MaxNLocator 會把視窗往外推成整數,於是最低刻度落在邊界內側一點點)。
+    #
+    # 12% 是量出來的,不是估的。年份標籤是**畫在軸內**下緣的(display y 516.5~538.5,
+    # 軸 y0=496.8、高 432px),所以一個 y 刻度標籤(高 22px)落在軸高 2.7%~11.5% 之間就會
+    # 疊到它;而第一個年份標籤置中在 x=0 那一格,會往左伸進 y 刻度那一欄(x 89.4 vs 刻度 88.2~112.4)。
+    # 砍掉下緣 12% 留約 0.5% 餘裕;砍完沒刻度就退回原樣,不會比改版前更差。
+    _lo, _hi = ax.get_ylim()
+    if _hi > _lo:
+        _keep = [t for t in ax.get_yticks() if t >= _lo + (_hi - _lo) * 0.12]
+        if _keep:
+            ax.set_yticks(_keep)
+
+
+def _glow(ax, x, y, color, lw=2.2, zorder=3):
+    """克制的輝光:主線底下再鋪兩層更寬、更淡的同色線。
+
+    不是霓虹(memory carson-prefers-dark-ui:bloom 要克制)——兩層 alpha 都在 0.2 以下,
+    目的只是讓 2px 的細線在手機縮放與 YouTube 壓縮後不會斷成虛線。"""
+    for mul, a in ((3.6, 0.09), (2.0, 0.16)):
+        ax.plot(x, y, color=color, lw=lw * mul, alpha=a, zorder=max(zorder - 1, 0),
+                solid_capstyle="round")
+    ax.plot(x, y, color=color, lw=lw, zorder=zorder)
+
+
+def _grad_bars(ax, xs, vals, width=0.62):
+    """暗金漸層長條(底端暗、頂端金)。
+
+    matplotlib 沒有漸層 bar;標準作法是每根柱畫一張 1×256 的 imshow,再拿柱本身當 clip path。
+    imshow 會順手改動 xlim/ylim,所以前後把軸範圍存回去。"""
+    from matplotlib.colors import LinearSegmentedColormap
+    bars = ax.bar(xs, vals, color="none", width=width, zorder=2)
+    cmap = LinearSegmentedColormap.from_list("gold", [GOLD_DARK, GOLD])
+    grad = np.linspace(0, 1, 256).reshape(-1, 1)
+    xl, yl = ax.get_xlim(), ax.get_ylim()
+    for b in bars:
+        x0, y0 = b.get_xy()
+        w, h = b.get_width(), b.get_height()
+        if h <= 0:
+            continue
+        im = ax.imshow(grad, extent=[x0, x0 + w, y0, y0 + h], origin="lower",
+                       aspect="auto", cmap=cmap, alpha=0.9, zorder=2)
+        im.set_clip_path(b)
+    ax.set_xlim(*xl)
+    ax.set_ylim(*yl)
+    return bars
+
+
+def _box_grad(ax, x0, x1, y0, y1, alpha=0.50):
+    """把一個矩形區間填成暗金漸層(下暗上亮),與 _grad_bars 同一組色。
+
+    imshow 會動到 xlim/ylim,所以前後存回——這張圖的 x 軸視窗是步驟 1 算出來的,
+    被 autoscale 蓋掉就等於把 P0 修法整個還原。"""
+    from matplotlib.colors import LinearSegmentedColormap
+    xl, yl = ax.get_xlim(), ax.get_ylim()
+    cmap = LinearSegmentedColormap.from_list("gold", [GOLD_DARK, GOLD])
+    ax.imshow(np.linspace(0, 1, 256).reshape(-1, 1), extent=[x0, x1, y0, y1],
+              origin="lower", aspect="auto", cmap=cmap, alpha=alpha, zorder=2)
+    ax.set_xlim(*xl)
+    ax.set_ylim(*yl)
+
+
 def classify(text: str) -> Optional[str]:
     """依關鍵字判斷主題；回傳概念 key 或 None。順序＝優先序（越專一越前面）。"""
     t = (text or "").lower()
@@ -313,13 +396,15 @@ def _dca(ax, ctx):
         return None                              # 揭露太少、湊不出兩個扣款日 → 不畫(退卡)
     units = np.cumsum(1.0 / px[first])          # 每期投入 1 單位金額
     avg_cost = np.cumsum(np.ones(len(first))) / units   # 真實平均成本
-    ax.plot(np.arange(len(px)), px, color=FG, lw=2.0, zorder=3)
+    _glow(ax, np.arange(len(px)), px, FG, lw=2.0)
     ax.scatter(first, px[first], s=18, color=GREEN, edgecolors="none", zorder=4)
     ax.step(first, avg_cost, where="post", color="#ffd23f", lw=2.2, zorder=5)
     ax.set_xlim(0, len(px) - 1)
     # 定投圖同樣要對數(見 _maybe_log_y):線性座標下橘色平均成本線會整條貼在底部,
     # 「成本被拉高/壓低」這件事——也就是這張圖唯一要講的事——完全看不出來。
     _note = _maybe_log_y(ax, px)
+    if not _note:
+        _y_ticks(ax, "元")     # 這張圖在講「平均成本被拉到多少」,沒有價格刻度就只剩線的形狀
     _year_ticks(ax, dates)
     ret = (units[-1] * px[-1]) / len(first) - 1.0
     return (f"{ticker} 每月定投．實際平均成本 {avg_cost[-1]:.1f} 元(總報酬 {ret*100:+.0f}%){_note}",
@@ -357,7 +442,7 @@ def _drawdown(ax, ctx):
     dd = eq / run_max - 1.0
     trough = int(np.argmin(dd))
     peak = int(np.argmax(eq[: trough + 1])) if trough > 0 else 0
-    ax.plot(x, eq, color=FG, lw=2.0, zorder=3)
+    _glow(ax, x, eq, FG, lw=2.0)
     ax.fill_between(x[peak:trough + 1], eq[peak:trough + 1], run_max[peak:trough + 1],
                     color=RED, alpha=0.28, zorder=2)
     ax.scatter([peak, trough], [eq[peak], eq[trough]], s=52, color=RED,
@@ -383,6 +468,8 @@ def _drawdown(ax, ctx):
     ax.set_xlim(0, len(eq) - 1)
     # 對數座標要在畫完之後設(fill_between 已經吃過線性座標的數值,設 yscale 只影響呈現)。
     note = _maybe_log_y(ax, eq)
+    if not note:
+        _y_ticks(ax)
     _year_ticks(ax, dates)
     return f"{ticker} 實際最大回撤 {dd[trough]*100:.1f}%({d0} → {d1}){note}", None
 
@@ -483,11 +570,13 @@ def _trend(ax, ctx):
         # 但「不知道該挑哪一段」不等於「什麼都不能畫」:改成畫**完整的真實走勢**——不挑區間、
         # 不做任何方向宣稱,就是把這檔的真實歷史攤開。誠信上比挑一段更保守(挑區間才是有立場的),
         # 畫面上則從空白變成有內容。原本的「不猜方向」精神保留:只是把它從「不畫」改成「不挑」。
-        ax.plot(np.arange(len(px)), px, color=FG, lw=2.2, zorder=3)
+        _glow(ax, np.arange(len(px)), px, FG, lw=2.2)
         ax.fill_between(np.arange(len(px)), float(np.min(px)) * 0.98, px,
                         color=FG, alpha=0.07, zorder=1)
         ax.set_xlim(0, len(px) - 1)
         _note = _maybe_log_y(ax, px)
+        if not _note:
+            _y_ticks(ax)
         _year_ticks(ax, dates)
         _r = px[-1] / px[0] - 1.0
         _d0 = pd.Timestamp(dates[0]).date()
@@ -496,11 +585,13 @@ def _trend(ax, ctx):
     cand = rets > 0 if want_up else rets < 0
     if not cand.any():
         # 同上:真資料裡找不到符合旁白方向的區間 → 不強行挑,改畫完整真實走勢(不做方向宣稱)
-        ax.plot(np.arange(len(px)), px, color=FG, lw=2.2, zorder=3)
+        _glow(ax, np.arange(len(px)), px, FG, lw=2.2)
         ax.fill_between(np.arange(len(px)), float(np.min(px)) * 0.98, px,
                         color=FG, alpha=0.07, zorder=1)
         ax.set_xlim(0, len(px) - 1)
         _note = _maybe_log_y(ax, px)
+        if not _note:
+            _y_ticks(ax)
         _year_ticks(ax, dates)
         _r = px[-1] / px[0] - 1.0
         return (f"{ticker} 實際走勢 {pd.Timestamp(dates[0]).date()} → "
@@ -508,9 +599,10 @@ def _trend(ax, ctx):
     idx = int(starts[np.argmax(rets)] if want_up else starts[np.argmin(rets)])
     seg = px[idx:idx + win]
     col = GREEN if want_up else RED
-    ax.plot(np.arange(len(seg)), seg, color=col, lw=2.6, zorder=3)
+    _glow(ax, np.arange(len(seg)), seg, col, lw=2.6)
     ax.fill_between(np.arange(len(seg)), seg.min() * 0.98, seg, color=col, alpha=0.10, zorder=1)
     ax.set_xlim(0, len(seg) - 1)
+    _y_ticks(ax)
     _year_ticks(ax, dates[idx:idx + win], n_max=3)
     r = seg[-1] / seg[0] - 1.0
     d0 = pd.Timestamp(dates[idx]).date()
@@ -542,6 +634,7 @@ def _candles(ax, ctx):
         ax.add_patch(Rectangle((i - 0.32, min(op, cl)), 0.64, max(abs(cl - op), 0.01),
                                color=col, zorder=3))
     ax.set_xlim(-1, len(bars))
+    _y_ticks(ax, "元")     # 真實價格圖沒有價格刻度 = 只剩 K 棒的形狀(同 _dca 的缺陷)
     d0 = pd.Timestamp(dts[0]).date()
     _last = len(dts) - 1 if ctx.reveal >= 1.0 else min(len(dts) - 1, kb * grp - 1)
     d1 = pd.Timestamp(dts[_last]).date()
@@ -603,10 +696,12 @@ def _history(ax, ctx):
     if len(px) < 60:
         return None
     x = np.arange(len(px))
-    ax.plot(x, px, color=FG, lw=2.2, zorder=3)
+    _glow(ax, x, px, FG, lw=2.2)
     ax.fill_between(x, float(np.min(px)) * 0.98, px, color=FG, alpha=0.07, zorder=1)
     ax.set_xlim(0, len(px) - 1)
     note = _maybe_log_y(ax, px)
+    if not note:                 # 對數軸自己已經配好刻度與格式,不要蓋掉
+        _y_ticks(ax)
     _year_ticks(ax, dates)
     r = px[-1] / px[0] - 1.0
     d0, d1 = pd.Timestamp(dates[0]).date(), pd.Timestamp(dates[-1]).date()
@@ -630,9 +725,9 @@ def _fundamentals(ax, ctx):
     if len(rs) >= 2:
         yrs = [r["year"] for r in rs]
         vals = [r["revenue"] / 1e8 for r in rs]          # 元 → 億元
-        ax.bar(yrs, vals, color=GREEN, alpha=0.55, width=0.62, zorder=2)
+        _grad_bars(ax, yrs, vals)
         ax.annotate(f"{vals[-1]:,.0f}億", xy=(yrs[-1], vals[-1]), xytext=(0, 10),
-                    textcoords="offset points", ha="center", va="bottom", color=GREEN,
+                    textcoords="offset points", ha="center", va="bottom", color=GOLD,
                     fontsize=30, fontweight="bold",
                     path_effects=[_pe.withStroke(linewidth=4, foreground=BG)], zorder=6)
         # 刻度最多 6 個。圖說畫在軸下方僅約 43px 處(那個位置是為了避開字幕框算出來的,
@@ -642,7 +737,7 @@ def _fundamentals(ax, ctx):
         ax.set_xticks(picks)
         ax.set_xticklabels([str(y) for y in picks])
         ax.tick_params(axis="x", colors=MUTED, labelsize=16, length=0)
-        ax.tick_params(axis="y", colors=(1, 1, 1, 0.0))
+        _y_ticks(ax, "億")     # 原本是把 y 刻度塗成全透明,等於整條軸沒有刻度也沒有格線
         cap.append(f"年度營收 {yrs[0]}→{yrs[-1]}")
     if len(es) >= 2:
         ax2 = ax.twinx()
@@ -667,7 +762,7 @@ def _fundamentals(ax, ctx):
         cap.append(f"年度EPS {ey[0]}→{ey[-1]}")
     # 圖說要短。它和年份刻度只差 ~43px,長句子橫向鋪開就會蓋掉刻度(實測整行壓在 2019~2021 上)。
     span = f"{rs[0]['year']}→{rs[-1]['year']}" if len(rs) >= 2 else f"{es[0]['year']}→{es[-1]['year']}"
-    return f"{code} 真實財報 {span}：綠柱=營收／紅線=EPS", None
+    return f"{code} 真實財報 {span}：金柱=營收／紅線=EPS", None
 
 
 def _valuation(ax, ctx):
@@ -701,11 +796,15 @@ def _valuation(ax, ctx):
         lo, hi = min(lo, cur - pad * 0.25), max(hi, cur + pad * 0.25)
     ax.set_xlim(lo, hi)
     ax.set_ylim(0, 1)
-    ax.axhspan(0.36, 0.64, xmin=(p25 - lo) / (hi - lo), xmax=(p75 - lo) / (hi - lo),
-               color=FG, alpha=0.16, zorder=2)
-    ax.plot([p50, p50], [0.30, 0.70], color=FG, lw=2.4, zorder=4)
+    # 步驟 1 把箱型從 1.65% 畫布救回 ≥56%,但它還是「白色半透明色塊」,和其他圖種重皮後的
+    # 暗金主色不同調 —— 而這張圖在成片裡停留 155 秒,是停最久的一張,不該是唯一沒重皮的。
+    # 箱型改暗金漸層(和 _fundamentals 的金柱同一支 cmap),中位數線換克制輝光。
+    # ⚠️「目前值」標記刻意**維持** RED/GREEN:那個顏色帶語意(貴/便宜),染成金色等於把
+    # 這張圖唯一的判讀訊息抹掉。重皮只動沒有語意的元件。
+    _box_grad(ax, p25, p75, 0.36, 0.64)
+    _glow(ax, [p50, p50], [0.30, 0.70], GOLD, lw=2.4, zorder=4)
     for v, lab in ((p25, f"P25 {p25:.0f}"), (p50, f"中位數 {p50:.0f}"), (p75, f"P75 {p75:.0f}")):
-        ax.annotate(lab, xy=(v, 0.24), ha="center", va="top", color=FG, fontsize=16, zorder=5)
+        ax.annotate(lab, xy=(v, 0.24), ha="center", va="top", color=GOLD, fontsize=16, zorder=5)
     # 漸進揭露:區間先出現,目前值最後才落點(reveal=1.0 時與舊行為一致)。
     if ctx.reveal >= 0.55:
         colr = RED if rank >= 50 else GREEN
@@ -782,7 +881,7 @@ def _crosssec(ax, ctx):
     cnt, _e = _np.histogram(arr, bins=edges)
     centers = (edges[:-1] + edges[1:]) / 2.0
     width = (edges[1] - edges[0]) * 0.82
-    colors = [RED if c >= line else FG for c in centers]
+    colors = [RED if c >= line else GOLD for c in centers]
     ax.bar(centers, cnt, width=width, color=colors, alpha=0.85,
            edgecolor="white", linewidth=0.6, zorder=3)
     ax.axvline(line, color=RED, lw=1.6, ls="--", alpha=0.9, zorder=4)
@@ -804,7 +903,7 @@ def _crosssec(ax, ctx):
     ax.set_xticklabels([(f"{t:.0f}%" if kind == "dd" else f"{t:.0f}年") for t in _ticks],
                        fontsize=11, color=FG)
     ax.tick_params(axis="x", colors=FG, length=4, pad=3)
-    ax.tick_params(axis="y", left=False, labelleft=False)
+    _y_ticks(ax, "檔")   # 分佈圖沒有 y 刻度 = 看不出「這根有幾檔」,只剩相對高度
     return cap, None
 
 

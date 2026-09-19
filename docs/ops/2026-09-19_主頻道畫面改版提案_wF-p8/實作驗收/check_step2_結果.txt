@@ -1,0 +1,35 @@
+### 陰性對照(正常模式:重皮後 vs 改版前基準)
+[check] concept_visuals <- C:\Users/User/AppData/Local/Temp/claude/D--carson-agent/818543e1-d51c-4902-b6ed-bcbcf3d20af1/scratchpad/cvis_s2b\concept_visuals.py
+[check] 母體:25 檔 × 6 圖種 × 3 揭露階段 = 450 張
+
+實際畫出來的張數:441
+
+[A] 不新增文字重疊 : PASS  (改版前 42 組 → 現在 42 組;新增 0、消失 0)
+[B] 文字不出血     : PASS  (0 個出界)
+
+全部通過
+
+### 陽性對照(拿掉下緣刻度過濾,檢查必須要叫)
+[check] concept_visuals <- C:\Users/User/AppData/Local/Temp/claude/D--carson-agent/818543e1-d51c-4902-b6ed-bcbcf3d20af1/scratchpad/cvis_s2b\concept_visuals.py
+[check] 陽性對照:已還原成「不過濾下緣刻度」的版本
+[check] 母體:25 檔 × 6 圖種 × 3 揭露階段 = 450 張
+
+實際畫出來的張數:441
+
+[A] 不新增文字重疊 : FAIL  (改版前 42 組 → 現在 79 組;新增 37、消失 0)
+      + 00878  history r0.35  2020  9
+      + 00878  history r0.625  2020  9
+      + 1605  dca r0.35  2000  3元
+      + 1605  dca r0.625  2000  3元
+      + 1605  drawdown r0.35  2000  3
+      + 1605  drawdown r0.625  2000  3
+      + 1605  history r0.35  2000  3
+      + 1605  history r0.625  2000  3
+      + 2610  dca r0.35  2000  5元
+      + 2610  dca r0.625  2000  5元
+      + 2610  drawdown r0.35  2000  5
+      + 2610  drawdown r0.625  2000  5
+      ...另外 25 組
+[B] 文字不出血     : PASS  (0 個出界)
+
+陽性對照期望:[A] 要 FAIL。實際: FAIL ✓ 檢查抓得到

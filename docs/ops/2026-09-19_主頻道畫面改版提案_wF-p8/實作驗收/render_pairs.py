@@ -51,6 +51,17 @@ JOBS = [
     ("dd_3714_r06", "3714", "drawdown", 0.625, "富采 3714 期間最大回撤曾高達多少"),
     ("hist_2330_r10", "2330", "history", 1.00, "台積電 2330 完整真實走勢"),
     ("trend_2610_r10", "2610", "trend", 1.00, "華航 2610 這一段一路往上漲"),
+    # dca 是本片第 4 段實際用到的圖種(真資料)。步驟 1 沒列到它(改的是 _valuation,
+    # 波及範圍用其他 4 種圖種已經證完);步驟 2 改的是全部真資料 drawer,所以補進來。
+    ("dca_3714_r10", "3714", "dca", 1.00, "富采 3714 每月定期定額的實際平均成本"),
+    ("dca_2330_r10", "2330", "dca", 1.00, "台積電 2330 每月定期定額的實際平均成本"),
+    # candle / crosssec 是另外兩個「真資料但第一版重皮漏掉」的圖種(和 dca 同一批漏網)。
+    # 補進來才證得出重皮覆蓋到全部真資料 drawer,而不是只覆蓋到我剛好想起來的那幾個。
+    ("candle_3714_r10", "3714", "candle", 1.00, "富采 3714 近一年的實際 K 線"),
+    ("candle_2330_r10", "2330", "candle", 1.00, "台積電 2330 近一年的實際 K 線"),
+    # crosssec 不看個股(畫的是全市場分佈),但 ctx.real 仍要有值才進得去,故仍給代號。
+    ("xsec_dd_r10", "2330", "crosssec", 1.00, "全市場最大回撤分佈：多少檔曾經腰斬"),
+    ("xsec_uw_r10", "2330", "crosssec", 1.00, "全市場最長套牢期分佈"),
 ]
 
 
@@ -71,7 +82,7 @@ def render_all(out: Path) -> list[str]:
 def make_sheets(before: Path, after: Path, names: list[str]) -> None:
     """before|after 上下併排(1920x2160),加左上角標籤。"""
     from PIL import Image, ImageDraw
-    sheets = after.parent / "對照"
+    sheets = after.parent / after.name.replace("_after", "_對照")
     sheets.mkdir(parents=True, exist_ok=True)
     for n in names:
         bp, ap = before / f"{n}.png", after / f"{n}.png"
