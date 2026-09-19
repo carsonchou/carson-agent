@@ -25,7 +25,7 @@ HERE = Path(__file__).resolve().parent
 BASE = HERE.parents[1]      # youtube_channel/ —— 子套件用相對路徑讀 STUDIO/,cwd 必須在這
 # 每套件已知的 PASS 數;跑出來少於這個數 = 有測試沒被執行到,判 FAIL。
 # 用「小於」而不是「等於」,是為了加測試時不必回來改這裡。
-MIN_PASS = {"anomaly": 6, "ledger_broken": 7, "round3": 11, "round4": 15, "round5": 26}
+MIN_PASS = {"anomaly": 6, "ledger_broken": 7, "round3": 11, "round4": 15, "round5": 26, "disproven_wall": 6}
 SUITES = list(MIN_PASS)
 
 
