@@ -2669,19 +2669,27 @@ def _wrap_to_width(draw, text: str, font, max_w: int) -> list:
     2026-08-12 抽檢抓到:純逐字折行會把英文單字從中間切開——結尾卡的
     「量化阿森｜Carson Quant」被折成「…Carson Qua / nt」。改成英數詞
     (Carson/Quant/0050/ETF/28.5%)當**不可分割 token**,中文仍逐字。"""
+    def _w(s):
+        try:
+            return draw.textlength(s, font=font)
+        except Exception:  # noqa: BLE001
+            return len(s) * 12
+
     lines: list = []
     cur = ""
     for tk in re.findall(r"[0-9A-Za-z%.]+|.", text):
-        test = cur + tk
-        try:
-            w = draw.textlength(test, font=font)
-        except Exception:  # noqa: BLE001
-            w = len(test) * 12
-        if w <= max_w or not cur:
-            cur = test
-        else:
-            lines.append(cur)
-            cur = tk
+        # 🔴 2026-09-19:英數 token 當不可分割是對的,但它自己可能就比一整行還寬
+        # (一長串沒有空格的英數)。舊版靠 `not cur` 硬把它收進來,那一行於是超過 max_w
+        # ——而呼叫端一律 x=(width-w)//2 置中,w>width 時 x 變負數,標題左右兩端被畫到
+        # 畫面外。折行函式的契約(每行不超過 max_w)在這條路徑上是破的。
+        # 修法:token 自己就超寬時退回逐字切,契約才對所有輸入成立。
+        for piece in ([tk] if _w(tk) <= max_w else list(tk)):
+            test = cur + piece
+            if _w(test) <= max_w or not cur:
+                cur = test
+            else:
+                lines.append(cur)
+                cur = piece
     if cur:
         lines.append(cur)
     return lines or [text]
