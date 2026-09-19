@@ -9,5 +9,6 @@ jinja2>=3.1.4
 yfinance>=0.2.40
 pandas>=2.0.0
 numpy>=1.26.0
-twstock>=1.3.1  # 數據獵手全市場(--full)取上市櫃清單+產業別
+twstock==1.5.1; python_version>="3.10"  # 數據獵手全市場(--full)取上市櫃清單+產業別；1.5.x 需 Python>=3.10(Render 正式機版本)
+twstock==1.4.6; python_version<"3.10"  # 本機主環境仍是 Python 3.9,1.5.1 裝不上;經查證 1.4.6/1.5.1 的 codes 表(代號→名稱)逐檔比對完全相同,釘死兩邊各自能裝的最新版即可,非升級本機 Python 不能再往上追
 requests>=2.31.0  # 個股體檢庫存截圖辨識(vision.py)呼叫 OpenRouter,原本靠 yfinance 轉引間接裝到,明講避免哪天上游拿掉就靜默斷
