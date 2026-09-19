@@ -160,7 +160,7 @@
     "T4_multi_checkup_50": { label: "50檔・NT$500", max: 50, price: 500 }
   };
   var DEFAULT_SKU = "T3_multi_checkup";
-  var state = { skuId: DEFAULT_SKU, codes: [""], results: null, token: null, checkoutUrl: null, checkoutConfigured: false, note: "" };
+  var state = { skuId: DEFAULT_SKU, codes: [""], results: null, token: null, checkoutUrl: null, checkoutConfigured: false, note: "", unrecognized: [] };
   var app = document.getElementById("app");
 
   function curSku(){ return SKUS[state.skuId]; }
@@ -220,6 +220,10 @@
 
     var errBox = el("div");
     panel.appendChild(errBox);
+    if(state.unrecognized.length){
+      errBox.appendChild(el("div", "err-note", "以下 " + state.unrecognized.length + " 檔無法辨識,請手動確認後自行輸入代號:" +
+        state.unrecognized.map(function(u){ return u.name || "(未印名稱)"; }).join("、")));
+    }
 
     panel.appendChild(el("div", "upload-divider", "或"));
     var fileInput = document.createElement("input");
@@ -313,6 +317,7 @@
       .then(function(data){
         var codes = (data.codes || []).slice(0, curSku().max);
         state.codes = codes.length ? codes : [""];
+        state.unrecognized = data.unrecognized || [];
         render();
       })
       .catch(function(e){

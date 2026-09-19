@@ -48,6 +48,7 @@ import base64
 import json
 import os
 import re
+import unicodedata
 
 import requests
 
@@ -64,9 +65,10 @@ _PROMPT = (
     "「凱基台灣TOP50」名稱裡有「50」,但它跟代號 0050(元大台灣50)是完全不同的兩檔基金,"
     "正確代號是 009816。名稱推算一定要對到「發行商+完整主題」都吻合的那一檔,只要有任何"
     "混淆可能就跳過不猜。\n"
-    "只輸出 JSON 物件,格式:{\"codes\": [\"2330\", \"2603\"]}。\n"
+    "只輸出 JSON 物件,格式:{\"codes\": [{\"code\": \"2330\", \"name\": \"台積電\"}]}。\n"
+    "name 一律逐字照抄畫面上印的股票/基金名稱(不要改寫、不要補全);畫面沒印名稱就填空字串。\n"
     "規則:\n"
-    "- 只列股票代號,不要公司名稱、不要其他文字。\n"
+    "- 每檔只給 code 與 name 兩個欄位,不要其他文字。\n"
     "- 不管是直接看到還是靠名稱推算出來的代號,只要不確定就不要瞎猜,寧可漏掉不要編造。\n"
     "- 依畫面由上到下的順序列出,去除重複。\n"
     "- 若完全看不出任何股票代號,回傳 {\"codes\": []}。\n"
@@ -153,8 +155,58 @@ def _key() -> str:
     return os.environ.get("OPENROUTER_API_KEY", "").strip()
 
 
-def extract_codes(image_bytes: bytes, content_type: str, max_codes: int) -> list[str]:
-    """丟一張庫存截圖進去,回傳去重、格式驗證過的股票代號清單(至多 max_codes 檔)。
+def _norm_name(s: str) -> str:
+    """名稱正規化:NFKC(全形英數→半形)、去所有空白、英文轉大寫。只做這三件事,
+    不做模糊比對——「差不多」的名稱就是對不上,交給使用者手動確認。"""
+    return "".join(unicodedata.normalize("NFKC", s or "").split()).upper()
+
+
+def _official_names() -> dict | None:
+    """代號→官方名稱,來源是 twstock 套件內附的上市/上櫃清單(data_hunter/query.py 同一來源,
+    requirements.txt 已列)。不打網路、不呼叫模型。未安裝 → None,閘門全部 fail-closed。
+
+    ponytail: 清單是套件內附快照,之後才掛牌的新 ETF 會被判「無法辨識」(fail-closed,
+    使用者手動輸入即可);要跟上新掛牌就升級 twstock 或改讀它的 codes.fetch 更新檔。
+    """
+    try:
+        import twstock
+    except Exception:  # noqa: BLE001
+        return None
+    return {code: info.name for code, info in twstock.codes.items()
+            if info.market in ("上市", "上櫃")}
+
+
+UNRECOGNIZED_NOTE = "無法辨識,請使用者手動確認"
+
+
+def gate_codes(items: list) -> tuple[list[str], list[dict]]:
+    """確定性查表閘門:模型給的每一檔都要「代號存在於上市櫃清單」且「官方名稱與截圖上
+    的名稱正規化後完全一致」才放行。其餘一律進 unrecognized(只回名稱,不回猜的代號),
+    絕不讓猜的代號流進分析。不呼叫任何模型/付費 API。
+
+    回傳 (放行的代號清單(去重保序), [{"name", "note"}...])。
+    """
+    table = _official_names() or {}
+    codes: list[str] = []
+    unrecognized: list[dict] = []
+    for it in items:
+        if isinstance(it, dict):
+            code = str(it.get("code") or "").strip().upper()
+            name = str(it.get("name") or "").strip()
+        else:  # 舊格式純代號字串:沒有名稱可核對
+            code, name = str(it or "").strip().upper(), ""
+        official = table.get(code)
+        if name and official and _norm_name(official) == _norm_name(name):
+            if code not in codes:
+                codes.append(code)
+        else:
+            unrecognized.append({"name": name, "note": UNRECOGNIZED_NOTE})
+    return codes, unrecognized
+
+
+def extract_codes(image_bytes: bytes, content_type: str, max_codes: int) -> list[dict]:
+    """丟一張庫存截圖進去,回傳 [{"code", "name"}...](去重、代號格式驗證過,至多 max_codes 檔)。
+    這裡只是「模型說了什麼」,還沒過閘門——呼叫端一定要再經 gate_codes() 才能用。
 
     空清單是合法結果(模型判斷「圖裡沒有可辨識的代號」),與拋 VisionError(服務本身
     失敗)要分得開——呼叫端據此決定要顯示「請改手動輸入」還是「重試」。
@@ -203,10 +255,15 @@ def extract_codes(image_bytes: bytes, content_type: str, max_codes: int) -> list
         raise VisionError(f"辨識結果格式不正確,無法解析:{exc}") from exc
 
     seen: list[str] = []
+    out: list[dict] = []
     for c in raw_codes:
-        code = str(c or "").strip().upper()
+        if isinstance(c, dict):
+            code, name = str(c.get("code") or "").strip().upper(), str(c.get("name") or "").strip()
+        else:
+            code, name = str(c or "").strip().upper(), ""
         if code and _CODE_RE.match(code) and code not in seen:
             seen.append(code)
-        if len(seen) >= max_codes:
+            out.append({"code": code, "name": name})
+        if len(out) >= max_codes:
             break
-    return seen
+    return out

@@ -304,12 +304,14 @@ async def extract_codes(file: UploadFile = File(...), max_codes: int = Form(MAX_
         raise HTTPException(422, "圖片太大(上限 8MB)")
     cap = max(1, min(int(max_codes), MAX_STOCKS_BULK))
     try:
-        codes = vision.extract_codes(data, file.content_type or "", cap)
+        items = vision.extract_codes(data, file.content_type or "", cap)
     except vision.VisionError as exc:
         raise HTTPException(502, str(exc)) from exc
-    if not codes:
+    if not items:
         raise HTTPException(422, "沒有從圖片中辨識出股票代號,請確認截圖清楚或改用手動輸入。")
-    return {"codes": codes}
+    # 模型猜的代號一律過確定性查表閘門;對不上的只回名稱、不回代號,不會被填進分析欄位。
+    codes, unrecognized = vision.gate_codes(items)
+    return {"codes": codes, "unrecognized": unrecognized}
 
 
 _NOT_LISTED_NOTE = "付款連結尚未上架,請稍後再試或聯絡客服。"

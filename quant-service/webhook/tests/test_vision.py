@@ -21,7 +21,7 @@ def _fake_response(content: str):
 def _run(content: str) -> list[str]:
     with mock.patch("webhook.vision.os.environ.get", return_value="fake-key"):
         with mock.patch("webhook.vision.requests.post", return_value=_fake_response(content)):
-            return vision.extract_codes(b"fake-bytes", "image/png", max_codes=5)
+            return [it["code"] for it in vision.extract_codes(b"fake-bytes", "image/png", max_codes=5)]
 
 
 def test_prose_before_fence_still_parses():
