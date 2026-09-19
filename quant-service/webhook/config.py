@@ -69,6 +69,9 @@ _REPORT_KEYS: list[tuple[str, list[str]]] = [
     ("交付信 SMTP", ["SMTP_USER", "SMTP_PASS"]),
     ("下載連結", ["ECOMMERCE_DL_T1", "ECOMMERCE_DL_T2", "ECOMMERCE_DL_T3", "ECOMMERCE_DL_T4",
                   "ECOMMERCE_DL_C1", "ECOMMERCE_DL_C2"]),
+    ("LINE Pay(多檔體檢·09-16 已改用 ECPay,本組密鑰暫不使用)",
+     ["LINE_PAY_CHANNEL_ID", "LINE_PAY_CHANNEL_SECRET"]),
+    ("ECPay 綠界(多檔體檢)", ["ECPAY_MERCHANT_ID", "ECPAY_HASH_KEY", "ECPAY_HASH_IV", "PUBLIC_BASE_URL"]),
 ]
 
 
@@ -199,18 +202,34 @@ class Settings:
     sales_ledger: Path = field(default_factory=lambda: YT_STUDIO / "ecommerce_sales.json")
     customers_book: Path = field(default_factory=lambda: YT_STUDIO / "ecommerce_customers.json")
     subscribers_book: Path = field(default_factory=lambda: YT_STUDIO / "ecommerce_subscribers.json")
+    stock_checkup_orders: Path = field(
+        default_factory=lambda: YT_STUDIO / "ecommerce_stock_checkup_orders.json")
     # 密鑰（未設 → 該平台 fail-closed 503）
     gumroad_seller_id: str = ""
     gumroad_ping_token: str = ""
     portaly_secret: str = ""
     lemonsqueezy_secret: str = ""
     whop_secret: str = ""
+    # LINE Pay（多檔體檢 T3 舊方案）——09-16 Carson 改用 ECPay（LINE Pay 個人申請卡在
+    # 「Online API」產品門檻未釐清），本欄位與 linepay.py 保留但**不再被 stock_checkup.py
+    # 引用**，留作日後若要切回的備案，不刪掉已測過的程式碼。
+    linepay_channel_id: str = ""
+    linepay_channel_secret: str = ""
+    linepay_env: str = "sandbox"               # "production" 才打正式環境，預設不小心也不會動真錢
+    # ECPay 綠界（多檔體檢 T3 現行方案）——inbound 背景通知簽章驗證，見 ecpay.py 開頭說明。
+    # 三者缺一 → build_checkout_params 直接 fail-closed（不產生付款表單）。
+    ecpay_merchant_id: str = ""
+    ecpay_hash_key: str = ""
+    ecpay_hash_iv: str = ""
+    ecpay_env: str = "test"                    # "production" 才打正式環境，預設不小心也不會動真錢
+    public_base_url: str = ""                  # 組 ReturnURL/OrderResultURL 要的對外可達網址（cloudflared/ngrok）
     # 通知
     ntfy_topic: str = "carsonquant-hc-9k3x7m2q"
-    # 注入點（測試把這兩個換成假的，就不會真記帳/真寄信）
+    # 注入點（測試把這幾個換成假的，就不會真記帳/真寄信/真打 LINE Pay）
     revenue_adder: Optional[Callable] = None   # 預設 None → revenue.py lazy import finance_dept
     email_sender: Optional[Callable] = None    # 預設 None → delivery.py 用 smtplib
     ntfy_poster: Optional[Callable] = None     # 預設 None → delivery.py 用 httpx；測試注入假的不打外網
+    linepay_http_post: Optional[Callable] = None  # 預設 None → linepay.py 用 httpx；測試注入假的不打外網
     dry_run: bool = True                       # 預設不真寄信（延續 placeholder/dry_run 紀律）
 
     @classmethod
@@ -221,6 +240,14 @@ class Settings:
             portaly_secret=os.getenv("PORTALY_WEBHOOK_SECRET", "").strip(),
             lemonsqueezy_secret=os.getenv("LEMONSQUEEZY_WEBHOOK_SECRET", "").strip(),
             whop_secret=os.getenv("WHOP_WEBHOOK_SECRET", "").strip(),
+            linepay_channel_id=os.getenv("LINE_PAY_CHANNEL_ID", "").strip(),
+            linepay_channel_secret=os.getenv("LINE_PAY_CHANNEL_SECRET", "").strip(),
+            linepay_env=os.getenv("LINE_PAY_ENV", "sandbox").strip() or "sandbox",
+            ecpay_merchant_id=os.getenv("ECPAY_MERCHANT_ID", "").strip(),
+            ecpay_hash_key=os.getenv("ECPAY_HASH_KEY", "").strip(),
+            ecpay_hash_iv=os.getenv("ECPAY_HASH_IV", "").strip(),
+            ecpay_env=os.getenv("ECPAY_ENV", "test").strip() or "test",
+            public_base_url=os.getenv("PUBLIC_BASE_URL", "").strip(),
             ntfy_topic=os.getenv("NTFY_TOPIC", "carsonquant-hc-9k3x7m2q"),
             # 真實發送要 SMTP_USER/PASS 齊備才關 dry_run（缺憑證強制 dry_run，不誤寄）
             dry_run=not (os.getenv("SMTP_USER") and os.getenv("SMTP_PASS")),
