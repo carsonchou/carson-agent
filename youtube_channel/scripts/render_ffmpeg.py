@@ -1414,12 +1414,12 @@ def render(slug_paths, branding, *, width, height, fps, no_subtitles=False) -> b
                       f"[voice][bgm]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[mix];[mix]loudnorm=I=-14:TP=-2:LRA=11[a]")
         else:
             filt_a = f"[1:a]{af}[a]"
-        # ③d 數字爆現 overlay(2026-08-12 v2 原型):RENDER_NUM_POP=1 才開,預設完全關
-        # (cmd 與舊版逐字節相同)。長片限定;素材=卡片 sidecar 的真實數字(誠信管線)。
-        # 動畫=滑入 24px+淡入 0.28s+停 1.5s+淡出;任何失敗退回無 overlay(fail-open)。
+        # ③d 數字爆現 overlay:RENDER_NUM_POP=1 才開(預設開,opt-out RENDER_NUM_POP=0)。
+        # 長片限定;動畫=滑入 24px+淡入 0.28s+停 1.5s+淡出。
+        # 2026-09-19 起素材改成**旁白當下唸出來的數字**,並由 narration_number_gate
+        # 逐句 fail-closed:查不到事實庫、對不上同幀圖說、同段多個數字 → 那個數字就不印,
+        # 絕不退而求其次印另一個(擋下的理由會印在 [數字閘門] 那行渲染記錄裡)。
         pop_specs = []
-        # 2026-08-12 Carson授權自行決策→預設開(opt-out:RENDER_NUM_POP=0 可關)。
-        # 上線前已過:樣張四方一致(pop=圖=圖說=旁白)、fail-open、每週抽檢兜底。
         if (os.environ.get("RENDER_NUM_POP", "1") != "0" and width > height
                 and pop_ctx):
             try:
